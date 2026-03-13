@@ -1,0 +1,75 @@
+{
+  "name": "@muggleai/mcp",
+  "version": "1.0.0",
+  "description": "Unified MCP server for Muggle AI - Cloud QA and Local Testing tools",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "muggle-mcp": "bin/muggle-mcp.js"
+  },
+  "files": [
+    "dist",
+    "bin/muggle-mcp.js",
+    "scripts/postinstall.mjs"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist",
+    "build:release": "npm run build",
+    "postinstall": "node scripts/postinstall.mjs",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "muggleConfig": {
+    "electronAppVersion": "1.0.0",
+    "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "axios": "^1.7.9",
+    "commander": "^12.0.0",
+    "open": "^10.0.0",
+    "ulid": "^2.3.0",
+    "uuid": "^10.0.0",
+    "winston": "^3.17.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "eslint": "^9.28.0",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "muggle-ai",
+    "qa",
+    "testing",
+    "automation",
+    "localhost"
+  ],
+  "author": "Muggle AI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/multiplex-ai/muggle-ai-mcp.git"
+  },
+  "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
+}

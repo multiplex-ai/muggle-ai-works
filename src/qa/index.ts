@@ -1,25 +1,29 @@
 /**
  * QA Gateway tools module.
  * Cloud-based QA tools that require authentication.
- *
- * TODO: Migrate tools from mcp-qa-gateway package.
  */
 
 import type { IMcpTool } from "../shared/types.js";
 
-/**
- * All QA Gateway tools.
- * These tools communicate with the Muggle AI cloud backend.
- */
-export const qaTools: IMcpTool[] = [
-  // Tools will be migrated from mcp-qa-gateway
-  // See: muggle-ai-prompt-service/mcp-gateway/src/tools/
-];
+import { allQaToolDefinitions, executeQaTool } from "./tools/tool-registry.js";
+
+export * from "./contracts/index.js";
+export * from "./tools/index.js";
+export * from "./types.js";
+export * from "./upstream-client.js";
 
 /**
- * Get all QA tools.
- * @returns Array of QA tool definitions.
+ * Convert QA tool definitions to IMcpTool format.
+ * @returns Array of IMcpTool definitions.
  */
 export function getQaTools(): IMcpTool[] {
-  return qaTools;
+  return allQaToolDefinitions.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    requiresAuth: tool.requiresAuth !== false,
+    execute: async (params: { input: unknown; correlationId: string }) => {
+      return executeQaTool(tool.name, params.input, params.correlationId);
+    },
+  }));
 }

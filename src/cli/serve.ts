@@ -2,9 +2,11 @@
  * Serve command - starts the MCP server.
  */
 
+import { getLocalQaTools } from "../local-qa/index.js";
+import { getQaTools } from "../qa/index.js";
 import { getConfig } from "../shared/config.js";
 import { getLogger } from "../shared/logger.js";
-import { createUnifiedMcpServer, startStdioServer } from "../server/index.js";
+import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 
 const logger = getLogger();
 
@@ -39,6 +41,19 @@ export async function serveCommand(options: IServeOptions): Promise<void> {
   });
 
   try {
+    // Register tools based on options
+    if (enableQa) {
+      const qaTools = getQaTools();
+      registerTools(qaTools);
+      logger.info("Registered QA tools", { count: qaTools.length });
+    }
+
+    if (enableLocal) {
+      const localTools = getLocalQaTools();
+      registerTools(localTools);
+      logger.info("Registered Local QA tools", { count: localTools.length });
+    }
+
     // Create unified MCP server
     const mcpServer = createUnifiedMcpServer({
       enableQaTools: enableQa,

@@ -69,7 +69,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/multiplex-ai/muggle-ai-mcp.git"
+    "url": "git+https://github.com/multiplex-ai/muggle-ai-mcp.git"
   },
   "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
 }

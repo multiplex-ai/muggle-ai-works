@@ -1,0 +1,329 @@
+name: Release Electron App
+
+# This workflow builds electron-app binaries for all platforms
+# and uploads them to GitHub Releases for use by @muggleai/mcp postinstall.
+#
+# VERSION DETECTION (automatic):
+#   - If triggered via tag (electron-app@X.X.X): uses tag version
+#   - If manual input provided: uses input version
+#   - Otherwise: reads from package.json muggleConfig.electronAppVersion
+#
+# USAGE:
+#   1. Update electronAppVersion in package.json
+#   2. Run this workflow (no input needed)
+#   3. Release is created with the version from package.json
+#
+# NOTE: The electron-app source lives in muggle-ai-teaching-service.
+# This workflow is triggered here and builds from the teaching-service repo.
+
+on:
+  push:
+    tags:
+      - "electron-app@*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release (leave empty to use version from package.json)"
+        required: false
+        type: string
+      teaching_service_ref:
+        description: "Git ref to build from muggle-ai-teaching-service (branch/tag/sha)"
+        required: false
+        default: "master"
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  CI: true
+  TEACHING_SERVICE_REPO: multiplex-ai/muggle-ai-teaching-service
+
+jobs:
+  # Build for macOS (both arm64 and x64)
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x64]
+    steps:
+      - name: Checkout MCP repo for version
+        uses: actions/checkout@v4
+
+      - name: Checkout teaching-service for electron-app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TEACHING_SERVICE_REPO }}
+          ref: ${{ inputs.teaching_service_ref || 'master' }}
+          path: teaching-service
+          token: ${{ secrets.TEACHING_SERVICE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          cd teaching-service
+          npm install
+
+      - name: Build electron-app
+        run: |
+          cd teaching-service/packages/electron-app
+          npm run validate-deps
+          npm run clean
+          npm exec -- electron-vite build --outDir=dist
+          npm exec -- electron-builder --mac --${{ matrix.arch }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: ls -la teaching-service/packages/electron-app/dist/
+
+      - name: Create zip
+        run: |
+          cd teaching-service/packages/electron-app/dist
+          if [ -d "mac-${{ matrix.arch }}" ]; then
+            cd mac-${{ matrix.arch }}
+          elif [ -d "mac" ]; then
+            cd mac
+          else
+            echo "Error: No mac app directory found"
+            ls -la
+            exit 1
+          fi
+          zip -r ../MuggleAI-darwin-${{ matrix.arch }}.zip MuggleAI.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: teaching-service/packages/electron-app/dist/MuggleAI-darwin-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  # Build for Windows
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout MCP repo for version
+        uses: actions/checkout@v4
+
+      - name: Checkout teaching-service for electron-app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TEACHING_SERVICE_REPO }}
+          ref: ${{ inputs.teaching_service_ref || 'master' }}
+          path: teaching-service
+          token: ${{ secrets.TEACHING_SERVICE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          cd teaching-service
+          npm install
+
+      - name: Build electron-app
+        run: npm run build:win --workspace=packages/electron-app
+        working-directory: teaching-service
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: dir teaching-service\packages\electron-app\dist\
+
+      - name: Create zip
+        run: |
+          cd teaching-service/packages/electron-app/dist
+          if (Test-Path "win-unpacked") {
+            Compress-Archive -Path "win-unpacked\*" -DestinationPath "MuggleAI-win32-x64.zip"
+          }
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: teaching-service/packages/electron-app/dist/MuggleAI-win32-x64.zip
+          if-no-files-found: error
+
+  # Build for Linux
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MCP repo for version
+        uses: actions/checkout@v4
+
+      - name: Checkout teaching-service for electron-app source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TEACHING_SERVICE_REPO }}
+          ref: ${{ inputs.teaching_service_ref || 'master' }}
+          path: teaching-service
+          token: ${{ secrets.TEACHING_SERVICE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          cd teaching-service
+          npm install
+
+      - name: Build electron-app
+        run: npm run build:linux --workspace=packages/electron-app
+        working-directory: teaching-service
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List build output
+        run: ls -la teaching-service/packages/electron-app/dist/
+
+      - name: Create zip
+        run: |
+          cd teaching-service/packages/electron-app/dist
+          if [ -d "linux-unpacked" ]; then
+            cd linux-unpacked
+            zip -r ../MuggleAI-linux-x64.zip .
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: teaching-service/packages/electron-app/dist/MuggleAI-linux-x64.zip
+          if-no-files-found: error
+
+  # Create GitHub Release and upload all artifacts
+  release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout for version reading
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List downloaded artifacts
+        run: find artifacts -type f -name "*.zip"
+
+      - name: Determine version
+        id: version
+        run: |
+          # Priority: 1. Tag, 2. Manual input, 3. package.json
+          if [[ "${{ github.ref }}" == refs/tags/electron-app@* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#electron-app@}"
+            echo "Source: git tag"
+          elif [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            echo "Source: manual input"
+          else
+            VERSION=$(node -p "require('./package.json').muggleConfig.electronAppVersion")
+            echo "Source: package.json (automatic)"
+          fi
+          
+          echo "Version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: electron-app-v${{ steps.version.outputs.version }}
+          name: "Electron App v${{ steps.version.outputs.version }}"
+          body: |
+            ## Muggle AI Electron App v${{ steps.version.outputs.version }}
+            
+            Platform-specific binaries for @muggleai/mcp installation.
+            
+            ### Downloads
+            - `MuggleAI-darwin-arm64.zip` - macOS Apple Silicon
+            - `MuggleAI-darwin-x64.zip` - macOS Intel
+            - `MuggleAI-win32-x64.zip` - Windows 64-bit
+            - `MuggleAI-linux-x64.zip` - Linux 64-bit
+            
+            ### Installation
+            These binaries are automatically downloaded by `@muggleai/mcp` during npm install.
+            You can also manually download and set `ELECTRON_APP_PATH` to the executable location.
+          files: |
+            artifacts/**/*.zip
+          fail_on_unmatched_files: false
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update electronAppVersion in package.json after release
+  update-version:
+    needs: [release]
+    runs-on: ubuntu-latest
+    if: success() && (startsWith(github.ref, 'refs/tags/electron-app@') || inputs.version != '')
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get release version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/electron-app@* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#electron-app@}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update electronAppVersion in package.json
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE_JSON="package.json"
+          
+          echo "Updating electronAppVersion to $VERSION in $PACKAGE_JSON"
+          
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('$PACKAGE_JSON', 'utf8'));
+            pkg.muggleConfig.electronAppVersion = '$VERSION';
+            fs.writeFileSync('$PACKAGE_JSON', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Updated electronAppVersion to $VERSION');
+          "
+          
+          grep -A2 '"muggleConfig"' $PACKAGE_JSON
+
+      - name: Commit and push version update
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add package.json
+          
+          if git diff --staged --quiet; then
+            echo "No version change needed - already at $VERSION"
+          else
+            git commit -m "chore: bump electronAppVersion to $VERSION"
+            git push origin main
+            echo "Pushed version update to $VERSION"
+          fi
+
+  notify-on-failure:
+    runs-on: ubuntu-latest
+    needs: [build-macos, build-windows, build-linux, release]
+    if: failure()
+    steps:
+      - name: Notify failure
+        run: echo "Electron app release failed. Check the workflow logs."

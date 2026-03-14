@@ -1,0 +1,5 @@
+# Default owners for all files
+* @multiplex-ai/muggle-core
+
+# Workflow files require additional review
+.github/ @multiplex-ai/muggle-devops

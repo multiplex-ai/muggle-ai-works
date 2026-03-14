@@ -35,13 +35,18 @@ function getElectronAppDir() {
  */
 function getBinaryName() {
   const os = platform();
+  const arch = process.arch;
+
   switch (os) {
     case "darwin":
-      return "muggle-test-darwin-arm64.zip";
+      // Support both Apple Silicon (arm64) and Intel (x64) Macs
+      return arch === "arm64"
+        ? "MuggleAI-darwin-arm64.zip"
+        : "MuggleAI-darwin-x64.zip";
     case "win32":
-      return "muggle-test-win32-x64.zip";
+      return "MuggleAI-win32-x64.zip";
     case "linux":
-      return "muggle-test-linux-x64.tar.gz";
+      return "MuggleAI-linux-x64.zip";
     default:
       throw new Error(`Unsupported platform: ${os}`);
   }

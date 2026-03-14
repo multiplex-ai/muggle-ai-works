@@ -111,6 +111,50 @@ All Muggle AI data is stored in `~/.muggle-ai/`:
 - Node.js 22 or higher
 - For local testing: Electron app (downloaded automatically)
 
+## Development
+
+### Building
+
+```bash
+npm install
+npm run build
+```
+
+### Testing
+
+```bash
+npm test              # Run tests once
+npm run test:watch    # Watch mode
+```
+
+### Linting
+
+```bash
+npm run lint          # Auto-fix issues
+npm run lint:check    # Check only
+```
+
+## CI/CD Workflows
+
+| Workflow | Trigger | Description |
+| :------- | :------ | :---------- |
+| `ci.yml` | Push/PR to main | Lint, test, build on multiple platforms/versions |
+| `publish-mcp.yml` | Tag `v*` | Publish package to npm |
+| `release-electron-app.yml` | Tag `electron-app@*` | Build and release Electron binaries |
+
+### Publishing a new version
+
+1. Update version in `package.json`
+2. Commit and push
+3. Create a git tag: `git tag v1.0.1 && git push --tags`
+4. The `publish-mcp.yml` workflow publishes to npm automatically
+
+### Releasing Electron app
+
+1. Update `muggleConfig.electronAppVersion` in `package.json`
+2. Run the `release-electron-app.yml` workflow manually
+3. Or create a tag: `git tag electron-app@1.0.1 && git push --tags`
+
 ## License
 
 MIT

@@ -52,6 +52,8 @@ export interface IQaConfig {
 export interface ILocalQaConfig {
   /** Base URL of the local web-service. */
   webServiceUrl: string;
+  /** Base URL of the prompt service (for cloud sync). */
+  promptServiceUrl: string;
   /** Path to data directory. */
   dataDir: string;
   /** Path to sessions directory. */
@@ -62,12 +64,30 @@ export interface ILocalQaConfig {
   tempDir: string;
   /** Path to credentials file. */
   credentialsFilePath: string;
+  /** Path to auth file (local auth storage). */
+  authFilePath: string;
   /** Path to electron-app executable (null if not installed). */
   electronAppPath: string | null;
   /** Path to web-service entry point (null if not found). */
   webServicePath: string | null;
   /** Path to web-service PID file. */
   webServicePidFile: string;
+  /** Auth0 configuration for local auth. */
+  auth0: ILocalAuth0Config;
+}
+
+/**
+ * Auth0 configuration for local auth (with scopes array).
+ */
+export interface ILocalAuth0Config {
+  /** Auth0 domain. */
+  domain: string;
+  /** Auth0 client ID. */
+  clientId: string;
+  /** Auth0 audience. */
+  audience: string;
+  /** OAuth scopes to request (as array). */
+  scopes: string[];
 }
 
 /**

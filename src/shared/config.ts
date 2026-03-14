@@ -262,17 +262,26 @@ function buildQaConfig(): IQaConfig {
  */
 function buildLocalQaConfig(): ILocalQaConfig {
   const dataDir = getDataDir();
+  const auth0Scopes = (process.env.AUTH0_SCOPE ?? DEFAULT_AUTH0_SCOPE).split(" ");
 
   return {
     webServiceUrl: process.env.WEB_SERVICE_URL ?? DEFAULT_WEB_SERVICE_URL,
+    promptServiceUrl: process.env.PROMPT_SERVICE_BASE_URL ?? DEFAULT_PROMPT_SERVICE_URL,
     dataDir: dataDir,
     sessionsDir: path.join(dataDir, "sessions"),
     projectsDir: path.join(dataDir, "projects"),
     tempDir: path.join(dataDir, "temp"),
     credentialsFilePath: path.join(dataDir, CREDENTIALS_FILE),
+    authFilePath: path.join(dataDir, "auth.json"),
     electronAppPath: resolveElectronAppPathOrNull(),
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),
+    auth0: {
+      domain: process.env.AUTH0_DOMAIN ?? DEFAULT_AUTH0_DOMAIN,
+      clientId: process.env.AUTH0_CLIENT_ID ?? DEFAULT_AUTH0_CLIENT_ID,
+      audience: process.env.AUTH0_AUDIENCE ?? DEFAULT_AUTH0_AUDIENCE,
+      scopes: auth0Scopes,
+    },
   };
 }
 

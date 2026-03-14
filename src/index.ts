@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * @muggleai/mcp - Unified MCP Server for Muggle AI
  *
@@ -25,10 +24,15 @@
  *   muggle-mcp status          # Show auth status
  */
 
-import { runCli } from "./cli/index.js";
+// Export modules as namespaces to avoid naming conflicts
+export * as shared from "./shared/index.js";
+export * as server from "./server/index.js";
+export * as qa from "./qa/index.js";
+export * as localQa from "./local-qa/index.js";
 
-// Run the CLI
-runCli().catch((error) => {
-  console.error("Fatal error:", error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+// Also export key functions at top level for convenience
+export { getConfig } from "./shared/index.js";
+export { getLogger, createChildLogger } from "./shared/index.js";
+export { createUnifiedMcpServer } from "./server/index.js";
+export { getQaTools } from "./qa/index.js";
+export { getLocalQaTools } from "./local-qa/index.js";

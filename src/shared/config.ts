@@ -8,7 +8,14 @@ import * as os from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import type { IAuth0Config, IConfig, ILocalQaConfig, IQaConfig } from "./types.js";
+import type {
+  IAuth0Config,
+  IConfig,
+  ILocalQaConfig,
+  IMuggleConfig,
+  IMuggleConfigChecksums,
+  IQaConfig,
+} from "./types.js";
 
 /** Default prompt service URL (cloud API). */
 const DEFAULT_PROMPT_SERVICE_URL = "https://promptservice.muggle-ai.com";
@@ -39,28 +46,6 @@ const DEFAULT_AUTH0_SCOPE = "openid profile email offline_access";
 
 /** Cached configuration instance. */
 let configInstance: IConfig | null = null;
-
-/** Checksums for electron-app binaries by platform. */
-interface IMuggleConfigChecksums {
-  /** macOS ARM64 (Apple Silicon) checksum. */
-  "darwin-arm64"?: string;
-  /** macOS x64 (Intel) checksum. */
-  "darwin-x64"?: string;
-  /** Windows x64 checksum. */
-  "win32-x64"?: string;
-  /** Linux x64 checksum. */
-  "linux-x64"?: string;
-}
-
-/** Muggle config from package.json. */
-interface IMuggleConfig {
-  /** Electron app version. */
-  electronAppVersion: string;
-  /** Download base URL for electron-app binaries. */
-  downloadBaseUrl: string;
-  /** SHA256 checksums for each platform binary. */
-  checksums?: IMuggleConfigChecksums;
-}
 
 /** Cached muggle config from package.json. */
 let muggleConfigCache: IMuggleConfig | null = null;

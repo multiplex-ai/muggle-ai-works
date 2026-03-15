@@ -3,6 +3,32 @@
  */
 
 /**
+ * Checksums for electron-app binaries by platform.
+ */
+export interface IMuggleConfigChecksums {
+  /** macOS ARM64 (Apple Silicon) checksum. */
+  "darwin-arm64"?: string;
+  /** macOS x64 (Intel) checksum. */
+  "darwin-x64"?: string;
+  /** Windows x64 checksum. */
+  "win32-x64"?: string;
+  /** Linux x64 checksum. */
+  "linux-x64"?: string;
+}
+
+/**
+ * Muggle config from package.json.
+ */
+export interface IMuggleConfig {
+  /** Electron app version. */
+  electronAppVersion: string;
+  /** Download base URL for electron-app binaries. */
+  downloadBaseUrl: string;
+  /** SHA256 checksums for each platform binary. */
+  checksums?: IMuggleConfigChecksums;
+}
+
+/**
  * Auth0 configuration for device code flow.
  */
 export interface IAuth0Config {

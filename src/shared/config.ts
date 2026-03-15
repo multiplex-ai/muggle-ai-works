@@ -58,14 +58,22 @@ function getPackageRoot(): string {
   const currentFilePath = fileURLToPath(import.meta.url);
   const currentDir = path.dirname(currentFilePath);
 
-  // Handle both bundled (dist/) and development (src/) contexts
-  if (currentDir.endsWith("dist") || currentDir.includes(path.join("dist", "shared"))) {
-    // Navigate up from dist/shared to package root
+  // Handle bundled (dist/) and development (src/) contexts
+  // With tsup bundling, code is in dist/ directly (e.g., dist/cli.js)
+  // With tsc, code is in dist/shared/ (e.g., dist/shared/config.js)
+  
+  if (currentDir.includes(path.join("dist", "shared"))) {
+    // Navigate up from dist/shared to package root (2 levels)
     return path.resolve(currentDir, "..", "..");
   }
 
+  if (currentDir.endsWith("dist")) {
+    // Navigate up from dist to package root (1 level) - tsup bundled
+    return path.resolve(currentDir, "..");
+  }
+
   if (currentDir.includes(path.join("src", "shared"))) {
-    // Navigate up from src/shared to package root
+    // Navigate up from src/shared to package root (2 levels)
     return path.resolve(currentDir, "..", "..");
   }
 
@@ -103,7 +111,7 @@ function getMuggleConfig(): IMuggleConfig {
   // Fallback defaults when package.json can't be read.
   // IMPORTANT: Keep electronAppVersion in sync with package.json muggleConfig.electronAppVersion
   muggleConfigCache = {
-    electronAppVersion: "1.0.1",
+    electronAppVersion: "1.0.2",
     downloadBaseUrl: "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
     checksums: {},
   };

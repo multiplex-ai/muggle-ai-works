@@ -1,6 +1,6 @@
 {
   "name": "@muggleai/mcp",
-  "version": "1.0.3",
+  "version": "1.0.8",
   "description": "Unified MCP server for Muggle AI - Cloud QA and Local Testing tools",
   "type": "module",
   "main": "dist/index.js",

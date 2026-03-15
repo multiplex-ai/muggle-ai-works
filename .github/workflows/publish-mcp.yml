@@ -61,10 +61,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: npm version ${{ inputs.version }} --no-git-tag-version
 
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Show Node and npm versions
+        run: |
+          node -v
+          npm -v
+
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
+      - name: Publish to npm (with provenance)
+        run: npm publish --access public --provenance
 
   notify-on-failure:
     runs-on: ubuntu-latest

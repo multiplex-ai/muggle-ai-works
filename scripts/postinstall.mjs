@@ -145,9 +145,14 @@ function cleanupNonCurrentVersions({ appDir, currentVersion }) {
       console.log(`Removing stale Electron app version: ${appEntry.name}`);
       rmSync(staleVersionDir, { recursive: true, force: true });
     } catch (error) {
-      console.warn(
-        `Warning: Failed to remove stale Electron app version ${appEntry.name}: ${error.message}`
-      );
+      console.error("\n========================================");
+      console.error("ERROR: Failed to remove stale Electron app version");
+      console.error("========================================\n");
+      console.error("Version:", appEntry.name);
+      console.error("Path:", staleVersionDir);
+      console.error("\nFull error details:");
+      console.error(error instanceof Error ? error.stack || error : error);
+      console.error("");
     }
   }
 }

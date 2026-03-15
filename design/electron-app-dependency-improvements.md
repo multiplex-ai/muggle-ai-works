@@ -111,29 +111,30 @@ muggle-mcp doctor
 ---
 
 ### 5. Check Electron-App on First Tool Use
-**Priority:** Medium  
-**Risk:** User may not have electron-app when they try to use local testing tools
+**Status:** ✅ Already Implemented
 
-**Implementation:**
-1. In `executeTestGeneration` and `executeReplay`, check if electron-app exists
-2. If not, prompt user to run `muggle-mcp setup` or auto-download
-3. Consider adding `--auto-setup` flag to `serve` command
+The check already exists in `spawnElectronApp()` in `src/local-qa/services/execution-service.ts`:
 
-**Files to modify:**
-- `src/local-qa/services/execution-service.ts` - Add check
-- Possibly `src/cli/serve.ts` - Add auto-setup option
+```typescript
+const electronAppPath = config.localQa.electronAppPath;
+if (!electronAppPath) {
+  throw new Error(
+    "Electron-app not found. Run 'muggle-mcp setup' to install, " +
+    "or set ELECTRON_APP_PATH environment variable.",
+  );
+}
+```
+
+When a user tries to run test generation or replay without electron-app installed, they get a clear error message with instructions on how to fix it.
 
 ---
 
 ### 6. Sync Default Fallback Version
-**Priority:** Low  
-**Risk:** Hardcoded fallback `"1.0.0"` may diverge from actual latest
+**Status:** ✅ Completed
 
-**Implementation:**
-Option A: Remove fallback (fail if package.json not readable)
-Option B: Keep fallback but ensure it's updated with each release (CI check)
+Updated fallback version in `src/shared/config.ts` from `"1.0.0"` to `"1.0.1"` to match current bundled version. Added comment reminding to keep it in sync with `package.json`.
 
-**Current location:** `src/shared/config.ts` line ~93
+**Note:** The fallback is only used when `package.json` can't be read (rare edge case during development or if package is corrupted).
 
 ---
 

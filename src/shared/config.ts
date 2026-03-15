@@ -100,8 +100,10 @@ function getMuggleConfig(): IMuggleConfig {
     // Fall through to defaults
   }
 
+  // Fallback defaults when package.json can't be read.
+  // IMPORTANT: Keep electronAppVersion in sync with package.json muggleConfig.electronAppVersion
   muggleConfigCache = {
-    electronAppVersion: "1.0.0",
+    electronAppVersion: "1.0.1",
     downloadBaseUrl: "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
     checksums: {},
   };

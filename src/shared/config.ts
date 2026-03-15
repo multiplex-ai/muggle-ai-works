@@ -40,8 +40,30 @@ const DEFAULT_AUTH0_SCOPE = "openid profile email offline_access";
 /** Cached configuration instance. */
 let configInstance: IConfig | null = null;
 
+/** Checksums for electron-app binaries by platform. */
+interface IMuggleConfigChecksums {
+  /** macOS ARM64 (Apple Silicon) checksum. */
+  "darwin-arm64"?: string;
+  /** macOS x64 (Intel) checksum. */
+  "darwin-x64"?: string;
+  /** Windows x64 checksum. */
+  "win32-x64"?: string;
+  /** Linux x64 checksum. */
+  "linux-x64"?: string;
+}
+
+/** Muggle config from package.json. */
+interface IMuggleConfig {
+  /** Electron app version. */
+  electronAppVersion: string;
+  /** Download base URL for electron-app binaries. */
+  downloadBaseUrl: string;
+  /** SHA256 checksums for each platform binary. */
+  checksums?: IMuggleConfigChecksums;
+}
+
 /** Cached muggle config from package.json. */
-let muggleConfigCache: { electronAppVersion: string; downloadBaseUrl: string } | null = null;
+let muggleConfigCache: IMuggleConfig | null = null;
 
 /**
  * Resolve the package root directory from the current module location.
@@ -67,9 +89,9 @@ function getPackageRoot(): string {
 
 /**
  * Get the muggle config from package.json.
- * @returns The muggle config with electronAppVersion and downloadBaseUrl.
+ * @returns The muggle config with electronAppVersion, downloadBaseUrl, and checksums.
  */
-function getMuggleConfig(): { electronAppVersion: string; downloadBaseUrl: string } {
+function getMuggleConfig(): IMuggleConfig {
   if (muggleConfigCache) {
     return muggleConfigCache;
   }
@@ -82,8 +104,12 @@ function getMuggleConfig(): { electronAppVersion: string; downloadBaseUrl: strin
     const config = packageJson.muggleConfig;
 
     if (config?.electronAppVersion && config?.downloadBaseUrl) {
-      muggleConfigCache = config;
-      return config;
+      muggleConfigCache = {
+        electronAppVersion: config.electronAppVersion,
+        downloadBaseUrl: config.downloadBaseUrl,
+        checksums: config.checksums,
+      };
+      return muggleConfigCache;
     }
   } catch {
     // Fall through to defaults
@@ -92,6 +118,7 @@ function getMuggleConfig(): { electronAppVersion: string; downloadBaseUrl: strin
   muggleConfigCache = {
     electronAppVersion: "1.0.0",
     downloadBaseUrl: "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
+    checksums: {},
   };
 
   return muggleConfigCache;
@@ -354,6 +381,14 @@ export function getBundledElectronAppVersion(): string {
  */
 export function getDownloadBaseUrl(): string {
   return getMuggleConfig().downloadBaseUrl;
+}
+
+/**
+ * Get the checksums for electron-app binaries.
+ * @returns Checksums map by platform, or undefined if not configured.
+ */
+export function getElectronAppChecksums(): IMuggleConfigChecksums | undefined {
+  return getMuggleConfig().checksums;
 }
 
 /**

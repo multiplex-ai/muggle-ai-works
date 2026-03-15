@@ -9,10 +9,12 @@ import { pipeline } from "stream/promises";
 
 import {
   getDownloadBaseUrl,
+  getElectronAppChecksums,
   getElectronAppDir,
   getElectronAppVersion,
   isElectronAppInstalled,
 } from "../shared/config.js";
+import { getChecksumForPlatform, verifyFileChecksum } from "../shared/checksum.js";
 import { getLogger } from "../shared/logger.js";
 
 const logger = getLogger();
@@ -126,7 +128,30 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
 
     await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
 
-    console.log("Download complete, extracting...");
+    console.log("Download complete, verifying checksum...");
+
+    // Verify checksum
+    const checksums = getElectronAppChecksums();
+    const expectedChecksum = getChecksumForPlatform(checksums);
+    const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
+
+    if (!checksumResult.valid && expectedChecksum) {
+      rmSync(versionDir, { recursive: true, force: true });
+      throw new Error(
+        `Checksum verification failed!\n` +
+        `Expected: ${checksumResult.expected}\n` +
+        `Actual:   ${checksumResult.actual}\n` +
+        `The downloaded file may be corrupted or tampered with.`,
+      );
+    }
+
+    if (expectedChecksum) {
+      console.log("Checksum verified successfully.");
+    } else {
+      console.log("Warning: No checksum configured, skipping verification.");
+    }
+
+    console.log("Extracting...");
 
     // Extract based on file type
     if (binaryName.endsWith(".zip")) {

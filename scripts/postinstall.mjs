@@ -4,8 +4,9 @@
  * Downloads the Electron app binary for local testing.
  */
 
+import { createHash } from "crypto";
 import { exec } from "child_process";
-import { createWriteStream, existsSync, mkdirSync, rmSync } from "fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, rmSync } from "fs";
 import { homedir, platform } from "os";
 import { join } from "path";
 import { pipeline } from "stream/promises";
@@ -27,6 +28,73 @@ function getDataDir() {
  */
 function getElectronAppDir() {
   return join(getDataDir(), "electron-app");
+}
+
+/**
+ * Get platform key for checksum lookup.
+ * @returns {string} Platform key (e.g., "darwin-arm64", "win32-x64")
+ */
+function getPlatformKey() {
+  const os = platform();
+  const arch = process.arch;
+
+  switch (os) {
+    case "darwin":
+      return arch === "arm64" ? "darwin-arm64" : "darwin-x64";
+    case "win32":
+      return "win32-x64";
+    case "linux":
+      return "linux-x64";
+    default:
+      throw new Error(`Unsupported platform: ${os}`);
+  }
+}
+
+/**
+ * Calculate SHA256 checksum of a file.
+ * @param {string} filePath - Path to the file
+ * @returns {Promise<string>} SHA256 checksum as hex string
+ */
+async function calculateFileChecksum(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(filePath);
+
+    stream.on("data", (data) => {
+      hash.update(data);
+    });
+
+    stream.on("end", () => {
+      resolve(hash.digest("hex"));
+    });
+
+    stream.on("error", (error) => {
+      reject(error);
+    });
+  });
+}
+
+/**
+ * Verify file checksum against expected value.
+ * @param {string} filePath - Path to the file
+ * @param {string} expectedChecksum - Expected SHA256 checksum
+ * @returns {Promise<{valid: boolean, actual: string}>} Verification result
+ */
+async function verifyFileChecksum(filePath, expectedChecksum) {
+  if (!expectedChecksum || expectedChecksum.trim() === "") {
+    return { valid: true, actual: "", skipped: true };
+  }
+
+  const actualChecksum = await calculateFileChecksum(filePath);
+  const normalizedExpected = expectedChecksum.toLowerCase().trim();
+  const normalizedActual = actualChecksum.toLowerCase();
+
+  return {
+    valid: normalizedExpected === normalizedActual,
+    expected: normalizedExpected,
+    actual: normalizedActual,
+    skipped: false,
+  };
 }
 
 /**
@@ -91,7 +159,33 @@ async function downloadElectronApp() {
     const fileStream = createWriteStream(tempFile);
     await pipeline(response.body, fileStream);
 
-    console.log("Download complete, extracting...");
+    console.log("Download complete, verifying checksum...");
+
+    // Get expected checksum from config
+    const checksums = config.checksums || {};
+    const platformKey = getPlatformKey();
+    const expectedChecksum = checksums[platformKey] || "";
+
+    // Verify checksum
+    const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
+
+    if (!checksumResult.valid && !checksumResult.skipped) {
+      rmSync(versionDir, { recursive: true, force: true });
+      throw new Error(
+        `Checksum verification failed!\n` +
+        `Expected: ${checksumResult.expected}\n` +
+        `Actual:   ${checksumResult.actual}\n` +
+        `The downloaded file may be corrupted or tampered with.`
+      );
+    }
+
+    if (checksumResult.skipped) {
+      console.log("Warning: No checksum configured, skipping verification.");
+    } else {
+      console.log("Checksum verified successfully.");
+    }
+
+    console.log("Extracting...");
 
     // Extract based on file type
     if (binaryName.endsWith(".zip")) {

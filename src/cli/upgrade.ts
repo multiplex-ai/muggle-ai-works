@@ -15,6 +15,7 @@ import {
   getElectronAppDir,
   getElectronAppVersion,
 } from "../shared/config.js";
+import { getPlatformKey, verifyFileChecksum } from "../shared/checksum.js";
 import { getLogger } from "../shared/logger.js";
 
 const logger = getLogger();
@@ -254,11 +255,78 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
 }
 
 /**
+ * Fetch checksum for a specific version and platform from the release.
+ * Looks for checksums.txt in the release assets.
+ * @param version - Version to get checksum for.
+ * @returns The checksum or empty string if not available.
+ */
+async function fetchChecksumFromRelease(version: string): Promise<string> {
+  const baseUrl = getDownloadBaseUrl();
+  const checksumUrl = `${baseUrl}/electron-app-v${version}/checksums.txt`;
+
+  try {
+    const response = await fetch(checksumUrl);
+    if (!response.ok) {
+      logger.warn("Checksums file not found in release", { version: version });
+      return "";
+    }
+
+    const text = await response.text();
+    const binaryName = getBinaryName();
+    const platformKey = getPlatformKey();
+
+    // Parse checksums.txt format: "checksum  filename" or "checksum filename"
+    const lines = text.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        continue;
+      }
+
+      // Match "checksum  filename" or "checksum filename" format
+      const match = trimmed.match(/^([a-fA-F0-9]{64})\s+(.+)$/);
+      if (match) {
+        const checksum = match[1];
+        const filename = match[2];
+
+        // Check if this line is for our binary
+        if (filename === binaryName || filename.includes(platformKey)) {
+          logger.info("Found checksum in release", {
+            version: version,
+            platform: platformKey,
+            checksum: checksum.substring(0, 16) + "...",
+          });
+          return checksum;
+        }
+      }
+    }
+
+    logger.warn("Platform checksum not found in checksums.txt", {
+      version: version,
+      platform: platformKey,
+    });
+    return "";
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn("Failed to fetch checksums from release", {
+      version: version,
+      error: errorMessage,
+    });
+    return "";
+  }
+}
+
+/**
  * Download and install a specific version.
  * @param version - Version to download.
  * @param downloadUrl - URL to download from.
+ * @param checksum - Optional checksum to verify (if not provided, will fetch from release).
  */
-async function downloadAndInstall(version: string, downloadUrl: string): Promise<void> {
+async function downloadAndInstall(
+  version: string,
+  downloadUrl: string,
+  checksum?: string,
+): Promise<void> {
   const versionDir = getElectronAppDir(version);
   const binaryName = getBinaryName();
 
@@ -286,7 +354,34 @@ async function downloadAndInstall(version: string, downloadUrl: string): Promise
 
   await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
 
-  console.log("Download complete, extracting...");
+  console.log("Download complete, verifying checksum...");
+
+  // Get checksum (from parameter or fetch from release)
+  let expectedChecksum = checksum;
+  if (!expectedChecksum) {
+    expectedChecksum = await fetchChecksumFromRelease(version);
+  }
+
+  // Verify checksum
+  const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum || "");
+
+  if (!checksumResult.valid && expectedChecksum) {
+    rmSync(versionDir, { recursive: true, force: true });
+    throw new Error(
+      `Checksum verification failed!\n` +
+      `Expected: ${checksumResult.expected}\n` +
+      `Actual:   ${checksumResult.actual}\n` +
+      `The downloaded file may be corrupted or tampered with.`,
+    );
+  }
+
+  if (expectedChecksum) {
+    console.log("Checksum verified successfully.");
+  } else {
+    console.log("Warning: No checksum available, skipping verification.");
+  }
+
+  console.log("Extracting...");
 
   // Extract based on file type
   if (binaryName.endsWith(".zip")) {

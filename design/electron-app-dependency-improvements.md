@@ -25,32 +25,38 @@ Added `muggle-mcp upgrade` command that allows users to independently upgrade el
 ## TODO Items
 
 ### 1. Checksum Verification
-**Priority:** High  
-**Risk:** Security - downloaded binary could be tampered with or corrupted
+**Status:** ✅ Completed
 
 **Implementation:**
-1. Add `checksums` object to `muggleConfig` in `package.json`:
-   ```json
-   "muggleConfig": {
-     "electronAppVersion": "1.0.1",
-     "downloadBaseUrl": "...",
-     "checksums": {
-       "darwin-arm64": "sha256:abc123...",
-       "darwin-x64": "sha256:def456...",
-       "win32-x64": "sha256:ghi789...",
-       "linux-x64": "sha256:jkl012..."
-     }
-   }
-   ```
-2. Update `postinstall.mjs` to verify checksum after download
-3. Update `setup.ts` and `upgrade.ts` to verify checksum
-4. Fail with clear error if checksum doesn't match
+- Added `checksums` object to `muggleConfig` in `package.json` (empty by default, fill when binaries are built)
+- Created `src/shared/checksum.ts` with SHA256 verification utilities
+- Updated `scripts/postinstall.mjs` to verify checksum from config
+- Updated `src/cli/setup.ts` to verify checksum from config
+- Updated `src/cli/upgrade.ts` to fetch `checksums.txt` from GitHub release
 
-**Files to modify:**
-- `package.json` - Add checksums
-- `scripts/postinstall.mjs` - Add verification
-- `src/cli/setup.ts` - Add verification
-- `src/cli/upgrade.ts` - Add verification (fetch checksum from release)
+**Checksums format in package.json:**
+```json
+"muggleConfig": {
+  "electronAppVersion": "1.0.1",
+  "downloadBaseUrl": "...",
+  "checksums": {
+    "darwin-arm64": "<sha256-hex>",
+    "darwin-x64": "<sha256-hex>",
+    "win32-x64": "<sha256-hex>",
+    "linux-x64": "<sha256-hex>"
+  }
+}
+```
+
+**Release checksums.txt format:**
+```
+<sha256>  MuggleAI-darwin-arm64.zip
+<sha256>  MuggleAI-darwin-x64.zip
+<sha256>  MuggleAI-win32-x64.zip
+<sha256>  MuggleAI-linux-x64.zip
+```
+
+**Note:** When checksums are empty/missing, verification is skipped with a warning.
 
 ---
 

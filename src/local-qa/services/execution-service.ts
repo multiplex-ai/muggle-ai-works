@@ -161,6 +161,20 @@ const DEFAULT_GENERATION_TIMEOUT_MS = 300000;
 const DEFAULT_REPLAY_TIMEOUT_MS = 180000;
 
 /**
+ * Early exit info captured when process exits before waitForCompletion is called.
+ */
+interface IEarlyExitInfo {
+  /** Exit code from process. */
+  code: number | null;
+  /** Signal that terminated the process. */
+  signal: NodeJS.Signals | null;
+  /** Captured stdout. */
+  stdout: string;
+  /** Captured stderr. */
+  stderr: string;
+}
+
+/**
  * Extended execution process with ChildProcess.
  */
 interface IInternalExecutionProcess extends IExecutionProcess {
@@ -168,6 +182,14 @@ interface IInternalExecutionProcess extends IExecutionProcess {
   process: ChildProcess;
   /** Timeout timer. */
   timeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Captured stdout from early handlers. */
+  capturedStdout: string;
+  /** Captured stderr from early handlers. */
+  capturedStderr: string;
+  /** Early exit info if process exits before waitForCompletion. */
+  earlyExitInfo?: IEarlyExitInfo;
+  /** Whether the process has exited. */
+  hasExited: boolean;
 }
 
 /** Map of active execution processes by run ID. */
@@ -622,7 +644,39 @@ async function spawnElectronApp (params: {
     status: LocalRunStatus.RUNNING,
     inputFilePath: inputFilePath,
     outputFilePath: outputFilePath,
+    capturedStdout: "",
+    capturedStderr: "",
+    hasExited: false,
   };
+
+  childProcess.stdout?.on("data", (data: Buffer) => {
+    executionProcess.capturedStdout += data.toString();
+  });
+
+  childProcess.stderr?.on("data", (data: Buffer) => {
+    executionProcess.capturedStderr += data.toString();
+  });
+
+  childProcess.on("close", (code, signal) => {
+    executionProcess.hasExited = true;
+    executionProcess.earlyExitInfo = {
+      code: code,
+      signal: signal,
+      stdout: executionProcess.capturedStdout,
+      stderr: executionProcess.capturedStderr,
+    };
+  });
+
+  childProcess.on("error", (error) => {
+    executionProcess.hasExited = true;
+    executionProcess.capturedStderr += `\nSpawn error: ${error.message}`;
+    executionProcess.earlyExitInfo = {
+      code: -1,
+      signal: null,
+      stdout: executionProcess.capturedStdout,
+      stderr: executionProcess.capturedStderr,
+    };
+  });
 
   const timeoutTimer = setTimeout(() => {
     handleTimeout({ executionProcess: executionProcess });
@@ -654,7 +708,57 @@ function handleTimeout (params: { executionProcess: IInternalExecutionProcess; }
 }
 
 /**
+ * Handle process exit and return appropriate result.
+ * @param params - The parameters.
+ * @returns The execution result.
+ */
+async function handleProcessExit (params: {
+  executionProcess: IInternalExecutionProcess;
+  code: number | null;
+  stderr: string;
+}): Promise<IExecutionResult> {
+  const { executionProcess, code, stderr } = params;
+
+  if (executionProcess.timeoutTimer) {
+    clearTimeout(executionProcess.timeoutTimer);
+  }
+
+  activeProcesses.delete(executionProcess.runId);
+
+  if (executionProcess.status === LocalRunStatus.CANCELLED) {
+    return {
+      success: false,
+      status: "FAILURE",
+      summary: "Execution was cancelled",
+      error: "Cancelled by user",
+    };
+  }
+
+  if (code !== 0 || executionProcess.status === LocalRunStatus.FAILED) {
+    executionProcess.status = LocalRunStatus.FAILED;
+    const errorMessage = stderr || `Process exited with code ${code}`;
+    return {
+      success: false,
+      status: "FAILURE",
+      summary: "Execution failed",
+      error: code === -1 ? errorMessage : `Process crashed with exit code ${code}. ${errorMessage}`,
+    };
+  }
+
+  const outputData = await readTempFile(executionProcess.outputFilePath);
+  executionProcess.status = LocalRunStatus.PASSED;
+
+  return {
+    success: true,
+    status: "SUCCESS",
+    summary: "Execution completed successfully",
+    actionScript: outputData,
+  };
+}
+
+/**
  * Wait for the electron-app process to complete.
+ * Handles early exits where process crashes before this function is called.
  * @param params - The parameters.
  * @param params.executionProcess - The execution process.
  * @returns The execution result.
@@ -664,58 +768,49 @@ async function waitForCompletion (params: {
 }): Promise<IExecutionResult> {
   const { executionProcess } = params;
 
+  if (executionProcess.hasExited && executionProcess.earlyExitInfo) {
+    const earlyExit = executionProcess.earlyExitInfo;
+    return handleProcessExit({
+      executionProcess: executionProcess,
+      code: earlyExit.code,
+      stderr: earlyExit.stderr,
+    });
+  }
+
   return new Promise((resolve) => {
-    let stdout = "";
-    let stderr = "";
+    let resolved = false;
 
-    executionProcess.process.stdout?.on("data", (data: Buffer) => {
-      stdout += data.toString();
-    });
+    const resolveOnce = (result: IExecutionResult): void => {
+      if (!resolved) {
+        resolved = true;
+        resolve(result);
+      }
+    };
 
-    executionProcess.process.stderr?.on("data", (data: Buffer) => {
-      stderr += data.toString();
-    });
+    const checkEarlyExit = setInterval(() => {
+      if (executionProcess.hasExited && executionProcess.earlyExitInfo) {
+        clearInterval(checkEarlyExit);
+        const earlyExit = executionProcess.earlyExitInfo;
+        handleProcessExit({
+          executionProcess: executionProcess,
+          code: earlyExit.code,
+          stderr: earlyExit.stderr,
+        }).then(resolveOnce);
+      }
+    }, 100);
 
     executionProcess.process.on("close", async (code) => {
-      if (executionProcess.timeoutTimer) {
-        clearTimeout(executionProcess.timeoutTimer);
-      }
-
-      activeProcesses.delete(executionProcess.runId);
-
-      if (executionProcess.status === LocalRunStatus.CANCELLED) {
-        resolve({
-          success: false,
-          status: "FAILURE",
-          summary: "Execution was cancelled",
-          error: "Cancelled by user",
-        });
-        return;
-      }
-
-      if (code !== 0 || executionProcess.status === LocalRunStatus.FAILED) {
-        executionProcess.status = LocalRunStatus.FAILED;
-        resolve({
-          success: false,
-          status: "FAILURE",
-          summary: "Execution failed",
-          error: stderr || `Process exited with code ${code}`,
-        });
-        return;
-      }
-
-      const outputData = await readTempFile(executionProcess.outputFilePath);
-      executionProcess.status = LocalRunStatus.PASSED;
-
-      resolve({
-        success: true,
-        status: "SUCCESS",
-        summary: "Execution completed successfully",
-        actionScript: outputData,
+      clearInterval(checkEarlyExit);
+      const result = await handleProcessExit({
+        executionProcess: executionProcess,
+        code: code,
+        stderr: executionProcess.capturedStderr,
       });
+      resolveOnce(result);
     });
 
-    executionProcess.process.on("error", (error) => {
+    executionProcess.process.on("error", async (error) => {
+      clearInterval(checkEarlyExit);
       if (executionProcess.timeoutTimer) {
         clearTimeout(executionProcess.timeoutTimer);
       }
@@ -723,7 +818,7 @@ async function waitForCompletion (params: {
       activeProcesses.delete(executionProcess.runId);
       executionProcess.status = LocalRunStatus.FAILED;
 
-      resolve({
+      resolveOnce({
         success: false,
         status: "FAILURE",
         summary: "Execution error",

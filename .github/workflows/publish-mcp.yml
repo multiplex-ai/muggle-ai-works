@@ -63,6 +63,8 @@ jobs:
 
       - name: Publish to npm (with provenance)
         run: npm publish --access public --provenance
+        env:
+          NPM_CONFIG_PROVENANCE: true
 
   notify-on-failure:
     runs-on: ubuntu-latest

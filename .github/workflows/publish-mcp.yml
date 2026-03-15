@@ -11,12 +11,18 @@ on:
         required: true
         type: string
 
+env:
+  # Opt into Node.js 22 for GitHub Actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE22: true
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Use environment for npm trusted publishing (OIDC)
+    environment: npm-publish
     permissions:
       contents: read
-      id-token: write
+      id-token: write  # Required for npm provenance/OIDC
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,10 +61,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: npm version ${{ inputs.version }} --no-git-tag-version
 
-      - name: Publish to npm
+      - name: Publish to npm (with provenance)
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   notify-on-failure:
     runs-on: ubuntu-latest

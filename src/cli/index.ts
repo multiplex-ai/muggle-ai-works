@@ -3,9 +3,21 @@
  * Provides commands for serving MCP, setup, diagnostics, and authentication.
  */
 
+import { readFileSync } from "fs";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
+
 import { Command } from "commander";
 
 import { getLogger } from "../shared/logger.js";
+
+/** Directory containing this module. */
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+/** Package version read from package.json. */
+const packageVersion = JSON.parse(
+  readFileSync(resolve(__dirname, "..", "package.json"), "utf-8")
+).version as string;
 
 import { cleanupCommand, versionsCommand } from "./cleanup.js";
 import { doctorCommand } from "./doctor.js";
@@ -26,7 +38,7 @@ function createProgram(): Command {
   program
     .name("muggle-mcp")
     .description("Unified MCP server for Muggle AI - Cloud QA and Local Testing")
-    .version("1.0.0");
+    .version(packageVersion);
 
   // Serve command (main command)
   program

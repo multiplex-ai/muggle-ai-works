@@ -179,7 +179,7 @@ interface IEarlyExitInfo {
  * If the process produces no output for this duration while still running, we assume
  * it's stuck on an error dialog or similar blocking state.
  */
-const INACTIVITY_TIMEOUT_MS = 30000;
+const INACTIVITY_TIMEOUT_MS = 120000;
 
 /**
  * How often to check for process inactivity (ms).

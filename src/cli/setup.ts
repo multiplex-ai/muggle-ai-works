@@ -4,7 +4,7 @@
 
 import { exec } from "child_process";
 import { createWriteStream, existsSync, mkdirSync, rmSync } from "fs";
-import { platform } from "os";
+import { arch, platform } from "os";
 import { pipeline } from "stream/promises";
 
 import {
@@ -33,13 +33,17 @@ export interface ISetupOptions {
  */
 function getBinaryName(): string {
   const os = platform();
+  const architecture = arch();
+
   switch (os) {
-    case "darwin":
-      return "muggle-test-darwin-arm64.zip";
+    case "darwin": {
+      const darwinArch = architecture === "arm64" ? "arm64" : "x64";
+      return `MuggleAI-darwin-${darwinArch}.zip`;
+    }
     case "win32":
-      return "muggle-test-win32-x64.zip";
+      return "MuggleAI-win32-x64.zip";
     case "linux":
-      return "muggle-test-linux-x64.tar.gz";
+      return "MuggleAI-linux-x64.zip";
     default:
       throw new Error(`Unsupported platform: ${os}`);
   }
@@ -101,7 +105,7 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
   }
 
   const binaryName = getBinaryName();
-  const downloadUrl = `${baseUrl}/electron-app-v${version}/${binaryName}`;
+  const downloadUrl = `${baseUrl}/v${version}/${binaryName}`;
 
   console.log(`Downloading Muggle Test Electron app v${version}...`);
   console.log(`URL: ${downloadUrl}`);

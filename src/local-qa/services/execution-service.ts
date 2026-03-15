@@ -175,6 +175,18 @@ interface IEarlyExitInfo {
 }
 
 /**
+ * How long the process can be inactive (no stdout/stderr) before we consider it stuck (ms).
+ * If the process produces no output for this duration while still running, we assume
+ * it's stuck on an error dialog or similar blocking state.
+ */
+const INACTIVITY_TIMEOUT_MS = 30000;
+
+/**
+ * How often to check for process inactivity (ms).
+ */
+const INACTIVITY_CHECK_INTERVAL_MS = 5000;
+
+/**
  * Extended execution process with ChildProcess.
  */
 interface IInternalExecutionProcess extends IExecutionProcess {
@@ -182,6 +194,8 @@ interface IInternalExecutionProcess extends IExecutionProcess {
   process: ChildProcess;
   /** Timeout timer. */
   timeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Inactivity check interval. */
+  inactivityCheckInterval?: ReturnType<typeof setInterval>;
   /** Captured stdout from early handlers. */
   capturedStdout: string;
   /** Captured stderr from early handlers. */
@@ -190,6 +204,10 @@ interface IInternalExecutionProcess extends IExecutionProcess {
   earlyExitInfo?: IEarlyExitInfo;
   /** Whether the process has exited. */
   hasExited: boolean;
+  /** Timestamp of last output (stdout or stderr) received. */
+  lastOutputAt: number;
+  /** Whether the process was killed due to inactivity. */
+  killedDueToInactivity: boolean;
 }
 
 /** Map of active execution processes by run ID. */
@@ -633,6 +651,7 @@ async function spawnElectronApp (params: {
     throw new Error("Failed to spawn electron-app process");
   }
 
+  const now = Date.now();
   const executionProcess: IInternalExecutionProcess = {
     runId: runId,
     projectId: projectId,
@@ -640,22 +659,49 @@ async function spawnElectronApp (params: {
     runType: runType,
     process: childProcess,
     pid: childProcess.pid,
-    startedAt: Date.now(),
+    startedAt: now,
     status: LocalRunStatus.RUNNING,
     inputFilePath: inputFilePath,
     outputFilePath: outputFilePath,
     capturedStdout: "",
     capturedStderr: "",
     hasExited: false,
+    lastOutputAt: now,
+    killedDueToInactivity: false,
   };
 
   childProcess.stdout?.on("data", (data: Buffer) => {
     executionProcess.capturedStdout += data.toString();
+    executionProcess.lastOutputAt = Date.now();
   });
 
   childProcess.stderr?.on("data", (data: Buffer) => {
     executionProcess.capturedStderr += data.toString();
+    executionProcess.lastOutputAt = Date.now();
   });
+
+  // Set up inactivity monitoring
+  const inactivityCheck = setInterval(() => {
+    if (executionProcess.hasExited) {
+      clearInterval(inactivityCheck);
+      return;
+    }
+
+    const inactiveDuration = Date.now() - executionProcess.lastOutputAt;
+    if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
+      executionProcess.killedDueToInactivity = true;
+      executionProcess.status = LocalRunStatus.FAILED;
+      clearInterval(inactivityCheck);
+
+      try {
+        executionProcess.process.kill("SIGKILL");
+      } catch {
+        /* ignore kill errors */
+      }
+    }
+  }, INACTIVITY_CHECK_INTERVAL_MS);
+
+  executionProcess.inactivityCheckInterval = inactivityCheck;
 
   childProcess.on("close", (code, signal) => {
     executionProcess.hasExited = true;
@@ -699,6 +745,12 @@ function handleTimeout (params: { executionProcess: IInternalExecutionProcess; }
 
   if (executionProcess.status === LocalRunStatus.RUNNING) {
     executionProcess.status = LocalRunStatus.FAILED;
+
+    // Clear inactivity check if timeout takes over
+    if (executionProcess.inactivityCheckInterval) {
+      clearInterval(executionProcess.inactivityCheckInterval);
+    }
+
     try {
       executionProcess.process.kill("SIGTERM");
     } catch {
@@ -719,8 +771,12 @@ async function handleProcessExit (params: {
 }): Promise<IExecutionResult> {
   const { executionProcess, code, stderr } = params;
 
+  // Clear all timers
   if (executionProcess.timeoutTimer) {
     clearTimeout(executionProcess.timeoutTimer);
+  }
+  if (executionProcess.inactivityCheckInterval) {
+    clearInterval(executionProcess.inactivityCheckInterval);
   }
 
   activeProcesses.delete(executionProcess.runId);
@@ -734,6 +790,19 @@ async function handleProcessExit (params: {
     };
   }
 
+  // Check if killed due to inactivity (likely stuck on dialog)
+  if (executionProcess.killedDueToInactivity) {
+    executionProcess.status = LocalRunStatus.FAILED;
+    const stderrSummary = stderr.trim().slice(0, 500);
+    return {
+      success: false,
+      status: "FAILURE",
+      summary: "Process became unresponsive",
+      error: `Process killed after ${INACTIVITY_TIMEOUT_MS / 1000}s of inactivity (likely stuck on error dialog). ` +
+        (stderrSummary ? `Last stderr: ${stderrSummary}` : "No stderr captured."),
+    };
+  }
+
   if (code !== 0 || executionProcess.status === LocalRunStatus.FAILED) {
     executionProcess.status = LocalRunStatus.FAILED;
     const errorMessage = stderr || `Process exited with code ${code}`;
@@ -741,7 +810,7 @@ async function handleProcessExit (params: {
       success: false,
       status: "FAILURE",
       summary: "Execution failed",
-      error: code === -1 ? errorMessage : `Process crashed with exit code ${code}. ${errorMessage}`,
+      error: code === -1 ? errorMessage : `Process exited with code ${code}. ${errorMessage}`,
     };
   }
 
@@ -1171,8 +1240,12 @@ export function cancelExecution (params: { runId: string; }): boolean {
 
   executionProcess.status = LocalRunStatus.CANCELLED;
 
+  // Clear all timers
   if (executionProcess.timeoutTimer) {
     clearTimeout(executionProcess.timeoutTimer);
+  }
+  if (executionProcess.inactivityCheckInterval) {
+    clearInterval(executionProcess.inactivityCheckInterval);
   }
 
   try {

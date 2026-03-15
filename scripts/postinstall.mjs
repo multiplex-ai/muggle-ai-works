@@ -6,13 +6,21 @@
 
 import { createHash } from "crypto";
 import { exec } from "child_process";
-import { createReadStream, createWriteStream, existsSync, mkdirSync, rmSync } from "fs";
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+} from "fs";
 import { homedir, platform } from "os";
 import { join } from "path";
 import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
+const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 
 /**
  * Get the Muggle AI data directory.
@@ -48,6 +56,15 @@ function getPlatformKey() {
     default:
       throw new Error(`Unsupported platform: ${os}`);
   }
+}
+
+/**
+ * Check whether a directory name looks like a version folder.
+ * @param {string} directoryName - Directory name to validate
+ * @returns {boolean} True when the directory name is a version
+ */
+function isVersionDirectoryName(directoryName) {
+  return VERSION_DIRECTORY_NAME_PATTERN.test(directoryName);
 }
 
 /**
@@ -98,6 +115,38 @@ async function verifyFileChecksum(filePath, expectedChecksum) {
 }
 
 /**
+ * Remove Electron app version directories that do not match the current version.
+ * @param {object} params - Cleanup parameters
+ * @param {string} params.appDir - Base Electron app directory
+ * @param {string} params.currentVersion - Version that should be kept
+ */
+function cleanupNonCurrentVersions({ appDir, currentVersion }) {
+  if (!existsSync(appDir)) {
+    return;
+  }
+
+  const appEntries = readdirSync(appDir, { withFileTypes: true });
+
+  for (const appEntry of appEntries) {
+    if (!appEntry.isDirectory()) {
+      continue;
+    }
+
+    if (!isVersionDirectoryName(appEntry.name)) {
+      continue;
+    }
+
+    if (appEntry.name === currentVersion) {
+      continue;
+    }
+
+    const staleVersionDir = join(appDir, appEntry.name);
+    console.log(`Removing stale Electron app version: ${appEntry.name}`);
+    rmSync(staleVersionDir, { recursive: true, force: true });
+  }
+}
+
+/**
  * Get platform-specific binary name.
  * @returns {string} Binary filename
  */
@@ -139,6 +188,7 @@ async function downloadElectronApp() {
 
     // Check if already downloaded
     if (existsSync(versionDir)) {
+      cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
       console.log(`Electron app v${version} already installed at ${versionDir}`);
       return;
     }
@@ -203,6 +253,8 @@ async function downloadElectronApp() {
 
     // Clean up temp file
     rmSync(tempFile, { force: true });
+
+    cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
 
     console.log(`Electron app installed to ${versionDir}`);
   } catch (error) {

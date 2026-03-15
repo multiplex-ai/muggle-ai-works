@@ -11,6 +11,7 @@ import { doctorCommand } from "./doctor.js";
 import { loginCommand, logoutCommand, statusCommand } from "./login.js";
 import { serveCommand } from "./serve.js";
 import { setupCommand } from "./setup.js";
+import { upgradeCommand } from "./upgrade.js";
 
 const logger = getLogger();
 
@@ -41,6 +42,15 @@ function createProgram(): Command {
     .description("Download/update the Electron app for local testing")
     .option("--force", "Force re-download even if already installed")
     .action(setupCommand);
+
+  // Upgrade command
+  program
+    .command("upgrade")
+    .description("Check for and install the latest electron-app version")
+    .option("--force", "Force re-download even if already on latest")
+    .option("--check", "Check for updates only, don't download")
+    .option("--version <version>", "Download a specific version (e.g., 1.0.2)")
+    .action(upgradeCommand);
 
   // Doctor command
   program

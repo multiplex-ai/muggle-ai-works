@@ -314,11 +314,37 @@ export function resetConfig(): void {
   muggleConfigCache = null;
 }
 
+/** Filename for storing the overridden electron-app version. */
+const VERSION_OVERRIDE_FILE = "electron-app-version-override.json";
+
 /**
- * Get the expected electron-app version from package.json.
+ * Get the effective electron-app version.
+ * Checks for version override file first (set by `muggle-mcp upgrade`),
+ * then falls back to the version specified in package.json.
  * @returns The electron-app version string.
  */
 export function getElectronAppVersion(): string {
+  const overridePath = path.join(getDataDir(), VERSION_OVERRIDE_FILE);
+
+  if (fs.existsSync(overridePath)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(overridePath, "utf-8"));
+      if (content.version && typeof content.version === "string") {
+        return content.version;
+      }
+    } catch {
+      // Fall through to default
+    }
+  }
+
+  return getMuggleConfig().electronAppVersion;
+}
+
+/**
+ * Get the bundled electron-app version from package.json (ignores override).
+ * @returns The bundled electron-app version string.
+ */
+export function getBundledElectronAppVersion(): string {
   return getMuggleConfig().electronAppVersion;
 }
 

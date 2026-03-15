@@ -5,6 +5,7 @@
 import { existsSync } from "fs";
 
 import {
+  getBundledElectronAppVersion,
   getConfig,
   getDataDir,
   getElectronAppVersion,
@@ -49,14 +50,34 @@ function runDiagnostics(): ICheckResult[] {
   // Check 2: Electron app installed
   const electronInstalled = isElectronAppInstalled();
   const electronVersion = getElectronAppVersion();
+  const bundledVersion = getBundledElectronAppVersion();
+  const isOverridden = electronVersion !== bundledVersion;
+
+  let electronDescription: string;
+  if (electronInstalled) {
+    electronDescription = `Installed (v${electronVersion})`;
+    if (isOverridden) {
+      electronDescription += ` [upgraded from bundled v${bundledVersion}]`;
+    }
+  } else {
+    electronDescription = `Not installed (expected v${electronVersion})`;
+  }
+
   results.push({
     name: "Electron App",
     passed: electronInstalled,
-    description: electronInstalled
-      ? `Installed (v${electronVersion})`
-      : `Not installed (expected v${electronVersion})`,
+    description: electronDescription,
     suggestion: "Run 'muggle-mcp setup' to download the Electron app",
   });
+
+  // Check 2b: Upgrade available hint
+  if (electronInstalled) {
+    results.push({
+      name: "Electron App Updates",
+      passed: true,
+      description: "Run 'muggle-mcp upgrade --check' to check for updates",
+    });
+  }
 
   // Check 3: Authentication status
   const authStatus = getAuthStatus();

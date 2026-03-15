@@ -132,7 +132,7 @@ async function downloadElectronApp() {
     const baseUrl = config.downloadBaseUrl || "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download";
 
     const binaryName = getBinaryName();
-    const downloadUrl = `${baseUrl}/electron-app-v${version}/${binaryName}`;
+    const downloadUrl = `${baseUrl}/v${version}/${binaryName}`;
 
     const appDir = getElectronAppDir();
     const versionDir = join(appDir, version);

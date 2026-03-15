@@ -372,3 +372,22 @@ export const RecommendCicdSetupInputSchema = z.object({
   repositoryProvider: z.enum(["github", "azureDevOps", "gitlab", "other"]).optional().describe("Git repository provider"),
   cadence: z.enum(["onPullRequest", "nightly", "onDemand"]).optional().describe("CI/CD trigger cadence"),
 });
+
+// =============================================================================
+// API Key Schemas
+// =============================================================================
+
+export const ApiKeyCreateInputSchema = z.object({
+  name: z.string().optional().describe("Name for the API key (helps identify the key later)"),
+  expiry: z.enum(["30d", "90d", "1y", "never"]).optional().describe("Key expiry period (default: 90d)"),
+});
+
+export const ApiKeyListInputSchema = z.object({});
+
+export const ApiKeyGetInputSchema = z.object({
+  apiKeyId: IdSchema.describe("ID of the API key to retrieve"),
+});
+
+export const ApiKeyRevokeInputSchema = z.object({
+  apiKeyId: IdSchema.describe("ID of the API key to revoke"),
+});

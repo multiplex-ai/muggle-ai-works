@@ -1057,6 +1057,156 @@ const recommendationTools: IQaToolDefinition[] = [
 ];
 
 // =============================================================================
+// API Key Tools
+// =============================================================================
+
+/** API key endpoint prefix. */
+const API_KEY_PREFIX = "/v1/protected/api-keys";
+
+const apiKeyTools: IQaToolDefinition[] = [
+  {
+    name: "qa_auth_api_key_create",
+    description: "Create a new API key for the authenticated user. Requires existing authentication.",
+    inputSchema: schemas.ApiKeyCreateInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.ApiKeyCreateInputSchema>;
+      return {
+        method: "POST",
+        path: API_KEY_PREFIX,
+        body: {
+          name: data.name || "MCP Gateway Key",
+          expiry: data.expiry || "90d",
+        },
+      };
+    },
+    mapFromUpstream: (response) => {
+      const data = response.data as {
+        id: string;
+        key: string;
+        name: string | null;
+        status: string;
+        prefix: string;
+        lastFour: string;
+        createdAt: number;
+        expiresAt: number | null;
+      };
+
+      const maskedKey = `${data.prefix}...${data.lastFour}`;
+      const expiresAt = data.expiresAt
+        ? new Date(data.expiresAt).toISOString()
+        : "never";
+
+      return {
+        success: true,
+        message: "API key created.",
+        apiKey: {
+          id: data.id,
+          key: data.key,
+          hint: maskedKey,
+          name: data.name,
+          status: data.status,
+          createdAt: new Date(data.createdAt).toISOString(),
+          expiresAt: expiresAt,
+        },
+        note: "The full API key is returned only once. Store it securely.",
+      };
+    },
+  },
+  {
+    name: "qa_auth_api_key_list",
+    description: "List all API keys for the authenticated user. Shows key metadata but not the secret values.",
+    inputSchema: schemas.ApiKeyListInputSchema,
+    mapToUpstream: () => {
+      return {
+        method: "GET",
+        path: API_KEY_PREFIX,
+      };
+    },
+    mapFromUpstream: (response) => {
+      const keys = response.data as Array<{
+        id: string;
+        name: string | null;
+        status: string;
+        prefix: string;
+        lastFour: string;
+        createdAt: number;
+        expiresAt: number | null;
+        revokedAt: number | null;
+      }>;
+
+      return {
+        success: true,
+        count: keys.length,
+        apiKeys: keys.map((key) => ({
+          id: key.id,
+          name: key.name,
+          status: key.status,
+          hint: `${key.prefix}...${key.lastFour}`,
+          createdAt: new Date(key.createdAt).toISOString(),
+          expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : "never",
+          revokedAt: key.revokedAt ? new Date(key.revokedAt).toISOString() : null,
+        })),
+      };
+    },
+  },
+  {
+    name: "qa_auth_api_key_get",
+    description: "Get details of a specific API key by ID.",
+    inputSchema: schemas.ApiKeyGetInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.ApiKeyGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${API_KEY_PREFIX}/${data.apiKeyId}`,
+      };
+    },
+    mapFromUpstream: (response) => {
+      const key = response.data as {
+        id: string;
+        name: string | null;
+        status: string;
+        prefix: string;
+        lastFour: string;
+        createdAt: number;
+        expiresAt: number | null;
+        revokedAt: number | null;
+      };
+
+      return {
+        success: true,
+        apiKey: {
+          id: key.id,
+          name: key.name,
+          status: key.status,
+          hint: `${key.prefix}...${key.lastFour}`,
+          createdAt: new Date(key.createdAt).toISOString(),
+          expiresAt: key.expiresAt ? new Date(key.expiresAt).toISOString() : "never",
+          revokedAt: key.revokedAt ? new Date(key.revokedAt).toISOString() : null,
+        },
+      };
+    },
+  },
+  {
+    name: "qa_auth_api_key_revoke",
+    description: "Revoke an API key. The key will immediately stop working. Use qa_auth_api_key_list to find the key ID first.",
+    inputSchema: schemas.ApiKeyRevokeInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.ApiKeyRevokeInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${API_KEY_PREFIX}/${data.apiKeyId}`,
+      };
+    },
+    mapFromUpstream: () => {
+      return {
+        success: true,
+        message: "API key revoked successfully. It will no longer work for authentication.",
+      };
+    },
+  },
+];
+
+// =============================================================================
 // All Tools Combined
 // =============================================================================
 
@@ -1072,6 +1222,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...prdFileTools,
   ...walletTools,
   ...recommendationTools,
+  ...apiKeyTools,
 ];
 
 /**

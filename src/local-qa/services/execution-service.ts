@@ -4,7 +4,6 @@
  */
 
 import { spawn } from "child_process";
-import type { ChildProcess } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
@@ -12,12 +11,15 @@ import { ulid } from "ulid";
 
 import { getConfig } from "../../shared/config.js";
 import type {
-  IExecutionProcess,
   IExecutionResult,
+  IInternalExecutionProcess,
   ILocalRunResult,
   ILocalTestCase,
   ILocalTestScript,
   ILocalWorkflowRun,
+  ISecretOption,
+  IStudioAuthInfo,
+  IWorkflowFileMetadata,
 } from "../types/index.js";
 import {
   LocalRunStatus,
@@ -26,46 +28,6 @@ import {
   LocalWorkflowRunStatus,
 } from "../types/index.js";
 import { getAuthService, getProjectStorageService } from "./index.js";
-
-/**
- * Studio auth info for electron-app.
- */
-interface IStudioAuthInfo {
-  /** Access token. */
-  accessToken: string;
-  /** User email. */
-  email: string;
-  /** User ID. */
-  userId: string;
-}
-
-/**
- * Secret option for action scripts.
- */
-interface ISecretOption {
-  /** Secret ID. */
-  id: string;
-  /** Secret name. */
-  secretName: string;
-  /** Secret description. */
-  description: string;
-  /** Secret source. */
-  source?: "agent" | "user";
-}
-
-/**
- * Workflow file metadata for action scripts.
- */
-interface IWorkflowFileMetadata {
-  /** File ID. */
-  id: string;
-  /** File path. */
-  filePath: string;
-  /** File description. */
-  description: string;
-  /** File tags. */
-  tags?: string[];
-}
 
 /**
  * Map local workflow files to workflow file metadata for action scripts.
@@ -161,20 +123,6 @@ const DEFAULT_GENERATION_TIMEOUT_MS = 300000;
 const DEFAULT_REPLAY_TIMEOUT_MS = 180000;
 
 /**
- * Early exit info captured when process exits before waitForCompletion is called.
- */
-interface IEarlyExitInfo {
-  /** Exit code from process. */
-  code: number | null;
-  /** Signal that terminated the process. */
-  signal: NodeJS.Signals | null;
-  /** Captured stdout. */
-  stdout: string;
-  /** Captured stderr. */
-  stderr: string;
-}
-
-/**
  * How long the process can be inactive (no stdout/stderr) before we consider it stuck (ms).
  * If the process produces no output for this duration while still running, we assume
  * it's stuck on an error dialog or similar blocking state.
@@ -185,30 +133,6 @@ const INACTIVITY_TIMEOUT_MS = 120000;
  * How often to check for process inactivity (ms).
  */
 const INACTIVITY_CHECK_INTERVAL_MS = 5000;
-
-/**
- * Extended execution process with ChildProcess.
- */
-interface IInternalExecutionProcess extends IExecutionProcess {
-  /** The child process. */
-  process: ChildProcess;
-  /** Timeout timer. */
-  timeoutTimer?: ReturnType<typeof setTimeout>;
-  /** Inactivity check interval. */
-  inactivityCheckInterval?: ReturnType<typeof setInterval>;
-  /** Captured stdout from early handlers. */
-  capturedStdout: string;
-  /** Captured stderr from early handlers. */
-  capturedStderr: string;
-  /** Early exit info if process exits before waitForCompletion. */
-  earlyExitInfo?: IEarlyExitInfo;
-  /** Whether the process has exited. */
-  hasExited: boolean;
-  /** Timestamp of last output (stdout or stderr) received. */
-  lastOutputAt: number;
-  /** Whether the process was killed due to inactivity. */
-  killedDueToInactivity: boolean;
-}
 
 /** Map of active execution processes by run ID. */
 const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();

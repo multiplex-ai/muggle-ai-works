@@ -7,6 +7,7 @@ import { Command } from "commander";
 
 import { getLogger } from "../shared/logger.js";
 
+import { cleanupCommand, versionsCommand } from "./cleanup.js";
 import { doctorCommand } from "./doctor.js";
 import { loginCommand, logoutCommand, statusCommand } from "./login.js";
 import { serveCommand } from "./serve.js";
@@ -51,6 +52,20 @@ function createProgram(): Command {
     .option("--check", "Check for updates only, don't download")
     .option("--version <version>", "Download a specific version (e.g., 1.0.2)")
     .action(upgradeCommand);
+
+  // Versions command
+  program
+    .command("versions")
+    .description("List installed electron-app versions")
+    .action(versionsCommand);
+
+  // Cleanup command
+  program
+    .command("cleanup")
+    .description("Remove old electron-app versions to free disk space")
+    .option("--all", "Remove all old versions (default: keep one previous)")
+    .option("--dry-run", "Show what would be deleted without deleting")
+    .action(cleanupCommand);
 
   // Doctor command
   program

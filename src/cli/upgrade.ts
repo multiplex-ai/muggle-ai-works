@@ -17,6 +17,7 @@ import {
 } from "../shared/config.js";
 import { getPlatformKey, verifyFileChecksum } from "../shared/checksum.js";
 import { getLogger } from "../shared/logger.js";
+import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();
 
@@ -413,6 +414,15 @@ export async function upgradeCommand(options: IUpgradeOptions): Promise<void> {
       const downloadUrl = `${baseUrl}/electron-app-v${options.version}/${binaryName}`;
 
       await downloadAndInstall(options.version, downloadUrl);
+
+      // Auto-cleanup old versions (keep current + 1 previous)
+      const cleanupResult = cleanupOldVersions({ all: false });
+      if (cleanupResult.removed.length > 0) {
+        console.log(
+          `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
+          `freed ${formatBytes(cleanupResult.freedBytes)}`,
+        );
+      }
       return;
     }
 
@@ -444,6 +454,15 @@ export async function upgradeCommand(options: IUpgradeOptions): Promise<void> {
 
     // Download and install
     await downloadAndInstall(result.latestVersion, result.downloadUrl);
+
+    // Auto-cleanup old versions (keep current + 1 previous)
+    const cleanupResult = cleanupOldVersions({ all: false });
+    if (cleanupResult.removed.length > 0) {
+      console.log(
+        `\nCleaned up ${cleanupResult.removed.length} old version(s), ` +
+        `freed ${formatBytes(cleanupResult.freedBytes)}`,
+      );
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Upgrade failed: ${errorMessage}`);

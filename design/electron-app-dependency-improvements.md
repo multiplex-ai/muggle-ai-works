@@ -61,23 +61,21 @@ Added `muggle-mcp upgrade` command that allows users to independently upgrade el
 ---
 
 ### 2. Cleanup Old Versions
-**Priority:** Medium  
-**Risk:** Disk space accumulates over time
+**Status:** ✅ Completed
 
 **Implementation:**
-1. Add `muggle-mcp cleanup` command
-2. Automatically cleanup during `upgrade` (keep only current + previous version)
-3. List installed versions with `muggle-mcp versions`
+- Created `src/cli/cleanup.ts` with cleanup and versions commands
+- Registered commands in `src/cli/index.ts`
+- Added auto-cleanup to `src/cli/upgrade.ts` (keeps current + 1 previous)
 
 **Commands:**
-- `muggle-mcp cleanup` - Remove old electron-app versions
-- `muggle-mcp cleanup --all` - Remove all versions except current
-- `muggle-mcp versions` - List installed versions
+- `muggle-mcp versions` - List installed versions with sizes
+- `muggle-mcp cleanup` - Remove old versions (keeps one previous for rollback)
+- `muggle-mcp cleanup --all` - Remove all old versions except current
+- `muggle-mcp cleanup --dry-run` - Preview what would be deleted
 
-**Files to create/modify:**
-- `src/cli/cleanup.ts` - New cleanup command
-- `src/cli/index.ts` - Register command
-- `src/cli/upgrade.ts` - Auto-cleanup after upgrade
+**Auto-cleanup:**
+After `muggle-mcp upgrade`, old versions are automatically cleaned up (keeping one previous version for rollback)
 
 ---
 

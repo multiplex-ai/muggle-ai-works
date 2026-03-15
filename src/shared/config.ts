@@ -329,13 +329,25 @@ export function resetConfig(): void {
 /** Filename for storing the overridden electron-app version. */
 const VERSION_OVERRIDE_FILE = "electron-app-version-override.json";
 
+/** Environment variable name for overriding electron-app version. */
+const ELECTRON_APP_VERSION_ENV = "ELECTRON_APP_VERSION";
+
 /**
  * Get the effective electron-app version.
- * Checks for version override file first (set by `muggle-mcp upgrade`),
- * then falls back to the version specified in package.json.
+ * Priority order:
+ * 1. ELECTRON_APP_VERSION env var (for testing/development)
+ * 2. Override file (set by `muggle-mcp upgrade`)
+ * 3. package.json muggleConfig.electronAppVersion (bundled default)
  * @returns The electron-app version string.
  */
 export function getElectronAppVersion(): string {
+  // Check environment variable first (highest priority)
+  const envVersion = process.env[ELECTRON_APP_VERSION_ENV];
+  if (envVersion && /^\d+\.\d+\.\d+$/.test(envVersion)) {
+    return envVersion;
+  }
+
+  // Check override file (set by muggle-mcp upgrade)
   const overridePath = path.join(getDataDir(), VERSION_OVERRIDE_FILE);
 
   if (fs.existsSync(overridePath)) {
@@ -349,7 +361,35 @@ export function getElectronAppVersion(): string {
     }
   }
 
+  // Fall back to bundled version
   return getMuggleConfig().electronAppVersion;
+}
+
+/**
+ * Get the source of the current electron-app version.
+ * @returns The version source: "env", "override", or "bundled".
+ */
+export function getElectronAppVersionSource(): "env" | "override" | "bundled" {
+  // Check environment variable
+  const envVersion = process.env[ELECTRON_APP_VERSION_ENV];
+  if (envVersion && /^\d+\.\d+\.\d+$/.test(envVersion)) {
+    return "env";
+  }
+
+  // Check override file
+  const overridePath = path.join(getDataDir(), VERSION_OVERRIDE_FILE);
+  if (fs.existsSync(overridePath)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(overridePath, "utf-8"));
+      if (content.version && typeof content.version === "string") {
+        return "override";
+      }
+    } catch {
+      // Fall through
+    }
+  }
+
+  return "bundled";
 }
 
 /**

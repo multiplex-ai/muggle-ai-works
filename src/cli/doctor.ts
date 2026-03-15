@@ -9,6 +9,7 @@ import {
   getConfig,
   getDataDir,
   getElectronAppVersion,
+  getElectronAppVersionSource,
   isElectronAppInstalled,
 } from "../shared/config.js";
 import { getAuthStatus, getCredentialsFilePath } from "../shared/credentials.js";
@@ -51,13 +52,20 @@ function runDiagnostics(): ICheckResult[] {
   const electronInstalled = isElectronAppInstalled();
   const electronVersion = getElectronAppVersion();
   const bundledVersion = getBundledElectronAppVersion();
-  const isOverridden = electronVersion !== bundledVersion;
+  const versionSource = getElectronAppVersionSource();
 
   let electronDescription: string;
   if (electronInstalled) {
     electronDescription = `Installed (v${electronVersion})`;
-    if (isOverridden) {
-      electronDescription += ` [upgraded from bundled v${bundledVersion}]`;
+    switch (versionSource) {
+      case "env":
+        electronDescription += ` [from ELECTRON_APP_VERSION env]`;
+        break;
+      case "override":
+        electronDescription += ` [upgraded from bundled v${bundledVersion}]`;
+        break;
+      default:
+        break;
     }
   } else {
     electronDescription = `Not installed (expected v${electronVersion})`;

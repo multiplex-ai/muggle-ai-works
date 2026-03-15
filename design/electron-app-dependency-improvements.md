@@ -86,19 +86,26 @@ After `muggle-mcp upgrade`, old versions are automatically cleaned up (keeping o
 ---
 
 ### 4. Environment Variable Override for Version
-**Priority:** Medium  
-**Risk:** Power users can't easily test different versions
+**Status:** ✅ Completed
 
 **Implementation:**
-1. Check `ELECTRON_APP_VERSION` env var in `getElectronAppVersion()`
-2. Priority: ENV VAR > Override File > package.json
+- Updated `getElectronAppVersion()` in `src/shared/config.ts` to check env var first
+- Added `getElectronAppVersionSource()` to identify where version came from
+- Updated `src/cli/doctor.ts` to show version source
 
-**Files to modify:**
-- `src/shared/config.ts` - Add env var check
+**Priority order:**
+1. `ELECTRON_APP_VERSION` env var (highest - for testing/development)
+2. Override file `~/.muggle-ai/electron-app-version-override.json` (set by `muggle-mcp upgrade`)
+3. `package.json` `muggleConfig.electronAppVersion` (bundled default)
 
 **Example:**
 ```bash
+# Use a specific version for testing
 ELECTRON_APP_VERSION=1.0.3 muggle-mcp serve
+
+# Check which version is active
+muggle-mcp doctor
+# Shows: Electron App: Installed (v1.0.3) [from ELECTRON_APP_VERSION env]
 ```
 
 ---

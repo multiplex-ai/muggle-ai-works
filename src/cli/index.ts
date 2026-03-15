@@ -21,6 +21,7 @@ const packageVersion = JSON.parse(
 
 import { cleanupCommand, versionsCommand } from "./cleanup.js";
 import { doctorCommand } from "./doctor.js";
+import { helpCommand } from "./help.js";
 import { loginCommand, logoutCommand, statusCommand } from "./login.js";
 import { serveCommand } from "./serve.js";
 import { setupCommand } from "./setup.js";
@@ -114,10 +115,31 @@ function createProgram(): Command {
 }
 
 /**
+ * Check if the user is requesting help via "muggle-mcp help".
+ * Commander.js reserves "help" as a built-in command, so we intercept it.
+ * @returns True if help was requested and handled.
+ */
+function handleHelpCommand(): boolean {
+  const args = process.argv.slice(2);
+
+  if (args.length === 1 && args[0] === "help") {
+    helpCommand();
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Run the CLI.
  */
 export async function runCli(): Promise<void> {
   try {
+    // Handle "muggle-mcp help" specially since Commander reserves "help"
+    if (handleHelpCommand()) {
+      return;
+    }
+
     const program = createProgram();
     await program.parseAsync(process.argv);
   } catch (error) {

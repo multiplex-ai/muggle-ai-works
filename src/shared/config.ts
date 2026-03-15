@@ -83,6 +83,7 @@ function getPackageRoot(): string {
 /**
  * Get the muggle config from package.json.
  * @returns The muggle config with electronAppVersion, downloadBaseUrl, and checksums.
+ * @throws Error if package.json cannot be read or muggleConfig is missing/invalid.
  */
 function getMuggleConfig(): IMuggleConfig {
   if (muggleConfigCache) {
@@ -92,28 +93,53 @@ function getMuggleConfig(): IMuggleConfig {
   const packageRoot = getPackageRoot();
   const packageJsonPath = path.join(packageRoot, "package.json");
 
+  let packageJson: Record<string, unknown>;
   try {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
-    const config = packageJson.muggleConfig;
-
-    if (config?.electronAppVersion && config?.downloadBaseUrl) {
-      muggleConfigCache = {
-        electronAppVersion: config.electronAppVersion,
-        downloadBaseUrl: config.downloadBaseUrl,
-        checksums: config.checksums,
-      };
-      return muggleConfigCache;
-    }
-  } catch {
-    // Fall through to defaults
+    const content = fs.readFileSync(packageJsonPath, "utf-8");
+    packageJson = JSON.parse(content);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to read package.json for muggleConfig.\n` +
+      `  Path: ${packageJsonPath}\n` +
+      `  Package root: ${packageRoot}\n` +
+      `  Error: ${errorMessage}\n` +
+      `  This is a bug - please report it.`
+    );
   }
 
-  // Fallback defaults when package.json can't be read.
-  // IMPORTANT: Keep electronAppVersion in sync with package.json muggleConfig.electronAppVersion
+  const config = packageJson.muggleConfig as Record<string, unknown> | undefined;
+
+  if (!config) {
+    throw new Error(
+      `Missing muggleConfig in package.json.\n` +
+      `  Path: ${packageJsonPath}\n` +
+      `  This is a bug - please report it.`
+    );
+  }
+
+  if (!config.electronAppVersion || typeof config.electronAppVersion !== "string") {
+    throw new Error(
+      `Missing or invalid muggleConfig.electronAppVersion in package.json.\n` +
+      `  Path: ${packageJsonPath}\n` +
+      `  Value: ${JSON.stringify(config.electronAppVersion)}\n` +
+      `  This is a bug - please report it.`
+    );
+  }
+
+  if (!config.downloadBaseUrl || typeof config.downloadBaseUrl !== "string") {
+    throw new Error(
+      `Missing or invalid muggleConfig.downloadBaseUrl in package.json.\n` +
+      `  Path: ${packageJsonPath}\n` +
+      `  Value: ${JSON.stringify(config.downloadBaseUrl)}\n` +
+      `  This is a bug - please report it.`
+    );
+  }
+
   muggleConfigCache = {
-    electronAppVersion: "1.0.2",
-    downloadBaseUrl: "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
-    checksums: {},
+    electronAppVersion: config.electronAppVersion,
+    downloadBaseUrl: config.downloadBaseUrl,
+    checksums: (config.checksums as IMuggleConfigChecksums) || {},
   };
 
   return muggleConfigCache;

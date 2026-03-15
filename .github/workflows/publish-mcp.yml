@@ -18,11 +18,11 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Use environment for npm trusted publishing (OIDC)
+    # Use environment for secrets isolation
     environment: npm-publish
     permissions:
       contents: read
-      id-token: write  # Required for npm provenance/OIDC
+      id-token: write  # Required for npm provenance attestation
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,7 +64,7 @@ jobs:
       - name: Publish to npm (with provenance)
         run: npm publish --access public --provenance
         env:
-          NPM_CONFIG_PROVENANCE: true
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   notify-on-failure:
     runs-on: ubuntu-latest

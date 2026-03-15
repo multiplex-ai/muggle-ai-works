@@ -150,10 +150,17 @@ async function downloadElectronApp() {
     mkdirSync(versionDir, { recursive: true });
 
     // Download using fetch
+    console.log("Fetching...");
     const response = await fetch(downloadUrl);
     if (!response.ok) {
-      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text().catch(() => "");
+      throw new Error(
+        `Download failed: ${response.status} ${response.statusText}\n` +
+        `URL: ${downloadUrl}\n` +
+        `Response body: ${errorBody.substring(0, 500)}`
+      );
     }
+    console.log(`Response OK (${response.status}), downloading ${response.headers.get("content-length") || "unknown"} bytes...`);
 
     const tempFile = join(versionDir, binaryName);
     const fileStream = createWriteStream(tempFile);
@@ -199,9 +206,26 @@ async function downloadElectronApp() {
 
     console.log(`Electron app installed to ${versionDir}`);
   } catch (error) {
-    console.warn("Warning: Failed to download Electron app.");
-    console.warn("You can manually download it later using: muggle-mcp setup");
-    console.warn(`Error: ${error.message}`);
+    console.error("\n========================================");
+    console.error("ERROR: Failed to download Electron app");
+    console.error("========================================\n");
+    console.error("Error message:", error.message);
+    console.error("\nFull error details:");
+    console.error(error.stack || error);
+    console.error("\nDebug info:");
+    console.error("  - Platform:", platform());
+    console.error("  - Architecture:", process.arch);
+    console.error("  - Node version:", process.version);
+    try {
+      const packageJson = require("../package.json");
+      const config = packageJson.muggleConfig || {};
+      console.error("  - Electron app version:", config.electronAppVersion || "unknown");
+      console.error("  - Download URL:", `${config.downloadBaseUrl}/v${config.electronAppVersion}/${getBinaryName()}`);
+    } catch {
+      console.error("  - Could not read package.json config");
+    }
+    console.error("\nYou can manually download it later using: muggle-mcp setup");
+    console.error("Or set ELECTRON_APP_PATH to point to an existing installation.\n");
   }
 }
 
@@ -216,9 +240,12 @@ async function extractZip(zipPath, destDir) {
       ? `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`
       : `unzip -o "${zipPath}" -d "${destDir}"`;
 
-    exec(cmd, (error) => {
+    exec(cmd, (error, stdout, stderr) => {
       if (error) {
-        reject(error);
+        console.error("Extraction command failed:", cmd);
+        console.error("stdout:", stdout);
+        console.error("stderr:", stderr);
+        reject(new Error(`Extraction failed: ${error.message}\nstderr: ${stderr}`));
       } else {
         resolve();
       }

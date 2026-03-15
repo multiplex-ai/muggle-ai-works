@@ -26,7 +26,7 @@
     "test:watch": "vitest"
   },
   "muggleConfig": {
-    "electronAppVersion": "1.0.2",
+    "electronAppVersion": "1.0.3",
     "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
     "checksums": {
       "darwin-arm64": "",

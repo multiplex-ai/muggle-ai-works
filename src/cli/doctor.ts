@@ -4,6 +4,7 @@
 
 import { existsSync } from "fs";
 
+import { getAuthService } from "../local-qa/services/index.js";
 import {
   getBundledElectronAppVersion,
   getConfig,
@@ -12,7 +13,7 @@ import {
   getElectronAppVersionSource,
   isElectronAppInstalled,
 } from "../shared/config.js";
-import { getAuthStatus, getCredentialsFilePath } from "../shared/credentials.js";
+import { getCredentialsFilePath, hasApiKey } from "../shared/credentials.js";
 import { getLogger } from "../shared/logger.js";
 
 const logger = getLogger();
@@ -88,22 +89,24 @@ function runDiagnostics(): ICheckResult[] {
   }
 
   // Check 3: Authentication status
-  const authStatus = getAuthStatus();
+  const authService = getAuthService();
+  const authStatus = authService.getAuthStatus();
   results.push({
     name: "Authentication",
     passed: authStatus.authenticated,
     description: authStatus.authenticated
-      ? `Authenticated as ${authStatus.email || "unknown"}`
+      ? `Authenticated as ${authStatus.email ?? "unknown"}`
       : "Not authenticated",
     suggestion: "Run 'muggle-mcp login' to authenticate",
   });
 
   // Check 4: API key available
+  const hasStoredApiKey = hasApiKey();
   results.push({
     name: "API Key",
-    passed: authStatus.hasApiKey,
-    description: authStatus.hasApiKey ? "API key stored" : "No API key stored",
-    suggestion: "Run 'muggle-mcp login' to generate an API key",
+    passed: hasStoredApiKey,
+    description: hasStoredApiKey ? "API key stored" : "No API key stored (optional)",
+    suggestion: "Run 'muggle-mcp login --key-name <name>' to generate an API key",
   });
 
   // Check 5: Credentials file

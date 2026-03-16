@@ -277,7 +277,19 @@ export async function performLogin(
 
   try {
     // Start device code flow via AuthService
-    const deviceCodeResponse = await authService.startDeviceCodeFlow();
+    const authDeviceCodeResponse = await authService.startDeviceCodeFlow();
+
+    // Map to shared type (ensure browserOpened is defined)
+    const deviceCodeResponse: IDeviceCodeResponse = {
+      deviceCode: authDeviceCodeResponse.deviceCode,
+      userCode: authDeviceCodeResponse.userCode,
+      verificationUri: authDeviceCodeResponse.verificationUri,
+      verificationUriComplete: authDeviceCodeResponse.verificationUriComplete,
+      expiresIn: authDeviceCodeResponse.expiresIn,
+      interval: authDeviceCodeResponse.interval,
+      browserOpened: authDeviceCodeResponse.browserOpened ?? false,
+      browserOpenError: authDeviceCodeResponse.browserOpenError,
+    };
 
     // Poll for completion
     const pollResult = await authService.waitForDeviceCodeAuthorization({

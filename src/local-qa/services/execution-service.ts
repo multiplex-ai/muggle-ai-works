@@ -312,19 +312,18 @@ async function executeElectronAppAsync(params: {
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
   const electronAppPath = getElectronAppPathOrThrow();
-  const spawnArgs = ["--", mode, params.scriptFilePath, "", params.authFilePath];
+  const spawnArgs = [mode, params.scriptFilePath, "", params.authFilePath];
 
   logger.info("Spawning electron-app for local execution", {
     runId: params.runId,
     mode: mode,
     electronAppPath: electronAppPath,
+    spawnArgs: spawnArgs,
   });
 
-  const appDir = path.dirname(path.dirname(path.dirname(electronAppPath)));
   const child = spawn(electronAppPath, spawnArgs, {
     stdio: ["ignore", "pipe", "pipe"],
     env: process.env,
-    cwd: appDir,
   });
 
   const processInfo: IInternalExecutionProcess = {
@@ -370,13 +369,17 @@ async function executeElectronAppAsync(params: {
       });
     }, params.timeoutMs);
 
-    child.stdout.on("data", (chunk: Buffer) => {
-      processInfo.capturedStdout += chunk.toString();
-    });
+    if (child.stdout) {
+      child.stdout.on("data", (chunk: Buffer) => {
+        processInfo.capturedStdout += chunk.toString();
+      });
+    }
 
-    child.stderr.on("data", (chunk: Buffer) => {
-      processInfo.capturedStderr += chunk.toString();
-    });
+    if (child.stderr) {
+      child.stderr.on("data", (chunk: Buffer) => {
+        processInfo.capturedStderr += chunk.toString();
+      });
+    }
 
     child.on("error", (error) => {
       finalize({

@@ -5,6 +5,7 @@
 
 import axios, { AxiosError } from "axios";
 
+import { getAuthService } from "../local-qa/services/index.js";
 import { getConfig } from "./config.js";
 import {
   deleteCredentials,
@@ -254,10 +255,11 @@ export async function createApiKeyWithToken(
 
 /**
  * Complete the full device code login flow.
- * Starts the flow, waits for user authorization, and creates credentials.
+ * Starts the flow, waits for user authorization, and stores credentials.
+ * API key creation is optional - only created when keyName is provided.
  *
- * @param keyName - Optional name for the API key.
- * @param keyExpiry - Expiry option for API key.
+ * @param keyName - Optional name for the API key. If provided, creates an API key.
+ * @param keyExpiry - Expiry option for API key (only used if keyName is provided).
  * @param timeoutMs - Maximum time to wait for authorization.
  * @returns Result of the login flow.
  */
@@ -271,79 +273,78 @@ export async function performLogin(
   credentials?: IStoredCredentials;
   error?: string;
 }> {
-  const config = getConfig();
+  const authService = getAuthService();
 
   try {
-    // Start device code flow
-    const deviceCodeResponse = await startDeviceCodeFlow(config.auth0);
+    // Start device code flow via AuthService
+    const deviceCodeResponse = await authService.startDeviceCodeFlow();
 
     // Poll for completion
-    const startTime = Date.now();
-    const interval = deviceCodeResponse.interval * 1000;
-    let currentInterval = interval;
+    const pollResult = await authService.waitForDeviceCodeAuthorization({
+      deviceCode: deviceCodeResponse.deviceCode,
+      intervalSeconds: deviceCodeResponse.interval,
+      timeoutMs: timeoutMs,
+    });
 
-    while (Date.now() - startTime < timeoutMs) {
-      await new Promise((resolve) => setTimeout(resolve, currentInterval));
+    if (pollResult.status === "complete") {
+      // Auth stored by AuthService, get the stored credentials
+      const storedAuth = authService.loadStoredAuth();
 
-      const pollResult = await pollDeviceCode(config.auth0, deviceCodeResponse.deviceCode);
+      // Build credentials object for return value
+      const credentials: IStoredCredentials = {
+        accessToken: storedAuth?.accessToken ?? "",
+        expiresAt: storedAuth?.expiresAt ?? "",
+        email: storedAuth?.email,
+        userId: storedAuth?.userId,
+      };
 
-      if (pollResult.status === "authorized" && pollResult.accessToken) {
-        // Calculate expiration
-        const expiresAt = new Date(
-          Date.now() + (pollResult.expiresIn || 86400) * 1000,
-        ).toISOString();
+      // Only create API key if explicitly requested (keyName provided)
+      if (keyName && storedAuth?.accessToken) {
+        logger.info("[Auth] Creating API key as explicitly requested", {
+          keyName: keyName,
+        });
 
-        // Create API key for persistent authentication
         const apiKeyResult = await createApiKeyWithToken(
-          pollResult.accessToken,
+          storedAuth.accessToken,
           keyName,
           keyExpiry,
         );
 
-        // Store credentials
-        const credentials: IStoredCredentials = {
-          accessToken: pollResult.accessToken,
-          expiresAt: expiresAt,
-          apiKey: apiKeyResult.key,
-          apiKeyId: apiKeyResult.id,
-        };
+        credentials.apiKey = apiKeyResult.key;
+        credentials.apiKeyId = apiKeyResult.id;
 
+        // Save API key to credentials.json for future use
         saveCredentials(credentials);
-
-        return {
-          success: true,
-          deviceCodeResponse: deviceCodeResponse,
-          credentials: credentials,
-        };
       }
 
-      if (pollResult.status === "slow_down") {
-        // Increase polling interval
-        currentInterval = Math.min(currentInterval + 1000, 15000);
-        continue;
-      }
-
-      if (pollResult.status === "expired_token") {
-        return {
-          success: false,
-          error: "Device code expired. Please try again.",
-        };
-      }
-
-      if (pollResult.status === "access_denied") {
-        return {
-          success: false,
-          error: "Access denied. User did not authorize the request.",
-        };
-      }
-
-      // authorization_pending - continue polling
+      return {
+        success: true,
+        deviceCodeResponse: deviceCodeResponse,
+        credentials: credentials,
+      };
     }
 
+    if (pollResult.status === "expired") {
+      return {
+        success: false,
+        deviceCodeResponse: deviceCodeResponse,
+        error: "Device code expired. Please try again.",
+      };
+    }
+
+    if (pollResult.status === "error") {
+      return {
+        success: false,
+        deviceCodeResponse: deviceCodeResponse,
+        error: pollResult.error ?? pollResult.message,
+      };
+    }
+
+    // Pending/timeout
     return {
       success: false,
       deviceCodeResponse: deviceCodeResponse,
-      error: "Timeout waiting for user authorization",
+      error: pollResult.message,
     };
   } catch (error) {
     return {
@@ -354,32 +355,67 @@ export async function performLogin(
 }
 
 /**
- * Perform logout by clearing credentials.
+ * Perform logout by clearing all credentials (auth tokens and API keys).
  */
 export function performLogout(): void {
+  // Clear AuthService auth (access token, refresh token)
+  const authService = getAuthService();
+  authService.logout();
+
+  // Clear API key credentials
   deleteCredentials();
+
   logger.info("[Auth] Logged out successfully");
 }
 
 /**
- * Get caller credentials for API requests.
- * Returns credentials from storage if available and valid.
+ * Get caller credentials for API requests (sync version).
+ * Checks for API key first, then falls back to access token.
+ * Does NOT auto-refresh - use getCallerCredentialsAsync() for that.
  * @returns Caller credentials or empty object.
  */
 export function getCallerCredentials(): ICallerCredentials {
+  // Check for explicit API key in credentials.json
   const credentials = getValidCredentials();
 
-  if (!credentials) {
-    return {};
-  }
-
-  // Prefer API key if available (longer lived)
-  if (credentials.apiKey) {
+  if (credentials?.apiKey) {
     return { apiKey: credentials.apiKey };
   }
 
-  // Fall back to bearer token
-  return { bearerToken: credentials.accessToken };
+  // Fall back to access token from AuthService
+  const authService = getAuthService();
+  const accessToken = authService.getAccessToken();
+
+  if (accessToken) {
+    return { bearerToken: accessToken };
+  }
+
+  return {};
+}
+
+/**
+ * Get caller credentials for API requests (async version with auto-refresh).
+ * This is the preferred method - automatically refreshes expired access tokens.
+ * Priority: 1) API key (if explicitly set), 2) Access token (with auto-refresh)
+ * @returns Caller credentials or empty object.
+ */
+export async function getCallerCredentialsAsync(): Promise<ICallerCredentials> {
+  // Check for explicit API key in credentials.json
+  const credentials = getValidCredentials();
+
+  if (credentials?.apiKey) {
+    return { apiKey: credentials.apiKey };
+  }
+
+  // Use AuthService for access token with auto-refresh
+  const authService = getAuthService();
+  const accessToken = await authService.getValidAccessToken();
+
+  if (accessToken) {
+    return { bearerToken: accessToken };
+  }
+
+  return {};
 }
 
 /**

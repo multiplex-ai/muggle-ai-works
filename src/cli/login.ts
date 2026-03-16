@@ -2,8 +2,9 @@
  * Login/logout/status commands for authentication.
  */
 
+import { getAuthService } from "../local-qa/services/index.js";
 import { performLogin, performLogout } from "../shared/auth.js";
-import { getAuthStatus } from "../shared/credentials.js";
+import { hasApiKey } from "../shared/credentials.js";
 import { getLogger } from "../shared/logger.js";
 
 const logger = getLogger();
@@ -81,7 +82,9 @@ export async function statusCommand(): Promise<void> {
   console.log("\nAuthentication Status");
   console.log("=====================\n");
 
-  const status = getAuthStatus();
+  const authService = getAuthService();
+  const status = authService.getAuthStatus();
+  const hasStoredApiKey = hasApiKey();
 
   if (status.authenticated) {
     console.log("✓ Authenticated");
@@ -97,9 +100,13 @@ export async function statusCommand(): Promise<void> {
     if (status.expiresAt) {
       const expiresDate = new Date(status.expiresAt);
       console.log(`  Token expires: ${expiresDate.toLocaleString()}`);
+
+      if (status.isExpired) {
+        console.log("  (Token expired - will refresh automatically on next API call)");
+      }
     }
 
-    console.log(`  API Key: ${status.hasApiKey ? "Yes" : "No"}`);
+    console.log(`  API Key: ${hasStoredApiKey ? "Yes" : "No"}`);
   } else {
     console.log("✗ Not authenticated");
     console.log("\nRun 'muggle-mcp login' to authenticate.");

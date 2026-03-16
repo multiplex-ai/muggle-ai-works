@@ -474,6 +474,7 @@ export class AuthService {
 
   /**
    * Get the current access token (if valid).
+   * Does not auto-refresh - use getValidAccessToken() for that.
    */
   getAccessToken(): string | null {
     const storedAuth = this.loadStoredAuth();
@@ -490,6 +491,135 @@ export class AuthService {
     }
 
     return storedAuth.accessToken;
+  }
+
+  /**
+   * Check if the access token is expired or about to expire.
+   * Uses a 5-minute buffer for safety.
+   */
+  isAccessTokenExpired(): boolean {
+    const storedAuth = this.loadStoredAuth();
+
+    if (!storedAuth) {
+      return true;
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(storedAuth.expiresAt);
+    const bufferMs = 5 * 60 * 1000;
+
+    return now.getTime() >= expiresAt.getTime() - bufferMs;
+  }
+
+  /**
+   * Refresh the access token using the stored refresh token.
+   * @returns New access token or null if refresh failed.
+   */
+  async refreshAccessToken(): Promise<string | null> {
+    const logger = getLogger();
+    const storedAuth = this.loadStoredAuth();
+
+    if (!storedAuth?.refreshToken) {
+      logger.debug("No refresh token available");
+      return null;
+    }
+
+    const config = getConfig();
+    const { domain, clientId } = config.localQa.auth0;
+
+    logger.info("Refreshing access token");
+
+    const url = `https://${domain}/oauth/token`;
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      client_id: clientId,
+      refresh_token: storedAuth.refreshToken,
+    });
+
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error("Token refresh failed", {
+          status: response.status,
+          error: errorText,
+        });
+        return null;
+      }
+
+      const tokenData = (await response.json()) as {
+        access_token: string;
+        refresh_token?: string;
+        token_type: string;
+        expires_in: number;
+      };
+
+      const newExpiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+
+      const updatedAuth: IStoredAuth = {
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token ?? storedAuth.refreshToken,
+        expiresAt: newExpiresAt,
+        email: storedAuth.email,
+        userId: storedAuth.userId,
+      };
+
+      const dir = path.dirname(this.authFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(this.authFilePath, JSON.stringify(updatedAuth, null, 2), {
+        encoding: "utf-8",
+        mode: 0o600,
+      });
+
+      logger.info("Access token refreshed", { expiresAt: newExpiresAt });
+
+      return tokenData.access_token;
+    } catch (error) {
+      logger.error("Token refresh request failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Get a valid access token, refreshing if necessary.
+   * This is the preferred method for getting an access token for API calls.
+   * @returns Valid access token or null if not authenticated or refresh failed.
+   */
+  async getValidAccessToken(): Promise<string | null> {
+    const logger = getLogger();
+    const storedAuth = this.loadStoredAuth();
+
+    if (!storedAuth) {
+      logger.debug("No stored auth, cannot get valid token");
+      return null;
+    }
+
+    if (!this.isAccessTokenExpired()) {
+      return storedAuth.accessToken;
+    }
+
+    logger.info("Access token expired, attempting refresh");
+
+    const refreshedToken = await this.refreshAccessToken();
+
+    if (refreshedToken) {
+      return refreshedToken;
+    }
+
+    logger.warn("Token refresh failed, user needs to re-authenticate");
+    return null;
   }
 
   /**

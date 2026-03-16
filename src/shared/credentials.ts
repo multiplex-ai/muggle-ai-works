@@ -121,7 +121,8 @@ export function isCredentialsExpired(credentials: IStoredCredentials): boolean {
 
 /**
  * Get valid credentials if available.
- * Returns null if no credentials or if expired.
+ * This is primarily used for API key storage.
+ * Access token authentication is handled by AuthService.
  * @returns Valid credentials or null.
  */
 export function getValidCredentials(): IStoredCredentials | null {
@@ -131,41 +132,59 @@ export function getValidCredentials(): IStoredCredentials | null {
     return null;
   }
 
-  if (isCredentialsExpired(credentials)) {
-    getLogger().info("Credentials expired", { expiresAt: credentials.expiresAt });
-    return null;
+  // Return credentials if API key exists (server validates expiry)
+  if (credentials.apiKey) {
+    return credentials;
   }
 
-  return credentials;
+  return null;
 }
 
 /**
- * Get authentication status.
- * @returns Object with authentication status information.
+ * Check if an API key is stored.
+ * @returns True if API key exists.
  */
-export function getAuthStatus(): {
-  authenticated: boolean;
-  email?: string;
-  userId?: string;
-  expiresAt?: string;
-  hasApiKey: boolean;
-} {
+export function hasApiKey(): boolean {
   const credentials = loadCredentials();
+  return !!credentials?.apiKey;
+}
 
-  if (!credentials) {
-    return {
-      authenticated: false,
-      hasApiKey: false,
+/**
+ * Get stored API key if available.
+ * @returns API key or null.
+ */
+export function getApiKey(): string | null {
+  const credentials = loadCredentials();
+  return credentials?.apiKey ?? null;
+}
+
+/**
+ * Save API key to credentials.
+ * @param apiKey - The API key to save.
+ * @param apiKeyId - The API key ID.
+ */
+export function saveApiKey(params: { apiKey: string; apiKeyId: string }): void {
+  const logger = getLogger();
+  const credentialsPath = getCredentialsFilePath();
+
+  try {
+    ensureDataDir();
+
+    const credentials: IStoredCredentials = {
+      accessToken: "",
+      expiresAt: "",
+      apiKey: params.apiKey,
+      apiKeyId: params.apiKeyId,
     };
+
+    const content = JSON.stringify(credentials, null, 2);
+    fs.writeFileSync(credentialsPath, content, { mode: 0o600 });
+
+    logger.info("API key saved", { path: credentialsPath });
+  } catch (error) {
+    logger.error("Failed to save API key", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-
-  const expired = isCredentialsExpired(credentials);
-
-  return {
-    authenticated: !expired,
-    email: credentials.email,
-    userId: credentials.userId,
-    expiresAt: credentials.expiresAt,
-    hasApiKey: !!credentials.apiKey,
-  };
 }

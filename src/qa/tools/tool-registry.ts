@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { getCallerCredentials } from "../../shared/auth.js";
+import { getCallerCredentialsAsync } from "../../shared/auth.js";
 import { getConfig } from "../../shared/config.js";
 import { createChildLogger } from "../../shared/logger.js";
 import type { IMcpToolResult } from "../../shared/types.js";
@@ -396,7 +396,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-list-test-case-detection-runtimes",
+    name: "muggle-remote-wf-list-tc-detect-runtimes",
     description: "List test case detection workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
@@ -409,7 +409,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-test-case-detection-latest-run",
+    name: "muggle-remote-wf-get-tc-detect-latest-run",
     description: "Get the latest run status for a test case detection workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -446,7 +446,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-test-script-generation-latest-run",
+    name: "muggle-remote-wf-get-ts-gen-latest-run",
     description: "Get the latest run status for a test script generation workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -458,7 +458,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-latest-test-script-generation-runtime-by-test-case",
+    name: "muggle-remote-wf-get-latest-ts-gen-by-tc",
     description: "Get the latest test script generation runtime for a specific test case.",
     inputSchema: schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema,
     mapToUpstream: (input) => {
@@ -491,7 +491,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-test-script-replay-latest-run",
+    name: "muggle-remote-wf-get-ts-replay-latest-run",
     description: "Get the latest run status for a test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -527,7 +527,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-list-test-script-replay-bulk-runtimes",
+    name: "muggle-remote-wf-list-ts-replay-bulk-runtimes",
     description: "List bulk test script replay workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
@@ -540,7 +540,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-test-script-replay-bulk-latest-run",
+    name: "muggle-remote-wf-get-ts-replay-bulk-latest-run",
     description: "Get the latest run status for a bulk test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -552,7 +552,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-replay-bulk-run-batch-summary",
+    name: "muggle-remote-wf-get-replay-bulk-batch-summary",
     description: "Get the summary of a bulk replay run batch.",
     inputSchema: schemas.WorkflowGetReplayBulkBatchSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -851,7 +851,7 @@ const prdFileTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-workflow-get-prd-file-process-latest-run",
+    name: "muggle-remote-wf-get-prd-process-latest-run",
     description: "Get the latest run status of a PRD file processing workflow.",
     inputSchema: schemas.PrdFileProcessLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -887,7 +887,7 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-wallet-payment-method-create-setup-session",
+    name: "muggle-remote-wallet-pm-create-setup-session",
     description: "Create a Stripe setup session to add a payment method.",
     inputSchema: schemas.WalletPaymentMethodCreateSetupSessionInputSchema,
     mapToUpstream: (input) => {
@@ -1420,8 +1420,8 @@ export async function executeQaTool(
       };
     }
 
-    // Get credentials
-    const credentials = getCallerCredentials();
+    // Get credentials (async with auto-refresh)
+    const credentials = await getCallerCredentialsAsync();
 
     // Execute upstream call
     try {

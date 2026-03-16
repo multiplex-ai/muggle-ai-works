@@ -606,11 +606,23 @@ export class AuthService {
       return null;
     }
 
-    if (!this.isAccessTokenExpired()) {
+    // Check if token is strictly expired (past expiresAt)
+    const now = new Date();
+    const expiresAt = new Date(storedAuth.expiresAt);
+    const isStrictlyExpired = now >= expiresAt;
+
+    // If not strictly expired, return the token
+    // (we'll still try to refresh in the buffer zone, but won't fail if refresh fails)
+    if (!isStrictlyExpired && !this.isAccessTokenExpired()) {
       return storedAuth.accessToken;
     }
 
-    logger.info("Access token expired, attempting refresh");
+    // Token is in buffer zone or expired - try to refresh
+    if (!isStrictlyExpired) {
+      logger.debug("Access token in buffer zone, attempting proactive refresh");
+    } else {
+      logger.info("Access token expired, attempting refresh");
+    }
 
     const refreshedToken = await this.refreshAccessToken();
 
@@ -618,7 +630,13 @@ export class AuthService {
       return refreshedToken;
     }
 
-    logger.warn("Token refresh failed, user needs to re-authenticate");
+    // If refresh failed but token isn't strictly expired, still use it
+    if (!isStrictlyExpired) {
+      logger.warn("Token refresh failed, but token not yet expired - using existing token");
+      return storedAuth.accessToken;
+    }
+
+    logger.warn("Token refresh failed and token is expired, user needs to re-authenticate");
     return null;
   }
 

@@ -312,7 +312,7 @@ async function executeElectronAppAsync(params: {
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
   const electronAppPath = getElectronAppPathOrThrow();
-  const spawnArgs = [mode, params.scriptFilePath, "", params.authFilePath];
+  const spawnArgs = ["--", mode, params.scriptFilePath, "", params.authFilePath];
 
   logger.info("Spawning electron-app for local execution", {
     runId: params.runId,
@@ -320,9 +320,11 @@ async function executeElectronAppAsync(params: {
     electronAppPath: electronAppPath,
   });
 
+  const appDir = path.dirname(path.dirname(path.dirname(electronAppPath)));
   const child = spawn(electronAppPath, spawnArgs, {
     stdio: ["ignore", "pipe", "pipe"],
     env: process.env,
+    cwd: appDir,
   });
 
   const processInfo: IInternalExecutionProcess = {

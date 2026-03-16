@@ -37,6 +37,10 @@ export const TestCaseDetailsSchema = z.object({
   instructions: z.string().optional().describe("Step-by-step instructions for the test"),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
+  /** Cloud project ID (required for electron workflow context). */
+  projectId: z.string().min(1).describe("Cloud project ID"),
+  /** Cloud use case ID (required for electron workflow context). */
+  useCaseId: z.string().min(1).describe("Cloud use case ID"),
 });
 
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
@@ -60,6 +64,10 @@ export const TestScriptDetailsSchema = z.object({
   actionScript: z.array(z.unknown()).describe("Action script steps to replay"),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
+  /** Cloud project ID (required for electron workflow context). */
+  projectId: z.string().min(1).describe("Cloud project ID"),
+  /** Cloud use case ID (required for electron workflow context). */
+  useCaseId: z.string().min(1).describe("Cloud use case ID"),
 });
 
 export type TestScriptDetails = z.infer<typeof TestScriptDetailsSchema>;

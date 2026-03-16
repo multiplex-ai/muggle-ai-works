@@ -24,6 +24,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const CURSOR_SERVER_NAME = "muggle";
+const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 
 /**
  * Get the Cursor MCP config path.
@@ -282,6 +283,121 @@ function getExpectedExecutablePath(versionDir) {
 }
 
 /**
+ * Get the metadata file path for an installed version.
+ * @param {string} versionDir - Version directory path
+ * @returns {string} Metadata file path
+ */
+function getInstallMetadataPath(versionDir) {
+  return join(versionDir, INSTALL_METADATA_FILE_NAME);
+}
+
+/**
+ * Read install metadata from disk.
+ * @param {string} metadataPath - Metadata file path
+ * @returns {Record<string, unknown> | null} Parsed metadata, or null if missing/invalid
+ */
+function readInstallMetadata(metadataPath) {
+  if (!existsSync(metadataPath)) {
+    return null;
+  }
+
+  try {
+    const metadataContent = readFileSync(metadataPath, "utf-8");
+    const parsedMetadata = JSON.parse(metadataContent);
+    if (typeof parsedMetadata !== "object" || parsedMetadata === null || Array.isArray(parsedMetadata)) {
+      return null;
+    }
+    return parsedMetadata;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist install metadata to disk.
+ * @param {object} params - Metadata fields
+ * @param {string} params.metadataPath - Metadata file path
+ * @param {string} params.version - Installed version
+ * @param {string} params.binaryName - Archive filename
+ * @param {string} params.platformKey - Platform key
+ * @param {string} params.executableChecksum - Checksum of extracted executable
+ * @param {string} params.expectedArchiveChecksum - Configured archive checksum for platform
+ */
+function writeInstallMetadata({
+  metadataPath,
+  version,
+  binaryName,
+  platformKey,
+  executableChecksum,
+  expectedArchiveChecksum,
+}) {
+  const metadata = {
+    version: version,
+    binaryName: binaryName,
+    platformKey: platformKey,
+    executableChecksum: executableChecksum,
+    expectedArchiveChecksum: expectedArchiveChecksum,
+    updatedAt: new Date().toISOString(),
+  };
+
+  writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Verify existing installed executable and metadata.
+ * @param {object} params - Verification params
+ * @param {string} params.versionDir - Installed version directory
+ * @param {string} params.executablePath - Expected executable path
+ * @param {string} params.version - Version string
+ * @param {string} params.binaryName - Archive filename
+ * @param {string} params.platformKey - Platform key
+ * @param {string} params.expectedArchiveChecksum - Configured checksum for downloaded archive
+ * @returns {Promise<{valid: boolean, reason: string}>} Verification result
+ */
+async function verifyExistingInstall({
+  versionDir,
+  executablePath,
+  version,
+  binaryName,
+  platformKey,
+  expectedArchiveChecksum,
+}) {
+  const metadataPath = getInstallMetadataPath(versionDir);
+  const metadata = readInstallMetadata(metadataPath);
+
+  if (!metadata) {
+    return { valid: false, reason: "install metadata is missing or invalid" };
+  }
+
+  if (metadata.version !== version) {
+    return { valid: false, reason: "installed metadata version does not match configured version" };
+  }
+
+  if (metadata.binaryName !== binaryName) {
+    return { valid: false, reason: "installed metadata binary name does not match current platform archive" };
+  }
+
+  if (metadata.platformKey !== platformKey) {
+    return { valid: false, reason: "installed metadata platform key does not match current platform" };
+  }
+
+  if ((metadata.expectedArchiveChecksum || "") !== expectedArchiveChecksum) {
+    return { valid: false, reason: "configured archive checksum changed since previous install" };
+  }
+
+  if (typeof metadata.executableChecksum !== "string" || metadata.executableChecksum === "") {
+    return { valid: false, reason: "installed metadata executable checksum is missing" };
+  }
+
+  const currentExecutableChecksum = await calculateFileChecksum(executablePath);
+  if (currentExecutableChecksum !== metadata.executableChecksum) {
+    return { valid: false, reason: "installed executable checksum does not match recorded checksum" };
+  }
+
+  return { valid: true, reason: "installed executable checksum is valid" };
+}
+
+/**
  * Download and extract the Electron app.
  */
 async function downloadElectronApp() {
@@ -293,24 +409,44 @@ async function downloadElectronApp() {
     const baseUrl = config.downloadBaseUrl || "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download";
 
     const binaryName = getBinaryName();
+    const checksums = config.checksums || {};
+    const platformKey = getPlatformKey();
+    const expectedChecksum = checksums[platformKey] || "";
     const downloadUrl = `${baseUrl}/v${version}/${binaryName}`;
 
     const appDir = getElectronAppDir();
     const versionDir = join(appDir, version);
+    const metadataPath = getInstallMetadataPath(versionDir);
 
     // Check if already downloaded and extracted correctly
     const expectedExecutablePath = getExpectedExecutablePath(versionDir);
     if (existsSync(versionDir)) {
       if (existsSync(expectedExecutablePath)) {
-        cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
-        console.log(`Electron app v${version} already installed at ${versionDir}`);
-        return;
-      }
+        const existingInstallVerification = await verifyExistingInstall({
+          versionDir: versionDir,
+          executablePath: expectedExecutablePath,
+          version: version,
+          binaryName: binaryName,
+          platformKey: platformKey,
+          expectedArchiveChecksum: expectedChecksum,
+        });
 
-      console.log(
-        `Electron app v${version} directory exists but executable is missing. Re-downloading...`,
-      );
-      rmSync(versionDir, { recursive: true, force: true });
+        if (existingInstallVerification.valid) {
+          cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
+          console.log(`Electron app v${version} already installed at ${versionDir}`);
+          return;
+        }
+
+        console.log(
+          `Installed Electron app v${version} failed verification (${existingInstallVerification.reason}). Re-downloading...`,
+        );
+        rmSync(versionDir, { recursive: true, force: true });
+      } else {
+        console.log(
+          `Electron app v${version} directory exists but executable is missing. Re-downloading...`,
+        );
+        rmSync(versionDir, { recursive: true, force: true });
+      }
     }
 
     console.log(`Downloading Muggle Test Electron app v${version}...`);
@@ -337,11 +473,6 @@ async function downloadElectronApp() {
     await pipeline(response.body, fileStream);
 
     console.log("Download complete, verifying checksum...");
-
-    // Get expected checksum from config
-    const checksums = config.checksums || {};
-    const platformKey = getPlatformKey();
-    const expectedChecksum = checksums[platformKey] || "";
 
     // Verify checksum
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
@@ -373,6 +504,24 @@ async function downloadElectronApp() {
 
     // Clean up temp file
     rmSync(tempFile, { force: true });
+
+    if (!existsSync(expectedExecutablePath)) {
+      throw new Error(
+        `Extraction completed but executable was not found.\n` +
+        `Expected path: ${expectedExecutablePath}\n` +
+        `Version directory: ${versionDir}`,
+      );
+    }
+
+    const executableChecksum = await calculateFileChecksum(expectedExecutablePath);
+    writeInstallMetadata({
+      metadataPath: metadataPath,
+      version: version,
+      binaryName: binaryName,
+      platformKey: platformKey,
+      executableChecksum: executableChecksum,
+      expectedArchiveChecksum: expectedChecksum,
+    });
 
     cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
 

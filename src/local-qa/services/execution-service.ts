@@ -13,9 +13,12 @@ import * as fs from "fs/promises";
 import * as path from "path";
 
 import { getConfig } from "../../shared/config.js";
+import { getLogger } from "../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService } from "./index.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
+
+const logger = getLogger();
 
 // ========================================
 // Types
@@ -39,6 +42,18 @@ interface IInternalExecutionProcess {
   capturedStdout: string;
   /** Captured stderr. */
   capturedStderr: string;
+}
+
+/**
+ * Electron process completion payload.
+ */
+interface IElectronExecutionResult {
+  /** Process exit code. */
+  exitCode: number;
+  /** Captured stdout. */
+  stdout: string;
+  /** Captured stderr. */
+  stderr: string;
 }
 
 /**
@@ -146,6 +161,254 @@ async function cleanupTempFiles(params: { filePaths: string[] }): Promise<void> 
   }
 }
 
+/**
+ * Resolve the electron-app binary path from config.
+ */
+function getElectronAppPathOrThrow(): string {
+  const config = getConfig();
+  const electronAppPath = config.localQa.electronAppPath;
+  if (!electronAppPath || electronAppPath.trim() === "") {
+    throw new Error(
+      "Electron app binary not found. Run 'muggle-mcp setup' or set ELECTRON_APP_PATH.",
+    );
+  }
+  return electronAppPath;
+}
+
+/**
+ * Get a required string from an object field.
+ */
+function getRequiredStringField(params: {
+  source: Record<string, unknown>;
+  fieldName: string;
+  sourceLabel: string;
+}): string {
+  const value = params.source[params.fieldName];
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(
+      `Missing required field '${params.fieldName}' in ${params.sourceLabel}. ` +
+        "Please pass the full object from the corresponding muggle-remote-* get tool.",
+    );
+  }
+  return value;
+}
+
+/**
+ * Build a local action script for test generation (explore mode).
+ */
+function buildGenerationActionScript(params: {
+  testCase: TestCaseDetails;
+  localUrl: string;
+  runId: string;
+  localTestScriptId: string;
+  ownerUserId: string;
+}): Record<string, unknown> {
+  const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
+  const projectId = getRequiredStringField({
+    source: testCaseRecord,
+    fieldName: "projectId",
+    sourceLabel: "testCase",
+  });
+  const useCaseId = getRequiredStringField({
+    source: testCaseRecord,
+    fieldName: "useCaseId",
+    sourceLabel: "testCase",
+  });
+
+  return {
+    actionScriptId: params.localTestScriptId,
+    actionScriptName: `Local Generation ${params.testCase.title}`,
+    actionType: "UserDefined",
+    actionParams: {
+      type: "Test Script Generation Workflow",
+      name: `Local Generation ${params.testCase.title}`,
+      ownerId: params.ownerUserId,
+      projectId: projectId,
+      useCaseId: useCaseId,
+      testCaseId: params.testCase.id,
+      testScriptId: params.localTestScriptId,
+      actionScriptId: params.localTestScriptId,
+      workflowRunId: params.runId,
+      url: params.localUrl,
+      sharedTestMemoryId: "",
+    },
+    goal: params.testCase.goal,
+    url: params.localUrl,
+    description: params.testCase.title,
+    precondition: params.testCase.precondition ?? "",
+    expectedResult: params.testCase.expectedResult,
+    steps: [],
+    ownerId: params.ownerUserId,
+    createdAt: Date.now(),
+    isRemoteScript: false,
+    status: "active",
+  };
+}
+
+/**
+ * Build a local action script for test replay (engine mode).
+ */
+function buildReplayActionScript(params: {
+  testScript: TestScriptDetails;
+  localUrl: string;
+  runId: string;
+  ownerUserId: string;
+}): Record<string, unknown> {
+  const testScriptRecord = params.testScript as unknown as Record<string, unknown>;
+  const projectId = getRequiredStringField({
+    source: testScriptRecord,
+    fieldName: "projectId",
+    sourceLabel: "testScript",
+  });
+  const useCaseId = getRequiredStringField({
+    source: testScriptRecord,
+    fieldName: "useCaseId",
+    sourceLabel: "testScript",
+  });
+
+  const rewrittenActionScript = rewriteActionScriptUrls({
+    actionScript: params.testScript.actionScript,
+    originalUrl: params.testScript.url,
+    localUrl: params.localUrl,
+  });
+
+  return {
+    actionScriptId: params.testScript.id,
+    actionScriptName: params.testScript.name,
+    actionType: "UserDefined",
+    actionParams: {
+      type: "Test Script Replay Workflow",
+      name: params.testScript.name,
+      ownerId: params.ownerUserId,
+      projectId: projectId,
+      useCaseId: useCaseId,
+      testCaseId: params.testScript.testCaseId,
+      testScriptId: params.testScript.id,
+      workflowRunId: params.runId,
+      sharedTestMemoryId: "",
+    },
+    goal: params.testScript.name,
+    url: params.localUrl,
+    description: params.testScript.name,
+    precondition: "",
+    expectedResult: "Replay completes without critical failures.",
+    steps: rewrittenActionScript,
+    ownerId: params.ownerUserId,
+    createdAt: Date.now(),
+    isRemoteScript: true,
+    status: "active",
+  };
+}
+
+/**
+ * Spawn electron-app in the requested mode and wait for completion.
+ */
+async function executeElectronAppAsync(params: {
+  runId: string;
+  runType: "generation" | "replay";
+  scriptFilePath: string;
+  authFilePath: string;
+  timeoutMs: number;
+}): Promise<IElectronExecutionResult> {
+  const mode = params.runType === "generation" ? "explore" : "engine";
+  const electronAppPath = getElectronAppPathOrThrow();
+  const spawnArgs = [mode, params.scriptFilePath, "", params.authFilePath];
+
+  logger.info("Spawning electron-app for local execution", {
+    runId: params.runId,
+    mode: mode,
+    electronAppPath: electronAppPath,
+  });
+
+  const child = spawn(electronAppPath, spawnArgs, {
+    stdio: ["ignore", "pipe", "pipe"],
+    env: process.env,
+  });
+
+  const processInfo: IInternalExecutionProcess = {
+    runId: params.runId,
+    process: child,
+    status: "running",
+    startedAt: Date.now(),
+    capturedStdout: "",
+    capturedStderr: "",
+  };
+  activeProcesses.set(params.runId, processInfo);
+
+  return await new Promise<IElectronExecutionResult>((resolve, reject) => {
+    let settled = false;
+
+    const finalize = (result: { ok: boolean; payload: IElectronExecutionResult | Error }) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+
+      if (processInfo.timeoutTimer) {
+        clearTimeout(processInfo.timeoutTimer);
+      }
+      activeProcesses.delete(params.runId);
+
+      if (result.ok) {
+        resolve(result.payload as IElectronExecutionResult);
+      } else {
+        reject(result.payload as Error);
+      }
+    };
+
+    processInfo.timeoutTimer = setTimeout(() => {
+      processInfo.process.kill("SIGTERM");
+      finalize({
+        ok: false,
+        payload: new Error(
+          `Electron execution timed out after ${params.timeoutMs}ms.\n` +
+            `STDOUT:\n${processInfo.capturedStdout}\n` +
+            `STDERR:\n${processInfo.capturedStderr}`,
+        ),
+      });
+    }, params.timeoutMs);
+
+    child.stdout.on("data", (chunk: Buffer) => {
+      processInfo.capturedStdout += chunk.toString();
+    });
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      processInfo.capturedStderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      finalize({
+        ok: false,
+        payload: new Error(`Failed to start electron-app: ${error.message}`),
+      });
+    });
+
+    child.on("close", (code, signal) => {
+      const exitCode = code ?? -1;
+      if (signal) {
+        finalize({
+          ok: false,
+          payload: new Error(
+            `Electron execution terminated by signal ${signal}.\n` +
+              `STDOUT:\n${processInfo.capturedStdout}\n` +
+              `STDERR:\n${processInfo.capturedStderr}`,
+          ),
+        });
+        return;
+      }
+
+      finalize({
+        ok: true,
+        payload: {
+          exitCode: exitCode,
+          stdout: processInfo.capturedStdout,
+          stderr: processInfo.capturedStderr,
+        },
+      });
+    });
+  });
+}
+
 // ========================================
 // Main Execution Functions
 // ========================================
@@ -167,6 +430,7 @@ export async function executeTestGeneration(params: {
   timeoutMs?: number;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
+  const timeoutMs = params.timeoutMs ?? 300000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
   getAuthenticatedUserId(); // Throws if not authenticated
@@ -189,25 +453,16 @@ export async function executeTestGeneration(params: {
       goal: testCase.goal,
     });
 
-    // Build action script for electron-app
-    // TODO: Build proper action script using testCase details
-    const actionScript = {
-      steps: [
-        {
-          type: "navigate",
-          url: localUrl,
-        },
-        {
-          type: "explore",
-          goal: testCase.goal,
-          instructions: testCase.instructions,
-          expectedResult: testCase.expectedResult,
-        },
-      ],
-    };
-
     const runId = runResult.id;
     const startedAt = Date.now();
+
+    const actionScript = buildGenerationActionScript({
+      testCase: testCase,
+      localUrl: localUrl,
+      runId: runId,
+      localTestScriptId: localTestScript.id,
+      ownerUserId: authContent.userId,
+    });
 
     // Write temp files
     const inputFilePath = await writeTempFile({
@@ -219,30 +474,75 @@ export async function executeTestGeneration(params: {
       data: authContent,
     });
 
-    // TODO: Spawn electron-app and wait for completion
-    // For now, simulate a failure since electron-app integration is not complete
+    try {
+      const executionResult = await executeElectronAppAsync({
+        runId: runId,
+        runType: "generation",
+        scriptFilePath: inputFilePath,
+        authFilePath: authFilePath,
+        timeoutMs: timeoutMs,
+      });
 
-    const completedAt = Date.now();
-    const executionTimeMs = completedAt - startedAt;
+      const completedAt = Date.now();
+      const executionTimeMs = completedAt - startedAt;
 
-    // Update run result with failure
-    storage.updateRunResult(runId, {
-      status: "failed",
-      testScriptId: localTestScript.id,
-      executionTimeMs: executionTimeMs,
-      errorMessage: "Electron-app execution not yet implemented.",
-    });
+      if (executionResult.exitCode !== 0) {
+        const failureMessage =
+          `Electron exited with code ${executionResult.exitCode}.\n` +
+          `STDOUT:\n${executionResult.stdout}\n` +
+          `STDERR:\n${executionResult.stderr}`;
+        storage.updateRunResult(runId, {
+          status: "failed",
+          testScriptId: localTestScript.id,
+          executionTimeMs: executionTimeMs,
+          errorMessage: failureMessage,
+        });
+        storage.updateTestScript(localTestScript.id, {
+          status: "failed",
+        });
+        return {
+          id: runId,
+          testScriptId: localTestScript.id,
+          status: "failed",
+          executionTimeMs: executionTimeMs,
+          errorMessage: failureMessage,
+        };
+      }
 
-    // Cleanup temp files
-    await cleanupTempFiles({ filePaths: [inputFilePath, authFilePath] });
+      const generatedScriptPath = path.join(
+        path.dirname(inputFilePath),
+        `gen_${path.basename(inputFilePath)}`,
+      );
+      const generatedScriptRaw = await fs.readFile(generatedScriptPath, "utf-8");
+      const generatedScript = JSON.parse(generatedScriptRaw) as Record<string, unknown>;
+      const generatedSteps = generatedScript.steps;
+      if (!Array.isArray(generatedSteps)) {
+        throw new Error(
+          `Generated script does not contain a valid 'steps' array. File: ${generatedScriptPath}`,
+        );
+      }
 
-    return {
-      id: runId,
-      testScriptId: localTestScript.id,
-      status: "failed",
-      executionTimeMs: executionTimeMs,
-      errorMessage: "Electron-app execution not yet implemented.",
-    };
+      storage.updateTestScript(localTestScript.id, {
+        status: "generated",
+        actionScript: generatedSteps,
+      });
+      storage.updateRunResult(runId, {
+        status: "passed",
+        testScriptId: localTestScript.id,
+        executionTimeMs: executionTimeMs,
+      });
+
+      return {
+        id: runId,
+        testScriptId: localTestScript.id,
+        status: "passed",
+        executionTimeMs: executionTimeMs,
+      };
+    } finally {
+      await cleanupTempFiles({
+        filePaths: [inputFilePath, authFilePath],
+      });
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -277,6 +577,7 @@ export async function executeReplay(params: {
   timeoutMs?: number;
 }): Promise<ILocalRunResult> {
   const { testScript, localUrl } = params;
+  const timeoutMs = params.timeoutMs ?? 180000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
   getAuthenticatedUserId(); // Throws if not authenticated
@@ -294,44 +595,67 @@ export async function executeReplay(params: {
     const runId = runResult.id;
     const startedAt = Date.now();
 
-    // Rewrite URLs in action script to use local URL
-    const rewrittenActionScript = rewriteActionScriptUrls({
-      actionScript: testScript.actionScript,
-      originalUrl: testScript.url,
+    const actionScript = buildReplayActionScript({
+      testScript: testScript,
       localUrl: localUrl,
+      runId: runId,
+      ownerUserId: authContent.userId,
     });
 
     // Write temp files
     const inputFilePath = await writeTempFile({
       filename: `${runId}_input.json`,
-      data: rewrittenActionScript,
+      data: actionScript,
     });
     const authFilePath = await writeTempFile({
       filename: `${runId}_auth.json`,
       data: authContent,
     });
 
-    // TODO: Spawn electron-app and wait for completion
+    try {
+      const executionResult = await executeElectronAppAsync({
+        runId: runId,
+        runType: "replay",
+        scriptFilePath: inputFilePath,
+        authFilePath: authFilePath,
+        timeoutMs: timeoutMs,
+      });
 
-    const completedAt = Date.now();
-    const executionTimeMs = completedAt - startedAt;
+      const completedAt = Date.now();
+      const executionTimeMs = completedAt - startedAt;
 
-    // Update run result with failure
-    storage.updateRunResult(runId, {
-      status: "failed",
-      executionTimeMs: executionTimeMs,
-      errorMessage: "Electron-app execution not yet implemented.",
-    });
+      if (executionResult.exitCode !== 0) {
+        const failureMessage =
+          `Electron exited with code ${executionResult.exitCode}.\n` +
+          `STDOUT:\n${executionResult.stdout}\n` +
+          `STDERR:\n${executionResult.stderr}`;
+        storage.updateRunResult(runId, {
+          status: "failed",
+          executionTimeMs: executionTimeMs,
+          errorMessage: failureMessage,
+        });
+        return {
+          id: runId,
+          status: "failed",
+          executionTimeMs: executionTimeMs,
+          errorMessage: failureMessage,
+        };
+      }
 
-    // Cleanup temp files
-    await cleanupTempFiles({ filePaths: [inputFilePath, authFilePath] });
-
-    return {
-      id: runId,
-      status: "failed",
-      executionTimeMs: executionTimeMs,
-      errorMessage: "Electron-app execution not yet implemented.",
-    };
+      storage.updateRunResult(runId, {
+        status: "passed",
+        executionTimeMs: executionTimeMs,
+      });
+      return {
+        id: runId,
+        status: "passed",
+        executionTimeMs: executionTimeMs,
+      };
+    } finally {
+      await cleanupTempFiles({
+        filePaths: [inputFilePath, authFilePath],
+      });
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 

@@ -321,9 +321,13 @@ async function executeElectronAppAsync(params: {
     spawnArgs: spawnArgs,
   });
 
+  const electronEnv = { ...process.env };
+  delete electronEnv.ELECTRON_RUN_AS_NODE;
+
   const child = spawn(electronAppPath, spawnArgs, {
     stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
+    env: electronEnv,
+    cwd: path.dirname(electronAppPath),
   });
 
   const processInfo: IInternalExecutionProcess = {

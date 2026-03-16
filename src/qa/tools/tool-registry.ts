@@ -12,6 +12,8 @@ import type { IMcpToolResult } from "../../shared/types.js";
 import * as schemas from "../contracts/index.js";
 import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../types.js";
 import { getPromptServiceClient } from "../upstream-client.js";
+import { getAuthService } from "../../local-qa/services/index.js";
+import { DeviceCodePollStatus } from "../../local-qa/types/index.js";
 
 /** Muggle Test API prefix. */
 const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
@@ -1207,6 +1209,145 @@ const apiKeyTools: IQaToolDefinition[] = [
 ];
 
 // =============================================================================
+// Auth Tools (Device Code Flow)
+// =============================================================================
+
+const authTools: IQaToolDefinition[] = [
+  {
+    name: "qa_auth_status",
+    description: "Check current authentication status. Shows if you're logged in and when your session expires.",
+    inputSchema: schemas.EmptyInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async () => {
+      const authService = getAuthService();
+      const status = authService.getAuthStatus();
+
+      if (!status.authenticated) {
+        return {
+          authenticated: false,
+          message: "Not authenticated. Use qa_auth_login to authenticate.",
+        };
+      }
+
+      return {
+        authenticated: true,
+        email: status.email,
+        userId: status.userId,
+        expiresAt: status.expiresAt,
+        isExpired: status.isExpired,
+      };
+    },
+  },
+  {
+    name: "qa_auth_login",
+    description: "Start authentication with the Muggle Test service. Opens a browser-based login flow and waits for confirmation by default. If login is still pending after the wait timeout, use qa_auth_poll to finish authentication.",
+    inputSchema: schemas.AuthLoginInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async (input) => {
+      const data = input as z.infer<typeof schemas.AuthLoginInputSchema>;
+      const authService = getAuthService();
+
+      const deviceCodeResponse = await authService.startDeviceCodeFlow();
+      const waitForCompletion = data.waitForCompletion ?? true;
+
+      if (!waitForCompletion) {
+        return {
+          status: "pending",
+          deviceCode: deviceCodeResponse.deviceCode,
+          userCode: deviceCodeResponse.userCode,
+          verificationUri: deviceCodeResponse.verificationUri,
+          browserOpened: deviceCodeResponse.browserOpened,
+          message: "Login started. Complete authentication in your browser, then call qa_auth_poll.",
+        };
+      }
+
+      const pollResult = await authService.waitForDeviceCodeAuthorization({
+        deviceCode: deviceCodeResponse.deviceCode,
+        intervalSeconds: deviceCodeResponse.interval,
+        timeoutMs: data.timeoutMs,
+      });
+
+      if (pollResult.status === DeviceCodePollStatus.Complete) {
+        return {
+          status: "complete",
+          success: true,
+          email: pollResult.email,
+          message: "Login successful. You are now authenticated.",
+        };
+      }
+
+      return {
+        status: pollResult.status,
+        message: pollResult.message,
+      };
+    },
+  },
+  {
+    name: "qa_auth_poll",
+    description: "Poll for login completion after starting the login flow with qa_auth_login. Call this after the user completes authentication in their browser.",
+    inputSchema: schemas.AuthPollInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async (input) => {
+      const data = input as z.infer<typeof schemas.AuthPollInputSchema>;
+      const authService = getAuthService();
+
+      const deviceCode = data.deviceCode ?? authService.getPendingDeviceCode();
+
+      if (!deviceCode) {
+        return {
+          error: "NO_PENDING_LOGIN",
+          message: "No pending login found. Please start a new login with qa_auth_login.",
+        };
+      }
+
+      const result = await authService.pollDeviceCode(deviceCode);
+
+      if (result.status === DeviceCodePollStatus.Complete) {
+        return {
+          status: "complete",
+          success: true,
+          email: result.email,
+          message: "Login complete. You are now authenticated.",
+        };
+      }
+
+      return {
+        status: result.status,
+        message: result.message,
+      };
+    },
+  },
+  {
+    name: "qa_auth_logout",
+    description: "Log out and clear stored credentials.",
+    inputSchema: schemas.EmptyInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async () => {
+      const authService = getAuthService();
+      const result = authService.logout();
+
+      if (result) {
+        return { success: true, message: "Successfully logged out." };
+      }
+
+      return { success: false, message: "No active session to log out from." };
+    },
+  },
+];
+
+// =============================================================================
 // All Tools Combined
 // =============================================================================
 
@@ -1223,6 +1364,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...walletTools,
   ...recommendationTools,
   ...apiKeyTools,
+  ...authTools,
 ];
 
 /**

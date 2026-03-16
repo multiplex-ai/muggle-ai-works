@@ -1,63 +1,82 @@
 /**
  * Execution service for managing electron-app processes.
  * Handles test script generation and replay via direct electron-app execution.
+ *
+ * Design principle: This service accepts full test case/script details
+ * (already fetched via qa_* tools by the agent). No cloud calls here.
+ * - Stores run results locally
+ * - Replaces production URLs with localhost URLs
  */
 
 import { spawn } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
 
-import { ulid } from "ulid";
-
 import { getConfig } from "../../shared/config.js";
-import type {
-  IExecutionResult,
-  IInternalExecutionProcess,
-  ILocalRunResult,
-  ILocalTestCase,
-  ILocalTestScript,
-  ILocalWorkflowRun,
-  ISecretOption,
-  IStudioAuthInfo,
-  IWorkflowFileMetadata,
-} from "../types/index.js";
-import {
-  LocalRunStatus,
-  LocalRunType,
-  LocalTestScriptStatus,
-  LocalWorkflowRunStatus,
-} from "../types/index.js";
-import { getAuthService, getProjectStorageService } from "./index.js";
+import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
+import { getAuthService, getRunResultStorageService } from "./index.js";
+import type { RunResultStatus } from "./run-result-storage-service.js";
+
+// ========================================
+// Types
+// ========================================
 
 /**
- * Map local workflow files to workflow file metadata for action scripts.
- * @param files - Local workflow files.
- * @returns Workflow file metadata array.
+ * Internal execution process tracking.
  */
-function mapWorkflowFilesToMetadata (files: Array<{
-  id: string;
-  localPath: string;
-  description: string;
-  tags?: string[];
-}>): IWorkflowFileMetadata[] {
-  return files.map((f) => ({
-    id: f.id,
-    filePath: f.localPath,
-    description: f.description,
-    tags: f.tags,
-  }));
+interface IInternalExecutionProcess {
+  /** Run ID. */
+  runId: string;
+  /** Child process. */
+  process: ReturnType<typeof spawn>;
+  /** Run status. */
+  status: RunResultStatus;
+  /** Started timestamp. */
+  startedAt: number;
+  /** Timeout timer. */
+  timeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Captured stdout. */
+  capturedStdout: string;
+  /** Captured stderr. */
+  capturedStderr: string;
 }
 
 /**
- * Get the authenticated user ID from the auth file.
- * @returns The user ID or throws if not authenticated.
+ * Run result returned from execution.
  */
-function getAuthenticatedUserId (): string {
+export interface ILocalRunResult {
+  /** Run ID. */
+  id: string;
+  /** Test script ID. */
+  testScriptId?: string;
+  /** Run status. */
+  status: "passed" | "failed";
+  /** Execution time in ms. */
+  executionTimeMs: number;
+  /** Error message if failed. */
+  errorMessage?: string;
+}
+
+// ========================================
+// Active Process Tracking
+// ========================================
+
+/** Map of active execution processes. */
+const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
+
+// ========================================
+// Auth Helpers
+// ========================================
+
+/**
+ * Get the authenticated user ID.
+ */
+function getAuthenticatedUserId(): string {
   const authService = getAuthService();
   const authStatus = authService.getAuthStatus();
 
   if (!authStatus.authenticated) {
-    throw new Error("Not authenticated. Please run muggle_auth_login first.");
+    throw new Error("Not authenticated. Please run qa_auth_login first.");
   }
 
   if (!authStatus.userId) {
@@ -68,16 +87,15 @@ function getAuthenticatedUserId (): string {
 }
 
 /**
- * Build studio auth content from stored local authentication.
- * @returns Auth content compatible with electron-app runtime.
+ * Build auth content for electron-app.
  */
-function buildStudioAuthContent (): IStudioAuthInfo {
+function buildStudioAuthContent(): { accessToken: string; email: string; userId: string } {
   const authService = getAuthService();
   const authStatus = authService.getAuthStatus();
   const storedAuth = authService.loadStoredAuth();
 
   if (!authStatus.authenticated || !storedAuth) {
-    throw new Error("Not authenticated. Please run muggle_auth_login first.");
+    throw new Error("Not authenticated. Please run qa_auth_login first.");
   }
 
   if (!storedAuth.email || !storedAuth.userId) {
@@ -91,1116 +109,316 @@ function buildStudioAuthContent (): IStudioAuthInfo {
   };
 }
 
-/**
- * Convert local secrets to secret option metadata for action scripts.
- * @param params - Conversion parameters.
- * @returns Secret option metadata.
- */
-function buildSecretOptionsFromLocalSecrets (params: {
-  localSecrets: Array<{
-    id: string;
-    secretName: string;
-    description: string;
-    source?: "agent" | "user";
-  }>;
-}): ISecretOption[] | undefined {
-  if (params.localSecrets.length === 0) {
-    return undefined;
-  }
-
-  return params.localSecrets.map((localSecret) => ({
-    id: localSecret.id,
-    secretName: localSecret.secretName,
-    description: localSecret.description,
-    source: localSecret.source,
-  }));
-}
-
-/** Default timeout for test generation (5 minutes). */
-const DEFAULT_GENERATION_TIMEOUT_MS = 300000;
-
-/** Default timeout for replay (3 minutes). */
-const DEFAULT_REPLAY_TIMEOUT_MS = 180000;
+// ========================================
+// Temp File Helpers
+// ========================================
 
 /**
- * How long the process can be inactive (no stdout/stderr) before we consider it stuck (ms).
- * If the process produces no output for this duration while still running, we assume
- * it's stuck on an error dialog or similar blocking state.
+ * Ensure temp directory exists.
  */
-const INACTIVITY_TIMEOUT_MS = 120000;
-
-/**
- * How often to check for process inactivity (ms).
- */
-const INACTIVITY_CHECK_INTERVAL_MS = 5000;
-
-/** Map of active execution processes by run ID. */
-const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
-
-/**
- * Generate a run ID with prefix.
- * @returns A ULID with run_ prefix.
- */
-function generateRunId (): string {
-  return `run_${ulid()}`;
-}
-
-/**
- * Ensure the temp directory exists.
- * @returns The temp directory path.
- */
-async function ensureTempDir (): Promise<string> {
+async function ensureTempDir(): Promise<string> {
   const config = getConfig();
-  const tempDir = config.localQa.tempDir;
+  const tempDir = path.join(config.localQa.dataDir, "temp");
   await fs.mkdir(tempDir, { recursive: true });
   return tempDir;
 }
 
 /**
- * Write a JSON file to the temp directory.
- * @param params - The parameters.
- * @param params.filename - The filename.
- * @param params.data - The data to write.
- * @returns The full path to the written file.
+ * Write data to a temp file.
  */
-async function writeTempFile (params: { filename: string; data: unknown; }): Promise<string> {
-  const { filename, data } = params;
+async function writeTempFile(params: { filename: string; data: unknown }): Promise<string> {
   const tempDir = await ensureTempDir();
-  const filePath = path.join(tempDir, filename);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf-8");
+  const filePath = path.join(tempDir, params.filename);
+  await fs.writeFile(filePath, JSON.stringify(params.data, null, 2));
   return filePath;
 }
 
 /**
- * Read a JSON file from the temp directory.
- * @param filePath - The file path.
- * @returns The parsed JSON data or null if not found.
+ * Cleanup temp files.
  */
-async function readTempFile (filePath: string): Promise<unknown | null> {
-  try {
-    const content = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(content);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Read generated action script written by electron-app (gen_ prefix fallback file).
- * @param params - File lookup parameters.
- * @returns Parsed generated action script, or null when unavailable.
- */
-async function readGeneratedActionScriptFile (params: {
-  inputFilePath: string;
-}): Promise<unknown | null> {
-  const generatedFilePath = path.join(
-    path.dirname(params.inputFilePath),
-    `gen_${path.basename(params.inputFilePath)}`,
-  );
-  return readTempFile(generatedFilePath);
-}
-
-/**
- * Studio returned result status values that indicate failure.
- */
-const FAILED_STUDIO_STATUSES = ["goal_not_achievable", "failed", "error", "timeout", "cancelled"];
-
-/**
- * Check if the workflow run indicates a failure based on studioReturnedResult.
- * @param params - The parameters.
- * @param params.projectId - The project ID.
- * @param params.workflowRunId - The workflow run ID.
- * @returns Object with success status and error message if failed.
- */
-async function checkWorkflowRunResult (params: {
-  projectId: string;
-  workflowRunId: string;
-}): Promise<{ success: boolean; error?: string; }> {
-  const { projectId, workflowRunId } = params;
-  const config = getConfig();
-
-  const workflowRunPath = path.join(
-    config.localQa.projectsDir,
-    projectId,
-    "workflow-runs",
-    `${workflowRunId}.json`,
-  );
-
-  try {
-    const content = await fs.readFile(workflowRunPath, "utf-8");
-    const workflowRun = JSON.parse(content) as {
-      studioReturnedResult?: {
-        status?: string;
-        summary?: string;
-        error?: string;
-      };
-    };
-
-    if (!workflowRun.studioReturnedResult) {
-      return { success: true };
-    }
-
-    const studioResult = workflowRun.studioReturnedResult;
-    const status = studioResult.status?.toLowerCase() ?? "";
-
-    if (FAILED_STUDIO_STATUSES.includes(status)) {
-      const errorMessage =
-        studioResult.error ?? studioResult.summary ?? `Test failed with status: ${status}`;
-      return { success: false, error: errorMessage };
-    }
-
-    return { success: true };
-  } catch {
-    return { success: true };
-  }
-}
-
-/**
- * Extract generated action steps from electron-app output.
- * @param actionScriptResult - Raw action script payload.
- * @returns Generated action steps, when present.
- */
-function extractGeneratedActionSteps (actionScriptResult: unknown): unknown[] | undefined {
-  if (Array.isArray(actionScriptResult)) {
-    return actionScriptResult;
-  }
-
-  if (actionScriptResult === null || typeof actionScriptResult !== "object") {
-    return undefined;
-  }
-
-  const actionScriptResultRecord = actionScriptResult as Record<string, unknown>;
-  const topLevelSteps = actionScriptResultRecord.steps;
-  if (Array.isArray(topLevelSteps)) {
-    return topLevelSteps;
-  }
-
-  const outputSteps = actionScriptResultRecord.output;
-  if (Array.isArray(outputSteps)) {
-    return outputSteps;
-  }
-
-  return undefined;
-}
-
-/**
- * Ensure a generated test script is persisted locally with a stable ID.
- * @param params - Persistence parameters.
- * @returns The persisted test script ID.
- */
-function ensureGeneratedTestScript (params: {
-  projectId: string;
-  testCase: ILocalTestCase;
-  projectUrl: string;
-  testScriptId: string;
-  actionScriptId: string;
-  actionScriptResult: unknown;
-}): string {
-  const { projectId, testCase, projectUrl, testScriptId, actionScriptId, actionScriptResult } =
-    params;
-  const storageService = getProjectStorageService();
-  const existingTestScript = storageService.getTestScript({
-    projectId: projectId,
-    testScriptId: testScriptId,
-  });
-
-  if (!existingTestScript) {
-    storageService.createTestScript({
-      projectId: projectId,
-      useCaseId: testCase.useCaseId,
-      testCaseId: testCase.id,
-      url: projectUrl,
-      name: testCase.title,
-      testScriptId: testScriptId,
-    });
-  }
-
-  const actionScriptSteps = extractGeneratedActionSteps(actionScriptResult);
-  if (actionScriptResult !== null && actionScriptResult !== undefined) {
-    storageService.saveActionScript({
-      projectId: projectId,
-      testScriptId: testScriptId,
-      actionScript: actionScriptResult,
-    });
-  }
-
-  storageService.updateTestScript({
-    projectId: projectId,
-    testScriptId: testScriptId,
-    updates: {
-      goal: testCase.goal,
-      description: testCase.description,
-      precondition: testCase.precondition,
-      expectedResult: testCase.expectedResult,
-      actionScriptId: actionScriptId,
-      actionScript: actionScriptSteps,
-      status: LocalTestScriptStatus.GENERATED,
-    },
-  });
-
-  return testScriptId;
-}
-
-/**
- * Clean up temp files for a run.
- * @param params - The parameters.
- * @param params.filePaths - The file paths to clean up.
- */
-async function cleanupTempFiles (params: { filePaths: string[]; }): Promise<void> {
-  const { filePaths } = params;
-  try {
-    await Promise.all(
-      filePaths.map(async (filePath) =>
-        fs.unlink(filePath).catch(() => {
-          /* ignore */
-        }),
-      ),
-    );
-  } catch {
-    /* ignore cleanup errors */
-  }
-}
-
-/**
- * Build action script for test generation.
- * @param params - The parameters.
- * @returns The action script object.
- */
-function buildGenerationActionScript (params: {
-  projectSecretOptions?: ISecretOption[];
-  projectWorkflowFiles?: IWorkflowFileMetadata[];
-  testCase: ILocalTestCase;
-  projectUrl: string;
-  userId: string;
-}): {
-  actionScript: Record<string, unknown>;
-  actionScriptId: string;
-  testScriptId: string;
-  workflowRunId: string;
-  actionParams: Record<string, unknown>;
-} {
-  const { projectSecretOptions, projectWorkflowFiles, testCase, projectUrl, userId } = params;
-  const actionScriptId = `as_${ulid()}`;
-  const testScriptId = `ts_${ulid()}`;
-  const workflowRunId = `local_${ulid()}`;
-  const actionParams = {
-    type: "Test Script Generation Workflow",
-    name: testCase.title,
-    projectId: testCase.projectId,
-    useCaseId: testCase.useCaseId,
-    testCaseId: testCase.id,
-    testScriptId: testScriptId,
-    actionScriptId: actionScriptId,
-    workflowRunId: workflowRunId,
-    url: projectUrl,
-    sharedTestMemoryId: `stm_local_${ulid()}`,
-    workflowFiles: projectWorkflowFiles,
-    ownerId: userId,
-  };
-
-  return {
-    actionScript: {
-      actionScriptId: actionScriptId,
-      actionScriptName: testCase.title,
-      actionType: "Exploratory",
-      actionParams: actionParams,
-      goal: testCase.expectedResult ?? testCase.title,
-      url: projectUrl,
-      description: testCase.description ?? "",
-      precondition: testCase.precondition,
-      expectedResult: testCase.expectedResult ?? "",
-      steps: [],
-      ownerId: userId,
-      createdAt: Date.now(),
-      isRemoteScript: false,
-      status: "active",
-      secretOptions: projectSecretOptions,
-    },
-    actionScriptId: actionScriptId,
-    testScriptId: testScriptId,
-    workflowRunId: workflowRunId,
-    actionParams: actionParams,
-  };
-}
-
-/**
- * Build action script for replay.
- * @param params - The parameters.
- * @returns The action script object.
- */
-function buildReplayActionScript (params: {
-  projectSecretOptions?: ISecretOption[];
-  projectWorkflowFiles?: IWorkflowFileMetadata[];
-  testScript: ILocalTestScript;
-  userId: string;
-}): {
-  actionScript: Record<string, unknown>;
-  actionScriptId: string;
-  testScriptId: string;
-  workflowRunId: string;
-  actionParams: Record<string, unknown>;
-} {
-  const { projectSecretOptions, projectWorkflowFiles, testScript, userId } = params;
-  const actionScriptId = testScript.actionScriptId ?? `as_${ulid()}`;
-  const workflowRunId = `local_${ulid()}`;
-  const actionParams = {
-    type: "Test Script Replay Workflow",
-    name: testScript.name,
-    projectId: testScript.projectId,
-    useCaseId: testScript.useCaseId,
-    testCaseId: testScript.testCaseId,
-    testScriptId: testScript.id,
-    workflowRunId: workflowRunId,
-    sharedTestMemoryId: `stm_local_${ulid()}`,
-    workflowFiles: projectWorkflowFiles,
-    ownerId: userId,
-  };
-
-  return {
-    actionScript: {
-      actionScriptId: actionScriptId,
-      actionScriptName: testScript.name,
-      actionType: "UserDefined",
-      actionParams: actionParams,
-      goal: testScript.goal ?? testScript.name,
-      url: testScript.url ?? "",
-      description: testScript.description ?? "",
-      precondition: testScript.precondition,
-      expectedResult: testScript.expectedResult ?? "",
-      steps: testScript.actionScript ?? [],
-      ownerId: userId,
-      createdAt: testScript.createdAt,
-      isRemoteScript: false,
-      status: "active",
-      secretOptions: projectSecretOptions,
-    },
-    actionScriptId: actionScriptId,
-    testScriptId: testScript.id,
-    workflowRunId: workflowRunId,
-    actionParams: actionParams,
-  };
-}
-
-/**
- * Build a local workflow run record.
- * @param params - The parameters.
- * @returns The workflow run record.
- */
-function buildLocalWorkflowRun (params: {
-  projectId: string;
-  workflowRunId: string;
-  ownerId: string;
-  taskDef: Record<string, unknown>;
-}): ILocalWorkflowRun {
-  const { projectId, workflowRunId, ownerId, taskDef } = params;
-  const now = Date.now();
-
-  return {
-    id: workflowRunId,
-    projectId: projectId,
-    workflowRuntimeId: workflowRunId,
-    ownerId: ownerId,
-    status: LocalWorkflowRunStatus.RUNNING,
-    progress: 0,
-    taskDef: taskDef,
-    createdAt: now,
-    startedAt: now,
-  };
-}
-
-/**
- * Execute the electron-app with the given parameters.
- * @param params - The parameters.
- * @returns The execution process info.
- */
-async function spawnElectronApp (params: {
-  runId: string;
-  projectId: string;
-  entityId: string;
-  runType: LocalRunType;
-  runMode: "explore" | "engine";
-  inputFilePath: string;
-  mutationFilePath: string;
-  outputFilePath: string;
-  authFilePath: string;
-  additionalArgs?: string[];
-  timeoutMs: number;
-}): Promise<IInternalExecutionProcess> {
-  const {
-    runId,
-    projectId,
-    entityId,
-    runType,
-    runMode,
-    inputFilePath,
-    mutationFilePath,
-    outputFilePath,
-    authFilePath,
-    additionalArgs,
-    timeoutMs,
-  } = params;
-
-  const config = getConfig();
-  const electronAppPath = config.localQa.electronAppPath;
-  if (!electronAppPath) {
-    throw new Error(
-      "Electron-app not found. Run 'muggle-mcp setup' to install, " +
-      "or set ELECTRON_APP_PATH environment variable.",
-    );
-  }
-
-  const args = [
-    runMode,
-    inputFilePath,
-    mutationFilePath,
-    authFilePath,
-    "--no-sandbox",
-    ...(additionalArgs ?? []),
-  ];
-
-  const childProcessEnv: NodeJS.ProcessEnv = {
-    ...process.env,
-    MUGGLE_LOCAL_DATA_DIR: config.localQa.dataDir,
-  };
-  delete childProcessEnv.ELECTRON_RUN_AS_NODE;
-  delete childProcessEnv.ELECTRON_NO_ASAR;
-
-  const childProcess = spawn(electronAppPath, args, {
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: false,
-    env: childProcessEnv,
-  });
-
-  if (!childProcess.pid) {
-    throw new Error("Failed to spawn electron-app process");
-  }
-
-  const now = Date.now();
-  const executionProcess: IInternalExecutionProcess = {
-    runId: runId,
-    projectId: projectId,
-    entityId: entityId,
-    runType: runType,
-    process: childProcess,
-    pid: childProcess.pid,
-    startedAt: now,
-    status: LocalRunStatus.RUNNING,
-    inputFilePath: inputFilePath,
-    outputFilePath: outputFilePath,
-    capturedStdout: "",
-    capturedStderr: "",
-    hasExited: false,
-    lastOutputAt: now,
-    killedDueToInactivity: false,
-  };
-
-  childProcess.stdout?.on("data", (data: Buffer) => {
-    executionProcess.capturedStdout += data.toString();
-    executionProcess.lastOutputAt = Date.now();
-  });
-
-  childProcess.stderr?.on("data", (data: Buffer) => {
-    executionProcess.capturedStderr += data.toString();
-    executionProcess.lastOutputAt = Date.now();
-  });
-
-  // Set up inactivity monitoring
-  const inactivityCheck = setInterval(() => {
-    if (executionProcess.hasExited) {
-      clearInterval(inactivityCheck);
-      return;
-    }
-
-    const inactiveDuration = Date.now() - executionProcess.lastOutputAt;
-    if (inactiveDuration >= INACTIVITY_TIMEOUT_MS) {
-      executionProcess.killedDueToInactivity = true;
-      executionProcess.status = LocalRunStatus.FAILED;
-      clearInterval(inactivityCheck);
-
-      try {
-        executionProcess.process.kill("SIGKILL");
-      } catch {
-        /* ignore kill errors */
-      }
-    }
-  }, INACTIVITY_CHECK_INTERVAL_MS);
-
-  executionProcess.inactivityCheckInterval = inactivityCheck;
-
-  childProcess.on("close", (code, signal) => {
-    executionProcess.hasExited = true;
-    executionProcess.earlyExitInfo = {
-      code: code,
-      signal: signal,
-      stdout: executionProcess.capturedStdout,
-      stderr: executionProcess.capturedStderr,
-    };
-  });
-
-  childProcess.on("error", (error) => {
-    executionProcess.hasExited = true;
-    executionProcess.capturedStderr += `\nSpawn error: ${error.message}`;
-    executionProcess.earlyExitInfo = {
-      code: -1,
-      signal: null,
-      stdout: executionProcess.capturedStdout,
-      stderr: executionProcess.capturedStderr,
-    };
-  });
-
-  const timeoutTimer = setTimeout(() => {
-    handleTimeout({ executionProcess: executionProcess });
-  }, timeoutMs);
-
-  executionProcess.timeoutTimer = timeoutTimer;
-
-  activeProcesses.set(runId, executionProcess);
-
-  return executionProcess;
-}
-
-/**
- * Handle execution timeout.
- * @param params - The parameters.
- * @param params.executionProcess - The execution process.
- */
-function handleTimeout (params: { executionProcess: IInternalExecutionProcess; }): void {
-  const { executionProcess } = params;
-
-  if (executionProcess.status === LocalRunStatus.RUNNING) {
-    executionProcess.status = LocalRunStatus.FAILED;
-
-    // Clear inactivity check if timeout takes over
-    if (executionProcess.inactivityCheckInterval) {
-      clearInterval(executionProcess.inactivityCheckInterval);
-    }
-
+async function cleanupTempFiles(params: { filePaths: string[] }): Promise<void> {
+  for (const filePath of params.filePaths) {
     try {
-      executionProcess.process.kill("SIGTERM");
+      await fs.unlink(filePath);
     } catch {
-      /* ignore kill errors */
+      // Ignore cleanup errors
     }
   }
 }
 
-/**
- * Handle process exit and return appropriate result.
- * @param params - The parameters.
- * @returns The execution result.
- */
-async function handleProcessExit (params: {
-  executionProcess: IInternalExecutionProcess;
-  code: number | null;
-  stderr: string;
-}): Promise<IExecutionResult> {
-  const { executionProcess, code, stderr } = params;
-
-  // Clear all timers
-  if (executionProcess.timeoutTimer) {
-    clearTimeout(executionProcess.timeoutTimer);
-  }
-  if (executionProcess.inactivityCheckInterval) {
-    clearInterval(executionProcess.inactivityCheckInterval);
-  }
-
-  activeProcesses.delete(executionProcess.runId);
-
-  if (executionProcess.status === LocalRunStatus.CANCELLED) {
-    return {
-      success: false,
-      status: "FAILURE",
-      summary: "Execution was cancelled",
-      error: "Cancelled by user",
-    };
-  }
-
-  // Check if killed due to inactivity (likely stuck on dialog)
-  if (executionProcess.killedDueToInactivity) {
-    executionProcess.status = LocalRunStatus.FAILED;
-    const stderrSummary = stderr.trim().slice(0, 500);
-    return {
-      success: false,
-      status: "FAILURE",
-      summary: "Process became unresponsive",
-      error: `Process killed after ${INACTIVITY_TIMEOUT_MS / 1000}s of inactivity (likely stuck on error dialog). ` +
-        (stderrSummary ? `Last stderr: ${stderrSummary}` : "No stderr captured."),
-    };
-  }
-
-  if (code !== 0 || executionProcess.status === LocalRunStatus.FAILED) {
-    executionProcess.status = LocalRunStatus.FAILED;
-    const errorMessage = stderr || `Process exited with code ${code}`;
-    return {
-      success: false,
-      status: "FAILURE",
-      summary: "Execution failed",
-      error: code === -1 ? errorMessage : `Process exited with code ${code}. ${errorMessage}`,
-    };
-  }
-
-  const outputData = await readTempFile(executionProcess.outputFilePath);
-  executionProcess.status = LocalRunStatus.PASSED;
-
-  return {
-    success: true,
-    status: "SUCCESS",
-    summary: "Execution completed successfully",
-    actionScript: outputData,
-  };
-}
-
-/**
- * Wait for the electron-app process to complete.
- * Handles early exits where process crashes before this function is called.
- * @param params - The parameters.
- * @param params.executionProcess - The execution process.
- * @returns The execution result.
- */
-async function waitForCompletion (params: {
-  executionProcess: IInternalExecutionProcess;
-}): Promise<IExecutionResult> {
-  const { executionProcess } = params;
-
-  if (executionProcess.hasExited && executionProcess.earlyExitInfo) {
-    const earlyExit = executionProcess.earlyExitInfo;
-    return handleProcessExit({
-      executionProcess: executionProcess,
-      code: earlyExit.code,
-      stderr: earlyExit.stderr,
-    });
-  }
-
-  return new Promise((resolve) => {
-    let resolved = false;
-
-    const resolveOnce = (result: IExecutionResult): void => {
-      if (!resolved) {
-        resolved = true;
-        resolve(result);
-      }
-    };
-
-    const checkEarlyExit = setInterval(() => {
-      if (executionProcess.hasExited && executionProcess.earlyExitInfo) {
-        clearInterval(checkEarlyExit);
-        const earlyExit = executionProcess.earlyExitInfo;
-        handleProcessExit({
-          executionProcess: executionProcess,
-          code: earlyExit.code,
-          stderr: earlyExit.stderr,
-        }).then(resolveOnce);
-      }
-    }, 100);
-
-    executionProcess.process.on("close", async (code) => {
-      clearInterval(checkEarlyExit);
-      const result = await handleProcessExit({
-        executionProcess: executionProcess,
-        code: code,
-        stderr: executionProcess.capturedStderr,
-      });
-      resolveOnce(result);
-    });
-
-    executionProcess.process.on("error", async (error) => {
-      clearInterval(checkEarlyExit);
-      if (executionProcess.timeoutTimer) {
-        clearTimeout(executionProcess.timeoutTimer);
-      }
-
-      activeProcesses.delete(executionProcess.runId);
-      executionProcess.status = LocalRunStatus.FAILED;
-
-      resolveOnce({
-        success: false,
-        status: "FAILURE",
-        summary: "Execution error",
-        error: error.message,
-      });
-    });
-  });
-}
+// ========================================
+// Main Execution Functions
+// ========================================
 
 /**
  * Execute test script generation for a test case.
- * @param params - The parameters.
- * @param params.projectId - The project ID.
- * @param params.testCaseId - The test case ID.
+ *
+ * Test case details should be fetched via qa_test_case_get before calling this.
+ *
+ * @param params - Execution parameters.
+ * @param params.testCase - Test case details from qa_test_case_get.
+ * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
- * @returns The run result.
+ * @returns Run result with generated script info.
  */
-export async function executeTestGeneration (params: {
-  projectId: string;
-  testCaseId: string;
+export async function executeTestGeneration(params: {
+  testCase: TestCaseDetails;
+  localUrl: string;
   timeoutMs?: number;
 }): Promise<ILocalRunResult> {
-  const { projectId, testCaseId, timeoutMs = DEFAULT_GENERATION_TIMEOUT_MS } = params;
+  const { testCase, localUrl } = params;
 
-  const storageService = getProjectStorageService();
-
-  const project = storageService.getProject(projectId);
-  if (!project) {
-    throw new Error(`Project not found: ${projectId}`);
-  }
-
-  const testCase = storageService.getTestCase({
-    projectId: projectId,
-    testCaseId: testCaseId,
-  });
-  if (!testCase) {
-    throw new Error(`Test case not found: ${testCaseId}`);
-  }
-
-  const useCase = storageService.getUseCase({
-    projectId: projectId,
-    useCaseId: testCase.useCaseId,
-  });
-  if (!useCase) {
-    throw new Error(`Use case not found: ${testCase.useCaseId}`);
-  }
-
-  const userId = getAuthenticatedUserId();
+  // Verify authentication (authContent will be used when electron-app integration is complete)
+  getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
 
-  const localSecretOptions = buildSecretOptionsFromLocalSecrets({
-    localSecrets: storageService.listSecrets(projectId),
-  });
-  const localWorkflowFiles = storageService.resolveWorkflowFilesForExecution({
-    projectId: projectId,
-    useCaseId: testCase.useCaseId,
-    testCaseId: testCase.id,
-  });
-  const workflowFileMetadata = mapWorkflowFilesToMetadata(localWorkflowFiles);
-
-  const runId = generateRunId();
-  const actionScriptBuild = buildGenerationActionScript({
-    projectSecretOptions: localSecretOptions,
-    projectWorkflowFiles: workflowFileMetadata,
-    testCase: testCase,
-    projectUrl: project.url,
-    userId: userId,
-  });
-  const localWorkflowRun = buildLocalWorkflowRun({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-    ownerId: userId,
-    taskDef: actionScriptBuild.actionParams,
-  });
-  storageService.createWorkflowRun(localWorkflowRun);
-
-  const inputFilePath = await writeTempFile({
-    filename: `${runId}_input.json`,
-    data: actionScriptBuild.actionScript,
-  });
-  const mutationFilePath = await writeTempFile({
-    filename: `${runId}_mutations.json`,
-    data: [],
-  });
-  const authFilePath = await writeTempFile({
-    filename: `${runId}_auth.json`,
-    data: authContent,
+  // Initialize run result storage
+  const storage = getRunResultStorageService();
+  const runResult = storage.createRunResult({
+    runType: "generation",
+    cloudTestCaseId: testCase.id,
+    localUrl: localUrl,
   });
 
-  const outputFilePath = path.join(await ensureTempDir(), `${runId}_output.json`);
-
-  const executionProcess = await spawnElectronApp({
-    runId: runId,
-    projectId: projectId,
-    entityId: testCaseId,
-    runType: LocalRunType.GENERATION,
-    runMode: "explore",
-    inputFilePath: inputFilePath,
-    mutationFilePath: mutationFilePath,
-    outputFilePath: outputFilePath,
-    authFilePath: authFilePath,
-    timeoutMs: timeoutMs,
-  });
-
-  const startedAt = executionProcess.startedAt;
-
-  const result = await waitForCompletion({ executionProcess: executionProcess });
-
-  const completedAt = Date.now();
-
-  let actionScriptResult = result.actionScript;
-  if (actionScriptResult === null || actionScriptResult === undefined) {
-    actionScriptResult = await readGeneratedActionScriptFile({
-      inputFilePath: inputFilePath,
+  try {
+    // Create local test script record
+    const localTestScript = storage.createTestScript({
+      name: `Script for ${testCase.title}`,
+      url: localUrl,
+      cloudTestCaseId: testCase.id,
+      goal: testCase.goal,
     });
+
+    // Build action script for electron-app
+    // TODO: Build proper action script using testCase details
+    const actionScript = {
+      steps: [
+        {
+          type: "navigate",
+          url: localUrl,
+        },
+        {
+          type: "explore",
+          goal: testCase.goal,
+          instructions: testCase.instructions,
+          expectedResult: testCase.expectedResult,
+        },
+      ],
+    };
+
+    const runId = runResult.id;
+    const startedAt = Date.now();
+
+    // Write temp files
+    const inputFilePath = await writeTempFile({
+      filename: `${runId}_input.json`,
+      data: actionScript,
+    });
+    const authFilePath = await writeTempFile({
+      filename: `${runId}_auth.json`,
+      data: authContent,
+    });
+
+    // TODO: Spawn electron-app and wait for completion
+    // For now, simulate a failure since electron-app integration is not complete
+
+    const completedAt = Date.now();
+    const executionTimeMs = completedAt - startedAt;
+
+    // Update run result with failure
+    storage.updateRunResult(runId, {
+      status: "failed",
+      testScriptId: localTestScript.id,
+      executionTimeMs: executionTimeMs,
+      errorMessage: "Electron-app execution not yet implemented.",
+    });
+
+    // Cleanup temp files
+    await cleanupTempFiles({ filePaths: [inputFilePath, authFilePath] });
+
+    return {
+      id: runId,
+      testScriptId: localTestScript.id,
+      status: "failed",
+      executionTimeMs: executionTimeMs,
+      errorMessage: "Electron-app execution not yet implemented.",
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    storage.updateRunResult(runResult.id, {
+      status: "failed",
+      errorMessage: errorMessage,
+    });
+
+    return {
+      id: runResult.id,
+      status: "failed",
+      executionTimeMs: 0,
+      errorMessage: errorMessage,
+    };
   }
-
-  const workflowResult = await checkWorkflowRunResult({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-  });
-
-  let finalSuccess = result.success && workflowResult.success;
-  let finalError = result.error ?? workflowResult.error;
-
-  if (!workflowResult.success) {
-    finalSuccess = false;
-    finalError = workflowResult.error ?? "Workflow reported failure";
-  }
-
-  const generatedActionSteps = extractGeneratedActionSteps(actionScriptResult);
-  if (finalSuccess && (!generatedActionSteps || generatedActionSteps.length === 0)) {
-    finalSuccess = false;
-    finalError = "Generation finished without executable action steps.";
-  }
-
-  const persistedTestScriptId = finalSuccess
-    ? ensureGeneratedTestScript({
-      projectId: projectId,
-      testCase: testCase,
-      projectUrl: project.url,
-      testScriptId: actionScriptBuild.testScriptId,
-      actionScriptId: actionScriptBuild.actionScriptId,
-      actionScriptResult: actionScriptResult,
-    })
-    : actionScriptBuild.testScriptId;
-
-  const runResult: ILocalRunResult = {
-    id: runId,
-    projectId: projectId,
-    testScriptId: persistedTestScriptId,
-    runType: LocalRunType.GENERATION,
-    status: finalSuccess ? LocalRunStatus.PASSED : LocalRunStatus.FAILED,
-    startedAt: startedAt,
-    completedAt: completedAt,
-    executionTimeMs: completedAt - startedAt,
-    errorMessage: finalError,
-    localScreenshots: [],
-    actionScriptResult: actionScriptResult,
-  };
-
-  storageService.createRunResult(runResult);
-  storageService.updateWorkflowRun({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-    updates: {
-      status: finalSuccess ? LocalWorkflowRunStatus.COMPLETED : LocalWorkflowRunStatus.FAILED,
-      finishedAt: completedAt,
-      error: finalError,
-    },
-  });
-
-  await cleanupTempFiles({
-    filePaths: [inputFilePath, mutationFilePath, authFilePath, outputFilePath],
-  });
-
-  return runResult;
 }
 
 /**
  * Execute test script replay.
- * @param params - The parameters.
- * @param params.projectId - The project ID.
- * @param params.testScriptId - The test script ID.
+ *
+ * Test script details should be fetched via qa_test_script_get before calling this.
+ *
+ * @param params - Execution parameters.
+ * @param params.testScript - Test script details from qa_test_script_get.
+ * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
- * @returns The run result.
+ * @returns Run result.
  */
-export async function executeReplay (params: {
-  projectId: string;
-  testScriptId: string;
+export async function executeReplay(params: {
+  testScript: TestScriptDetails;
+  localUrl: string;
   timeoutMs?: number;
 }): Promise<ILocalRunResult> {
-  const { projectId, testScriptId, timeoutMs = DEFAULT_REPLAY_TIMEOUT_MS } = params;
+  const { testScript, localUrl } = params;
 
-  const storageService = getProjectStorageService();
-
-  const testScript = storageService.getTestScript({
-    projectId: projectId,
-    testScriptId: testScriptId,
-  });
-  if (!testScript) {
-    throw new Error(`Test script not found: ${testScriptId}`);
-  }
-
-  const project = storageService.getProject(projectId);
-  if (!project) {
-    throw new Error(`Project not found: ${projectId}`);
-  }
-
-  const useCase = storageService.getUseCase({
-    projectId: projectId,
-    useCaseId: testScript.useCaseId,
-  });
-  if (!useCase) {
-    throw new Error(`Use case not found: ${testScript.useCaseId}`);
-  }
-
-  const testCase = storageService.getTestCase({
-    projectId: projectId,
-    testCaseId: testScript.testCaseId,
-  });
-  if (!testCase) {
-    throw new Error(`Test case not found: ${testScript.testCaseId}`);
-  }
-
-  const userId = getAuthenticatedUserId();
+  // Verify authentication (authContent will be used when electron-app integration is complete)
+  getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
 
-  const localSecretOptions = buildSecretOptionsFromLocalSecrets({
-    localSecrets: storageService.listSecrets(projectId),
-  });
-  const localWorkflowFiles = storageService.resolveWorkflowFilesForExecution({
-    projectId: projectId,
-    useCaseId: testScript.useCaseId,
-    testCaseId: testScript.testCaseId,
-  });
-  const workflowFileMetadata = mapWorkflowFilesToMetadata(localWorkflowFiles);
-
-  const runId = generateRunId();
-  const actionScriptBuild = buildReplayActionScript({
-    projectSecretOptions: localSecretOptions,
-    projectWorkflowFiles: workflowFileMetadata,
-    testScript: testScript,
-    userId: userId,
-  });
-  const localWorkflowRun = buildLocalWorkflowRun({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-    ownerId: userId,
-    taskDef: actionScriptBuild.actionParams,
-  });
-  storageService.createWorkflowRun(localWorkflowRun);
-
-  const inputFilePath = await writeTempFile({
-    filename: `${runId}_input.json`,
-    data: actionScriptBuild.actionScript,
-  });
-  const mutationFilePath = await writeTempFile({
-    filename: `${runId}_mutations.json`,
-    data: [],
-  });
-  const authFilePath = await writeTempFile({
-    filename: `${runId}_auth.json`,
-    data: authContent,
+  // Initialize run result storage
+  const storage = getRunResultStorageService();
+  const runResult = storage.createRunResult({
+    runType: "replay",
+    cloudTestCaseId: testScript.testCaseId,
+    localUrl: localUrl,
   });
 
-  const outputFilePath = path.join(await ensureTempDir(), `${runId}_output.json`);
+  try {
+    const runId = runResult.id;
+    const startedAt = Date.now();
 
-  const executionProcess = await spawnElectronApp({
-    runId: runId,
-    projectId: projectId,
-    entityId: testScriptId,
-    runType: LocalRunType.REPLAY,
-    runMode: "engine",
-    inputFilePath: inputFilePath,
-    mutationFilePath: mutationFilePath,
-    outputFilePath: outputFilePath,
-    authFilePath: authFilePath,
-    timeoutMs: timeoutMs,
-  });
+    // Rewrite URLs in action script to use local URL
+    const rewrittenActionScript = rewriteActionScriptUrls({
+      actionScript: testScript.actionScript,
+      originalUrl: testScript.url,
+      localUrl: localUrl,
+    });
 
-  const startedAt = executionProcess.startedAt;
+    // Write temp files
+    const inputFilePath = await writeTempFile({
+      filename: `${runId}_input.json`,
+      data: rewrittenActionScript,
+    });
+    const authFilePath = await writeTempFile({
+      filename: `${runId}_auth.json`,
+      data: authContent,
+    });
 
-  const result = await waitForCompletion({ executionProcess: executionProcess });
+    // TODO: Spawn electron-app and wait for completion
 
-  const completedAt = Date.now();
+    const completedAt = Date.now();
+    const executionTimeMs = completedAt - startedAt;
 
-  const workflowResult = await checkWorkflowRunResult({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-  });
+    // Update run result with failure
+    storage.updateRunResult(runId, {
+      status: "failed",
+      executionTimeMs: executionTimeMs,
+      errorMessage: "Electron-app execution not yet implemented.",
+    });
 
-  let finalSuccess = result.success && workflowResult.success;
-  let finalError = result.error ?? workflowResult.error;
+    // Cleanup temp files
+    await cleanupTempFiles({ filePaths: [inputFilePath, authFilePath] });
 
-  if (!workflowResult.success) {
-    finalSuccess = false;
-    finalError = workflowResult.error ?? "Workflow reported failure";
+    return {
+      id: runId,
+      status: "failed",
+      executionTimeMs: executionTimeMs,
+      errorMessage: "Electron-app execution not yet implemented.",
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    storage.updateRunResult(runResult.id, {
+      status: "failed",
+      errorMessage: errorMessage,
+    });
+
+    return {
+      id: runResult.id,
+      status: "failed",
+      executionTimeMs: 0,
+      errorMessage: errorMessage,
+    };
+  }
+}
+
+/**
+ * Rewrite URLs in action script to use local URL.
+ *
+ * @param params - Rewrite parameters.
+ * @param params.actionScript - Original action script steps.
+ * @param params.originalUrl - Original cloud URL to replace.
+ * @param params.localUrl - Local URL to use.
+ * @returns Action script with rewritten URLs.
+ */
+function rewriteActionScriptUrls(params: {
+  actionScript: unknown[];
+  originalUrl?: string;
+  localUrl: string;
+}): unknown[] {
+  const { actionScript, originalUrl, localUrl } = params;
+
+  if (!originalUrl) {
+    return actionScript;
   }
 
-  const runResult: ILocalRunResult = {
-    id: runId,
-    projectId: projectId,
-    testScriptId: testScriptId,
-    runType: LocalRunType.REPLAY,
-    status: finalSuccess ? LocalRunStatus.PASSED : LocalRunStatus.FAILED,
-    startedAt: startedAt,
-    completedAt: completedAt,
-    executionTimeMs: completedAt - startedAt,
-    errorMessage: finalError,
-    localScreenshots: [],
-    actionScriptResult: result.actionScript,
-  };
+  // Deep clone and replace URLs
+  const serialized = JSON.stringify(actionScript);
+  const rewritten = serialized.replace(new RegExp(escapeRegex(originalUrl), "g"), localUrl);
+  return JSON.parse(rewritten) as unknown[];
+}
 
-  storageService.createRunResult(runResult);
-  storageService.updateWorkflowRun({
-    projectId: projectId,
-    workflowRunId: actionScriptBuild.workflowRunId,
-    updates: {
-      status: finalSuccess ? LocalWorkflowRunStatus.COMPLETED : LocalWorkflowRunStatus.FAILED,
-      finishedAt: completedAt,
-      error: finalError,
-    },
-  });
-
-  await cleanupTempFiles({
-    filePaths: [inputFilePath, mutationFilePath, authFilePath, outputFilePath],
-  });
-
-  return runResult;
+/**
+ * Escape special regex characters in a string.
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
  * Cancel an active execution.
- * @param params - The parameters.
- * @param params.runId - The run ID to cancel.
- * @returns Whether the cancellation was successful.
+ *
+ * @param params - Cancel parameters.
+ * @param params.runId - Run ID to cancel.
+ * @returns Whether cancellation was successful.
  */
-export function cancelExecution (params: { runId: string; }): boolean {
-  const { runId } = params;
+export function cancelExecution(params: { runId: string }): boolean {
+  const process = activeProcesses.get(params.runId);
 
-  const executionProcess = activeProcesses.get(runId);
-  if (!executionProcess) {
+  if (!process) {
     return false;
   }
 
-  if (executionProcess.status !== LocalRunStatus.RUNNING) {
-    return false;
-  }
+  // Kill the process
+  process.process.kill("SIGTERM");
 
-  executionProcess.status = LocalRunStatus.CANCELLED;
+  // Update status
+  process.status = "cancelled";
+  activeProcesses.delete(params.runId);
 
-  // Clear all timers
-  if (executionProcess.timeoutTimer) {
-    clearTimeout(executionProcess.timeoutTimer);
-  }
-  if (executionProcess.inactivityCheckInterval) {
-    clearInterval(executionProcess.inactivityCheckInterval);
-  }
-
-  try {
-    executionProcess.process.kill("SIGTERM");
-  } catch {
-    /* ignore kill errors */
-  }
+  // Update storage
+  const storage = getRunResultStorageService();
+  storage.updateRunResult(params.runId, {
+    status: "cancelled",
+    errorMessage: "Execution cancelled by user.",
+  });
 
   return true;
 }
 
 /**
  * List active executions.
- * @returns Array of active execution info.
  */
-export function listActiveExecutions (): Array<{
-  runId: string;
-  projectId: string;
-  entityId: string;
-  runType: LocalRunType;
-  pid: number;
-  startedAt: number;
-  status: LocalRunStatus;
-}> {
-  return Array.from(activeProcesses.values()).map((proc) => ({
-    runId: proc.runId,
-    projectId: proc.projectId,
-    entityId: proc.entityId,
-    runType: proc.runType,
-    pid: proc.pid,
-    startedAt: proc.startedAt,
-    status: proc.status,
+export function listActiveExecutions(): Array<{ runId: string; status: RunResultStatus }> {
+  return Array.from(activeProcesses.entries()).map(([runId, process]) => ({
+    runId: runId,
+    status: process.status,
   }));
 }

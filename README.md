@@ -69,27 +69,27 @@ Your credentials are stored in `~/.muggle-ai/credentials.json` and persist acros
 
 ## Available Tools
 
-### Cloud QA Tools
+### Cloud QA Tools (muggle-remote-*)
 
 Tools that work with the Muggle AI cloud backend:
 
-- `qa_project_create` - Create QA project
-- `qa_project_list` - List projects
-- `qa_use_case_create_from_prompts` - Create use cases
-- `qa_test_case_generate_from_prompt` - Generate test cases
-- `qa_workflow_start_*` - Start various workflows
+- `muggle-remote-project-create` - Create QA project
+- `muggle-remote-project-list` - List projects
+- `muggle-remote-use-case-create-from-prompts` - Create use cases
+- `muggle-remote-test-case-generate-from-prompt` - Generate test cases
+- `muggle-remote-workflow-start-*` - Start various workflows
 - And more...
 
-### Local QA Tools
+### Local QA Tools (muggle-local-*)
 
 Tools that work with local testing:
 
-- `muggle_project_create` - Create local project
-- `muggle_test_case_save` - Save test case locally
-- `muggle_execute_test_generation` - Generate test script
-- `muggle_execute_replay` - Replay test script
-- `muggle_cloud_pull_project` - Pull from cloud
-- `muggle_publish_project` - Publish to cloud
+- `muggle-local-check-status` - Check local status
+- `muggle-local-list-sessions` - List sessions
+- `muggle-local-execute-test-generation` - Generate test script
+- `muggle-local-execute-replay` - Replay test script
+- `muggle-local-run-result-list` - List run results
+- `muggle-local-publish-test-script` - Publish to cloud
 - And more...
 
 ## Data Directory

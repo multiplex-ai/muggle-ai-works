@@ -27,7 +27,7 @@ const getWorkflowTimeoutMs = (): number => getConfig().qa.workflowTimeoutMs;
 
 const projectTools: IQaToolDefinition[] = [
   {
-    name: "qa_project_create",
+    name: "muggle-remote-project-create",
     description: "Create a new QA testing project. Projects organize use cases, test cases, and test scripts.",
     inputSchema: schemas.ProjectCreateInputSchema,
     mapToUpstream: (input) => {
@@ -44,7 +44,7 @@ const projectTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_get",
+    name: "muggle-remote-project-get",
     description: "Get details of a specific project by ID.",
     inputSchema: schemas.ProjectGetInputSchema,
     mapToUpstream: (input) => {
@@ -56,7 +56,7 @@ const projectTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_update",
+    name: "muggle-remote-project-update",
     description: "Update an existing project's details.",
     inputSchema: schemas.ProjectUpdateInputSchema,
     mapToUpstream: (input) => {
@@ -73,7 +73,7 @@ const projectTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_list",
+    name: "muggle-remote-project-list",
     description: "List all projects accessible to the authenticated user.",
     inputSchema: schemas.ProjectListInputSchema,
     mapToUpstream: (input) => {
@@ -86,7 +86,7 @@ const projectTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_delete",
+    name: "muggle-remote-project-delete",
     description: "Delete a project and all associated entities. This is a soft delete.",
     inputSchema: schemas.ProjectDeleteInputSchema,
     mapToUpstream: (input) => {
@@ -105,7 +105,7 @@ const projectTools: IQaToolDefinition[] = [
 
 const useCaseTools: IQaToolDefinition[] = [
   {
-    name: "qa_use_case_discovery_memory_get",
+    name: "muggle-remote-use-case-discovery-memory-get",
     description: "Get the use case discovery memory for a project, including all discovered use case candidates.",
     inputSchema: schemas.UseCaseDiscoveryMemoryGetInputSchema,
     mapToUpstream: (input) => {
@@ -117,7 +117,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_candidates_approve",
+    name: "muggle-remote-use-case-candidates-approve",
     description: "Approve (graduate) selected use case candidates into actual use cases.",
     inputSchema: schemas.UseCaseCandidatesApproveInputSchema,
     mapToUpstream: (input) => {
@@ -130,7 +130,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_list",
+    name: "muggle-remote-use-case-list",
     description: "List all use cases for a project.",
     inputSchema: schemas.UseCaseListInputSchema,
     mapToUpstream: (input) => {
@@ -143,7 +143,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_get",
+    name: "muggle-remote-use-case-get",
     description: "Get details of a specific use case by ID.",
     inputSchema: schemas.UseCaseGetInputSchema,
     mapToUpstream: (input) => {
@@ -155,7 +155,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_prompt_preview",
+    name: "muggle-remote-use-case-prompt-preview",
     description: "Preview a use case generated from a natural language instruction without saving.",
     inputSchema: schemas.UseCasePromptPreviewInputSchema,
     mapToUpstream: (input) => {
@@ -168,7 +168,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_create_from_prompts",
+    name: "muggle-remote-use-case-create-from-prompts",
     description: "Create one or more use cases from natural language instructions.",
     inputSchema: schemas.UseCaseCreateFromPromptsInputSchema,
     mapToUpstream: (input) => {
@@ -181,7 +181,7 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_use_case_update_from_prompt",
+    name: "muggle-remote-use-case-update-from-prompt",
     description: "Update an existing use case by regenerating its fields from a new instruction.",
     inputSchema: schemas.UseCaseUpdateFromPromptInputSchema,
     mapToUpstream: (input) => {
@@ -201,7 +201,7 @@ const useCaseTools: IQaToolDefinition[] = [
 
 const testCaseTools: IQaToolDefinition[] = [
   {
-    name: "qa_test_case_list",
+    name: "muggle-remote-test-case-list",
     description: "List test cases for a project.",
     inputSchema: schemas.TestCaseListInputSchema,
     mapToUpstream: (input) => {
@@ -214,7 +214,7 @@ const testCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_case_get",
+    name: "muggle-remote-test-case-get",
     description: "Get details of a specific test case.",
     inputSchema: schemas.TestCaseGetInputSchema,
     mapToUpstream: (input) => {
@@ -226,7 +226,7 @@ const testCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_case_list_by_use_case",
+    name: "muggle-remote-test-case-list-by-use-case",
     description: "List test cases for a specific use case.",
     inputSchema: schemas.TestCaseListByUseCaseInputSchema,
     mapToUpstream: (input) => {
@@ -238,7 +238,7 @@ const testCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_case_generate_from_prompt",
+    name: "muggle-remote-test-case-generate-from-prompt",
     description: "Generate test cases from a natural language prompt. Returns preview test cases.",
     inputSchema: schemas.TestCaseGenerateFromPromptInputSchema,
     mapToUpstream: (input) => {
@@ -251,7 +251,7 @@ const testCaseTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_case_create",
+    name: "muggle-remote-test-case-create",
     description: "Create a new test case for a use case.",
     inputSchema: schemas.TestCaseCreateInputSchema,
     mapToUpstream: (input) => {
@@ -285,7 +285,7 @@ const testCaseTools: IQaToolDefinition[] = [
 
 const testScriptTools: IQaToolDefinition[] = [
   {
-    name: "qa_test_script_list",
+    name: "muggle-remote-test-script-list",
     description: "List test scripts for a project.",
     inputSchema: schemas.TestScriptListInputSchema,
     mapToUpstream: (input) => {
@@ -298,7 +298,7 @@ const testScriptTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_script_get",
+    name: "muggle-remote-test-script-get",
     description: "Get details of a specific test script.",
     inputSchema: schemas.TestScriptGetInputSchema,
     mapToUpstream: (input) => {
@@ -310,7 +310,7 @@ const testScriptTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_test_script_list_paginated",
+    name: "muggle-remote-test-script-list-paginated",
     description: "List test scripts with full pagination support.",
     inputSchema: schemas.TestScriptListPaginatedInputSchema,
     mapToUpstream: (input) => {
@@ -330,7 +330,7 @@ const testScriptTools: IQaToolDefinition[] = [
 
 const workflowTools: IQaToolDefinition[] = [
   {
-    name: "qa_workflow_start_website_scan",
+    name: "muggle-remote-workflow-start-website-scan",
     description: "Start a website scan workflow to discover use cases from a URL.",
     inputSchema: schemas.WorkflowStartWebsiteScanInputSchema,
     mapToUpstream: (input) => {
@@ -350,7 +350,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_list_website_scan_runtimes",
+    name: "muggle-remote-workflow-list-website-scan-runtimes",
     description: "List website scan workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
@@ -363,7 +363,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_website_scan_latest_run",
+    name: "muggle-remote-workflow-get-website-scan-latest-run",
     description: "Get the latest run status for a website scan workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -375,7 +375,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_start_test_case_detection",
+    name: "muggle-remote-workflow-start-test-case-detection",
     description: "Start a test case detection workflow to generate test cases from use cases.",
     inputSchema: schemas.WorkflowStartTestCaseDetectionInputSchema,
     mapToUpstream: (input) => {
@@ -396,7 +396,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_list_test_case_detection_runtimes",
+    name: "muggle-remote-workflow-list-test-case-detection-runtimes",
     description: "List test case detection workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
@@ -409,7 +409,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_test_case_detection_latest_run",
+    name: "muggle-remote-workflow-get-test-case-detection-latest-run",
     description: "Get the latest run status for a test case detection workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -421,7 +421,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_start_test_script_generation",
+    name: "muggle-remote-workflow-start-test-script-generation",
     description: "Start a test script generation workflow.",
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
     mapToUpstream: (input) => {
@@ -446,7 +446,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_test_script_generation_latest_run",
+    name: "muggle-remote-workflow-get-test-script-generation-latest-run",
     description: "Get the latest run status for a test script generation workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -458,7 +458,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_latest_test_script_generation_runtime_by_test_case",
+    name: "muggle-remote-workflow-get-latest-test-script-generation-runtime-by-test-case",
     description: "Get the latest test script generation runtime for a specific test case.",
     inputSchema: schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema,
     mapToUpstream: (input) => {
@@ -470,7 +470,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_start_test_script_replay",
+    name: "muggle-remote-workflow-start-test-script-replay",
     description: "Start a test script replay workflow to execute a single test script.",
     inputSchema: schemas.WorkflowStartTestScriptReplayInputSchema,
     mapToUpstream: (input) => {
@@ -491,7 +491,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_test_script_replay_latest_run",
+    name: "muggle-remote-workflow-get-test-script-replay-latest-run",
     description: "Get the latest run status for a test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -503,7 +503,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_start_test_script_replay_bulk",
+    name: "muggle-remote-workflow-start-test-script-replay-bulk",
     description: "Start a bulk test script replay workflow to execute multiple test scripts.",
     inputSchema: schemas.WorkflowStartTestScriptReplayBulkInputSchema,
     mapToUpstream: (input) => {
@@ -527,7 +527,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_list_test_script_replay_bulk_runtimes",
+    name: "muggle-remote-workflow-list-test-script-replay-bulk-runtimes",
     description: "List bulk test script replay workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
@@ -540,7 +540,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_test_script_replay_bulk_latest_run",
+    name: "muggle-remote-workflow-get-test-script-replay-bulk-latest-run",
     description: "Get the latest run status for a bulk test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -552,7 +552,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_replay_bulk_run_batch_summary",
+    name: "muggle-remote-workflow-get-replay-bulk-run-batch-summary",
     description: "Get the summary of a bulk replay run batch.",
     inputSchema: schemas.WorkflowGetReplayBulkBatchSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -564,7 +564,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_cancel_run",
+    name: "muggle-remote-workflow-cancel-run",
     description: "Cancel a running workflow run.",
     inputSchema: schemas.WorkflowCancelRunInputSchema,
     mapToUpstream: (input) => {
@@ -576,7 +576,7 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_cancel_runtime",
+    name: "muggle-remote-workflow-cancel-runtime",
     description: "Cancel a workflow runtime and all its runs.",
     inputSchema: schemas.WorkflowCancelRuntimeInputSchema,
     mapToUpstream: (input) => {
@@ -595,7 +595,7 @@ const workflowTools: IQaToolDefinition[] = [
 
 const reportTools: IQaToolDefinition[] = [
   {
-    name: "qa_project_test_results_summary_get",
+    name: "muggle-remote-project-test-results-summary-get",
     description: "Get a summary of test results for a project.",
     inputSchema: schemas.ProjectTestResultsSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -607,7 +607,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_test_scripts_summary_get",
+    name: "muggle-remote-project-test-scripts-summary-get",
     description: "Get a summary of test scripts for a project.",
     inputSchema: schemas.ProjectTestScriptsSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -619,7 +619,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_project_test_runs_summary_get",
+    name: "muggle-remote-project-test-runs-summary-get",
     description: "Get a summary of test runs for a project.",
     inputSchema: schemas.ProjectTestRunsSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -631,7 +631,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_report_stats_summary_get",
+    name: "muggle-remote-report-stats-summary-get",
     description: "Get report statistics summary for a project.",
     inputSchema: schemas.ReportStatsSummaryInputSchema,
     mapToUpstream: (input) => {
@@ -644,7 +644,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_report_cost_query",
+    name: "muggle-remote-report-cost-query",
     description: "Query cost/usage data for a project over a date range.",
     inputSchema: schemas.ReportCostQueryInputSchema,
     mapToUpstream: (input) => {
@@ -663,7 +663,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_report_preferences_upsert",
+    name: "muggle-remote-report-preferences-upsert",
     description: "Update report delivery preferences for a project.",
     inputSchema: schemas.ReportPreferencesUpsertInputSchema,
     mapToUpstream: (input) => {
@@ -683,7 +683,7 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_report_final_generate",
+    name: "muggle-remote-report-final-generate",
     description: "Generate a final test report for a project.",
     inputSchema: schemas.ReportFinalGenerateInputSchema,
     mapToUpstream: (input) => {
@@ -707,7 +707,7 @@ const reportTools: IQaToolDefinition[] = [
 
 const secretTools: IQaToolDefinition[] = [
   {
-    name: "qa_secret_list",
+    name: "muggle-remote-secret-list",
     description: "List all secrets for a project. Secret values are not returned for security.",
     inputSchema: schemas.SecretListInputSchema,
     mapToUpstream: (input) => {
@@ -720,7 +720,7 @@ const secretTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_secret_create",
+    name: "muggle-remote-secret-create",
     description: "Create a new secret (credential) for a project.",
     inputSchema: schemas.SecretCreateInputSchema,
     mapToUpstream: (input) => {
@@ -739,7 +739,7 @@ const secretTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_secret_get",
+    name: "muggle-remote-secret-get",
     description: "Get details of a specific secret. The secret value is not returned for security.",
     inputSchema: schemas.SecretGetInputSchema,
     mapToUpstream: (input) => {
@@ -751,7 +751,7 @@ const secretTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_secret_update",
+    name: "muggle-remote-secret-update",
     description: "Update an existing secret.",
     inputSchema: schemas.SecretUpdateInputSchema,
     mapToUpstream: (input) => {
@@ -768,7 +768,7 @@ const secretTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_secret_delete",
+    name: "muggle-remote-secret-delete",
     description: "Delete a secret from a project.",
     inputSchema: schemas.SecretDeleteInputSchema,
     mapToUpstream: (input) => {
@@ -787,7 +787,7 @@ const secretTools: IQaToolDefinition[] = [
 
 const prdFileTools: IQaToolDefinition[] = [
   {
-    name: "qa_prd_file_upload",
+    name: "muggle-remote-prd-file-upload",
     description: "Upload a PRD file to a project. File content should be base64-encoded.",
     inputSchema: schemas.PrdFileUploadInputSchema,
     mapToUpstream: (input) => {
@@ -805,7 +805,7 @@ const prdFileTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_prd_file_list_by_project",
+    name: "muggle-remote-prd-file-list-by-project",
     description: "List all PRD files associated with a project.",
     inputSchema: schemas.PrdFileListInputSchema,
     mapToUpstream: (input) => {
@@ -817,7 +817,7 @@ const prdFileTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_prd_file_delete",
+    name: "muggle-remote-prd-file-delete",
     description: "Delete a PRD file from a project.",
     inputSchema: schemas.PrdFileDeleteInputSchema,
     mapToUpstream: (input) => {
@@ -829,7 +829,7 @@ const prdFileTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_start_prd_file_process",
+    name: "muggle-remote-workflow-start-prd-file-process",
     description: "Start a PRD file processing workflow to extract use cases.",
     inputSchema: schemas.PrdFileProcessStartInputSchema,
     mapToUpstream: (input) => {
@@ -851,7 +851,7 @@ const prdFileTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_workflow_get_prd_file_process_latest_run",
+    name: "muggle-remote-workflow-get-prd-file-process-latest-run",
     description: "Get the latest run status of a PRD file processing workflow.",
     inputSchema: schemas.PrdFileProcessLatestRunInputSchema,
     mapToUpstream: (input) => {
@@ -870,7 +870,7 @@ const prdFileTools: IQaToolDefinition[] = [
 
 const walletTools: IQaToolDefinition[] = [
   {
-    name: "qa_wallet_topup",
+    name: "muggle-remote-wallet-topup",
     description: "Create a Stripe checkout session to purchase a token package.",
     inputSchema: schemas.WalletTopUpInputSchema,
     mapToUpstream: (input) => {
@@ -887,7 +887,7 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_wallet_payment_method_create_setup_session",
+    name: "muggle-remote-wallet-payment-method-create-setup-session",
     description: "Create a Stripe setup session to add a payment method.",
     inputSchema: schemas.WalletPaymentMethodCreateSetupSessionInputSchema,
     mapToUpstream: (input) => {
@@ -903,7 +903,7 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_wallet_auto_topup_set_payment_method",
+    name: "muggle-remote-wallet-auto-topup-set-payment-method",
     description: "Set the saved payment method used by wallet auto top-up.",
     inputSchema: schemas.WalletAutoTopUpSetPaymentMethodInputSchema,
     mapToUpstream: (input) => {
@@ -916,7 +916,7 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_wallet_payment_method_list",
+    name: "muggle-remote-wallet-payment-method-list",
     description: "List saved payment methods.",
     inputSchema: schemas.WalletPaymentMethodListInputSchema,
     mapToUpstream: () => {
@@ -927,7 +927,7 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_wallet_auto_topup_update",
+    name: "muggle-remote-wallet-auto-topup-update",
     description: "Update wallet auto-topup settings.",
     inputSchema: schemas.WalletAutoTopUpUpdateInputSchema,
     mapToUpstream: (input) => {
@@ -951,7 +951,7 @@ const walletTools: IQaToolDefinition[] = [
 
 const recommendationTools: IQaToolDefinition[] = [
   {
-    name: "qa_recommend_schedule",
+    name: "muggle-remote-recommend-schedule",
     description: "Get recommendations for test scheduling based on project needs.",
     inputSchema: schemas.RecommendScheduleInputSchema,
     requiresAuth: false,
@@ -1004,7 +1004,7 @@ const recommendationTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_recommend_cicd_setup",
+    name: "muggle-remote-recommend-cicd-setup",
     description: "Get recommendations and templates for CI/CD integration.",
     inputSchema: schemas.RecommendCicdSetupInputSchema,
     requiresAuth: false,
@@ -1067,7 +1067,7 @@ const API_KEY_PREFIX = "/v1/protected/api-keys";
 
 const apiKeyTools: IQaToolDefinition[] = [
   {
-    name: "qa_auth_api_key_create",
+    name: "muggle-remote-auth-api-key-create",
     description: "Create a new API key for the authenticated user. Requires existing authentication.",
     inputSchema: schemas.ApiKeyCreateInputSchema,
     mapToUpstream: (input) => {
@@ -1115,7 +1115,7 @@ const apiKeyTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_api_key_list",
+    name: "muggle-remote-auth-api-key-list",
     description: "List all API keys for the authenticated user. Shows key metadata but not the secret values.",
     inputSchema: schemas.ApiKeyListInputSchema,
     mapToUpstream: () => {
@@ -1152,7 +1152,7 @@ const apiKeyTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_api_key_get",
+    name: "muggle-remote-auth-api-key-get",
     description: "Get details of a specific API key by ID.",
     inputSchema: schemas.ApiKeyGetInputSchema,
     mapToUpstream: (input) => {
@@ -1189,7 +1189,7 @@ const apiKeyTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_api_key_revoke",
+    name: "muggle-remote-auth-api-key-revoke",
     description: "Revoke an API key. The key will immediately stop working. Use qa_auth_api_key_list to find the key ID first.",
     inputSchema: schemas.ApiKeyRevokeInputSchema,
     mapToUpstream: (input) => {
@@ -1214,7 +1214,7 @@ const apiKeyTools: IQaToolDefinition[] = [
 
 const authTools: IQaToolDefinition[] = [
   {
-    name: "qa_auth_status",
+    name: "muggle-remote-auth-status",
     description: "Check current authentication status. Shows if you're logged in and when your session expires.",
     inputSchema: schemas.EmptyInputSchema,
     requiresAuth: false,
@@ -1228,7 +1228,7 @@ const authTools: IQaToolDefinition[] = [
       if (!status.authenticated) {
         return {
           authenticated: false,
-          message: "Not authenticated. Use qa_auth_login to authenticate.",
+          message: "Not authenticated. Use muggle-remote-auth-login to authenticate.",
         };
       }
 
@@ -1242,8 +1242,8 @@ const authTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_login",
-    description: "Start authentication with the Muggle Test service. Opens a browser-based login flow and waits for confirmation by default. If login is still pending after the wait timeout, use qa_auth_poll to finish authentication.",
+    name: "muggle-remote-auth-login",
+    description: "Start authentication with the Muggle Test service. Opens a browser-based login flow and waits for confirmation by default. If login is still pending after the wait timeout, use muggle-remote-auth-poll to finish authentication.",
     inputSchema: schemas.AuthLoginInputSchema,
     requiresAuth: false,
     mapToUpstream: () => {
@@ -1263,7 +1263,7 @@ const authTools: IQaToolDefinition[] = [
           userCode: deviceCodeResponse.userCode,
           verificationUri: deviceCodeResponse.verificationUri,
           browserOpened: deviceCodeResponse.browserOpened,
-          message: "Login started. Complete authentication in your browser, then call qa_auth_poll.",
+          message: "Login started. Complete authentication in your browser, then call muggle-remote-auth-poll.",
         };
       }
 
@@ -1289,8 +1289,8 @@ const authTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_poll",
-    description: "Poll for login completion after starting the login flow with qa_auth_login. Call this after the user completes authentication in their browser.",
+    name: "muggle-remote-auth-poll",
+    description: "Poll for login completion after starting the login flow with muggle-remote-auth-login. Call this after the user completes authentication in their browser.",
     inputSchema: schemas.AuthPollInputSchema,
     requiresAuth: false,
     mapToUpstream: () => {
@@ -1305,7 +1305,7 @@ const authTools: IQaToolDefinition[] = [
       if (!deviceCode) {
         return {
           error: "NO_PENDING_LOGIN",
-          message: "No pending login found. Please start a new login with qa_auth_login.",
+          message: "No pending login found. Please start a new login with muggle-remote-auth-login.",
         };
       }
 
@@ -1327,7 +1327,7 @@ const authTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "qa_auth_logout",
+    name: "muggle-remote-auth-logout",
     description: "Log out and clear stored credentials.",
     inputSchema: schemas.EmptyInputSchema,
     requiresAuth: false,

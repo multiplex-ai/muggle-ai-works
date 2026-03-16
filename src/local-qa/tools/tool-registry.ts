@@ -47,12 +47,12 @@ function createChildLogger(correlationId: string) {
 // ========================================
 
 const checkStatusTool: ILocalMcpTool = {
-  name: "muggle_check_status",
+  name: "muggle-local-check-status",
   description: "Check the status of Muggle Test Local. This verifies the connection to web-service and shows current session information.",
   inputSchema: EmptyInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_check_status");
+    logger.info("Executing muggle-local-check-status");
 
     const authService = getAuthService();
     const storageService = getStorageService();
@@ -75,12 +75,12 @@ const checkStatusTool: ILocalMcpTool = {
 };
 
 const listSessionsTool: ILocalMcpTool = {
-  name: "muggle_list_sessions",
+  name: "muggle-local-list-sessions",
   description: "List all stored testing sessions. Shows session IDs, status, and metadata for each session.",
   inputSchema: ListSessionsInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_list_sessions");
+    logger.info("Executing muggle-local-list-sessions");
 
     const input = ListSessionsInputSchema.parse(ctx.input);
     const storageService = getStorageService();
@@ -113,12 +113,12 @@ const listSessionsTool: ILocalMcpTool = {
 // ========================================
 
 const runResultListTool: ILocalMcpTool = {
-  name: "muggle_run_result_list",
+  name: "muggle-local-run-result-list",
   description: "List run results (test generation and replay history), optionally filtered by cloud test case ID.",
   inputSchema: RunResultListInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_run_result_list");
+    logger.info("Executing muggle-local-run-result-list");
 
     const input = RunResultListInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();
@@ -146,12 +146,12 @@ const runResultListTool: ILocalMcpTool = {
 };
 
 const runResultGetTool: ILocalMcpTool = {
-  name: "muggle_run_result_get",
+  name: "muggle-local-run-result-get",
   description: "Get detailed information about a run result including screenshots and action script output.",
   inputSchema: RunResultGetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_run_result_get");
+    logger.info("Executing muggle-local-run-result-get");
 
     const input = RunResultGetInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();
@@ -181,12 +181,12 @@ const runResultGetTool: ILocalMcpTool = {
 // ========================================
 
 const testScriptListTool: ILocalMcpTool = {
-  name: "muggle_test_script_list",
+  name: "muggle-local-test-script-list",
   description: "List locally generated test scripts, optionally filtered by cloud test case ID.",
   inputSchema: TestScriptListInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_test_script_list");
+    logger.info("Executing muggle-local-test-script-list");
 
     const input = TestScriptListInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();
@@ -208,12 +208,12 @@ const testScriptListTool: ILocalMcpTool = {
 };
 
 const testScriptGetTool: ILocalMcpTool = {
-  name: "muggle_test_script_get",
+  name: "muggle-local-test-script-get",
   description: "Get details of a locally generated test script including action script steps.",
   inputSchema: TestScriptGetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_test_script_get");
+    logger.info("Executing muggle-local-test-script-get");
 
     const input = TestScriptGetInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();
@@ -243,12 +243,12 @@ const testScriptGetTool: ILocalMcpTool = {
 // ========================================
 
 const executeTestGenerationTool: ILocalMcpTool = {
-  name: "muggle_execute_test_generation",
+  name: "muggle-local-execute-test-generation",
   description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode.",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_execute_test_generation");
+    logger.info("Executing muggle-local-execute-test-generation");
 
     const input = ExecuteTestGenerationInputSchema.parse(ctx.input);
 
@@ -301,12 +301,12 @@ const executeTestGenerationTool: ILocalMcpTool = {
 };
 
 const executeReplayTool: ILocalMcpTool = {
-  name: "muggle_execute_replay",
+  name: "muggle-local-execute-replay",
   description: "Execute test script replay. First call qa_test_script_get to get test script details (including actionScript), then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in engine mode.",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_execute_replay");
+    logger.info("Executing muggle-local-execute-replay");
 
     const input = ExecuteReplayInputSchema.parse(ctx.input);
 
@@ -360,12 +360,12 @@ const executeReplayTool: ILocalMcpTool = {
 };
 
 const cancelExecutionTool: ILocalMcpTool = {
-  name: "muggle_cancel_execution",
+  name: "muggle-local-cancel-execution",
   description: "Cancel an active test generation or replay execution.",
   inputSchema: CancelExecutionInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_cancel_execution");
+    logger.info("Executing muggle-local-cancel-execution");
 
     const input = CancelExecutionInputSchema.parse(ctx.input);
 
@@ -384,12 +384,12 @@ const cancelExecutionTool: ILocalMcpTool = {
 // ========================================
 
 const publishTestScriptTool: ILocalMcpTool = {
-  name: "muggle_publish_test_script",
+  name: "muggle-local-publish-test-script",
   description: "Publish a locally generated test script to the cloud. Uses the run ID from muggle_execute_test_generation to find the script and uploads it to the specified cloud test case.",
   inputSchema: PublishTestScriptInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle_publish_test_script");
+    logger.info("Executing muggle-local-publish-test-script");
 
     const input = PublishTestScriptInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();

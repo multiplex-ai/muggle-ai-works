@@ -7,12 +7,14 @@
 import { createHash } from "crypto";
 import { exec } from "child_process";
 import {
+  readFileSync,
   createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
   readdirSync,
   rmSync,
+  writeFileSync,
 } from "fs";
 import { homedir, platform } from "os";
 import { join } from "path";
@@ -21,6 +23,85 @@ import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
+const CURSOR_SERVER_NAME = "muggle";
+
+/**
+ * Get the Cursor MCP config path.
+ * @returns {string} Path to ~/.cursor/mcp.json
+ */
+function getCursorMcpConfigPath() {
+  return join(homedir(), ".cursor", "mcp.json");
+}
+
+/**
+ * Build the default Cursor server configuration for this package.
+ * @returns {{command: string, args: string[]}} Server configuration
+ */
+function buildCursorServerConfig() {
+  const localCliPath = join(process.cwd(), "bin", "muggle-mcp.js");
+  return {
+    command: "node",
+    args: [localCliPath, "serve"],
+  };
+}
+
+/**
+ * Read and parse Cursor mcp.json.
+ * @param {string} configPath - Path to mcp.json
+ * @returns {Record<string, unknown>} Parsed config object
+ */
+function readCursorConfig(configPath) {
+  if (!existsSync(configPath)) {
+    return {};
+  }
+
+  const rawConfig = readFileSync(configPath, "utf-8");
+  const parsedConfig = JSON.parse(rawConfig);
+
+  if (typeof parsedConfig !== "object" || parsedConfig === null || Array.isArray(parsedConfig)) {
+    throw new Error(`Invalid JSON structure in ${configPath}: expected an object at root`);
+  }
+
+  return parsedConfig;
+}
+
+/**
+ * Update ~/.cursor/mcp.json with the muggle server entry.
+ * Existing server configurations are preserved.
+ */
+function updateCursorMcpConfig() {
+  const configPath = getCursorMcpConfigPath();
+  const cursorDir = join(homedir(), ".cursor");
+
+  try {
+    const parsedConfig = readCursorConfig(configPath);
+    const currentMcpServers = parsedConfig.mcpServers;
+    let normalizedMcpServers = {};
+
+    if (currentMcpServers !== undefined) {
+      if (typeof currentMcpServers !== "object" || currentMcpServers === null || Array.isArray(currentMcpServers)) {
+        throw new Error(`Invalid mcpServers in ${configPath}: expected an object`);
+      }
+      normalizedMcpServers = currentMcpServers;
+    }
+
+    normalizedMcpServers[CURSOR_SERVER_NAME] = buildCursorServerConfig();
+    parsedConfig.mcpServers = normalizedMcpServers;
+
+    mkdirSync(cursorDir, { recursive: true });
+    const prettyJson = `${JSON.stringify(parsedConfig, null, 2)}\n`;
+    writeFileSync(configPath, prettyJson, "utf-8");
+    console.log(`Updated Cursor MCP config: ${configPath}`);
+  } catch (error) {
+    console.error("\n========================================");
+    console.error("ERROR: Failed to update Cursor MCP config");
+    console.error("========================================\n");
+    console.error("Path:", configPath);
+    console.error("\nFull error details:");
+    console.error(error instanceof Error ? error.stack || error : error);
+    console.error("");
+  }
+}
 
 /**
  * Get the Muggle AI data directory.
@@ -181,6 +262,26 @@ function getBinaryName() {
 }
 
 /**
+ * Get the expected extracted executable path for the current platform.
+ * @param {string} versionDir - Version directory path
+ * @returns {string} Expected executable path
+ */
+function getExpectedExecutablePath(versionDir) {
+  const os = platform();
+
+  switch (os) {
+    case "darwin":
+      return join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    case "win32":
+      return join(versionDir, "MuggleAI.exe");
+    case "linux":
+      return join(versionDir, "MuggleAI");
+    default:
+      throw new Error(`Unsupported platform: ${os}`);
+  }
+}
+
+/**
  * Download and extract the Electron app.
  */
 async function downloadElectronApp() {
@@ -197,11 +298,19 @@ async function downloadElectronApp() {
     const appDir = getElectronAppDir();
     const versionDir = join(appDir, version);
 
-    // Check if already downloaded
+    // Check if already downloaded and extracted correctly
+    const expectedExecutablePath = getExpectedExecutablePath(versionDir);
     if (existsSync(versionDir)) {
-      cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
-      console.log(`Electron app v${version} already installed at ${versionDir}`);
-      return;
+      if (existsSync(expectedExecutablePath)) {
+        cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
+        console.log(`Electron app v${version} already installed at ${versionDir}`);
+        return;
+      }
+
+      console.log(
+        `Electron app v${version} directory exists but executable is missing. Re-downloading...`,
+      );
+      rmSync(versionDir, { recursive: true, force: true });
     }
 
     console.log(`Downloading Muggle Test Electron app v${version}...`);
@@ -334,4 +443,5 @@ async function extractTarGz(tarPath, destDir) {
 }
 
 // Run postinstall
+updateCursorMcpConfig();
 downloadElectronApp().catch(console.error);

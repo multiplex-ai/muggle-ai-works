@@ -587,6 +587,40 @@ const workflowTools: IQaToolDefinition[] = [
       };
     },
   },
+  {
+    name: "muggle-remote-local-run-upload",
+    description: "Upload a locally executed run (generation/replay) to cloud workflow records.",
+    inputSchema: schemas.LocalRunUploadInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.LocalRunUploadInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/local-run/upload`,
+        body: {
+          projectId: data.projectId,
+          useCaseId: data.useCaseId,
+          testCaseId: data.testCaseId,
+          runType: data.runType,
+          productionUrl: data.productionUrl,
+          localExecutionContext: {
+            originalUrl: data.localExecutionContext.originalUrl,
+            productionUrl: data.localExecutionContext.productionUrl,
+            runByUserId: data.localExecutionContext.runByUserId,
+            machineHostname: data.localExecutionContext.machineHostname,
+            osInfo: data.localExecutionContext.osInfo,
+            electronAppVersion: data.localExecutionContext.electronAppVersion,
+            mcpServerVersion: data.localExecutionContext.mcpServerVersion,
+            localExecutionCompletedAt: data.localExecutionContext.localExecutionCompletedAt,
+            uploadedAt: data.localExecutionContext.uploadedAt,
+          },
+          actionScript: data.actionScript,
+          status: data.status,
+          executionTimeMs: data.executionTimeMs,
+          errorMessage: data.errorMessage,
+        },
+      };
+    },
+  },
 ];
 
 // =============================================================================

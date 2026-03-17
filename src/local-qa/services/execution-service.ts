@@ -10,12 +10,14 @@
 
 import { spawn } from "child_process";
 import * as fs from "fs/promises";
+import * as os from "node:os";
 import * as path from "path";
 
 import { getConfig } from "../../shared/config.js";
 import { getLogger } from "../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
 const logger = getLogger();
@@ -99,6 +101,39 @@ function getAuthenticatedUserId(): string {
   }
 
   return authStatus.userId;
+}
+
+/**
+ * Read local execution environment details for upload metadata.
+ */
+async function getLocalExecutionContextBaseAsync(params: {
+  runByUserId: string;
+  originalUrl: string;
+  productionUrl: string;
+}): Promise<ILocalExecutionContext> {
+  const packageJsonPath = new URL("../../../package.json", import.meta.url);
+  const packageJsonRaw = await fs.readFile(packageJsonPath, "utf-8");
+  const packageJson = JSON.parse(packageJsonRaw) as {
+    version?: string;
+    muggleConfig?: { electronAppVersion?: string };
+  };
+
+  if (!packageJson.version) {
+    throw new Error("Missing package.json version for MCP server metadata");
+  }
+  if (!packageJson.muggleConfig?.electronAppVersion) {
+    throw new Error("Missing package.json muggleConfig.electronAppVersion for local execution metadata");
+  }
+
+  return {
+    originalUrl: params.originalUrl,
+    productionUrl: params.productionUrl,
+    runByUserId: params.runByUserId,
+    machineHostname: os.hostname(),
+    osInfo: `${os.platform()} ${os.release()} ${os.arch()}`,
+    electronAppVersion: packageJson.muggleConfig.electronAppVersion,
+    mcpServerVersion: packageJson.version,
+  };
 }
 
 /**
@@ -505,15 +540,28 @@ export async function executeTestGeneration(params: {
   const timeoutMs = params.timeoutMs ?? 300000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  getAuthenticatedUserId(); // Throws if not authenticated
+  const userId = getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
+  if (!testCase.url) {
+    throw new Error("Missing required testCase.url for local run upload metadata");
+  }
+
+  const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    runByUserId: userId,
+    originalUrl: localUrl,
+    productionUrl: testCase.url,
+  });
 
   // Initialize run result storage
   const storage = getRunResultStorageService();
   const runResult = storage.createRunResult({
     runType: "generation",
     cloudTestCaseId: testCase.id,
+    projectId: testCase.projectId,
+    useCaseId: testCase.useCaseId,
     localUrl: localUrl,
+    productionUrl: testCase.url,
+    localExecutionContext: localExecutionContextBase,
   });
 
   try {
@@ -575,6 +623,10 @@ export async function executeTestGeneration(params: {
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          localExecutionContext: {
+            ...localExecutionContextBase,
+            localExecutionCompletedAt: completedAt,
+          },
         });
         storage.updateTestScript(localTestScript.id, {
           status: "failed",
@@ -615,6 +667,10 @@ export async function executeTestGeneration(params: {
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
+        localExecutionContext: {
+          ...localExecutionContextBase,
+          localExecutionCompletedAt: completedAt,
+        },
       });
 
       return {
@@ -630,10 +686,15 @@ export async function executeTestGeneration(params: {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const completedAt = Date.now();
 
     storage.updateRunResult(runResult.id, {
       status: "failed",
       errorMessage: errorMessage,
+      localExecutionContext: {
+        ...localExecutionContextBase,
+        localExecutionCompletedAt: completedAt,
+      },
     });
 
     return {
@@ -665,15 +726,28 @@ export async function executeReplay(params: {
   const timeoutMs = params.timeoutMs ?? 180000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  getAuthenticatedUserId(); // Throws if not authenticated
+  const userId = getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
+  if (!testScript.url) {
+    throw new Error("Missing required testScript.url for local run upload metadata");
+  }
+
+  const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    runByUserId: userId,
+    originalUrl: localUrl,
+    productionUrl: testScript.url,
+  });
 
   // Initialize run result storage
   const storage = getRunResultStorageService();
   const runResult = storage.createRunResult({
     runType: "replay",
     cloudTestCaseId: testScript.testCaseId,
+    projectId: testScript.projectId,
+    useCaseId: testScript.useCaseId,
     localUrl: localUrl,
+    productionUrl: testScript.url,
+    localExecutionContext: localExecutionContextBase,
   });
 
   try {
@@ -725,6 +799,10 @@ export async function executeReplay(params: {
           status: "failed",
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          localExecutionContext: {
+            ...localExecutionContextBase,
+            localExecutionCompletedAt: completedAt,
+          },
         });
         return {
           id: runId,
@@ -739,6 +817,10 @@ export async function executeReplay(params: {
         status: "passed",
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
+        localExecutionContext: {
+          ...localExecutionContextBase,
+          localExecutionCompletedAt: completedAt,
+        },
       });
       return {
         id: runId,
@@ -752,10 +834,15 @@ export async function executeReplay(params: {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const completedAt = Date.now();
 
     storage.updateRunResult(runResult.id, {
       status: "failed",
       errorMessage: errorMessage,
+      localExecutionContext: {
+        ...localExecutionContextBase,
+        localExecutionCompletedAt: completedAt,
+      },
     });
 
     return {

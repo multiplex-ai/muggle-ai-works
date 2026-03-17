@@ -17,11 +17,16 @@ export const PaginationInputSchema = z.object({
 /** ID string schema. */
 export const IdSchema = z.string().min(1).describe("Unique identifier");
 
+/** Optional memory configuration overrides in workflow params. */
+export const WorkflowMemoryParamsSchema = z.object({
+  enableSharedTestMemory: z.boolean().optional().describe("Override to enable/disable SharedTestMemory for this workflow run"),
+  enableEverMemOS: z.boolean().optional().describe("Override to enable/disable EverMemOS for this workflow run"),
+});
+
 /** Optional workflow parameters. */
-export const WorkflowParamsSchema = z
-  .record(z.unknown())
-  .optional()
-  .describe("Optional workflow parameters for memory configuration overrides");
+export const WorkflowParamsSchema = z.object({
+  memory: WorkflowMemoryParamsSchema.optional().describe("Per-run memory override settings"),
+}).passthrough().optional().describe("Optional workflow parameters for workflow-level overrides");
 
 // =============================================================================
 // Project Schemas

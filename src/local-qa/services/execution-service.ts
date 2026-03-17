@@ -10,12 +10,14 @@
 
 import { spawn } from "child_process";
 import * as fs from "fs/promises";
+import * as os from "node:os";
 import * as path from "path";
 
 import { getConfig } from "../../shared/config.js";
 import { getLogger } from "../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
-import { getAuthService, getRunResultStorageService } from "./index.js";
+import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
 const logger = getLogger();
@@ -102,6 +104,39 @@ function getAuthenticatedUserId(): string {
 }
 
 /**
+ * Read local execution environment details for upload metadata.
+ */
+async function getLocalExecutionContextBaseAsync(params: {
+  runByUserId: string;
+  originalUrl: string;
+  productionUrl: string;
+}): Promise<ILocalExecutionContext> {
+  const packageJsonPath = new URL("../../../package.json", import.meta.url);
+  const packageJsonRaw = await fs.readFile(packageJsonPath, "utf-8");
+  const packageJson = JSON.parse(packageJsonRaw) as {
+    version?: string;
+    muggleConfig?: { electronAppVersion?: string };
+  };
+
+  if (!packageJson.version) {
+    throw new Error("Missing package.json version for MCP server metadata");
+  }
+  if (!packageJson.muggleConfig?.electronAppVersion) {
+    throw new Error("Missing package.json muggleConfig.electronAppVersion for local execution metadata");
+  }
+
+  return {
+    originalUrl: params.originalUrl,
+    productionUrl: params.productionUrl,
+    runByUserId: params.runByUserId,
+    machineHostname: os.hostname(),
+    osInfo: `${os.platform()} ${os.release()} ${os.arch()}`,
+    electronAppVersion: packageJson.muggleConfig.electronAppVersion,
+    mcpServerVersion: packageJson.version,
+  };
+}
+
+/**
  * Build auth content for electron-app.
  */
 function buildStudioAuthContent(): { accessToken: string; email: string; userId: string } {
@@ -159,6 +194,69 @@ async function cleanupTempFiles(params: { filePaths: string[] }): Promise<void> 
       // Ignore cleanup errors
     }
   }
+}
+
+/**
+ * Move test generation results to a persistent artifacts directory.
+ * Uses sessions/{runId} so users can view action script with screenshots.
+ *
+ * @param params - Move parameters.
+ * @param params.runId - Run ID.
+ * @param params.generatedScriptPath - Path to the gen_*.json file from electron-app.
+ * @returns Absolute path to the artifacts directory.
+ */
+async function moveResultsToArtifacts(params: {
+  runId: string;
+  generatedScriptPath: string;
+}): Promise<string> {
+  const storageService = getStorageService();
+  const sessionsDir = storageService.getSessionsDir();
+  const artifactsDir = path.join(sessionsDir, params.runId);
+  const actionScriptPath = path.join(artifactsDir, "action-script.json");
+
+  await fs.mkdir(artifactsDir, { recursive: true });
+  await fs.copyFile(params.generatedScriptPath, actionScriptPath);
+
+  try {
+    await fs.unlink(params.generatedScriptPath);
+  } catch {
+    // Ignore cleanup errors for temp file
+  }
+
+  return artifactsDir;
+}
+
+/**
+ * Write execution logs (stdout/stderr) to the session artifacts directory.
+ *
+ * @param params - Write parameters.
+ * @param params.runId - Run ID.
+ * @param params.stdout - Captured stdout from electron-app.
+ * @param params.stderr - Captured stderr from electron-app.
+ */
+async function writeExecutionLogs(params: {
+  runId: string;
+  stdout: string;
+  stderr: string;
+}): Promise<void> {
+  const storageService = getStorageService();
+  const sessionsDir = storageService.getSessionsDir();
+  const artifactsDir = path.join(sessionsDir, params.runId);
+
+  await fs.mkdir(artifactsDir, { recursive: true });
+
+  const stdoutPath = path.join(artifactsDir, "stdout.log");
+  const stderrPath = path.join(artifactsDir, "stderr.log");
+
+  await Promise.all([
+    fs.writeFile(stdoutPath, params.stdout, "utf-8"),
+    fs.writeFile(stderrPath, params.stderr, "utf-8"),
+  ]);
+
+  logger.info("Wrote execution logs to artifacts directory", {
+    runId: params.runId,
+    artifactsDir: artifactsDir,
+  });
 }
 
 /**
@@ -442,15 +540,28 @@ export async function executeTestGeneration(params: {
   const timeoutMs = params.timeoutMs ?? 300000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  getAuthenticatedUserId(); // Throws if not authenticated
+  const userId = getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
+  if (!testCase.url) {
+    throw new Error("Missing required testCase.url for local run upload metadata");
+  }
+
+  const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    runByUserId: userId,
+    originalUrl: localUrl,
+    productionUrl: testCase.url,
+  });
 
   // Initialize run result storage
   const storage = getRunResultStorageService();
   const runResult = storage.createRunResult({
     runType: "generation",
     cloudTestCaseId: testCase.id,
+    projectId: testCase.projectId,
+    useCaseId: testCase.useCaseId,
     localUrl: localUrl,
+    productionUrl: testCase.url,
+    localExecutionContext: localExecutionContextBase,
   });
 
   try {
@@ -495,6 +606,13 @@ export async function executeTestGeneration(params: {
       const completedAt = Date.now();
       const executionTimeMs = completedAt - startedAt;
 
+      // Write execution logs to artifacts directory (always, regardless of success/failure)
+      await writeExecutionLogs({
+        runId: runId,
+        stdout: executionResult.stdout,
+        stderr: executionResult.stderr,
+      });
+
       if (executionResult.exitCode !== 0) {
         const failureMessage =
           `Electron exited with code ${executionResult.exitCode}.\n` +
@@ -505,6 +623,10 @@ export async function executeTestGeneration(params: {
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          localExecutionContext: {
+            ...localExecutionContextBase,
+            localExecutionCompletedAt: completedAt,
+          },
         });
         storage.updateTestScript(localTestScript.id, {
           status: "failed",
@@ -535,10 +657,20 @@ export async function executeTestGeneration(params: {
         status: "generated",
         actionScript: generatedSteps,
       });
+
+      const artifactsDir = await moveResultsToArtifacts({
+        runId: runId,
+        generatedScriptPath: generatedScriptPath,
+      });
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
+        artifactsDir: artifactsDir,
+        localExecutionContext: {
+          ...localExecutionContextBase,
+          localExecutionCompletedAt: completedAt,
+        },
       });
 
       return {
@@ -554,10 +686,15 @@ export async function executeTestGeneration(params: {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const completedAt = Date.now();
 
     storage.updateRunResult(runResult.id, {
       status: "failed",
       errorMessage: errorMessage,
+      localExecutionContext: {
+        ...localExecutionContextBase,
+        localExecutionCompletedAt: completedAt,
+      },
     });
 
     return {
@@ -589,15 +726,28 @@ export async function executeReplay(params: {
   const timeoutMs = params.timeoutMs ?? 180000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  getAuthenticatedUserId(); // Throws if not authenticated
+  const userId = getAuthenticatedUserId(); // Throws if not authenticated
   const authContent = buildStudioAuthContent();
+  if (!testScript.url) {
+    throw new Error("Missing required testScript.url for local run upload metadata");
+  }
+
+  const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    runByUserId: userId,
+    originalUrl: localUrl,
+    productionUrl: testScript.url,
+  });
 
   // Initialize run result storage
   const storage = getRunResultStorageService();
   const runResult = storage.createRunResult({
     runType: "replay",
     cloudTestCaseId: testScript.testCaseId,
+    projectId: testScript.projectId,
+    useCaseId: testScript.useCaseId,
     localUrl: localUrl,
+    productionUrl: testScript.url,
+    localExecutionContext: localExecutionContextBase,
   });
 
   try {
@@ -633,6 +783,13 @@ export async function executeReplay(params: {
       const completedAt = Date.now();
       const executionTimeMs = completedAt - startedAt;
 
+      // Write execution logs to artifacts directory (always, regardless of success/failure)
+      await writeExecutionLogs({
+        runId: runId,
+        stdout: executionResult.stdout,
+        stderr: executionResult.stderr,
+      });
+
       if (executionResult.exitCode !== 0) {
         const failureMessage =
           `Electron exited with code ${executionResult.exitCode}.\n` +
@@ -642,6 +799,10 @@ export async function executeReplay(params: {
           status: "failed",
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          localExecutionContext: {
+            ...localExecutionContextBase,
+            localExecutionCompletedAt: completedAt,
+          },
         });
         return {
           id: runId,
@@ -651,9 +812,15 @@ export async function executeReplay(params: {
         };
       }
 
+      const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
       storage.updateRunResult(runId, {
         status: "passed",
         executionTimeMs: executionTimeMs,
+        artifactsDir: artifactsDir,
+        localExecutionContext: {
+          ...localExecutionContextBase,
+          localExecutionCompletedAt: completedAt,
+        },
       });
       return {
         id: runId,
@@ -667,10 +834,15 @@ export async function executeReplay(params: {
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    const completedAt = Date.now();
 
     storage.updateRunResult(runResult.id, {
       status: "failed",
       errorMessage: errorMessage,
+      localExecutionContext: {
+        ...localExecutionContextBase,
+        localExecutionCompletedAt: completedAt,
+      },
     });
 
     return {

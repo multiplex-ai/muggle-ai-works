@@ -6,6 +6,11 @@
  * Local tools only handle: status, execution, results, and publishing.
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+import { getPromptServiceClient } from "../../qa/upstream-client.js";
+import { getCallerCredentialsAsync } from "../../shared/auth.js";
 import { getLogger } from "../../shared/logger.js";
 import type { IMcpToolResult, ILocalMcpTool } from "../types/index.js";
 import {
@@ -161,7 +166,7 @@ const runResultGetTool: ILocalMcpTool = {
       return { content: `Run result not found: ${input.runId}`, isError: true };
     }
 
-    const content = [
+    const contentParts = [
       "## Run Result Details",
       "",
       `**ID:** ${result.id}`,
@@ -170,7 +175,62 @@ const runResultGetTool: ILocalMcpTool = {
       `**Cloud Test Case:** ${result.cloudTestCaseId}`,
       `**Duration:** ${result.executionTimeMs ?? 0}ms`,
       result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
-    ].filter(Boolean).join("\n");
+    ];
+
+    let testScriptSteps: number | undefined;
+    if (result.testScriptId) {
+      const testScript = storage.getTestScript(result.testScriptId);
+      testScriptSteps = testScript?.actionScript?.length;
+    }
+
+    if (result.artifactsDir && fs.existsSync(result.artifactsDir)) {
+      contentParts.push(
+        "",
+        "### Artifacts (view action script + screenshots)",
+        "",
+        `**Location:** \`${result.artifactsDir}\``,
+        "",
+      );
+
+      const actionScriptPath = path.join(result.artifactsDir, "action-script.json");
+      const resultsMdPath = path.join(result.artifactsDir, "results.md");
+      const screenshotsDir = path.join(result.artifactsDir, "screenshots");
+      const stdoutLogPath = path.join(result.artifactsDir, "stdout.log");
+      const stderrLogPath = path.join(result.artifactsDir, "stderr.log");
+
+      const artifactItems: string[] = [];
+      if (fs.existsSync(actionScriptPath)) {
+        artifactItems.push("- `action-script.json` — generated test steps");
+      }
+      if (fs.existsSync(resultsMdPath)) {
+        artifactItems.push("- `results.md` — step-by-step report with screenshot links");
+      }
+      if (fs.existsSync(screenshotsDir)) {
+        const screenshots = fs.readdirSync(screenshotsDir).filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f));
+        artifactItems.push(`- \`screenshots/\` — ${screenshots.length} image(s)`);
+      }
+      if (fs.existsSync(stdoutLogPath)) {
+        artifactItems.push("- `stdout.log` — electron-app stdout output");
+      }
+      if (fs.existsSync(stderrLogPath)) {
+        artifactItems.push("- `stderr.log` — electron-app stderr output");
+      }
+      if (artifactItems.length > 0) {
+        contentParts.push(artifactItems.join("\n"), "");
+      }
+    }
+
+    contentParts.push(
+      "",
+      "### Ending state",
+      "",
+      `- **Status:** ${result.status}`,
+      `- **Duration:** ${result.executionTimeMs ?? 0}ms`,
+      testScriptSteps !== undefined ? `- **Steps generated:** ${testScriptSteps}` : "",
+      result.artifactsDir ? `- **Artifacts path:** \`${result.artifactsDir}\`` : "",
+    );
+
+    const content = contentParts.filter(Boolean).join("\n");
 
     return { content: content, isError: false, data: result };
   },
@@ -409,20 +469,133 @@ const publishTestScriptTool: ILocalMcpTool = {
       return { content: `Test script not found: ${runResult.testScriptId}`, isError: true };
     }
 
-    // TODO: Implement actual publish to cloud via prompt-service client
-    // For now, return placeholder
-    return {
-      content: [
-        "## Test Script Publishing",
-        "",
-        "Publishing test scripts to cloud is not yet implemented.",
-        "",
-        `**Run ID:** ${input.runId}`,
-        `**Test Script ID:** ${runResult.testScriptId}`,
-        `**Target Cloud Test Case:** ${input.cloudTestCaseId}`,
-      ].join("\n"),
-      isError: true,
-    };
+    if (runResult.runType !== "generation") {
+      return {
+        content: `Only generation runs can be published. Run ${input.runId} is '${runResult.runType}'.`,
+        isError: true,
+      };
+    }
+    if (runResult.status !== "passed" && runResult.status !== "failed") {
+      return {
+        content: `Run ${input.runId} must be in passed/failed state before publishing. Current status: ${runResult.status}.`,
+        isError: true,
+      };
+    }
+    if (!Array.isArray(testScript.actionScript) || testScript.actionScript.length === 0) {
+      return {
+        content: `Test script ${testScript.id} has no generated actionScript steps to publish.`,
+        isError: true,
+      };
+    }
+    if (!runResult.projectId) {
+      return { content: `Run result ${input.runId} is missing projectId.`, isError: true };
+    }
+    if (!runResult.useCaseId) {
+      return { content: `Run result ${input.runId} is missing useCaseId.`, isError: true };
+    }
+    if (!runResult.productionUrl) {
+      return { content: `Run result ${input.runId} is missing productionUrl.`, isError: true };
+    }
+    if (!runResult.executionTimeMs && runResult.executionTimeMs !== 0) {
+      return { content: `Run result ${input.runId} is missing executionTimeMs.`, isError: true };
+    }
+    if (!runResult.localExecutionContext) {
+      return { content: `Run result ${input.runId} is missing localExecutionContext.`, isError: true };
+    }
+    if (!runResult.localExecutionContext.localExecutionCompletedAt) {
+      return {
+        content: `Run result ${input.runId} is missing localExecutionCompletedAt in localExecutionContext.`,
+        isError: true,
+      };
+    }
+
+    const authStatus = getAuthService().getAuthStatus();
+    if (!authStatus.userId) {
+      return { content: "Authenticated user ID is missing. Please login again.", isError: true };
+    }
+
+    try {
+      const credentials = await getCallerCredentialsAsync();
+      const client = getPromptServiceClient();
+      const uploadedAt = Date.now();
+
+      const response = await client.execute<{
+        workflowRuntimeId: string;
+        workflowRunId: string;
+        testScriptId: string;
+        actionScriptId: string;
+        viewUrl: string;
+      }>(
+        {
+          method: "POST",
+          path: "/v1/protected/muggle-test/local-run/upload",
+          body: {
+            projectId: runResult.projectId,
+            useCaseId: runResult.useCaseId,
+            testCaseId: input.cloudTestCaseId,
+            runType: runResult.runType,
+            productionUrl: runResult.productionUrl,
+            localExecutionContext: {
+              originalUrl: runResult.localExecutionContext.originalUrl,
+              productionUrl: runResult.localExecutionContext.productionUrl,
+              runByUserId: authStatus.userId,
+              machineHostname: runResult.localExecutionContext.machineHostname,
+              osInfo: runResult.localExecutionContext.osInfo,
+              electronAppVersion: runResult.localExecutionContext.electronAppVersion,
+              mcpServerVersion: runResult.localExecutionContext.mcpServerVersion,
+              localExecutionCompletedAt: runResult.localExecutionContext.localExecutionCompletedAt,
+              uploadedAt: uploadedAt,
+            },
+            actionScript: testScript.actionScript,
+            status: runResult.status === "passed" ? "passed" : "failed",
+            executionTimeMs: runResult.executionTimeMs,
+            errorMessage: runResult.errorMessage,
+          },
+        },
+        credentials,
+        ctx.correlationId,
+      );
+
+      storage.updateTestScript(testScript.id, {
+        status: "published",
+        cloudActionScriptId: response.data.actionScriptId,
+      });
+
+      storage.updateRunResult(runResult.id, {
+        localExecutionContext: {
+          ...runResult.localExecutionContext,
+          runByUserId: authStatus.userId,
+        },
+      });
+
+      return {
+        content: [
+          "## Test Script Published",
+          "",
+          `**Run ID:** ${input.runId}`,
+          `**Local Test Script ID:** ${testScript.id}`,
+          `**Cloud Test Case ID:** ${input.cloudTestCaseId}`,
+          `**Cloud Test Script ID:** ${response.data.testScriptId}`,
+          `**Cloud Action Script ID:** ${response.data.actionScriptId}`,
+          `**Workflow Runtime ID:** ${response.data.workflowRuntimeId}`,
+          `**Workflow Run ID:** ${response.data.workflowRunId}`,
+          `**View URL:** ${response.data.viewUrl}`,
+        ].join("\n"),
+        isError: false,
+        data: response.data,
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("Failed to publish local test script to cloud", {
+        runId: input.runId,
+        cloudTestCaseId: input.cloudTestCaseId,
+        error: errorMessage,
+      });
+      return {
+        content: `Failed to publish test script: ${errorMessage}`,
+        isError: true,
+      };
+    }
   },
 };
 

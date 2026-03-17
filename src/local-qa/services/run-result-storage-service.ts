@@ -33,6 +33,28 @@ export type RunResultStatus = "pending" | "running" | "passed" | "failed" | "can
 export type RunResultType = "generation" | "replay";
 
 /**
+ * Local execution context captured during local run execution.
+ */
+export interface ILocalExecutionContext {
+  /** URL executed locally (typically localhost). */
+  originalUrl: string;
+  /** Cloud production URL associated with the test case/script. */
+  productionUrl: string;
+  /** User ID who ran the local execution. */
+  runByUserId: string;
+  /** Machine hostname for the local execution environment. */
+  machineHostname?: string;
+  /** OS information for local execution environment. */
+  osInfo?: string;
+  /** Electron app version used for local execution. */
+  electronAppVersion?: string;
+  /** MCP server version used for local execution. */
+  mcpServerVersion?: string;
+  /** Local execution completion timestamp (epoch ms). */
+  localExecutionCompletedAt?: number;
+}
+
+/**
  * Run result record.
  */
 export interface IRunResult {
@@ -44,10 +66,20 @@ export interface IRunResult {
   status: RunResultStatus;
   /** Cloud test case ID. */
   cloudTestCaseId: string;
+  /** Cloud project ID. */
+  projectId: string;
+  /** Cloud use case ID. */
+  useCaseId: string;
   /** Local URL used for testing. */
   localUrl: string;
+  /** Cloud production URL for the same test. */
+  productionUrl: string;
+  /** Local execution context details. */
+  localExecutionContext: ILocalExecutionContext;
   /** Associated test script ID (if generated). */
   testScriptId?: string;
+  /** Path to run artifacts directory (action script, screenshots, results). */
+  artifactsDir?: string;
   /** Execution time in ms. */
   executionTimeMs?: number;
   /** Error message if failed. */
@@ -184,7 +216,11 @@ export class RunResultStorageService {
   createRunResult(params: {
     runType: RunResultType;
     cloudTestCaseId: string;
+    projectId: string;
+    useCaseId: string;
     localUrl: string;
+    productionUrl: string;
+    localExecutionContext: ILocalExecutionContext;
   }): IRunResult {
     const now = new Date().toISOString();
     const id = `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -194,7 +230,11 @@ export class RunResultStorageService {
       runType: params.runType,
       status: "pending",
       cloudTestCaseId: params.cloudTestCaseId,
+      projectId: params.projectId,
+      useCaseId: params.useCaseId,
       localUrl: params.localUrl,
+      productionUrl: params.productionUrl,
+      localExecutionContext: params.localExecutionContext,
       createdAt: now,
       updatedAt: now,
     };

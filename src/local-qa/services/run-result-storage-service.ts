@@ -88,6 +88,8 @@ export interface IRunResult {
   createdAt: string;
   /** Updated timestamp. */
   updatedAt: string;
+  /** Studio returned result (populated by electron-app after execution). */
+  studioReturnedResult?: unknown;
 }
 
 /**

@@ -104,6 +104,52 @@ function getAuthenticatedUserId(): string {
 }
 
 /**
+ * Find and read the MCP server's package.json.
+ * Handles both source and bundled environments by trying multiple paths.
+ */
+async function findPackageJsonAsync(): Promise<{
+  version: string;
+  muggleConfig: { electronAppVersion: string };
+}> {
+  const currentFileUrl = import.meta.url;
+  const currentDir = path.dirname(new URL(currentFileUrl).pathname);
+
+  const candidatePaths = [
+    path.resolve(currentDir, "../../../package.json"),
+    path.resolve(currentDir, "../package.json"),
+    path.resolve(currentDir, "../../package.json"),
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    try {
+      const packageJsonRaw = await fs.readFile(candidatePath, "utf-8");
+      const packageJson = JSON.parse(packageJsonRaw) as {
+        name?: string;
+        version?: string;
+        muggleConfig?: { electronAppVersion?: string };
+      };
+
+      if (
+        packageJson.name === "@muggleai/mcp" &&
+        packageJson.version &&
+        packageJson.muggleConfig?.electronAppVersion
+      ) {
+        return {
+          version: packageJson.version,
+          muggleConfig: { electronAppVersion: packageJson.muggleConfig.electronAppVersion },
+        };
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(
+    `Could not find @muggleai/mcp package.json with required fields. Searched paths: ${candidatePaths.join(", ")}`
+  );
+}
+
+/**
  * Read local execution environment details for upload metadata.
  */
 async function getLocalExecutionContextBaseAsync(params: {
@@ -111,19 +157,7 @@ async function getLocalExecutionContextBaseAsync(params: {
   originalUrl: string;
   productionUrl: string;
 }): Promise<ILocalExecutionContext> {
-  const packageJsonPath = new URL("../../../package.json", import.meta.url);
-  const packageJsonRaw = await fs.readFile(packageJsonPath, "utf-8");
-  const packageJson = JSON.parse(packageJsonRaw) as {
-    version?: string;
-    muggleConfig?: { electronAppVersion?: string };
-  };
-
-  if (!packageJson.version) {
-    throw new Error("Missing package.json version for MCP server metadata");
-  }
-  if (!packageJson.muggleConfig?.electronAppVersion) {
-    throw new Error("Missing package.json muggleConfig.electronAppVersion for local execution metadata");
-  }
+  const packageJson = await findPackageJsonAsync();
 
   return {
     originalUrl: params.originalUrl,

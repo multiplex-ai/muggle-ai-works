@@ -28,6 +28,7 @@
     "muggleConfig": {
         "electronAppVersion": "1.0.6",
         "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
+        "runtimeTargetDefault": "dev",
         "checksums": {
             "darwin-arm64": "",
             "darwin-x64": "",

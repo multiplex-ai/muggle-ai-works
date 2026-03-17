@@ -6,6 +6,9 @@
  * Local tools only handle: status, execution, results, and publishing.
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import { getLogger } from "../../shared/logger.js";
 import type { IMcpToolResult, ILocalMcpTool } from "../types/index.js";
 import {
@@ -161,7 +164,7 @@ const runResultGetTool: ILocalMcpTool = {
       return { content: `Run result not found: ${input.runId}`, isError: true };
     }
 
-    const content = [
+    const contentParts = [
       "## Run Result Details",
       "",
       `**ID:** ${result.id}`,
@@ -170,7 +173,62 @@ const runResultGetTool: ILocalMcpTool = {
       `**Cloud Test Case:** ${result.cloudTestCaseId}`,
       `**Duration:** ${result.executionTimeMs ?? 0}ms`,
       result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
-    ].filter(Boolean).join("\n");
+    ];
+
+    let testScriptSteps: number | undefined;
+    if (result.testScriptId) {
+      const testScript = storage.getTestScript(result.testScriptId);
+      testScriptSteps = testScript?.actionScript?.length;
+    }
+
+    if (result.artifactsDir && fs.existsSync(result.artifactsDir)) {
+      contentParts.push(
+        "",
+        "### Artifacts (view action script + screenshots)",
+        "",
+        `**Location:** \`${result.artifactsDir}\``,
+        "",
+      );
+
+      const actionScriptPath = path.join(result.artifactsDir, "action-script.json");
+      const resultsMdPath = path.join(result.artifactsDir, "results.md");
+      const screenshotsDir = path.join(result.artifactsDir, "screenshots");
+      const stdoutLogPath = path.join(result.artifactsDir, "stdout.log");
+      const stderrLogPath = path.join(result.artifactsDir, "stderr.log");
+
+      const artifactItems: string[] = [];
+      if (fs.existsSync(actionScriptPath)) {
+        artifactItems.push("- `action-script.json` — generated test steps");
+      }
+      if (fs.existsSync(resultsMdPath)) {
+        artifactItems.push("- `results.md` — step-by-step report with screenshot links");
+      }
+      if (fs.existsSync(screenshotsDir)) {
+        const screenshots = fs.readdirSync(screenshotsDir).filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f));
+        artifactItems.push(`- \`screenshots/\` — ${screenshots.length} image(s)`);
+      }
+      if (fs.existsSync(stdoutLogPath)) {
+        artifactItems.push("- `stdout.log` — electron-app stdout output");
+      }
+      if (fs.existsSync(stderrLogPath)) {
+        artifactItems.push("- `stderr.log` — electron-app stderr output");
+      }
+      if (artifactItems.length > 0) {
+        contentParts.push(artifactItems.join("\n"), "");
+      }
+    }
+
+    contentParts.push(
+      "",
+      "### Ending state",
+      "",
+      `- **Status:** ${result.status}`,
+      `- **Duration:** ${result.executionTimeMs ?? 0}ms`,
+      testScriptSteps !== undefined ? `- **Steps generated:** ${testScriptSteps}` : "",
+      result.artifactsDir ? `- **Artifacts path:** \`${result.artifactsDir}\`` : "",
+    );
+
+    const content = contentParts.filter(Boolean).join("\n");
 
     return { content: content, isError: false, data: result };
   },

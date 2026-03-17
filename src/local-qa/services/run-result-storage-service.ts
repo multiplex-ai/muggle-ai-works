@@ -48,6 +48,8 @@ export interface IRunResult {
   localUrl: string;
   /** Associated test script ID (if generated). */
   testScriptId?: string;
+  /** Path to run artifacts directory (action script, screenshots, results). */
+  artifactsDir?: string;
   /** Execution time in ms. */
   executionTimeMs?: number;
   /** Error message if failed. */

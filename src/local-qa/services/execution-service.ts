@@ -15,7 +15,7 @@ import * as path from "path";
 import { getConfig } from "../../shared/config.js";
 import { getLogger } from "../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
-import { getAuthService, getRunResultStorageService } from "./index.js";
+import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
 const logger = getLogger();
@@ -159,6 +159,69 @@ async function cleanupTempFiles(params: { filePaths: string[] }): Promise<void> 
       // Ignore cleanup errors
     }
   }
+}
+
+/**
+ * Move test generation results to a persistent artifacts directory.
+ * Uses sessions/{runId} so users can view action script with screenshots.
+ *
+ * @param params - Move parameters.
+ * @param params.runId - Run ID.
+ * @param params.generatedScriptPath - Path to the gen_*.json file from electron-app.
+ * @returns Absolute path to the artifacts directory.
+ */
+async function moveResultsToArtifacts(params: {
+  runId: string;
+  generatedScriptPath: string;
+}): Promise<string> {
+  const storageService = getStorageService();
+  const sessionsDir = storageService.getSessionsDir();
+  const artifactsDir = path.join(sessionsDir, params.runId);
+  const actionScriptPath = path.join(artifactsDir, "action-script.json");
+
+  await fs.mkdir(artifactsDir, { recursive: true });
+  await fs.copyFile(params.generatedScriptPath, actionScriptPath);
+
+  try {
+    await fs.unlink(params.generatedScriptPath);
+  } catch {
+    // Ignore cleanup errors for temp file
+  }
+
+  return artifactsDir;
+}
+
+/**
+ * Write execution logs (stdout/stderr) to the session artifacts directory.
+ *
+ * @param params - Write parameters.
+ * @param params.runId - Run ID.
+ * @param params.stdout - Captured stdout from electron-app.
+ * @param params.stderr - Captured stderr from electron-app.
+ */
+async function writeExecutionLogs(params: {
+  runId: string;
+  stdout: string;
+  stderr: string;
+}): Promise<void> {
+  const storageService = getStorageService();
+  const sessionsDir = storageService.getSessionsDir();
+  const artifactsDir = path.join(sessionsDir, params.runId);
+
+  await fs.mkdir(artifactsDir, { recursive: true });
+
+  const stdoutPath = path.join(artifactsDir, "stdout.log");
+  const stderrPath = path.join(artifactsDir, "stderr.log");
+
+  await Promise.all([
+    fs.writeFile(stdoutPath, params.stdout, "utf-8"),
+    fs.writeFile(stderrPath, params.stderr, "utf-8"),
+  ]);
+
+  logger.info("Wrote execution logs to artifacts directory", {
+    runId: params.runId,
+    artifactsDir: artifactsDir,
+  });
 }
 
 /**
@@ -495,6 +558,13 @@ export async function executeTestGeneration(params: {
       const completedAt = Date.now();
       const executionTimeMs = completedAt - startedAt;
 
+      // Write execution logs to artifacts directory (always, regardless of success/failure)
+      await writeExecutionLogs({
+        runId: runId,
+        stdout: executionResult.stdout,
+        stderr: executionResult.stderr,
+      });
+
       if (executionResult.exitCode !== 0) {
         const failureMessage =
           `Electron exited with code ${executionResult.exitCode}.\n` +
@@ -535,10 +605,16 @@ export async function executeTestGeneration(params: {
         status: "generated",
         actionScript: generatedSteps,
       });
+
+      const artifactsDir = await moveResultsToArtifacts({
+        runId: runId,
+        generatedScriptPath: generatedScriptPath,
+      });
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
+        artifactsDir: artifactsDir,
       });
 
       return {
@@ -633,6 +709,13 @@ export async function executeReplay(params: {
       const completedAt = Date.now();
       const executionTimeMs = completedAt - startedAt;
 
+      // Write execution logs to artifacts directory (always, regardless of success/failure)
+      await writeExecutionLogs({
+        runId: runId,
+        stdout: executionResult.stdout,
+        stderr: executionResult.stderr,
+      });
+
       if (executionResult.exitCode !== 0) {
         const failureMessage =
           `Electron exited with code ${executionResult.exitCode}.\n` +
@@ -651,9 +734,11 @@ export async function executeReplay(params: {
         };
       }
 
+      const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
       storage.updateRunResult(runId, {
         status: "passed",
         executionTimeMs: executionTimeMs,
+        artifactsDir: artifactsDir,
       });
       return {
         id: runId,

@@ -7,9 +7,18 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to publish (e.g., 1.0.1)"
-        required: true
+        description: "Version to publish (e.g., 1.0.1). Leave empty to auto-increment from package.json."
+        required: false
         type: string
+      bump:
+        description: "Bump type when version is empty (patch=1.0.9→1.0.10, minor=1.0.9→1.1.0, major=1.0.9→2.0.0)"
+        required: false
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 env:
   # Opt into Node.js 22 for GitHub Actions
@@ -59,7 +68,12 @@ jobs:
 
       - name: Update package.json version (manual trigger)
         if: github.event_name == 'workflow_dispatch'
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            npm version ${{ inputs.version }} --no-git-tag-version
+          else
+            npm version ${{ inputs.bump }} --no-git-tag-version
+          fi
 
       - name: Set published package runtime target to production
         run: npm pkg set muggleConfig.runtimeTargetDefault=production

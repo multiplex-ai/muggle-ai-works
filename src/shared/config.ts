@@ -18,7 +18,10 @@ import type {
 } from "./types.js";
 
 /** Default prompt service URL (cloud API). */
-const DEFAULT_PROMPT_SERVICE_URL = "https://promptservice.muggle-ai.com";
+const DEFAULT_PROMPT_SERVICE_PRODUCTION_URL = "https://promptservice.muggle-ai.com";
+
+/** Default prompt service URL for local development usage. */
+const DEFAULT_PROMPT_SERVICE_DEV_URL = "http://localhost:5050";
 
 /** Default web-service URL (local test execution). */
 const DEFAULT_WEB_SERVICE_URL = "http://localhost:3001";
@@ -33,13 +36,22 @@ const ELECTRON_APP_DIR = "electron-app";
 const CREDENTIALS_FILE = "credentials.json";
 
 /** Default Auth0 domain (custom domain for production). */
-const DEFAULT_AUTH0_DOMAIN = "login.muggle-ai.com";
+const DEFAULT_AUTH0_PRODUCTION_DOMAIN = "login.muggle-ai.com";
 
-/** Default Auth0 client ID (Native app with Device Code grant). */
-const DEFAULT_AUTH0_CLIENT_ID = "UgG5UjoyLksxMciWWKqVpwfWrJ4rFvtT";
+/** Default Auth0 client ID (Native app with Device Code grant) for production. */
+const DEFAULT_AUTH0_PRODUCTION_CLIENT_ID = "UgG5UjoyLksxMciWWKqVpwfWrJ4rFvtT";
 
-/** Default Auth0 audience. */
-const DEFAULT_AUTH0_AUDIENCE = "https://muggleai.us.auth0.com/api/v2/";
+/** Default Auth0 audience for production. */
+const DEFAULT_AUTH0_PRODUCTION_AUDIENCE = "https://muggleai.us.auth0.com/api/v2/";
+
+/** Default Auth0 domain for local development. */
+const DEFAULT_AUTH0_DEV_DOMAIN = "dev-po4mxmz0rd8a0w8w.us.auth0.com";
+
+/** Default Auth0 client ID for local development. */
+const DEFAULT_AUTH0_DEV_CLIENT_ID = "hihMM2cxb40yHaZMH2MMXwO2ZRJQ3MxA";
+
+/** Default Auth0 audience for local development. */
+const DEFAULT_AUTH0_DEV_AUDIENCE = "https://dev-po4mxmz0rd8a0w8w.us.auth0.com/api/v2/";
 
 /** Default Auth0 scopes. */
 const DEFAULT_AUTH0_SCOPE = "openid profile email offline_access";
@@ -49,6 +61,9 @@ let configInstance: IConfig | null = null;
 
 /** Cached muggle config from package.json. */
 let muggleConfigCache: IMuggleConfig | null = null;
+
+/** Allowed runtime targets for PromptService defaults. */
+type PromptServiceRuntimeTarget = "production" | "dev";
 
 /**
  * Resolve the package root directory from the current module location.
@@ -136,10 +151,25 @@ function getMuggleConfig(): IMuggleConfig {
     );
   }
 
+  if (
+    config.runtimeTargetDefault !== undefined &&
+    config.runtimeTargetDefault !== "production" &&
+    config.runtimeTargetDefault !== "dev"
+  ) {
+    throw new Error(
+      `Invalid muggleConfig.runtimeTargetDefault in package.json.\n` +
+        `  Path: ${packageJsonPath}\n` +
+        `  Value: ${JSON.stringify(config.runtimeTargetDefault)}\n` +
+        `  Expected: "production" or "dev"\n` +
+        `  This is a bug - please report it.`,
+    );
+  }
+
   muggleConfigCache = {
     electronAppVersion: config.electronAppVersion,
     downloadBaseUrl: config.downloadBaseUrl,
     checksums: (config.checksums as IMuggleConfigChecksums) || {},
+    runtimeTargetDefault: config.runtimeTargetDefault as PromptServiceRuntimeTarget | undefined,
   };
 
   return muggleConfigCache;
@@ -280,14 +310,96 @@ function parseInteger(value: string | undefined, defaultValue: number): number {
 }
 
 /**
+ * Resolve runtime target for prompt-service defaults.
+ * Priority order:
+ * 1. MUGGLE_MCP_PROMPT_SERVICE_TARGET env var ("production" | "dev")
+ * 2. muggleConfig.runtimeTargetDefault from package.json
+ * 3. Default fallback -> "dev"
+ * @returns Prompt service runtime target.
+ */
+function getPromptServiceRuntimeTarget(): PromptServiceRuntimeTarget {
+  const runtimeTargetFromEnv = process.env.MUGGLE_MCP_PROMPT_SERVICE_TARGET;
+
+  if (runtimeTargetFromEnv) {
+    if (runtimeTargetFromEnv === "production" || runtimeTargetFromEnv === "dev") {
+      return runtimeTargetFromEnv;
+    }
+
+    throw new Error(
+      `Invalid MUGGLE_MCP_PROMPT_SERVICE_TARGET value: '${runtimeTargetFromEnv}'. ` +
+        "Expected 'production' or 'dev'.",
+    );
+  }
+
+  const muggleConfig = getMuggleConfig();
+  if (muggleConfig.runtimeTargetDefault) {
+    return muggleConfig.runtimeTargetDefault;
+  }
+
+  return "dev";
+}
+
+/**
+ * Get default prompt-service URL based on runtime target.
+ * @returns Default prompt-service URL.
+ */
+function getDefaultPromptServiceUrl(): string {
+  const runtimeTarget = getPromptServiceRuntimeTarget();
+  if (runtimeTarget === "dev") {
+    return DEFAULT_PROMPT_SERVICE_DEV_URL;
+  }
+  return DEFAULT_PROMPT_SERVICE_PRODUCTION_URL;
+}
+
+/**
+ * Get default Auth0 domain based on runtime target.
+ * @returns Default Auth0 domain.
+ */
+function getDefaultAuth0Domain(): string {
+  const runtimeTarget = getPromptServiceRuntimeTarget();
+  if (runtimeTarget === "dev") {
+    return DEFAULT_AUTH0_DEV_DOMAIN;
+  }
+  return DEFAULT_AUTH0_PRODUCTION_DOMAIN;
+}
+
+/**
+ * Get default Auth0 client ID based on runtime target.
+ * @returns Default Auth0 client ID.
+ */
+function getDefaultAuth0ClientId(): string {
+  const runtimeTarget = getPromptServiceRuntimeTarget();
+  if (runtimeTarget === "dev") {
+    return DEFAULT_AUTH0_DEV_CLIENT_ID;
+  }
+  return DEFAULT_AUTH0_PRODUCTION_CLIENT_ID;
+}
+
+/**
+ * Get default Auth0 audience based on runtime target.
+ * @returns Default Auth0 audience.
+ */
+function getDefaultAuth0Audience(): string {
+  const runtimeTarget = getPromptServiceRuntimeTarget();
+  if (runtimeTarget === "dev") {
+    return DEFAULT_AUTH0_DEV_AUDIENCE;
+  }
+  return DEFAULT_AUTH0_PRODUCTION_AUDIENCE;
+}
+
+/**
  * Build Auth0 configuration from environment.
  * @returns Auth0 configuration.
  */
 function buildAuth0Config(): IAuth0Config {
+  const defaultAuth0Domain = getDefaultAuth0Domain();
+  const defaultAuth0ClientId = getDefaultAuth0ClientId();
+  const defaultAuth0Audience = getDefaultAuth0Audience();
+
   return {
-    domain: process.env.AUTH0_DOMAIN ?? DEFAULT_AUTH0_DOMAIN,
-    clientId: process.env.AUTH0_CLIENT_ID ?? DEFAULT_AUTH0_CLIENT_ID,
-    audience: process.env.AUTH0_AUDIENCE ?? DEFAULT_AUTH0_AUDIENCE,
+    domain: process.env.AUTH0_DOMAIN ?? defaultAuth0Domain,
+    clientId: process.env.AUTH0_CLIENT_ID ?? defaultAuth0ClientId,
+    audience: process.env.AUTH0_AUDIENCE ?? defaultAuth0Audience,
     scope: process.env.AUTH0_SCOPE ?? DEFAULT_AUTH0_SCOPE,
   };
 }
@@ -297,8 +409,10 @@ function buildAuth0Config(): IAuth0Config {
  * @returns QA Gateway configuration.
  */
 function buildQaConfig(): IQaConfig {
+  const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
+
   return {
-    promptServiceBaseUrl: process.env.PROMPT_SERVICE_BASE_URL ?? DEFAULT_PROMPT_SERVICE_URL,
+    promptServiceBaseUrl: process.env.PROMPT_SERVICE_BASE_URL ?? defaultPromptServiceUrl,
     requestTimeoutMs: parseInteger(process.env.REQUEST_TIMEOUT_MS, 30000),
     workflowTimeoutMs: parseInteger(process.env.WORKFLOW_TIMEOUT_MS, 120000),
   };
@@ -311,10 +425,14 @@ function buildQaConfig(): IQaConfig {
 function buildLocalQaConfig(): ILocalQaConfig {
   const dataDir = getDataDir();
   const auth0Scopes = (process.env.AUTH0_SCOPE ?? DEFAULT_AUTH0_SCOPE).split(" ");
+  const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
+  const defaultAuth0Domain = getDefaultAuth0Domain();
+  const defaultAuth0ClientId = getDefaultAuth0ClientId();
+  const defaultAuth0Audience = getDefaultAuth0Audience();
 
   return {
     webServiceUrl: process.env.WEB_SERVICE_URL ?? DEFAULT_WEB_SERVICE_URL,
-    promptServiceUrl: process.env.PROMPT_SERVICE_BASE_URL ?? DEFAULT_PROMPT_SERVICE_URL,
+    promptServiceUrl: process.env.PROMPT_SERVICE_BASE_URL ?? defaultPromptServiceUrl,
     dataDir: dataDir,
     sessionsDir: path.join(dataDir, "sessions"),
     projectsDir: path.join(dataDir, "projects"),
@@ -325,9 +443,9 @@ function buildLocalQaConfig(): ILocalQaConfig {
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),
     auth0: {
-      domain: process.env.AUTH0_DOMAIN ?? DEFAULT_AUTH0_DOMAIN,
-      clientId: process.env.AUTH0_CLIENT_ID ?? DEFAULT_AUTH0_CLIENT_ID,
-      audience: process.env.AUTH0_AUDIENCE ?? DEFAULT_AUTH0_AUDIENCE,
+      domain: process.env.AUTH0_DOMAIN ?? defaultAuth0Domain,
+      clientId: process.env.AUTH0_CLIENT_ID ?? defaultAuth0ClientId,
+      audience: process.env.AUTH0_AUDIENCE ?? defaultAuth0Audience,
       scopes: auth0Scopes,
     },
   };

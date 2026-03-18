@@ -26,6 +26,8 @@ export interface IMuggleConfig {
   downloadBaseUrl: string;
   /** SHA256 checksums for each platform binary. */
   checksums?: IMuggleConfigChecksums;
+  /** Default runtime target baked into the package at build/publish time. */
+  runtimeTargetDefault?: "production" | "dev";
 }
 
 /**

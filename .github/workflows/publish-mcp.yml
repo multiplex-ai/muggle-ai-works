@@ -61,6 +61,9 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: npm version ${{ inputs.version }} --no-git-tag-version
 
+      - name: Set published package runtime target to production
+        run: npm pkg set muggleConfig.runtimeTargetDefault=production
+
       - name: Show Node and npm versions
         run: |
           node -v

@@ -2,6 +2,8 @@ name: Publish MCP to npm
 
 on:
   push:
+    branches:
+      - master
     tags:
       - "v*"
   workflow_dispatch:
@@ -74,6 +76,10 @@ jobs:
           else
             npm version ${{ inputs.bump }} --no-git-tag-version
           fi
+
+      - name: Update package.json version (merge trigger)
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        run: npm version patch --no-git-tag-version
 
       - name: Set published package runtime target to production
         run: npm pkg set muggleConfig.runtimeTargetDefault=production

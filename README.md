@@ -67,6 +67,16 @@ Authentication happens automatically when you first use a tool that requires it:
 
 Your credentials are stored in `~/.muggle-ai/credentials.json` and persist across sessions.
 
+### Handling Expired Tokens
+
+Tokens expire after a period of time. When this happens:
+
+1. **Check status**: Run `muggle-mcp status` or call `muggle-remote-auth-status` to see expiration
+2. **Re-authenticate**: Run `muggle-mcp login` or call `muggle-remote-auth-login` to get fresh tokens
+3. **If login fails with "unauthorized_client"**: Check your runtime target configuration (see Troubleshooting)
+
+The MCP server will attempt to auto-refresh tokens when possible, but manual re-authentication may be required if the refresh token has also expired.
+
 ## Available Tools
 
 ### Cloud QA Tools (muggle-remote-*)
@@ -154,6 +164,84 @@ npm run lint:check    # Check only
 1. Update `muggleConfig.electronAppVersion` in `package.json`
 2. Run the `release-electron-app.yml` workflow manually
 3. Or create a tag: `git tag electron-app@1.0.1 && git push --tags`
+
+## Troubleshooting
+
+### Expired Token Errors
+
+If you see authentication errors like "Not authenticated" or token expiration messages:
+
+1. **Check auth status**:
+   ```bash
+   muggle-mcp status
+   ```
+
+2. **Re-authenticate**:
+   ```bash
+   muggle-mcp login
+   ```
+
+3. **Clear and retry** (if login keeps failing):
+   ```bash
+   muggle-mcp logout
+   muggle-mcp login
+   ```
+
+### "unauthorized_client" Error During Login
+
+This error indicates a mismatch between your Auth0 client configuration and the target environment.
+
+**Cause**: The MCP is configured for one environment (dev/production) but trying to authenticate against another.
+
+**Fix**: Ensure your MCP configuration matches your intended environment by setting the `MUGGLE_MCP_PROMPT_SERVICE_TARGET` environment variable in your MCP config:
+
+**For Production** (`~/.cursor/mcp.json`):
+```json
+{
+  "mcpServers": {
+    "muggle": {
+      "command": "muggle-mcp",
+      "args": ["serve"],
+      "env": {
+        "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "production"
+      }
+    }
+  }
+}
+```
+
+**For Development** (local services):
+```json
+{
+  "mcpServers": {
+    "muggle": {
+      "command": "muggle-mcp",
+      "args": ["serve"],
+      "env": {
+        "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "dev"
+      }
+    }
+  }
+}
+```
+
+After changing the configuration, restart your MCP client (e.g., restart Cursor).
+
+### Credential Files
+
+Credentials are stored in `~/.muggle-ai/`:
+
+| File | Purpose |
+| :--- | :------ |
+| `auth.json` | OAuth tokens (access token, refresh token, expiry) |
+| `credentials.json` | API key for service calls |
+
+If you need to reset authentication completely:
+```bash
+rm ~/.muggle-ai/auth.json
+rm ~/.muggle-ai/credentials.json
+muggle-mcp login
+```
 
 ## License
 

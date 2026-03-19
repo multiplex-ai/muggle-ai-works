@@ -304,7 +304,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode. Inform user this will run in the background with no GUI.",
+  description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode. By default runs headless; set showUi: true to display the electron-app UI.",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -313,6 +313,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
     const input = ExecuteTestGenerationInputSchema.parse(ctx.input);
 
     if (!input.approveElectronAppLaunch) {
+      const uiMode = input.showUi ? "with visible UI" : "headless (no UI)";
       return {
         content: [
           "## Electron App Launch Required",
@@ -322,6 +323,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
           "",
           `**Test Case:** ${input.testCase.title}`,
           `**Local URL:** ${input.localUrl}`,
+          `**UI Mode:** ${uiMode}`,
           "",
           "**Note:** The electron-app will open a browser window and navigate to your test URL.",
         ].join("\n"),
@@ -335,6 +337,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         testCase: input.testCase,
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
+        showUi: input.showUi,
       });
 
       const content = [
@@ -362,7 +365,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Execute test script replay. First call qa_test_script_get to get test script details (including actionScript), then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in engine mode.",
+  description: "Execute test script replay. First call qa_test_script_get to get test script details (including actionScript), then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in engine mode. By default runs headless; set showUi: true to display the electron-app UI.",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -371,6 +374,7 @@ const executeReplayTool: ILocalMcpTool = {
     const input = ExecuteReplayInputSchema.parse(ctx.input);
 
     if (!input.approveElectronAppLaunch) {
+      const uiMode = input.showUi ? "with visible UI" : "headless (no UI)";
       return {
         content: [
           "## Electron App Launch Required",
@@ -381,6 +385,7 @@ const executeReplayTool: ILocalMcpTool = {
           `**Test Script:** ${input.testScript.name}`,
           `**Local URL:** ${input.localUrl}`,
           `**Steps:** ${input.testScript.actionScript.length}`,
+          `**UI Mode:** ${uiMode}`,
           "",
           "**Note:** The electron-app will open a browser window and execute the test steps.",
         ].join("\n"),
@@ -394,6 +399,7 @@ const executeReplayTool: ILocalMcpTool = {
         testScript: input.testScript,
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
+        showUi: input.showUi,
       });
 
       const content = [

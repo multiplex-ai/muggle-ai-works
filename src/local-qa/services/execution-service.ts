@@ -441,10 +441,15 @@ async function executeElectronAppAsync(params: {
   scriptFilePath: string;
   authFilePath: string;
   timeoutMs: number;
+  showUi?: boolean;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
   const electronAppPath = getElectronAppPathOrThrow();
   const spawnArgs = [mode, params.scriptFilePath, "", params.authFilePath];
+
+  if (params.showUi) {
+    spawnArgs.push("--show-ui");
+  }
 
   logger.info("Spawning electron-app for local execution", {
     runId: params.runId,
@@ -563,12 +568,14 @@ async function executeElectronAppAsync(params: {
  * @param params.testCase - Test case details from qa_test_case_get.
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
+ * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
   testCase: TestCaseDetails;
   localUrl: string;
   timeoutMs?: number;
+  showUi?: boolean;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 300000;
@@ -635,6 +642,7 @@ export async function executeTestGeneration(params: {
         scriptFilePath: inputFilePath,
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
+        showUi: params.showUi,
       });
 
       const completedAt = Date.now();
@@ -749,12 +757,14 @@ export async function executeTestGeneration(params: {
  * @param params.testScript - Test script details from qa_test_script_get.
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
+ * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @returns Run result.
  */
 export async function executeReplay(params: {
   testScript: TestScriptDetails;
   localUrl: string;
   timeoutMs?: number;
+  showUi?: boolean;
 }): Promise<ILocalRunResult> {
   const { testScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 180000;
@@ -812,6 +822,7 @@ export async function executeReplay(params: {
         scriptFilePath: inputFilePath,
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
+        showUi: params.showUi,
       });
 
       const completedAt = Date.now();

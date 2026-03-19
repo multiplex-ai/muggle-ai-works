@@ -2,12 +2,14 @@
 /**
  * Postinstall script for @muggleai/mcp.
  * Downloads the Electron app binary for local testing.
+ * Output is written to both console and ~/.muggle-ai/postinstall.log
  */
 
 import { createHash } from "crypto";
 import { exec } from "child_process";
 import {
   readFileSync,
+  appendFileSync,
   createReadStream,
   createWriteStream,
   existsSync,
@@ -25,6 +27,61 @@ const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const CURSOR_SERVER_NAME = "muggle";
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
+const LOG_FILE_NAME = "postinstall.log";
+
+/**
+ * Get the path to the postinstall log file.
+ * @returns {string} Path to ~/.muggle-ai/postinstall.log
+ */
+function getLogFilePath() {
+  return join(homedir(), ".muggle-ai", LOG_FILE_NAME);
+}
+
+/**
+ * Initialize the log file with a separator and timestamp.
+ */
+function initLogFile() {
+  const logPath = getLogFilePath();
+  const logDir = join(homedir(), ".muggle-ai");
+  mkdirSync(logDir, { recursive: true });
+
+  const separator = "\n" + "=".repeat(60) + "\n";
+  const header = `Postinstall started at ${new Date().toISOString()}\n`;
+  appendFileSync(logPath, separator + header, "utf-8");
+}
+
+/**
+ * Log a message to both console and the log file.
+ * @param  {...unknown} args - Arguments to log
+ */
+function log(...args) {
+  const message = args.map((arg) => (typeof arg === "string" ? arg : JSON.stringify(arg))).join(" ");
+  console.log(...args);
+  try {
+    appendFileSync(getLogFilePath(), message + "\n", "utf-8");
+  } catch {
+    // Ignore log file write errors
+  }
+}
+
+/**
+ * Log an error to both console and the log file.
+ * @param  {...unknown} args - Arguments to log
+ */
+function logError(...args) {
+  const message = args.map((arg) => {
+    if (arg instanceof Error) {
+      return arg.stack || arg.message;
+    }
+    return typeof arg === "string" ? arg : JSON.stringify(arg);
+  }).join(" ");
+  console.error(...args);
+  try {
+    appendFileSync(getLogFilePath(), "[ERROR] " + message + "\n", "utf-8");
+  } catch {
+    // Ignore log file write errors
+  }
+}
 
 /**
  * Get the Cursor MCP config path.
@@ -92,15 +149,15 @@ function updateCursorMcpConfig() {
     mkdirSync(cursorDir, { recursive: true });
     const prettyJson = `${JSON.stringify(parsedConfig, null, 2)}\n`;
     writeFileSync(configPath, prettyJson, "utf-8");
-    console.log(`Updated Cursor MCP config: ${configPath}`);
+    log(`Updated Cursor MCP config: ${configPath}`);
   } catch (error) {
-    console.error("\n========================================");
-    console.error("ERROR: Failed to update Cursor MCP config");
-    console.error("========================================\n");
-    console.error("Path:", configPath);
-    console.error("\nFull error details:");
-    console.error(error instanceof Error ? error.stack || error : error);
-    console.error("");
+    logError("\n========================================");
+    logError("ERROR: Failed to update Cursor MCP config");
+    logError("========================================\n");
+    logError("Path:", configPath);
+    logError("\nFull error details:");
+    logError(error instanceof Error ? error.stack || error : error);
+    logError("");
   }
 }
 
@@ -224,17 +281,17 @@ function cleanupNonCurrentVersions({ appDir, currentVersion }) {
 
     const staleVersionDir = join(appDir, appEntry.name);
     try {
-      console.log(`Removing stale Electron app version: ${appEntry.name}`);
+      log(`Removing stale Electron app version: ${appEntry.name}`);
       rmSync(staleVersionDir, { recursive: true, force: true });
     } catch (error) {
-      console.error("\n========================================");
-      console.error("ERROR: Failed to remove stale Electron app version");
-      console.error("========================================\n");
-      console.error("Version:", appEntry.name);
-      console.error("Path:", staleVersionDir);
-      console.error("\nFull error details:");
-      console.error(error instanceof Error ? error.stack || error : error);
-      console.error("");
+      logError("\n========================================");
+      logError("ERROR: Failed to remove stale Electron app version");
+      logError("========================================\n");
+      logError("Version:", appEntry.name);
+      logError("Path:", staleVersionDir);
+      logError("\nFull error details:");
+      logError(error instanceof Error ? error.stack || error : error);
+      logError("");
     }
   }
 }
@@ -433,30 +490,30 @@ async function downloadElectronApp() {
 
         if (existingInstallVerification.valid) {
           cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
-          console.log(`Electron app v${version} already installed at ${versionDir}`);
+          log(`Electron app v${version} already installed at ${versionDir}`);
           return;
         }
 
-        console.log(
+        log(
           `Installed Electron app v${version} failed verification (${existingInstallVerification.reason}). Re-downloading...`,
         );
         rmSync(versionDir, { recursive: true, force: true });
       } else {
-        console.log(
+        log(
           `Electron app v${version} directory exists but executable is missing. Re-downloading...`,
         );
         rmSync(versionDir, { recursive: true, force: true });
       }
     }
 
-    console.log(`Downloading Muggle Test Electron app v${version}...`);
-    console.log(`URL: ${downloadUrl}`);
+    log(`Downloading Muggle Test Electron app v${version}...`);
+    log(`URL: ${downloadUrl}`);
 
     // Create directories
     mkdirSync(versionDir, { recursive: true });
 
     // Download using fetch
-    console.log("Fetching...");
+    log("Fetching...");
     const response = await fetch(downloadUrl);
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "");
@@ -466,13 +523,13 @@ async function downloadElectronApp() {
         `Response body: ${errorBody.substring(0, 500)}`
       );
     }
-    console.log(`Response OK (${response.status}), downloading ${response.headers.get("content-length") || "unknown"} bytes...`);
+    log(`Response OK (${response.status}), downloading ${response.headers.get("content-length") || "unknown"} bytes...`);
 
     const tempFile = join(versionDir, binaryName);
     const fileStream = createWriteStream(tempFile);
     await pipeline(response.body, fileStream);
 
-    console.log("Download complete, verifying checksum...");
+    log("Download complete, verifying checksum...");
 
     // Verify checksum
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
@@ -488,12 +545,12 @@ async function downloadElectronApp() {
     }
 
     if (checksumResult.skipped) {
-      console.log("Warning: No checksum configured, skipping verification.");
+      log("Warning: No checksum configured, skipping verification.");
     } else {
-      console.log("Checksum verified successfully.");
+      log("Checksum verified successfully.");
     }
 
-    console.log("Extracting...");
+    log("Extracting...");
 
     // Extract based on file type
     if (binaryName.endsWith(".zip")) {
@@ -525,28 +582,29 @@ async function downloadElectronApp() {
 
     cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
 
-    console.log(`Electron app installed to ${versionDir}`);
+    log(`Electron app installed to ${versionDir}`);
   } catch (error) {
-    console.error("\n========================================");
-    console.error("ERROR: Failed to download Electron app");
-    console.error("========================================\n");
-    console.error("Error message:", error.message);
-    console.error("\nFull error details:");
-    console.error(error.stack || error);
-    console.error("\nDebug info:");
-    console.error("  - Platform:", platform());
-    console.error("  - Architecture:", process.arch);
-    console.error("  - Node version:", process.version);
+    logError("\n========================================");
+    logError("ERROR: Failed to download Electron app");
+    logError("========================================\n");
+    logError("Error message:", error.message);
+    logError("\nFull error details:");
+    logError(error.stack || error);
+    logError("\nDebug info:");
+    logError("  - Platform:", platform());
+    logError("  - Architecture:", process.arch);
+    logError("  - Node version:", process.version);
     try {
       const packageJson = require("../package.json");
       const config = packageJson.muggleConfig || {};
-      console.error("  - Electron app version:", config.electronAppVersion || "unknown");
-      console.error("  - Download URL:", `${config.downloadBaseUrl}/v${config.electronAppVersion}/${getBinaryName()}`);
+      logError("  - Electron app version:", config.electronAppVersion || "unknown");
+      logError("  - Download URL:", `${config.downloadBaseUrl}/v${config.electronAppVersion}/${getBinaryName()}`);
     } catch {
-      console.error("  - Could not read package.json config");
+      logError("  - Could not read package.json config");
     }
-    console.error("\nYou can manually download it later using: muggle-mcp setup");
-    console.error("Or set ELECTRON_APP_PATH to point to an existing installation.\n");
+    logError("\nYou can manually download it later using: muggle-mcp setup");
+    logError("Or set ELECTRON_APP_PATH to point to an existing installation.");
+    logError(`\nFull log available at: ${getLogFilePath()}\n`);
   }
 }
 
@@ -563,9 +621,9 @@ async function extractZip(zipPath, destDir) {
 
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
-        console.error("Extraction command failed:", cmd);
-        console.error("stdout:", stdout);
-        console.error("stderr:", stderr);
+        logError("Extraction command failed:", cmd);
+        logError("stdout:", stdout);
+        logError("stderr:", stderr);
         reject(new Error(`Extraction failed: ${error.message}\nstderr: ${stderr}`));
       } else {
         resolve();
@@ -592,5 +650,6 @@ async function extractTarGz(tarPath, destDir) {
 }
 
 // Run postinstall
+initLogFile();
 updateCursorMcpConfig();
-downloadElectronApp().catch(console.error);
+downloadElectronApp().catch(logError);

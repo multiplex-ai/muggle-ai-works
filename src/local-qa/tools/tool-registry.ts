@@ -304,7 +304,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode.",
+  description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode. Inform user this will run in the background with no GUI.",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);

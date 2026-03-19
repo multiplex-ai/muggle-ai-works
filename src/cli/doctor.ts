@@ -63,7 +63,7 @@ function runDiagnostics(): ICheckResult[] {
         electronDescription += ` [from ELECTRON_APP_VERSION env]`;
         break;
       case "override":
-        electronDescription += ` [upgraded from bundled v${bundledVersion}]`;
+        electronDescription += ` [overridden from bundled v${bundledVersion}]`;
         break;
       default:
         break;

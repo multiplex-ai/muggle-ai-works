@@ -28,6 +28,7 @@ const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const CURSOR_SERVER_NAME = "muggle";
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const LOG_FILE_NAME = "postinstall.log";
+const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 
 /**
  * Get the path to the postinstall log file.
@@ -80,6 +81,24 @@ function logError(...args) {
     appendFileSync(getLogFilePath(), "[ERROR] " + message + "\n", "utf-8");
   } catch {
     // Ignore log file write errors
+  }
+}
+
+/**
+ * Remove the electron-app version override file if it exists.
+ * Each new install should use the bundled version from package.json.
+ * Users can still override manually after install, but it resets on next install.
+ */
+function removeVersionOverrideFile() {
+  const overridePath = join(homedir(), ".muggle-ai", VERSION_OVERRIDE_FILE_NAME);
+
+  if (existsSync(overridePath)) {
+    try {
+      rmSync(overridePath, { force: true });
+      log(`Removed version override file: ${overridePath}`);
+    } catch (error) {
+      logError(`Failed to remove version override file: ${error.message}`);
+    }
   }
 }
 
@@ -651,5 +670,6 @@ async function extractTarGz(tarPath, destDir) {
 
 // Run postinstall
 initLogFile();
+removeVersionOverrideFile();
 updateCursorMcpConfig();
 downloadElectronApp().catch(logError);

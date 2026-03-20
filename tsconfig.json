@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "outDir": "./dist",
-    "rootDir": ".",
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -21,9 +21,6 @@
     "noFallthroughCasesInSwitch": true,
     "isolatedModules": true
   },
-  "include": [
-    "src/**/*",
-    "packages/mcp-core/src/**/*"
-  ],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

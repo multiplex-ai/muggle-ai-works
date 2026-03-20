@@ -1,5 +1,5 @@
 /**
- * Shared type definitions for @muggleai/mcp.
+ * Shared type definitions for @muggleai/works.
  */
 
 /**
@@ -119,7 +119,7 @@ export interface ILocalAuth0Config {
 }
 
 /**
- * Unified configuration for @muggleai/mcp.
+ * Unified configuration for @muggleai/works.
  */
 export interface IConfig {
   /** Server name for MCP protocol. */

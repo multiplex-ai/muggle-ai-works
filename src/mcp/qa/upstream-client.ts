@@ -204,7 +204,7 @@ export class PromptServiceClient {
     if (!credentials.bearerToken && !credentials.apiKey) {
       throw new GatewayError({
         code: McpErrorCode.UNAUTHORIZED,
-        message: "Missing authentication. Please run 'muggle-mcp login' to authenticate.",
+        message: "Missing authentication. Please run 'muggle login' to authenticate.",
       });
     }
 

@@ -75,7 +75,7 @@ If `muggle-remote-auth-status` shows expired credentials (check `expiresAt` fiel
 
 If authentication repeatedly fails:
 
-1. Suggest user run `muggle-mcp logout` then `muggle-mcp login` from terminal
+1. Suggest user run `muggle logout` then `muggle login` from terminal
 2. Or delete credential files manually: `~/.muggle-ai/auth.json` and `~/.muggle-ai/credentials.json`
 3. Ensure MCP configuration has correct environment variable set
 

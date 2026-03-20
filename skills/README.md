@@ -12,7 +12,7 @@ Muggle AI provides two testing modes with different MCP servers. **Use the right
 | **Remote Testing** | MCP Gateway (cloud) | Public URLs (staging, production) | `skills/remote/` |
 
 ```
-muggle-ai-mcp/
+muggle-ai-works/
 └── skills/
     ├── local/                    # For local MCP server
     │   ├── test-feature-local/   # Test localhost apps
@@ -60,7 +60,7 @@ Use these with the **Remote MCP Gateway** for testing publicly accessible URLs (
 ### Get the Skills
 
 ```bash
-git clone https://github.com/muggle-ai/muggle-ai-mcp.git
+git clone https://github.com/multiplex-ai/muggle-ai-works.git
 ```
 
 ### For Cursor IDE
@@ -69,17 +69,17 @@ git clone https://github.com/muggle-ai/muggle-ai-mcp.git
 
 ```bash
 # Install local skills
-cp -r muggle-ai-mcp/skills/local/* ~/.cursor/skills/
+cp -r muggle-ai-works/skills/local/* ~/.cursor/skills/
 
 # Install remote skills (when available)
-cp -r muggle-ai-mcp/skills/remote/* ~/.cursor/skills/
+cp -r muggle-ai-works/skills/remote/* ~/.cursor/skills/
 ```
 
 **Project Installation** (shared with team):
 
 ```bash
 mkdir -p .cursor/skills
-cp -r muggle-ai-mcp/skills/local/* .cursor/skills/
+cp -r muggle-ai-works/skills/local/* .cursor/skills/
 ```
 
 ### For Other AI Assistants
@@ -118,13 +118,13 @@ If authentication keeps failing:
 
 ```bash
 # Clear credentials and re-login
-muggle-mcp logout
-muggle-mcp login
+muggle logout
+muggle login
 
 # Or delete credential files directly
 rm ~/.muggle-ai/auth.json
 rm ~/.muggle-ai/credentials.json
-muggle-mcp login
+muggle login
 ```
 
 ## Usage Examples

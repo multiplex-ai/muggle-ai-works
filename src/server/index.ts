@@ -1,5 +1,5 @@
 /**
- * Server module exports for @muggleai/mcp.
+ * Server module exports for @muggleai/works.
  */
 
 export * from "./mcp-server.js";

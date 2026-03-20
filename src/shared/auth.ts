@@ -1,5 +1,5 @@
 /**
- * Authentication module for @muggleai/mcp.
+ * Authentication module for @muggleai/works.
  * Implements device code flow for user authentication.
  */
 

@@ -233,7 +233,7 @@ export async function versionsCommand(): Promise<void> {
 
   if (versions.length === 0) {
     console.log("No versions installed.");
-    console.log("Run 'muggle-mcp setup' to download the Electron app.\n");
+    console.log("Run 'muggle setup' to download the Electron app.\n");
     return;
   }
 

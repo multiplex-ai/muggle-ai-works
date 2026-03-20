@@ -1,5 +1,5 @@
 /**
- * Logger module for @muggleai/mcp.
+ * Logger module for @muggleai/works.
  * Provides structured logging using Winston.
  */
 

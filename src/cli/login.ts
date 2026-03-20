@@ -109,6 +109,6 @@ export async function statusCommand(): Promise<void> {
     console.log(`  API Key: ${hasStoredApiKey ? "Yes" : "No"}`);
   } else {
     console.log("✗ Not authenticated");
-    console.log("\nRun 'muggle-mcp login' to authenticate.");
+    console.log("\nRun 'muggle login' to authenticate.");
   }
 }

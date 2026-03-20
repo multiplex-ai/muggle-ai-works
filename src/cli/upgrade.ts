@@ -22,7 +22,7 @@ import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 const logger = getLogger();
 
 /** GitHub API URL for releases. */
-const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-mcp/releases";
+const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases";
 
 /** Filename for storing the overridden electron-app version. */
 const VERSION_OVERRIDE_FILE = "electron-app-version-override.json";
@@ -143,7 +143,7 @@ async function checkForUpdates(): Promise<IUpdateCheckResult> {
     const response = await fetch(GITHUB_RELEASES_API, {
       headers: {
         "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "muggle-mcp",
+        "User-Agent": "muggle",
       },
     });
 
@@ -435,7 +435,7 @@ export async function upgradeCommand(options: IUpgradeOptions): Promise<void> {
 
     if (options.check) {
       if (result.updateAvailable) {
-        console.log("\nUpdate available! Run 'muggle-mcp upgrade' to install.");
+        console.log("\nUpdate available! Run 'muggle upgrade' to install.");
       } else {
         console.log("\nYou are on the latest version.");
       }

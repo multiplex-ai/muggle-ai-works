@@ -1,5 +1,5 @@
 /**
- * Shared module exports for @muggleai/mcp.
+ * Shared module exports for @muggleai/works.
  */
 
 export * from "./auth.js";

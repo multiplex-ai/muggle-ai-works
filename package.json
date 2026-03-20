@@ -1,16 +1,16 @@
 {
-    "name": "@muggleai/mcp",
+    "name": "@muggleai/works",
     "version": "2.0.0",
     "description": "Unified MCP server for Muggle AI - Cloud QA and Local Testing tools",
     "type": "module",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
-        "muggle-mcp": "bin/muggle-mcp.js"
+        "muggle": "bin/muggle.js"
     },
     "files": [
         "dist",
-        "bin/muggle-mcp.js",
+        "bin/muggle.js",
         "scripts/postinstall.mjs"
     ],
     "scripts": {
@@ -27,7 +27,7 @@
     },
     "muggleConfig": {
         "electronAppVersion": "1.0.11",
-        "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-mcp/releases/download",
+        "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
         "runtimeTargetDefault": "dev",
         "checksums": {
             "darwin-arm64": "",
@@ -76,7 +76,7 @@
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/multiplex-ai/muggle-ai-mcp.git"
+        "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
     },
     "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
 }

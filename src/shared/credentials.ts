@@ -1,5 +1,5 @@
 /**
- * Credentials storage for @muggleai/mcp.
+ * Credentials storage for @muggleai/works.
  * Manages persistent storage of authentication credentials.
  */
 

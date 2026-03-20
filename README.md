@@ -1,11 +1,11 @@
-# @muggleai/mcp
+# @muggleai/works
 
 Unified MCP server for Muggle AI - combines Cloud QA and Local Testing tools into a single package.
 
 ## Installation
 
 ```bash
-npm install -g @muggleai/mcp
+npm install -g @muggleai/works
 ```
 
 This automatically:
@@ -23,7 +23,7 @@ This automatically:
 {
   "mcpServers": {
     "muggle": {
-      "command": "muggle-mcp",
+      "command": "muggle",
       "args": ["serve"]
     }
   }
@@ -38,23 +38,23 @@ Ask your AI assistant to test your application! Authentication happens automatic
 
 ```bash
 # Server (main command - starts MCP server for AI clients)
-muggle-mcp serve              # Start server with all tools (default)
-muggle-mcp serve --qa         # Cloud QA tools only
-muggle-mcp serve --local      # Local testing tools only
+muggle serve              # Start server with all tools (default)
+muggle serve --qa         # Cloud QA tools only
+muggle serve --local      # Local testing tools only
 
 # Setup & Diagnostics
-muggle-mcp setup              # Download/update Electron app
-muggle-mcp setup --force      # Force re-download
-muggle-mcp doctor             # Diagnose installation issues
+muggle setup              # Download/update Electron app
+muggle setup --force      # Force re-download
+muggle doctor             # Diagnose installation issues
 
 # Authentication (optional - auth happens automatically)
-muggle-mcp login              # Manually trigger login
-muggle-mcp logout             # Clear credentials
-muggle-mcp status             # Show auth status
+muggle login              # Manually trigger login
+muggle logout             # Clear credentials
+muggle status             # Show auth status
 
 # Info
-muggle-mcp --version          # Show version
-muggle-mcp --help             # Show help
+muggle --version          # Show version
+muggle --help             # Show help
 ```
 
 ## Authentication
@@ -71,8 +71,8 @@ Your credentials are stored in `~/.muggle-ai/credentials.json` and persist acros
 
 Tokens expire after a period of time. When this happens:
 
-1. **Check status**: Run `muggle-mcp status` or call `muggle-remote-auth-status` to see expiration
-2. **Re-authenticate**: Run `muggle-mcp login` or call `muggle-remote-auth-login` to get fresh tokens
+1. **Check status**: Run `muggle status` or call `muggle-remote-auth-status` to see expiration
+2. **Re-authenticate**: Run `muggle login` or call `muggle-remote-auth-login` to get fresh tokens
 3. **If login fails with "unauthorized_client"**: Check your runtime target configuration (see Troubleshooting)
 
 The MCP server will attempt to auto-refresh tokens when possible, but manual re-authentication may be required if the refresh token has also expired.
@@ -173,18 +173,18 @@ If you see authentication errors like "Not authenticated" or token expiration me
 
 1. **Check auth status**:
    ```bash
-   muggle-mcp status
+   muggle status
    ```
 
 2. **Re-authenticate**:
    ```bash
-   muggle-mcp login
+   muggle login
    ```
 
 3. **Clear and retry** (if login keeps failing):
    ```bash
-   muggle-mcp logout
-   muggle-mcp login
+   muggle logout
+   muggle login
    ```
 
 ### "unauthorized_client" Error During Login
@@ -200,7 +200,7 @@ This error indicates a mismatch between your Auth0 client configuration and the 
 {
   "mcpServers": {
     "muggle": {
-      "command": "muggle-mcp",
+      "command": "muggle",
       "args": ["serve"],
       "env": {
         "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "production"
@@ -215,7 +215,7 @@ This error indicates a mismatch between your Auth0 client configuration and the 
 {
   "mcpServers": {
     "muggle": {
-      "command": "muggle-mcp",
+      "command": "muggle",
       "args": ["serve"],
       "env": {
         "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "dev"
@@ -240,7 +240,7 @@ If you need to reset authentication completely:
 ```bash
 rm ~/.muggle-ai/auth.json
 rm ~/.muggle-ai/credentials.json
-muggle-mcp login
+muggle login
 ```
 
 ## License

@@ -1,5 +1,5 @@
 /**
- * Unified MCP server implementation for @muggleai/mcp.
+ * Unified MCP server implementation for @muggleai/works.
  * Combines QA Gateway and Local QA tools into a single server.
  */
 

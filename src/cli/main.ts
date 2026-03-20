@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * CLI entry point for muggle-mcp.
+ * CLI entry point for muggle.
  */
 
 import { runCli } from "./index.js";

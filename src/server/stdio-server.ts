@@ -1,5 +1,5 @@
 /**
- * Stdio server implementation for @muggleai/mcp.
+ * Stdio server implementation for @muggleai/works.
  * Runs the MCP server using stdin/stdout transport.
  */
 

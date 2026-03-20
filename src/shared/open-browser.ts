@@ -1,5 +1,5 @@
 /**
- * Browser opening utility for @muggleai/mcp.
+ * Browser opening utility for @muggleai/works.
  * Opens URLs in the user's default browser.
  */
 

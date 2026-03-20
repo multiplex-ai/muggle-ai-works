@@ -1,5 +1,5 @@
 /**
- * Configuration management for @muggleai/mcp.
+ * Configuration management for @muggleai/works.
  * Unified configuration for both QA Gateway and Local QA.
  */
 
@@ -461,7 +461,7 @@ export function getConfig(): IConfig {
   }
 
   configInstance = {
-    serverName: "muggle-mcp",
+    serverName: "muggle",
     serverVersion: "1.0.0",
     logLevel: process.env.LOG_LEVEL ?? "info",
     auth0: buildAuth0Config(),
@@ -490,7 +490,7 @@ const ELECTRON_APP_VERSION_ENV = "ELECTRON_APP_VERSION";
  * Get the effective electron-app version.
  * Priority order:
  * 1. ELECTRON_APP_VERSION env var (for testing/development)
- * 2. Override file (set by `muggle-mcp upgrade`)
+ * 2. Override file (set by `muggle upgrade`)
  * 3. package.json muggleConfig.electronAppVersion (bundled default)
  * @returns The electron-app version string.
  */
@@ -501,7 +501,7 @@ export function getElectronAppVersion(): string {
     return envVersion;
   }
 
-  // Check override file (set by muggle-mcp upgrade)
+  // Check override file (set by muggle upgrade)
   const overridePath = path.join(getDataDir(), VERSION_OVERRIDE_FILE);
 
   if (fs.existsSync(overridePath)) {

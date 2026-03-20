@@ -1,5 +1,5 @@
 /**
- * CLI entry point for @muggleai/mcp.
+ * CLI entry point for @muggleai/works.
  * Provides commands for serving MCP, setup, diagnostics, and authentication.
  */
 
@@ -37,7 +37,7 @@ function createProgram(): Command {
   const program = new Command();
 
   program
-    .name("muggle-mcp")
+    .name("muggle")
     .description("Unified MCP server for Muggle AI - Cloud QA and Local Testing")
     .version(packageVersion);
 
@@ -115,7 +115,7 @@ function createProgram(): Command {
 }
 
 /**
- * Check if the user is requesting help via "muggle-mcp help".
+ * Check if the user is requesting help via "muggle help".
  * Commander.js reserves "help" as a built-in command, so we intercept it.
  * @returns True if help was requested and handled.
  */
@@ -135,7 +135,7 @@ function handleHelpCommand(): boolean {
  */
 export async function runCli(): Promise<void> {
   try {
-    // Handle "muggle-mcp help" specially since Commander reserves "help"
+    // Handle "muggle help" specially since Commander reserves "help"
     if (handleHelpCommand()) {
       return;
     }

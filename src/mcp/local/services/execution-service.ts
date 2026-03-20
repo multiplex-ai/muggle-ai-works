@@ -130,7 +130,7 @@ async function findPackageJsonAsync(): Promise<{
       };
 
       if (
-        packageJson.name === "@muggleai/mcp" &&
+        packageJson.name === "@muggleai/works" &&
         packageJson.version &&
         packageJson.muggleConfig?.electronAppVersion
       ) {
@@ -145,7 +145,7 @@ async function findPackageJsonAsync(): Promise<{
   }
 
   throw new Error(
-    `Could not find @muggleai/mcp package.json with required fields. Searched paths: ${candidatePaths.join(", ")}`
+    `Could not find @muggleai/works package.json with required fields. Searched paths: ${candidatePaths.join(", ")}`
   );
 }
 
@@ -301,7 +301,7 @@ function getElectronAppPathOrThrow(): string {
   const electronAppPath = config.localQa.electronAppPath;
   if (!electronAppPath || electronAppPath.trim() === "") {
     throw new Error(
-      "Electron app binary not found. Run 'muggle-mcp setup' or set ELECTRON_APP_PATH.",
+      "Electron app binary not found. Run 'muggle setup' or set ELECTRON_APP_PATH.",
     );
   }
   return electronAppPath;

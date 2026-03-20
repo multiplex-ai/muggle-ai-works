@@ -46,7 +46,7 @@ function runDiagnostics(): ICheckResult[] {
     name: "Data Directory",
     passed: existsSync(dataDir),
     description: existsSync(dataDir) ? `Found at ${dataDir}` : `Not found at ${dataDir}`,
-    suggestion: "Run 'muggle-mcp login' to create the data directory",
+    suggestion: "Run 'muggle login' to create the data directory",
   });
 
   // Check 2: Electron app installed
@@ -76,7 +76,7 @@ function runDiagnostics(): ICheckResult[] {
     name: "Electron App",
     passed: electronInstalled,
     description: electronDescription,
-    suggestion: "Run 'muggle-mcp setup' to download the Electron app",
+    suggestion: "Run 'muggle setup' to download the Electron app",
   });
 
   // Check 2b: Upgrade available hint
@@ -84,7 +84,7 @@ function runDiagnostics(): ICheckResult[] {
     results.push({
       name: "Electron App Updates",
       passed: true,
-      description: "Run 'muggle-mcp upgrade --check' to check for updates",
+      description: "Run 'muggle upgrade --check' to check for updates",
     });
   }
 
@@ -97,7 +97,7 @@ function runDiagnostics(): ICheckResult[] {
     description: authStatus.authenticated
       ? `Authenticated as ${authStatus.email ?? "unknown"}`
       : "Not authenticated",
-    suggestion: "Run 'muggle-mcp login' to authenticate",
+    suggestion: "Run 'muggle login' to authenticate",
   });
 
   // Check 4: API key available
@@ -106,7 +106,7 @@ function runDiagnostics(): ICheckResult[] {
     name: "API Key",
     passed: hasStoredApiKey,
     description: hasStoredApiKey ? "API key stored" : "No API key stored (optional)",
-    suggestion: "Run 'muggle-mcp login --key-name <name>' to generate an API key",
+    suggestion: "Run 'muggle login --key-name <name>' to generate an API key",
   });
 
   // Check 5: Credentials file
@@ -117,7 +117,7 @@ function runDiagnostics(): ICheckResult[] {
     description: existsSync(credentialsPath)
       ? `Found at ${credentialsPath}`
       : `Not found at ${credentialsPath}`,
-    suggestion: "Run 'muggle-mcp login' to create credentials",
+    suggestion: "Run 'muggle login' to create credentials",
   });
 
   // Check 6: Prompt service URL
@@ -160,7 +160,7 @@ function formatCheckResult(result: ICheckResult): string {
  * Execute the doctor command.
  */
 export async function doctorCommand(): Promise<void> {
-  console.log("\nMuggle MCP Doctor");
+  console.log("\nMuggle Works Doctor");
   console.log("=================\n");
 
   const results = runDiagnostics();

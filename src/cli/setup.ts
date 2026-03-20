@@ -16,7 +16,7 @@ import {
   getLogger,
   isElectronAppInstalled,
   verifyFileChecksum,
-} from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
 
 const logger = getLogger();
 

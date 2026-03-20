@@ -17,7 +17,7 @@ import {
   getLogger,
   getPlatformKey,
   verifyFileChecksum,
-} from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
 import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();

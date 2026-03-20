@@ -1,5 +1,5 @@
 {
-  "name": "@muggleai/mcp-core",
+  "name": "@muggleai/mcp",
   "version": "0.0.0",
   "description": "Core MCP runtime modules for muggle-ai-works",
   "private": true,
@@ -13,9 +13,9 @@
     }
   },
   "scripts": {
-    "build": "echo \"mcp-core build placeholder\"",
+    "build": "tsup --config tsup.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "echo \"mcp-core lint placeholder\"",
-    "test": "echo \"mcp-core test placeholder\""
+    "lint": "echo \"mcp lint placeholder\"",
+    "test": "echo \"mcp test placeholder\""
   }
 }

@@ -19,8 +19,8 @@ import {
   getConfig,
   getLogger,
   toolRequiresAuth,
-} from "@muggleai/mcp-core";
-import type { ICallerCredentials, IMcpTool } from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
+import type { ICallerCredentials, IMcpTool } from "@muggleai/mcp";
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {

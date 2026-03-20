@@ -25,7 +25,7 @@
  */
 
 // Export modules as namespaces to avoid naming conflicts
-export * as shared from "@muggleai/mcp-core";
+export * as shared from "@muggleai/mcp";
 export * as server from "./server/index.js";
 export {
   getLocalQaTools,
@@ -33,9 +33,9 @@ export {
   localQa,
   mcp,
   qa,
-} from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
 
 // Also export key functions at top level for convenience
-export { getConfig } from "@muggleai/mcp-core";
-export { createChildLogger, getLogger } from "@muggleai/mcp-core";
+export { getConfig } from "@muggleai/mcp";
+export { createChildLogger, getLogger } from "@muggleai/mcp";
 export { createUnifiedMcpServer } from "./server/index.js";

@@ -1,5 +1,5 @@
 /**
- * Data directory helpers for mcp-core shared modules.
+ * Data directory helpers for mcp shared modules.
  */
 
 import * as os from "os";

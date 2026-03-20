@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, rmSync, statSync } from "fs";
 import * as path from "path";
 
-import { getDataDir, getElectronAppVersion, getLogger } from "@muggleai/mcp-core";
+import { getDataDir, getElectronAppVersion, getLogger } from "@muggleai/mcp";
 
 const logger = getLogger();
 

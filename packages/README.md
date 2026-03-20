@@ -11,7 +11,7 @@ Current package domains:
 - `skills`
 - `hooks`
 - `workflows`
-- `mcp-core`
+- `mcp`
 - `agents-sdk`
 - `plugins-sdk`
 - `hooks-sdk`

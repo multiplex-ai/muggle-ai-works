@@ -35,3 +35,6 @@ coverage/
 # Cache
 .eslintcache
 *.tsbuildinfo
+
+# Turborepo cache
+.turbo/

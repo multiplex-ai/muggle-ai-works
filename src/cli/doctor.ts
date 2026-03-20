@@ -15,7 +15,7 @@ import {
   getLogger,
   hasApiKey,
   isElectronAppInstalled,
-} from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
 
 const logger = getLogger();
 

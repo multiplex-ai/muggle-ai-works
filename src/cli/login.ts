@@ -8,7 +8,7 @@ import {
   hasApiKey,
   performLogin,
   performLogout,
-} from "@muggleai/mcp-core";
+} from "@muggleai/mcp";
 
 const logger = getLogger();
 

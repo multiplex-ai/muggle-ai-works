@@ -34,7 +34,7 @@ muggle-ai-works/
   apps/
     cli/                      # future command surface for local workflows
   packages/
-    mcp-core/                 # current MCP implementation (migrated from root)
+    mcp/                 # current MCP implementation (migrated from root)
     agents-sdk/               # agent contracts and registry abstractions
     plugins-sdk/              # plugin interfaces and lifecycle hooks
     hooks-sdk/                # hook models and dispatcher primitives
@@ -139,7 +139,7 @@ Goal: migrate existing logic into target package layout via small PRs.
 
 Key actions:
 
-- Move MCP logic into `packages/mcp-core` in incremental slices.
+- Move MCP logic into `packages/mcp` in incremental slices.
 - Move command surface into `apps/cli`.
 - Route shared models/utilities into dedicated SDK packages.
 - Keep adapters where old and new paths need temporary coexistence.
@@ -158,7 +158,7 @@ flowchart LR
     toolBootstrap --> workspaceInstall["WorkspaceInstall"]
     workspaceInstall --> buildGraph["TurboBuildGraph"]
     buildGraph --> appCli["apps/cli"]
-    buildGraph --> pkgMcp["packages/mcp-core"]
+    buildGraph --> pkgMcp["packages/mcp"]
     buildGraph --> pkgAgent["packages/agents-sdk"]
     buildGraph --> pkgPlugin["packages/plugins-sdk"]
     buildGraph --> pkgHook["packages/hooks-sdk"]

@@ -2,7 +2,7 @@
  * Serve command - starts the MCP server.
  */
 
-import { getConfig, getLocalQaTools, getLogger, getQaTools } from "@muggleai/mcp-core";
+import { getConfig, getLocalQaTools, getLogger, getQaTools } from "@muggleai/mcp";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 
 const logger = getLogger();

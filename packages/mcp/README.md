@@ -12,4 +12,4 @@ Current migration slice:
 - `src/shared/credentials.ts`
 - `src/shared/config.ts`
 - `src/shared/auth.ts`
-- `src/mcp/**` (MCP tool/runtime implementation; root app imports via `@muggleai/mcp-core`)
+- `src/mcp/**` (MCP tool/runtime implementation; root app imports via `@muggleai/mcp`)

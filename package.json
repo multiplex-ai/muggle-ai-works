@@ -17,6 +17,12 @@
         "clean": "rimraf dist",
         "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist",
         "build:release": "npm run build",
+        "build:workspace": "turbo run build",
+        "lint:workspace": "turbo run lint",
+        "test:workspace": "turbo run test",
+        "dev:workspace": "turbo run dev",
+        "bootstrap": "npm install && npm run build",
+        "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
         "postinstall": "node scripts/postinstall.mjs",
         "start": "node dist/index.js",
         "dev": "tsx watch src/index.ts",
@@ -55,6 +61,7 @@
         "eslint": "^9.28.0",
         "eslint-plugin-unused-imports": "^4.2.0",
         "rimraf": "^6.0.1",
+        "turbo": "^2.5.6",
         "tsup": "^8.5.1",
         "tsx": "^4.19.2",
         "typescript": "^5.7.3",
@@ -74,6 +81,7 @@
     ],
     "author": "Muggle AI",
     "license": "MIT",
+    "packageManager": "pnpm@10.0.0",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"

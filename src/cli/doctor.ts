@@ -15,7 +15,7 @@ import {
   getLogger,
   hasApiKey,
   isElectronAppInstalled,
-} from "@muggleai/mcp";
+} from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
 
@@ -37,7 +37,7 @@ interface ICheckResult {
  * Run all diagnostic checks.
  * @returns Array of check results.
  */
-function runDiagnostics(): ICheckResult[] {
+function runDiagnostics (): ICheckResult[] {
   const results: ICheckResult[] = [];
   const config = getConfig();
 
@@ -141,7 +141,7 @@ function runDiagnostics(): ICheckResult[] {
  * @param result - Check result.
  * @returns Formatted string.
  */
-function formatCheckResult(result: ICheckResult): string {
+function formatCheckResult (result: ICheckResult): string {
   const icon = result.passed ? "✓" : "✗";
   const color = result.passed ? "\x1b[32m" : "\x1b[31m"; // Green or Red
   const reset = "\x1b[0m";
@@ -158,7 +158,7 @@ function formatCheckResult(result: ICheckResult): string {
 /**
  * Execute the doctor command.
  */
-export async function doctorCommand(): Promise<void> {
+export async function doctorCommand (): Promise<void> {
   console.log("\nMuggle Works Doctor");
   console.log("=================\n");
 

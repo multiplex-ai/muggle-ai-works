@@ -2,7 +2,7 @@
  * Serve command - starts the MCP server.
  */
 
-import { getConfig, getLocalQaTools, getLogger, getQaTools } from "@muggleai/mcp";
+import { getConfig, getLocalQaTools, getLogger, getQaTools } from "../../packages/mcps/src/index.js";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 
 const logger = getLogger();
@@ -23,7 +23,7 @@ export interface IServeOptions {
  * Execute the serve command.
  * @param options - Command options.
  */
-export async function serveCommand(options: IServeOptions): Promise<void> {
+export async function serveCommand (options: IServeOptions): Promise<void> {
   const config = getConfig();
 
   // Determine which tool sets to enable

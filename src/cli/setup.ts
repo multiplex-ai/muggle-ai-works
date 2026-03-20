@@ -16,7 +16,7 @@ import {
   getLogger,
   isElectronAppInstalled,
   verifyFileChecksum,
-} from "@muggleai/mcp";
+} from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
 
@@ -32,7 +32,7 @@ export interface ISetupOptions {
  * Get platform-specific binary name.
  * @returns Binary filename.
  */
-function getBinaryName(): string {
+function getBinaryName (): string {
   const os = platform();
   const architecture = arch();
 
@@ -55,7 +55,7 @@ function getBinaryName(): string {
  * @param zipPath - Path to zip file.
  * @param destDir - Destination directory.
  */
-async function extractZip(zipPath: string, destDir: string): Promise<void> {
+async function extractZip (zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const cmd =
       platform() === "win32"
@@ -77,7 +77,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
  * @param tarPath - Path to tar.gz file.
  * @param destDir - Destination directory.
  */
-async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
+async function extractTarGz (tarPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     exec(`tar -xzf "${tarPath}" -C "${destDir}"`, (error) => {
       if (error) {
@@ -93,7 +93,7 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
  * Execute the setup command.
  * @param options - Command options.
  */
-export async function setupCommand(options: ISetupOptions): Promise<void> {
+export async function setupCommand (options: ISetupOptions): Promise<void> {
   const version = getElectronAppVersion();
   const baseUrl = getDownloadBaseUrl();
   const versionDir = getElectronAppDir(version);

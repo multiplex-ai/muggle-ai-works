@@ -19,8 +19,8 @@ import {
   getConfig,
   getLogger,
   toolRequiresAuth,
-} from "@muggleai/mcp";
-import type { ICallerCredentials, IMcpTool } from "@muggleai/mcp";
+} from "../../packages/mcps/src/index.js";
+import type { ICallerCredentials, IMcpTool } from "../../packages/mcps/src/index.js";
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {
@@ -37,7 +37,7 @@ let registeredTools: IMcpTool[] = [];
  * Register tools with the server.
  * @param tools - Tools to register.
  */
-export function registerTools(tools: IMcpTool[]): void {
+export function registerTools (tools: IMcpTool[]): void {
   registeredTools = [...registeredTools, ...tools];
 }
 
@@ -45,14 +45,14 @@ export function registerTools(tools: IMcpTool[]): void {
  * Get all registered tools.
  * @returns Array of registered tools.
  */
-export function getAllTools(): IMcpTool[] {
+export function getAllTools (): IMcpTool[] {
   return registeredTools;
 }
 
 /**
  * Clear all registered tools (for testing).
  */
-export function clearTools(): void {
+export function clearTools (): void {
   registeredTools = [];
 }
 
@@ -61,9 +61,9 @@ export function clearTools(): void {
  * @param schema - Zod schema.
  * @returns JSON Schema object.
  */
-function zodToJsonSchema(schema: unknown): object {
+function zodToJsonSchema (schema: unknown): object {
   try {
-    const zodSchema = schema as { _def?: { typeName?: string } };
+    const zodSchema = schema as { _def?: { typeName?: string; }; };
     if (zodSchema._def) {
       return convertZodDef(zodSchema);
     }
@@ -83,13 +83,13 @@ function zodToJsonSchema(schema: unknown): object {
  * @param schema - Zod schema definition.
  * @returns JSON Schema object.
  */
-function convertZodDef(schema: unknown): object {
+function convertZodDef (schema: unknown): object {
   const zodSchema = schema as {
     _def?: {
       typeName?: string;
       shape?: () => Record<string, unknown>;
       innerType?: unknown;
-      checks?: Array<{ kind: string; value?: unknown }>;
+      checks?: Array<{ kind: string; value?: unknown; }>;
       description?: string;
       values?: string[];
       options?: unknown[];
@@ -113,7 +113,7 @@ function convertZodDef(schema: unknown): object {
 
       for (const [key, value] of Object.entries(shape)) {
         properties[key] = convertZodDef(value);
-        const valueDef = (value as { _def?: { typeName?: string } })._def;
+        const valueDef = (value as { _def?: { typeName?: string; }; })._def;
         if (valueDef?.typeName !== "ZodOptional") {
           required.push(key);
         }
@@ -204,10 +204,10 @@ function convertZodDef(schema: unknown): object {
  * @param correlationId - Request correlation ID.
  * @returns Credentials if available, or triggers auth flow.
  */
-async function handleJitAuth(
+async function handleJitAuth (
   toolName: string,
   correlationId: string,
-): Promise<{ credentials: ICallerCredentials; authTriggered: boolean }> {
+): Promise<{ credentials: ICallerCredentials; authTriggered: boolean; }> {
   const childLogger = createChildLogger(correlationId);
 
   // Check if tool requires auth
@@ -234,7 +234,7 @@ async function handleJitAuth(
  * @param options - Server options.
  * @returns Configured MCP Server instance.
  */
-export function createUnifiedMcpServer(options: IUnifiedMcpServerOptions): Server {
+export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Server {
   const logger = getLogger();
   const config = getConfig();
 

@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 
-import { getLogger } from "@muggleai/mcp";
+import { getLogger } from "../../packages/mcps/src/index.js";
 
 /** Directory containing this module. */
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ const logger = getLogger();
  * Create and configure the CLI program.
  * @returns Configured Commander program.
  */
-function createProgram(): Command {
+function createProgram (): Command {
   const program = new Command();
 
   program
@@ -119,7 +119,7 @@ function createProgram(): Command {
  * Commander.js reserves "help" as a built-in command, so we intercept it.
  * @returns True if help was requested and handled.
  */
-function handleHelpCommand(): boolean {
+function handleHelpCommand (): boolean {
   const args = process.argv.slice(2);
 
   if (args.length === 1 && args[0] === "help") {
@@ -133,7 +133,7 @@ function handleHelpCommand(): boolean {
 /**
  * Run the CLI.
  */
-export async function runCli(): Promise<void> {
+export async function runCli (): Promise<void> {
   try {
     // Handle "muggle help" specially since Commander reserves "help"
     if (handleHelpCommand()) {

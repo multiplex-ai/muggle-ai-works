@@ -6,7 +6,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { getLogger } from "@muggleai/mcp";
+import { getLogger } from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
 
@@ -14,7 +14,7 @@ const logger = getLogger();
  * Start the MCP server using stdio transport.
  * @param server - Configured MCP Server instance.
  */
-export async function startStdioServer(server: Server): Promise<void> {
+export async function startStdioServer (server: Server): Promise<void> {
   logger.info("Starting stdio server transport");
 
   const transport = new StdioServerTransport();

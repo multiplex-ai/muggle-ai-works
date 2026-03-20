@@ -5,7 +5,7 @@
 import { existsSync, readdirSync, rmSync, statSync } from "fs";
 import * as path from "path";
 
-import { getDataDir, getElectronAppVersion, getLogger } from "@muggleai/mcp";
+import { getDataDir, getElectronAppVersion, getLogger } from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
 
@@ -40,7 +40,7 @@ export interface IInstalledVersion {
  * Get the electron-app base directory.
  * @returns Path to ~/.muggle-ai/electron-app
  */
-function getElectronAppBaseDir(): string {
+function getElectronAppBaseDir (): string {
   return path.join(getDataDir(), ELECTRON_APP_DIR);
 }
 
@@ -49,7 +49,7 @@ function getElectronAppBaseDir(): string {
  * @param dirPath - Path to directory.
  * @returns Size in bytes.
  */
-function getDirectorySize(dirPath: string): number {
+function getDirectorySize (dirPath: string): number {
   let totalSize = 0;
 
   try {
@@ -81,7 +81,7 @@ function getDirectorySize(dirPath: string): number {
  * @param bytes - Size in bytes.
  * @returns Formatted string (e.g., "150 MB").
  */
-export function formatBytes(bytes: number): string {
+export function formatBytes (bytes: number): string {
   if (bytes === 0) {
     return "0 B";
   }
@@ -100,7 +100,7 @@ export function formatBytes(bytes: number): string {
  * @param b - Second version.
  * @returns Negative if a < b, positive if a > b, 0 if equal.
  */
-function compareVersions(a: string, b: string): number {
+function compareVersions (a: string, b: string): number {
   const partsA = a.split(".").map(Number);
   const partsB = b.split(".").map(Number);
 
@@ -120,7 +120,7 @@ function compareVersions(a: string, b: string): number {
  * List all installed electron-app versions.
  * @returns Array of installed version info, sorted by version descending.
  */
-export function listInstalledVersions(): IInstalledVersion[] {
+export function listInstalledVersions (): IInstalledVersion[] {
   const baseDir = getElectronAppBaseDir();
   const currentVersion = getElectronAppVersion();
   const versions: IInstalledVersion[] = [];
@@ -168,7 +168,7 @@ export function listInstalledVersions(): IInstalledVersion[] {
  * @param options - Cleanup options.
  * @returns Object with removed versions and freed bytes.
  */
-export function cleanupOldVersions(options: ICleanupOptions = {}): {
+export function cleanupOldVersions (options: ICleanupOptions = {}): {
   removed: IInstalledVersion[];
   freedBytes: number;
 } {
@@ -224,7 +224,7 @@ export function cleanupOldVersions(options: ICleanupOptions = {}): {
 /**
  * Execute the versions command - list installed versions.
  */
-export async function versionsCommand(): Promise<void> {
+export async function versionsCommand (): Promise<void> {
   console.log("\nInstalled Electron App Versions");
   console.log("================================\n");
 
@@ -254,7 +254,7 @@ export async function versionsCommand(): Promise<void> {
  * Execute the cleanup command.
  * @param options - Command options.
  */
-export async function cleanupCommand(options: ICleanupOptions): Promise<void> {
+export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
   console.log("\nElectron App Cleanup");
   console.log("====================\n");
 

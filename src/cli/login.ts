@@ -8,7 +8,7 @@ import {
   hasApiKey,
   performLogin,
   performLogout,
-} from "@muggleai/mcp";
+} from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
 
@@ -26,7 +26,7 @@ export interface ILoginOptions {
  * Execute the login command.
  * @param options - Command options.
  */
-export async function loginCommand(options: ILoginOptions): Promise<void> {
+export async function loginCommand (options: ILoginOptions): Promise<void> {
   console.log("\nMuggle AI Login");
   console.log("===============\n");
 
@@ -69,7 +69,7 @@ export async function loginCommand(options: ILoginOptions): Promise<void> {
 /**
  * Execute the logout command.
  */
-export async function logoutCommand(): Promise<void> {
+export async function logoutCommand (): Promise<void> {
   console.log("\nLogging out...");
 
   performLogout();
@@ -81,7 +81,7 @@ export async function logoutCommand(): Promise<void> {
 /**
  * Execute the status command.
  */
-export async function statusCommand(): Promise<void> {
+export async function statusCommand (): Promise<void> {
   console.log("\nAuthentication Status");
   console.log("=====================\n");
 

@@ -17,7 +17,7 @@ import {
   getLogger,
   getPlatformKey,
   verifyFileChecksum,
-} from "@muggleai/mcp";
+} from "../../packages/mcps/src/index.js";
 import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();
@@ -58,7 +58,7 @@ interface IUpdateCheckResult {
  * Get platform-specific binary name.
  * @returns Binary filename.
  */
-function getBinaryName(): string {
+function getBinaryName (): string {
   const os = platform();
   const arch = process.arch;
 
@@ -81,7 +81,7 @@ function getBinaryName(): string {
  * @param tag - Release tag (e.g., "electron-app-v1.0.2").
  * @returns Version string (e.g., "1.0.2") or null.
  */
-function extractVersionFromTag(tag: string): string | null {
+function extractVersionFromTag (tag: string): string | null {
   const match = tag.match(/^electron-app-v(\d+\.\d+\.\d+)$/);
   return match ? match[1] : null;
 }
@@ -90,7 +90,7 @@ function extractVersionFromTag(tag: string): string | null {
  * Get the path to the version override file.
  * @returns Path to the override file.
  */
-function getVersionOverridePath(): string {
+function getVersionOverridePath (): string {
   return path.join(getDataDir(), VERSION_OVERRIDE_FILE);
 }
 
@@ -98,7 +98,7 @@ function getVersionOverridePath(): string {
  * Get the effective electron-app version (override or default).
  * @returns The version to use.
  */
-export function getEffectiveElectronAppVersion(): string {
+export function getEffectiveElectronAppVersion (): string {
   const overridePath = getVersionOverridePath();
 
   if (existsSync(overridePath)) {
@@ -119,7 +119,7 @@ export function getEffectiveElectronAppVersion(): string {
  * Save the version override.
  * @param version - Version to save.
  */
-function saveVersionOverride(version: string): void {
+function saveVersionOverride (version: string): void {
   const overridePath = getVersionOverridePath();
   const dataDir = getDataDir();
 
@@ -137,7 +137,7 @@ function saveVersionOverride(version: string): void {
  * Check for the latest electron-app version from GitHub releases.
  * @returns Update check result.
  */
-async function checkForUpdates(): Promise<IUpdateCheckResult> {
+async function checkForUpdates (): Promise<IUpdateCheckResult> {
   const currentVersion = getEffectiveElectronAppVersion();
 
   try {
@@ -198,7 +198,7 @@ async function checkForUpdates(): Promise<IUpdateCheckResult> {
  * @param b - Second version.
  * @returns 1 if a > b, -1 if a < b, 0 if equal.
  */
-function compareVersions(a: string, b: string): number {
+function compareVersions (a: string, b: string): number {
   const partsA = a.split(".").map(Number);
   const partsB = b.split(".").map(Number);
 
@@ -222,7 +222,7 @@ function compareVersions(a: string, b: string): number {
  * @param zipPath - Path to zip file.
  * @param destDir - Destination directory.
  */
-async function extractZip(zipPath: string, destDir: string): Promise<void> {
+async function extractZip (zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const cmd =
       platform() === "win32"
@@ -244,7 +244,7 @@ async function extractZip(zipPath: string, destDir: string): Promise<void> {
  * @param tarPath - Path to tar.gz file.
  * @param destDir - Destination directory.
  */
-async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
+async function extractTarGz (tarPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
     exec(`tar -xzf "${tarPath}" -C "${destDir}"`, (error) => {
       if (error) {
@@ -262,7 +262,7 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
  * @param version - Version to get checksum for.
  * @returns The checksum or empty string if not available.
  */
-async function fetchChecksumFromRelease(version: string): Promise<string> {
+async function fetchChecksumFromRelease (version: string): Promise<string> {
   const baseUrl = getDownloadBaseUrl();
   const checksumUrl = `${baseUrl}/electron-app-v${version}/checksums.txt`;
 
@@ -324,7 +324,7 @@ async function fetchChecksumFromRelease(version: string): Promise<string> {
  * @param downloadUrl - URL to download from.
  * @param checksum - Optional checksum to verify (if not provided, will fetch from release).
  */
-async function downloadAndInstall(
+async function downloadAndInstall (
   version: string,
   downloadUrl: string,
   checksum?: string,
@@ -406,7 +406,7 @@ async function downloadAndInstall(
  * Execute the upgrade command.
  * @param options - Command options.
  */
-export async function upgradeCommand(options: IUpgradeOptions): Promise<void> {
+export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
   try {
     // If specific version requested
     if (options.version) {

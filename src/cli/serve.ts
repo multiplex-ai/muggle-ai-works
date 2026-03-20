@@ -2,8 +2,8 @@
  * Serve command - starts the MCP server.
  */
 
-import { getLocalQaTools } from "../local-qa/index.js";
-import { getQaTools } from "../qa/index.js";
+import { getLocalQaTools } from "../mcp/local/index.js";
+import { getQaTools } from "../mcp/qa/index.js";
 import { getConfig } from "../shared/config.js";
 import { getLogger } from "../shared/logger.js";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";

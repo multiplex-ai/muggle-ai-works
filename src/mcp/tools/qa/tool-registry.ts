@@ -4,16 +4,16 @@
 
 import { z } from "zod";
 
-import { getCallerCredentialsAsync } from "../../shared/auth.js";
-import { getConfig } from "../../shared/config.js";
-import { createChildLogger } from "../../shared/logger.js";
-import type { IMcpToolResult } from "../../shared/types.js";
+import { getCallerCredentialsAsync } from "../../../shared/auth.js";
+import { getConfig } from "../../../shared/config.js";
+import { createChildLogger } from "../../../shared/logger.js";
+import type { IMcpToolResult } from "../../../shared/types.js";
 
-import * as schemas from "../contracts/index.js";
-import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../types.js";
-import { getPromptServiceClient } from "../upstream-client.js";
-import { getAuthService } from "../../local-qa/services/index.js";
-import { DeviceCodePollStatus } from "../../local-qa/types/index.js";
+import * as schemas from "../../qa/contracts/index.js";
+import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../qa/types.js";
+import { getPromptServiceClient } from "../../qa/upstream-client.js";
+import { getAuthService } from "../../local/services/index.js";
+import { DeviceCodePollStatus } from "../../local/types/index.js";
 
 /** Muggle Test API prefix. */
 const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";

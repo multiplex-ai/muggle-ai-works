@@ -12,7 +12,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { getLogger } from "../../shared/logger.js";
+import { getLogger } from "../../../shared/logger.js";
 
 import { getStorageService } from "./storage-service.js";
 

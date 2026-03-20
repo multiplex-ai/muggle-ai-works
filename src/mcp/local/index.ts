@@ -12,9 +12,9 @@
  * via qa_* cloud tools. Local tools only handle execution and results.
  */
 
-import type { IMcpTool } from "../shared/types.js";
+import type { IMcpTool } from "../../shared/types.js";
 
-import { allLocalQaTools } from "./tools/index.js";
+import { allLocalQaTools } from "../tools/local/index.js";
 
 // Re-export types
 export * from "./types/index.js";
@@ -26,7 +26,7 @@ export * from "./contracts/index.js";
 export * from "./services/index.js";
 
 // Re-export tools
-export * from "./tools/index.js";
+export * from "../tools/local/index.js";
 
 /**
  * Get all local QA tools as IMcpTool instances for registration.

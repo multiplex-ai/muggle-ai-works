@@ -10,9 +10,9 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { getPromptServiceClient } from "../../qa/upstream-client.js";
-import { getCallerCredentialsAsync } from "../../shared/auth.js";
-import { getLogger } from "../../shared/logger.js";
-import type { IMcpToolResult, ILocalMcpTool } from "../types/index.js";
+import { getCallerCredentialsAsync } from "../../../shared/auth.js";
+import { getLogger } from "../../../shared/logger.js";
+import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
   EmptyInputSchema,
   ListSessionsInputSchema,
@@ -24,7 +24,7 @@ import {
   TestScriptListInputSchema,
   TestScriptGetInputSchema,
   PublishTestScriptInputSchema,
-} from "../contracts/index.js";
+} from "../../local/contracts/index.js";
 import {
   cancelExecution,
   executeReplay,
@@ -32,7 +32,7 @@ import {
   getAuthService,
   getStorageService,
   getRunResultStorageService,
-} from "../services/index.js";
+} from "../../local/services/index.js";
 
 /**
  * Create a child logger for correlation.

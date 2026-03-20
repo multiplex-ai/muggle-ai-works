@@ -5,8 +5,8 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import { getConfig } from "../../shared/config.js";
-import { getLogger } from "../../shared/logger.js";
+import { getConfig } from "../../../shared/config.js";
+import { getLogger } from "../../../shared/logger.js";
 import type {
   ISessionMetadata,
   ISessionSummary,

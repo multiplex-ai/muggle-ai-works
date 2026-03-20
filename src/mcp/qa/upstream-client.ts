@@ -4,8 +4,8 @@
 
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 
-import { getConfig } from "../shared/config.js";
-import { getLogger } from "../shared/logger.js";
+import { getConfig } from "../../shared/config.js";
+import { getLogger } from "../../shared/logger.js";
 
 import {
   GatewayError,

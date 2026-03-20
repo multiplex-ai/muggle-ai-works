@@ -2,7 +2,7 @@
  * Login/logout/status commands for authentication.
  */
 
-import { getAuthService } from "../local-qa/services/index.js";
+import { getAuthService } from "../mcp/local/services/index.js";
 import { performLogin, performLogout } from "../shared/auth.js";
 import { hasApiKey } from "../shared/credentials.js";
 import { getLogger } from "../shared/logger.js";

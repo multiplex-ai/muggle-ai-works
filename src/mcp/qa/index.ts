@@ -3,12 +3,12 @@
  * Cloud-based QA tools that require authentication.
  */
 
-import type { IMcpTool } from "../shared/types.js";
+import type { IMcpTool } from "../../shared/types.js";
 
-import { allQaToolDefinitions, executeQaTool } from "./tools/tool-registry.js";
+import { allQaToolDefinitions, executeQaTool } from "../tools/qa/tool-registry.js";
 
 export * from "./contracts/index.js";
-export * from "./tools/index.js";
+export * from "../tools/qa/index.js";
 export * from "./types.js";
 export * from "./upstream-client.js";
 

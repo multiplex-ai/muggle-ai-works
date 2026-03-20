@@ -4,7 +4,7 @@
 
 import { existsSync } from "fs";
 
-import { getAuthService } from "../local-qa/services/index.js";
+import { getAuthService } from "../mcp/local/services/index.js";
 import {
   getBundledElectronAppVersion,
   getConfig,

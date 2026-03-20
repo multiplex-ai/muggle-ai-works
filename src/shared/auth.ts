@@ -5,7 +5,7 @@
 
 import axios, { AxiosError } from "axios";
 
-import { getAuthService } from "../local-qa/services/index.js";
+import { getAuthService } from "../mcp/local/services/index.js";
 import { getConfig } from "./config.js";
 import {
   deleteCredentials,

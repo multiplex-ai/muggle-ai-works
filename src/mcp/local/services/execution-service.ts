@@ -13,8 +13,8 @@ import * as fs from "fs/promises";
 import * as os from "node:os";
 import * as path from "path";
 
-import { getConfig } from "../../shared/config.js";
-import { getLogger } from "../../shared/logger.js";
+import { getConfig } from "../../../shared/config.js";
+import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";

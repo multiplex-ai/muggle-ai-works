@@ -27,12 +27,13 @@
 // Export modules as namespaces to avoid naming conflicts
 export * as shared from "./shared/index.js";
 export * as server from "./server/index.js";
-export * as qa from "./qa/index.js";
-export * as localQa from "./local-qa/index.js";
+export * as mcp from "./mcp/index.js";
+export * as qa from "./mcp/qa/index.js";
+export * as localQa from "./mcp/local/index.js";
 
 // Also export key functions at top level for convenience
 export { getConfig } from "./shared/index.js";
 export { getLogger, createChildLogger } from "./shared/index.js";
 export { createUnifiedMcpServer } from "./server/index.js";
-export { getQaTools } from "./qa/index.js";
-export { getLocalQaTools } from "./local-qa/index.js";
+export { getQaTools } from "./mcp/qa/index.js";
+export { getLocalQaTools } from "./mcp/local/index.js";

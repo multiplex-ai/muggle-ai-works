@@ -149,7 +149,7 @@ npm run lint:check    # Check only
 | Workflow | Trigger | Description |
 | :------- | :------ | :---------- |
 | `ci.yml` | Push/PR to main | Lint, test, build on multiple platforms/versions |
-| `publish-mcp.yml` | Tag `v*` | Publish package to npm |
+| `publish-works.yml` | Tag `v*` | Publish package to npm |
 | `release-electron-app.yml` | Tag `electron-app@*` | Build and release Electron binaries |
 
 ### Publishing a new version
@@ -157,7 +157,7 @@ npm run lint:check    # Check only
 1. Update version in `package.json`
 2. Commit and push
 3. Create a git tag: `git tag v1.0.1 && git push --tags`
-4. The `publish-mcp.yml` workflow publishes to npm automatically
+4. The `publish-works.yml` workflow publishes to npm automatically
 
 ### Releasing Electron app
 

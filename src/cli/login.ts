@@ -45,7 +45,7 @@ export async function loginCommand(options: ILoginOptions): Promise<void> {
       console.log("  API key created and stored for future use.");
     }
 
-    console.log("\nYou can now use Muggle AI MCP tools.");
+    console.log("\nYou can now use Muggle AI Works tools.");
   } else {
     console.error("✗ Login failed");
 

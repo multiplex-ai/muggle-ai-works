@@ -17,6 +17,7 @@
         "build": "tsup",
         "build:release": "npm run build",
         "build:workspace": "turbo run build",
+        "typecheck:workspace": "turbo run typecheck",
         "lint:workspace": "turbo run lint",
         "test:workspace": "turbo run test",
         "dev:workspace": "turbo run dev",
@@ -27,6 +28,7 @@
         "dev": "tsx watch src/index.ts",
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
+        "typecheck": "tsc --noEmit",
         "test": "vitest run",
         "test:watch": "vitest"
     },

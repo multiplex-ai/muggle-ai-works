@@ -14,6 +14,7 @@
   },
   "scripts": {
     "build": "echo \"mcp-core build placeholder\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "echo \"mcp-core lint placeholder\"",
     "test": "echo \"mcp-core test placeholder\""
   }

@@ -9,6 +9,11 @@
         "dist/**"
       ]
     },
+    "typecheck": {
+      "dependsOn": [
+        "^typecheck"
+      ]
+    },
     "lint": {
       "dependsOn": [
         "^lint"

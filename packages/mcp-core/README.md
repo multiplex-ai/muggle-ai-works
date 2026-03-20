@@ -1,3 +1,9 @@
 # MCP Core Package
 
-This package is reserved for migrated core MCP runtime logic from the current root implementation.
+This package hosts migrated core MCP runtime logic from the current root implementation.
+
+Current migration slice:
+
+- `src/shared/types.ts`
+- `src/shared/checksum.ts`
+- `src/shared/logger.ts`

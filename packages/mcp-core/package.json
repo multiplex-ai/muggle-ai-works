@@ -1,0 +1,14 @@
+{
+  "name": "@muggleai/mcp-core",
+  "version": "0.0.0",
+  "description": "Core MCP runtime modules for muggle-ai-works",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "echo \"mcp-core build placeholder\"",
+    "lint": "echo \"mcp-core lint placeholder\"",
+    "test": "echo \"mcp-core test placeholder\""
+  }
+}

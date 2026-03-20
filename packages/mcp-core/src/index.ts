@@ -1,5 +1,7 @@
 /**
- * MCP core package placeholder.
- * Existing runtime logic will migrate here incrementally.
+ * MCP core package entry.
  */
-export {};
+
+export * from "./shared/types.js";
+export * from "./shared/checksum.js";
+export * from "./shared/logger.js";

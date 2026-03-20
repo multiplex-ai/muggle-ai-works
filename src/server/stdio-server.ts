@@ -6,7 +6,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
-import { getLogger } from "../shared/logger.js";
+import { getLogger } from "@muggleai/mcp-core";
 
 const logger = getLogger();
 

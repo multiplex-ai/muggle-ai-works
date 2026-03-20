@@ -5,8 +5,7 @@
 import { existsSync, readdirSync, rmSync, statSync } from "fs";
 import * as path from "path";
 
-import { getDataDir, getElectronAppVersion } from "../shared/config.js";
-import { getLogger } from "../shared/logger.js";
+import { getDataDir, getElectronAppVersion, getLogger } from "@muggleai/mcp-core";
 
 const logger = getLogger();
 
@@ -316,3 +315,4 @@ export async function cleanupCommand(options: ICleanupOptions): Promise<void> {
     dryRun: options.dryRun,
   });
 }
+

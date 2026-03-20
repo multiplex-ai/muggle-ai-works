@@ -8,14 +8,15 @@ import { arch, platform } from "os";
 import { pipeline } from "stream/promises";
 
 import {
+  getChecksumForPlatform,
   getDownloadBaseUrl,
   getElectronAppChecksums,
   getElectronAppDir,
   getElectronAppVersion,
+  getLogger,
   isElectronAppInstalled,
-} from "../shared/config.js";
-import { getChecksumForPlatform, verifyFileChecksum } from "../shared/checksum.js";
-import { getLogger } from "../shared/logger.js";
+  verifyFileChecksum,
+} from "@muggleai/mcp-core";
 
 const logger = getLogger();
 
@@ -176,3 +177,4 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     process.exit(1);
   }
 }
+

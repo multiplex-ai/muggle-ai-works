@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 
-import { getLogger } from "../shared/logger.js";
+import { getLogger } from "@muggleai/mcp-core";
 
 /** Directory containing this module. */
 const __dirname = dirname(fileURLToPath(import.meta.url));

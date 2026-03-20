@@ -14,9 +14,10 @@ import {
   getDownloadBaseUrl,
   getElectronAppDir,
   getElectronAppVersion,
-} from "../shared/config.js";
-import { getPlatformKey, verifyFileChecksum } from "../shared/checksum.js";
-import { getLogger } from "../shared/logger.js";
+  getLogger,
+  getPlatformKey,
+  verifyFileChecksum,
+} from "@muggleai/mcp-core";
 import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();
@@ -470,3 +471,4 @@ export async function upgradeCommand(options: IUpgradeOptions): Promise<void> {
     process.exit(1);
   }
 }
+

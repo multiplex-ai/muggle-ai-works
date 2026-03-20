@@ -2,10 +2,13 @@
  * Login/logout/status commands for authentication.
  */
 
-import { getAuthService } from "@muggleai/mcp-core";
-import { performLogin, performLogout } from "../shared/auth.js";
-import { hasApiKey } from "../shared/credentials.js";
-import { getLogger } from "../shared/logger.js";
+import {
+  getAuthService,
+  getLogger,
+  hasApiKey,
+  performLogin,
+  performLogout,
+} from "@muggleai/mcp-core";
 
 const logger = getLogger();
 
@@ -112,3 +115,4 @@ export async function statusCommand(): Promise<void> {
     console.log("\nRun 'muggle login' to authenticate.");
   }
 }
+

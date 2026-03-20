@@ -13,10 +13,14 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { ZodError } from "zod";
 
-import { getCallerCredentials, toolRequiresAuth } from "../shared/auth.js";
-import { getConfig } from "../shared/config.js";
-import { createChildLogger, getLogger } from "../shared/logger.js";
-import type { ICallerCredentials, IMcpTool } from "../shared/types.js";
+import {
+  createChildLogger,
+  getCallerCredentials,
+  getConfig,
+  getLogger,
+  toolRequiresAuth,
+} from "@muggleai/mcp-core";
+import type { ICallerCredentials, IMcpTool } from "@muggleai/mcp-core";
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {
@@ -411,3 +415,4 @@ export function createUnifiedMcpServer(options: IUnifiedMcpServerOptions): Serve
 
   return server;
 }
+

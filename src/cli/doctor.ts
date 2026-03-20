@@ -4,17 +4,18 @@
 
 import { existsSync } from "fs";
 
-import { getAuthService } from "@muggleai/mcp-core";
 import {
+  getAuthService,
   getBundledElectronAppVersion,
   getConfig,
+  getCredentialsFilePath,
   getDataDir,
   getElectronAppVersion,
   getElectronAppVersionSource,
+  getLogger,
+  hasApiKey,
   isElectronAppInstalled,
-} from "../shared/config.js";
-import { getCredentialsFilePath, hasApiKey } from "../shared/credentials.js";
-import { getLogger } from "../shared/logger.js";
+} from "@muggleai/mcp-core";
 
 const logger = getLogger();
 
@@ -114,9 +115,7 @@ function runDiagnostics(): ICheckResult[] {
   results.push({
     name: "Credentials File",
     passed: existsSync(credentialsPath),
-    description: existsSync(credentialsPath)
-      ? `Found at ${credentialsPath}`
-      : `Not found at ${credentialsPath}`,
+    description: existsSync(credentialsPath) ? `Found at ${credentialsPath}` : `Not found at ${credentialsPath}`,
     suggestion: "Run 'muggle login' to create credentials",
   });
 
@@ -185,3 +184,5 @@ export async function doctorCommand(): Promise<void> {
     failed: failedCount,
   });
 }
+
+

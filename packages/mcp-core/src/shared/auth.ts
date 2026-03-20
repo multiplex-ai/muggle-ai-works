@@ -5,7 +5,7 @@
 
 import axios, { AxiosError } from "axios";
 
-import { getAuthService } from "@muggleai/mcp-core";
+import { getAuthService } from "../mcp/local/services/index.js";
 import { getConfig } from "./config.js";
 import {
   deleteCredentials,

@@ -5,6 +5,13 @@
 export * from "./shared/types.js";
 export * from "./shared/checksum.js";
 export * from "./shared/logger.js";
-export * from "./shared/data-dir.js";
 export * from "./shared/open-browser.js";
 export * from "./shared/credentials.js";
+export * from "./shared/config.js";
+export * from "./shared/auth.js";
+export * as mcp from "./mcp/index.js";
+export * as qa from "./mcp/qa/index.js";
+export * as localQa from "./mcp/local/index.js";
+export { getAuthService } from "./mcp/local/services/index.js";
+export { getLocalQaTools } from "./mcp/local/index.js";
+export { getQaTools } from "./mcp/qa/index.js";

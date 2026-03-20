@@ -10,3 +10,6 @@ Current migration slice:
 - `src/shared/data-dir.ts`
 - `src/shared/open-browser.ts`
 - `src/shared/credentials.ts`
+- `src/shared/config.ts`
+- `src/shared/auth.ts`
+- `src/mcp/**` (MCP tool/runtime implementation; root app imports via `@muggleai/mcp-core`)

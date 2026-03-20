@@ -4,6 +4,10 @@ node_modules/
 # Build output
 dist/
 
+# Declaration emit is disabled; ignore if regenerated locally next to sources
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
+
 # IDE
 .idea/
 .vscode/

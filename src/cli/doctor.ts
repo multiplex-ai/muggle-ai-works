@@ -4,7 +4,7 @@
 
 import { existsSync } from "fs";
 
-import { getAuthService } from "../mcp/local/services/index.js";
+import { getAuthService } from "@muggleai/mcp-core";
 import {
   getBundledElectronAppVersion,
   getConfig,

@@ -4,7 +4,6 @@
     "description": "Unified MCP server for Muggle AI - Cloud QA and Local Testing tools",
     "type": "module",
     "main": "dist/index.js",
-    "types": "dist/index.d.ts",
     "bin": {
         "muggle": "bin/muggle.js"
     },
@@ -15,7 +14,7 @@
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build": "tsup && tsc --emitDeclarationOnly --declaration --outDir dist",
+        "build": "tsup",
         "build:release": "npm run build",
         "build:workspace": "turbo run build",
         "lint:workspace": "turbo run lint",
@@ -43,6 +42,7 @@
         }
     },
     "dependencies": {
+        "@muggleai/mcp-core": "file:packages/mcp-core",
         "@modelcontextprotocol/sdk": "^1.25.3",
         "axios": "^1.7.9",
         "commander": "^12.0.0",

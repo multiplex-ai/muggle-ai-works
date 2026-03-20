@@ -9,7 +9,7 @@ export default defineConfig({
   target: "node22",
   outDir: "dist",
   clean: true,
-  sourcemap: true,
+  sourcemap: false,
   dts: false,
   splitting: true,
   treeshake: true,
@@ -17,4 +17,5 @@ export default defineConfig({
   external: [
     "@modelcontextprotocol/sdk",
   ],
+  noExternal: ["@muggleai/mcp-core"],
 });

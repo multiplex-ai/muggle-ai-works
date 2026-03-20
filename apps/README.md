@@ -1,7 +1,8 @@
 # Apps Workspace
 
-This folder hosts runnable applications in the future monorepo layout.
+This folder hosts runnable applications in the workspace layout.
 
-Planned initial app:
+Current app folders:
 
-- `cli`: unified command surface for local developer workflows.
+- `cli`: unified command surface.
+- `workflows-runner`: workflow execution entry points.

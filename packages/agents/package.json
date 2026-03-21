@@ -12,7 +12,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0",
+    "@anthropic-ai/sdk": "^0.80.0",
     "@muggleai/mcp": "file:../mcps",
     "@muggleai/workflows": "file:../workflows"
   },

@@ -32,6 +32,30 @@ describe('EnvSetupAgent', () => {
     const discoverServices = vi.fn().mockResolvedValue([{ name: 'auth-service', startCommand: 'pnpm dev' }]);
     const startService = vi.fn().mockRejectedValue(new Error('port in use'));
     const agent = new EnvSetupAgent({ discoverServices, startService });
-    await expect(agent.run(plan)).rejects.toThrow('port in use');
+    await expect(agent.run(plan)).rejects.toThrow('Failed to start service "auth-service": port in use');
+  });
+
+  it('attaches partialEnvState to error when second service fails', async () => {
+    const firstHandle = { name: 'frontend', pid: 1001 };
+    const discoverServices = vi.fn().mockResolvedValue([
+      { name: 'frontend', startCommand: 'pnpm dev' },
+      { name: 'auth-service', startCommand: 'pnpm dev' },
+    ]);
+    const startService = vi.fn()
+      .mockResolvedValueOnce(firstHandle)
+      .mockRejectedValueOnce(new Error('port in use'));
+    const agent = new EnvSetupAgent({ discoverServices, startService });
+
+    let thrown: unknown;
+    try {
+      await agent.run(plan);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as any).partialEnvState).toBeDefined();
+    expect((thrown as any).partialEnvState.services).toHaveLength(1);
+    expect((thrown as any).partialEnvState.services[0]).toBe(firstHandle);
   });
 });

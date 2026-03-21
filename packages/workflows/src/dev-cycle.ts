@@ -77,7 +77,16 @@ export async function runDevCycle(
     // Stage 5: Auth check (lazy — only on first pass) then Env Setup
     if (!state.envStarted) {
       await agents.ensureAuth();
-      const envState = await agents.envSetup(changePlan);
+      let envState: EnvState;
+      try {
+        envState = await agents.envSetup(changePlan);
+      } catch (err: unknown) {
+        const partial = (err as any).partialEnvState as EnvState | undefined;
+        if (partial && partial.services.length > 0) {
+          await agents.teardown(partial);
+        }
+        throw err;
+      }
       state.envStarted = true;
       state.stageResults.set(Stage.EnvSetup, { stage: Stage.EnvSetup, status: 'succeeded', output: envState });
     }

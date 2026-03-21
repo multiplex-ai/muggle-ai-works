@@ -14,8 +14,15 @@ export class EnvSetupAgent implements IAgent<ChangePlan, EnvState> {
     const descriptors = await this.deps.discoverServices(plan);
     const services: ServiceHandle[] = [];
     for (const descriptor of descriptors) {
-      const handle = await this.deps.startService(descriptor);
-      services.push(handle);
+      try {
+        const handle = await this.deps.startService(descriptor);
+        services.push(handle);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const failureError = new Error(`Failed to start service "${descriptor.name}": ${message}`);
+        (failureError as any).partialEnvState = { services } satisfies EnvState;
+        throw failureError;
+      }
     }
     return { services };
   }

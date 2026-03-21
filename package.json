@@ -45,6 +45,7 @@
     },
     "dependencies": {
         "@muggleai/mcp": "file:packages/mcps",
+        "@muggleai/workflows": "file:packages/workflows",
         "@modelcontextprotocol/sdk": "^1.25.3",
         "axios": "^1.7.9",
         "commander": "^12.0.0",

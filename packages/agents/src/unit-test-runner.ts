@@ -5,6 +5,7 @@ export interface ShellResult { exitCode: number; output: string; }
 export interface UnitTestRunnerDeps {
   runShell: (command: string, cwd: string) => Promise<ShellResult>;
   getTestCommand: (repo: string) => string;
+  getRepoCwd: (repo: string) => string;
 }
 
 export class UnitTestRunner implements IAgent<CodeResult, UnitTestResult> {
@@ -17,7 +18,8 @@ export class UnitTestRunner implements IAgent<CodeResult, UnitTestResult> {
           return { repo: entry.repo, passed: false, output: entry.error ?? '', failedTests: [] };
         }
         const cmd = this.deps.getTestCommand(entry.repo);
-        const { exitCode, output } = await this.deps.runShell(cmd, entry.repo);
+        const cwd = this.deps.getRepoCwd(entry.repo);
+        const { exitCode, output } = await this.deps.runShell(cmd, cwd);
         return {
           repo: entry.repo, passed: exitCode === 0, output,
           failedTests: exitCode !== 0 ? this.parseFailedTests(output) : [],

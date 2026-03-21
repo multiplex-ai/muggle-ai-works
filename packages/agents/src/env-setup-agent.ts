@@ -1,7 +1,7 @@
 import type { ChangePlan, EnvState, ServiceHandle } from '@muggleai/workflows';
 import type { IAgent } from './types.js';
 
-export interface ServiceDescriptor { name: string; startCommand: string; required?: boolean; }
+export interface ServiceDescriptor { name: string; startCommand: string; }
 export interface EnvSetupAgentDeps {
   discoverServices: (plan: ChangePlan) => Promise<ServiceDescriptor[]>;
   startService: (descriptor: ServiceDescriptor) => Promise<ServiceHandle>;

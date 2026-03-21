@@ -25,6 +25,14 @@ describe('AuthGuard', () => {
     expect(refreshToken).toHaveBeenCalledOnce();
   });
 
+  it('expired credentials with no refresh token triggers device flow', async () => {
+    const getCredentials = vi.fn().mockResolvedValue({ accessToken: 'tok', expiresAt: Date.now() - 1 });
+    const startDeviceFlow = vi.fn().mockResolvedValue(undefined);
+    const guard = new AuthGuard({ getCredentials, startDeviceFlow, refreshToken: vi.fn() });
+    await guard.ensureAuthenticated();
+    expect(startDeviceFlow).toHaveBeenCalledOnce();
+  });
+
   it('throws if device flow fails', async () => {
     const getCredentials = vi.fn().mockResolvedValue(null);
     const startDeviceFlow = vi.fn().mockRejectedValue(new Error('network error'));

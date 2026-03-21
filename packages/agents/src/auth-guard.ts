@@ -13,7 +13,7 @@ export class AuthGuard {
     if (!creds) { await this.deps.startDeviceFlow(); return; }
     if (creds.expiresAt <= Date.now()) {
       if (creds.refreshToken) { await this.deps.refreshToken(creds.refreshToken); }
-      else { await this.deps.startDeviceFlow(); }
+      else { await this.deps.startDeviceFlow(); return; }
     }
   }
 }

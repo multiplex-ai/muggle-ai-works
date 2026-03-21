@@ -29,7 +29,7 @@ describe('EnvSetupAgent', () => {
   });
 
   it('throws if a service fails to start', async () => {
-    const discoverServices = vi.fn().mockResolvedValue([{ name: 'auth-service', startCommand: 'pnpm dev', required: true }]);
+    const discoverServices = vi.fn().mockResolvedValue([{ name: 'auth-service', startCommand: 'pnpm dev' }]);
     const startService = vi.fn().mockRejectedValue(new Error('port in use'));
     const agent = new EnvSetupAgent({ discoverServices, startService });
     await expect(agent.run(plan)).rejects.toThrow('port in use');

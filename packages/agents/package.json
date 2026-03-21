@@ -1,5 +1,5 @@
 {
-  "name": "@muggleai/workflows",
+  "name": "@muggleai/agents",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -9,8 +9,12 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
     "lint": "eslint ."
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@muggleai/mcp": "file:../mcps",
+    "@muggleai/workflows": "file:../workflows"
   },
   "devDependencies": {
     "vitest": "*",

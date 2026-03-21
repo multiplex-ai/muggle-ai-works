@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { EnvSetupAgent } from '../env-setup-agent.js';
+import { EnvSetupAgent, EnvSetupError } from '../env-setup-agent.js';
 import type { ChangePlan } from '@muggleai/workflows';
 
 const plan: ChangePlan = {
@@ -53,9 +53,9 @@ describe('EnvSetupAgent', () => {
       thrown = err;
     }
 
-    expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as any).partialEnvState).toBeDefined();
-    expect((thrown as any).partialEnvState.services).toHaveLength(1);
-    expect((thrown as any).partialEnvState.services[0]).toBe(firstHandle);
+    expect(thrown).toBeInstanceOf(EnvSetupError);
+    expect((thrown as EnvSetupError).partialEnvState).toBeDefined();
+    expect((thrown as EnvSetupError).partialEnvState.services).toHaveLength(1);
+    expect((thrown as EnvSetupError).partialEnvState.services[0]).toBe(firstHandle);
   });
 });

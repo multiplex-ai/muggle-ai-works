@@ -7,6 +7,13 @@ export interface EnvSetupAgentDeps {
   startService: (descriptor: ServiceDescriptor) => Promise<ServiceHandle>;
 }
 
+export class EnvSetupError extends Error {
+  constructor(message: string, public readonly partialEnvState: EnvState) {
+    super(message);
+    this.name = 'EnvSetupError';
+  }
+}
+
 export class EnvSetupAgent implements IAgent<ChangePlan, EnvState> {
   constructor(private readonly deps: EnvSetupAgentDeps) {}
 
@@ -19,9 +26,7 @@ export class EnvSetupAgent implements IAgent<ChangePlan, EnvState> {
         services.push(handle);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        const failureError = new Error(`Failed to start service "${descriptor.name}": ${message}`);
-        (failureError as any).partialEnvState = { services } satisfies EnvState;
-        throw failureError;
+        throw new EnvSetupError(`Failed to start service "${descriptor.name}": ${message}`, { services });
       }
     }
     return { services };

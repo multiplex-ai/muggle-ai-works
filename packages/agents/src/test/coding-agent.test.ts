@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { CodingAgent } from '../coding-agent.js';
-import type { ChangePlanRepo, CodeResultRepo } from '@muggleai/workflows';
+import type { ChangePlanRepo } from '@muggleai/workflows';
 
 const repoEntry: ChangePlanRepo = { repo: 'frontend', changes: ['Add login page'], files: ['src/Login.tsx'], requiredForQA: true };
 

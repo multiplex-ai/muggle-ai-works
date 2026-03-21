@@ -81,9 +81,9 @@ export async function runDevCycle(
       try {
         envState = await agents.envSetup(changePlan);
       } catch (err: unknown) {
-        const partial = (err as any).partialEnvState as EnvState | undefined;
-        if (partial && partial.services.length > 0) {
-          await agents.teardown(partial);
+        if (err instanceof Error && 'partialEnvState' in err) {
+          const partial = (err as Error & { partialEnvState: EnvState }).partialEnvState;
+          if (partial.services.length > 0) await agents.teardown(partial);
         }
         throw err;
       }

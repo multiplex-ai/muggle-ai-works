@@ -39,8 +39,8 @@ export async function runDevCycle(
   const changePlan = await agents.impactAnalysis(taskSpec);
 
   let codeResult: CodeResult | null = null;
-  let unitTestResult: UnitTestResult | null = null;
-  let qaReport: QAReport | null = null;
+  let unitTestResult: UnitTestResult | null;
+  let qaReport: QAReport | null;
   const failures: string[] = [];
 
   // Retry loop: stages 3–7

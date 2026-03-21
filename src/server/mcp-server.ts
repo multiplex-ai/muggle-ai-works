@@ -343,10 +343,10 @@ export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Serv
       if (error instanceof ZodError) {
         childLogger.warn("Tool call failed with validation error", {
           tool: toolName,
-          errors: error.errors,
+          errors: error.issues,
         });
 
-        const issueMessages = error.errors.slice(0, 3).map((issue) => {
+        const issueMessages = error.issues.slice(0, 3).map((issue) => {
           const path = issue.path.join(".");
           return path ? `'${path}': ${issue.message}` : issue.message;
         });

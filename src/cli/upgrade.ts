@@ -188,7 +188,7 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.warn("Failed to check for updates", { error: errorMessage });
-    throw new Error(`Failed to check for updates: ${errorMessage}`);
+    throw new Error(`Failed to check for updates: ${errorMessage}`, { cause: error });
   }
 }
 

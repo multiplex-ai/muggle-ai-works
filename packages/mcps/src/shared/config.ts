@@ -117,6 +117,7 @@ function getMuggleConfig(): IMuggleConfig {
         `  Package root: ${packageRoot}\n` +
         `  Error: ${errorMessage}\n` +
         `  This is a bug - please report it.`,
+      { cause: error },
     );
   }
 

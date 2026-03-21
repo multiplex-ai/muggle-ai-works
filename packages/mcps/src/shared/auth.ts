@@ -94,6 +94,7 @@ export async function startDeviceCodeFlow(config: IAuth0Config): Promise<IDevice
       });
       throw new Error(
         `Failed to start device code flow: ${error.response?.data?.error_description || error.message}`,
+        { cause: error },
       );
     }
     throw error;
@@ -182,6 +183,7 @@ export async function pollDeviceCode(
 
       throw new Error(
         `Device code poll failed: ${data.error_description || data.error || "Unknown error"}`,
+        { cause: error },
       );
     }
     throw error;
@@ -247,6 +249,7 @@ export async function createApiKeyWithToken(
       });
       throw new Error(
         `Failed to create API key: ${error.response?.data?.message || error.message}`,
+        { cause: error },
       );
     }
     throw error;

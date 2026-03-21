@@ -1325,7 +1325,7 @@ git commit -m "feat(agents): add AuthGuard for lazy pre-QA credential check"
 
 ---
 
-### Task 11: EnvSetupAgent  <!-- was Task 10 -->
+### Task 11: EnvSetupAgent
 
 **Files:**
 - Create: `packages/agents/src/env-setup-agent.ts`
@@ -1433,7 +1433,7 @@ git commit -m "feat(agents): add EnvSetupAgent"
 
 ---
 
-### Task 11: TestScopeAgent
+### Task 12: TestScopeAgent
 
 **Files:**
 - Create: `packages/agents/src/test-scope-agent.ts`
@@ -1539,7 +1539,7 @@ git commit -m "feat(agents): add TestScopeAgent"
 
 ---
 
-### Task 12: QAAgent
+### Task 13: QAAgent
 
 **Files:**
 - Create: `packages/agents/src/qa-agent.ts`
@@ -1664,7 +1664,7 @@ git commit -m "feat(agents): add QAAgent"
 
 ## Phase 4: Integration
 
-### Task 14: Agents index.ts  <!-- was Task 13 -->
+### Task 14: Agents index.ts
 
 **Files:**
 - Create: `packages/agents/src/index.ts`
@@ -1701,7 +1701,7 @@ git commit -m "feat(agents): export all agents from index"
 
 ---
 
-### Task 15: Dev Cycle Workflow Definition  <!-- was Task 14 -->
+### Task 15: Dev Cycle Workflow Definition
 
 **Files:**
 - Create: `packages/workflows/src/dev-cycle.ts`
@@ -1775,6 +1775,11 @@ export async function runDevCycle(
 
     if (!allPassed) {
       if (runner.isMaxRetriesExceeded(state)) {
+        // Teardown if env was started on a previous retry iteration
+        if (state.envStarted) {
+          const envState = state.stageResults.get('env-setup' as never)?.output as EnvState;
+          if (envState) await agents.teardown(envState);
+        }
         throw new Error(`Unit tests failed after ${state.retryCount} retries.`);
       }
       failures.push(...unitTestResult.perRepo.filter((r) => !r.passed).map((r) => r.output));
@@ -1846,7 +1851,8 @@ function makeAgents(overrides: Partial<DevCycleAgents> = {}): DevCycleAgents {
       perRepo: [{ repo: 'frontend', branch: 'feat/login', diff: '', status: 'success' }],
     }),
     unitTests: vi.fn().mockResolvedValue({ perRepo: [{ repo: 'frontend', passed: true, output: '', failedTests: [] }] }),
-    envSetup: vi.fn().mockResolvedValue({ services: [] }),
+    ensureAuth: vi.fn().mockResolvedValue(undefined),
+    envSetup: vi.fn().mockResolvedValue({ services: [{ name: 'frontend' }] }),
     testScope: vi.fn().mockResolvedValue({ testCases: [{ id: 'tc-1', useCase: 'Login', description: '' }] }),
     qa: vi.fn().mockResolvedValue({ passed: [{ id: 'tc-1', useCase: 'Login', description: '' }], failed: [] }),
     openPRs: vi.fn().mockResolvedValue(['https://github.com/org/repo/pull/1']),
@@ -1888,6 +1894,23 @@ describe('runDevCycle', () => {
     await expect(runDevCycle('Add login feature', agents, defaultConfig)).rejects.toThrow('Required repo');
   });
 
+  it('tears down env if unit tests fail at max retries after env was started', async () => {
+    // Retry 1: unit tests pass → env starts → QA fails
+    // Retry 2: unit tests fail at max retries → teardown must run
+    const unitTests = vi.fn()
+      .mockResolvedValueOnce({ perRepo: [{ repo: 'frontend', passed: true, output: '', failedTests: [] }] }) // retry 1 passes
+      .mockResolvedValue({ perRepo: [{ repo: 'frontend', passed: false, output: 'fail', failedTests: [] }] }); // retry 2 fails
+    const qa = vi.fn().mockResolvedValue({
+      passed: [],
+      failed: [{ testCase: { id: 'tc-1', useCase: 'Login', description: '' }, reason: 'timeout', repro: '' }],
+    });
+    const agents = makeAgents({ unitTests, qa });
+    await expect(
+      runDevCycle('Add login feature', agents, { ...defaultConfig, maxRetries: 2 })
+    ).rejects.toThrow('Unit tests failed');
+    expect(agents.teardown).toHaveBeenCalled();
+  });
+
   it('does not start env twice across retries', async () => {
     const unitTests = vi.fn()
       .mockResolvedValueOnce({ perRepo: [{ repo: 'frontend', passed: false, output: '', failedTests: [] }] })
@@ -1916,7 +1939,7 @@ git commit -m "feat(workflows): add dev cycle workflow with retry logic"
 
 ---
 
-### Task 16: Workflows Runner Entrypoint  <!-- was Task 15 -->
+### Task 16: Workflows Runner Entrypoint
 
 **Files:**
 - Create: `apps/workflows-runner/src/index.ts`

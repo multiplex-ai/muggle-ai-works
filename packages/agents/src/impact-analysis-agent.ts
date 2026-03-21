@@ -1,5 +1,6 @@
 import type { TaskSpec, ChangePlan } from '@muggleai/workflows';
 import type { IAgent } from './types.js';
+import { loadPrompt } from './load-prompt.js';
 
 export interface ImpactAnalysisAgentDeps {
   llm: (prompt: string) => Promise<ChangePlan>;
@@ -16,21 +17,20 @@ export class ImpactAnalysisAgent implements IAgent<TaskSpec, ChangePlan> {
         structure: await this.deps.readRepoStructure(repo),
       }))
     );
-    const prompt = `You are a software architect. Analyze this task and determine which repositories need changes.
 
-Task: ${spec.goal}
-Acceptance criteria: ${spec.acceptanceCriteria.join(', ')}
-Hinted repos: ${spec.hintedRepos.join(', ')}
+    const systemPrompt = await loadPrompt('impact-analysis-agent');
+    const fullPrompt = `${systemPrompt}
 
-Repo structures:
-${structures.map((s) => `--- ${s.repo} ---\n${s.structure}`).join('\n\n')}
+## Task
 
-Produce a ChangePlan JSON:
-- resolvedRepos: authoritative list of affected repos (may expand beyond hinted)
-- perRepo: array of { repo, changes[], files[], requiredForQA } entries
-  - requiredForQA: true if QA cannot run without this repo's changes deployed
+**Goal:** ${spec.goal}
+**Acceptance criteria:** ${spec.acceptanceCriteria.join(', ')}
+**Hinted repos:** ${spec.hintedRepos.join(', ')}
 
-Respond with valid JSON.`;
-    return this.deps.llm(prompt);
+## Repository structures
+
+${structures.map((s) => `### ${s.repo}\n\n${s.structure}`).join('\n\n')}`;
+
+    return this.deps.llm(fullPrompt);
   }
 }

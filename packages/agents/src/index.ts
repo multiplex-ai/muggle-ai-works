@@ -1,4 +1,5 @@
 export * from './types.js';
+export * from './load-prompt.js';
 export * from './requirements-agent.js';
 export * from './impact-analysis-agent.js';
 export * from './coding-agent.js';

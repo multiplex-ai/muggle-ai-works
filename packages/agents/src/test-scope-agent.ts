@@ -1,5 +1,6 @@
 import type { ChangePlan, TestManifest, TestCaseRef } from '@muggleai/workflows';
 import type { IAgent } from './types.js';
+import { loadPrompt } from './load-prompt.js';
 
 export interface TestScopeInput {
   changePlan: ChangePlan;
@@ -17,15 +18,20 @@ export class TestScopeAgent implements IAgent<TestScopeInput, TestManifest> {
     const allTests = await this.deps.fetchAllTestCases();
     const changedFiles = input.changePlan.perRepo.flatMap((r) => r.files);
     const changes = input.changePlan.perRepo.flatMap((r) => r.changes);
-    const prompt = `You are a QA engineer. Select which test cases to run based on the code changes.
 
-Changed files: ${changedFiles.join(', ')}
-Change descriptions: ${changes.join(', ')}
+    const systemPrompt = await loadPrompt('test-scope-agent');
+    const fullPrompt = `${systemPrompt}
 
-All available test cases:
-${allTests.map((t) => `- id: ${t.id}, useCase: ${t.useCase}, description: ${t.description}`).join('\n')}
+## Changes
 
-Select only the test cases impacted by the changes. Respond with JSON: { testCases: TestCaseRef[], skipReason?: string }`;
-    return this.deps.llm(prompt);
+**Modified files:** ${changedFiles.join(', ')}
+**Change descriptions:** ${changes.join(', ')}
+${input.previousQAReport ? `**Previously failed test IDs:** ${input.previousQAReport.failedTestIds.join(', ')}` : ''}
+
+## Available test cases
+
+${allTests.map((t) => `- id: \`${t.id}\` | use case: ${t.useCase} | ${t.description}`).join('\n')}`;
+
+    return this.deps.llm(fullPrompt);
   }
 }

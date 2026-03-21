@@ -30,7 +30,7 @@ async function main(): Promise<void> {
     testScope: async (_plan) => { throw new Error('Not implemented'); },
     qa: async (_manifest) => { throw new Error('Not implemented'); },
     openPRs: async (_input) => { throw new Error('Not implemented'); },
-    teardown: async (_env) => { return; },
+    teardown: async (_env) => { throw new Error('Not implemented'); },
   };
 
   try {

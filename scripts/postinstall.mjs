@@ -118,6 +118,9 @@ function getCursorMcpConfigPath() {
  */
 function buildCursorServerConfig() {
     const localCliPath = join(process.cwd(), "bin", "muggle.js");
+    if (!existsSync(localCliPath)) {
+        throw new Error(`CLI entrypoint not found at expected path: ${localCliPath}`);
+    }
     return {
         command: "node",
         args: [localCliPath, "serve"],

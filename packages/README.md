@@ -1,19 +1,13 @@
 # Packages Workspace
 
-This folder hosts reusable packages for agents, plugins, commands, skills, hooks, workflows, and MCP components.
+This folder hosts reusable runtime packages consumed by `apps/*` entrypoints.
 
 Current package domains:
 
 - `mcps`
-- `agents`
-- `plugins`
 - `commands`
+- `plugins`
 - `skills`
-- `hooks`
 - `workflows`
-- `mcp`
-- `agents-sdk`
-- `plugins-sdk`
-- `hooks-sdk`
-- `workflows-sdk`
-- `skills-kit`
+- `agents`
+- `hooks`

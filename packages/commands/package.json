@@ -1,0 +1,21 @@
+{
+  "name": "@muggleai/commands",
+  "version": "0.0.0",
+  "description": "CLI command contracts and registration for muggle-ai-works",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo \"commands build delegated to root\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"commands lint delegated to root\"",
+    "test": "echo \"commands test delegated to root\""
+  }
+}

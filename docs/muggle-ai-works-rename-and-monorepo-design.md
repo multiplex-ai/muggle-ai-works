@@ -32,14 +32,16 @@ Phase 1 scope is **rename-only** for the current repository.
 ```text
 muggle-ai-works/
   apps/
-    cli/                      # future command surface for local workflows
+    cli/                      # user-facing CLI distribution app
+    workflows-runner/         # long-running workflow runner app
   packages/
-    mcp/                 # current MCP implementation (migrated from root)
-    agents-sdk/               # agent contracts and registry abstractions
-    plugins-sdk/              # plugin interfaces and lifecycle hooks
-    hooks-sdk/                # hook models and dispatcher primitives
-    workflows-sdk/            # workflow definitions and execution contracts
-    skills-kit/               # skill metadata and packaging helpers
+    mcps/                     # MCP runtime, tool registries, shared integrations
+    commands/                 # CLI command composition and handlers
+    plugins/                  # plugin lifecycle contracts and extensions
+    skills/                   # runtime skill metadata and contracts
+    workflows/                # workflow orchestration contracts and models
+    agents/                   # agent-level contracts and composition
+    hooks/                    # hook contracts and dispatch integration points
   tools/
     bootstrap/                # setup scripts and environment checks
   configs/
@@ -70,6 +72,19 @@ Root `bootstrap` responsibility:
 - build required packages
 - run postinstall and local config wiring
 - run a concise health check (`pnpm doctor`)
+
+## Customer Install Contract
+
+Official marketplace-facing install command:
+
+- `npm install -g @muggleai/works`
+
+Install guarantees:
+
+- package CLI is globally available as `muggle`
+- postinstall updates Cursor MCP server entry in `~/.cursor/mcp.json`
+- postinstall ensures the expected Electron runtime version is present
+- `muggle doctor` validates these install invariants and reports actionable fixes
 
 ## Migration Phases
 
@@ -140,8 +155,8 @@ Goal: migrate existing logic into target package layout via small PRs.
 Key actions:
 
 - Move MCP logic into `packages/mcps` in incremental slices.
-- Move command surface into `apps/cli`.
-- Route shared models/utilities into dedicated SDK packages.
+- Move command surface into `packages/commands` and keep `apps/cli` as thin entrypoint.
+- Route shared models/utilities into dedicated runtime packages.
 - Keep adapters where old and new paths need temporary coexistence.
 
 Success criteria:
@@ -158,12 +173,14 @@ flowchart LR
     toolBootstrap --> workspaceInstall["WorkspaceInstall"]
     workspaceInstall --> buildGraph["TurboBuildGraph"]
     buildGraph --> appCli["apps/cli"]
+    buildGraph --> appWorkflowRunner["apps/workflows-runner"]
     buildGraph --> pkgMcp["packages/mcps"]
-    buildGraph --> pkgAgent["packages/agents-sdk"]
-    buildGraph --> pkgPlugin["packages/plugins-sdk"]
-    buildGraph --> pkgHook["packages/hooks-sdk"]
-    buildGraph --> pkgWorkflow["packages/workflows-sdk"]
-    buildGraph --> pkgSkill["packages/skills-kit"]
+    buildGraph --> pkgCommands["packages/commands"]
+    buildGraph --> pkgPlugin["packages/plugins"]
+    buildGraph --> pkgHook["packages/hooks"]
+    buildGraph --> pkgWorkflow["packages/workflows"]
+    buildGraph --> pkgSkill["packages/skills"]
+    buildGraph --> pkgAgent["packages/agents"]
 ```
 
 ## Compatibility and Risk Controls

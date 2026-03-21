@@ -2,7 +2,9 @@
  * Doctor command - diagnoses installation and configuration issues.
  */
 
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 
 import {
   getAuthService,
@@ -31,6 +33,119 @@ interface ICheckResult {
   description: string;
   /** Suggestion to fix (if failed). */
   suggestion?: string;
+}
+
+/**
+ * Cursor MCP server configuration.
+ */
+interface ICursorMcpServerConfig {
+  /**
+   * Command executable.
+   */
+  command: string;
+  /**
+   * Command arguments.
+   */
+  args?: string[];
+}
+
+/**
+ * Root Cursor MCP config shape.
+ */
+interface ICursorMcpConfig {
+  /**
+   * MCP server map.
+   */
+  mcpServers?: Record<string, ICursorMcpServerConfig>;
+}
+
+/**
+ * Resolve the Cursor MCP config path.
+ *
+ * @returns Absolute path to the config file.
+ */
+function getCursorMcpConfigPath (): string {
+  return join(homedir(), ".cursor", "mcp.json");
+}
+
+/**
+ * Validate muggle server entry in Cursor MCP config.
+ *
+ * @returns Validation status and description.
+ */
+function validateCursorMcpConfig (): { passed: boolean; description: string } {
+  const cursorMcpConfigPath = getCursorMcpConfigPath();
+
+  if (!existsSync(cursorMcpConfigPath)) {
+    return {
+      passed: false,
+      description: `Missing at ${cursorMcpConfigPath}`,
+    };
+  }
+
+  try {
+    const rawCursorConfig = JSON.parse(
+      readFileSync(cursorMcpConfigPath, "utf-8"),
+    ) as ICursorMcpConfig;
+
+    if (!rawCursorConfig.mcpServers) {
+      return {
+        passed: false,
+        description: "Missing mcpServers key",
+      };
+    }
+
+    const muggleServerConfig = rawCursorConfig.mcpServers.muggle;
+    if (!muggleServerConfig) {
+      return {
+        passed: false,
+        description: "Missing mcpServers.muggle entry",
+      };
+    }
+
+    if (!Array.isArray(muggleServerConfig.args)) {
+      return {
+        passed: false,
+        description: "mcpServers.muggle.args is not an array",
+      };
+    }
+
+    const hasServeArgument = muggleServerConfig.args.includes("serve");
+    if (!hasServeArgument) {
+      return {
+        passed: false,
+        description: "mcpServers.muggle args does not include 'serve'",
+      };
+    }
+
+    if (muggleServerConfig.command === "node") {
+      const firstArgument = muggleServerConfig.args.at(0);
+      if (!firstArgument) {
+        return {
+          passed: false,
+          description: "mcpServers.muggle command is node but args[0] is missing",
+        };
+      }
+
+      if (!existsSync(firstArgument)) {
+        return {
+          passed: false,
+          description: `mcpServers.muggle args[0] does not exist: ${firstArgument}`,
+        };
+      }
+    }
+
+    return {
+      passed: true,
+      description: `Configured at ${cursorMcpConfigPath}`,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      passed: false,
+      description: `Invalid JSON or schema: ${errorMessage}`,
+    };
+  }
 }
 
 /**
@@ -131,6 +246,15 @@ function runDiagnostics (): ICheckResult[] {
     name: "Web Service URL",
     passed: !!config.localQa.webServiceUrl,
     description: config.localQa.webServiceUrl,
+  });
+
+  // Check 8: Cursor MCP configuration contract from postinstall
+  const cursorMcpConfigValidationResult = validateCursorMcpConfig();
+  results.push({
+    name: "Cursor MCP Config",
+    passed: cursorMcpConfigValidationResult.passed,
+    description: cursorMcpConfigValidationResult.description,
+    suggestion: "Re-run npm install -g @muggleai/works to refresh ~/.cursor/mcp.json",
   });
 
   return results;

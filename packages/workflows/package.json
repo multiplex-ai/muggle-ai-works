@@ -1,0 +1,21 @@
+{
+  "name": "@muggleai/workflows",
+  "version": "0.0.0",
+  "description": "Workflow contracts and orchestration helpers for muggle-ai-works",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo \"workflows build delegated to root\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"workflows lint delegated to root\"",
+    "test": "echo \"workflows test delegated to root\""
+  }
+}

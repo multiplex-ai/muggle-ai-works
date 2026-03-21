@@ -8,14 +8,24 @@ Unified MCP server for Muggle AI - combines Cloud QA and Local Testing tools int
 npm install -g @muggleai/works
 ```
 
-This automatically:
+This is the canonical one-liner install path.
+
+It automatically:
 1. Installs the package
 2. Downloads the Electron app binary (via postinstall)
-3. Sets up CLI commands
+3. Registers/updates `~/.cursor/mcp.json` with a `muggle` server entry
+4. Sets up CLI commands
 
 ## Quick Start
 
-### 1. Add to your MCP client
+### 1. Validate your install
+
+```bash
+muggle --version
+muggle doctor
+```
+
+### 2. Add to your MCP client (if needed)
 
 **Cursor (`~/.cursor/mcp.json`):**
 
@@ -148,9 +158,8 @@ npm run lint:check    # Check only
 
 | Workflow | Trigger | Description |
 | :------- | :------ | :---------- |
-| `ci.yml` | Push/PR to main | Lint, test, build on multiple platforms/versions |
-| `publish-works.yml` | Tag `v*` | Publish package to npm |
-| `release-electron-app.yml` | Tag `electron-app@*` | Build and release Electron binaries |
+| `ci.yml` | Push/PR to `master` | Lint, test, build on multiple platforms/versions |
+| `publish-works.yml` | Tag `v*` or manual dispatch | Verify, package-audit, smoke-install, publish to npm |
 
 ### Publishing a new version
 
@@ -158,12 +167,6 @@ npm run lint:check    # Check only
 2. Commit and push
 3. Create a git tag: `git tag v1.0.1 && git push --tags`
 4. The `publish-works.yml` workflow publishes to npm automatically
-
-### Releasing Electron app
-
-1. Update `muggleConfig.electronAppVersion` in `package.json`
-2. Run the `release-electron-app.yml` workflow manually
-3. Or create a tag: `git tag electron-app@1.0.1 && git push --tags`
 
 ## Troubleshooting
 

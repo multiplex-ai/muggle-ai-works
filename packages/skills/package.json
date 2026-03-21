@@ -1,0 +1,21 @@
+{
+  "name": "@muggleai/skills",
+  "version": "0.0.0",
+  "description": "Skill contracts and metadata for muggle-ai-works runtime",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo \"skills build delegated to root\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"skills lint delegated to root\"",
+    "test": "echo \"skills test delegated to root\""
+  }
+}

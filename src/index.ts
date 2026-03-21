@@ -25,6 +25,7 @@
  */
 
 // Export modules as namespaces to avoid naming conflicts
+export * as commands from "../packages/commands/src/index.js";
 export * as shared from "../packages/mcps/src/index.js";
 export * as server from "./server/index.js";
 export {

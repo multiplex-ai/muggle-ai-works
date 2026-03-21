@@ -56,12 +56,12 @@
         "zod": "^3.24.1"
     },
     "devDependencies": {
-        "@eslint/js": "^9.21.0",
-        "@types/node": "^22.0.0",
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^25.5.0",
         "@types/uuid": "^10.0.0",
         "@typescript-eslint/eslint-plugin": "^8.34.0",
         "@typescript-eslint/parser": "^8.34.0",
-        "eslint": "^9.28.0",
+        "eslint": "^10.1.0",
         "eslint-plugin-unused-imports": "^4.2.0",
         "rimraf": "^6.0.1",
         "turbo": "^2.5.6",

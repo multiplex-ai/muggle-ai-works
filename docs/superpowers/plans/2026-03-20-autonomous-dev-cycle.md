@@ -370,6 +370,7 @@ export interface StageResult<T> {
 export interface WorkflowState {
   retryCount: number;
   envStarted: boolean;
+  tornDown: boolean;
   stageResults: Map<Stage, StageResult<unknown>>;
 }
 
@@ -377,6 +378,7 @@ export function initialState(): WorkflowState {
   return {
     retryCount: 0,
     envStarted: false,
+    tornDown: false,
     stageResults: new Map(),
   };
 }
@@ -1805,7 +1807,11 @@ export async function runDevCycle(
     if (qaReport.failed.length === 0) break; // QA passed
 
     if (runner.isMaxRetriesExceeded(state)) {
-      if (runner.shouldOpenPRsOnFailure()) break; // requireQAPass: false — open PRs anyway
+      if (runner.shouldOpenPRsOnFailure()) {
+        // requireQAPass: false — teardown first, then open PRs (spec: "teardown runs first")
+        if (state.envStarted) { await agents.teardown(envState); state.tornDown = true; }
+        break;
+      }
       if (state.envStarted) await agents.teardown(envState);
       throw new Error(`QA failed after ${state.retryCount} retries.`);
     }
@@ -1824,8 +1830,8 @@ export async function runDevCycle(
     qaReport: qaReport!,
   });
 
-  // Stage 9: Teardown
-  if (envState) await agents.teardown(envState);
+  // Stage 9: Teardown (only if not already torn down on requireQAPass: false exit)
+  if (envState && !state.tornDown) await agents.teardown(envState);
 
   return { prUrls, qaReport: qaReport! };
 }
@@ -1909,6 +1915,25 @@ describe('runDevCycle', () => {
       runDevCycle('Add login feature', agents, { ...defaultConfig, maxRetries: 2 })
     ).rejects.toThrow('Unit tests failed');
     expect(agents.teardown).toHaveBeenCalled();
+  });
+
+  it('opens PRs and tears down before them when requireQAPass: false and QA fails', async () => {
+    const qa = vi.fn().mockResolvedValue({
+      passed: [],
+      failed: [{ testCase: { id: 'tc-1', useCase: 'Login', description: '' }, reason: 'timeout', repro: '' }],
+    });
+    const teardown = vi.fn().mockResolvedValue(undefined);
+    const openPRs = vi.fn().mockResolvedValue(['https://github.com/org/repo/pull/1']);
+    const agents = makeAgents({ qa, teardown, openPRs });
+    const result = await runDevCycle('Add login', agents, { ...defaultConfig, requireQAPass: false, maxRetries: 1 });
+
+    // teardown must be called before openPRs
+    const teardownCall = teardown.mock.invocationCallOrder[0];
+    const openPRsCall = openPRs.mock.invocationCallOrder[0];
+    expect(teardownCall).toBeLessThan(openPRsCall);
+    expect(result.prUrls).toHaveLength(1);
+    // teardown should only be called once
+    expect(teardown).toHaveBeenCalledTimes(1);
   });
 
   it('does not start env twice across retries', async () => {

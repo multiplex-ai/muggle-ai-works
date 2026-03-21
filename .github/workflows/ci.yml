@@ -55,7 +55,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install TypeScript ${{ matrix.typescript }}
-        run: pnpm add -D typescript@${{ matrix.typescript }}
+        run: pnpm add -Dw typescript@${{ matrix.typescript }}
 
       - name: Type check
         run: npx tsc --noEmit

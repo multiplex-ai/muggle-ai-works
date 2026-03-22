@@ -87,6 +87,75 @@ Tokens expire after a period of time. When this happens:
 
 The MCP server will attempt to auto-refresh tokens when possible, but manual re-authentication may be required if the refresh token has also expired.
 
+## Dev Cycle (`/dev-cycle`)
+
+An autonomous development pipeline that takes your code changes through requirements analysis, testing, QA, and PR creation — all inside Claude Code.
+
+### How it works
+
+```
+You write code on a feature branch
+         |
+         v
+/dev-cycle "what I built"
+         |
+    Stage 1: Requirements    → extracts goal + acceptance criteria
+    Stage 2: Impact Analysis → detects which repos have git changes
+    Stage 3: Validate        → checks feature branch, commits exist
+    Stage 4: Unit Tests      → runs test commands, fails fast
+    Stage 5: QA              → runs Muggle AI test cases
+    Stage 6: Open PRs        → pushes branch, creates PR with QA results
+         |
+         v
+    PR ready for review
+```
+
+### Step by step
+
+**1. Make your changes on a feature branch:**
+
+```bash
+cd /path/to/your/repo
+git checkout -b feat/add-login
+# ... write your code ...
+git add -A && git commit -m "feat: add login page"
+```
+
+**2. Configure your repos** — create `muggle-repos.json` in the muggle-ai-works root:
+
+```json
+[
+  { "name": "frontend", "path": "/absolute/path/to/frontend", "testCommand": "pnpm test" }
+]
+```
+
+**3. Open Claude Code and run the dev cycle:**
+
+```
+/dev-cycle "Add a login page with email/password authentication"
+```
+
+Claude will detect your changes, run tests, trigger QA, and open a PR.
+
+### What if something fails?
+
+| Failure | What happens |
+|---|---|
+| No changes detected | Stops — make changes first, re-run |
+| On main/master | Stops — create a feature branch first |
+| Unit tests fail | Shows output, stops — fix and re-run |
+| QA fails | Shows failing tests — fix and re-run |
+
+### Repo config
+
+| Field | Required | Default | Description |
+|---|---|---|---|
+| `name` | yes | — | Short identifier for the repo |
+| `path` | yes | — | Absolute path on your machine |
+| `testCommand` | no | `pnpm test` | Command to run unit tests |
+
+---
+
 ## Available Tools
 
 ### Cloud QA Tools (muggle-remote-*)

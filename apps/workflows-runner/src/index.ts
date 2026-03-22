@@ -1,5 +1,4 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
+import { ensureRunnerConfig } from './setup.js';
 
 import {
   RequirementsAgent,
@@ -23,7 +22,6 @@ import type {
   TaskSpec,
   ChangePlan,
   TestManifest,
-  RepoConfig,
   ServiceHandle,
 } from '@muggleai/workflows';
 
@@ -48,25 +46,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // --- Read required env vars ---
-  const muggleApiKey = process.env['MUGGLE_API_KEY'];
-  if (!muggleApiKey) {
-    throw new Error('Missing required environment variable: MUGGLE_API_KEY');
-  }
-
-  const projectId = process.env['MUGGLE_PROJECT_ID'];
-  if (!projectId) {
-    throw new Error('Missing required environment variable: MUGGLE_PROJECT_ID');
-  }
-
-  // --- Load repos config ---
-  const reposConfigPath = process.env['MUGGLE_REPOS_CONFIG'] ?? path.join(process.cwd(), 'muggle-repos.json');
-
-  let repos: RepoConfig[] = [];
-  if (fs.existsSync(reposConfigPath)) {
-    const raw = fs.readFileSync(reposConfigPath, 'utf-8');
-    repos = JSON.parse(raw) as RepoConfig[];
-  }
+  // --- Load or interactively set up config (zero env vars required) ---
+  const { muggleApiKey, projectId, repos } = await ensureRunnerConfig();
 
   // --- LLM clients ---
   const requirementsLLM = createJsonLLMClient<TaskSpec>();

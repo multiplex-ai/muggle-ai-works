@@ -31,7 +31,9 @@ const LOG_FILE_NAME = "postinstall.log";
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 const SKILLS_DIR_NAME = "skills-dist";
 const SKILLS_TARGET_DIR = join(homedir(), ".claude", "skills", "muggle");
+const COMMANDS_TARGET_DIR = join(homedir(), ".claude", "commands");
 const SKILLS_CHECKSUMS_FILE = "skills-checksums.json";
+const COMMAND_FILES = ["muggle-do.md"];
 
 /**
  * Get the path to the postinstall log file.
@@ -785,6 +787,7 @@ async function installSkills() {
         }
 
         mkdirSync(SKILLS_TARGET_DIR, { recursive: true });
+        mkdirSync(COMMANDS_TARGET_DIR, { recursive: true });
 
         const existingChecksums = readSkillsChecksums();
         const storedFiles = (existingChecksums && existingChecksums.files) || {};
@@ -792,14 +795,20 @@ async function installSkills() {
 
         for (const filename of skillFiles) {
             const sourcePath = join(skillsSourceDir, filename);
-            const targetPath = join(SKILLS_TARGET_DIR, filename);
+            // Command files (e.g., muggle-do.md) go to ~/.claude/commands/ for /slash-command access
+            // Skill files go to ~/.claude/skills/muggle/ for contextual triggering
+            const isCommand = COMMAND_FILES.includes(filename);
+            const targetPath = isCommand
+                ? join(COMMANDS_TARGET_DIR, filename)
+                : join(SKILLS_TARGET_DIR, filename);
+            const targetLabel = isCommand ? "command" : "skill";
             const sourceChecksum = await calculateFileChecksum(sourcePath);
 
             if (!existsSync(targetPath)) {
                 // File doesn't exist — copy it
                 const content = readFileSync(sourcePath, "utf-8");
                 writeFileSync(targetPath, content, "utf-8");
-                log(`Installed skill: ${filename}`);
+                log(`Installed ${targetLabel}: ${filename}`);
             } else {
                 const targetChecksum = await calculateFileChecksum(targetPath);
                 const storedChecksum = storedFiles[filename] || "";
@@ -808,7 +817,7 @@ async function installSkills() {
                     // Not modified by user — overwrite silently
                     const content = readFileSync(sourcePath, "utf-8");
                     writeFileSync(targetPath, content, "utf-8");
-                    log(`Updated skill: ${filename}`);
+                    log(`Updated ${targetLabel}: ${filename}`);
                 } else {
                     // User modified the file — prompt
                     const choice = await promptUserChoice(filename);
@@ -817,15 +826,24 @@ async function installSkills() {
                     }
                     const content = readFileSync(sourcePath, "utf-8");
                     writeFileSync(targetPath, content, "utf-8");
-                    log(`${choice === "B" ? "Backed up and overwrote" : "Overwrote"} skill: ${filename}`);
+                    log(`${choice === "B" ? "Backed up and overwrote" : "Overwrote"} ${targetLabel}: ${filename}`);
                 }
             }
 
             newChecksums[filename] = sourceChecksum;
         }
 
+        // Clean up command files from the skills directory (migration from earlier versions)
+        for (const cmdFile of COMMAND_FILES) {
+            const stalePath = join(SKILLS_TARGET_DIR, cmdFile);
+            if (existsSync(stalePath)) {
+                rmSync(stalePath, { force: true });
+                log(`Cleaned up stale skill copy: ${stalePath}`);
+            }
+        }
+
         writeSkillsChecksums(newChecksums);
-        log(`Installed ${skillFiles.length} skill(s) to ${SKILLS_TARGET_DIR}`);
+        log(`Installed ${skillFiles.length} file(s): commands to ${COMMANDS_TARGET_DIR}, skills to ${SKILLS_TARGET_DIR}`);
     } catch (error) {
         logError("\n========================================");
         logError("ERROR: Failed to install skills");

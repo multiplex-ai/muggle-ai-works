@@ -12,7 +12,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0",
     "@muggleai/agents": "file:../../packages/agents",
     "@muggleai/mcp": "file:../../packages/mcps",
     "@muggleai/workflows": "file:../../packages/workflows",

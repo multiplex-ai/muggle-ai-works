@@ -10,7 +10,8 @@
     "files": [
         "dist",
         "bin/muggle.js",
-        "scripts/postinstall.mjs"
+        "scripts/postinstall.mjs",
+        "skills-dist"
     ],
     "scripts": {
         "clean": "rimraf dist",

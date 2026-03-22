@@ -3,6 +3,8 @@
 **Date:** 2026-03-20
 **Status:** Draft
 
+> **Architecture Update (2026-03-22):** Implementation has moved from TypeScript agent classes to Claude Code skills. The orchestrator is at `.claude/commands/dev-cycle.md`, agent skills are at `.claude/skills/dev-cycle/*.md`. The `packages/agents` and `apps/workflows-runner` packages have been removed. `packages/workflows/contracts.ts` remains as the canonical type reference. See `docs/superpowers/plans/2026-03-22-skill-based-dev-cycle.md` for the implementation plan.
+
 ---
 
 ## Overview

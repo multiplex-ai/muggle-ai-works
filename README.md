@@ -8,6 +8,12 @@ Unified MCP server for Muggle AI - combines Cloud QA and Local Testing tools int
 npm install -g @muggleai/works
 ```
 
+Or install directly from GitHub:
+
+```bash
+npm install -g github:multiplex-ai/muggle-ai-works
+```
+
 This is the canonical one-liner install path.
 
 It automatically:

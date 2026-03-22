@@ -81,12 +81,21 @@ importers:
 
   apps/workflows-runner:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.30.0
+        version: 0.30.1
       '@muggleai/agents':
         specifier: file:../../packages/agents
         version: link:../../packages/agents
+      '@muggleai/mcp':
+        specifier: file:../../packages/mcps
+        version: link:../../packages/mcps
       '@muggleai/workflows':
         specifier: file:../../packages/workflows
         version: link:../../packages/workflows
+      axios:
+        specifier: ^1.7.9
+        version: 1.13.6
     devDependencies:
       typescript:
         specifier: '*'

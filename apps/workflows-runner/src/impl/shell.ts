@@ -57,7 +57,7 @@ export function spawnService(
     });
 
     // Give the process a tick to surface an immediate error before resolving.
-    setImmediate(() => {
+    setTimeout(() => {
       if (child.pid == null) {
         reject(new Error(`[spawnService:${descriptor.name}] no PID assigned`));
         return;

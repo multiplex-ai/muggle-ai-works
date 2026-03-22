@@ -51,7 +51,7 @@ function readCachedApiKey(): string | undefined {
   }
 }
 
-async function ensureMuggleApiKey(rl: readline.Interface): Promise<string> {
+async function ensureMuggleApiKey(_rl: readline.Interface): Promise<string> {
   const cached = readCachedApiKey();
   if (cached) return cached;
 

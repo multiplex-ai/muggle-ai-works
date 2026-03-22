@@ -99,7 +99,6 @@ export function createAuthGuardDeps(): AuthGuardDeps {
       console.log("[auth] Login successful.");
     },
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async refreshToken(_token: string): Promise<void> {
       // No-op: the mcps auth system handles access-token refresh internally
       // via AuthService.getValidAccessToken() / getCallerCredentialsAsync().

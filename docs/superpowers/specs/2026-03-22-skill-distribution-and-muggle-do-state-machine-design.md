@@ -225,33 +225,80 @@ The CODING stage is where Claude writes or modifies code. Its behavior depends o
 
 ### 3. State File Structure
 
-Each `muggle-do` run creates a `.muggle-do/` directory in the working directory where Claude is invoked (typically the project root). For multi-repo setups, this is the directory containing `muggle-repos.json`, not individual repo roots.
+#### Sessions
 
-The `.muggle-do/` directory should be added to `.gitignore` — it is ephemeral working state, not something to commit. The `result.md` file serves as the audit summary if needed after the run.
+Each `muggle-do` invocation is a **session** — an isolated pipeline run for a specific task. A user working on multiple changes simultaneously gets separate sessions, each with its own state and audit trail.
+
+Sessions live under `.muggle-do/sessions/` in the working directory (typically the project root, where `muggle-repos.json` lives). The `.muggle-do/` directory should be added to `.gitignore`.
 
 ```
 .muggle-do/
+  sessions/
+    add-login-page/              # Session 1: "Add login page"
+      state.md
+      requirements.md
+      iterations/
+        001.md
+        002.md
+      result.md
+    fix-payment-timeout/         # Session 2: "Fix payment timeout"
+      state.md
+      requirements.md
+      iterations/
+        001.md
+      result.md
+```
+
+#### Session Naming
+
+Session directories use a slug derived from the task description:
+- Lowercase, hyphenated, max 50 chars (e.g., `add-login-page`, `fix-payment-timeout`)
+- If a slug collision occurs, append a numeric suffix (`add-login-page-2`)
+- Claude generates the slug from the task description during INIT
+
+#### Session Startup Flow
+
+On invocation, muggle-do reads `.muggle-do/sessions/` and presents the user with options:
+
+```
+Existing sessions:
+  [1] add-login-page        — CODING (iteration 2)    ← in progress
+  [2] fix-payment-timeout   — DONE (2 iterations)     ← completed
+  [3] Start new session
+
+Which session? _
+```
+
+- **Resume active session**: continue from the current stage
+- **Review completed session**: show result.md summary
+- **Start new session**: user provides task description, Claude creates a new session directory
+- **If no sessions exist**: skip the prompt, go straight to new session creation
+
+#### Session File Structure
+
+Each session contains:
+
+```
+<session-slug>/
   state.md              # Current state pointer
   requirements.md       # Stable requirements
   iterations/
     001.md              # Full record of iteration 1
     002.md              # Full record of iteration 2
     ...
-  result.md             # Final outcome
+  result.md             # Final outcome (written on completion)
 ```
 
 #### `state.md` — Entry Point
 
-Claude reads this first to know where it is. On startup, the muggle-do skill checks for an existing `.muggle-do/state.md`:
-- **If it exists and stage is not DONE**: resume from the current stage (enables recovery from crashed sessions)
-- **If it exists and stage is DONE**: ask the user whether to start fresh or review results
-- **If it doesn't exist**: create `.muggle-do/` and start from INIT
+Claude reads this first to know where the session is.
 
 ```markdown
-# Muggle Do
+# Muggle Do: add-login-page
 
 ## Config
 - **Task**: Add login page with email/password authentication
+- **Session**: add-login-page
 - **Started**: 2026-03-22T10:30:00Z
 - **Repos**: frontend (/path/to/frontend), backend (/path/to/backend)
 - **Max iterations**: 3
@@ -357,6 +404,7 @@ Iteration files only contain stages that ran in that iteration. If triage jumped
 # Result
 
 ## Status: DONE
+## Session: add-login-page
 ## Completed: 2026-03-22T11:15:00Z
 ## Iterations: 2
 
@@ -382,6 +430,12 @@ Claude updates state files incrementally as it progresses:
 4. **On completion**: write `result.md` and update `state.md` stage to DONE
 
 This means iteration files are built up incrementally (not written all at once), so a crash mid-iteration leaves a partial but useful record.
+
+#### Session Cleanup
+
+Completed sessions are kept for audit purposes. Users can manually delete session directories or clean up via:
+- Delete a specific session: `rm -rf .muggle-do/sessions/<slug>`
+- Delete all sessions: `rm -rf .muggle-do`
 
 #### Repo Configuration
 

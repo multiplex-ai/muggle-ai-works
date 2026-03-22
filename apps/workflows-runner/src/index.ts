@@ -22,7 +22,7 @@ import { runShell, spawnService } from './impl/shell.js';
 import { createAuthGuardDeps } from './impl/auth-impl.js';
 import { createQADeps, createFetchAllTestCases } from './impl/qa-impl.js';
 import { createPRDeps, createTeardownImpl } from './impl/pr-impl.js';
-import { readGitState, getChangedFiles } from './impl/git-state.js';
+import { readGitState, getChangedFiles, getDefaultBranch } from './impl/git-state.js';
 import { ensureRunnerConfig } from './setup.js';
 
 async function main(): Promise<void> {
@@ -77,12 +77,7 @@ async function main(): Promise<void> {
     },
 
     // Coding: read what the AI already wrote — current git state
-    coding: async (plan, retryCount): Promise<CodeResult> => {
-      if (retryCount > 0) {
-        // Unit tests or QA failed — surface the failure and stop.
-        // The AI should fix the code and run again.
-        throw new Error('Tests failed. Fix the issues and run muggle again.');
-      }
+    coding: async (plan): Promise<CodeResult> => {
       const perRepo = await Promise.all(
         plan.perRepo.map(async (entry) => {
           const repoConfig = repos.find((r) => r.name === entry.repo);
@@ -90,6 +85,10 @@ async function main(): Promise<void> {
             return { repo: entry.repo, branch: '', diff: '', status: 'failed' as const, error: `Repo "${entry.repo}" not in config` };
           }
           const { branch, diff } = await readGitState(repoConfig.path);
+          const defaultBranch = await getDefaultBranch(repoConfig.path);
+          if (branch === defaultBranch) {
+            throw new Error(`Repo "${entry.repo}" is on "${branch}". Create a feature branch before running muggle.`);
+          }
           return { repo: entry.repo, branch, diff, status: 'success' as const };
         }),
       );
@@ -128,7 +127,7 @@ async function main(): Promise<void> {
     const result = await runDevCycle(
       userPrompt,
       agents,
-      mergeConfig({ repos, maxRetries: 0 }),
+      mergeConfig({}),
     );
     console.log('Done!');
     console.log('PRs:', result.prUrls.join('\n'));

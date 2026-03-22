@@ -24,7 +24,9 @@ export class PRAgent implements IAgent<PRInput, string[]> {
     const plan = input.changePlan.perRepo.find((p) => p.repo === repo);
     const lines = [
       `## Goal\n${input.taskSpec.goal}`,
-      `## Acceptance Criteria\n${input.taskSpec.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`,
+      ...(input.taskSpec.acceptanceCriteria.length > 0
+        ? [`## Acceptance Criteria\n${input.taskSpec.acceptanceCriteria.map((c) => `- ${c}`).join('\n')}`]
+        : []),
       `## Changes\n${(plan?.changes ?? []).map((c) => `- ${c}`).join('\n')}`,
     ];
     if (hasQAFailures) {

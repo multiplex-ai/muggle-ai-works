@@ -156,6 +156,10 @@ export async function ensureRunnerConfig(): Promise<ResolvedRunnerConfig> {
         console.log(`  ✓ Added "${name}"\n`);
         dirty = true;
       }
+
+      if (config.repos.length === 0) {
+        throw new Error('At least one repository must be configured. Run muggle again to set up repos.');
+      }
     }
 
     if (dirty) {

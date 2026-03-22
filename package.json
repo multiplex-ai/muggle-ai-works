@@ -23,6 +23,7 @@
         "dev:workspace": "turbo run dev",
         "bootstrap": "npm install && npm run build",
         "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
+        "prepare": "npm run build",
         "postinstall": "node scripts/postinstall.mjs",
         "start": "node dist/index.js",
         "dev": "tsx watch src/index.ts",

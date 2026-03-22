@@ -29,6 +29,9 @@ const CURSOR_SERVER_NAME = "muggle";
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const LOG_FILE_NAME = "postinstall.log";
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
+const SKILLS_DIR_NAME = "skills-dist";
+const SKILLS_TARGET_DIR = join(homedir(), ".claude", "skills", "muggle");
+const SKILLS_CHECKSUMS_FILE = "skills-checksums.json";
 
 /**
  * Get the path to the postinstall log file.
@@ -675,8 +678,167 @@ async function extractTarGz(tarPath, destDir) {
     });
 }
 
+/**
+ * Read the skills checksums file.
+ * @returns {Record<string, unknown> | null} Parsed checksums, or null if missing/invalid
+ */
+function readSkillsChecksums() {
+    const checksumPath = join(homedir(), ".muggle-ai", SKILLS_CHECKSUMS_FILE);
+    if (!existsSync(checksumPath)) {
+        return null;
+    }
+    try {
+        const content = readFileSync(checksumPath, "utf-8");
+        const parsed = JSON.parse(content);
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+            return null;
+        }
+        return parsed;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Write the skills checksums file.
+ * @param {Record<string, string>} fileChecksums - Map of filename to SHA-256 hex
+ */
+function writeSkillsChecksums(fileChecksums) {
+    const packageJson = require("../package.json");
+    const checksumPath = join(homedir(), ".muggle-ai", SKILLS_CHECKSUMS_FILE);
+    const data = {
+        schemaVersion: 1,
+        packageVersion: packageJson.version,
+        files: fileChecksums,
+    };
+    mkdirSync(join(homedir(), ".muggle-ai"), { recursive: true });
+    writeFileSync(checksumPath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Prompt user for A/B choice with timeout.
+ * @param {string} filename - The skill file being updated
+ * @returns {Promise<"A"|"B">} User's choice, defaults to B on timeout/no-TTY
+ */
+async function promptUserChoice(filename) {
+    if (!process.stdin.isTTY) {
+        return "B";
+    }
+
+    const { createInterface } = await import("readline");
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+    return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+            rl.close();
+            log(`Timeout waiting for input on ${filename}, defaulting to backup + overwrite`);
+            resolve("B");
+        }, 30000);
+
+        rl.question(
+            `\nSkill file "${filename}" has been modified.\n` +
+            `  (A) Overwrite with new version\n` +
+            `  (B) Backup current version, then overwrite\n` +
+            `Choice [B]: `,
+            (answer) => {
+                clearTimeout(timeout);
+                rl.close();
+                const choice = (answer || "").trim().toUpperCase();
+                resolve(choice === "A" ? "A" : "B");
+            }
+        );
+    });
+}
+
+/**
+ * Backup a skill file to ~/.muggle-ai/skills-backup/{timestamp}/
+ * @param {string} filename - Skill filename
+ * @param {string} sourcePath - Current file path to backup
+ */
+function backupSkillFile(filename, sourcePath) {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupDir = join(homedir(), ".muggle-ai", "skills-backup", timestamp);
+    mkdirSync(backupDir, { recursive: true });
+    const backupPath = join(backupDir, filename);
+    const content = readFileSync(sourcePath, "utf-8");
+    writeFileSync(backupPath, content, "utf-8");
+    log(`Backed up ${filename} to ${backupPath}`);
+}
+
+/**
+ * Install skill files to ~/.claude/skills/muggle/
+ */
+async function installSkills() {
+    try {
+        const packageDir = join(process.cwd());
+        const skillsSourceDir = join(packageDir, SKILLS_DIR_NAME);
+
+        if (!existsSync(skillsSourceDir)) {
+            log("No skills-dist directory found, skipping skill installation.");
+            return;
+        }
+
+        const skillFiles = readdirSync(skillsSourceDir).filter(f => f.endsWith(".md"));
+        if (skillFiles.length === 0) {
+            log("No skill files found in skills-dist/, skipping.");
+            return;
+        }
+
+        mkdirSync(SKILLS_TARGET_DIR, { recursive: true });
+
+        const existingChecksums = readSkillsChecksums();
+        const storedFiles = (existingChecksums && existingChecksums.files) || {};
+        const newChecksums = {};
+
+        for (const filename of skillFiles) {
+            const sourcePath = join(skillsSourceDir, filename);
+            const targetPath = join(SKILLS_TARGET_DIR, filename);
+            const sourceChecksum = await calculateFileChecksum(sourcePath);
+
+            if (!existsSync(targetPath)) {
+                // File doesn't exist — copy it
+                const content = readFileSync(sourcePath, "utf-8");
+                writeFileSync(targetPath, content, "utf-8");
+                log(`Installed skill: ${filename}`);
+            } else {
+                const targetChecksum = await calculateFileChecksum(targetPath);
+                const storedChecksum = storedFiles[filename] || "";
+
+                if (targetChecksum === storedChecksum || storedChecksum === "") {
+                    // Not modified by user — overwrite silently
+                    const content = readFileSync(sourcePath, "utf-8");
+                    writeFileSync(targetPath, content, "utf-8");
+                    log(`Updated skill: ${filename}`);
+                } else {
+                    // User modified the file — prompt
+                    const choice = await promptUserChoice(filename);
+                    if (choice === "B") {
+                        backupSkillFile(filename, targetPath);
+                    }
+                    const content = readFileSync(sourcePath, "utf-8");
+                    writeFileSync(targetPath, content, "utf-8");
+                    log(`${choice === "B" ? "Backed up and overwrote" : "Overwrote"} skill: ${filename}`);
+                }
+            }
+
+            newChecksums[filename] = sourceChecksum;
+        }
+
+        writeSkillsChecksums(newChecksums);
+        log(`Installed ${skillFiles.length} skill(s) to ${SKILLS_TARGET_DIR}`);
+    } catch (error) {
+        logError("\n========================================");
+        logError("ERROR: Failed to install skills");
+        logError("========================================\n");
+        logError("Error:", error instanceof Error ? error.stack || error.message : error);
+        logError("\nSkill installation is optional. MCP tools still work without skills.");
+        logError("");
+    }
+}
+
 // Run postinstall
 initLogFile();
 removeVersionOverrideFile();
 updateCursorMcpConfig();
+installSkills().catch(logError);
 downloadElectronApp().catch(logError);

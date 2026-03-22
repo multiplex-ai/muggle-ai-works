@@ -1,12 +1,11 @@
 /**
- * Interactive first-run setup wizard.
+ * Runner setup: ensures credentials, prompts for project, and configures repos.
  *
- * Fills in any missing fields in RunnerConfig by prompting the user,
- * then caches the result in ~/.muggle-ai/runner-config.json.
- *
- * Zero env vars required — all values are either auto-detected or prompted once.
- * Env vars (ANTHROPIC_API_KEY, MUGGLE_API_KEY, MUGGLE_PROJECT_ID) still work
- * as overrides for CI/automation.
+ * - Muggle API key: read from ~/.muggle-ai/credentials.json (written by `muggle login`).
+ *   If missing, triggers the device-code login flow to create and cache one.
+ * - Anthropic API key: not managed here — the SDK reads ANTHROPIC_API_KEY from env.
+ * - Project ID: always prompted each run (projects change frequently).
+ * - Repos: prompted once on first run, cached in ~/.muggle-ai/runner-config.json.
  */
 
 import * as fs from 'node:fs';
@@ -15,11 +14,11 @@ import * as path from 'node:path';
 import * as readline from 'node:readline';
 
 import axios from 'axios';
+import { performLogin } from '@muggleai/mcp';
 
 import type { RepoConfig } from '@muggleai/workflows';
 
 import { loadRunnerConfig, saveRunnerConfig } from './runner-config.js';
-import type { RunnerConfig } from './runner-config.js';
 
 // ---------------------------------------------------------------------------
 // Readline helpers
@@ -29,24 +28,19 @@ function createRL(): readline.Interface {
   return readline.createInterface({ input: process.stdin, output: process.stdout });
 }
 
-function question(rl: readline.Interface, prompt: string): Promise<string> {
+function ask(rl: readline.Interface, prompt: string): Promise<string> {
   return new Promise((resolve) => rl.question(prompt, resolve));
 }
 
 // ---------------------------------------------------------------------------
-// Muggle credentials (set by `muggle login`)
+// Muggle API key
 // ---------------------------------------------------------------------------
 
 interface RawCredentials {
-  accessToken?: string;
   apiKey?: string;
-  expiresAt?: string;
 }
 
-function readMuggleApiKey(): string | undefined {
-  // Env override takes priority (CI/automation)
-  if (process.env['MUGGLE_API_KEY']) return process.env['MUGGLE_API_KEY'];
-
+function readCachedApiKey(): string | undefined {
   const credPath = path.join(os.homedir(), '.muggle-ai', 'credentials.json');
   try {
     if (!fs.existsSync(credPath)) return undefined;
@@ -57,8 +51,25 @@ function readMuggleApiKey(): string | undefined {
   }
 }
 
+async function ensureMuggleApiKey(rl: readline.Interface): Promise<string> {
+  const cached = readCachedApiKey();
+  if (cached) return cached;
+
+  console.log('\nNo Muggle credentials found. Starting login…');
+  console.log('A browser window will open — complete the login there.\n');
+
+  const result = await performLogin(/* keyName */ 'dev-cycle-runner', /* expiry */ '1y');
+  if (!result.success || !result.credentials?.apiKey) {
+    throw new Error(`Login failed: ${result.error ?? 'unknown error'}`);
+  }
+
+  // performLogin already saves credentials to disk via saveCredentials()
+  console.log('Login successful.\n');
+  return result.credentials.apiKey;
+}
+
 // ---------------------------------------------------------------------------
-// Project listing
+// Project selection (always prompted — projects change)
 // ---------------------------------------------------------------------------
 
 interface ProjectItem {
@@ -79,83 +90,69 @@ async function fetchProjects(apiKey: string): Promise<ProjectItem[]> {
   }
 }
 
+async function promptProjectId(rl: readline.Interface, apiKey: string): Promise<string> {
+  console.log('Fetching your projects…');
+  const projects = await fetchProjects(apiKey);
+
+  if (projects.length === 0) {
+    const id = (await ask(rl, 'No projects found. Enter your project ID: ')).trim();
+    if (!id) throw new Error('A project ID is required.');
+    return id;
+  }
+
+  if (projects.length === 1) {
+    console.log(`Project: ${projects[0]!.name}  (${projects[0]!.id})\n`);
+    return projects[0]!.id;
+  }
+
+  console.log('\nAvailable projects:');
+  projects.forEach((p, i) => console.log(`  ${i + 1}. ${p.name}  (${p.id})`));
+  const pick = (await ask(rl, `Select project [1-${projects.length}]: `)).trim();
+  const chosen = projects[parseInt(pick, 10) - 1];
+  if (!chosen) throw new Error('Invalid selection.');
+  console.log();
+  return chosen.id;
+}
+
 // ---------------------------------------------------------------------------
-// Main setup entrypoint
+// Main entrypoint
 // ---------------------------------------------------------------------------
 
-export async function ensureRunnerConfig(): Promise<
-  RunnerConfig & { muggleApiKey: string }
-> {
+export interface ResolvedRunnerConfig {
+  muggleApiKey: string;
+  projectId: string;
+  repos: RepoConfig[];
+}
+
+export async function ensureRunnerConfig(): Promise<ResolvedRunnerConfig> {
   const config = loadRunnerConfig();
   let dirty = false;
   const rl = createRL();
 
   try {
-    // 1. Anthropic API key
-    if (!process.env['ANTHROPIC_API_KEY'] && !config.anthropicApiKey) {
-      console.log('\nAnthropic API key not found.');
-      const key = (await question(rl, 'Enter your Anthropic API key (sk-ant-...): ')).trim();
-      if (!key) throw new Error('Anthropic API key is required.');
-      config.anthropicApiKey = key;
-      dirty = true;
-    }
-    // Apply cached key to env so the Anthropic SDK picks it up automatically
-    if (config.anthropicApiKey && !process.env['ANTHROPIC_API_KEY']) {
-      process.env['ANTHROPIC_API_KEY'] = config.anthropicApiKey;
-    }
+    // 1. Muggle API key — login if needed, then read from credentials.json
+    const muggleApiKey = await ensureMuggleApiKey(rl);
 
-    // 2. Muggle API key (from stored credentials)
-    const muggleApiKey = readMuggleApiKey();
-    if (!muggleApiKey) {
-      console.error(
-        '\nNo Muggle credentials found. Please run `muggle login` first, then try again.',
-      );
-      process.exit(1);
-    }
+    // 2. Project ID — always prompt (projects change between runs)
+    const projectId = await promptProjectId(rl, muggleApiKey);
 
-    // 3. Project ID
-    if (!process.env['MUGGLE_PROJECT_ID'] && !config.projectId) {
-      console.log('\nFetching your Muggle projects…');
-      const projects = await fetchProjects(muggleApiKey);
-
-      if (projects.length === 0) {
-        const id = (await question(rl, 'No projects found. Enter your project ID manually: ')).trim();
-        if (!id) throw new Error('A project ID is required.');
-        config.projectId = id;
-      } else if (projects.length === 1) {
-        console.log(`Using project: ${projects[0]!.name} (${projects[0]!.id})`);
-        config.projectId = projects[0]!.id;
-      } else {
-        console.log('\nAvailable projects:');
-        projects.forEach((p, i) => console.log(`  ${i + 1}. ${p.name}  (${p.id})`));
-        const pick = (await question(rl, `Select project [1-${projects.length}]: `)).trim();
-        const idx = parseInt(pick, 10) - 1;
-        const chosen = projects[idx];
-        if (!chosen) throw new Error('Invalid selection.');
-        config.projectId = chosen.id;
-      }
-      dirty = true;
-    }
-    const projectId = process.env['MUGGLE_PROJECT_ID'] ?? config.projectId!;
-
-    // 4. Repos config
+    // 3. Repos — prompt once, then cache
     if (config.repos.length === 0) {
-      console.log('\nNo repositories configured yet.');
+      console.log('No repositories configured yet.');
       console.log('Add the repos this runner can make changes to.\n');
 
       while (true) {
-        const name = (await question(rl, 'Repo name (e.g. "frontend", or Enter to finish): ')).trim();
+        const name = (await ask(rl, 'Repo name (e.g. "frontend", or Enter to finish): ')).trim();
         if (!name) break;
 
-        const repoPath = (await question(rl, `Absolute path to "${name}": `)).trim();
+        const repoPath = (await ask(rl, `Absolute path to "${name}": `)).trim();
         if (!repoPath || !fs.existsSync(repoPath)) {
-          console.log(`  Path not found: ${repoPath} — skipping.`);
+          console.log(`  Path "${repoPath}" not found — skipping.\n`);
           continue;
         }
 
-        const testCmd = (await question(rl, `Test command for "${name}" [pnpm test]: `)).trim() || 'pnpm test';
-
-        config.repos.push({ name, path: repoPath, testCommand: testCmd } satisfies RepoConfig);
+        const testCmd = (await ask(rl, `Test command [pnpm test]: `)).trim() || 'pnpm test';
+        config.repos.push({ name, path: repoPath, testCommand: testCmd });
         console.log(`  ✓ Added "${name}"\n`);
         dirty = true;
       }
@@ -163,10 +160,10 @@ export async function ensureRunnerConfig(): Promise<
 
     if (dirty) {
       saveRunnerConfig(config);
-      console.log(`\nConfig saved to ~/.muggle-ai/runner-config.json\n`);
+      console.log('Repo config saved to ~/.muggle-ai/runner-config.json\n');
     }
 
-    return { ...config, muggleApiKey, projectId };
+    return { muggleApiKey, projectId, repos: config.repos };
   } finally {
     rl.close();
   }

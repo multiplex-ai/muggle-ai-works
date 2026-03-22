@@ -5,8 +5,6 @@ import * as path from 'node:path';
 import type { RepoConfig } from '@muggleai/workflows';
 
 export interface RunnerConfig {
-  anthropicApiKey?: string;
-  projectId?: string;
   repos: RepoConfig[];
 }
 

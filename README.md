@@ -87,7 +87,7 @@ Tokens expire after a period of time. When this happens:
 
 The MCP server will attempt to auto-refresh tokens when possible, but manual re-authentication may be required if the refresh token has also expired.
 
-## Dev Cycle (`/dev-cycle`)
+## Muggle Do (`/muggle-do`)
 
 An autonomous development pipeline that takes your code changes through requirements analysis, testing, QA, and PR creation — all inside Claude Code.
 
@@ -97,7 +97,7 @@ An autonomous development pipeline that takes your code changes through requirem
 You write code on a feature branch
          |
          v
-/dev-cycle "what I built"
+/muggle-do "what I built"
          |
     Stage 1: Requirements    → extracts goal + acceptance criteria
     Stage 2: Impact Analysis → detects which repos have git changes
@@ -132,7 +132,7 @@ git add -A && git commit -m "feat: add login page"
 **3. Open Claude Code and run the dev cycle:**
 
 ```
-/dev-cycle "Add a login page with email/password authentication"
+/muggle-do "Add a login page with email/password authentication"
 ```
 
 Claude will detect your changes, run tests, trigger QA, and open a PR.

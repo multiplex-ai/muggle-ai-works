@@ -1,4 +1,4 @@
-# Dev Cycle — Autonomous Development Pipeline
+# Muggle Do — Autonomous Development Pipeline
 
 You are running the Muggle AI autonomous development cycle. The user has described a task and you will take it through a full pipeline: requirements analysis, change detection, testing, QA, and PR creation.
 
@@ -19,7 +19,7 @@ Execute these stages in order. Pass results between stages as described. If any 
 
 ### Stage 1: Requirements Analysis
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/requirements.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/requirements.md`.
 
 Pass it: the user's task description ($ARGUMENTS) and the list of configured repos.
 
@@ -27,17 +27,17 @@ Collect: a structured requirements summary (goal, acceptance criteria, list of r
 
 ### Stage 2: Impact Analysis
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/impact-analysis.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/impact-analysis.md`.
 
 Pass it: the requirements from Stage 1 and the repo paths.
 
 Collect: which repos have actual changes, what files changed, what the changes do.
 
-If no repos have changes, stop and tell the user: "No changes detected. Make your code changes first, then run /dev-cycle again."
+If no repos have changes, stop and tell the user: "No changes detected. Make your code changes first, then run /muggle-do again."
 
 ### Stage 3: Validate Code State
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/validate-code.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/validate-code.md`.
 
 Pass it: the list of changed repos and their paths.
 
@@ -47,17 +47,17 @@ If any repo is on main/master, stop and tell the user to create a feature branch
 
 ### Stage 4: Unit Tests
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/unit-tests.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/unit-tests.md`.
 
 Pass it: the list of changed repos, their paths, and their test commands.
 
 Collect: pass/fail per repo with test output.
 
-**FAIL FAST:** If any repo's tests fail, stop immediately. Show the user the failure output and tell them to fix the tests before running /dev-cycle again. Do NOT proceed to QA.
+**FAIL FAST:** If any repo's tests fail, stop immediately. Show the user the failure output and tell them to fix the tests before running /muggle-do again. Do NOT proceed to QA.
 
 ### Stage 5: QA
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/qa.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/qa.md`.
 
 Pass it: the project ID, the changed repos and files, the requirements goal.
 
@@ -67,7 +67,7 @@ If QA fails and the user hasn't set `requireQAPass: false` in their config, stop
 
 ### Stage 6: Open PRs
 
-Spawn an Agent with the prompt from `.claude/skills/dev-cycle/open-prs.md`.
+Spawn an Agent with the prompt from `.claude/skills/muggle-do/open-prs.md`.
 
 Pass it: per-repo branch names, the requirements goal, acceptance criteria, the QA report.
 

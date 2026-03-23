@@ -160,7 +160,7 @@ jobs:
           NODE
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-package
           path: ${{ steps.pack.outputs.package_tarball }}

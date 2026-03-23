@@ -219,6 +219,8 @@ jobs:
           name: npm-package
 
       - name: Publish to npm (with provenance)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${{ needs.package-audit.outputs.package_tarball }}" --access public --provenance
 
   notify-on-failure:

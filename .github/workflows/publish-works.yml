@@ -125,7 +125,7 @@ jobs:
           const files = ["package.json", "pnpm-lock.yaml"];
           for (const file of files) {
             const text = fs.readFileSync(file, "utf-8");
-            if (text.includes("file:packages/mcp") || text.includes("link:packages/mcp") || text.includes("\"packages/mcp\"")) {
+            if (text.includes("file:packages/mcp\"") || text.includes("link:packages/mcp\"") || text.includes("\"packages/mcp\"")) {
               throw new Error(`Found stale packages/mcp reference in ${file}`);
             }
           }

@@ -134,7 +134,7 @@ jobs:
       - name: Pack npm package
         id: pack
         run: |
-          npm pack --json > pack-result.json
+          npm pack --json --ignore-scripts > pack-result.json
           PACKAGE_TARBALL=$(node -e "const output=require('./pack-result.json');if(!Array.isArray(output)||output.length!==1){throw new Error('Unexpected npm pack output');}process.stdout.write(output[0].filename);")
           echo "package_tarball=$PACKAGE_TARBALL" >> "$GITHUB_OUTPUT"
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"

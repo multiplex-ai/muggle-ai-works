@@ -1,7 +1,7 @@
 {
     "name": "@muggleai/works",
     "version": "2.0.1",
-    "description": "Ship quality products, not just code. AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
+    "description": "Deliver quality web products with an AI agent team. Autonomous pipeline that codes, tests, and QA-validates your app — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",
     "bin": {

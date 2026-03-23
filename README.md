@@ -1,6 +1,6 @@
 # muggle-ai-works
 
-**Ship quality products, not just code.** AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.
+Deliver quality web products with an AI agent team. Autonomous pipeline that codes, tests, and QA-validates your app — from Claude Code and Cursor to PR.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/@muggleai/works)]()

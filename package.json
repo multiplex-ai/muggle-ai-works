@@ -1,6 +1,6 @@
 {
     "name": "@muggleai/works",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Ship quality products, not just code. AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",

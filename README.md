@@ -447,7 +447,7 @@ muggle login            # Fresh login
 
 ## About
 
-Built by the team behind **[MuggleTest](https://www.muggle-ai.com)** — an AI-powered QA testing platform that makes software testing accessible to everyone, no coding required.
+Built by the team behind **[MuggleTest](https://www.muggletest.com)** — an AI-powered QA testing platform that makes software testing accessible to everyone, no coding required.
 
 **Muggle AI open-source ecosystem:**
 - **[muggle-ai-works](https://github.com/multiplex-ai/muggle-ai-works)** — QA testing MCP server + autonomous dev pipeline (this repo)

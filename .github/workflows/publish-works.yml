@@ -212,7 +212,10 @@ jobs:
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
-
+      
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+        
       - name: Download package artifact
         uses: actions/download-artifact@v4
         with:

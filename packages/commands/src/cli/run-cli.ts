@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 
 import { Command } from "commander";
 
-import { getLogger } from "../../../mcps/src/index.js";
+import { getLogger } from "@muggleai/mcp";
 import {
   cleanupCommand,
   doctorCommand,
@@ -24,10 +24,22 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
+ * Resolve the root package directory from the current module location.
+ * Handles both bundled (dist/) and development (packages/commands/src/cli/) contexts.
+ */
+function getPackageRoot(): string {
+  if (__dirname.endsWith("dist")) {
+    return resolve(__dirname, "..");
+  }
+  // Development: packages/commands/src/cli -> 4 levels up
+  return resolve(__dirname, "..", "..", "..", "..");
+}
+
+/**
  * Package version read from root package.json.
  */
 const packageVersion = JSON.parse(
-  readFileSync(resolve(__dirname, "..", "..", "..", "..", "package.json"), "utf-8"),
+  readFileSync(resolve(getPackageRoot(), "package.json"), "utf-8"),
 ).version as string;
 
 const logger = getLogger();

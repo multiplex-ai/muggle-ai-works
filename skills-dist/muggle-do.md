@@ -1,5 +1,4 @@
 ---
-name: muggle-do
 description: Quality-guranteed development workflow by Muggle AI. Takes a task through requirements, coding, testing, QA, and PR creation with iterative fix loops. Manages state in .muggle-do/sessions/ for auditability and crash recovery.
 ---
 

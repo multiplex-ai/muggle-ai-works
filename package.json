@@ -1,7 +1,7 @@
 {
     "name": "@muggleai/works",
     "version": "2.0.0",
-    "description": "Unified MCP server for Muggle AI - Cloud QA and Local Testing tools",
+    "description": "Ship quality products, not just code. AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",
     "bin": {
@@ -82,7 +82,12 @@
         "qa",
         "testing",
         "automation",
-        "localhost"
+        "localhost",
+        "ai-coding",
+        "user-experience",
+        "cursor",
+        "claude-code",
+        "vibe-coding"
     ],
     "author": "Muggle AI",
     "license": "MIT",

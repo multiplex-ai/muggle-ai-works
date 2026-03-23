@@ -1,6 +1,8 @@
 # @muggleai/works
 
-Unified MCP server for Muggle AI - combines Cloud QA and Local Testing tools into a single package.
+Ship quality products, not just code. AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.
+
+One install gives your AI coding assistant the ability to QA your app like a real user would — clicking through flows, catching broken experiences, and opening PRs with results. Works with Claude Code and Cursor.
 
 ## Installation
 
@@ -8,30 +10,20 @@ Unified MCP server for Muggle AI - combines Cloud QA and Local Testing tools int
 npm install -g @muggleai/works
 ```
 
-Or install directly from GitHub:
+One command. That's it. It automatically:
+1. Installs the `muggle` CLI and MCP server
+2. Downloads the QA engine for local validation
+3. Configures Cursor and installs skills for Claude Code
+4. Sets up `/muggle-do` for autonomous code-to-PR pipelines
 
-```bash
-npm install -g github:multiplex-ai/muggle-ai-works
-```
-
-This is the canonical one-liner install path.
-
-It automatically:
-1. Installs the package
-2. Downloads the Electron app binary (via postinstall)
-3. Registers/updates `~/.cursor/mcp.json` with a `muggle` server entry
-4. Sets up CLI commands
-
-## Quick Start
-
-### 1. Validate your install
+### Verify
 
 ```bash
 muggle --version
 muggle doctor
 ```
 
-### 2. Add to your MCP client (if needed)
+### Add to your MCP client (if not auto-configured)
 
 **Cursor (`~/.cursor/mcp.json`):**
 
@@ -46,9 +38,9 @@ muggle doctor
 }
 ```
 
-### 2. Start using MCP tools
+### Start using it
 
-Ask your AI assistant to test your application! Authentication happens automatically when needed.
+Ask your AI assistant to QA your app! It will launch your application, walk through user flows, and report what's broken. Authentication happens automatically when needed.
 
 ## CLI Commands
 
@@ -56,10 +48,10 @@ Ask your AI assistant to test your application! Authentication happens automatic
 # Server (main command - starts MCP server for AI clients)
 muggle serve              # Start server with all tools (default)
 muggle serve --qa         # Cloud QA tools only
-muggle serve --local      # Local testing tools only
+muggle serve --local      # Local QA tools only
 
 # Setup & Diagnostics
-muggle setup              # Download/update Electron app
+muggle setup              # Download/update QA engine
 muggle setup --force      # Force re-download
 muggle doctor             # Diagnose installation issues
 
@@ -95,7 +87,7 @@ The MCP server will attempt to auto-refresh tokens when possible, but manual re-
 
 ## Muggle Do (`/muggle-do`)
 
-An autonomous development pipeline that takes your code changes through requirements analysis, testing, QA, and PR creation — all inside Claude Code.
+An autonomous pipeline that takes your code changes through QA validation and PR creation — all inside Claude Code. You write the code, Muggle validates the user experience.
 
 ### How it works
 
@@ -108,8 +100,8 @@ You write code on a feature branch
     Stage 1: Requirements    → extracts goal + acceptance criteria
     Stage 2: Impact Analysis → detects which repos have git changes
     Stage 3: Validate        → checks feature branch, commits exist
-    Stage 4: Unit Tests      → runs test commands, fails fast
-    Stage 5: QA              → runs Muggle AI test cases
+    Stage 4: Sanity Check    → runs your project's checks, fails fast
+    Stage 5: QA              → validates real user experience with Muggle AI
     Stage 6: Open PRs        → pushes branch, creates PR with QA results
          |
          v
@@ -141,7 +133,7 @@ git add -A && git commit -m "feat: add login page"
 /muggle-do "Add a login page with email/password authentication"
 ```
 
-Claude will detect your changes, run tests, trigger QA, and open a PR.
+Claude will detect your changes, validate the user experience, and open a PR.
 
 ### What if something fails?
 
@@ -149,8 +141,8 @@ Claude will detect your changes, run tests, trigger QA, and open a PR.
 |---|---|
 | No changes detected | Stops — make changes first, re-run |
 | On main/master | Stops — create a feature branch first |
-| Unit tests fail | Shows output, stops — fix and re-run |
-| QA fails | Shows failing tests — fix and re-run |
+| Sanity checks fail | Shows output, stops — fix and re-run |
+| QA fails | Shows failing user flows — fix and re-run |
 
 ### Repo config
 
@@ -158,7 +150,7 @@ Claude will detect your changes, run tests, trigger QA, and open a PR.
 |---|---|---|---|
 | `name` | yes | — | Short identifier for the repo |
 | `path` | yes | — | Absolute path on your machine |
-| `testCommand` | no | `pnpm test` | Command to run unit tests |
+| `testCommand` | no | `pnpm test` | Command to run sanity checks |
 
 ---
 
@@ -166,25 +158,25 @@ Claude will detect your changes, run tests, trigger QA, and open a PR.
 
 ### Cloud QA Tools (muggle-remote-*)
 
-Tools that work with the Muggle AI cloud backend:
+Tools your AI assistant uses to validate user experiences via the Muggle AI cloud:
 
 - `muggle-remote-project-create` - Create QA project
 - `muggle-remote-project-list` - List projects
-- `muggle-remote-use-case-create-from-prompts` - Create use cases
-- `muggle-remote-test-case-generate-from-prompt` - Generate test cases
-- `muggle-remote-workflow-start-*` - Start various workflows
+- `muggle-remote-use-case-create-from-prompts` - Define user flows to validate
+- `muggle-remote-test-case-generate-from-prompt` - Generate QA scenarios from a description
+- `muggle-remote-workflow-start-*` - Run QA workflows
 - And more...
 
 ### Local QA Tools (muggle-local-*)
 
-Tools that work with local testing:
+Tools that validate your app locally before pushing:
 
-- `muggle-local-check-status` - Check local status
-- `muggle-local-list-sessions` - List sessions
-- `muggle-local-execute-test-generation` - Generate test script
-- `muggle-local-execute-replay` - Replay test script
-- `muggle-local-run-result-list` - List run results
-- `muggle-local-publish-test-script` - Publish to cloud
+- `muggle-local-check-status` - Check local QA engine status
+- `muggle-local-list-sessions` - List QA sessions
+- `muggle-local-execute-test-generation` - Generate QA script from your app
+- `muggle-local-execute-replay` - Replay a QA scenario against your app
+- `muggle-local-run-result-list` - List QA results
+- `muggle-local-publish-test-script` - Publish QA script to cloud
 - And more...
 
 ## Data Directory
@@ -194,39 +186,39 @@ All Muggle AI data is stored in `~/.muggle-ai/`:
 ```
 ~/.muggle-ai/
 ├── credentials.json      # Auth credentials (auto-generated)
-├── projects/             # Local test projects
-├── sessions/             # Test execution sessions
-└── electron-app/         # Downloaded Electron app
-    └── 1.0.0/
-        └── MuggleAI.exe
+├── projects/             # Local QA projects
+├── sessions/             # QA sessions
+└── electron-app/         # Downloaded QA engine
+    └── <version>/
+        └── MuggleAI.app  # (or .exe on Windows)
 ```
 
 ## Requirements
 
 - Node.js 22 or higher
-- For local testing: Electron app (downloaded automatically)
+- For local QA: QA engine (downloaded automatically during install)
 
 ## Development
 
 ### Building
 
 ```bash
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### Testing
 
 ```bash
-npm test              # Run tests once
-npm run test:watch    # Watch mode
+pnpm test              # Run tests once
+pnpm run test:watch    # Watch mode
 ```
 
 ### Linting
 
 ```bash
-npm run lint          # Auto-fix issues
-npm run lint:check    # Check only
+pnpm run lint          # Auto-fix issues
+pnpm run lint:check    # Check only
 ```
 
 ## CI/CD Workflows

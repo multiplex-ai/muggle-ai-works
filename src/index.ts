@@ -1,9 +1,10 @@
 /**
- * @muggleai/works - Unified MCP Server for Muggle AI
+ * @muggleai/works - Ship quality products, not just code.
  *
- * This package provides a single MCP server that combines:
- * - Cloud QA tools (from mcp-qa-gateway)
- * - Local testing tools (from local-mcp)
+ * AI-powered QA that validates your app's user experience.
+ * Provides MCP tools and CLI for:
+ * - Cloud QA (validate user flows via Muggle AI)
+ * - Local QA (validate your app before pushing)
  *
  * Usage:
  *   # Start MCP server (default - all tools)

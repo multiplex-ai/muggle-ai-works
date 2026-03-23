@@ -95,7 +95,13 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         env:
           VERSION: ${{ steps.extract_version.outputs.version }}
-        run: npm version "$VERSION" --no-git-tag-version
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version
+          else
+            echo "Version already at $VERSION, skipping"
+          fi
 
       - name: Set package version (manual trigger)
         if: github.event_name == 'workflow_dispatch'

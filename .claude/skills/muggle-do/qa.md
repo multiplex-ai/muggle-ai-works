@@ -29,9 +29,12 @@ Based on the changed files and the requirements goal, determine which test cases
 ### Step 4: Run Test Scripts
 
 For each relevant test case that has test scripts:
-1. Use `muggle-remote-test-script-list` to find test scripts for the test case
-2. Use `muggle-remote-workflow-start-test-script-replay` to trigger a replay of the test script
-3. Use `muggle-remote-wf-get-ts-replay-latest-run` to poll for results (check every 10 seconds, timeout after 5 minutes per test)
+1. Use `muggle-remote-test-script-list` to find test scripts for the test case. Note the `testScriptId`.
+2. Use `muggle-remote-workflow-start-test-script-replay` to trigger a replay. Note the returned `workflowRuntimeId`.
+3. Use `muggle-remote-wf-get-ts-replay-latest-run` to poll for results (check every 10 seconds, timeout after 5 minutes per test).
+4. From the final run result, capture any screenshot URL if present in the result payload (look for a `screenshotUrl`, `summaryScreenshotUrl`, or similar field on the run result or its nested objects).
+
+**Retain per test case:** `testCaseId`, `testScriptId`, `workflowRuntimeId`, and any `screenshotUrl` found.
 
 ### Step 5: Collect Results
 
@@ -39,18 +42,22 @@ For each test case:
 - Record whether it passed or failed
 - If failed, capture the failure reason and any reproduction steps
 - If a test script doesn't exist for a test case, note it as "no script available" (not a failure)
+- Record the `testCaseId` and `testScriptId` so they can be used to build links in the PR description
 
 ## Output
 
 **QA Report:**
 
 **Passed:** (count)
-- (test case name): passed
+- (test case name) [testCaseId: `<id>`, testScriptId: `<id>`]: passed
 
 **Failed:** (count)
-- (test case name): (failure reason)
+- (test case name) [testCaseId: `<id>`, testScriptId: `<id>`]: (failure reason)
 
 **Skipped:** (count, if any had no test scripts)
 - (test case name): no test script available
+
+**Metadata:**
+- projectId: `<projectId>`
 
 **Overall:** ALL PASSED | FAILURES DETECTED | PARTIAL (some skipped)

@@ -1,29 +1,31 @@
 ---
-description: Quality-guranteed development workflow by Muggle AI. Takes a task through requirements, coding, testing, QA, and PR creation with iterative fix loops. Manages state in .muggle-do/sessions/ for auditability and crash recovery.
+description: Unified AI development suite by Muggle AI. Dev pipeline (code → test → QA → PR) plus installation status, repair, and upgrade — all from one entry point.
 ---
 
-# Muggle Do — Autonomous Development Pipeline
+# Muggle Do — AI Development Suite
 
-Muggle Do is a session-based, iterative development pipeline. Given a task description, it autonomously:
+Muggle Do is the single entry point for the Muggle AI development suite. It handles:
 
-1. Extracts requirements and acceptance criteria
-2. Analyzes impact across configured repositories
-3. Validates git state (branches, commits, working tree)
-4. Writes or fixes implementation code
-5. Runs unit tests
-6. Runs QA test cases via Muggle AI infrastructure
-7. Triages failures and loops back to fix them
-8. Opens pull requests when done
-
-Each run is a **session** with full state persistence in markdown files. Sessions survive crashes, support resume, and provide a complete audit trail.
+- **Dev tasks** — code → unit test → QA → PR, with iterative fix loops and full session state
+- **Status** — health check for MCP server, Electron app, auth, and installed skills
+- **Repair** — diagnose and fix broken local installation automatically
+- **Upgrade** — update MCP server, Electron app, skills, and commands to the latest version
 
 ---
 
 ## Input
 
-The user's task description is: **$ARGUMENTS**
+The user's input is: **$ARGUMENTS**
 
-This is a natural-language description of what to build, fix, or change. If `$ARGUMENTS` is empty, ask the user to describe the task before proceeding.
+**Routing logic — check `$ARGUMENTS` first, before doing anything else:**
+
+| `$ARGUMENTS` value | Action |
+|--------------------|--------|
+| Empty, `help`, `?`, `menu` | Show the [unified menu](#unified-menu) |
+| `status` | Run [Status](#status) directly |
+| `repair` | Run [Repair](#repair) directly |
+| `upgrade` | Run [Upgrade](#upgrade) directly |
+| Any other text | Treat as a dev task description — skip the menu, go straight to [Session Management](#session-management) |
 
 ---
 
@@ -44,14 +46,45 @@ Read this file at startup. If it does not exist, ask the user to provide repo de
 
 ---
 
+## Unified Menu
+
+Show this when `$ARGUMENTS` is empty or a help keyword. Read `.muggle-do/sessions/*/state.md` to list existing sessions, then render:
+
+```
+Muggle Do — AI Development Suite
+
+Sessions:
+  [1] add-login-page   — CODING (iteration 2)   ← in progress
+  [2] fix-payment      — DONE                   ← completed
+
+  [3] Start a new dev task
+  ──────────────────────────────────────────────
+  [4] Status    check MCP, Electron app, auth, and skill versions
+  [5] Repair    diagnose and fix broken local installation
+  [6] Upgrade   update MCP server, Electron app, skills, and commands
+
+Enter a number, or describe a new task to start immediately.
+```
+
+If no sessions exist, omit the Sessions block and start numbering at [1].
+
+**Handling the user's response:**
+- Number matching a session → resume or review that session
+- Number matching "Start a new dev task" → proceed to Session Management (ask for task description if `$ARGUMENTS` is empty)
+- Number matching **Status / Repair / Upgrade** → run the corresponding procedure below
+- Free-text response → treat as a task description and go to Session Management
+
+---
+
 ## Session Management
 
-On invocation, check `.muggle-do/sessions/` for existing sessions.
+On invocation with a task description, check `.muggle-do/sessions/` for existing sessions.
 
 ### If sessions exist
 
-Read each session's `state.md` to determine its status. Present the user with options:
+Read each session's `state.md` to determine its status. If the user arrived here from the menu having already chosen "Start a new dev task", skip this prompt and create a new session directly.
 
+Otherwise ask:
 ```
 Existing sessions:
   [1] add-login-page        — CODING (iteration 2)    ← in progress
@@ -63,11 +96,11 @@ Which session? _
 
 - **Resume active session** — continue from the current stage recorded in `state.md`
 - **Review completed session** — read and display `result.md`
-- **Start new session** — proceed with `$ARGUMENTS` as the task description
+- **Start new session** — proceed with the task description
 
 ### If no sessions exist
 
-Skip the prompt entirely. Go straight to creating a new session with `$ARGUMENTS`.
+Skip the prompt entirely. Go straight to creating a new session.
 
 ### Session Naming
 
@@ -583,6 +616,78 @@ Rules:
    - QA summary (passed/failed counts, iteration history)
    - Any warnings or issues encountered
    - Total iterations used
+
+---
+
+## Maintenance Procedures
+
+### Status
+
+Run a full health check of the local Muggle AI installation and report results.
+
+**Steps:**
+
+1. **Electron app** — read `~/.muggle-ai/electron-app/` to find the installed version directory. Read `.install-metadata.json` to get `executableChecksum`. Compute the current SHA-256 of the binary (`MuggleAI.app/Contents/MacOS/MuggleAI`). Compare. On macOS also run `spctl --assess --verbose <app-path>` to check code signing.
+
+2. **MCP server** — call `muggle-local-check-status` to verify the MCP server is responsive and show auth state (authenticated, email, token expiry).
+
+3. **Skills and commands** — check that `~/.claude/commands/muggle-do.md` and `~/.claude/skills/muggle/` exist. Read the last entry from `~/.muggle-ai/postinstall.log` to show installed versions and dates.
+
+**Output format:**
+```
+Muggle AI — Installation Status
+
+Electron app   ✅  v1.0.11  binary checksum OK, code signing OK
+MCP server     ✅  responsive — authenticated as user@example.com (expires 2026-04-01)
+Skills         ✅  3 skills installed, last updated 2026-03-23
+Commands       ✅  muggle-do.md present
+
+All systems operational.
+```
+
+Use ✅ for passing checks and ❌ for failures. After listing all checks, summarise with either "All systems operational" or "Issues found — run Repair to fix."
+
+---
+
+### Repair
+
+Diagnose and fix broken components automatically.
+
+**Steps:**
+
+1. Run **Status** (above) to identify what is broken.
+2. If everything passes, tell the user "Nothing to repair — installation looks healthy."
+3. For each failing component, run the repair:
+   - **Any component broken** → run `node <muggle-ai-works-path>/scripts/postinstall.mjs` via Bash. Discover `<muggle-ai-works-path>` from `~/.cursor/mcp.json` (the `args[0]` field under `mcpServers.muggle`) or by resolving the path of the `muggle` binary.
+4. Run **Status** again to confirm all checks pass.
+5. Report what was repaired and the new versions.
+
+**Finding the install path:**
+```bash
+# From MCP config
+cat ~/.cursor/mcp.json | grep -A3 '"muggle"'
+
+# Or from the muggle binary
+which muggle && readlink -f $(which muggle)
+```
+
+---
+
+### Upgrade
+
+Update the MCP server, Electron app, skills, and commands to the latest published version.
+
+**Steps:**
+
+1. Run **Status** to capture current versions.
+2. Find the `muggle-ai-works` install path (same method as Repair).
+3. Run the upgrade:
+   ```bash
+   cd <muggle-ai-works-path> && npm install
+   ```
+   This pulls the latest package version and triggers the postinstall script which updates the Electron app, skills, and commands.
+4. Run **Status** again and diff the before/after versions to show what changed.
+5. Report the upgrade summary.
 
 ---
 

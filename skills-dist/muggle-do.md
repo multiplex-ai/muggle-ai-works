@@ -33,10 +33,12 @@ Repos are configured in `muggle-repos.json` in the working directory:
 
 ```json
 [
-  { "name": "frontend", "path": "/absolute/path/to/frontend", "testCommand": "pnpm test" },
-  { "name": "backend", "path": "/absolute/path/to/backend", "testCommand": "pnpm test" }
+  { "name": "frontend", "path": "/absolute/path/to/frontend", "testCommand": "pnpm test", "localUrl": "http://localhost:3000" },
+  { "name": "backend",  "path": "/absolute/path/to/backend",  "testCommand": "pnpm test", "localUrl": "http://localhost:4000" }
 ]
 ```
+
+The `localUrl` field is **required for QA**. It is the URL of the locally running dev server that the Electron test runner will target. If omitted, the QA stage will ask the user before proceeding.
 
 Read this file at startup. If it does not exist, ask the user to provide repo details and create it before proceeding.
 
@@ -422,13 +424,23 @@ For each repo listed in `requirements.md`:
 
 **Instructions:**
 
+QA runs tests **locally** using the `test-feature-local` approach — cloud `muggle-remote-*` tools manage entities; local `muggle-local-*` tools execute the tests. This guarantees QA always runs, regardless of cloud replay service availability.
+
+> **Note for user:** The local dev server must be running before QA starts. `muggle-do` will use the `localUrl` from `muggle-repos.json` for each repo.
+
+#### Step 0: Resolve Local URL
+
+For each repo being tested, read `localUrl` from `muggle-repos.json`. If it is missing, ask the user:
+> "QA requires a running local server. What URL is the `<repo>` app running on? (e.g. `http://localhost:3000`)"
+Do not skip QA — wait for the user to provide the URL.
+
 #### Step 1: Check Authentication
 
-Use the `muggle-remote-auth-status` MCP tool to verify valid credentials. If not authenticated, use `muggle-remote-auth-login` to start the device-code login flow and `muggle-remote-auth-poll` to wait for the user to complete login.
+Use `muggle-remote-auth-status` to verify credentials. If not authenticated, use `muggle-remote-auth-login` to start the device-code login flow and `muggle-remote-auth-poll` to wait for completion.
 
 #### Step 2: Get Test Cases
 
-Use `muggle-remote-test-case-list` with the project ID to fetch all test cases for this project.
+Use `muggle-remote-test-case-list` with the project ID to fetch all test cases.
 
 #### Step 3: Filter Relevant Test Cases
 
@@ -437,19 +449,36 @@ Based on the changed files and the requirements goal, determine which test cases
 - Test cases that cover areas potentially affected by the changes
 - When in doubt, include the test case (better to test more than miss a regression)
 
-#### Step 4: Run Test Scripts
+#### Step 4: Execute Tests Locally
 
-For each relevant test case that has test scripts:
-1. Use `muggle-remote-test-script-list` to find test scripts for the test case
-2. Use `muggle-remote-workflow-start-test-script-replay` to trigger a replay
-3. Use `muggle-remote-wf-get-ts-replay-latest-run` to poll for results (check every 10 seconds, timeout after 5 minutes per test)
+For each relevant test case:
+
+1. Call `muggle-remote-test-script-list` filtered by `testCaseId` to check for an existing script.
+
+2. **If a script exists** (replay path):
+   - Call `muggle-remote-test-script-get` with the `testScriptId` to fetch the full script object.
+   - Call `muggle-local-execute-replay` with:
+     - `testScript`: the full script object from the previous call
+     - `localUrl`: the resolved local URL for this repo
+     - `approveElectronAppLaunch`: `true` *(pipeline context — user starting `muggle-do` is implicit approval)*
+
+3. **If no script exists** (generation path):
+   - Call `muggle-remote-test-case-get` with the `testCaseId` to fetch the full test case object.
+   - Call `muggle-local-execute-test-generation` with:
+     - `testCase`: the full test case object from the previous call
+     - `localUrl`: the resolved local URL for this repo
+     - `approveElectronAppLaunch`: `true`
+
+4. When execution completes, call `muggle-local-run-result-get` with the `runId` returned by the execute call.
+
+5. **Retain per test case:** `testCaseId`, `testScriptId` (if present), `runId`, `status` (passed/failed), `artifactsDir` path.
 
 #### Step 5: Collect Results
 
 For each test case:
-- Record pass or fail
-- If failed, capture the failure reason and reproduction steps
-- If no test script exists for a test case, note it as "no script available" (not a failure)
+- Record pass or fail from the `muggle-local-run-result-get` response
+- If failed, capture the error message and `artifactsDir` path for reproduction
+- Every test case with a `testCaseId` must be executed — there is no "no script available" skip; generate a new script if none exists
 
 **On pass (all test cases)**: Append QA section to iteration file. Proceed to OPEN_PRS.
 
@@ -516,7 +545,24 @@ For each repo with changes:
    - `## Goal` — the requirements goal
    - `## Acceptance Criteria` — bulleted list from `requirements.md`
    - `## Changes` — summary of what changed in this repo
-   - `## QA Results` — passed/failed counts, failure details if any
+   - `## QA Results` — full test case breakdown using the format below
+
+**QA Results section format:**
+```
+## QA Results
+
+**X passed / Y failed**
+
+| Test Case | Status | Details |
+|-----------|--------|---------|
+| [Name](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}) | ✅ PASSED | — |
+| [Name](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}) | ❌ FAILED | {error message} — artifacts: `{artifactsDir}` |
+```
+
+Rules:
+- Link each test case name to its details page on www.muggle-ai.com using the URL pattern above.
+- For failed tests, include the error message and the local `artifactsDir` path.
+- Screenshots are in `{artifactsDir}/screenshots/` and can be viewed locally.
 4. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
 5. **Capture the PR URL** from the output.
 

@@ -27,19 +27,22 @@ muggle-ai-works gives your AI coding assistant three things it doesn't have out 
 
 ### 1. Install
 
-```bash
-/plugin marketplace add <marketplace-url-or-path>
-/plugin install muggle@<marketplace-name>
+In Claude Code, run:
+
+```
+/plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
+/plugin install muggle@muggle-plugins
 ```
 
-<details>
-<summary>What gets configured automatically</summary>
+This installs the Muggle AI plugin with:
 
-1. Namespaced skills (`/muggle:muggle-do`, `/muggle:test-feature-local`, `/muggle:publish-test-to-cloud`)
-2. Plugin-managed MCP server configuration
-3. Plugin hooks for Electron QA engine provisioning
+- `/muggle:muggle-do` — autonomous dev pipeline
+- `/muggle:test-feature-local` — local QA testing
+- `/muggle:publish-test-to-cloud` — publish results to cloud
+- MCP server with 70+ tools (auto-started)
+- Electron QA engine provisioning (via session hook)
 
-</details>
+Upgrading from v2? See [MIGRATION.md](./MIGRATION.md) for cleanup steps.
 
 ### 2. Verify
 

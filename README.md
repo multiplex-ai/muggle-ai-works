@@ -39,6 +39,8 @@ muggle-ai-works gives your AI coding assistant three things it doesn't have out 
 2. Plugin-managed MCP server configuration
 3. Plugin hooks for Electron QA engine provisioning
 
+See [MIGRATION.md](./MIGRATION.md) if you are upgrading from the old npm postinstall flow.
+
 </details>
 
 ### 2. Verify

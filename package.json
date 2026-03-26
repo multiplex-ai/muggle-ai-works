@@ -18,6 +18,7 @@
         "build": "tsup && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
         "build:release": "npm run build",
+        "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
         "build:workspace": "turbo run build",
         "typecheck:workspace": "turbo run typecheck",
         "lint:workspace": "turbo run lint",

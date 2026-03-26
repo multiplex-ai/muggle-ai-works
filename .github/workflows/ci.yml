@@ -33,7 +33,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # Type check with different TypeScript versions
+      - name: Verify plugin marketplace metadata
+        run: pnpm run verify:plugin
+
   typecheck:
     runs-on: ubuntu-latest
     strategy:
@@ -60,7 +62,6 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-  # Test on multiple Node.js versions
   node-compat:
     runs-on: ubuntu-latest
     strategy:
@@ -87,7 +88,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # Test on multiple platforms
+      - name: Verify plugin marketplace metadata
+        run: pnpm run verify:plugin
+
   platform-compat:
     strategy:
       matrix:
@@ -113,3 +116,6 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Verify plugin marketplace metadata
+        run: pnpm run verify:plugin

@@ -1,0 +1,14 @@
+{
+  "name": "muggle-plugins",
+  "owner": {
+    "name": "Muggle AI"
+  },
+  "plugins": [
+    {
+      "name": "muggle",
+      "source": "./plugin",
+      "description": "Muggle AI QA and autonomous dev workflow plugin.",
+      "version": "2.0.2"
+    }
+  ]
+}

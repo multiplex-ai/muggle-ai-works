@@ -857,6 +857,6 @@ async function installSkills() {
 // Run postinstall
 initLogFile();
 removeVersionOverrideFile();
-updateCursorMcpConfig();
-installSkills().catch(logError);
+log("Skipping Cursor MCP auto-registration (plugin-first mode). Install via: /plugin marketplace add <url>");
+log("Skipping ~/.claude skill installation (plugin-first mode). Install via: /plugin install muggle@<marketplace>");
 downloadElectronApp().catch(logError);

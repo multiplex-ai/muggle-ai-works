@@ -147,7 +147,7 @@ jobs:
           const fs = require("fs");
           const tarball = process.env.PACKAGE_TARBALL;
           const listing = cp.execSync(`tar -tf ${tarball}`, { encoding: "utf-8" }).split("\n").filter(Boolean);
-          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/scripts/postinstall.mjs"];
+          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/scripts/postinstall.mjs", "package/plugin/.claude-plugin/plugin.json"];
           for (const entry of required) {
             if (!listing.includes(entry)) {
               throw new Error(`Missing ${entry} in ${tarball}`);

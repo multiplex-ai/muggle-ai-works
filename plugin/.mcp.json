@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "muggle": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@muggleai/works",
+        "serve"
+      ]
+    }
+  }
+}

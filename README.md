@@ -18,7 +18,7 @@ Powered by [MuggleTest](https://www.muggletest.com) — the [AI-powered QA testi
 muggle-ai-works gives your AI coding assistant three things it doesn't have out of the box: the ability to test your app in a real browser, a fully autonomous dev pipeline from requirements to PR, and 70+ MCP tools for building custom QA workflows.
 
 - **Test features on localhost** — describe what to test in plain English; the AI drives a real browser, clicks through your flows, and reports results with screenshots. No test code to write, no Playwright setup.
-- **Autonomous dev pipeline** — run `/muggle-do` with a requirement in English; the AI codes the feature, writes unit tests, runs QA against your app, and opens a PR — all in one command.
+- **Autonomous dev pipeline** — run `/muggle:muggle-do` with a requirement in English; the AI codes the feature, writes unit tests, runs QA against your app, and opens a PR — all in one command.
 - **70+ MCP tools** — build custom QA workflows using tools for project management, use case discovery, test case generation, browser automation, and reporting. Works with Claude Code, Cursor, and any MCP-compatible client.
 
 ---
@@ -28,15 +28,16 @@ muggle-ai-works gives your AI coding assistant three things it doesn't have out 
 ### 1. Install
 
 ```bash
-npm install @muggleai/works
+/plugin marketplace add <marketplace-url-or-path>
+/plugin install muggle@<marketplace-name>
 ```
 
 <details>
 <summary>What gets configured automatically</summary>
 
-1. Downloads the QA engine (Electron app) for browser automation
-2. Registers the MCP server in `~/.cursor/mcp.json`
-3. Installs skills (`/muggle-do`, `/test-feature-local`) to `~/.claude/`
+1. Namespaced skills (`/muggle:muggle-do`, `/muggle:test-feature-local`, `/muggle:publish-test-to-cloud`)
+2. Plugin-managed MCP server configuration
+3. Plugin hooks for Electron QA engine provisioning
 
 </details>
 
@@ -102,12 +103,12 @@ muggle-local-publish-test-script uploads to cloud
 
 ## Three Ways to Use It
 
-### 1. `/test-feature-local` — Test a feature on localhost
+### 1. `/muggle:test-feature-local` — Test a feature on localhost
 
 Describe what to test in English. The AI finds the right project and test cases, launches a real browser, and reports results with screenshots.
 
 ```
-> /test-feature-local
+> /muggle:test-feature-local
 
 "Test my login changes on localhost:3999"
 
@@ -121,12 +122,12 @@ Describe what to test in English. The AI finds the right project and test cases,
 7. Publish to cloud? (y)
 ```
 
-### 2. `/muggle-do` — Autonomous dev pipeline
+### 2. `/muggle:muggle-do` — Autonomous dev pipeline
 
 Full development cycle: requirements to PR in one command. The AI codes the feature, writes unit tests, runs QA against your running app, and opens a PR.
 
 ```
-> /muggle-do "Add a logout button to the header"
+> /muggle:muggle-do "Add a logout button to the header"
 
 REQUIREMENTS  → Goal: Add logout button. Criteria: visible, functional, redirects.
 IMPACT        → frontend repo, src/components/Header.tsx
@@ -285,7 +286,7 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 
 | Package | Purpose | Install |
 |---------|---------|---------|
-| **muggle-ai-works** (this repo) | QA testing MCP server + autonomous dev pipeline | `npm install @muggleai/works` |
+| **muggle-ai-works** (this repo) | QA testing MCP server + autonomous dev pipeline | `/plugin install muggle@<marketplace>` |
 | **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow, skills, rules | `npm install @muggleai/teams` |
 
 Want the full platform experience? [MuggleTest](https://www.muggletest.com) gives you everything out of the box — no setup, no configuration.
@@ -324,18 +325,7 @@ Authentication happens automatically when you first use a tool that requires it:
 <details>
 <summary>MCP client configuration examples</summary>
 
-**Cursor** (`~/.cursor/mcp.json`) — auto-configured on install:
-
-```json
-{
-  "mcpServers": {
-    "muggle": {
-      "command": "muggle",
-      "args": ["serve"]
-    }
-  }
-}
-```
+When installed as a plugin, MCP server configuration is shipped by the plugin (`plugin/.mcp.json`) and does not require manual user-level file copy.
 
 **Environment targeting** — set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` to switch between production and dev:
 
@@ -353,7 +343,7 @@ Authentication happens automatically when you first use a tool that requires it:
 }
 ```
 
-**Multi-repo config for /muggle-do** — create `muggle-repos.json` in your working directory:
+**Multi-repo config for /muggle:muggle-do** — create `muggle-repos.json` in your working directory:
 
 ```json
 [
@@ -387,15 +377,15 @@ Authentication happens automatically when you first use a tool that requires it:
 
 ## What AI clients does it work with?
 
-Full support for Claude Code. MCP tools work with Cursor and any MCP-compatible client. The `/muggle-do` and `/test-feature-local` skills require Claude Code's Agent and Skill tools.
+Full support for Claude Code. MCP tools work with Cursor and any MCP-compatible client. Plugin skills (`/muggle:muggle-do`, `/muggle:test-feature-local`) require Claude Code plugin support.
 
 <details>
 <summary>Platform compatibility table</summary>
 
-| Platform | MCP Tools | /muggle-do | /test-feature-local |
+| Platform | MCP Tools | /muggle:muggle-do | /muggle:test-feature-local |
 |----------|-----------|-----------|-------------------|
 | **Claude Code** | Yes | Yes | Yes |
-| **Cursor** | Yes (via MCP) | No (needs Agent tool) | No (needs Skill tool) |
+| **Cursor** | Yes (via MCP) | No (needs plugin) | No (needs plugin) |
 | **Others** | Via MCP if supported | No | No |
 
 </details>

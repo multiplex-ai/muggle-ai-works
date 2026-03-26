@@ -1,21 +1,23 @@
 # Muggle AI Plugin for Claude Code
 
-AI-powered QA testing and autonomous dev pipeline for Claude Code. Test your web app with a real browser, generate test cases from plain English, and run a full code-to-PR cycle.
+Ship quality products with AI-powered QA that validates your app's user experience -- from Claude Code and Cursor to PR.
 
 ## Install
 
 ```
 /plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
-/plugin install muggle@muggle-plugins
+/plugin install muggleai@muggle-works
 ```
 
 ## Skills
 
 | Skill | What it does |
 |:---|:---|
-| `/muggle:muggle-do` | Autonomous dev pipeline: requirements, code, unit tests, QA, PR |
-| `/muggle:test-feature-local` | Test a feature on localhost with AI-driven browser automation |
-| `/muggle:publish-test-to-cloud` | Publish local test runs to Muggle AI cloud |
+| `/muggle:do` | Autonomous dev pipeline: requirements, code, unit tests, QA, PR. |
+| `/muggle:test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
+| `/muggle:status` | Health check for Electron QA engine, MCP server, and authentication. |
+| `/muggle:repair` | Diagnose and fix broken installation automatically. |
+| `/muggle:upgrade` | Update Electron QA engine and MCP server to latest version. |
 
 ## MCP Tools
 
@@ -33,21 +35,19 @@ A `SessionStart` hook ensures the Electron QA engine is downloaded and up to dat
 ## Upgrade
 
 ```
-/plugin update muggle@muggle-plugins
+/plugin update muggleai@muggle-works
 ```
 
 ## Uninstall
 
 ```
-/plugin uninstall muggle@muggle-plugins
+/plugin uninstall muggleai@muggle-works
 ```
 
 ## Links
 
 - [MuggleTest](https://www.muggletest.com)
 - [GitHub](https://github.com/multiplex-ai/muggle-ai-works)
-- [Migration guide](https://github.com/multiplex-ai/muggle-ai-works/blob/master/MIGRATION.md)
-
 ## License
 
 MIT

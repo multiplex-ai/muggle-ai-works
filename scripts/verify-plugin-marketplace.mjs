@@ -26,8 +26,8 @@ function verifyPluginMarketplace() {
     const builtPluginManifest = readJsonFile(builtPluginManifestPath);
 
     assertValue({
-        condition: marketplaceJson.name === "muggle-plugins",
-        message: "Marketplace name must be muggle-plugins.",
+        condition: marketplaceJson.name === "muggle-works",
+        message: "Marketplace name must be muggle-works.",
     });
 
     assertValue({
@@ -38,8 +38,13 @@ function verifyPluginMarketplace() {
     const [marketplacePlugin] = marketplaceJson.plugins;
 
     assertValue({
-        condition: marketplacePlugin.name === pluginManifest.name,
-        message: "Marketplace plugin name must match plugin manifest name.",
+        condition: marketplacePlugin.name === "muggleai",
+        message: "Marketplace plugin entry name must be muggleai.",
+    });
+
+    assertValue({
+        condition: pluginManifest.name === "muggle",
+        message: "Plugin manifest name must be muggle (skill namespace prefix).",
     });
 
     assertValue({

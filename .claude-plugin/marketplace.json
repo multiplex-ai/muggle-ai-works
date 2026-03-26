@@ -1,14 +1,15 @@
 {
   "name": "muggle-plugins",
   "owner": {
-    "name": "Muggle AI"
+    "name": "Muggle AI",
+    "email": "support@muggle-ai.com"
   },
   "plugins": [
     {
       "name": "muggle",
       "source": "./plugin",
-      "description": "Muggle AI QA and autonomous dev workflow plugin.",
-      "version": "2.0.2"
+      "description": "AI-powered QA testing and autonomous dev pipeline. Test your web app with a real browser, generate test cases from English, and run a full code-to-PR cycle.",
+      "version": "3.0.0"
     }
   ]
 }

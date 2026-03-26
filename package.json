@@ -1,6 +1,6 @@
 {
     "name": "@muggleai/works",
-    "version": "2.0.2",
+    "version": "3.0.0",
     "description": "Deliver quality web products with an AI agent team. Autonomous pipeline that codes, tests, and QA-validates your app — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",
@@ -18,6 +18,7 @@
         "build": "tsup && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
         "build:release": "npm run build",
+        "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
         "build:workspace": "turbo run build",
         "typecheck:workspace": "turbo run typecheck",
         "lint:workspace": "turbo run lint",

@@ -1,6 +1,6 @@
 {
     "name": "@muggleai/works",
-    "version": "2.0.2",
+    "version": "3.0.0",
     "description": "Deliver quality web products with an AI agent team. Autonomous pipeline that codes, tests, and QA-validates your app — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",

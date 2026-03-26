@@ -1,37 +1,25 @@
 # muggle-ai-works
 
-Deliver quality web products with an AI agent team. Autonomous pipeline that codes, tests, and QA-validates your app — from Claude Code and Cursor to PR.
+**Test your web app with AI — no test code required.**
+
+One install gives your AI coding assistant the power to QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![npm](https://img.shields.io/npm/v/@muggleai/works)]()
 [![MCP Tools](https://img.shields.io/badge/MCP_tools-70+-green)]()
 [![Node](https://img.shields.io/badge/node-22+-orange)]()
 
-One install gives your AI coding assistant the ability to QA your app like a real user would — clicking through flows, catching broken experiences, and opening PRs with results.
-
-Part of the **Muggle AI** open-source ecosystem:
-
-| Package | Purpose | Install |
-|---------|---------|---------|
-| **muggle-ai-works** (this repo) | QA testing MCP server + autonomous dev pipeline | `npm install @muggleai/works` |
-| **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow, skills, rules | `npm install @muggleai/teams` |
-
-muggle-ai-works handles *QA verification* (test generation, browser replay, cloud results). muggle-ai-teams handles *how work gets done* (design → implement → review → deliver). Together, they form a complete AI-assisted development workflow with built-in quality assurance.
+Powered by [MuggleTest](https://www.muggletest.com) — the [AI-powered QA testing platform](https://www.muggletest.com).
 
 ---
 
-## How Is This Different?
+## What do you get?
 
-Most AI coding tools help you *write* code. muggle-ai-works helps you *test* it — automatically, using AI-driven browser automation.
+muggle-ai-works gives your AI coding assistant three things it doesn't have out of the box: the ability to test your app in a real browser, a fully autonomous dev pipeline from requirements to PR, and 70+ MCP tools for building custom QA workflows.
 
-| | **muggle-ai-works** | **Playwright MCP** | **Manual QA** |
-|---|---|---|---|
-| **Test creation** | Natural language → test cases | Write code manually | Write test plans manually |
-| **Test execution** | AI-driven browser (Electron app) | Scripted browser automation | Human clicks through flows |
-| **Localhost testing** | Built-in URL rewriting | Manual config | Manual |
-| **Cloud sync** | Automatic (projects, cases, scripts, results) | None | Spreadsheets |
-| **Integration** | MCP tools for any AI assistant | Playwright API | None |
-| **Learning curve** | Describe what to test in English | Learn Playwright API | Train QA team |
+- **Test features on localhost** — describe what to test in plain English; the AI drives a real browser, clicks through your flows, and reports results with screenshots. No test code to write, no Playwright setup.
+- **Autonomous dev pipeline** — run `/muggle-do` with a requirement in English; the AI codes the feature, writes unit tests, runs QA against your app, and opens a PR — all in one command.
+- **70+ MCP tools** — build custom QA workflows using tools for project management, use case discovery, test case generation, browser automation, and reporting. Works with Claude Code, Cursor, and any MCP-compatible client.
 
 ---
 
@@ -43,10 +31,14 @@ Most AI coding tools help you *write* code. muggle-ai-works helps you *test* it 
 npm install @muggleai/works
 ```
 
-This automatically:
+<details>
+<summary>What gets configured automatically</summary>
+
 1. Downloads the QA engine (Electron app) for browser automation
 2. Registers the MCP server in `~/.cursor/mcp.json`
 3. Installs skills (`/muggle-do`, `/test-feature-local`) to `~/.claude/`
+
+</details>
 
 ### 2. Verify
 
@@ -57,19 +49,17 @@ muggle doctor
 
 ### 3. Start testing
 
-In Claude Code or Cursor, just ask:
+In Claude Code or Cursor, describe what to test:
 
 > "Test my login flow on localhost:3000"
 
-Your AI assistant will authenticate, find or create test cases, launch the browser, record/replay tests, and show you results with screenshots.
+Your AI assistant authenticates, finds or creates test cases, launches the browser, records and replays tests, and shows results with screenshots.
 
 ---
 
-## How It Works
+## How does it work?
 
-### Design principle: "Create remotely, execute locally"
-
-All entity management (projects, use cases, test cases) lives in the **cloud** via `muggle-remote-*` tools. Local execution (`muggle-local-*`) is stateless — it receives everything it needs as input and just runs tests.
+muggle-ai-works separates test management from test execution. All entity management (projects, use cases, test cases) lives in the cloud via `muggle-remote-*` tools. Local execution (`muggle-local-*`) is stateless — it receives what it needs and runs the test.
 
 ### Entity model
 
@@ -81,7 +71,8 @@ Project (e.g., "My App")
                  └── Run Result (pass/fail + screenshots)
 ```
 
-### Test execution flow
+<details>
+<summary>Test execution flow</summary>
 
 ```
 Your AI assistant describes what to test
@@ -105,13 +96,15 @@ Results: pass/fail with evidence at ~/.muggle-ai/sessions/{runId}/
 muggle-local-publish-test-script uploads to cloud
 ```
 
+</details>
+
 ---
 
 ## Three Ways to Use It
 
 ### 1. `/test-feature-local` — Test a feature on localhost
 
-Interactive workflow: pick a project → pick a use case → pick a test case → run against localhost.
+Describe what to test in English. The AI finds the right project and test cases, launches a real browser, and reports results with screenshots.
 
 ```
 > /test-feature-local
@@ -130,7 +123,7 @@ Interactive workflow: pick a project → pick a use case → pick a test case �
 
 ### 2. `/muggle-do` — Autonomous dev pipeline
 
-Full development cycle: requirements → code → unit tests → QA → PR creation.
+Full development cycle: requirements to PR in one command. The AI codes the feature, writes unit tests, runs QA against your running app, and opens a PR.
 
 ```
 > /muggle-do "Add a logout button to the header"
@@ -145,15 +138,14 @@ OPEN_PRS      → PR #42 opened
 DONE          → 1 iteration, all green
 ```
 
-Features:
 - Session-based with crash recovery (`.muggle-do/sessions/`)
-- Auto-triage: analyzes failures, jumps back to fix (max 3 iterations)
+- Auto-triage: analyzes failures and loops back to fix (max 3 iterations)
 - Multi-repo support via `muggle-repos.json`
-- Creates PRs with QA results in description
+- PRs include QA results and screenshots in the description
 
-### 3. Direct MCP tool calls — Build your own workflow
+### 3. Direct MCP tool calls — Build your own QA workflow
 
-Use any of the 70+ MCP tools directly from your AI assistant:
+Use any of the 70+ MCP tools directly from your AI assistant. This is the lowest-level option and the most flexible for building custom QA workflows.
 
 ```
 "Create a project called My App with URL https://myapp.com"
@@ -164,26 +156,12 @@ Use any of the 70+ MCP tools directly from your AI assistant:
 
 ---
 
-## Integration with muggle-ai-teams
+## What MCP tools are included?
 
-When both packages are installed, muggle-ai-teams automatically integrates QA into its workflow:
+muggle-ai-works provides 70+ MCP tools organized into 8 categories: authentication, project management, use cases, test cases, test scripts, local execution, reports, and administration. These tools power all AI testing automation workflows — from one-off browser checks to full QA automation pipelines.
 
-| Workflow Step | What Happens |
-|--------------|-------------|
-| **Step 1F** (Plan) | QA test instructions written per implementation slice |
-| **Step 2** (Execute) | Per-slice QA via muggle-ai-works before each commit |
-| **Step 3** (Verify) | Full regression sweep replaying all project scripts |
-| **Step 5** (Push) | QA results published to cloud, linked in PR description |
-
-Frontend slices get browser QA. Backend-only slices are verified by unit tests (browser QA skipped with documented reasoning).
-
-Install both: `npm install @muggleai/works @muggleai/teams`
-
----
-
-## Available MCP Tools (70+)
-
-### Authentication (`muggle-remote-auth-*`)
+<details>
+<summary>Authentication (muggle-remote-auth-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -192,7 +170,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-auth-poll` | Poll for login completion |
 | `muggle-remote-auth-logout` | Clear credentials |
 
-### Project Management (`muggle-remote-project-*`)
+</details>
+
+<details>
+<summary>Project Management (muggle-remote-project-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -202,7 +183,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-project-update` | Update project |
 | `muggle-remote-project-delete` | Delete project |
 
-### Use Cases (`muggle-remote-use-case-*`)
+</details>
+
+<details>
+<summary>Use Cases (muggle-remote-use-case-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -211,7 +195,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-use-case-prompt-preview` | Preview before creating |
 | `muggle-remote-use-case-update-from-prompt` | Regenerate from new prompt |
 
-### Test Cases (`muggle-remote-test-case-*`)
+</details>
+
+<details>
+<summary>Test Cases (muggle-remote-test-case-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -221,7 +208,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-test-case-create` | Create test case |
 | `muggle-remote-test-case-generate-from-prompt` | Generate from prompt |
 
-### Test Scripts & Workflows (`muggle-remote-workflow-*`)
+</details>
+
+<details>
+<summary>Test Scripts and Workflows (muggle-remote-workflow-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -233,7 +223,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-workflow-start-test-script-replay` | Replay single script |
 | `muggle-remote-workflow-start-test-script-replay-bulk` | Batch replay |
 
-### Local Execution (`muggle-local-*`)
+</details>
+
+<details>
+<summary>Local Execution (muggle-local-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -245,7 +238,10 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-local-run-result-get` | Get detailed results + screenshots |
 | `muggle-local-publish-test-script` | Publish script to cloud |
 
-### Reports & Analytics (`muggle-remote-report-*`)
+</details>
+
+<details>
+<summary>Reports and Analytics (muggle-remote-report-*)</summary>
 
 | Tool | Purpose |
 |------|---------|
@@ -254,11 +250,49 @@ Install both: `npm install @muggleai/works @muggleai/teams`
 | `muggle-remote-report-final-generate` | Generate final report (PDF/HTML/Markdown) |
 | `muggle-remote-project-test-results-summary-get` | Test results summary |
 
-Also available: PRD processing (`muggle-remote-prd-*`), secrets management (`muggle-remote-secret-*`), wallet/billing (`muggle-remote-wallet-*`), and scheduling recommendations (`muggle-remote-recommend-*`).
+</details>
+
+<details>
+<summary>Administration (PRD, secrets, billing, scheduling)</summary>
+
+| Category | Tools |
+|----------|-------|
+| PRD processing | `muggle-remote-prd-*` — upload and process product requirements docs |
+| Secrets management | `muggle-remote-secret-*` — store credentials for test environments |
+| Wallet and billing | `muggle-remote-wallet-*` — manage credits and payment methods |
+| Scheduling | `muggle-remote-recommend-*` — get CI/CD and schedule recommendations |
+
+</details>
 
 ---
 
-## CLI Commands
+## Works with muggle-ai-teams
+
+[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams) is the companion package for agent orchestration, workflow steps, and delivery. When both packages are installed, muggle-ai-teams automatically integrates QA into the development workflow at each stage.
+
+| Workflow Step | What Happens |
+|--------------|-------------|
+| **Plan** | QA test instructions written per implementation slice |
+| **Build** | Per-slice QA via muggle-ai-works before each commit |
+| **Verify** | Full regression sweep replaying all project scripts |
+| **Ship** | QA results published to cloud, linked in PR description |
+
+Frontend slices get browser QA. Backend-only slices are verified by unit tests (browser QA skipped with documented reasoning).
+
+Install both: `npm install @muggleai/works @muggleai/teams`
+
+**Muggle AI open-source ecosystem:**
+
+| Package | Purpose | Install |
+|---------|---------|---------|
+| **muggle-ai-works** (this repo) | QA testing MCP server + autonomous dev pipeline | `npm install @muggleai/works` |
+| **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow, skills, rules | `npm install @muggleai/teams` |
+
+Want the full platform experience? [MuggleTest](https://www.muggletest.com) gives you everything out of the box — no setup, no configuration.
+
+---
+
+## CLI Reference
 
 ```bash
 # Server (main command — starts MCP server for AI clients)
@@ -266,7 +300,7 @@ muggle serve              # Start with all tools (default)
 muggle serve --qa         # Cloud QA tools only
 muggle serve --local      # Local QA tools only
 
-# Setup & Diagnostics
+# Setup and Diagnostics
 muggle setup              # Download/update QA engine
 muggle setup --force      # Force re-download
 muggle doctor             # Diagnose installation issues
@@ -283,57 +317,12 @@ muggle --help             # Show help
 
 ---
 
-## Authentication
+## Setup and Configuration
 
-Authentication happens automatically when you first use a tool that requires it:
+Authentication happens automatically when you first use a tool that requires it: a browser window opens with a verification code, you log in with your Muggle AI account, and the tool call continues. Credentials persist across sessions in `~/.muggle-ai/`.
 
-1. A browser window opens with a verification code
-2. You log in with your Muggle AI account
-3. The tool call continues with your credentials
-
-Credentials are stored in `~/.muggle-ai/` and persist across sessions.
-
-### Handling expired tokens
-
-1. **Check status**: `muggle status` or `muggle-remote-auth-status`
-2. **Re-authenticate**: `muggle login` or `muggle-remote-auth-login`
-3. **If "unauthorized_client"**: Check `MUGGLE_MCP_PROMPT_SERVICE_TARGET` environment variable (see Troubleshooting)
-
----
-
-## Data Directory
-
-```
-~/.muggle-ai/
-├── auth.json             # OAuth tokens
-├── credentials.json      # API key for service calls
-├── projects/             # Local project cache
-├── sessions/             # QA sessions
-│   └── {runId}/
-│       ├── action-script.json    # Recorded browser steps
-│       ├── results.md            # Step-by-step report
-│       └── screenshots/          # Per-step images
-└── electron-app/         # Downloaded QA engine
-    └── {version}/
-```
-
----
-
-## Platform Compatibility
-
-| Platform | MCP Tools | /muggle-do | /test-feature-local |
-|----------|-----------|-----------|-------------------|
-| **Claude Code** | Yes | Yes | Yes |
-| **Cursor** | Yes (via MCP) | No (needs Agent tool) | No (needs Skill tool) |
-| **Others** | Via MCP if supported | No | No |
-
-The MCP server (`muggle serve`) works with any MCP-compatible client. The distributed skills (`/muggle-do`, `/test-feature-local`) require Claude Code's Agent and Skill tools.
-
----
-
-## Configuration
-
-### MCP client config
+<details>
+<summary>MCP client configuration examples</summary>
 
 **Cursor** (`~/.cursor/mcp.json`) — auto-configured on install:
 
@@ -348,9 +337,7 @@ The MCP server (`muggle serve`) works with any MCP-compatible client. The distri
 }
 ```
 
-### Environment targeting
-
-Set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` to switch between production and dev:
+**Environment targeting** — set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` to switch between production and dev:
 
 ```json
 {
@@ -366,9 +353,7 @@ Set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` to switch between production and dev:
 }
 ```
 
-### Multi-repo config for /muggle-do
-
-Create `muggle-repos.json` in your working directory:
+**Multi-repo config for /muggle-do** — create `muggle-repos.json` in your working directory:
 
 ```json
 [
@@ -377,9 +362,80 @@ Create `muggle-repos.json` in your working directory:
 ]
 ```
 
+</details>
+
+<details>
+<summary>Data directory structure (~/.muggle-ai/)</summary>
+
+```
+~/.muggle-ai/
+├── auth.json             # OAuth tokens
+├── credentials.json      # API key for service calls
+├── projects/             # Local project cache
+├── sessions/             # QA sessions
+│   └── {runId}/
+│       ├── action-script.json    # Recorded browser steps
+│       ├── results.md            # Step-by-step report
+│       └── screenshots/          # Per-step images
+└── electron-app/         # Downloaded QA engine
+    └── {version}/
+```
+
+</details>
+
 ---
 
-## Development
+## What AI clients does it work with?
+
+Full support for Claude Code. MCP tools work with Cursor and any MCP-compatible client. The `/muggle-do` and `/test-feature-local` skills require Claude Code's Agent and Skill tools.
+
+<details>
+<summary>Platform compatibility table</summary>
+
+| Platform | MCP Tools | /muggle-do | /test-feature-local |
+|----------|-----------|-----------|-------------------|
+| **Claude Code** | Yes | Yes | Yes |
+| **Cursor** | Yes (via MCP) | No (needs Agent tool) | No (needs Skill tool) |
+| **Others** | Via MCP if supported | No | No |
+
+</details>
+
+---
+
+<details>
+<summary>Troubleshooting</summary>
+
+### "unauthorized_client" during login
+
+**Cause**: MCP configured for one environment but authenticating against another.
+
+**Fix**: Set the correct `MUGGLE_MCP_PROMPT_SERVICE_TARGET` in your MCP config and restart your client.
+
+### QA engine not found
+
+```bash
+muggle setup --force    # Re-download
+muggle doctor           # Diagnose
+```
+
+### Authentication keeps expiring
+
+```bash
+muggle logout           # Clear all credentials
+rm ~/.muggle-ai/auth.json ~/.muggle-ai/credentials.json
+muggle login            # Fresh login
+```
+
+</details>
+
+---
+
+## About
+
+Built by the team behind [MuggleTest](https://www.muggletest.com) — [AI-powered QA testing](https://www.muggletest.com) for teams who ship fast.
+
+<details>
+<summary>For contributors</summary>
 
 ```bash
 # Install dependencies
@@ -403,14 +459,14 @@ pnpm run lint:check    # Check only
 pnpm run typecheck
 ```
 
-### CI/CD
+**CI/CD**
 
 | Workflow | Trigger | Description |
 |----------|---------|-------------|
 | `ci.yml` | Push/PR to `master` | Lint, test, build on multiple platforms |
 | `publish-works.yml` | Tag `v*` or manual | Verify, audit, smoke-install, publish to npm |
 
-### Publishing
+**Publishing**
 
 ```bash
 # Update version in package.json
@@ -418,47 +474,12 @@ git tag v2.0.1 && git push --tags
 # publish-works.yml handles the rest
 ```
 
----
-
-## Troubleshooting
-
-### "unauthorized_client" during login
-
-**Cause**: MCP configured for one environment but authenticating against another.
-
-**Fix**: Set the correct `MUGGLE_MCP_PROMPT_SERVICE_TARGET` in your MCP config and restart your client.
-
-### QA engine not found
-
-```bash
-muggle setup --force    # Re-download
-muggle doctor           # Diagnose
-```
-
-### Authentication keeps expiring
-
-```bash
-muggle logout           # Clear all credentials
-rm ~/.muggle-ai/auth.json ~/.muggle-ai/credentials.json
-muggle login            # Fresh login
-```
-
----
-
-## About
-
-Built by the team behind **[MuggleTest](https://www.muggletest.com)** — an AI-powered QA testing platform that makes software testing accessible to everyone, no coding required.
-
-**Muggle AI open-source ecosystem:**
-- **[muggle-ai-works](https://github.com/multiplex-ai/muggle-ai-works)** — QA testing MCP server + autonomous dev pipeline (this repo)
-- **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** — Agent orchestration, workflow, skills, and rules
+</details>
 
 ---
 
 ## License
 
 [MIT](LICENSE) — Use it, fork it, make it yours.
-
----
 
 If this helps your development workflow, consider giving it a star. It helps others find it.

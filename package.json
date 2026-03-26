@@ -9,13 +9,14 @@
     },
     "files": [
         "dist",
+        "plugin",
         "bin/muggle.js",
-        "scripts/postinstall.mjs",
-        "skills-dist"
+        "scripts/postinstall.mjs"
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build": "tsup",
+        "build": "tsup && node scripts/build-plugin.mjs",
+        "build:plugin": "node scripts/build-plugin.mjs",
         "build:release": "npm run build",
         "build:workspace": "turbo run build",
         "typecheck:workspace": "turbo run typecheck",

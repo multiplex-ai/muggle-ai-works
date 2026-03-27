@@ -1,5 +1,5 @@
 ---
-name: muggle-do
+name: do
 description: Unified Muggle AI workflow entry point. Routes to autonomous dev cycle, status, repair, or upgrade.
 disable-model-invocation: true
 ---
@@ -8,19 +8,15 @@ disable-model-invocation: true
 
 Muggle Do is the top-level command for the Muggle AI development workflow.
 
-It supports two categories of execution:
+It runs the autonomous dev cycle: requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs.
 
-1. **Dev cycle**: requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs
-2. **Maintenance**: status, repair, upgrade
+For maintenance tasks, use the dedicated skills: `/muggle:status`, `/muggle:repair`, `/muggle:upgrade`.
 
 ## Input routing
 
 Treat `$ARGUMENTS` as the user command:
 
 - Empty / `help` / `menu` / `?` -> show menu and session selector.
-- `status` -> run installation and auth status checks.
-- `repair` -> run repair workflow.
-- `upgrade` -> run upgrade workflow.
 - Anything else -> treat as a new task description and start/resume a dev-cycle session.
 
 ## Session model

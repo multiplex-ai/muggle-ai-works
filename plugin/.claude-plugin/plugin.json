@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "AI-powered QA testing and autonomous dev pipeline. Test your web app with a real browser, generate test cases from English, and run a full code-to-PR cycle.",
+  "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
   "version": "3.0.0",
   "author": {
     "name": "Muggle AI",

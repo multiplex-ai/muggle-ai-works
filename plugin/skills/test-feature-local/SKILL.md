@@ -1,11 +1,11 @@
 ---
 name: test-feature-local
-description: Test a feature's user experience on localhost. Manage entities in cloud with muggle-remote tools and execute locally with muggle-local tools.
+description: Test a feature's user experience on localhost. Execute locally with muggle-local tools, and present the results on muggle-ai.com.
 ---
 
 # Test Feature Local
 
-Run end-to-end feature testing against a local URL using a cloud-first workflow:
+Run end-to-end feature testing from UI against a local URL:
 
 - Cloud management: `muggle-remote-*`
 - Local execution and artifacts: `muggle-local-*`
@@ -16,7 +16,8 @@ Run end-to-end feature testing against a local URL using a cloud-first workflow:
    - `muggle-remote-auth-status`
    - If needed: `muggle-remote-auth-login` + `muggle-remote-auth-poll`
 
-2. **Select project/use case/test case**
+2. **Select or create the project -> use case -> test case to use**
+   - Explictly ask user to select each target to proceed.
    - `muggle-remote-project-list`
    - `muggle-remote-use-case-list`
    - `muggle-remote-test-case-list-by-use-case`
@@ -24,6 +25,7 @@ Run end-to-end feature testing against a local URL using a cloud-first workflow:
 3. **Resolve local URL**
    - Use the URL provided by the user.
    - If missing, ask explicitly (do not guess).
+   - Inform user the local URL does not affect the project's remote test.
 
 4. **Check script availability**
    - `muggle-remote-test-script-list` filtered by testCaseId
@@ -41,16 +43,19 @@ Run end-to-end feature testing against a local URL using a cloud-first workflow:
    - Before execution, get explicit user approval for launching Electron app.
    - Only then set `approveElectronAppLaunch: true`.
 
-7. **Report results**
+7. **Publish local generation result to MuggleTest cloud records**
+   - Use `muggle-local-publish-test-script` after successful generation so user can see the full job details.
+   - Return the remote URL for user to view the result and script details.
+
+8. **Report results**
    - `muggle-local-run-result-get` with returned runId.
    - Report:
      - status
      - duration
-     - artifacts path
      - pass/fail summary
-
-8. **Optional publish**
-   - Offer `muggle-local-publish-test-script` to publish generated script to cloud.
+     - steps summary
+     - artifacts path
+     - script detail view URL
 
 ## Tool map
 

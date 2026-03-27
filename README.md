@@ -54,7 +54,7 @@ This installs the Muggle AI plugin with:
 
 This checks Electron QA engine, MCP server health, and authentication. If anything is broken, run `/muggle:repair`.
 
-### 3. Start building
+### 3. Start building features
 
 Describe what you want to build:
 
@@ -268,7 +268,7 @@ Administration (PRD, secrets, billing, scheduling)
 | ------------------ | -------------------------------------------------------------------- |
 | PRD processing     | `muggle-remote-prd-`* — upload and process product requirements docs |
 | Secrets management | `muggle-remote-secret-`* — store credentials for test environments   |
-| Wallet and billing | `muggle-remote-wallet-*` — manage credits and payment methods        |
+| Wallet and billing | `muggle-remote-wallet-`* — manage credits and payment methods        |
 | Scheduling         | `muggle-remote-recommend-*` — get CI/CD and schedule recommendations |
 
 

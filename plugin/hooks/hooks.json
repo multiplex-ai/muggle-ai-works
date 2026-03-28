@@ -2,10 +2,12 @@
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\""
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
+            "async": false
           }
         ]
       }

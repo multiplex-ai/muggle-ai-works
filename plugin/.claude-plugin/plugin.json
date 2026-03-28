@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
+  "description": "Run real-browser QA tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
   "version": "3.0.0",
   "author": {
     "name": "Muggle AI",
@@ -15,6 +15,12 @@
     "mcp",
     "browser-automation",
     "ai-coding",
-    "muggle-ai"
+    "muggle-ai",
+    "ui-validation",
+    "regression-testing",
+    "e2e-testing",
+    "ux-testing",
+    "visual-qa",
+    "frontend-testing"
   ]
 }

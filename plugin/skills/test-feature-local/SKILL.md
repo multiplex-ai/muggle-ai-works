@@ -1,6 +1,6 @@
 ---
 name: test-feature-local
-description: Test a feature's user experience on localhost. Manage entities in cloud with muggle-remote tools and execute locally with muggle-local tools.
+description: Run a real-browser QA test against localhost to verify a feature works correctly — signup flows, checkout, form validation, UI interactions, or any user-facing behavior. Launches a browser that executes test steps and captures screenshots. Use this skill whenever the user asks to test, QA, validate, or verify their web app, UI changes, user flows, or frontend behavior on localhost or a dev server — even if they don't mention 'muggle' or 'QA' explicitly.
 ---
 
 # Test Feature Local

@@ -1,8 +1,8 @@
 # *muggle-ai-works*
 
-**Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.**
+**Run real-browser QA tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.**
 
-One install gives your AI coding assistant the power to vision-based QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
+One install gives your AI coding assistant the power to QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
 
 *[License: MIT](LICENSE)
 [npm]()

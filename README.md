@@ -20,7 +20,7 @@ Your AI assistant writes code fast. But does the feature actually work? Does the
 muggle-ai-works closes the gap between "code complete" and "actually works."
 
 - **Catch UX regressions before your users do** — AI drives a real browser against your localhost across desktop and mobile resolutions, clicks through flows like a user would, and reports failures with step-by-step screenshots. No Playwright scripts to maintain.
-- **Go from requirement to merged PR in one command** — `/muggle:do` handles the full cycle: code the feature, run unit tests, QA the app in a real browser at multiple viewports, triage failures, and open a PR with evidence attached.
+- **Go from requirement to merged PR in one command** — `/muggle:muggle-do` handles the full cycle: code the feature, run unit tests, QA the app in a real browser at multiple viewports, triage failures, and open a PR with evidence attached.
 - **70+ MCP tools for custom workflows** — manage projects, generate test cases from plain English, replay test scripts, batch-run regressions, and publish results to your team. Works in Claude Code, Cursor, and any MCP client.
 
 ---
@@ -38,28 +38,31 @@ In Claude Code, run:
 
 This installs the Muggle AI plugin with:
 
-- `/muggle:do` — autonomous dev pipeline (requirements to PR)
-- `/muggle:test-feature-local` — local quick QA testing
-- `/muggle:status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
-- `/muggle:repair` — diagnose and fix broken installation
-- `/muggle:upgrade` — update to the latest version
+- `/muggle:muggle` — command router and menu
+- `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
+- `/muggle:muggle-test-feature-local` — local quick QA testing
+- `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
+- `/muggle:muggle-repair` — diagnose and fix broken installation
+- `/muggle:muggle-upgrade` — update to the latest version
 - MCP server with 70+ tools (auto-started)
 - Electron QA engine provisioning (via session hook)
+
+Legacy aliases remain available for compatibility: `/muggle:do`, `/muggle:test-feature-local`, `/muggle:status`, `/muggle:repair`, `/muggle:upgrade`.
 
 ### 2. Verify
 
 ```
-/muggle:status
+/muggle:muggle-status
 ```
 
-This checks Electron QA engine, MCP server health, and authentication. If anything is broken, run `/muggle:repair`.
+This checks Electron QA engine, MCP server health, and authentication. If anything is broken, run `/muggle:muggle-repair`.
 
 ### 3. Start building features
 
 Describe what you want to build:
 
 ```
-/muggle:do "Add a logout button to the header"
+/muggle:muggle-do "Add a logout button to the header"
 ```
 
 The AI handles the full cycle: code the feature, run unit tests, QA the app in a real browser, and open a PR with results.
@@ -69,7 +72,7 @@ The AI handles the full cycle: code the feature, run unit tests, QA the app in a
 Already have code running on localhost? Test it directly:
 
 ```
-/muggle:test-feature-local
+/muggle:muggle-test-feature-local
 ```
 
 Describe what to test in plain English. The AI finds or creates test cases, launches a real browser, and reports results with screenshots.
@@ -118,12 +121,12 @@ muggle-local-publish-test-script uploads to cloud
 
 ## Three Ways to Use It
 
-### 1. `/muggle:test-feature-local` — Test a feature on localhost
+### 1. `/muggle:muggle-test-feature-local` — Test a feature on localhost
 
 Describe what to test in English. The AI finds the right project and test cases, launches a real browser, and reports results with screenshots.
 
 ```
-> /muggle:test-feature-local
+> /muggle:muggle-test-feature-local
 
 "Test my login changes on localhost:3999"
 
@@ -137,12 +140,12 @@ Describe what to test in English. The AI finds the right project and test cases,
 7. Publish to cloud? (y)
 ```
 
-### 2. `/muggle:do` — Autonomous dev pipeline
+### 2. `/muggle:muggle-do` — Autonomous dev pipeline
 
 Full development cycle: requirements to PR in one command. The AI codes the feature, writes unit tests, runs QA against your running app, and opens a PR.
 
 ```
-> /muggle:do "Add a logout button to the header"
+> /muggle:muggle-do "Add a logout button to the header"
 
 REQUIREMENTS  → Goal: Add logout button. Criteria: visible, functional, redirects.
 IMPACT        → frontend repo, src/components/Header.tsx
@@ -353,7 +356,7 @@ When installed as a plugin, MCP server configuration is shipped by the plugin (`
 }
 ```
 
-**Multi-repo config for /muggle:do** — create `muggle-repos.json` in your working directory:
+**Multi-repo config for /muggle:muggle-do** — create `muggle-repos.json` in your working directory:
 
 ```json
 [
@@ -432,11 +435,12 @@ muggle-ai-works/
 ├── plugin/                  # Claude Code plugin (source of truth)
 │   ├── .claude-plugin/      #   Plugin manifest (plugin.json)
 │   ├── skills/              #   Skill definitions
-│   │   ├── do/              #     /muggle:do — autonomous dev pipeline
-│   │   ├── test-feature-local/  # /muggle:test-feature-local
-│   │   ├── status/          #     /muggle:status
-│   │   ├── repair/          #     /muggle:repair
-│   │   └── upgrade/         #     /muggle:upgrade
+│   │   ├── muggle-do/               # /muggle:muggle-do — autonomous dev pipeline
+│   │   ├── muggle-test-feature-local/ # /muggle:muggle-test-feature-local
+│   │   ├── muggle-status/           # /muggle:muggle-status
+│   │   ├── muggle-repair/           # /muggle:muggle-repair
+│   │   ├── muggle-upgrade/          # /muggle:muggle-upgrade
+│   │   └── ...legacy aliases        # /muggle:do, /muggle:status, etc.
 │   ├── hooks/               #   Session hooks (hooks.json)
 │   ├── scripts/             #   Hook scripts (ensure-electron-app.sh)
 │   ├── .mcp.json            #   MCP server config

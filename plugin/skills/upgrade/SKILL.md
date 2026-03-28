@@ -1,21 +1,16 @@
 ---
 name: upgrade
-description: Update Muggle AI to the latest version — Electron QA engine and MCP server.
+description: Legacy alias for muggle-upgrade. Use muggle-upgrade for consistent Muggle-prefixed command discovery.
 ---
 
-# Muggle AI Upgrade
+# Upgrade (Legacy Alias)
 
-Update all Muggle AI components to the latest published version.
+This is a backward-compatible alias.
 
-## Steps
+For consistent command discovery and naming, use:
 
-1. Run `/muggle:status` checks to capture current versions.
-2. Run `muggle setup --force` to download the latest Electron QA engine.
-3. Report the upgrade results:
-   - Previous version vs new version for each component.
-   - Whether the upgrade succeeded or failed.
-4. Run `/muggle:status` again to confirm everything is healthy after upgrade.
+- `/muggle:muggle-upgrade`
 
-## Output
+Follow and execute the same workflow as:
 
-Show a before/after version comparison. If the upgrade fails at any step, report the error and suggest running `/muggle:repair`.
+- [muggle-upgrade](../muggle-upgrade/SKILL.md)

@@ -11,13 +11,18 @@ Ship quality products with AI-powered QA that validates your app's user experien
 
 ## Skills
 
+Type `muggle` to discover the full command family.
+
 | Skill | What it does |
 |:---|:---|
-| `/muggle:do` | Autonomous dev pipeline: requirements, code, unit tests, QA, PR. |
-| `/muggle:test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
-| `/muggle:status` | Health check for Electron QA engine, MCP server, and authentication. |
-| `/muggle:repair` | Diagnose and fix broken installation automatically. |
-| `/muggle:upgrade` | Update Electron QA engine and MCP server to latest version. |
+| `/muggle:muggle` | Router and menu for all Muggle commands. |
+| `/muggle:muggle-do` | Autonomous dev pipeline: requirements, code, unit tests, QA, PR. |
+| `/muggle:muggle-test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
+| `/muggle:muggle-status` | Health check for Electron QA engine, MCP server, and authentication. |
+| `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |
+| `/muggle:muggle-upgrade` | Update Electron QA engine and MCP server to latest version. |
+
+Legacy aliases remain available for compatibility: `/muggle:do`, `/muggle:test-feature-local`, `/muggle:status`, `/muggle:repair`, `/muggle:upgrade`.
 
 ## MCP Tools
 

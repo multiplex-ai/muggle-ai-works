@@ -1,6 +1,6 @@
 ---
 name: do
-description: Unified Muggle AI workflow entry point. Routes to autonomous dev cycle, status, repair, or upgrade.
+description: Quality-guaranteed development workflow that takes a task through requirements, coding, testing, QA with real-browser validation, and PR creation. Use this skill when the user wants to implement a feature or fix with built-in QA — especially when they mention 'build and test', 'implement with QA', 'full dev cycle', or want confidence that their changes work end-to-end before opening a PR.
 disable-model-invocation: true
 ---
 

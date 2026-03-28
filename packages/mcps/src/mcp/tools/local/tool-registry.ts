@@ -304,7 +304,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Execute test script generation for a test case. First call qa_test_case_get to get test case details, then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in explore mode. By default runs headless unless user explicitly asks for UI.",
+  description: "Generate a QA test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -365,7 +365,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Execute test script replay. First call qa_test_script_get to get test script details (including actionScript), then pass them here along with the localhost URL. Requires explicit approval before launching electron-app in engine mode. By default runs headless; set showUi: true to display the electron-app UI.",
+  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires a test script (from muggle-remote-test-script-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);

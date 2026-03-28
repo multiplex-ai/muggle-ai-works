@@ -1,0 +1,21 @@
+{
+  "name": "muggle",
+  "displayName": "Muggle AI",
+  "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
+  "version": "3.0.0",
+  "author": {
+    "name": "Muggle AI",
+    "email": "support@muggle-ai.com"
+  },
+  "homepage": "https://www.muggletest.com",
+  "repository": "https://github.com/multiplex-ai/muggle-ai-works",
+  "license": "MIT",
+  "keywords": [
+    "qa",
+    "testing",
+    "mcp",
+    "browser-automation",
+    "ai-coding",
+    "muggle-ai"
+  ]
+}

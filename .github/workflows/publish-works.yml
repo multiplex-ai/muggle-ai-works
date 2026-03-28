@@ -147,7 +147,7 @@ jobs:
           const fs = require("fs");
           const tarball = process.env.PACKAGE_TARBALL;
           const listing = cp.execSync(`tar -tf ${tarball}`, { encoding: "utf-8" }).split("\n").filter(Boolean);
-          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/scripts/postinstall.mjs", "package/plugin/.claude-plugin/plugin.json"];
+          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/scripts/postinstall.mjs", "package/plugin/.claude-plugin/plugin.json", "package/plugin/.cursor-plugin/plugin.json"];
           for (const entry of required) {
             if (!listing.includes(entry)) {
               throw new Error(`Missing ${entry} in ${tarball}`);
@@ -225,6 +225,12 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${{ needs.package-audit.outputs.package_tarball }}" --access public --provenance
+
+  # TODO: Add publish-mcp-registry job when mcp-publisher CLI is publicly available.
+  # The official MCP registry (modelcontextprotocol.io) is in preview and the CLI
+  # tooling is not yet distributed via npm. Until then, publish manually:
+  #   mcp-publisher login github
+  #   mcp-publisher publish
 
   notify-on-failure:
     runs-on: ubuntu-latest

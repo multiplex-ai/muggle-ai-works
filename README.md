@@ -1,8 +1,8 @@
 # *muggle-ai-works*
 
-**Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.**
+**Run real-browser QA tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.**
 
-One install gives your AI coding assistant the power to vision-based QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
+One install gives your AI coding assistant the power to QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
 
 *[License: MIT](LICENSE)
 [npm]()
@@ -489,6 +489,54 @@ CI/CD and publishing
 git tag v<version> && git push --tags
 # publish-works.yml handles the rest
 ```
+
+
+Optimizing agent-facing descriptions
+
+
+AI agents decide which tools to use based on text in MCP server instructions, hook context injection, skill descriptions, tool descriptions, and plugin metadata. If these don't match what users actually say, agents won't reach for muggle tools.
+
+The `/muggle:optimize-descriptions` skill documents the full optimization process:
+
+```
+/muggle:optimize-descriptions
+```
+
+This is an **internal-only skill** (not published to customers). It covers:
+
+- The five layers of agent-facing text and where each lives in the codebase
+- How to write descriptions that match real user intent ("test my signup flow" not "execute test generation")
+- How to create trigger eval sets and run them with `run_eval.py`
+- Limitations of the eval tool (can't measure MCP instructions or hook injection)
+- A checklist for the full optimization workflow
+
+**Key files touched during optimization:**
+
+| What | File |
+| :--- | :--- |
+| MCP server instructions | `src/server/mcp-server.ts` |
+| SessionStart hook injection | `plugin/scripts/ensure-electron-app.sh` |
+| Hook config | `plugin/hooks/hooks.json` |
+| Skill descriptions | `plugin/skills/*/SKILL.md` |
+| Tool descriptions (local) | `packages/mcps/src/mcp/tools/local/tool-registry.ts` |
+| Tool descriptions (cloud) | `packages/mcps/src/mcp/tools/qa/tool-registry.ts` |
+| Plugin metadata | `plugin/.claude-plugin/plugin.json` |
+
+**Quick eval run:**
+
+```bash
+# Requires Python 3.10+ and skill-creator plugin
+cd ~/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills/skill-creator
+
+python3 -m scripts.run_eval \
+  --eval-set /path/to/eval_set.json \
+  --skill-path /path/to/plugin/skills/test-feature-local \
+  --model claude-opus-4-6 \
+  --runs-per-query 3 \
+  --verbose
+```
+
+See `plugin/skills/optimize-descriptions/SKILL.md` for the full guide.
 
 ---
 

@@ -226,27 +226,11 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish "${{ needs.package-audit.outputs.package_tarball }}" --access public --provenance
 
-  publish-mcp-registry:
-    runs-on: ubuntu-latest
-    needs:
-      - publish
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
-      - name: Install mcp-publisher
-        run: npm install -g mcp-publisher
-
-      - name: Publish to MCP registry
-        env:
-          MCP_REGISTRY_TOKEN: ${{ secrets.MCP_REGISTRY_TOKEN }}
-        run: mcp-publisher publish
+  # TODO: Add publish-mcp-registry job when mcp-publisher CLI is publicly available.
+  # The official MCP registry (modelcontextprotocol.io) is in preview and the CLI
+  # tooling is not yet distributed via npm. Until then, publish manually:
+  #   mcp-publisher login github
+  #   mcp-publisher publish
 
   notify-on-failure:
     runs-on: ubuntu-latest
@@ -255,7 +239,6 @@ jobs:
       - package-audit
       - smoke-install
       - publish
-      - publish-mcp-registry
     if: failure()
     steps:
       - name: Notify failure

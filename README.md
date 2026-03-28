@@ -39,13 +39,12 @@ In Claude Code, run:
 This installs the Muggle AI plugin with:
 
 - `/muggle:do` — autonomous dev pipeline (requirements to PR)
-- `/muggle:test-feature-local` — local QA testing (includes publish to cloud)
-- `/muggle:status` — health check for Electron app, MCP server, and auth
+- `/muggle:test-feature-local` — local quick QA testing
+- `/muggle:status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
 - `/muggle:repair` — diagnose and fix broken installation
 - `/muggle:upgrade` — update to the latest version
 - MCP server with 70+ tools (auto-started)
 - Electron QA engine provisioning (via session hook)
-
 
 ### 2. Verify
 
@@ -55,7 +54,7 @@ This installs the Muggle AI plugin with:
 
 This checks Electron QA engine, MCP server health, and authentication. If anything is broken, run `/muggle:repair`.
 
-### 3. Start building
+### 3. Start building features
 
 Describe what you want to build:
 
@@ -114,8 +113,6 @@ Results: pass/fail with evidence at ~/.muggle-ai/sessions/{runId}/
          v
 muggle-local-publish-test-script uploads to cloud
 ```
-
-
 
 ---
 
@@ -190,8 +187,6 @@ Authentication (muggle-remote-auth-*)
 | `muggle-remote-auth-logout` | Clear credentials            |
 
 
-
-
 Project Management (muggle-remote-project-*)
 
 
@@ -202,8 +197,6 @@ Project Management (muggle-remote-project-*)
 | `muggle-remote-project-get`    | Get project details |
 | `muggle-remote-project-update` | Update project      |
 | `muggle-remote-project-delete` | Delete project      |
-
-
 
 
 Use Cases (muggle-remote-use-case-*)
@@ -217,8 +210,6 @@ Use Cases (muggle-remote-use-case-*)
 | `muggle-remote-use-case-update-from-prompt`  | Regenerate from new prompt   |
 
 
-
-
 Test Cases (muggle-remote-test-case-*)
 
 
@@ -229,8 +220,6 @@ Test Cases (muggle-remote-test-case-*)
 | `muggle-remote-test-case-get`                  | Get test case details |
 | `muggle-remote-test-case-create`               | Create test case      |
 | `muggle-remote-test-case-generate-from-prompt` | Generate from prompt  |
-
-
 
 
 Test Scripts and Workflows (muggle-remote-workflow-*)
@@ -247,8 +236,6 @@ Test Scripts and Workflows (muggle-remote-workflow-*)
 | `muggle-remote-workflow-start-test-script-replay-bulk` | Batch replay            |
 
 
-
-
 Local Execution (muggle-local-*)
 
 
@@ -263,8 +250,6 @@ Local Execution (muggle-local-*)
 | `muggle-local-publish-test-script`     | Publish script to cloud            |
 
 
-
-
 Reports and Analytics (muggle-remote-report-*)
 
 
@@ -276,19 +261,15 @@ Reports and Analytics (muggle-remote-report-*)
 | `muggle-remote-project-test-results-summary-get` | Test results summary                      |
 
 
-
-
 Administration (PRD, secrets, billing, scheduling)
 
 
 | Category           | Tools                                                                |
 | ------------------ | -------------------------------------------------------------------- |
 | PRD processing     | `muggle-remote-prd-`* — upload and process product requirements docs |
-| Secrets management | `muggle-remote-secret-*` — store credentials for test environments   |
-| Wallet and billing | `muggle-remote-wallet-*` — manage credits and payment methods        |
+| Secrets management | `muggle-remote-secret-`* — store credentials for test environments   |
+| Wallet and billing | `muggle-remote-wallet-`* — manage credits and payment methods        |
 | Scheduling         | `muggle-remote-recommend-*` — get CI/CD and schedule recommendations |
-
-
 
 
 ---
@@ -381,8 +362,6 @@ When installed as a plugin, MCP server configuration is shipped by the plugin (`
 ]
 ```
 
-
-
 Data directory structure (~/.muggle-ai/)
 
 ```
@@ -399,8 +378,6 @@ Data directory structure (~/.muggle-ai/)
     └── {version}/
 ```
 
-
-
 ---
 
 ## What AI clients does it work with?
@@ -410,13 +387,11 @@ Full support for Claude Code. MCP tools work with Cursor and any MCP-compatible 
 Platform compatibility table
 
 
-| Platform        | MCP Tools            | Plugin skills (/muggle:*) |
-| --------------- | -------------------- | ------------------------- |
+| Platform        | MCP Tools            | Plugin skills (/muggle:*)                             |
+| --------------- | -------------------- | ----------------------------------------------------- |
 | **Claude Code** | Yes                  | Yes (do, test-feature-local, status, repair, upgrade) |
-| **Cursor**      | Yes (via MCP)        | No (needs plugin support) |
-| **Others**      | Via MCP if supported | No                        |
-
-
+| **Cursor**      | Yes (via MCP)        | No (needs plugin support)                             |
+| **Others**      | Via MCP if supported | No                                                    |
 
 
 ---
@@ -443,8 +418,6 @@ muggle logout           # Clear all credentials
 rm ~/.muggle-ai/auth.json ~/.muggle-ai/credentials.json
 muggle login            # Fresh login
 ```
-
-
 
 ---
 
@@ -489,8 +462,6 @@ muggle-ai-works/
 └── docs/                    # Internal design docs and plans
 ```
 
-
-
 Development commands
 
 ```bash
@@ -505,8 +476,6 @@ pnpm run lint:check       # Lint (check only)
 pnpm run typecheck        # TypeScript type check
 ```
 
-
-
 CI/CD and publishing
 
 
@@ -520,7 +489,6 @@ CI/CD and publishing
 git tag v<version> && git push --tags
 # publish-works.yml handles the rest
 ```
-
 
 
 Optimizing agent-facing descriptions
@@ -569,8 +537,6 @@ python3 -m scripts.run_eval \
 ```
 
 See `plugin/skills/optimize-descriptions/SKILL.md` for the full guide.
-
-
 
 ---
 

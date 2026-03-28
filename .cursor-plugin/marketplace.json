@@ -1,0 +1,15 @@
+{
+  "name": "muggle-works",
+  "owner": {
+    "name": "Muggle AI",
+    "email": "support@muggle-ai.com"
+  },
+  "plugins": [
+    {
+      "name": "muggleai",
+      "source": "./plugin",
+      "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
+      "version": "3.0.0"
+    }
+  ]
+}

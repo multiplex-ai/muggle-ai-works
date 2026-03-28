@@ -1,5 +1,6 @@
 {
     "name": "@muggleai/works",
+    "mcpName": "io.github.multiplex-ai/muggle",
     "version": "3.0.0",
     "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
     "type": "module",
@@ -15,8 +16,9 @@
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build": "tsup && node scripts/build-plugin.mjs",
+        "build": "tsup && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
+        "sync:versions": "node scripts/sync-versions.mjs",
         "build:release": "npm run build",
         "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
         "build:workspace": "turbo run build",
@@ -37,7 +39,7 @@
         "test:watch": "vitest"
     },
     "muggleConfig": {
-        "electronAppVersion": "1.0.11",
+        "electronAppVersion": "1.0.13",
         "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
         "runtimeTargetDefault": "dev",
         "checksums": {

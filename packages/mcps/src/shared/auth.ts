@@ -8,10 +8,10 @@ import axios, { AxiosError } from "axios";
 import { getAuthService } from "../mcp/local/services/index.js";
 import { getConfig } from "./config.js";
 import {
-  deleteCredentials,
-  getValidCredentials,
-  saveCredentials,
-} from "./credentials.js";
+  deleteApiKeyData,
+  getValidApiKeyData,
+  saveApiKeyData,
+} from "./api-key.js";
 import { getLogger } from "./logger.js";
 import { openBrowserUrl } from "./open-browser.js";
 import type {
@@ -328,8 +328,8 @@ export async function performLogin(
         credentials.apiKey = apiKeyResult.key;
         credentials.apiKeyId = apiKeyResult.id;
 
-        // Save API key to credentials.json for future use
-        saveCredentials(credentials);
+        // Save API key to api-key.json for future use
+        saveApiKeyData(credentials);
       }
 
       return {
@@ -377,8 +377,8 @@ export function performLogout(): void {
   const authService = getAuthService();
   authService.logout();
 
-  // Clear API key credentials
-  deleteCredentials();
+  // Clear API key data
+  deleteApiKeyData();
 
   logger.info("[Auth] Logged out successfully");
 }
@@ -390,11 +390,11 @@ export function performLogout(): void {
  * @returns Caller credentials or empty object.
  */
 export function getCallerCredentials(): ICallerCredentials {
-  // Check for explicit API key in credentials.json
-  const credentials = getValidCredentials();
+  // Check for explicit API key in api-key.json
+  const apiKeyData = getValidApiKeyData();
 
-  if (credentials?.apiKey) {
-    return { apiKey: credentials.apiKey };
+  if (apiKeyData?.apiKey) {
+    return { apiKey: apiKeyData.apiKey };
   }
 
   // Fall back to access token from AuthService
@@ -415,11 +415,11 @@ export function getCallerCredentials(): ICallerCredentials {
  * @returns Caller credentials or empty object.
  */
 export async function getCallerCredentialsAsync(): Promise<ICallerCredentials> {
-  // Check for explicit API key in credentials.json
-  const credentials = getValidCredentials();
+  // Check for explicit API key in api-key.json
+  const apiKeyData = getValidApiKeyData();
 
-  if (credentials?.apiKey) {
-    return { apiKey: credentials.apiKey };
+  if (apiKeyData?.apiKey) {
+    return { apiKey: apiKeyData.apiKey };
   }
 
   // Use AuthService for access token with auto-refresh

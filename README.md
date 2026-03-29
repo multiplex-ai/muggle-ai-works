@@ -375,8 +375,8 @@ Data directory structure (~/.muggle-ai/)
 
 ```
 ~/.muggle-ai/
-├── auth.json             # OAuth tokens
-├── credentials.json      # API key for service calls
+├── oauth-session.json    # OAuth tokens (short-lived, auto-refresh)
+├── api-key.json          # Long-lived API key for service calls
 ├── projects/             # Local project cache
 ├── sessions/             # QA sessions
 │   └── {runId}/
@@ -424,7 +424,7 @@ muggle doctor           # Diagnose
 
 ```bash
 muggle logout           # Clear all credentials
-rm ~/.muggle-ai/auth.json ~/.muggle-ai/credentials.json
+rm ~/.muggle-ai/oauth-session.json ~/.muggle-ai/api-key.json
 muggle login            # Fresh login
 ```
 

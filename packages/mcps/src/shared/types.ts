@@ -90,10 +90,10 @@ export interface ILocalQaConfig {
   projectsDir: string;
   /** Path to temp directory. */
   tempDir: string;
-  /** Path to credentials file. */
-  credentialsFilePath: string;
-  /** Path to auth file (local auth storage). */
-  authFilePath: string;
+  /** Path to API key file (long-lived API key storage). */
+  apiKeyFilePath: string;
+  /** Path to OAuth session file (OAuth tokens with refresh). */
+  oauthSessionFilePath: string;
   /** Path to electron-app executable (null if not installed). */
   electronAppPath: string | null;
   /** Path to web-service entry point (null if not found). */

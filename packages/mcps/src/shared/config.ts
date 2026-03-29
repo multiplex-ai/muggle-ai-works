@@ -30,8 +30,8 @@ const DEFAULT_WEB_SERVICE_URL = "http://localhost:3001";
 /** Subdirectory for downloaded electron-app binaries. */
 const ELECTRON_APP_DIR = "electron-app";
 
-/** Credentials file name. */
-const CREDENTIALS_FILE = "credentials.json";
+/** API key storage file name. */
+const API_KEY_FILE = "api-key.json";
 
 /** Default Auth0 domain (custom domain for production). */
 const DEFAULT_AUTH0_PRODUCTION_DOMAIN = "login.muggle-ai.com";
@@ -368,10 +368,10 @@ function getDefaultAuth0Domain(): string {
  */
 function getDefaultAuth0ClientId(): string {
   const runtimeTarget = getPromptServiceRuntimeTarget();
-  if (runtimeTarget === "dev") {
-    return DEFAULT_AUTH0_DEV_CLIENT_ID;
+  if (runtimeTarget === "production") {
+    return DEFAULT_AUTH0_PRODUCTION_CLIENT_ID;
   }
-  return DEFAULT_AUTH0_PRODUCTION_CLIENT_ID;
+  return DEFAULT_AUTH0_DEV_CLIENT_ID;
 }
 
 /**
@@ -436,8 +436,8 @@ function buildLocalQaConfig(): ILocalQaConfig {
     sessionsDir: path.join(dataDir, "sessions"),
     projectsDir: path.join(dataDir, "projects"),
     tempDir: path.join(dataDir, "temp"),
-    credentialsFilePath: path.join(dataDir, CREDENTIALS_FILE),
-    authFilePath: path.join(dataDir, "auth.json"),
+    apiKeyFilePath: path.join(dataDir, API_KEY_FILE),
+    oauthSessionFilePath: path.join(dataDir, "oauth-session.json"),
     electronAppPath: resolveElectronAppPathOrNull(),
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),

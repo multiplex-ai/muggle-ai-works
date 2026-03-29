@@ -25,8 +25,8 @@ const DEFAULT_LOGIN_WAIT_TIMEOUT_MS = 120000;
  * Service for handling Auth0 authentication.
  */
 export class AuthService {
-  /** Path to the auth file. */
-  private readonly authFilePath: string;
+  /** Path to the OAuth session file. */
+  private readonly oauthSessionFilePath: string;
 
   /** Path to the pending device code file. */
   private readonly pendingDeviceCodePath: string;
@@ -36,9 +36,9 @@ export class AuthService {
    */
   constructor() {
     const config = getConfig();
-    this.authFilePath = config.localQa.authFilePath;
+    this.oauthSessionFilePath = config.localQa.oauthSessionFilePath;
     this.pendingDeviceCodePath = path.join(
-      path.dirname(config.localQa.authFilePath),
+      path.dirname(config.localQa.oauthSessionFilePath),
       "pending-device-code.json",
     );
   }
@@ -438,12 +438,12 @@ export class AuthService {
       userId: userId,
     };
 
-    const dir = path.dirname(this.authFilePath);
+    const dir = path.dirname(this.oauthSessionFilePath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(this.authFilePath, JSON.stringify(storedAuth, null, 2), {
+    fs.writeFileSync(this.oauthSessionFilePath, JSON.stringify(storedAuth, null, 2), {
       encoding: "utf-8",
       mode: 0o600,
     });
@@ -457,12 +457,12 @@ export class AuthService {
   loadStoredAuth(): IStoredAuth | null {
     const logger = getLogger();
 
-    if (!fs.existsSync(this.authFilePath)) {
+    if (!fs.existsSync(this.oauthSessionFilePath)) {
       return null;
     }
 
     try {
-      const content = fs.readFileSync(this.authFilePath, "utf-8");
+      const content = fs.readFileSync(this.oauthSessionFilePath, "utf-8");
       return JSON.parse(content) as IStoredAuth;
     } catch (error) {
       logger.error("Failed to load stored auth", {
@@ -571,12 +571,12 @@ export class AuthService {
         userId: storedAuth.userId,
       };
 
-      const dir = path.dirname(this.authFilePath);
+      const dir = path.dirname(this.oauthSessionFilePath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
 
-      fs.writeFileSync(this.authFilePath, JSON.stringify(updatedAuth, null, 2), {
+      fs.writeFileSync(this.oauthSessionFilePath, JSON.stringify(updatedAuth, null, 2), {
         encoding: "utf-8",
         mode: 0o600,
       });
@@ -646,13 +646,13 @@ export class AuthService {
   logout(): boolean {
     const logger = getLogger();
 
-    if (!fs.existsSync(this.authFilePath)) {
+    if (!fs.existsSync(this.oauthSessionFilePath)) {
       logger.debug("No auth to clear");
       return false;
     }
 
     try {
-      fs.unlinkSync(this.authFilePath);
+      fs.unlinkSync(this.oauthSessionFilePath);
       logger.info("Auth cleared successfully");
       return true;
     } catch (error) {

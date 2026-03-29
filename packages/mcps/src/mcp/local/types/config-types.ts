@@ -16,8 +16,8 @@ export interface ILocalQaConfig {
   projectsDir: string;
   /** Temp directory. */
   tempDir: string;
-  /** Auth file path. */
-  authFilePath: string;
+  /** OAuth session file path (OAuth tokens with refresh). */
+  oauthSessionFilePath: string;
   /** Electron app path. */
   electronAppPath?: string;
   /** Web service URL. */

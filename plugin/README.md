@@ -9,6 +9,14 @@ Ship quality products with AI-powered QA that validates your app's user experien
 /plugin install muggleai@muggle-works
 ```
 
+For npm installs:
+
+```bash
+npm install -g @muggleai/works
+```
+
+This updates the CLI and syncs `muggle-*` skills into `~/.cursor/skills/` for Cursor. Claude slash commands remain plugin-managed, so use `/plugin update muggleai@muggle-works` to refresh them.
+
 ## Skills
 
 Type `muggle` to discover the full command family.

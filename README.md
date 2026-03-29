@@ -36,6 +36,14 @@ In Claude Code, run:
 /plugin install muggleai@muggle-works
 ```
 
+If you install via npm instead:
+
+```bash
+npm install -g @muggleai/works
+```
+
+`npm install` updates the CLI and syncs `muggle-*` skills to `~/.cursor/skills/` for Cursor discovery. Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
+
 This installs the Muggle AI plugin with:
 
 - `/muggle:muggle` — command router and menu

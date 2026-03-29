@@ -8,6 +8,7 @@
 import { createHash } from "crypto";
 import { exec } from "child_process";
 import {
+    cpSync,
     readFileSync,
     appendFileSync,
     createReadStream,
@@ -19,15 +20,19 @@ import {
     writeFileSync,
 } from "fs";
 import { homedir, platform } from "os";
-import { join } from "path";
+import { dirname, join } from "path";
 import { pipeline } from "stream/promises";
 import { createRequire } from "module";
+import { fileURLToPath } from "url";
 
 const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const LOG_FILE_NAME = "postinstall.log";
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
+const CURSOR_SKILLS_DIRECTORY_NAME = ".cursor";
+const CURSOR_SKILLS_SUBDIRECTORY_NAME = "skills";
+const MUGGLE_SKILL_PREFIX = "muggle";
 
 /**
  * Get the path to the postinstall log file.
@@ -109,6 +114,59 @@ function removeVersionOverrideFile() {
  */
 function getDataDir() {
     return join(homedir(), ".muggle-ai");
+}
+
+/**
+ * Get the package root directory.
+ * @returns {string} Path to package root
+ */
+function getPackageRootDir() {
+    return join(dirname(fileURLToPath(import.meta.url)), "..");
+}
+
+/**
+ * Sync packaged muggle skills into Cursor user skills.
+ * This enables npm installs to refresh locally available `muggle-*` skills.
+ */
+function syncCursorSkills() {
+    const sourceSkillsDirectoryPath = join(getPackageRootDir(), "plugin", "skills");
+    if (!existsSync(sourceSkillsDirectoryPath)) {
+        log("Cursor skill sync skipped: packaged plugin skills directory not found.");
+        return;
+    }
+
+    const cursorSkillsDirectoryPath = join(
+        homedir(),
+        CURSOR_SKILLS_DIRECTORY_NAME,
+        CURSOR_SKILLS_SUBDIRECTORY_NAME,
+    );
+    mkdirSync(cursorSkillsDirectoryPath, { recursive: true });
+
+    const skillEntries = readdirSync(sourceSkillsDirectoryPath, { withFileTypes: true });
+    let syncedSkillCount = 0;
+
+    for (const skillEntry of skillEntries) {
+        if (!skillEntry.isDirectory()) {
+            continue;
+        }
+
+        if (!skillEntry.name.startsWith(MUGGLE_SKILL_PREFIX)) {
+            continue;
+        }
+
+        const sourceSkillDirectoryPath = join(sourceSkillsDirectoryPath, skillEntry.name);
+        const sourceSkillFilePath = join(sourceSkillDirectoryPath, "SKILL.md");
+        if (!existsSync(sourceSkillFilePath)) {
+            continue;
+        }
+
+        const targetSkillDirectoryPath = join(cursorSkillsDirectoryPath, skillEntry.name);
+        rmSync(targetSkillDirectoryPath, { recursive: true, force: true });
+        cpSync(sourceSkillDirectoryPath, targetSkillDirectoryPath, { recursive: true });
+        syncedSkillCount += 1;
+    }
+
+    log(`Synced ${syncedSkillCount} muggle skill(s) to ${cursorSkillsDirectoryPath}`);
 }
 
 /**
@@ -592,4 +650,5 @@ async function extractTarGz(tarPath, destDir) {
 // Run postinstall
 initLogFile();
 removeVersionOverrideFile();
+syncCursorSkills();
 downloadElectronApp().catch(logError);

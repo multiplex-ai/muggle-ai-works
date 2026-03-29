@@ -9,7 +9,7 @@
       "name": "muggleai",
       "source": "./plugin",
       "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
-      "version": "4.0.3"
+      "version": "4.1.0"
     }
   ]
 }

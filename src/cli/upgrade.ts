@@ -3,13 +3,14 @@
  * Allows users to get newer electron-app versions independently of MCP updates.
  */
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { createWriteStream, existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
 import { platform } from "os";
 import * as path from "path";
 import { pipeline } from "stream/promises";
 
 import {
+  calculateFileChecksum,
   getDataDir,
   getDownloadBaseUrl,
   getElectronAppDir,
@@ -24,6 +25,27 @@ const logger = getLogger();
 
 /** GitHub API URL for releases. */
 const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases";
+
+/** Install metadata filename. */
+const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
+
+/**
+ * Install metadata written after successful upgrade.
+ */
+interface IInstallMetadata {
+  /** Installed version. */
+  version: string;
+  /** Archive filename. */
+  binaryName: string;
+  /** Platform key (e.g., "darwin-arm64"). */
+  platformKey: string;
+  /** SHA256 checksum of extracted executable. */
+  executableChecksum: string;
+  /** Expected archive checksum from config. */
+  expectedArchiveChecksum: string;
+  /** Timestamp of installation. */
+  updatedAt: string;
+}
 
 /** Filename for storing the overridden electron-app version. */
 const VERSION_OVERRIDE_FILE = "electron-app-version-override.json";
@@ -198,7 +220,7 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
  * @param b - Second version.
  * @returns 1 if a > b, -1 if a < b, 0 if equal.
  */
-function compareVersions (a: string, b: string): number {
+function compareVersions(a: string, b: string): number {
   const partsA = a.split(".").map(Number);
   const partsB = b.split(".").map(Number);
 
@@ -218,35 +240,88 @@ function compareVersions (a: string, b: string): number {
 }
 
 /**
- * Extract a zip file.
+ * Get the expected executable path after extraction.
+ * @param versionDir - Version directory path.
+ * @returns Path to the expected executable.
+ */
+function getExpectedExecutablePath(versionDir: string): string {
+  const os = platform();
+
+  switch (os) {
+    case "darwin":
+      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    case "win32":
+      return path.join(versionDir, "MuggleAI.exe");
+    case "linux":
+      return path.join(versionDir, "MuggleAI");
+    default:
+      throw new Error(`Unsupported platform: ${os}`);
+  }
+}
+
+/**
+ * Write install metadata to disk.
+ * @param params - Metadata parameters.
+ */
+function writeInstallMetadata(params: {
+  metadataPath: string;
+  version: string;
+  binaryName: string;
+  platformKey: string;
+  executableChecksum: string;
+  expectedArchiveChecksum: string;
+}): void {
+  const metadata: IInstallMetadata = {
+    version: params.version,
+    binaryName: params.binaryName,
+    platformKey: params.platformKey,
+    executableChecksum: params.executableChecksum,
+    expectedArchiveChecksum: params.expectedArchiveChecksum,
+    updatedAt: new Date().toISOString(),
+  };
+
+  writeFileSync(params.metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Extract a zip file using execFile for security.
  * @param zipPath - Path to zip file.
  * @param destDir - Destination directory.
  */
-async function extractZip (zipPath: string, destDir: string): Promise<void> {
+async function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const cmd =
-      platform() === "win32"
-        ? `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`
-        : `unzip -o "${zipPath}" -d "${destDir}"`;
-
-    exec(cmd, (error) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
+    if (platform() === "win32") {
+      execFile(
+        "powershell",
+        ["-command", `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
+        (error) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        },
+      );
+    } else {
+      execFile("unzip", ["-o", zipPath, "-d", destDir], (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    }
   });
 }
 
 /**
- * Extract a tar.gz file.
+ * Extract a tar.gz file using execFile for security.
  * @param tarPath - Path to tar.gz file.
  * @param destDir - Destination directory.
  */
-async function extractTarGz (tarPath: string, destDir: string): Promise<void> {
+async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    exec(`tar -xzf "${tarPath}" -C "${destDir}"`, (error) => {
+    execFile("tar", ["-xzf", tarPath, "-C", destDir], (error) => {
       if (error) {
         reject(error);
       } else {
@@ -324,13 +399,14 @@ async function fetchChecksumFromRelease (version: string): Promise<string> {
  * @param downloadUrl - URL to download from.
  * @param checksum - Optional checksum to verify (if not provided, will fetch from release).
  */
-async function downloadAndInstall (
+async function downloadAndInstall(
   version: string,
   downloadUrl: string,
   checksum?: string,
 ): Promise<void> {
   const versionDir = getElectronAppDir(version);
   const binaryName = getBinaryName();
+  const platformKey = getPlatformKey();
 
   console.log(`Downloading Muggle Test Electron app v${version}...`);
   console.log(`URL: ${downloadUrl}`);
@@ -392,7 +468,32 @@ async function downloadAndInstall (
     await extractTarGz(tempFile, versionDir);
   }
 
-  // Clean up temp file
+  // Verify extraction succeeded
+  const executablePath = getExpectedExecutablePath(versionDir);
+  if (!existsSync(executablePath)) {
+    rmSync(versionDir, { recursive: true, force: true });
+    throw new Error(
+      `Extraction failed: executable not found at expected path.\n` +
+      `Expected: ${executablePath}\n` +
+      `The archive may be corrupted or in an unexpected format.`,
+    );
+  }
+
+  // Calculate executable checksum for metadata
+  const executableChecksum = await calculateFileChecksum(executablePath);
+
+  // Write install metadata
+  const metadataPath = path.join(versionDir, INSTALL_METADATA_FILE_NAME);
+  writeInstallMetadata({
+    metadataPath: metadataPath,
+    version: version,
+    binaryName: binaryName,
+    platformKey: platformKey,
+    executableChecksum: executableChecksum,
+    expectedArchiveChecksum: expectedChecksum || "",
+  });
+
+  // Clean up archive file
   rmSync(tempFile, { force: true });
 
   // Save version override

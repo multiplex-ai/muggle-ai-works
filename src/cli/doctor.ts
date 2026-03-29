@@ -12,12 +12,15 @@ import {
   getConfig,
   getCredentialsFilePath,
   getDataDir,
+  getElectronAppDir,
   getElectronAppVersion,
   getElectronAppVersionSource,
   getLogger,
   hasApiKey,
-  isElectronAppInstalled,
 } from "../../packages/mcps/src/index.js";
+import * as fs from "fs";
+import { platform } from "os";
+import * as path from "path";
 
 const logger = getLogger();
 
@@ -69,11 +72,126 @@ function getCursorMcpConfigPath (): string {
 }
 
 /**
+ * Get the expected executable path for the current platform.
+ * @param versionDir - Version directory path.
+ * @returns Path to the expected executable.
+ */
+function getExpectedExecutablePath(versionDir: string): string {
+  const os = platform();
+
+  switch (os) {
+    case "darwin":
+      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    case "win32":
+      return path.join(versionDir, "MuggleAI.exe");
+    case "linux":
+      return path.join(versionDir, "MuggleAI");
+    default:
+      throw new Error(`Unsupported platform: ${os}`);
+  }
+}
+
+/**
+ * Detailed installation verification result.
+ */
+interface IInstallVerification {
+  /** Whether the installation is valid. */
+  valid: boolean;
+  /** Version directory path. */
+  versionDir: string;
+  /** Expected executable path. */
+  executablePath: string;
+  /** Whether the executable exists. */
+  executableExists: boolean;
+  /** Whether the executable is a file (not symlink to missing target). */
+  executableIsFile: boolean;
+  /** Whether metadata file exists. */
+  metadataExists: boolean;
+  /** Whether partial archive exists (incomplete install). */
+  hasPartialArchive: boolean;
+  /** Detailed error message if invalid. */
+  errorDetail?: string;
+}
+
+/**
+ * Verify electron app installation in detail.
+ * @returns Verification result.
+ */
+function verifyElectronAppInstallation(): IInstallVerification {
+  const version = getElectronAppVersion();
+  const versionDir = getElectronAppDir(version);
+  const executablePath = getExpectedExecutablePath(versionDir);
+  const metadataPath = path.join(versionDir, ".install-metadata.json");
+
+  const result: IInstallVerification = {
+    valid: false,
+    versionDir: versionDir,
+    executablePath: executablePath,
+    executableExists: false,
+    executableIsFile: false,
+    metadataExists: false,
+    hasPartialArchive: false,
+  };
+
+  // Check if version directory exists
+  if (!fs.existsSync(versionDir)) {
+    result.errorDetail = "Version directory does not exist";
+    return result;
+  }
+
+  // Check for partial archive (incomplete download)
+  const archivePatterns = ["MuggleAI-darwin", "MuggleAI-win32", "MuggleAI-linux"];
+  try {
+    const files = fs.readdirSync(versionDir);
+    for (const file of files) {
+      if (archivePatterns.some((pattern) => file.startsWith(pattern)) && (file.endsWith(".zip") || file.endsWith(".tar.gz"))) {
+        result.hasPartialArchive = true;
+        break;
+      }
+    }
+  } catch {
+    // Ignore read errors
+  }
+
+  // Check if executable exists
+  result.executableExists = fs.existsSync(executablePath);
+
+  if (!result.executableExists) {
+    if (result.hasPartialArchive) {
+      result.errorDetail = "Download incomplete: archive found but not extracted";
+    } else {
+      result.errorDetail = "Executable not found at expected path";
+    }
+    return result;
+  }
+
+  // Check if executable is a real file (handles broken symlinks)
+  try {
+    const stats = fs.statSync(executablePath);
+    result.executableIsFile = stats.isFile();
+    if (!result.executableIsFile) {
+      result.errorDetail = "Executable path exists but is not a file";
+      return result;
+    }
+  } catch {
+    result.errorDetail = "Cannot stat executable (broken symlink?)";
+    return result;
+  }
+
+  // Check metadata file
+  result.metadataExists = fs.existsSync(metadataPath);
+
+  // All checks passed
+  result.valid = true;
+  return result;
+}
+
+/**
  * Validate muggle server entry in Cursor MCP config.
  *
  * @returns Validation status and description.
  */
-function validateCursorMcpConfig (): { passed: boolean; description: string } {
+function validateCursorMcpConfig(): { passed: boolean; description: string } {
   const cursorMcpConfigPath = getCursorMcpConfigPath();
 
   if (!existsSync(cursorMcpConfigPath)) {
@@ -165,14 +283,16 @@ function runDiagnostics (): ICheckResult[] {
     suggestion: "Run 'muggle login' to create the data directory",
   });
 
-  // Check 2: Electron app installed
-  const electronInstalled = isElectronAppInstalled();
+  // Check 2: Electron app installed (with detailed verification)
   const electronVersion = getElectronAppVersion();
   const bundledVersion = getBundledElectronAppVersion();
   const versionSource = getElectronAppVersionSource();
+  const installVerification = verifyElectronAppInstallation();
 
   let electronDescription: string;
-  if (electronInstalled) {
+  let electronSuggestion: string | undefined;
+
+  if (installVerification.valid) {
     electronDescription = `Installed (v${electronVersion})`;
     switch (versionSource) {
       case "env":
@@ -184,19 +304,34 @@ function runDiagnostics (): ICheckResult[] {
       default:
         break;
     }
+
+    if (!installVerification.metadataExists) {
+      electronDescription += " [missing metadata]";
+    }
   } else {
     electronDescription = `Not installed (expected v${electronVersion})`;
+
+    if (installVerification.errorDetail) {
+      electronDescription += `\n  └─ ${installVerification.errorDetail}`;
+      electronDescription += `\n  └─ Checked: ${installVerification.versionDir}`;
+    }
+
+    if (installVerification.hasPartialArchive) {
+      electronSuggestion = "Run 'muggle setup --force' to re-download and extract";
+    } else {
+      electronSuggestion = "Run 'muggle setup' to download the Electron app";
+    }
   }
 
   results.push({
     name: "Electron App",
-    passed: electronInstalled,
+    passed: installVerification.valid,
     description: electronDescription,
-    suggestion: "Run 'muggle setup' to download the Electron app",
+    suggestion: electronSuggestion,
   });
 
   // Check 2b: Upgrade available hint
-  if (electronInstalled) {
+  if (installVerification.valid) {
     results.push({
       name: "Electron App Updates",
       passed: true,

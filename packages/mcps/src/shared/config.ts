@@ -183,12 +183,13 @@ export function getDataDir(): string {
 
 /**
  * Get the path to the downloaded electron-app binary for the current platform.
+ * Uses the effective version (env -> override -> bundled) to match where
+ * setup/upgrade actually installs the binary.
  * @returns The path to the downloaded binary, or null if not found.
  */
 function getDownloadedElectronAppPath(): string | null {
   const platformName = os.platform();
-  const config = getMuggleConfig();
-  const version = config.electronAppVersion;
+  const version = getElectronAppVersion();
 
   const baseDir = path.join(getDataDir(), ELECTRON_APP_DIR, version);
 

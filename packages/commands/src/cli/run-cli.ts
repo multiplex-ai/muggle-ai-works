@@ -114,7 +114,12 @@ function createProgram (): Command {
     .action(statusCommand);
 
   program.action(() => {
-    serveCommand({ stdio: true });
+    helpCommand();
+  });
+
+  program.on("command:*", () => {
+    helpCommand();
+    process.exit(1);
   });
 
   return program;

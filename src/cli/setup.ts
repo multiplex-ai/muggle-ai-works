@@ -1,24 +1,37 @@
 /**
  * Setup command - downloads/updates the Electron app.
+ * Includes retry logic, atomic install, and metadata writing.
  */
 
-import { exec } from "child_process";
-import { createWriteStream, existsSync, mkdirSync, rmSync } from "fs";
+import { execFile } from "child_process";
+import { createWriteStream, existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import * as path from "path";
 import { arch, platform } from "os";
 import { pipeline } from "stream/promises";
 
 import {
+  calculateFileChecksum,
   getChecksumForPlatform,
   getDownloadBaseUrl,
   getElectronAppChecksums,
   getElectronAppDir,
   getElectronAppVersion,
   getLogger,
+  getPlatformKey,
   isElectronAppInstalled,
   verifyFileChecksum,
 } from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
+
+/** Maximum number of download retry attempts. */
+const MAX_RETRY_ATTEMPTS = 3;
+
+/** Base delay in milliseconds for exponential backoff. */
+const RETRY_BASE_DELAY_MS = 2000;
+
+/** Install metadata filename. */
+const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 
 /**
  * Options for the setup command.
@@ -26,13 +39,31 @@ const logger = getLogger();
 export interface ISetupOptions {
   /** Force re-download even if already installed. */
   force?: boolean;
+} 
+
+/**
+ * Install metadata written after successful setup.
+ */
+interface IInstallMetadata {
+  /** Installed version. */
+  version: string;
+  /** Archive filename. */
+  binaryName: string;
+  /** Platform key (e.g., "darwin-arm64"). */
+  platformKey: string;
+  /** SHA256 checksum of extracted executable. */
+  executableChecksum: string;
+  /** Expected archive checksum from config. */
+  expectedArchiveChecksum: string;
+  /** Timestamp of installation. */
+  updatedAt: string;
 }
 
 /**
  * Get platform-specific binary name.
  * @returns Binary filename.
  */
-function getBinaryName (): string {
+function getBinaryName(): string {
   const os = platform();
   const architecture = arch();
 
@@ -51,18 +82,64 @@ function getBinaryName (): string {
 }
 
 /**
- * Extract a zip file.
+ * Get the expected executable path after extraction.
+ * @param versionDir - Version directory path.
+ * @returns Path to the expected executable.
+ */
+function getExpectedExecutablePath(versionDir: string): string {
+  const os = platform();
+
+  switch (os) {
+    case "darwin":
+      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    case "win32":
+      return path.join(versionDir, "MuggleAI.exe");
+    case "linux":
+      return path.join(versionDir, "MuggleAI");
+    default:
+      throw new Error(`Unsupported platform: ${os}`);
+  }
+}
+
+/**
+ * Extract a zip file using execFile for security.
  * @param zipPath - Path to zip file.
  * @param destDir - Destination directory.
  */
-async function extractZip (zipPath: string, destDir: string): Promise<void> {
+async function extractZip(zipPath: string, destDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const cmd =
-      platform() === "win32"
-        ? `powershell -command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`
-        : `unzip -o "${zipPath}" -d "${destDir}"`;
+    if (platform() === "win32") {
+      execFile(
+        "powershell",
+        ["-command", `Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force`],
+        (error) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve();
+          }
+        },
+      );
+    } else {
+      execFile("unzip", ["-o", zipPath, "-d", destDir], (error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    }
+  });
+}
 
-    exec(cmd, (error) => {
+/**
+ * Extract a tar.gz file using execFile for security.
+ * @param tarPath - Path to tar.gz file.
+ * @param destDir - Destination directory.
+ */
+async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("tar", ["-xzf", tarPath, "-C", destDir], (error) => {
       if (error) {
         reject(error);
       } else {
@@ -73,30 +150,108 @@ async function extractZip (zipPath: string, destDir: string): Promise<void> {
 }
 
 /**
- * Extract a tar.gz file.
- * @param tarPath - Path to tar.gz file.
- * @param destDir - Destination directory.
+ * Sleep for a given number of milliseconds.
+ * @param ms - Milliseconds to sleep.
  */
-async function extractTarGz (tarPath: string, destDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    exec(`tar -xzf "${tarPath}" -C "${destDir}"`, (error) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Download a file with retry logic.
+ * @param downloadUrl - URL to download from.
+ * @param destPath - Destination file path.
+ * @returns True if download succeeded.
+ */
+async function downloadWithRetry(downloadUrl: string, destPath: string): Promise<boolean> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRY_ATTEMPTS; attempt++) {
+    try {
+      if (attempt > 1) {
+        const delayMs = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 2);
+        console.log(`Retry attempt ${attempt}/${MAX_RETRY_ATTEMPTS} after ${delayMs}ms delay...`);
+        await sleep(delayMs);
       }
-    });
-  });
+
+      const response = await fetch(downloadUrl);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      if (!response.body) {
+        throw new Error("No response body received");
+      }
+
+      const fileStream = createWriteStream(destPath);
+      await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
+
+      return true;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      console.error(`Download attempt ${attempt} failed: ${lastError.message}`);
+
+      if (existsSync(destPath)) {
+        rmSync(destPath, { force: true });
+      }
+    }
+  }
+
+  if (lastError) {
+    throw new Error(`Download failed after ${MAX_RETRY_ATTEMPTS} attempts: ${lastError.message}`);
+  }
+
+  return false;
+}
+
+/**
+ * Write install metadata to disk.
+ * @param params - Metadata parameters.
+ */
+function writeInstallMetadata(params: {
+  metadataPath: string;
+  version: string;
+  binaryName: string;
+  platformKey: string;
+  executableChecksum: string;
+  expectedArchiveChecksum: string;
+}): void {
+  const metadata: IInstallMetadata = {
+    version: params.version,
+    binaryName: params.binaryName,
+    platformKey: params.platformKey,
+    executableChecksum: params.executableChecksum,
+    expectedArchiveChecksum: params.expectedArchiveChecksum,
+    updatedAt: new Date().toISOString(),
+  };
+
+  writeFileSync(params.metadataPath, `${JSON.stringify(metadata, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Clean up failed installation artifacts.
+ * @param versionDir - Version directory to clean up.
+ */
+function cleanupFailedInstall(versionDir: string): void {
+  if (existsSync(versionDir)) {
+    try {
+      rmSync(versionDir, { recursive: true, force: true });
+    } catch {
+      // Best effort cleanup
+    }
+  }
 }
 
 /**
  * Execute the setup command.
  * @param options - Command options.
  */
-export async function setupCommand (options: ISetupOptions): Promise<void> {
+export async function setupCommand(options: ISetupOptions): Promise<void> {
   const version = getElectronAppVersion();
   const baseUrl = getDownloadBaseUrl();
   const versionDir = getElectronAppDir(version);
+  const platformKey = getPlatformKey();
 
   // Check if already installed
   if (!options.force && isElectronAppInstalled()) {
@@ -112,27 +267,16 @@ export async function setupCommand (options: ISetupOptions): Promise<void> {
   console.log(`URL: ${downloadUrl}`);
 
   try {
-    // Create directory
+    // Clean up any existing partial installation
     if (existsSync(versionDir)) {
       rmSync(versionDir, { recursive: true, force: true });
     }
     mkdirSync(versionDir, { recursive: true });
 
-    // Download
-    const response = await fetch(downloadUrl);
-    if (!response.ok) {
-      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
-    }
+    const tempFile = path.join(versionDir, binaryName);
 
-    const tempFile = `${versionDir}/${binaryName}`;
-    const fileStream = createWriteStream(tempFile);
-
-    if (!response.body) {
-      throw new Error("No response body");
-    }
-
-    await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
-
+    // Download with retry
+    await downloadWithRetry(downloadUrl, tempFile);
     console.log("Download complete, verifying checksum...");
 
     // Verify checksum
@@ -141,7 +285,7 @@ export async function setupCommand (options: ISetupOptions): Promise<void> {
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
 
     if (!checksumResult.valid && expectedChecksum) {
-      rmSync(versionDir, { recursive: true, force: true });
+      cleanupFailedInstall(versionDir);
       throw new Error(
         `Checksum verification failed!\n` +
         `Expected: ${checksumResult.expected}\n` +
@@ -165,7 +309,32 @@ export async function setupCommand (options: ISetupOptions): Promise<void> {
       await extractTarGz(tempFile, versionDir);
     }
 
-    // Clean up temp file
+    // Verify extraction succeeded
+    const executablePath = getExpectedExecutablePath(versionDir);
+    if (!existsSync(executablePath)) {
+      cleanupFailedInstall(versionDir);
+      throw new Error(
+        `Extraction failed: executable not found at expected path.\n` +
+        `Expected: ${executablePath}\n` +
+        `The archive may be corrupted or in an unexpected format.`,
+      );
+    }
+
+    // Calculate executable checksum for metadata
+    const executableChecksum = await calculateFileChecksum(executablePath);
+
+    // Write install metadata
+    const metadataPath = path.join(versionDir, INSTALL_METADATA_FILE_NAME);
+    writeInstallMetadata({
+      metadataPath: metadataPath,
+      version: version,
+      binaryName: binaryName,
+      platformKey: platformKey,
+      executableChecksum: executableChecksum,
+      expectedArchiveChecksum: expectedChecksum,
+    });
+
+    // Clean up archive file
     rmSync(tempFile, { force: true });
 
     console.log(`Electron app installed to ${versionDir}`);

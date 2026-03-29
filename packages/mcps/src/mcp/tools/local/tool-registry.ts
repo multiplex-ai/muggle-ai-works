@@ -365,7 +365,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires a test script (from muggle-remote-test-script-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
+  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -384,7 +384,7 @@ const executeReplayTool: ILocalMcpTool = {
           "",
           `**Test Script:** ${input.testScript.name}`,
           `**Local URL:** ${input.localUrl}`,
-          `**Steps:** ${input.testScript.actionScript.length}`,
+          `**Steps:** ${input.actionScript.length}`,
           `**UI Mode:** ${uiMode}`,
           "",
           "**Note:** The electron-app will open a browser window and execute the test steps.",
@@ -397,6 +397,7 @@ const executeReplayTool: ILocalMcpTool = {
     try {
       const result = await executeReplay({
         testScript: input.testScript,
+        actionScript: input.actionScript,
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
         showUi: input.showUi,
@@ -451,7 +452,7 @@ const cancelExecutionTool: ILocalMcpTool = {
 
 const publishTestScriptTool: ILocalMcpTool = {
   name: "muggle-local-publish-test-script",
-  description: "Publish a locally generated test script to the cloud. Uses the run ID from muggle_execute_test_generation to find the script and uploads it to the specified cloud test case.",
+  description: "Publish a locally generated test script to the cloud. Uses the run ID from muggle_execute_test_generation to find the script and uploads it to the specified cloud test case. Returns a viewUrl that can be opened in the user's browser to view the published test script on the dashboard.",
   inputSchema: PublishTestScriptInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);

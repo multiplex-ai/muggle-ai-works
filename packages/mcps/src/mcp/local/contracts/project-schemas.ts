@@ -51,7 +51,8 @@ export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
 
 /**
  * Test script details schema.
- * These fields come from qa_test_script_get response.
+ * These fields come from muggle-remote-test-script-get response.
+ * Note: actionScript content is fetched separately via muggle-remote-action-script-get.
  */
 export const TestScriptDetailsSchema = z.object({
   /** Cloud test script ID. */
@@ -60,8 +61,8 @@ export const TestScriptDetailsSchema = z.object({
   name: z.string().min(1).describe("Test script name"),
   /** Cloud test case ID this script belongs to. */
   testCaseId: z.string().min(1).describe("Cloud test case ID this script was generated from"),
-  /** Action script steps. */
-  actionScript: z.array(z.unknown()).describe("Action script steps to replay"),
+  /** Action script ID reference (use muggle-remote-action-script-get to fetch content). */
+  actionScriptId: z.string().min(1).describe("Action script ID - use muggle-remote-action-script-get to fetch the full script"),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
   /** Cloud project ID (required for electron workflow context). */
@@ -97,11 +98,13 @@ export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInp
 
 /**
  * Execute replay input schema.
- * Accepts full test script details (from qa_test_script_get) plus local URL.
+ * Accepts test script metadata and actionScript content (fetched separately).
  */
 export const ExecuteReplayInputSchema = z.object({
-  /** Test script details from qa_test_script_get. */
-  testScript: TestScriptDetailsSchema.describe("Test script details obtained from qa_test_script_get"),
+  /** Test script metadata from muggle-remote-test-script-get. */
+  testScript: TestScriptDetailsSchema.describe("Test script metadata from muggle-remote-test-script-get"),
+  /** Action script content from muggle-remote-action-script-get (using testScript.actionScriptId). */
+  actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Explicit approval to launch electron-app. */

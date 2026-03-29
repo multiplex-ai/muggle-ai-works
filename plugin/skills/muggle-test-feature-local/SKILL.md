@@ -7,8 +7,8 @@ description: Run a real-browser QA test against localhost to verify a feature wo
 
 Run end-to-end feature testing from UI against a local URL:
 
-- Cloud management: `muggle-remote-*`
-- Local execution and artifacts: `muggle-local-*`
+- Cloud management and artifacts: `muggle-remote-*`
+- Local execution: `muggle-local-*`
 
 ## Workflow
 
@@ -32,43 +32,36 @@ Run end-to-end feature testing from UI against a local URL:
 
 ### 4. Check for existing scripts and ask user to choose
 
-Check BOTH cloud and local scripts to determine what's available:
+Use `muggle-remote-test-script-list` with `testCaseId` to get scripts for the selected test case.
 
-1. **Check cloud scripts:** `muggle-remote-test-script-list` filtered by projectId
-2. **Check local scripts:** `muggle-local-test-script-list` filtered by projectId
+**Present options to user:**
 
-**Decision logic:**
+- List all succeeded/replayable scripts
+- Always include "Generate new script" as an option
 
-| Cloud Script | Local Script (status: published/generated) | Action |
-|--------------|---------------------------------------------|--------|
-| Exists + ACTIVE | Exists | Ask user: "Replay existing script" or "Regenerate from scratch"? |
-| Exists + ACTIVE | Not found | Sync from cloud first, then ask user |
-| Not found | Exists | Ask user: "Replay local script" or "Regenerate"? |
-| Not found | Not found | Default to generation (no need to ask) |
+If no scripts exist, skip asking and default to generation.
 
-**When asking user, show:**
+**When listing scripts, show:**
 - Script name and ID
 - When it was created/updated
 - Number of steps
-- Last run status if available
 
 ### 5. Prepare for execution
-
-**For Replay:**
-
-Local scripts contain the complete `actionScript` with element labels required for replay. Remote scripts only contain metadata.
-
-1. Use `muggle-local-test-script-get` with `testScriptId` to fetch the FULL script including actionScript
-2. The returned script includes all steps with `operation.label` paths needed for element location
-3. Pass this complete script to `muggle-local-execute-replay`
-
-**IMPORTANT:** Do NOT manually construct or simplify the actionScript. The electron app requires the complete script with all `label` paths intact to locate page elements during replay.
 
 **For Generation:**
 
 1. `muggle-remote-test-case-get` to fetch test case details
-2. `muggle-local-execute-test-generation` with the test case
+3. `muggle-local-execute-test-generation` with the test case
 
+**For Replay:**
+
+All generated scripts are automatically uploaded to the cloud. Every test script has a remote copy that is replayable.
+
+1. Use `muggle-remote-test-script-get` with `testScriptId` to fetch the test script metadata (includes `actionScriptId`)
+2. Use `muggle-remote-action-script-get` with the `actionScriptId` from step 1 to fetch the full actionScript content
+3. Pass both `testScript` and `actionScript` to `muggle-local-execute-replay`
+
+**IMPORTANT:** Do NOT manually construct or simplify the actionScript. The electron app requires the complete script with all `label` paths intact to locate page elements during replay.
 ### 6. Approval requirement
 
 - Before execution, get explicit user approval for launching Electron app.
@@ -80,7 +73,8 @@ Local scripts contain the complete `actionScript` with element labels required f
 **Replay:**
 ```
 muggle-local-execute-replay with:
-- testScript: (full script from muggle-local-test-script-get)
+- testScript: (metadata from muggle-remote-test-script-get)
+- actionScript: (content from muggle-remote-action-script-get using testScript.actionScriptId)
 - localUrl: user-provided localhost URL
 - approveElectronAppLaunch: true
 - showUi: true (optional, lets user watch)
@@ -99,7 +93,8 @@ muggle-local-execute-test-generation with:
 
 - Use `muggle-local-publish-test-script` after successful generation.
 - This uploads the script to cloud so it can be replayed later.
-- Return the remote URL for user to view the result.
+- The tool returns a `viewUrl` in the response data.
+- Open the `viewUrl` in the user's default browser using `open "<viewUrl>"` (macOS) or equivalent so they can view the published test script details on the dashboard.
 
 ### 9. Report results
 
@@ -110,7 +105,7 @@ muggle-local-execute-test-generation with:
   - pass/fail summary
   - steps summary (which steps passed/failed)
   - artifacts path (screenshots location)
-  - script detail view URL
+  - script detail view URL (from `muggle-local-publish-test-script` response, already opened in browser)
 
 ## Guardrails
 
@@ -118,5 +113,5 @@ muggle-local-execute-test-generation with:
 - Do not silently skip asking user when a replayable script exists.
 - Do not launch Electron without explicit approval.
 - Do not hide failing run details; include error and artifacts path.
-- Do not simplify or reconstruct actionScript for replay; use the complete script from `muggle-local-test-script-get`.
-- Always check local scripts before defaulting to generation.
+- Do not simplify or reconstruct actionScript for replay; use the complete script from `muggle-remote-action-script-get`.
+- Always check for existing scripts before defaulting to generation.

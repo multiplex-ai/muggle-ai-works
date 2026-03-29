@@ -286,14 +286,14 @@ const testCaseTools: IQaToolDefinition[] = [
 const testScriptTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-script-list",
-    description: "List test scripts for a project.",
+    description: "List test scripts for a project, optionally filtered by test case.",
     inputSchema: schemas.TestScriptListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.TestScriptListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-scripts`,
-        queryParams: { projectId: data.projectId, page: data.page, pageSize: data.pageSize },
+        queryParams: { projectId: data.projectId, testCaseId: data.testCaseId, page: data.page, pageSize: data.pageSize },
       };
     },
   },
@@ -319,6 +319,25 @@ const testScriptTools: IQaToolDefinition[] = [
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-scripts/paginated`,
         queryParams: { projectId: data.projectId, page: data.page, pageSize: data.pageSize },
+      };
+    },
+  },
+];
+
+// =============================================================================
+// Action Script Tools
+// =============================================================================
+
+const actionScriptTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-action-script-get",
+    description: "Get the full action script content by ID. Use actionScriptId from a test script to fetch the complete script with all steps and element labels needed for replay.",
+    inputSchema: schemas.ActionScriptGetInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.ActionScriptGetInputSchema>;
+      return {
+        method: "GET",
+        path: `/v1/protected/actionScript/${data.actionScriptId}`,
       };
     },
   },
@@ -1391,6 +1410,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...useCaseTools,
   ...testCaseTools,
   ...testScriptTools,
+  ...actionScriptTools,
   ...workflowTools,
   ...reportTools,
   ...secretTools,

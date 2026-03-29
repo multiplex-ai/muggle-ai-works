@@ -401,9 +401,15 @@ function buildGenerationActionScript(params: {
 
 /**
  * Build a local action script for test replay (engine mode).
+ * @param params.testScript - Test script metadata (from muggle-remote-test-script-get).
+ * @param params.actionScript - Action script steps (from muggle-remote-action-script-get).
+ * @param params.localUrl - Local URL to test against.
+ * @param params.runId - Run ID for this execution.
+ * @param params.ownerUserId - Owner user ID.
  */
 function buildReplayActionScript(params: {
   testScript: TestScriptDetails;
+  actionScript: unknown[];
   localUrl: string;
   runId: string;
   ownerUserId: string;
@@ -421,13 +427,13 @@ function buildReplayActionScript(params: {
   });
 
   const rewrittenActionScript = rewriteActionScriptUrls({
-    actionScript: params.testScript.actionScript,
+    actionScript: params.actionScript,
     originalUrl: params.testScript.url,
     localUrl: params.localUrl,
   });
 
   return {
-    actionScriptId: params.testScript.id,
+    actionScriptId: params.testScript.actionScriptId,
     actionScriptName: params.testScript.name,
     actionType: "UserDefined",
     actionParams: {
@@ -773,10 +779,12 @@ export async function executeTestGeneration(params: {
 /**
  * Execute test script replay.
  *
- * Test script details should be fetched via qa_test_script_get before calling this.
+ * Test script metadata should be fetched via muggle-remote-test-script-get,
+ * and actionScript content via muggle-remote-action-script-get before calling this.
  *
  * @param params - Execution parameters.
- * @param params.testScript - Test script details from qa_test_script_get.
+ * @param params.testScript - Test script metadata from muggle-remote-test-script-get.
+ * @param params.actionScript - Action script steps from muggle-remote-action-script-get.
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
@@ -784,11 +792,12 @@ export async function executeTestGeneration(params: {
  */
 export async function executeReplay(params: {
   testScript: TestScriptDetails;
+  actionScript: unknown[];
   localUrl: string;
   timeoutMs?: number;
   showUi?: boolean;
 }): Promise<ILocalRunResult> {
-  const { testScript, localUrl } = params;
+  const { testScript, actionScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 180000;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
@@ -820,8 +829,9 @@ export async function executeReplay(params: {
     const runId = runResult.id;
     const startedAt = Date.now();
 
-    const actionScript = buildReplayActionScript({
+    const builtActionScript = buildReplayActionScript({
       testScript: testScript,
+      actionScript: actionScript,
       localUrl: localUrl,
       runId: runId,
       ownerUserId: authContent.userId,
@@ -830,7 +840,7 @@ export async function executeReplay(params: {
     // Write temp files
     const inputFilePath = await writeTempFile({
       filename: `${runId}_input.json`,
-      data: actionScript,
+      data: builtActionScript,
     });
     const authFilePath = await writeTempFile({
       filename: `${runId}_auth.json`,

@@ -205,6 +205,7 @@ export const TestCaseCreateInputSchema = z.object({
 
 export const TestScriptListInputSchema = z.object({
   projectId: IdSchema.describe("Project ID to list test scripts for"),
+  testCaseId: IdSchema.optional().describe("Optional test case ID to filter scripts by"),
 }).merge(PaginationInputSchema);
 
 export const TestScriptGetInputSchema = z.object({
@@ -214,6 +215,14 @@ export const TestScriptGetInputSchema = z.object({
 export const TestScriptListPaginatedInputSchema = z.object({
   projectId: IdSchema.describe("Project ID to list test scripts for"),
 }).merge(PaginationInputSchema);
+
+// =============================================================================
+// Action Script Schemas
+// =============================================================================
+
+export const ActionScriptGetInputSchema = z.object({
+  actionScriptId: IdSchema.describe("Action script ID to retrieve"),
+});
 
 // =============================================================================
 // Workflow Schemas

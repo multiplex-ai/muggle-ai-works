@@ -120,7 +120,7 @@ Screenshots captured per step → action-script.json recorded
 Results: pass/fail with evidence at ~/.muggle-ai/sessions/{runId}/
          │
          v
-muggle-local-publish-test-script uploads to cloud
+muggle-local-publish-test-script uploads to cloud → returns viewUrl to open dashboard
 ```
 
 ---
@@ -256,7 +256,7 @@ Local Execution (muggle-local-*)
 | `muggle-local-cancel-execution`        | Cancel active execution            |
 | `muggle-local-run-result-list`         | List run results                   |
 | `muggle-local-run-result-get`          | Get detailed results + screenshots |
-| `muggle-local-publish-test-script`     | Publish script to cloud            |
+| `muggle-local-publish-test-script`     | Publish script to cloud, returns `viewUrl` |
 
 
 Reports and Analytics (muggle-remote-report-*)

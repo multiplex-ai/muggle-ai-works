@@ -22,8 +22,6 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | Update Electron QA engine and MCP server to latest version. |
 
-Legacy aliases remain available for compatibility: `/muggle:do`, `/muggle:test-feature-local`, `/muggle:status`, `/muggle:repair`, `/muggle:upgrade`.
-
 ## MCP Tools
 
 The plugin ships an MCP server with 70+ tools for project management, test case generation, browser automation, and reporting. The server starts automatically when the plugin is enabled.

@@ -6,18 +6,48 @@ disable-model-invocation: true
 
 # Muggle Do
 
-Use this as the prefixed entry point for the autonomous Muggle AI development workflow.
+Muggle Do is the top-level command for the Muggle AI development workflow.
 
-Run the same behavior as the legacy `do` skill:
+It runs the autonomous dev cycle: requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs.
 
-- requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs
-
-For maintenance tasks, route to:
+For maintenance tasks, use the dedicated skills:
 
 - `/muggle:muggle-status`
 - `/muggle:muggle-repair`
 - `/muggle:muggle-upgrade`
 
-Follow the stage instructions from `../do/`:
+## Input routing
 
-- [legacy workflow](../do/SKILL.md)
+Treat `$ARGUMENTS` as the user command:
+
+- Empty / `help` / `menu` / `?` -> show menu and session selector.
+- Anything else -> treat as a new task description and start/resume a dev-cycle session.
+
+## Session model
+
+Use `.muggle-do/sessions/<slug>/` with these files:
+
+- `state.md`
+- `requirements.md`
+- `iterations/<NNN>.md`
+- `result.md`
+
+On each stage transition, update `state.md` and append stage output to the active iteration file.
+
+## Dev cycle agents
+
+Use the supporting files in the `../do/` directory as stage-specific instructions:
+
+- [requirements.md](../do/requirements.md)
+- [impact-analysis.md](../do/impact-analysis.md)
+- [validate-code.md](../do/validate-code.md)
+- [unit-tests.md](../do/unit-tests.md)
+- [qa.md](../do/qa.md)
+- [open-prs.md](../do/open-prs.md)
+
+## Guardrails
+
+- Do not skip unit tests before QA.
+- Do not skip QA due to missing scripts; generate when needed.
+- If the same stage fails 3 times in a row, escalate with details.
+- If total iterations reach 3 and QA still fails, continue to PR creation with `[QA FAILING]`.

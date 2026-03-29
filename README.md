@@ -47,8 +47,6 @@ This installs the Muggle AI plugin with:
 - MCP server with 70+ tools (auto-started)
 - Electron QA engine provisioning (via session hook)
 
-Legacy aliases remain available for compatibility: `/muggle:do`, `/muggle:test-feature-local`, `/muggle:status`, `/muggle:repair`, `/muggle:upgrade`.
-
 ### 2. Verify
 
 ```
@@ -435,12 +433,12 @@ muggle-ai-works/
 ├── plugin/                  # Claude Code plugin (source of truth)
 │   ├── .claude-plugin/      #   Plugin manifest (plugin.json)
 │   ├── skills/              #   Skill definitions
-│   │   ├── muggle-do/               # /muggle:muggle-do — autonomous dev pipeline
-│   │   ├── muggle-test-feature-local/ # /muggle:muggle-test-feature-local
-│   │   ├── muggle-status/           # /muggle:muggle-status
-│   │   ├── muggle-repair/           # /muggle:muggle-repair
-│   │   ├── muggle-upgrade/          # /muggle:muggle-upgrade
-│   │   └── ...legacy aliases        # /muggle:do, /muggle:status, etc.
+│   │   ├── muggle/                        # /muggle:muggle — command router and menu
+│   │   ├── muggle-do/                     # /muggle:muggle-do — autonomous dev pipeline
+│   │   ├── muggle-test-feature-local/     # /muggle:muggle-test-feature-local
+│   │   ├── muggle-status/                 # /muggle:muggle-status
+│   │   ├── muggle-repair/                 # /muggle:muggle-repair
+│   │   └── muggle-upgrade/                # /muggle:muggle-upgrade
 │   ├── hooks/               #   Session hooks (hooks.json)
 │   ├── scripts/             #   Hook scripts (ensure-electron-app.sh)
 │   ├── .mcp.json            #   MCP server config

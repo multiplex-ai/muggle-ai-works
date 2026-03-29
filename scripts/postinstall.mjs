@@ -574,7 +574,7 @@ async function downloadElectronApp() {
         const checksums = config.checksums || {};
         const platformKey = getPlatformKey();
         const expectedChecksum = checksums[platformKey] || "";
-        const downloadUrl = `${baseUrl}/v${version}/${binaryName}`;
+        const downloadUrl = `${baseUrl}/electron-app-v${version}/${binaryName}`;
 
         const appDir = getElectronAppDir();
         const versionDir = join(appDir, version);
@@ -703,7 +703,7 @@ async function downloadElectronApp() {
             const packageJson = require("../package.json");
             const config = packageJson.muggleConfig || {};
             logError("  - Electron app version:", config.electronAppVersion || "unknown");
-            logError("  - Download URL:", `${config.downloadBaseUrl}/v${config.electronAppVersion}/${getBinaryName()}`);
+            logError("  - Download URL:", `${config.downloadBaseUrl}/electron-app-v${config.electronAppVersion}/${getBinaryName()}`);
         } catch {
             logError("  - Could not read package.json config");
         }

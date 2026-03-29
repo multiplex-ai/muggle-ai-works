@@ -20,6 +20,7 @@ const ALLOWED_UPSTREAM_PREFIXES = [
   "/v1/protected/muggle-test/",
   "/v1/protected/wallet/",
   "/v1/protected/api-keys",
+  "/v1/protected/actionScript/",
 ];
 
 /**

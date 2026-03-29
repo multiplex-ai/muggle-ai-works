@@ -46,7 +46,7 @@ const DEFAULT_AUTH0_PRODUCTION_AUDIENCE = "https://muggleai.us.auth0.com/api/v2/
 const DEFAULT_AUTH0_DEV_DOMAIN = "dev-po4mxmz0rd8a0w8w.us.auth0.com";
 
 /** Default Auth0 client ID for local development. */
-const DEFAULT_AUTH0_DEV_CLIENT_ID = "hihMM2cxb40yHaZMH2MMXwO2ZRJQ3MxA";
+const DEFAULT_AUTH0_DEV_CLIENT_ID = "GBvkMdTbCI80XJXnJ90MmbEvXwcWGUtw";
 
 /** Default Auth0 audience for local development. */
 const DEFAULT_AUTH0_DEV_AUDIENCE = "https://dev-po4mxmz0rd8a0w8w.us.auth0.com/api/v2/";

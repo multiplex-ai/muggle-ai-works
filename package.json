@@ -1,7 +1,7 @@
 {
     "name": "@muggleai/works",
     "mcpName": "io.github.multiplex-ai/muggle",
-    "version": "4.2.0",
+    "version": "4.2.1",
     "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",
@@ -39,7 +39,7 @@
         "test:watch": "vitest"
     },
     "muggleConfig": {
-        "electronAppVersion": "1.0.13",
+        "electronAppVersion": "1.0.14",
         "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
         "runtimeTargetDefault": "dev",
         "checksums": {

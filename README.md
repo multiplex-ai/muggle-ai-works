@@ -1,5 +1,7 @@
 # *muggle-ai-works*
 
+[![SafeSkill 56/100](https://img.shields.io/badge/SafeSkill-56%2F100_Use%20with%20Caution-orange)](https://safeskill.dev/scan/multiplex-ai-muggle-ai-works)
+
 **Run real-browser QA tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.**
 
 One install gives your AI coding assistant the power to QA your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.

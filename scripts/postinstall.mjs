@@ -28,6 +28,7 @@ import { fileURLToPath } from "url";
 const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
+const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
 const LOG_FILE_NAME = "postinstall.log";
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 const CURSOR_SKILLS_DIRECTORY_NAME = ".cursor";
@@ -125,10 +126,100 @@ function getPackageRootDir() {
 }
 
 /**
+ * Get the path to the install manifest file.
+ * The manifest tracks what content was installed by this package,
+ * enabling cleanup of obsolete content when items are renamed or removed.
+ * @returns {string} Path to ~/.muggle-ai/install-manifest.json
+ */
+function getInstallManifestPath() {
+    return join(getDataDir(), INSTALL_MANIFEST_FILE_NAME);
+}
+
+/**
+ * Read the install manifest from disk.
+ * @returns {{ packageVersion?: string, skills?: string[], installedAt?: string } | null}
+ */
+function readInstallManifest() {
+    const manifestPath = getInstallManifestPath();
+
+    if (!existsSync(manifestPath)) {
+        return null;
+    }
+
+    try {
+        const content = readFileSync(manifestPath, "utf-8");
+        const manifest = JSON.parse(content);
+
+        if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
+            return null;
+        }
+
+        return manifest;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Write the install manifest to disk.
+ * @param {object} params - Manifest fields
+ * @param {string} params.packageVersion - The package version being installed
+ * @param {string[]} params.skills - List of skill directory names installed
+ */
+function writeInstallManifest({ packageVersion, skills }) {
+    const manifestPath = getInstallManifestPath();
+    const manifest = {
+        packageVersion: packageVersion,
+        skills: skills,
+        installedAt: new Date().toISOString(),
+    };
+
+    mkdirSync(dirname(manifestPath), { recursive: true });
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf-8");
+}
+
+/**
+ * Remove obsolete skills that were installed by a previous version but are no longer present.
+ * @param {object} params - Cleanup parameters
+ * @param {string[]} params.previousSkills - Skills from the previous manifest
+ * @param {string[]} params.currentSkills - Skills being installed now
+ * @param {string} params.cursorSkillsDirectoryPath - Path to ~/.cursor/skills
+ */
+function cleanupObsoleteSkills({ previousSkills, currentSkills, cursorSkillsDirectoryPath }) {
+    const currentSkillSet = new Set(currentSkills);
+    const obsoleteSkills = previousSkills.filter((skill) => !currentSkillSet.has(skill));
+
+    if (obsoleteSkills.length === 0) {
+        return;
+    }
+
+    for (const skillName of obsoleteSkills) {
+        const skillPath = join(cursorSkillsDirectoryPath, skillName);
+
+        if (!existsSync(skillPath)) {
+            continue;
+        }
+
+        try {
+            rmSync(skillPath, { recursive: true, force: true });
+            log(`Removed obsolete skill: ${skillName}`);
+        } catch (error) {
+            logError(`Failed to remove obsolete skill ${skillName}: ${error.message}`);
+        }
+    }
+
+    log(`Cleaned up ${obsoleteSkills.length} obsolete skill(s)`);
+}
+
+/**
  * Sync packaged muggle skills into Cursor user skills.
  * This enables npm installs to refresh locally available `muggle-*` skills.
+ * Also cleans up obsolete skills that were removed or renamed in the package.
  */
 function syncCursorSkills() {
+    const packageJson = require("../package.json");
+    const packageVersion = packageJson.version;
+
     const sourceSkillsDirectoryPath = join(getPackageRootDir(), "plugin", "skills");
     if (!existsSync(sourceSkillsDirectoryPath)) {
         log("Cursor skill sync skipped: packaged plugin skills directory not found.");
@@ -143,7 +234,7 @@ function syncCursorSkills() {
     mkdirSync(cursorSkillsDirectoryPath, { recursive: true });
 
     const skillEntries = readdirSync(sourceSkillsDirectoryPath, { withFileTypes: true });
-    let syncedSkillCount = 0;
+    const installedSkills = [];
 
     for (const skillEntry of skillEntries) {
         if (!skillEntry.isDirectory()) {
@@ -163,10 +254,26 @@ function syncCursorSkills() {
         const targetSkillDirectoryPath = join(cursorSkillsDirectoryPath, skillEntry.name);
         rmSync(targetSkillDirectoryPath, { recursive: true, force: true });
         cpSync(sourceSkillDirectoryPath, targetSkillDirectoryPath, { recursive: true });
-        syncedSkillCount += 1;
+        installedSkills.push(skillEntry.name);
     }
 
-    log(`Synced ${syncedSkillCount} muggle skill(s) to ${cursorSkillsDirectoryPath}`);
+    log(`Synced ${installedSkills.length} muggle skill(s) to ${cursorSkillsDirectoryPath}`);
+
+    // Clean up obsolete skills from previous installation
+    const previousManifest = readInstallManifest();
+    if (previousManifest && Array.isArray(previousManifest.skills)) {
+        cleanupObsoleteSkills({
+            previousSkills: previousManifest.skills,
+            currentSkills: installedSkills,
+            cursorSkillsDirectoryPath: cursorSkillsDirectoryPath,
+        });
+    }
+
+    // Write updated manifest
+    writeInstallManifest({
+        packageVersion: packageVersion,
+        skills: installedSkills,
+    });
 }
 
 /**

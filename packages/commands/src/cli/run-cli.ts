@@ -86,9 +86,10 @@ function createProgram (): Command {
 
   program
     .command("cleanup")
-    .description("Remove old electron-app versions to free disk space")
+    .description("Remove old electron-app versions and obsolete skills")
     .option("--all", "Remove all old versions (default: keep one previous)")
     .option("--dry-run", "Show what would be deleted without deleting")
+    .option("--skills", "Also clean up obsolete skills from ~/.cursor/skills")
     .action(cleanupCommand);
 
   program

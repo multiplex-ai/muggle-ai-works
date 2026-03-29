@@ -168,6 +168,7 @@ export function getHelpGuidance(): string {
     `    ${cmd("muggle versions")}         List installed Electron app versions`,
     `    ${cmd("muggle cleanup")}          Remove old Electron app versions`,
     `    ${cmd("muggle cleanup --all")}    Remove all old versions`,
+    `    ${cmd("muggle cleanup --skills")} Also remove obsolete skills`,
     "",
     `  ${colorize("Help:", COLORS.bold)}`,
     `    ${cmd("muggle help")}             Show this guide`,

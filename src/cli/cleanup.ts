@@ -1,8 +1,9 @@
 /**
- * Cleanup command - removes old electron-app versions to free disk space.
+ * Cleanup command - removes old electron-app versions and obsolete skills to free disk space.
  */
 
-import { existsSync, readdirSync, rmSync, statSync } from "fs";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "fs";
+import { homedir } from "os";
 import * as path from "path";
 
 import { getDataDir, getElectronAppVersion, getLogger } from "../../packages/mcps/src/index.js";
@@ -12,6 +13,16 @@ const logger = getLogger();
 /** Subdirectory name for electron-app versions. */
 const ELECTRON_APP_DIR = "electron-app";
 
+/** Cursor skills directory path components. */
+const CURSOR_SKILLS_DIR = ".cursor";
+const CURSOR_SKILLS_SUBDIR = "skills";
+
+/** Prefix for muggle skills. */
+const MUGGLE_SKILL_PREFIX = "muggle";
+
+/** Install manifest filename. */
+const INSTALL_MANIFEST_FILE = "install-manifest.json";
+
 /**
  * Options for the cleanup command.
  */
@@ -20,6 +31,8 @@ export interface ICleanupOptions {
   all?: boolean;
   /** Dry run - show what would be deleted without deleting. */
   dryRun?: boolean;
+  /** Also clean up obsolete skills. */
+  skills?: boolean;
 }
 
 /**
@@ -37,11 +50,163 @@ export interface IInstalledVersion {
 }
 
 /**
+ * Obsolete skill info.
+ */
+export interface IObsoleteSkill {
+  /** Skill directory name. */
+  name: string;
+  /** Full path to skill directory. */
+  path: string;
+  /** Size in bytes. */
+  sizeBytes: number;
+}
+
+/**
+ * Install manifest structure.
+ */
+interface IInstallManifest {
+  /** Package version that was installed. */
+  packageVersion?: string;
+  /** List of skill directory names that were installed. */
+  skills?: string[];
+  /** ISO timestamp of installation. */
+  installedAt?: string;
+}
+
+/**
  * Get the electron-app base directory.
  * @returns Path to ~/.muggle-ai/electron-app
  */
 function getElectronAppBaseDir (): string {
   return path.join(getDataDir(), ELECTRON_APP_DIR);
+}
+
+/**
+ * Get the Cursor skills directory.
+ * @returns Path to ~/.cursor/skills
+ */
+function getCursorSkillsDir (): string {
+  return path.join(homedir(), CURSOR_SKILLS_DIR, CURSOR_SKILLS_SUBDIR);
+}
+
+/**
+ * Get the install manifest path.
+ * @returns Path to ~/.muggle-ai/install-manifest.json
+ */
+function getInstallManifestPath (): string {
+  return path.join(getDataDir(), INSTALL_MANIFEST_FILE);
+}
+
+/**
+ * Read the install manifest from disk.
+ * @returns Parsed manifest or null if not found/invalid.
+ */
+function readInstallManifest (): IInstallManifest | null {
+  const manifestPath = getInstallManifestPath();
+
+  if (!existsSync(manifestPath)) {
+    return null;
+  }
+
+  try {
+    const content = readFileSync(manifestPath, "utf-8");
+    const manifest = JSON.parse(content) as unknown;
+
+    if (typeof manifest !== "object" || manifest === null || Array.isArray(manifest)) {
+      return null;
+    }
+
+    return manifest as IInstallManifest;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * List obsolete muggle skills that are installed but not in the current manifest.
+ * @returns Array of obsolete skill info.
+ */
+export function listObsoleteSkills (): IObsoleteSkill[] {
+  const skillsDir = getCursorSkillsDir();
+  const manifest = readInstallManifest();
+  const obsoleteSkills: IObsoleteSkill[] = [];
+
+  if (!existsSync(skillsDir)) {
+    return obsoleteSkills;
+  }
+
+  const manifestSkills = new Set(manifest?.skills ?? []);
+
+  try {
+    const entries = readdirSync(skillsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      if (!entry.name.startsWith(MUGGLE_SKILL_PREFIX)) {
+        continue;
+      }
+
+      if (manifestSkills.has(entry.name)) {
+        continue;
+      }
+
+      const skillPath = path.join(skillsDir, entry.name);
+      const sizeBytes = getDirectorySize(skillPath);
+
+      obsoleteSkills.push({
+        name: entry.name,
+        path: skillPath,
+        sizeBytes: sizeBytes,
+      });
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.warn("Failed to list obsolete skills", { error: errorMessage });
+  }
+
+  return obsoleteSkills;
+}
+
+/**
+ * Remove obsolete skills.
+ * @param options - Cleanup options.
+ * @returns Object with removed skills and freed bytes.
+ */
+export function cleanupObsoleteSkills (options: { dryRun?: boolean } = {}): {
+  removed: IObsoleteSkill[];
+  freedBytes: number;
+} {
+  const { dryRun = false } = options;
+  const obsoleteSkills = listObsoleteSkills();
+  const removed: IObsoleteSkill[] = [];
+  let freedBytes = 0;
+
+  for (const skill of obsoleteSkills) {
+    if (!dryRun) {
+      try {
+        rmSync(skill.path, { recursive: true, force: true });
+        logger.info("Removed obsolete skill", {
+          skill: skill.name,
+          freedBytes: skill.sizeBytes,
+        });
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error("Failed to remove skill", {
+          skill: skill.name,
+          error: errorMessage,
+        });
+        continue;
+      }
+    }
+
+    removed.push(skill);
+    freedBytes += skill.sizeBytes;
+  }
+
+  return { removed: removed, freedBytes: freedBytes };
 }
 
 /**
@@ -255,6 +420,10 @@ export async function versionsCommand (): Promise<void> {
  * @param options - Command options.
  */
 export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
+  let totalFreedBytes = 0;
+  let totalRemovedCount = 0;
+
+  // Clean up electron app versions
   console.log("\nElectron App Cleanup");
   console.log("====================\n");
 
@@ -262,57 +431,89 @@ export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
 
   if (versions.length === 0) {
     console.log("No versions installed. Nothing to clean up.\n");
-    return;
-  }
-
-  if (versions.length === 1) {
+  } else if (versions.length === 1) {
     console.log("Only the current version is installed. Nothing to clean up.\n");
-    return;
-  }
+  } else {
+    const currentVersion = versions.find((v) => v.isCurrent);
+    const oldVersions = versions.filter((v) => !v.isCurrent);
 
-  const currentVersion = versions.find((v) => v.isCurrent);
-  const oldVersions = versions.filter((v) => !v.isCurrent);
+    console.log(`Current version: v${currentVersion?.version ?? "unknown"}`);
+    console.log(`Old versions: ${oldVersions.length}`);
+    console.log("");
 
-  console.log(`Current version: v${currentVersion?.version || "unknown"}`);
-  console.log(`Old versions: ${oldVersions.length}`);
-  console.log("");
-
-  if (options.dryRun) {
-    console.log("Dry run - showing what would be deleted:\n");
-  }
-
-  const result = cleanupOldVersions(options);
-
-  if (result.removed.length === 0) {
-    if (options.all) {
-      console.log("No old versions to remove.\n");
-    } else {
-      console.log("Keeping one previous version for rollback.");
-      console.log("Use --all to remove all old versions.\n");
+    if (options.dryRun) {
+      console.log("Dry run - showing what would be deleted:\n");
     }
-    return;
+
+    const result = cleanupOldVersions(options);
+
+    if (result.removed.length === 0) {
+      if (options.all) {
+        console.log("No old versions to remove.\n");
+      } else {
+        console.log("Keeping one previous version for rollback.");
+        console.log("Use --all to remove all old versions.\n");
+      }
+    } else {
+      console.log(options.dryRun ? "Would remove:" : "Removed:");
+
+      for (const version of result.removed) {
+        console.log(`  v${version.version} (${formatBytes(version.sizeBytes)})`);
+      }
+
+      totalFreedBytes += result.freedBytes;
+      totalRemovedCount += result.removed.length;
+      console.log("");
+    }
   }
 
-  console.log(options.dryRun ? "Would remove:" : "Removed:");
+  // Clean up obsolete skills if requested
+  if (options.skills) {
+    console.log("Skills Cleanup");
+    console.log("==============\n");
 
-  for (const version of result.removed) {
-    console.log(`  v${version.version} (${formatBytes(version.sizeBytes)})`);
+    const obsoleteSkills = listObsoleteSkills();
+
+    if (obsoleteSkills.length === 0) {
+      console.log("No obsolete skills found. Nothing to clean up.\n");
+    } else {
+      console.log(`Found ${obsoleteSkills.length} obsolete skill(s):\n`);
+
+      if (options.dryRun) {
+        console.log("Dry run - showing what would be deleted:\n");
+      }
+
+      const skillResult = cleanupObsoleteSkills({ dryRun: options.dryRun });
+
+      console.log(options.dryRun ? "Would remove:" : "Removed:");
+
+      for (const skill of skillResult.removed) {
+        console.log(`  ${skill.name} (${formatBytes(skill.sizeBytes)})`);
+      }
+
+      totalFreedBytes += skillResult.freedBytes;
+      totalRemovedCount += skillResult.removed.length;
+      console.log("");
+    }
   }
 
-  console.log("");
-  console.log(
-    `${options.dryRun ? "Would free" : "Freed"}: ${formatBytes(result.freedBytes)}`,
-  );
-  console.log("");
+  // Summary
+  if (totalRemovedCount > 0) {
+    console.log(
+      `${options.dryRun ? "Would free" : "Freed"}: ${formatBytes(totalFreedBytes)} total`,
+    );
+    console.log("");
 
-  if (options.dryRun) {
-    console.log("Run without --dry-run to actually delete.\n");
+    if (options.dryRun) {
+      console.log("Run without --dry-run to actually delete.\n");
+    }
   }
 
   logger.info("Cleanup completed", {
-    removed: result.removed.length,
-    freedBytes: result.freedBytes,
+    removed: totalRemovedCount,
+    freedBytes: totalFreedBytes,
     dryRun: options.dryRun,
+    includeSkills: options.skills,
   });
 }
 

@@ -1,7 +1,7 @@
 {
     "name": "@muggleai/works",
     "mcpName": "io.github.multiplex-ai/muggle",
-    "version": "4.2.1",
+    "version": "4.2.3",
     "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",

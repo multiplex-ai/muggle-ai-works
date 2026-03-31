@@ -535,6 +535,14 @@ git tag v<version> && git push --tags
 ```
 
 
+Release tag strategy
+
+- `electron-app-vX.Y.Z` tags in `muggle-ai-works` are for public Electron app binary releases (consumed by `muggle setup`, `muggle upgrade`, and npm postinstall).
+- `vX.Y.Z` tags in `muggle-ai-works` are for npm publishing of `@muggleai/works` (`publish-works.yml`).
+- `muggle-ai-teaching-service` builds Electron artifacts and publishes them into this public repo using `electron-app-vX.Y.Z`, so binaries are publicly downloadable.
+- The two version tracks are intentionally separate: runtime Electron artifact versions and npm package versions can move independently.
+
+
 Optimizing agent-facing descriptions
 
 

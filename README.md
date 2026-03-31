@@ -27,24 +27,16 @@ muggle-ai-works closes the gap between "code complete" and "actually works."
 
 ## Quick Start
 
-### 1. Install
+### 1. Install (choose your client)
 
-In Claude Code, run:
+**Claude Code (full plugin experience)**
 
 ```
 /plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
 /plugin install muggleai@muggle-works
 ```
 
-If you install via npm instead:
-
-```bash
-npm install -g @muggleai/works
-```
-
-`npm install` updates the CLI and syncs `muggle-*` skills to `~/.cursor/skills/` for Cursor discovery. Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
-
-This installs the Muggle AI plugin with:
+This installs:
 
 - `/muggle:muggle` — command router and menu
 - `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
@@ -55,7 +47,33 @@ This installs the Muggle AI plugin with:
 - MCP server with 70+ tools (auto-started)
 - Electron QA engine provisioning (via session hook)
 
+**Cursor, Codex, Windsurf, and other MCP clients (MCP tools only)**
+
+```bash
+npm install -g @muggleai/works
+```
+
+Then configure your MCP client:
+
+```json
+{
+  "mcpServers": {
+    "muggle": {
+      "command": "muggle",
+      "args": ["serve"],
+      "env": {
+        "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "production"
+      }
+    }
+  }
+}
+```
+
+`npm install` also syncs `muggle-*` skills to `~/.cursor/skills/` for Cursor discovery. Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
+
 ### 2. Verify
+
+**Claude Code**
 
 ```
 /muggle:muggle-status
@@ -63,7 +81,13 @@ This installs the Muggle AI plugin with:
 
 This checks Electron QA engine, MCP server health, and authentication. If anything is broken, run `/muggle:muggle-repair`.
 
+**Cursor/Codex/Windsurf/other MCP clients**
+
+Run any `muggle-*` MCP tool from your client after adding the MCP server config above. Authentication starts automatically on first protected tool call.
+
 ### 3. Start building features
+
+**Claude Code**
 
 Describe what you want to build:
 
@@ -73,7 +97,13 @@ Describe what you want to build:
 
 The AI handles the full cycle: code the feature, run unit tests, QA the app in a real browser, and open a PR with results.
 
+**Cursor/Codex/Windsurf/other MCP clients**
+
+Use the direct MCP workflow section below to call `muggle-*` tools from your client.
+
 ### 4. Test a feature locally
+
+**Claude Code**
 
 Already have code running on localhost? Test it directly:
 
@@ -82,6 +112,10 @@ Already have code running on localhost? Test it directly:
 ```
 
 Describe what to test in plain English. The AI finds or creates test cases, launches a real browser, and reports results with screenshots.
+
+**Cursor/Codex/Windsurf/other MCP clients**
+
+Call local execution MCP tools directly (for example `muggle-local-execute-test-script-replay` or related `muggle-local-*` commands exposed by your client).
 
 ---
 
@@ -391,7 +425,7 @@ Data directory structure (~/.muggle-ai/)
 
 ## What AI clients does it work with?
 
-Full support for Claude Code. MCP tools work with Cursor and any MCP-compatible client. Plugin skills require Claude Code plugin support.
+Full support for Claude Code. Cursor, Codex, Windsurf, and other MCP-compatible clients use the same MCP tools but do not support Claude plugin slash commands (`/muggle:*`).
 
 Platform compatibility table
 

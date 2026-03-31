@@ -6,9 +6,9 @@ disable-model-invocation: true
 
 # Muggle Do
 
-Muggle Do is the top-level command for the Muggle AI development workflow.
+Muggle Do is the command for the Muggle AI development workflow.
 
-It runs the autonomous dev cycle: requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs.
+It runs a battle-tested autonomous dev cycle: requirements -> impact analysis -> validate code -> coding -> unit tests -> QA -> open PRs.
 
 For maintenance tasks, use the dedicated skills:
 

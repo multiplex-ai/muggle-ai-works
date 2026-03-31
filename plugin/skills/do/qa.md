@@ -5,8 +5,11 @@ You are running QA test cases against code changes using Muggle AI's local testi
 ## Design
 
 QA runs **locally** using the `test-feature-local` approach:
-- `muggle-remote-*` tools manage cloud entities (auth, projects, test cases, scripts)
-- `muggle-local-*` tools execute tests against the running local dev server
+
+| Scope | MCP tools |
+| :---- | :-------- |
+| Cloud (projects, cases, scripts, auth) | `muggle-remote-*` |
+| Local (Electron run, publish, results) | `muggle-local-*` |
 
 This guarantees QA always runs — no dependency on cloud replay service availability.
 
@@ -29,7 +32,10 @@ Read `localUrl` for each repo from the context. If it is not provided, ask the u
 
 ### Step 1: Check Authentication
 
-Use `muggle-remote-auth-status` to verify valid credentials. If not authenticated, use `muggle-remote-auth-login` to start the device-code login flow and `muggle-remote-auth-poll` to wait for completion.
+- `muggle-remote-auth-status`
+- If not signed in: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
+
+Do not skip or assume auth.
 
 ### Step 2: Get Test Cases
 
@@ -49,28 +55,72 @@ For each relevant test case:
 1. Call `muggle-remote-test-script-list` filtered by `testCaseId` to check for an existing script.
 
 2. **If a script exists** (replay path):
-   - Call `muggle-remote-test-script-get` with the `testScriptId` to fetch the full script object.
-   - Call `muggle-local-execute-replay` with:
+   - `muggle-remote-test-script-get` with `testScriptId` → note `actionScriptId`
+   - `muggle-remote-action-script-get` with that id → full `actionScript`
+   - **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
+   - `muggle-local-execute-replay` with:
      - `testScript`: the full script object
+     - `actionScript`: the full action script object (from `muggle-remote-action-script-get`)
      - `localUrl`: the resolved local URL
      - `approveElectronAppLaunch`: `true` *(pipeline context — user starting `muggle-do` is implicit approval)*
+     - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
 
 3. **If no script exists** (generation path):
-   - Call `muggle-remote-test-case-get` with the `testCaseId` to fetch the full test case object.
-   - Call `muggle-local-execute-test-generation` with:
+   - `muggle-remote-test-case-get` with `testCaseId` to fetch the full test case object.
+   - `muggle-local-execute-test-generation` with:
      - `testCase`: the full test case object
      - `localUrl`: the resolved local URL
      - `approveElectronAppLaunch`: `true`
+     - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
 
 4. When execution completes, call `muggle-local-run-result-get` with the `runId` returned by the execute call.
 
 5. **Retain per test case:** `testCaseId`, `testScriptId` (if present), `runId`, `status` (passed/failed), `artifactsDir`.
 
-### Step 5: Collect Results
+### Local Execution Timeout (`timeoutMs`)
+
+The MCP client often uses a **default wait of 300000 ms (5 minutes)**. **Exploratory script generation** (Auth0 login, dashboards, multi-step wizards, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
+
+- **Always pass `timeoutMs`** — `600000` (10 min) or `900000` (15 min) — unless the test case is known to be simple.
+- If the tool reports **`Electron execution timed out after 300000ms`** but Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry**.
+
+### Interpreting Failures
+
+- **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see `timeoutMs` above.
+- **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`). Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash.
+- **Fix for precondition failures:** Choose a project/account that already has the needed state, or narrow the test goal so generation does not try to create resources from scratch unless intentional.
+
+### Step 5: Publish Test Scripts
+
+After each test execution completes (whether pass or fail):
+
+1. Call `muggle-local-publish-test-script` with:
+   - `runId`: the run ID from execution
+   - `cloudTestCaseId`: the test case ID
+
+2. **Retain from publish response:**
+   - `testScriptId`: the cloud test script ID
+   - `viewUrl`: the URL to view the run on muggle-ai.com
+
+This ensures all screenshots are uploaded to the cloud and accessible via URLs for PR comments.
+
+### Step 6: Fetch Screenshot URLs
+
+For each published test script:
+
+1. Call `muggle-remote-test-script-get` with the `testScriptId` from publish.
+
+2. Extract from the response:
+   - `steps[].operation.screenshotUrl`: cloud URL for each step's screenshot
+   - `steps[].operation.action`: the action description for each step
+
+3. **Retain per test case:** array of `{ stepIndex, action, screenshotUrl }`.
+
+### Step 7: Collect Results
 
 For each test case:
 - Record pass or fail from the run result
-- If failed, capture the error message and `artifactsDir` for reproduction
+- If failed, capture the error message, failure step index, and `artifactsDir` for local debugging
 - Every test case must be executed — generate a new script if none exists (no skips)
 
 ## Output
@@ -78,12 +128,34 @@ For each test case:
 **QA Report:**
 
 **Passed:** (count)
-- (test case name) [testCaseId: `<id>`, testScriptId: `<id>`, runId: `<id>`]: passed
+- (test case name):
+  - testCaseId: `<id>`
+  - testScriptId: `<id>`
+  - runId: `<id>`
+  - viewUrl: `<url>`
+  - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
 
 **Failed:** (count)
-- (test case name) [testCaseId: `<id>`, runId: `<id>`]: (error) — artifacts: `<artifactsDir>`
+- (test case name):
+  - testCaseId: `<id>`
+  - testScriptId: `<id>`
+  - runId: `<id>`
+  - viewUrl: `<url>`
+  - failureStepIndex: `<index>`
+  - error: `<message>`
+  - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
+  - artifactsDir: `<path>` (for local debugging)
 
 **Metadata:**
 - projectId: `<projectId>`
 
 **Overall:** ALL PASSED | FAILURES DETECTED
+
+## Non-negotiables
+
+- No silent auth skip; always verify with `muggle-remote-auth-status` first.
+- Replay: never hand-build or simplify `actionScript` — only use full response from `muggle-remote-action-script-get`.
+- Always pass `timeoutMs` for execution calls; do not rely on default 5-minute timeout.
+- No hiding failures: surface errors, exit codes, and artifact paths.
+- Every test case must be executed — generate a new script if none exists (no skips).
+- Always publish after execution to ensure screenshots are cloud-accessible for PR comments.

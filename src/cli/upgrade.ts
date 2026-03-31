@@ -100,11 +100,11 @@ function getBinaryName (): string {
 
 /**
  * Extract version from release tag.
- * @param tag - Release tag (e.g., "electron-app-v1.0.2").
+ * @param tag - Release tag (e.g., "v1.0.2").
  * @returns Version string (e.g., "1.0.2") or null.
  */
 function extractVersionFromTag (tag: string): string | null {
-  const match = tag.match(/^electron-app-v(\d+\.\d+\.\d+)$/);
+  const match = tag.match(/^(?:electron-app-)?v(\d+\.\d+\.\d+)$/);
   return match ? match[1] : null;
 }
 
@@ -196,7 +196,7 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
           currentVersion: currentVersion,
           latestVersion: version,
           updateAvailable: updateAvailable,
-          downloadUrl: `${baseUrl}/electron-app-v${version}/${binaryName}`,
+          downloadUrl: `${baseUrl}/v${version}/${binaryName}`,
         };
       }
     }
@@ -339,7 +339,7 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
  */
 async function fetchChecksumFromRelease (version: string): Promise<string> {
   const baseUrl = getDownloadBaseUrl();
-  const checksumUrl = `${baseUrl}/electron-app-v${version}/checksums.txt`;
+  const checksumUrl = `${baseUrl}/v${version}/checksums.txt`;
 
   try {
     const response = await fetch(checksumUrl);
@@ -513,7 +513,7 @@ export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
     if (options.version) {
       const baseUrl = getDownloadBaseUrl();
       const binaryName = getBinaryName();
-      const downloadUrl = `${baseUrl}/electron-app-v${options.version}/${binaryName}`;
+      const downloadUrl = `${baseUrl}/v${options.version}/${binaryName}`;
 
       await downloadAndInstall(options.version, downloadUrl);
 

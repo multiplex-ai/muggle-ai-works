@@ -11,7 +11,7 @@ import {
   ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { v4 as uuidv4 } from "uuid";
-import { ZodError } from "zod";
+import { ZodError, z } from "zod";
 
 import {
   createChildLogger,
@@ -62,8 +62,17 @@ export function clearTools (): void {
  * @returns JSON Schema object.
  */
 function zodToJsonSchema (schema: unknown): object {
+  // Prefer native Zod v4 JSON schema conversion when available.
   try {
-    const zodSchema = schema as { _def?: { typeName?: string; }; };
+    if (schema && typeof schema === "object" && "safeParse" in (schema as Record<string, unknown>)) {
+      return z.toJSONSchema(schema as z.ZodType);
+    }
+  } catch {
+    // Fall through to legacy converter for compatibility.
+  }
+
+  try {
+    const zodSchema = schema as { _def?: { typeName?: string; type?: string; }; };
     if (zodSchema._def) {
       return convertZodDef(zodSchema);
     }
@@ -87,11 +96,13 @@ function convertZodDef (schema: unknown): object {
   const zodSchema = schema as {
     _def?: {
       typeName?: string;
-      shape?: () => Record<string, unknown>;
+      type?: string;
+      shape?: (() => Record<string, unknown>) | Record<string, unknown>;
       innerType?: unknown;
+      element?: unknown;
       checks?: Array<{ kind: string; value?: unknown; }>;
       description?: string;
-      values?: string[];
+      values?: string[] | Record<string, string>;
       options?: unknown[];
     };
     shape?: Record<string, unknown>;
@@ -103,11 +114,13 @@ function convertZodDef (schema: unknown): object {
   }
 
   const def = zodSchema._def;
-  const typeName = def.typeName;
+  const typeName = def.typeName ?? def.type;
 
   switch (typeName) {
-    case "ZodObject": {
-      const shape = def.shape ? def.shape() : zodSchema.shape || {};
+    case "ZodObject":
+    case "object": {
+      const shapeFromDef = typeof def.shape === "function" ? def.shape() : def.shape;
+      const shape = shapeFromDef || zodSchema.shape || {};
       const properties: Record<string, object> = {};
       const required: string[] = [];
 
@@ -129,7 +142,8 @@ function convertZodDef (schema: unknown): object {
       return result;
     }
 
-    case "ZodString": {
+    case "ZodString":
+    case "string": {
       const result: Record<string, unknown> = { type: "string" };
       if (def.description) result.description = def.description;
       if (def.checks) {
@@ -143,7 +157,8 @@ function convertZodDef (schema: unknown): object {
       return result;
     }
 
-    case "ZodNumber": {
+    case "ZodNumber":
+    case "number": {
       const result: Record<string, unknown> = { type: "number" };
       if (def.description) result.description = def.description;
       if (def.checks) {
@@ -156,31 +171,36 @@ function convertZodDef (schema: unknown): object {
       return result;
     }
 
-    case "ZodBoolean": {
+    case "ZodBoolean":
+    case "boolean": {
       const result: Record<string, unknown> = { type: "boolean" };
       if (def.description) result.description = def.description;
       return result;
     }
 
-    case "ZodArray": {
+    case "ZodArray":
+    case "array": {
       const result: Record<string, unknown> = {
         type: "array",
-        items: def.innerType ? convertZodDef(def.innerType) : {},
+        items: def.innerType ? convertZodDef(def.innerType) : def.element ? convertZodDef(def.element) : {},
       };
       if (def.description) result.description = def.description;
       return result;
     }
 
-    case "ZodEnum": {
+    case "ZodEnum":
+    case "enum": {
+      const enumValues = Array.isArray(def.values) ? def.values : def.values ? Object.values(def.values) : [];
       const result: Record<string, unknown> = {
         type: "string",
-        enum: def.values || [],
+        enum: enumValues,
       };
       if (def.description) result.description = def.description;
       return result;
     }
 
-    case "ZodOptional": {
+    case "ZodOptional":
+    case "optional": {
       const inner = def.innerType ? convertZodDef(def.innerType) : {};
       if (def.description) (inner as Record<string, unknown>).description = def.description;
       return inner;

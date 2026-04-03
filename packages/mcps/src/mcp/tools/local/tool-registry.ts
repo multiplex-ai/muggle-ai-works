@@ -304,7 +304,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Generate a QA test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
+  description: "Generate a QA test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -313,7 +313,8 @@ const executeTestGenerationTool: ILocalMcpTool = {
     const input = ExecuteTestGenerationInputSchema.parse(ctx.input);
 
     if (!input.approveElectronAppLaunch) {
-      const uiMode = input.showUi ? "with visible UI" : "headless (no UI)";
+      const showUiExplicit = input.showUi !== undefined;
+      const uiMode = input.showUi === true ? "visible GUI (showUi: true)" : "headless (showUi: false or omitted)";
       return {
         content: [
           "## Electron App Launch Required",
@@ -321,23 +322,32 @@ const executeTestGenerationTool: ILocalMcpTool = {
           "This tool will launch the electron-app to generate a test script.",
           "Please set `approveElectronAppLaunch: true` to proceed.",
           "",
+          "**Visible GUI:** Ask the user whether they want to watch the Electron window during generation.",
+          "- If **yes** → when approving, pass `showUi: true`.",
+          "- If **no** → when approving, pass `showUi: false` (or omit `showUi`; generation runs headless).",
+          "",
+          showUiExplicit
+            ? `**Current choice:** ${uiMode}`
+            : "**Current choice:** not set — default on approval is headless unless you pass `showUi: true`.",
+          "",
           `**Test Case:** ${input.testCase.title}`,
           `**Local URL:** ${input.localUrl}`,
-          `**UI Mode:** ${uiMode}`,
           "",
-          "**Note:** The electron-app will open a browser window and navigate to your test URL.",
+          "**Note:** The electron-app will navigate your test URL and record steps.",
         ].join("\n"),
         isError: false,
         data: { requiresApproval: true },
       };
     }
 
+    const showUi = input.showUi === true;
+
     try {
       const result = await executeTestGeneration({
         testCase: input.testCase,
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
-        showUi: input.showUi,
+        showUi: showUi,
       });
 
       const content = [
@@ -347,6 +357,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         `**Test Script ID:** ${result.testScriptId}`,
         `**Status:** ${result.status}`,
         `**Duration:** ${result.executionTimeMs}ms`,
+        `**UI:** ${showUi ? "visible GUI" : "headless"}`,
         result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
@@ -365,7 +376,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Runs headless by default; set showUi: true to watch.",
+  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -374,7 +385,8 @@ const executeReplayTool: ILocalMcpTool = {
     const input = ExecuteReplayInputSchema.parse(ctx.input);
 
     if (!input.approveElectronAppLaunch) {
-      const uiMode = input.showUi ? "with visible UI" : "headless (no UI)";
+      const showUiExplicit = input.showUi !== undefined;
+      const uiMode = input.showUi === true ? "visible GUI (showUi: true)" : "headless (showUi: false or omitted)";
       return {
         content: [
           "## Electron App Launch Required",
@@ -382,17 +394,26 @@ const executeReplayTool: ILocalMcpTool = {
           "This tool will launch the electron-app to replay a test script.",
           "Please set `approveElectronAppLaunch: true` to proceed.",
           "",
+          "**Visible GUI:** Ask the user whether they want to watch the Electron window during replay.",
+          "- If **yes** → when approving, pass `showUi: true`.",
+          "- If **no** → when approving, pass `showUi: false` (or omit `showUi`; replay runs headless).",
+          "",
+          showUiExplicit
+            ? `**Current choice:** ${uiMode}`
+            : "**Current choice:** not set — default on approval is headless unless you pass `showUi: true`.",
+          "",
           `**Test Script:** ${input.testScript.name}`,
           `**Local URL:** ${input.localUrl}`,
           `**Steps:** ${input.actionScript.length}`,
-          `**UI Mode:** ${uiMode}`,
           "",
-          "**Note:** The electron-app will open a browser window and execute the test steps.",
+          "**Note:** The electron-app will execute the test steps against your local URL.",
         ].join("\n"),
         isError: false,
         data: { requiresApproval: true },
       };
     }
+
+    const showUi = input.showUi === true;
 
     try {
       const result = await executeReplay({
@@ -400,7 +421,7 @@ const executeReplayTool: ILocalMcpTool = {
         actionScript: input.actionScript,
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
-        showUi: input.showUi,
+        showUi: showUi,
       });
 
       const content = [
@@ -410,6 +431,7 @@ const executeReplayTool: ILocalMcpTool = {
         `**Test Script ID:** ${result.testScriptId}`,
         `**Status:** ${result.status}`,
         `**Duration:** ${result.executionTimeMs}ms`,
+        `**UI:** ${showUi ? "visible GUI" : "headless"}`,
         result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 

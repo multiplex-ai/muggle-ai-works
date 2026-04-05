@@ -12,7 +12,7 @@ Use this as the top-level Muggle command router.
 When user asks for "muggle" with no specific subcommand, show this command set:
 
 - `/muggle:muggle-do` — autonomous dev pipeline
-- `/muggle:muggle-test-feature-local` — local feature QA
+- `/muggle:muggle-test-feature-local` — local feature E2E acceptance testing
 - `/muggle:muggle-status` — health check
 - `/muggle:muggle-repair` — repair broken installation
 - `/muggle:muggle-upgrade` — upgrade local installation

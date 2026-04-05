@@ -1,5 +1,5 @@
 /**
- * Local QA module for the unified MCP package.
+ * Local E2E acceptance module for the unified MCP package.
  *
  * This module provides minimal local testing capabilities:
  * - Status and session management
@@ -29,7 +29,7 @@ export * from "./services/index.js";
 export * from "../tools/local/index.js";
 
 /**
- * Get all local QA tools as IMcpTool instances for registration.
+ * Get all local E2E acceptance tools as IMcpTool instances for registration.
  *
  * Maps the ILocalMcpTool interface to the generic IMcpTool interface
  * used by the unified MCP server.

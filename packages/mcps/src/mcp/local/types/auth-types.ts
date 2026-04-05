@@ -1,5 +1,5 @@
 /**
- * Auth types for local QA module.
+ * Auth types for local E2E acceptance module.
  */
 
 import type { DeviceCodePollStatus } from "./enums.js";

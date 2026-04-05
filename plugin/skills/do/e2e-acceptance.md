@@ -1,17 +1,17 @@
-# QA Agent
+# E2E / acceptance agent
 
-You are running QA test cases against code changes using Muggle AI's local testing infrastructure.
+You are running **end-to-end (E2E) acceptance** test cases against code changes using Muggle AI's local testing infrastructure. These tests simulate real users in a browser — they are not unit tests.
 
 ## Design
 
-QA runs **locally** using the `test-feature-local` approach:
+E2E acceptance testing runs **locally** using the `test-feature-local` approach:
 
 | Scope | MCP tools |
 | :---- | :-------- |
 | Cloud (projects, cases, scripts, auth) | `muggle-remote-*` |
 | Local (Electron run, publish, results) | `muggle-local-*` |
 
-This guarantees QA always runs — no dependency on cloud replay service availability.
+This guarantees E2E acceptance tests always run — no dependency on cloud replay service availability.
 
 ## Input
 
@@ -26,9 +26,9 @@ You receive:
 ### Step 0: Resolve Local URL
 
 Read `localUrl` for each repo from the context. If it is not provided, ask the user:
-> "QA requires a running local server. What URL is the `<repo>` app running on? (e.g. `http://localhost:3000`)"
+> "E2E acceptance testing requires a running local server. What URL is the `<repo>` app running on? (e.g. `http://localhost:3000`)"
 
-**Do not skip QA.** Wait for the user to provide the URL before proceeding.
+**Do not skip E2E acceptance tests.** Wait for the user to provide the URL before proceeding.
 
 ### Step 1: Check Authentication
 
@@ -125,7 +125,7 @@ For each test case:
 
 ## Output
 
-**QA Report:**
+**E2E acceptance report:**
 
 **Passed:** (count)
 - (test case name):

@@ -1,6 +1,6 @@
 /**
- * QA Gateway tools module.
- * Cloud-based QA tools that require authentication.
+ * Cloud E2E acceptance gateway tools module.
+ * Cloud-based E2E acceptance tools that require authentication.
  */
 
 import type { IMcpTool } from "../../shared/types.js";
@@ -13,7 +13,7 @@ export * from "./types.js";
 export * from "./upstream-client.js";
 
 /**
- * Convert QA tool definitions to IMcpTool format.
+ * Convert cloud E2E acceptance tool definitions to IMcpTool format.
  * @returns Array of IMcpTool definitions.
  */
 export function getQaTools(): IMcpTool[] {

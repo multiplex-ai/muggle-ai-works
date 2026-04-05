@@ -1,7 +1,7 @@
 {
   "name": "muggle",
   "displayName": "Muggle AI",
-  "description": "Ship quality products with AI-powered QA that validates your app's user experience — from Claude Code and Cursor to PR.",
+  "description": "Ship quality products with AI-powered end-to-end (E2E) acceptance testing that validates your web app like a real user — from Claude Code and Cursor to PR.",
   "version": "4.2.3",
   "author": {
     "name": "Muggle AI",
@@ -11,7 +11,7 @@
   "repository": "https://github.com/multiplex-ai/muggle-ai-works",
   "license": "MIT",
   "keywords": [
-    "qa",
+    "e2e-testing",
     "testing",
     "mcp",
     "browser-automation",

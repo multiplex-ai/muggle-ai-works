@@ -1,5 +1,5 @@
 /**
- * Tool types for local QA module.
+ * Tool types for local E2E acceptance module.
  */
 
 import type { ZodSchema } from "zod";

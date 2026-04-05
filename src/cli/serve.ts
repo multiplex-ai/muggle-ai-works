@@ -11,9 +11,9 @@ const logger = getLogger();
  * Options for the serve command.
  */
 export interface IServeOptions {
-  /** Only enable Cloud QA tools. */
+  /** Only enable cloud E2E acceptance tools. */
   qa?: boolean;
-  /** Only enable Local QA tools. */
+  /** Only enable local E2E acceptance tools. */
   local?: boolean;
   /** Use stdio transport. */
   stdio?: boolean;
@@ -42,13 +42,13 @@ export async function serveCommand (options: IServeOptions): Promise<void> {
     if (enableQa) {
       const qaTools = getQaTools();
       registerTools(qaTools);
-      logger.info("Registered QA tools", { count: qaTools.length });
+      logger.info("Registered cloud E2E acceptance tools", { count: qaTools.length });
     }
 
     if (enableLocal) {
       const localTools = getLocalQaTools();
       registerTools(localTools);
-      logger.info("Registered Local QA tools", { count: localTools.length });
+      logger.info("Registered local E2E acceptance tools", { count: localTools.length });
     }
 
     // Create unified MCP server

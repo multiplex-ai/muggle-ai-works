@@ -54,14 +54,14 @@ function createProgram (): Command {
 
   program
     .name("muggle")
-    .description("Unified MCP server for Muggle AI - Cloud QA and Local Testing")
+    .description("Unified MCP server for Muggle AI — cloud E2E and local E2E testing")
     .version(packageVersion);
 
   program
     .command("serve")
     .description("Start the MCP server")
-    .option("--qa", "Only enable Cloud QA tools")
-    .option("--local", "Only enable Local QA tools")
+    .option("--qa", "Only enable cloud E2E tools (remote URLs; qa_ prefix)")
+    .option("--local", "Only enable local E2E tools (localhost; muggle-local-* prefix)")
     .option("--stdio", "Use stdio transport (default)")
     .action(serveCommand);
 

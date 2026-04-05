@@ -1,5 +1,5 @@
 /**
- * Tool registry for local-qa.
+ * Tool registry for local E2E execution (historical path: local-qa).
  * Manages the minimal set of local execution tools.
  *
  * All entity management (projects, use cases, test cases, secrets) happens via qa_* cloud tools.
@@ -304,7 +304,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Generate a QA test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
+  description: "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -376,7 +376,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Replay an existing QA test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
+  description: "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — requires explicit approval via approveElectronAppLaunch. Before approving, ask the user whether they want a visible GUI; pass showUi: true to watch the window or showUi: false for headless (default when omitted).",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -633,7 +633,7 @@ const publishTestScriptTool: ILocalMcpTool = {
 // ========================================
 
 /**
- * All registered local QA tools.
+ * All registered local E2E execution tools.
  * Minimal set focused on execution and results.
  */
 export const allLocalQaTools: ILocalMcpTool[] = [

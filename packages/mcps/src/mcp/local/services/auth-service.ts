@@ -1,5 +1,5 @@
 /**
- * Auth service for Auth0 authentication in local QA.
+ * Auth service for Auth0 authentication in local E2E acceptance execution.
  * Supports Device Code flow for user authentication.
  */
 

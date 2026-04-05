@@ -1,5 +1,5 @@
 /**
- * Project types for local QA module.
+ * Project types for local E2E acceptance module.
  */
 
 import type { ChildProcess } from "child_process";

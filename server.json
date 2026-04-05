@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.multiplex-ai/muggle",
-  "description": "AI-powered QA that validates your app's user experience",
+  "description": "AI-powered E2E acceptance testing that validates your web app like a real user",
   "repository": {
     "url": "https://github.com/multiplex-ai/muggle-ai-works",
     "source": "github"

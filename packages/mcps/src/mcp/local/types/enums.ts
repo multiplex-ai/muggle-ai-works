@@ -1,5 +1,5 @@
 /**
- * Enums for local QA module.
+ * Enums for local E2E acceptance module.
  */
 
 /**

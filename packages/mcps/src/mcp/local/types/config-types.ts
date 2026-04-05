@@ -1,11 +1,11 @@
 /**
- * Config types for local QA module.
+ * Config types for local E2E acceptance execution module.
  */
 
 import type { IAuth0Config } from "./auth-types.js";
 
 /**
- * Local QA configuration.
+ * Local E2E acceptance execution configuration.
  */
 export interface ILocalQaConfig {
   /** Base data directory (~/.muggle-ai). */

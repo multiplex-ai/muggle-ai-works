@@ -1,10 +1,10 @@
 /**
  * @muggleai/works - Ship quality products, not just code.
  *
- * AI-powered QA that validates your app's user experience.
+ * AI-powered E2E acceptance testing that validates your web app like a real user.
  * Provides MCP tools and CLI for:
- * - Cloud QA (validate user flows via Muggle AI)
- * - Local QA (validate your app before pushing)
+ * - Cloud E2E acceptance (validate user flows via Muggle AI; qa_* tools)
+ * - Local E2E acceptance (validate your app before pushing; muggle-local-* tools)
  *
  * Usage:
  *   # Start MCP server (default - all tools)
@@ -12,8 +12,8 @@
  *   muggle
  *
  *   # Start with specific tool sets
- *   muggle serve --qa      # Cloud QA tools only
- *   muggle serve --local   # Local testing tools only
+ *   muggle serve --qa      # Cloud E2E acceptance tools only
+ *   muggle serve --local   # Local E2E acceptance tools only
  *
  *   # Setup and diagnostics
  *   muggle setup           # Download Electron app

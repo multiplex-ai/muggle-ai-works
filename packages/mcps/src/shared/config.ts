@@ -1,6 +1,6 @@
 /**
  * Configuration management for @muggleai/works.
- * Unified configuration for both QA Gateway and Local QA.
+ * Unified configuration for both cloud E2E acceptance gateway and local E2E acceptance execution.
  */
 
 import * as fs from "fs";
@@ -404,8 +404,8 @@ function buildAuth0Config(): IAuth0Config {
 }
 
 /**
- * Build QA Gateway configuration from environment.
- * @returns QA Gateway configuration.
+ * Build cloud E2E acceptance gateway configuration from environment.
+ * @returns Cloud E2E acceptance gateway configuration.
  */
 function buildQaConfig(): IQaConfig {
   const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
@@ -418,8 +418,8 @@ function buildQaConfig(): IQaConfig {
 }
 
 /**
- * Build Local QA configuration from environment.
- * @returns Local QA configuration.
+ * Build local E2E acceptance execution configuration from environment.
+ * @returns Local E2E acceptance execution configuration.
  */
 function buildLocalQaConfig(): ILocalQaConfig {
   const dataDir = getDataDir();

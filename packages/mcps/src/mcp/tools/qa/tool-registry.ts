@@ -1,5 +1,5 @@
 /**
- * QA Tool registry - maps tool names to their implementations.
+ * Cloud E2E tool registry (qa_* prefix) — maps tool names to their implementations.
  */
 
 import { z } from "zod";
@@ -28,7 +28,7 @@ const getWorkflowTimeoutMs = (): number => getConfig().qa.workflowTimeoutMs;
 const projectTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-create",
-    description: "Create a QA testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any QA tests.",
+    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests.",
     inputSchema: schemas.ProjectCreateInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.ProjectCreateInputSchema>;
@@ -239,7 +239,7 @@ const testCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-test-case-generate-from-prompt",
-    description: "Generate QA test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
+    description: "Generate E2E acceptance test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
     inputSchema: schemas.TestCaseGenerateFromPromptInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.TestCaseGenerateFromPromptInputSchema>;
@@ -350,7 +350,7 @@ const actionScriptTools: IQaToolDefinition[] = [
 const workflowTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-workflow-start-website-scan",
-    description: "Scan a website to automatically discover testable user flows and UI interactions. Crawls the site and identifies use cases like signup, login, search, checkout, form submissions, and navigation patterns. Use this when setting up QA testing for a site without predefined test cases.",
+    description: "Scan a website to automatically discover testable user flows and UI interactions. Crawls the site and identifies use cases like signup, login, search, checkout, form submissions, and navigation patterns. Use this when setting up E2E acceptance testing for a site without predefined test cases.",
     inputSchema: schemas.WorkflowStartWebsiteScanInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.WorkflowStartWebsiteScanInputSchema>;
@@ -1404,7 +1404,7 @@ const authTools: IQaToolDefinition[] = [
 // All Tools Combined
 // =============================================================================
 
-/** All QA tool definitions. */
+/** All cloud E2E tool definitions (qa_* prefix). */
 export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
   ...useCaseTools,
@@ -1422,7 +1422,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
 ];
 
 /**
- * Get a QA tool definition by name.
+ * Get a cloud E2E tool definition by name.
  * @param name - Tool name.
  * @returns Tool definition or undefined.
  */
@@ -1440,7 +1440,7 @@ function defaultResponseMapper(response: IUpstreamResponse): unknown {
 }
 
 /**
- * Execute a QA tool.
+ * Execute a cloud E2E tool.
  * @param toolName - Tool name.
  * @param input - Tool input.
  * @param correlationId - Correlation ID.

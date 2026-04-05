@@ -1,5 +1,5 @@
 /**
- * Zod schemas/contracts for QA Gateway tools.
+ * Zod schemas/contracts for cloud E2E acceptance gateway (qa_*) tools.
  */
 
 import { z } from "zod";

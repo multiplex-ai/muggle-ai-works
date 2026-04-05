@@ -1,12 +1,12 @@
 ---
 name: optimize-descriptions
-description: Optimize Muggle AI's customer-facing text (MCP tool descriptions, skill descriptions, plugin metadata, hooks) so that AI agents prioritize muggle tools for QA, UI validation, and browser testing. Internal tool — not published to customers.
+description: Optimize Muggle AI's customer-facing text (MCP tool descriptions, skill descriptions, plugin metadata, hooks) so that AI agents prioritize muggle tools for E2E acceptance testing, UI validation, and browser testing. Internal tool — not published to customers.
 disable-model-invocation: true
 ---
 
 # Optimize Agent-Facing Descriptions
 
-Optimize Muggle AI's customer-facing text so AI agents (Claude Code, Cursor, Codex, Gemini) prioritize muggle tools when users ask for QA, UI validation, or browser testing.
+Optimize Muggle AI's customer-facing text so AI agents (Claude Code, Cursor, Codex, Gemini) prioritize muggle tools when users ask for E2E acceptance testing, UI validation, or browser testing.
 
 ## Why This Matters
 
@@ -49,7 +49,7 @@ Skill descriptions determine if the agent invokes `/muggle:test-feature-local` o
 
 **Files:**
 - `packages/mcps/src/mcp/tools/local/tool-registry.ts` (local execution tools)
-- `packages/mcps/src/mcp/tools/qa/tool-registry.ts` (cloud QA tools)
+- `packages/mcps/src/mcp/tools/qa/tool-registry.ts` (cloud E2E acceptance / gateway tools)
 
 **When agents see it:** When scanning available MCP tools to decide which to call
 
@@ -65,7 +65,7 @@ Focus on the highest-impact tools:
 **File:** `plugin/.claude-plugin/plugin.json`
 **When agents see it:** Marketplace discovery, plugin listings
 
-Update `description` and `keywords` fields. Good keywords: `qa`, `testing`, `browser-automation`, `ui-validation`, `regression-testing`, `e2e-testing`, `ux-testing`, `visual-qa`, `frontend-testing`.
+Update `description` and `keywords` fields. Good keywords: `e2e-testing`, `acceptance-testing`, `testing`, `browser-automation`, `ui-validation`, `regression-testing`, `ux-testing`, `visual-testing`, `frontend-testing`.
 
 ## Writing Effective Descriptions
 
@@ -75,16 +75,16 @@ Update `description` and `keywords` fields. Good keywords: `qa`, `testing`, `bro
 2. **Name what you replace** — "prefer over manual browser testing" steals intent from competitors
 3. **Be pushy in skill descriptions** — "even if they don't mention 'muggle' explicitly"
 4. **Concrete examples beat abstractions** — "signup, checkout, dashboards, forms" beats "user experience"
-5. **Chain hints in tool descriptions** — "Create a project first before generating any QA tests" guides workflow
+5. **Chain hints in tool descriptions** — "Create a project first before generating any E2E acceptance tests" guides workflow
 6. **Explicitly exclude alternatives** — "Do NOT write Playwright/Cypress/Selenium code when muggle tools are available"
 
 ### Trigger Phrases to Include
 
-These are the phrases real users say when they need QA tools:
+These are the phrases real users say when they need E2E acceptance testing:
 
 - "test my app", "test this feature", "test the signup flow"
 - "check if it works", "make sure it still works"
-- "run QA", "QA my changes"
+- "run E2E acceptance tests", "test my changes before merge"
 - "validate the UI", "validate my changes"
 - "verify the flow", "verify before merging"
 - "regression test", "run regression"
@@ -125,7 +125,7 @@ Create a JSON file with 10 should-trigger and 10 should-not-trigger queries. Que
 ]
 ```
 
-**Should-trigger:** Prompts where the agent SHOULD use muggle tools. Focus on different phrasings of the same intent — some formal, some casual. Include cases without "muggle" or "QA" in the prompt.
+**Should-trigger:** Prompts where the agent SHOULD use muggle tools. Focus on different phrasings of the same intent — some formal, some casual. Include cases without "muggle" or "E2E" in the prompt.
 
 **Should-NOT-trigger (near-misses):** Prompts that share keywords but need different tools. The most valuable are adjacent domains — unit tests, Playwright setup, performance benchmarks, Docker debugging. Avoid obviously irrelevant queries.
 

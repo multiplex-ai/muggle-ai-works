@@ -7,7 +7,7 @@ You are creating pull requests for each repository that has changes after a succ
 You receive:
 - Per-repo: repo name, path, branch name
 - Requirements: goal, acceptance criteria
-- QA report: passed/failed test cases, each with:
+- E2E acceptance report: passed/failed test cases, each with:
   - `testCaseId`, `testScriptId`, `runId`, `projectId`
   - `viewUrl`: link to view run on muggle-ai.com
   - `steps`: array of `{ stepIndex, action, screenshotUrl }`
@@ -20,22 +20,22 @@ For each repo with changes:
 
 1. **Push the branch** to origin: `git push -u origin <branch-name>` in the repo directory.
 2. **Build the PR title:**
-   - If QA has failures: `[QA FAILING] <goal>`
+   - If E2E acceptance tests have failures: `[E2E FAILING] <goal>`
    - Otherwise: `<goal>`
    - Keep under 70 characters
 3. **Build the PR body** with these sections:
    - `## Goal` — the requirements goal
    - `## Acceptance Criteria` — bulleted list (omit section if empty)
    - `## Changes` — summary of what changed in this repo
-   - `## QA Results` — summary table (see format below)
+   - `## E2E Acceptance Results` — summary table (see format below)
 4. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
 5. **Capture the PR URL** and extract the PR number.
-6. **Post QA Evidence Comment** with screenshots (see format below).
+6. **Post E2E acceptance evidence comment** with screenshots (see format below).
 
-## QA Results Section Format (PR Body)
+## E2E acceptance results section format (PR body)
 
 ```markdown
-## QA Results
+## E2E Acceptance Results
 
 **X passed / Y failed**
 
@@ -45,13 +45,13 @@ For each repo with changes:
 | [Name]({viewUrl}) | ❌ FAILED | {error} |
 ```
 
-## QA Evidence Comment Format
+## E2E acceptance evidence comment format
 
 After creating the PR, post a comment with embedded screenshots:
 
 ```bash
 gh pr comment <PR#> --body "$(cat <<'EOF'
-## 🧪 QA Evidence
+## 🧪 E2E acceptance evidence
 
 **X passed / Y failed**
 
@@ -110,7 +110,7 @@ EOF
 **PRs Created:**
 - (repo name): (PR URL)
 
-**QA Evidence Comments Posted:**
+**E2E acceptance evidence comments posted:**
 - (repo name): comment posted to PR #(number)
 
 **Errors:** (any repos where PR creation or comment posting failed, with the error message)

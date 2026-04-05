@@ -63,7 +63,7 @@ export interface IStoredCredentials {
 }
 
 /**
- * Configuration for QA Gateway (cloud) operations.
+ * Configuration for cloud E2E acceptance gateway (qa_* tools) operations.
  */
 export interface IQaConfig {
   /** Base URL of the prompt service backend. */
@@ -75,7 +75,7 @@ export interface IQaConfig {
 }
 
 /**
- * Configuration for Local QA operations.
+ * Configuration for local E2E acceptance execution operations.
  */
 export interface ILocalQaConfig {
   /** Base URL of the local web-service. */
@@ -130,9 +130,9 @@ export interface IConfig {
   logLevel: string;
   /** Auth0 configuration. */
   auth0: IAuth0Config;
-  /** QA Gateway configuration. */
+  /** Cloud E2E acceptance gateway configuration (qa_* tools). */
   qa: IQaConfig;
-  /** Local QA configuration. */
+  /** Local E2E acceptance execution configuration. */
   localQa: ILocalQaConfig;
 }
 
@@ -206,7 +206,7 @@ export interface IMcpTool {
   description: string;
   /** Input schema (Zod schema). */
   inputSchema: unknown;
-  /** Whether tool requires authentication (default: true for QA tools). */
+  /** Whether tool requires authentication (default: true for cloud E2E acceptance tools). */
   requiresAuth?: boolean;
   /** Execute the tool. */
   execute: (params: { input: unknown; correlationId: string }) => Promise<IMcpToolResult>;

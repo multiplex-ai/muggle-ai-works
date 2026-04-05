@@ -1,5 +1,5 @@
 /**
- * Type definitions for QA Gateway tools.
+ * Type definitions for cloud E2E acceptance gateway tools.
  */
 
 import type { ZodSchema } from "zod";
@@ -98,7 +98,7 @@ export interface ICallerCredentials {
 }
 
 /**
- * QA tool definition with schema, description, and implementation.
+ * Cloud E2E acceptance tool definition with schema, description, and implementation.
  */
 export interface IQaToolDefinition {
   /** Tool name (used in MCP). */

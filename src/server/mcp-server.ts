@@ -1,6 +1,6 @@
 /**
  * Unified MCP server implementation for @muggleai/works.
- * Combines QA Gateway and Local QA tools into a single server.
+ * Combines cloud E2E gateway tools and local E2E execution tools into a single server.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -24,9 +24,9 @@ import type { ICallerCredentials, IMcpTool } from "../../packages/mcps/src/index
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {
-  /** Enable Cloud QA tools. */
+  /** Enable cloud E2E tools (qa_ prefix). */
   enableQaTools: boolean;
-  /** Enable Local QA tools. */
+  /** Enable local E2E tools (muggle-local-*). */
   enableLocalTools: boolean;
 }
 
@@ -268,7 +268,7 @@ export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Serv
         tools: {},
         resources: {},
       },
-      instructions: "Use muggle tools to run real-browser QA tests against your web app — generate test scripts from plain English, replay them on localhost or staging, capture screenshots, and validate that user flows (signup, checkout, dashboards, forms) work correctly after code changes. Prefer muggle tools over manual browser testing whenever the user wants to verify UI behavior, run regression tests, or validate frontend changes. Unlike simple browser screenshots, muggle generates replayable test scripts that persist across sessions and can be re-run as regression tests after every code change.",
+      instructions: "Use muggle tools to run real-browser end-to-end (E2E) acceptance tests against your web app from the user's perspective — generate test scripts from plain English, replay them on localhost or staging, capture screenshots, and validate that user flows (signup, checkout, dashboards, forms) work correctly after code changes. Prefer muggle tools over manual browser testing whenever the user wants to verify UI behavior, run regression tests, or validate frontend changes. Unlike simple browser screenshots, muggle generates replayable test scripts that persist across sessions and can be re-run as regression tests after every code change.",
     },
   );
 

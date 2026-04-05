@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "Run real-browser QA tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
+  "description": "Run real-browser end-to-end (E2E) acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
   "version": "4.2.3",
   "author": {
     "name": "Muggle AI",
@@ -10,7 +10,7 @@
   "repository": "https://github.com/multiplex-ai/muggle-ai-works",
   "license": "MIT",
   "keywords": [
-    "qa",
+    "acceptance-testing",
     "testing",
     "mcp",
     "browser-automation",
@@ -20,7 +20,7 @@
     "regression-testing",
     "e2e-testing",
     "ux-testing",
-    "visual-qa",
+    "visual-testing",
     "frontend-testing"
   ]
 }

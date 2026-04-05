@@ -2,14 +2,14 @@
  * Tool registry for local E2E execution (historical path: local-qa).
  * Manages the minimal set of local execution tools.
  *
- * All entity management (projects, use cases, test cases, secrets) happens via qa_* cloud tools.
+ * All entity management (projects, use cases, test cases, secrets) happens via muggle-remote-* cloud tools.
  * Local tools only handle: status, execution, results, and publishing.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { getPromptServiceClient } from "../../qa/upstream-client.js";
+import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";

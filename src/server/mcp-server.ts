@@ -24,7 +24,7 @@ import type { ICallerCredentials, IMcpTool } from "../../packages/mcps/src/index
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {
-  /** Enable cloud E2E tools (qa_ prefix). */
+  /** Enable cloud E2E tools (muggle-remote-* prefix). */
   enableQaTools: boolean;
   /** Enable local E2E tools (muggle-local-*). */
   enableLocalTools: boolean;

@@ -12,6 +12,7 @@ Use this as the top-level Muggle command router.
 When user asks for "muggle" with no specific subcommand, show this command set:
 
 - `/muggle:muggle-do` — autonomous dev pipeline
+- `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
 - `/muggle:muggle-test-feature-local` — local feature E2E acceptance testing
 - `/muggle:muggle-status` — health check
 - `/muggle:muggle-repair` — repair broken installation
@@ -24,7 +25,8 @@ If the user intent clearly matches one command, route to that command behavior:
 - status/health/check -> `muggle-status`
 - repair/fix/install broken -> `muggle-repair`
 - upgrade/update latest -> `muggle-upgrade`
-- test localhost/validate feature -> `muggle-test-feature-local`
+- test my changes/acceptance test my work/test before push/post E2E acceptance results to PR/test on staging/test on preview -> `muggle-test`
+- test localhost/validate single feature -> `muggle-test-feature-local`
 - build/implement from request -> `muggle-do`
 
 If intent is ambiguous, ask one concise clarification question.

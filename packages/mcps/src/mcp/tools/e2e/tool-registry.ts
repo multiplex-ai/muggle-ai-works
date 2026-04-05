@@ -1,5 +1,5 @@
 /**
- * Cloud E2E tool registry (qa_* prefix) — maps tool names to their implementations.
+ * Cloud E2E tool registry (muggle-remote-* prefix) — maps tool names to their implementations.
  */
 
 import { z } from "zod";
@@ -9,9 +9,9 @@ import { getConfig } from "../../../shared/config.js";
 import { createChildLogger } from "../../../shared/logger.js";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
-import * as schemas from "../../qa/contracts/index.js";
-import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../qa/types.js";
-import { getPromptServiceClient } from "../../qa/upstream-client.js";
+import * as schemas from "../../e2e/contracts/index.js";
+import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/types.js";
+import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
 
@@ -19,7 +19,7 @@ import { DeviceCodePollStatus } from "../../local/types/index.js";
 const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
 
 /** Default workflow timeout. */
-const getWorkflowTimeoutMs = (): number => getConfig().qa.workflowTimeoutMs;
+const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
 
 // =============================================================================
 // Project Tools
@@ -1243,7 +1243,7 @@ const apiKeyTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-auth-api-key-revoke",
-    description: "Revoke an API key. The key will immediately stop working. Use qa_auth_api_key_list to find the key ID first.",
+    description: "Revoke an API key. The key will immediately stop working. Use muggle-remote-auth-api-key-list to find the key ID first.",
     inputSchema: schemas.ApiKeyRevokeInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.ApiKeyRevokeInputSchema>;
@@ -1404,7 +1404,7 @@ const authTools: IQaToolDefinition[] = [
 // All Tools Combined
 // =============================================================================
 
-/** All cloud E2E tool definitions (qa_* prefix). */
+/** All cloud E2E tool definitions (muggle-remote-* prefix). */
 export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
   ...useCaseTools,

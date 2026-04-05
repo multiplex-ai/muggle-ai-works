@@ -9,7 +9,7 @@
  * - Publishing to cloud
  *
  * All entity management (projects, use cases, test cases, secrets) happens
- * via qa_* cloud tools. Local tools only handle execution and results.
+ * via muggle-remote-* cloud tools. Local tools only handle execution and results.
  */
 
 import type { IMcpTool } from "../../shared/types.js";

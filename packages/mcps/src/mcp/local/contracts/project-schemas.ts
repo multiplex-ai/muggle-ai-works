@@ -8,19 +8,19 @@
  * - Publishing
  *
  * Design principle: Execution tools accept full test case/script details
- * (fetched via qa_* tools), not just IDs. This keeps local tools free of
+ * (fetched via muggle-remote-* tools), not just IDs. This keeps local tools free of
  * cloud dependencies.
  */
 
 import { z } from "zod";
 
 // ========================================
-// Test Case Schema (from qa_test_case_get)
+// Test Case Schema (from muggle-remote-test-case-get)
 // ========================================
 
 /**
  * Test case details schema.
- * These fields come from qa_test_case_get response.
+ * These fields come from muggle-remote-test-case-get response.
  */
 export const TestCaseDetailsSchema = z.object({
   /** Cloud test case ID. */
@@ -46,7 +46,7 @@ export const TestCaseDetailsSchema = z.object({
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
 
 // ========================================
-// Test Script Schema (from qa_test_script_get)
+// Test Script Schema (from muggle-remote-test-script-get)
 // ========================================
 
 /**
@@ -79,11 +79,11 @@ export type TestScriptDetails = z.infer<typeof TestScriptDetailsSchema>;
 
 /**
  * Execute test generation input schema.
- * Accepts full test case details (from qa_test_case_get) plus local URL.
+ * Accepts full test case details (from muggle-remote-test-case-get) plus local URL.
  */
 export const ExecuteTestGenerationInputSchema = z.object({
-  /** Test case details from qa_test_case_get. */
-  testCase: TestCaseDetailsSchema.describe("Test case details obtained from qa_test_case_get"),
+  /** Test case details from muggle-remote-test-case-get. */
+  testCase: TestCaseDetailsSchema.describe("Test case details obtained from muggle-remote-test-case-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Explicit approval to launch electron-app. */

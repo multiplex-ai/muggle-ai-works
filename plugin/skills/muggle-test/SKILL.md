@@ -1,11 +1,11 @@
 ---
-name: test
-description: "Run change-driven QA testing using Muggle AI — detects local code changes, maps them to use cases, and generates test scripts either locally (real browser on localhost) or remotely (cloud execution on a preview/staging URL). Publishes results to Muggle dashboard, opens them in the browser, and posts QA summaries with screenshots to the PR. Use this skill whenever the user wants to test their changes, run QA on recent work, validate what they've been working on, or check if their code changes broke anything. Triggers on: 'test my changes', 'run tests on my changes', 'QA my work', 'check my changes', 'validate my changes', 'test before I push', 'make sure my changes work', 'regression test my changes', 'test on preview', 'test on staging'. This is the go-to skill for change-driven testing — it handles everything from change detection to test execution to result reporting."
+name: muggle-test
+description: "Run change-driven E2E acceptance testing using Muggle AI — detects local code changes, maps them to use cases, and generates test scripts either locally (real browser on localhost) or remotely (cloud execution on a preview/staging URL). Publishes results to Muggle dashboard, opens them in the browser, and posts E2E acceptance summaries with screenshots to the PR. Use this skill whenever the user wants to test their changes, run E2E acceptance tests on recent work, validate what they've been working on, or check if their code changes broke anything. Triggers on: 'test my changes', 'run tests on my changes', 'acceptance test my work', 'check my changes', 'validate my changes', 'test before I push', 'make sure my changes work', 'regression test my changes', 'test on preview', 'test on staging'. This is the go-to skill for change-driven E2E acceptance testing — it handles everything from change detection to test execution to result reporting."
 ---
 
-# Muggle Test — Change-Driven QA Router
+# Muggle Test — Change-Driven E2E Acceptance Router
 
-A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, publishes results to the Muggle AI dashboard, and posts QA summaries to the PR. The user can invoke this at any moment, in any state.
+A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, publishes results to the Muggle AI dashboard, and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
 
 ## Step 1: Confirm Scope of Work (Always First)
 
@@ -48,7 +48,7 @@ Analyze the working directory to understand what changed.
 4. Produce a concise **change summary** — a list of impacted features
 
 Present:
-> "Here's what changed: [list]. I'll scope QA testing to these areas."
+> "Here's what changed: [list]. I'll scope E2E acceptance testing to these areas."
 
 If no changes detected (clean tree), tell the user and ask what they want to test.
 
@@ -237,9 +237,9 @@ open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs
 Tell the user:
 > "I've opened the Muggle AI dashboard in your browser — you can see the test results, step-by-step screenshots, and action scripts there."
 
-## Step 9: Post QA Results to PR
+## Step 9: Post E2E Acceptance Results to PR
 
-After reporting results, check if there's an open PR for the current branch and attach the QA summary.
+After reporting results, check if there's an open PR for the current branch and attach the E2E acceptance summary.
 
 ### 9a: Find the PR
 
@@ -248,16 +248,16 @@ gh pr view --json number,url,title 2>/dev/null
 ```
 
 - If a PR exists → post results as a comment
-- If no PR exists → ask: "No open PR found for this branch. Want me to create one with the QA results included?"
-  - If yes: create PR with QA results in the body (use `gh pr create`)
+- If no PR exists → ask: "No open PR found for this branch. Want me to create one with the E2E acceptance results included?"
+  - If yes: create PR with E2E acceptance results in the body (use `gh pr create`)
   - If no: skip this step
 
-### 9b: Build the QA comment body
+### 9b: Build the E2E acceptance comment body
 
-Construct a markdown comment with the full QA breakdown. The format links each test case to its detail page on the Muggle AI dashboard, so PR reviewers can click through to see step-by-step screenshots and action scripts.
+Construct a markdown comment with the full E2E acceptance breakdown. The format links each test case to its detail page on the Muggle AI dashboard, so PR reviewers can click through to see step-by-step screenshots and action scripts.
 
 ```markdown
-## 🧪 Muggle AI — QA Results
+## 🧪 Muggle AI — E2E Acceptance Results
 
 **X passed / Y failed** | [View all on Muggle AI](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs)
 
@@ -279,7 +279,7 @@ Construct a markdown comment with the full QA breakdown. The format links each t
 </details>
 
 ---
-*Generated by [Muggle AI](https://www.muggle-ai.com) — change-driven QA testing*
+*Generated by [Muggle AI](https://www.muggle-ai.com) — change-driven E2E acceptance testing*
 ```
 
 ### 9c: Post to the PR
@@ -287,16 +287,16 @@ Construct a markdown comment with the full QA breakdown. The format links each t
 If PR already exists — add as a comment:
 ```bash
 gh pr comment {pr-number} --body "$(cat <<'EOF'
-{the QA comment body from 9b}
+{the E2E acceptance comment body from 9b}
 EOF
 )"
 ```
 
-If creating a new PR — include the QA section in the PR body alongside the usual summary/changes sections.
+If creating a new PR — include the E2E acceptance section in the PR body alongside the usual summary/changes sections.
 
 ### 9d: Confirm to user
 
-> "QA results posted to PR #{number}. Reviewers can click the test case links to see step-by-step screenshots on the Muggle AI dashboard."
+> "E2E acceptance results posted to PR #{number}. Reviewers can click the test case links to see step-by-step screenshots on the Muggle AI dashboard."
 
 ## Tool Reference
 

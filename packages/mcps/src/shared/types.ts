@@ -63,9 +63,9 @@ export interface IStoredCredentials {
 }
 
 /**
- * Configuration for cloud E2E acceptance gateway (qa_* tools) operations.
+ * Configuration for cloud E2E acceptance gateway (muggle-remote-* tools) operations.
  */
-export interface IQaConfig {
+export interface IE2eConfig {
   /** Base URL of the prompt service backend. */
   promptServiceBaseUrl: string;
   /** Request timeout in milliseconds. */
@@ -130,8 +130,8 @@ export interface IConfig {
   logLevel: string;
   /** Auth0 configuration. */
   auth0: IAuth0Config;
-  /** Cloud E2E acceptance gateway configuration (qa_* tools). */
-  qa: IQaConfig;
+  /** Cloud E2E acceptance gateway configuration (muggle-remote-* tools). */
+  e2e: IE2eConfig;
   /** Local E2E acceptance execution configuration. */
   localQa: ILocalQaConfig;
 }

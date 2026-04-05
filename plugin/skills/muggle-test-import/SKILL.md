@@ -154,7 +154,7 @@ Or: [C] Create new project
 ```
 
 **If creating a new project**, propose values based on what you learned from the source files:
-- **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App QA")
+- **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App")
 - **Description**: "Imported from [filename(s)] — [date]"
 - **URL**: the base URL of the app under test
 
@@ -257,7 +257,7 @@ Example:
 ```
 ✅ Import complete!
 
-Project:  Acme App QA
+Project:  Acme App
   → https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj_abc123/testcases
 Source:   e2e/auth.spec.ts, e2e/cart.spec.ts
 

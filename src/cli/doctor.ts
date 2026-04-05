@@ -372,8 +372,8 @@ function runDiagnostics (): ICheckResult[] {
   // Check 6: Prompt service URL
   results.push({
     name: "Prompt Service URL",
-    passed: !!config.qa.promptServiceBaseUrl,
-    description: config.qa.promptServiceBaseUrl,
+    passed: !!config.e2e.promptServiceBaseUrl,
+    description: config.e2e.promptServiceBaseUrl,
   });
 
   // Check 7: Web service URL (for local testing)

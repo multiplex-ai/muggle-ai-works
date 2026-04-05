@@ -12,7 +12,7 @@ const logger = getLogger();
  */
 export interface IServeOptions {
   /** Only enable cloud E2E acceptance tools. */
-  qa?: boolean;
+  e2e?: boolean;
   /** Only enable local E2E acceptance tools. */
   local?: boolean;
   /** Use stdio transport. */
@@ -28,7 +28,7 @@ export async function serveCommand (options: IServeOptions): Promise<void> {
 
   // Determine which tool sets to enable
   const enableQa = options.local ? false : true;
-  const enableLocal = options.qa ? false : true;
+  const enableLocal = options.e2e ? false : true;
 
   logger.info("Starting Muggle MCP Server", {
     version: config.serverVersion,

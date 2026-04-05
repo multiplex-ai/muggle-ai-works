@@ -40,6 +40,7 @@ This installs:
 
 - `/muggle:muggle` — command router and menu
 - `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
+- `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
 - `/muggle:muggle-test-feature-local` — local quick E2E acceptance testing
 - `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
 - `/muggle:muggle-repair` — diagnose and fix broken installation
@@ -352,7 +353,7 @@ Want the full platform experience? [MuggleTest](https://www.muggletest.com) give
 ```bash
 # Server (main command — starts MCP server for AI clients)
 muggle serve              # Start with all tools (default)
-muggle serve --qa         # Cloud E2E tools only (qa_ prefix)
+muggle serve --e2e        # Cloud E2E tools only (muggle-remote-*)
 muggle serve --local      # Local E2E tools only (muggle-local-*)
 
 # Setup and Diagnostics
@@ -571,7 +572,7 @@ This is an **internal-only skill** (not published to customers). It covers:
 | Hook config | `plugin/hooks/hooks.json` |
 | Skill descriptions | `plugin/skills/*/SKILL.md` |
 | Tool descriptions (local) | `packages/mcps/src/mcp/tools/local/tool-registry.ts` |
-| Tool descriptions (cloud) | `packages/mcps/src/mcp/tools/qa/tool-registry.ts` |
+| Tool descriptions (cloud) | `packages/mcps/src/mcp/tools/e2e/tool-registry.ts` |
 | Plugin metadata | `plugin/.claude-plugin/plugin.json` |
 
 **Quick eval run:**

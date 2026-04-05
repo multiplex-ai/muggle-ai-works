@@ -60,7 +60,7 @@ function createProgram (): Command {
   program
     .command("serve")
     .description("Start the MCP server")
-    .option("--qa", "Only enable cloud E2E tools (remote URLs; qa_ prefix)")
+    .option("--e2e", "Only enable cloud E2E tools (remote URLs; muggle-remote-* prefix)")
     .option("--local", "Only enable local E2E tools (localhost; muggle-local-* prefix)")
     .option("--stdio", "Use stdio transport (default)")
     .action(serveCommand);

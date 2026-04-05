@@ -5,7 +5,8 @@
  * (skills, plugins, agents) can live alongside tools.
  */
 export * as tools from "./tools/index.js";
-export * as qa from "./qa/index.js";
+export * as e2e from "./e2e/index.js";
+export * as qa from "./e2e/index.js";
 export * as localQa from "./local/index.js";
 export * as skills from "./skills/index.js";
 export * as plugins from "./plugins/index.js";

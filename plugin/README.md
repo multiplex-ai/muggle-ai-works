@@ -25,7 +25,7 @@ Type `muggle` to discover the full command family.
 |:---|:---|
 | `/muggle:muggle` | Router and menu for all Muggle commands. |
 | `/muggle:muggle-do` | Autonomous dev pipeline: requirements, code, unit tests, E2E acceptance tests, PR. |
-| `/muggle:muggle-test` | E2E acceptance test router: detects code changes, define use cases, runs test generation locally or remotely, publishes to dashboard, opens in browser, posts results to PR. |
+| `/muggle:muggle-test` | Change-driven E2E acceptance router: detects code changes, maps to use cases, runs test generation locally or remotely, publishes to dashboard, opens in browser, posts E2E acceptance results to PR. |
 | `/muggle:muggle-test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
 | `/muggle:muggle-test-import` | Import existing tests into Muggle Test — from Playwright/Cypress specs, PRDs, Gherkin feature files, test plan docs, or any test artifact. |
 | `/muggle:muggle-status` | Health check for Electron browser test runner, MCP server, and authentication. |

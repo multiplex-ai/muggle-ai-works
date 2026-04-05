@@ -49,7 +49,7 @@ Skill descriptions determine if the agent invokes `/muggle:test-feature-local` o
 
 **Files:**
 - `packages/mcps/src/mcp/tools/local/tool-registry.ts` (local execution tools)
-- `packages/mcps/src/mcp/tools/qa/tool-registry.ts` (cloud E2E acceptance / gateway tools)
+- `packages/mcps/src/mcp/tools/e2e/tool-registry.ts` (cloud E2E acceptance / gateway tools)
 
 **When agents see it:** When scanning available MCP tools to decide which to call
 

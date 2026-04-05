@@ -15,7 +15,7 @@ import type {
   ILocalQaConfig,
   IMuggleConfig,
   IMuggleConfigChecksums,
-  IQaConfig,
+  IE2eConfig,
 } from "./types.js";
 
 /** Default prompt service URL (cloud API). */
@@ -407,7 +407,7 @@ function buildAuth0Config(): IAuth0Config {
  * Build cloud E2E acceptance gateway configuration from environment.
  * @returns Cloud E2E acceptance gateway configuration.
  */
-function buildQaConfig(): IQaConfig {
+function buildE2eConfig(): IE2eConfig {
   const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
 
   return {
@@ -464,7 +464,7 @@ export function getConfig(): IConfig {
     serverVersion: "1.0.0",
     logLevel: process.env.LOG_LEVEL ?? "info",
     auth0: buildAuth0Config(),
-    qa: buildQaConfig(),
+    e2e: buildE2eConfig(),
     localQa: buildLocalQaConfig(),
   };
 

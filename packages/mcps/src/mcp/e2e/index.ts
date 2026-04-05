@@ -5,10 +5,10 @@
 
 import type { IMcpTool } from "../../shared/types.js";
 
-import { allQaToolDefinitions, executeQaTool } from "../tools/qa/tool-registry.js";
+import { allQaToolDefinitions, executeQaTool } from "../tools/e2e/tool-registry.js";
 
 export * from "./contracts/index.js";
-export * from "../tools/qa/index.js";
+export * from "../tools/e2e/index.js";
 export * from "./types.js";
 export * from "./upstream-client.js";
 

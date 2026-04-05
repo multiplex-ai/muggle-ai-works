@@ -33,8 +33,8 @@ export class PromptServiceClient {
 
   constructor() {
     const config = getConfig();
-    this.baseUrl = config.qa.promptServiceBaseUrl;
-    this.requestTimeoutMs = config.qa.requestTimeoutMs;
+    this.baseUrl = config.e2e.promptServiceBaseUrl;
+    this.requestTimeoutMs = config.e2e.requestTimeoutMs;
 
     this.httpClient = axios.create({
       baseURL: this.baseUrl,

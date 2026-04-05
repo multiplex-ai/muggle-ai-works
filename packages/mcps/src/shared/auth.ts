@@ -214,7 +214,7 @@ export async function createApiKeyWithToken(
   expiresAt: number | null;
 }> {
   const config = getConfig();
-  const apiKeyUrl = `${config.qa.promptServiceBaseUrl}/v1/protected/api-keys`;
+  const apiKeyUrl = `${config.e2e.promptServiceBaseUrl}/v1/protected/api-keys`;
 
   try {
     logger.info("[Auth] Creating API key", {

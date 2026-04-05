@@ -3,7 +3,7 @@
  *
  * AI-powered E2E acceptance testing that validates your web app like a real user.
  * Provides MCP tools and CLI for:
- * - Cloud E2E acceptance (validate user flows via Muggle AI; qa_* tools)
+ * - Cloud E2E acceptance (validate user flows via Muggle AI; muggle-remote-* tools)
  * - Local E2E acceptance (validate your app before pushing; muggle-local-* tools)
  *
  * Usage:
@@ -12,7 +12,7 @@
  *   muggle
  *
  *   # Start with specific tool sets
- *   muggle serve --qa      # Cloud E2E acceptance tools only
+ *   muggle serve --e2e     # Cloud E2E acceptance tools only
  *   muggle serve --local   # Local E2E acceptance tools only
  *
  *   # Setup and diagnostics
@@ -34,6 +34,7 @@ export {
   getQaTools,
   localQa,
   mcp,
+  e2e,
   qa,
 } from "../packages/mcps/src/index.js";
 

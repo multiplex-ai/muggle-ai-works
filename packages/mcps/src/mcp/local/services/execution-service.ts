@@ -3,7 +3,7 @@
  * Handles test script generation and replay via direct electron-app execution.
  *
  * Design principle: This service accepts full test case/script details
- * (already fetched via qa_* tools by the agent). No cloud calls here.
+ * (already fetched via muggle-remote-* tools by the agent). No cloud calls here.
  * - Stores run results locally
  * - Replaces production URLs with localhost URLs
  */
@@ -93,7 +93,7 @@ function getAuthenticatedUserId(): string {
   const authStatus = authService.getAuthStatus();
 
   if (!authStatus.authenticated) {
-    throw new Error("Not authenticated. Please run qa_auth_login first.");
+    throw new Error("Not authenticated. Please run muggle-remote-auth-login first.");
   }
 
   if (!authStatus.userId) {
@@ -179,7 +179,7 @@ function buildStudioAuthContent(): { accessToken: string; email: string; userId:
   const storedAuth = authService.loadStoredAuth();
 
   if (!authStatus.authenticated || !storedAuth) {
-    throw new Error("Not authenticated. Please run qa_auth_login first.");
+    throw new Error("Not authenticated. Please run muggle-remote-auth-login first.");
   }
 
   if (!storedAuth.email || !storedAuth.userId) {
@@ -590,10 +590,10 @@ async function executeElectronAppAsync(params: {
 /**
  * Execute test script generation for a test case.
  *
- * Test case details should be fetched via qa_test_case_get before calling this.
+ * Test case details should be fetched via muggle-remote-test-case-get before calling this.
  *
  * @param params - Execution parameters.
- * @param params.testCase - Test case details from qa_test_case_get.
+ * @param params.testCase - Test case details from muggle-remote-test-case-get.
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.

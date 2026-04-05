@@ -25,6 +25,7 @@ Type `muggle` to discover the full command family.
 |:---|:---|
 | `/muggle:muggle` | Router and menu for all Muggle commands. |
 | `/muggle:muggle-do` | Autonomous dev pipeline: requirements, code, unit tests, QA, PR. |
+| `/muggle:muggle-test` | Change-driven QA router: detects code changes, maps to use cases, runs test generation locally or remotely, publishes to dashboard, opens in browser, posts results to PR. |
 | `/muggle:muggle-test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
 | `/muggle:muggle-status` | Health check for Electron QA engine, MCP server, and authentication. |
 | `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |

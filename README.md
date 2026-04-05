@@ -40,6 +40,7 @@ This installs:
 
 - `/muggle:muggle` — command router and menu
 - `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
+- `/muggle:muggle-test` — change-driven E2E acceptance (local or remote, with PR posting)
 - `/muggle:muggle-test-feature-local` — local quick E2E acceptance testing
 - `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
 - `/muggle:muggle-repair` — diagnose and fix broken installation

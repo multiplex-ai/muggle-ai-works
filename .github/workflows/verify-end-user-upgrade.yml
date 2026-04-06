@@ -1,4 +1,4 @@
-name: Upgrade Experience
+name: Verify Upgrade Experience for End Users
 
 on:
   workflow_dispatch:

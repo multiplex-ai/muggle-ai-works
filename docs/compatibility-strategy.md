@@ -49,7 +49,7 @@ Use this model to decide which checks are mandatory.
 ## Automation
 
 - `ci.yml` runs build-time verification on every push/PR to `master`.
-- `upgrade-experience.yml` runs weekly and on manual dispatch to validate existing-user upgrade behavior over time.
+- `verify-end-user-upgrade.yml` runs weekly and on manual dispatch to validate existing-user upgrade behavior over time.
 
 ## Operational Rules
 

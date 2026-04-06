@@ -533,20 +533,20 @@ CI/CD and publishing
 | Workflow            | Trigger             | Description                                                  |
 | ------------------- | ------------------- | ------------------------------------------------------------ |
 | `ci.yml`            | Push/PR to `master` | Lint, test, build, plugin + compatibility contract verification on multiple platforms |
-| `upgrade-experience.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
-| `publish-works.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
+| `verify-end-user-upgrade.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
+| `publish-works-to-npm.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
 
 
 ```bash
 git tag v<version> && git push --tags
-# publish-works.yml handles the rest
+# publish-works-to-npm.yml handles the rest
 ```
 
 
 Release tag strategy
 
 - `electron-app-vX.Y.Z` tags in `muggle-ai-works` are for public Electron app binary releases (consumed by `muggle setup`, `muggle upgrade`, and npm postinstall).
-- `vX.Y.Z` tags in `muggle-ai-works` are for npm publishing of `@muggleai/works` (`publish-works.yml`).
+- `vX.Y.Z` tags in `muggle-ai-works` are for npm publishing of `@muggleai/works` (`publish-works-to-npm.yml`).
 - `muggle-ai-teaching-service` builds Electron artifacts and publishes them into this public repo using `electron-app-vX.Y.Z`, so binaries are publicly downloadable.
 - The two version tracks are intentionally separate: runtime Electron artifact versions and npm package versions can move independently.
 

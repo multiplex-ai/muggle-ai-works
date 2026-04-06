@@ -21,6 +21,9 @@
         "sync:versions": "node scripts/sync-versions.mjs",
         "build:release": "npm run build",
         "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
+        "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
+        "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
+        "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
         "build:workspace": "turbo run build",
         "typecheck:workspace": "turbo run typecheck",
         "lint:workspace": "turbo run lint",
@@ -39,7 +42,7 @@
         "test:watch": "vitest"
     },
     "muggleConfig": {
-        "electronAppVersion": "1.0.23",
+        "electronAppVersion": "1.0.29",
         "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
         "runtimeTargetDefault": "dev",
         "checksums": {

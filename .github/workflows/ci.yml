@@ -114,8 +114,8 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # Verify all plugin manifests are consistent
-  verify-manifests:
+  # Verify plugin manifests and compatibility contracts
+  verify-compatibility:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -137,3 +137,6 @@ jobs:
 
       - name: Verify plugin manifests
         run: pnpm run verify:plugin
+
+      - name: Verify compatibility contracts
+        run: pnpm run verify:contracts

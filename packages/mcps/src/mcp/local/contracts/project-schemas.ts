@@ -14,6 +14,12 @@
 
 import { z } from "zod";
 
+/**
+ * UUID string schema for Muggle cloud resource IDs and local run-result / test-script record IDs
+ * (aligned with e2e `IdSchema` and `randomUUID()` storage filenames).
+ */
+const MuggleUuidSchema = z.string().uuid();
+
 // ========================================
 // Test Case Schema (from muggle-remote-test-case-get)
 // ========================================
@@ -24,7 +30,7 @@ import { z } from "zod";
  */
 export const TestCaseDetailsSchema = z.object({
   /** Cloud test case ID. */
-  id: z.string().min(1).describe("Cloud test case ID"),
+  id: MuggleUuidSchema.describe("Cloud test case ID (UUID)"),
   /** Test case title. */
   title: z.string().min(1).describe("Test case title"),
   /** Test goal. */
@@ -38,9 +44,9 @@ export const TestCaseDetailsSchema = z.object({
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
   /** Cloud project ID (required for electron workflow context). */
-  projectId: z.string().min(1).describe("Cloud project ID"),
+  projectId: MuggleUuidSchema.describe("Cloud project ID (UUID)"),
   /** Cloud use case ID (required for electron workflow context). */
-  useCaseId: z.string().min(1).describe("Cloud use case ID"),
+  useCaseId: MuggleUuidSchema.describe("Cloud use case ID (UUID)"),
 });
 
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
@@ -56,22 +62,21 @@ export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
  */
 export const TestScriptDetailsSchema = z.object({
   /** Cloud test script ID. */
-  id: z.string().min(1).describe("Cloud test script ID"),
+  id: MuggleUuidSchema.describe("Cloud test script ID (UUID)"),
   /** Script name. */
   name: z.string().min(1).describe("Test script name"),
   /** Cloud test case ID this script belongs to. */
-  testCaseId: z.string().min(1).describe("Cloud test case ID this script was generated from"),
+  testCaseId: MuggleUuidSchema.describe("Cloud test case ID (UUID) this script was generated from"),
   /** Action script ID reference (use muggle-remote-action-script-get to fetch content). */
-  actionScriptId: z
-    .string()
-    .uuid()
-    .describe("Action script ID (UUID) — use muggle-remote-action-script-get to fetch the full script"),
+  actionScriptId: MuggleUuidSchema.describe(
+    "Action script ID (UUID) — use muggle-remote-action-script-get to fetch the full script",
+  ),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
   /** Cloud project ID (required for electron workflow context). */
-  projectId: z.string().min(1).describe("Cloud project ID"),
+  projectId: MuggleUuidSchema.describe("Cloud project ID (UUID)"),
   /** Cloud use case ID (required for electron workflow context). */
-  useCaseId: z.string().min(1).describe("Cloud use case ID"),
+  useCaseId: MuggleUuidSchema.describe("Cloud use case ID (UUID)"),
 });
 
 export type TestScriptDetails = z.infer<typeof TestScriptDetailsSchema>;
@@ -124,7 +129,7 @@ export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;
  * Cancel execution input schema.
  */
 export const CancelExecutionInputSchema = z.object({
-  runId: z.string().min(1).describe("Run ID to cancel"),
+  runId: MuggleUuidSchema.describe("Run ID (UUID) to cancel"),
 });
 
 export type CancelExecutionInput = z.infer<typeof CancelExecutionInputSchema>;
@@ -137,7 +142,7 @@ export type CancelExecutionInput = z.infer<typeof CancelExecutionInputSchema>;
  * Run result list input schema.
  */
 export const RunResultListInputSchema = z.object({
-  cloudTestCaseId: z.string().optional().describe("Optional cloud test case ID to filter by"),
+  cloudTestCaseId: MuggleUuidSchema.optional().describe("Optional cloud test case ID (UUID) to filter by"),
   limit: z.number().int().positive().optional().describe("Maximum results to return (default: 20)"),
 });
 
@@ -147,7 +152,7 @@ export type RunResultListInput = z.infer<typeof RunResultListInputSchema>;
  * Run result get input schema.
  */
 export const RunResultGetInputSchema = z.object({
-  runId: z.string().min(1).describe("Run result ID to retrieve"),
+  runId: MuggleUuidSchema.describe("Run result ID (UUID) to retrieve"),
 });
 
 export type RunResultGetInput = z.infer<typeof RunResultGetInputSchema>;
@@ -160,7 +165,7 @@ export type RunResultGetInput = z.infer<typeof RunResultGetInputSchema>;
  * Test script list input schema.
  */
 export const TestScriptListInputSchema = z.object({
-  cloudTestCaseId: z.string().optional().describe("Optional cloud test case ID to filter by"),
+  cloudTestCaseId: MuggleUuidSchema.optional().describe("Optional cloud test case ID (UUID) to filter by"),
 });
 
 export type TestScriptListInput = z.infer<typeof TestScriptListInputSchema>;
@@ -169,7 +174,7 @@ export type TestScriptListInput = z.infer<typeof TestScriptListInputSchema>;
  * Test script get input schema.
  */
 export const TestScriptGetInputSchema = z.object({
-  testScriptId: z.string().min(1).describe("Test script ID to retrieve"),
+  testScriptId: MuggleUuidSchema.describe("Local stored test script ID (UUID) to retrieve"),
 });
 
 export type TestScriptGetInput = z.infer<typeof TestScriptGetInputSchema>;
@@ -183,8 +188,8 @@ export type TestScriptGetInput = z.infer<typeof TestScriptGetInputSchema>;
  * Uses local run ID to find the generated script and cloud IDs for where to publish.
  */
 export const PublishTestScriptInputSchema = z.object({
-  runId: z.string().min(1).describe("Local run result ID from muggle_execute_test_generation"),
-  cloudTestCaseId: z.string().min(1).describe("Cloud test case ID to publish the script under"),
+  runId: MuggleUuidSchema.describe("Local run result ID (UUID) from muggle_execute_test_generation"),
+  cloudTestCaseId: MuggleUuidSchema.describe("Cloud test case ID (UUID) to publish the script under"),
 });
 
 export type PublishTestScriptInput = z.infer<typeof PublishTestScriptInputSchema>;

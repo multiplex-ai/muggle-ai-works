@@ -27,13 +27,25 @@ Signs the user wants this: mentions "preview", "staging", "deployed", "preview U
 
 ### Confirming
 
-State back what you understood:
-> "I'll [run local test generation against localhost / trigger remote test generation on your preview URL] for the use cases impacted by your changes. Sound right?"
+If the user's intent is clear, state back what you understood and ask for confirmation:
+```
+I'll run [local/remote] test generation. Confirm?
+──────────────────────────────────────────────────────────────
+1. Yes, proceed
+2. No, switch to [the other mode]
+──────────────────────────────────────────────────────────────
+```
 
-If ambiguous, ask:
-> "Do you want to test a feature locally (I'll launch a browser on your machine against localhost) or something on a public URL (Muggle cloud tests against a preview/staging URL)?"
+If ambiguous, ask the user to choose:
+```
+How do you want to run the test?
+──────────────────────────────────────────────────────────────
+1. Local — launch browser on your machine against localhost
+2. Remote — Muggle cloud tests against a preview/staging URL
+──────────────────────────────────────────────────────────────
+```
 
-Only proceed after the user confirms.
+Only proceed after the user selects an option.
 
 ## Step 2: Detect Local Changes
 
@@ -172,14 +184,26 @@ Wait for user confirmation before moving to execution.
 Wait for user to provide URL before asking question 2.
 
 **Question 2 — Electron launch approval:**
-> "I'll launch the Muggle Electron browser to run [N] test case(s). Do you approve? (yes/no)"
+```
+I'll launch the Muggle Electron browser to run [N] test case(s).
+──────────────────────────────────────────────────────────────
+1. Yes, launch it
+2. No, cancel
+──────────────────────────────────────────────────────────────
+```
 
-Wait for explicit "yes" before asking question 3. If "no", stop and ask what they want to do instead.
+Wait for "1" before asking question 3. If "2", stop and ask what they want to do instead.
 
 **Question 3 — Window visibility:**
-> "Do you want a visible browser window (so you can watch) or headless? (visible/headless)"
+```
+How should the browser window appear?
+──────────────────────────────────────────────────────────────
+1. Visible (watch the browser as it runs)
+2. Headless (run in background)
+──────────────────────────────────────────────────────────────
+```
 
-Wait for answer before proceeding.
+Wait for answer (1 or 2) before proceeding.
 
 ### Run sequentially
 
@@ -296,9 +320,16 @@ gh pr view --json number,url,title 2>/dev/null
 ```
 
 - If a PR exists → post results as a comment
-- If no PR exists → ask: "No open PR found for this branch. Want me to create one with the E2E acceptance results included?"
-  - If yes: create PR with E2E acceptance results in the body (use `gh pr create`)
-  - If no: skip this step
+- If no PR exists → ask:
+```
+No open PR found for this branch.
+──────────────────────────────────────────────────────────────
+1. Create PR with E2E acceptance results
+2. Skip posting to PR
+──────────────────────────────────────────────────────────────
+```
+  - If 1: create PR with E2E acceptance results in the body (use `gh pr create`)
+  - If 2: skip this step
 
 ### 9b: Build the E2E acceptance comment body
 
@@ -375,7 +406,7 @@ If creating a new PR — include the E2E acceptance section in the PR body along
 - **User MUST select project** — present numbered list, wait for explicit choice, never auto-select
 - **User MUST select use case(s)** — present numbered list, wait for explicit choice, never auto-select based on git changes or heuristics
 - **User MUST select test case(s)** — present numbered list, wait for explicit choice, never auto-select
-- **Ask three separate questions for local mode** — (1) URL, (2) Electron approval, (3) visible/headless — one at a time, wait for each answer
+- **Ask three separate questions for local mode** — (1) URL as text input, (2) Electron approval as numbered choice, (3) visibility as numbered choice — one at a time, wait for each answer
 - **Never launch Electron without explicit user approval** (`approveElectronAppLaunch`)
 - **Never silently drop test cases** — log failures and continue, then report them
 - **Never guess the URL** — always ask the user for localhost or preview URL

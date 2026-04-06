@@ -10,9 +10,10 @@ import * as path from "path";
 import { pipeline } from "stream/promises";
 
 import {
+  buildElectronAppChecksumsUrl,
+  buildElectronAppReleaseAssetUrl,
   calculateFileChecksum,
   getDataDir,
-  getDownloadBaseUrl,
   getElectronAppDir,
   getElectronAppVersion,
   getLogger,
@@ -189,14 +190,16 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
       const version = extractVersionFromTag(release.tag_name);
       if (version) {
         const updateAvailable = compareVersions(version, currentVersion) > 0;
-        const baseUrl = getDownloadBaseUrl();
         const binaryName = getBinaryName();
 
         return {
           currentVersion: currentVersion,
           latestVersion: version,
           updateAvailable: updateAvailable,
-          downloadUrl: `${baseUrl}/electron-app-v${version}/${binaryName}`,
+          downloadUrl: buildElectronAppReleaseAssetUrl({
+            version: version,
+            assetFileName: binaryName,
+          }),
         };
       }
     }
@@ -338,8 +341,7 @@ async function extractTarGz(tarPath: string, destDir: string): Promise<void> {
  * @returns The checksum or empty string if not available.
  */
 async function fetchChecksumFromRelease (version: string): Promise<string> {
-  const baseUrl = getDownloadBaseUrl();
-  const checksumUrl = `${baseUrl}/electron-app-v${version}/checksums.txt`;
+  const checksumUrl = buildElectronAppChecksumsUrl(version);
 
   try {
     const response = await fetch(checksumUrl);
@@ -511,9 +513,11 @@ export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
   try {
     // If specific version requested
     if (options.version) {
-      const baseUrl = getDownloadBaseUrl();
       const binaryName = getBinaryName();
-      const downloadUrl = `${baseUrl}/electron-app-v${options.version}/${binaryName}`;
+      const downloadUrl = buildElectronAppReleaseAssetUrl({
+        version: options.version,
+        assetFileName: binaryName,
+      });
 
       await downloadAndInstall(options.version, downloadUrl);
 

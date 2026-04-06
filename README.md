@@ -498,8 +498,11 @@ muggle-ai-works/
 ├── scripts/                 # Build and release
 │   ├── build-plugin.mjs     #   Assembles dist/plugin/ from plugin/ source
 │   ├── verify-plugin-marketplace.mjs  # Validates plugin/marketplace consistency
+│   ├── verify-compatibility-contracts.mjs # Validates long-term surface contracts
+│   ├── verify-upgrade-experience.mjs  # Validates in-place upgrade behavior
 │   └── postinstall.mjs      #   npm postinstall (Electron app download)
 │
+├── config/compatibility/     # Contract baselines (CLI/MCP/plugin/skills)
 ├── bin/                     # CLI entrypoint (muggle.js → dist/cli.js)
 ├── dist/                    # Build output (gitignored)
 ├── .claude-plugin/          # Marketplace catalog (marketplace.json)
@@ -513,6 +516,9 @@ pnpm install              # Install dependencies
 pnpm run build            # Build (tsup + plugin artifact)
 pnpm run build:plugin     # Rebuild plugin artifact only
 pnpm run verify:plugin    # Validate plugin/marketplace metadata consistency
+pnpm run verify:contracts # Validate compatibility contracts (CLI/MCP/plugin/skills)
+pnpm run verify:electron-release-checksums # Ensure checksums.txt exists for bundled electron release
+pnpm run verify:upgrade-experience # Validate existing-user cleanup + re-download flow
 pnpm run dev              # Dev mode (watch)
 pnpm test                 # Run tests
 pnpm run lint             # Lint (auto-fix)
@@ -525,8 +531,9 @@ CI/CD and publishing
 
 | Workflow            | Trigger             | Description                                                  |
 | ------------------- | ------------------- | ------------------------------------------------------------ |
-| `ci.yml`            | Push/PR to `master` | Lint, test, build, plugin verification on multiple platforms |
-| `publish-works.yml` | Tag `v*` or manual  | Verify, audit, smoke-install, publish to npm                 |
+| `ci.yml`            | Push/PR to `master` | Lint, test, build, plugin + compatibility contract verification on multiple platforms |
+| `upgrade-experience.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
+| `publish-works.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
 
 
 ```bash

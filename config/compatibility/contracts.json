@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "packageName": "@muggleai/works",
+    "binaryName": "muggle",
+    "mcpName": "io.github.multiplex-ai/muggle",
+    "requiredCommands": [
+      "serve",
+      "setup",
+      "upgrade",
+      "cleanup",
+      "doctor",
+      "status"
+    ]
+  },
+  "server": {
+    "name": "io.github.multiplex-ai/muggle",
+    "packageIdentifier": "@muggleai/works"
+  },
+  "plugins": {
+    "requiredName": "muggle",
+    "requiredHookCommandContains": "ensure-electron-app.sh"
+  },
+  "skills": {
+    "requiredDirectories": [
+      "muggle",
+      "muggle-do",
+      "muggle-repair",
+      "muggle-status",
+      "muggle-test",
+      "muggle-test-feature-local",
+      "muggle-test-import",
+      "muggle-upgrade"
+    ]
+  },
+  "compatibilityPolicy": {
+    "allowedLegacyStatuses": [
+      "supported",
+      "aliased",
+      "removed-with-guidance"
+    ],
+    "legacyIdentifiers": [
+      {
+        "surface": "marketplace",
+        "identifier": "muggle-works",
+        "status": "supported"
+      },
+      {
+        "surface": "cli",
+        "identifier": "muggle",
+        "status": "supported"
+      }
+    ]
+  }
+}

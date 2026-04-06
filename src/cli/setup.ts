@@ -10,9 +10,9 @@ import { arch, platform } from "os";
 import { pipeline } from "stream/promises";
 
 import {
+  buildElectronAppReleaseAssetUrl,
   calculateFileChecksum,
   getChecksumForPlatform,
-  getDownloadBaseUrl,
   getElectronAppChecksums,
   getElectronAppDir,
   getElectronAppVersion,
@@ -249,7 +249,6 @@ function cleanupFailedInstall(versionDir: string): void {
  */
 export async function setupCommand(options: ISetupOptions): Promise<void> {
   const version = getElectronAppVersion();
-  const baseUrl = getDownloadBaseUrl();
   const versionDir = getElectronAppDir(version);
   const platformKey = getPlatformKey();
 
@@ -261,7 +260,10 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
   }
 
   const binaryName = getBinaryName();
-  const downloadUrl = `${baseUrl}/v${version}/${binaryName}`;
+  const downloadUrl = buildElectronAppReleaseAssetUrl({
+    version: version,
+    assetFileName: binaryName,
+  });
 
   console.log(`Downloading Muggle Test Electron app v${version}...`);
   console.log(`URL: ${downloadUrl}`);

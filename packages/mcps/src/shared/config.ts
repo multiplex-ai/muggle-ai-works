@@ -30,6 +30,9 @@ const DEFAULT_WEB_SERVICE_URL = "http://localhost:3001";
 /** Subdirectory for downloaded electron-app binaries. */
 const ELECTRON_APP_DIR = "electron-app";
 
+/** Prefix for electron-app release tags. */
+const ELECTRON_APP_RELEASE_TAG_PREFIX = "electron-app-v";
+
 /** API key storage file name. */
 const API_KEY_FILE = "api-key.json";
 
@@ -559,6 +562,38 @@ export function getBundledElectronAppVersion(): string {
  */
 export function getDownloadBaseUrl(): string {
   return getMuggleConfig().downloadBaseUrl;
+}
+
+/**
+ * Build electron-app release tag from a version string.
+ * @param version - Version string (for example, "1.0.28").
+ * @returns Release tag (for example, "electron-app-v1.0.28").
+ */
+export function buildElectronAppReleaseTag(version: string): string {
+  return `${ELECTRON_APP_RELEASE_TAG_PREFIX}${version}`;
+}
+
+/**
+ * Build a release asset URL for a specific electron-app version.
+ * @param params - Build parameters.
+ * @param params.version - Electron app version.
+ * @param params.assetFileName - Release asset file name.
+ * @returns Fully-qualified download URL.
+ */
+export function buildElectronAppReleaseAssetUrl(params: {
+  version: string;
+  assetFileName: string;
+}): string {
+  return `${getDownloadBaseUrl()}/${buildElectronAppReleaseTag(params.version)}/${params.assetFileName}`;
+}
+
+/**
+ * Build checksums.txt URL for a specific electron-app release version.
+ * @param version - Electron app version.
+ * @returns Fully-qualified checksums URL.
+ */
+export function buildElectronAppChecksumsUrl(version: string): string {
+  return `${getDownloadBaseUrl()}/${buildElectronAppReleaseTag(version)}/checksums.txt`;
 }
 
 /**

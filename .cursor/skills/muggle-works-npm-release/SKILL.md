@@ -1,18 +1,17 @@
 ---
 name: muggle-works-npm-release
 description: >-
-  Internal workflow to ship a new @muggleai/works npm version: align bundled
-  Electron app (GitHub release), refresh checksums, bump package version, build,
-  verify, and publish. Use when releasing muggle-ai-works or refreshing
-  electronAppVersion.
+  Internal workflow to ship @muggleai/works: align Electron bundle and checksums
+  in repo, merge to main, then publish to npm via GitHub Actions
+  (.github/workflows/publish-works-to-npm.yml)—not local npm publish.
 ---
 
 # Muggle AI Works — npm release (internal)
 
 ## When to use
 
-- Publishing `@muggleai/works` to npm after product or packaging changes.
-- Pointing the npm package at the **latest** published Electron desktop build (`electron-app-v*` on GitHub).
+- Shipping a new **`@muggleai/works`** version after product or packaging changes.
+- Pointing the package at the **latest** published Electron desktop build (`electron-app-v*` on GitHub).
 
 ## Source of truth
 
@@ -26,43 +25,64 @@ description: >-
 
 The teaching-service `packages/electron-app/package.json` **version** field is not the same as `electronAppVersion`; the latter must match an existing **`electron-app-v*`** GitHub release with `checksums.txt` and the four `MuggleAI-*.zip` assets.
 
-## Steps
+## Publish to npm (required path)
+
+**Do not rely on `npm publish` from a laptop** for this package. Publishing is automated by:
+
+**[`.github/workflows/publish-works-to-npm.yml`](.github/workflows/publish-works-to-npm.yml)** — workflow name: **Publish Works to npm**.
+
+### What the workflow does
+
+- **verify**: `pnpm install --frozen-lockfile`, lint, tests, `pnpm run build`, `pnpm run verify:electron-release-checksums`.
+- **package-audit**: Aligns `package.json` version (see triggers below), sets **`muggleConfig.runtimeTargetDefault` to `production`**, removes `scripts.prepare`, `npm pack`, validates tarball contents, uploads artifact.
+- **smoke-install**: Installs the tarball globally on Ubuntu, Windows, and macOS runners; runs `muggle --version` and `muggle doctor`.
+- **publish**: Publishes the packed tarball with **`npm publish … --access public --provenance`**, using **`NODE_AUTH_TOKEN`** from secrets. Job uses GitHub Environment **`npm-publish`** (configure protection rules and **`NPM_TOKEN`** there as needed).
+
+### How to trigger a publish
+
+1. **Tag push (typical after merge)**  
+   - Land `package.json` + synced manifests on the default branch with the intended **semver** (e.g. `4.2.4`).  
+   - Create and push an **annotated or lightweight tag** matching that version: **`v` + semver**, e.g. `v4.2.4`.  
+   - The workflow runs on **`push` tags matching `v*`**. The **package-audit** job sets the published version from the tag (without the leading `v`) if it differs from `package.json`.
+
+2. **workflow_dispatch (manual)**  
+   In GitHub: **Actions** → **Publish Works to npm** → **Run workflow**.  
+   - **version**: Exact semver to publish (e.g. `4.2.5`). Leave **empty** to run `npm version <bump>` on the checked-out ref (`patch` / `minor` / `major`).  
+   - Note: a manual run publishes from the **selected branch/ref**; ensure that ref already has the desired `electronAppVersion` and checksums.
+
+### Agent / operator checklist
+
+- After code changes are on **`master`**, either **push `vX.Y.Z`** or run **workflow_dispatch** with the target version.  
+- Do not tell users to publish with local **`npm publish`** unless debugging outside CI; production releases go through this workflow.
+
+## Repo preparation steps (before triggering CI)
 
 1. **Resolve latest Electron release**  
-   List tags (example): `https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=20` and take the newest `electron-app-v*` (e.g. `electron-app-v1.0.32` → version `1.0.32`).
+   List releases: `https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=20` — newest tag **`electron-app-v*`** (e.g. `electron-app-v1.0.32` → `1.0.32`).
 
 2. **Fetch checksums**  
-   Download `checksums.txt` from  
-   `{downloadBaseUrl}/electron-app-v{version}/checksums.txt`  
-   Map lines to `muggleConfig.checksums`:
+   `{downloadBaseUrl}/electron-app-v{version}/checksums.txt` — map to `muggleConfig.checksums`:
    - `MuggleAI-darwin-arm64.zip` → `darwin-arm64`
    - `MuggleAI-darwin-x64.zip` → `darwin-x64`
    - `MuggleAI-win32-x64.zip` → `win32-x64`
    - `MuggleAI-linux-x64.zip` → `linux-x64`
 
 3. **Edit root `package.json`**  
-   - Bump `version` (semver for the npm package).  
-   - Set `muggleConfig.electronAppVersion` to the chosen `X.Y.Z`.  
-   - Fill all four `muggleConfig.checksums` entries (do not leave empty strings if you want install-time verification).
+   - Set **`version`** to the semver you will publish (and tag as `v…` if using tag trigger).  
+   - Set **`muggleConfig.electronAppVersion`**.  
+   - Fill all four **`muggleConfig.checksums`** entries.
 
 4. **Build and sync manifests**  
-   From repo root: `npm run build`  
-   (runs `tsup`, `scripts/sync-versions.mjs`, and `scripts/build-plugin.mjs` so plugin/marketplace versions match `package.json`.)
+   `pnpm run build` or `npm run build` (same pipeline: `tsup`, `sync-versions.mjs`, `build-plugin.mjs`).
 
 5. **Verify Electron release**  
-   `npm run verify:electron-release-checksums`  
-   Confirms `checksums.txt` exists for `electron-app-v{muggleConfig.electronAppVersion}` and lists all required zips.
+   `pnpm run verify:electron-release-checksums` or `npm run verify:electron-release-checksums`.
 
-6. **Quality gates (as needed)**  
-   `npm run typecheck`, `npm test`, `npm run lint:check`, `npm run verify:upgrade-experience`, etc.
+6. **Quality gates (optional locally)**  
+   `pnpm run typecheck`, `pnpm test`, `pnpm run lint:check`, `pnpm run verify:upgrade-experience`, etc. (CI runs lint, test, build, and checksum verify.)
 
-7. **Publish to npm**  
-   - Ensure `npm whoami` succeeds and the account has **publish** rights to the `@muggleai` scope.  
-   - `npm publish --access public`  
-   If `PUT` returns **404**, the logged-in user typically lacks permission to publish under `@muggleai/works`; fix org/token access, then retry.
-
-8. **Git**  
-   Commit the updated `package.json`, synced manifests (`.claude-plugin/`, `.cursor-plugin/`, `plugin/`, `server.json`), and any regenerated `dist/` if your process requires it. Tag or open PR per team practice.
+7. **Git**  
+   PR + merge to default branch, then **push tag `vX.Y.Z`** or **workflow_dispatch** as above.
 
 ## Quick checksums fetch (manual)
 
@@ -70,4 +90,4 @@ The teaching-service `packages/electron-app/package.json` **version** field is n
 curl -sL "https://github.com/multiplex-ai/muggle-ai-works/releases/download/electron-app-vVERSION/checksums.txt"
 ```
 
-Replace `VERSION` with the semver (no `v` prefix in the path segment after `electron-app-v`).
+Replace `VERSION` with the semver (the path uses `electron-app-v` + version, no extra `v` inside the number).

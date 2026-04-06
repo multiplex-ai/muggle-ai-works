@@ -61,78 +61,125 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 
 If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal.
 
-## Step 4: Find or Create Project
+## Step 4: Select Project (User Must Choose)
 
 1. Call `muggle-remote-project-list`
-2. Match projects against the current repo (by name, URL, description)
-3. **If match found**: Recommend the best match, confirm with user
-4. **If no match**: Ask the user to create a new project:
-   - Propose `projectName` from repo name
-   - Propose `description` from repo purpose
+2. Present **all** projects as a numbered list:
+
+```
+Available Muggle Projects:
+──────────────────────────────────────────────────────────────
+1. MUGGLE AI STAGING 1       https://staging.muggle-ai.com/
+2. Tanka Testing             https://www.tanka.ai
+3. Staging muggleTestV0      https://staging.muggle-ai.com/muggleTestV0
+4. [Create new project]
+──────────────────────────────────────────────────────────────
+```
+
+> "Which project should I use? Reply with the number."
+
+3. **Wait for the user to explicitly choose** — do NOT auto-select based on repo name or URL matching
+4. **If user chooses "Create new project"**:
+   - Ask for `projectName`
+   - Ask for `description`
    - Ask for the production/preview URL
    - Call `muggle-remote-project-create`
 
-Store the `projectId`.
+Store the `projectId` only after user confirms.
 
-## Step 5: Resolve Use Cases from Changes
+## Step 5: Select Use Case (User Must Choose)
 
 ### 5a: List existing use cases
 Call `muggle-remote-use-case-list` with the project ID.
 
-### 5b: Map changes to use cases
-For each impacted feature from Step 2:
-- If an existing use case covers it → mark "existing"
-- If not covered → draft a new use case prompt
-
-### 5c: Present mapping for user confirmation
+### 5b: Present ALL use cases as a numbered list for user selection
 
 ```
-Change Area         → Use Case                  Status
-──────────────────────────────────────────────────────
-Login form update   → "User Login Flow"         Existing (UC-123)
-New checkout page   → "Checkout Process"         NEW — will create
-Profile settings    → "Profile Management"       Existing (UC-456)
+Available Use Cases for [Project Name]:
+──────────────────────────────────────────────────────────────────────────
+1. Sign up for Muggle Test account
+2. Access existing account via login
+3. Manually Add a Use Case
+4. View Generated Test Script After Test Run
+5. Generate comprehensive UX testing reports
+6. [Create new use case]
+──────────────────────────────────────────────────────────────────────────
 ```
 
-> "Does this mapping look right? I'll create the new use cases and scope test generation to all of them."
+> "Which use case do you want to test? Reply with the number (or multiple numbers separated by commas)."
 
-Wait for user confirmation before proceeding.
+### 5c: Wait for explicit user selection
 
-### 5d: Create new use cases
-For use cases marked "NEW":
-1. Call `muggle-remote-use-case-create-from-prompts`:
+**CRITICAL: Do NOT auto-select use cases** based on:
+- Git changes analysis
+- Use case title/description matching
+- Any heuristic or inference
+
+The user MUST explicitly tell you which use case(s) to use.
+
+### 5d: If user chooses "Create new use case"
+1. Ask the user to describe the use case in plain English
+2. Call `muggle-remote-use-case-create-from-prompts`:
    - `projectId`: The project ID
-   - `prompts`: Array of `{ instruction: "..." }` with clear user stories
+   - `prompts`: Array of `{ instruction: "..." }` with the user's description
+3. Present the created use case and confirm it's correct
 
-## Step 6: Resolve Test Cases
+## Step 6: Select Test Case (User Must Choose)
 
-For each use case (existing and new):
+For the selected use case(s):
 
-1. Call `muggle-remote-test-case-list-by-use-case` with the use case ID
-2. If test cases exist → use them
-3. If none exist → call `muggle-remote-test-case-generate-from-prompt`:
-   - `projectId`, `useCaseId`, `instruction` (scenario based on change analysis)
-4. Then call `muggle-remote-test-case-create` to save
+### 6a: List existing test cases
+Call `muggle-remote-test-case-list-by-use-case` with each use case ID.
 
-Present the full scope to the user:
+### 6b: Present ALL test cases as a numbered list for user selection
 
 ```
-Use Case               Test Case                     Status
-────────────────────────────────────────────────────────────
-User Login Flow        Login with valid credentials   Existing
-User Login Flow        Login with invalid password    Existing
-Checkout Process       Complete checkout flow         NEW — will create
+Available Test Cases for "[Use Case Name]":
+──────────────────────────────────────────────────────────────────────────
+1. E2E: Login with valid credentials
+2. E2E: Login with invalid password
+3. E2E: Login with expired session
+4. [Generate new test case]
+──────────────────────────────────────────────────────────────────────────
 ```
 
-> "I'll run test generation for these [N] test cases. Confirm to proceed."
+> "Which test case(s) do you want to run? Reply with the number (or multiple numbers separated by commas)."
+
+### 6c: Wait for explicit user selection
+
+**CRITICAL: Do NOT auto-select test cases** — the user MUST explicitly choose which test case(s) to execute.
+
+### 6d: If user chooses "Generate new test case"
+1. Ask the user to describe what they want to test in plain English
+2. Call `muggle-remote-test-case-generate-from-prompt`:
+   - `projectId`, `useCaseId`, `instruction` (the user's description)
+3. Present the generated test case(s) for review
+4. Call `muggle-remote-test-case-create` to save the ones the user approves
+
+### 6e: Confirm final selection
+
+> "You selected [N] test case(s): [list titles]. Ready to proceed?"
+
+Wait for user confirmation before moving to execution.
 
 ## Step 7A: Execute — Local Mode
 
-### Ask for local URL and approval
+### Three separate questions (ask one at a time, wait for answer before next)
 
+**Question 1 — Local URL:**
 > "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
->
-> "I'll launch the Muggle browser [N] times, once per test case. Approve?"
+
+Wait for user to provide URL before asking question 2.
+
+**Question 2 — Electron launch approval:**
+> "I'll launch the Muggle Electron browser to run [N] test case(s). Do you approve? (yes/no)"
+
+Wait for explicit "yes" before asking question 3. If "no", stop and ask what they want to do instead.
+
+**Question 3 — Window visibility:**
+> "Do you want a visible browser window (so you can watch) or headless? (visible/headless)"
+
+Wait for answer before proceeding.
 
 ### Run sequentially
 
@@ -141,8 +188,9 @@ For each test case:
 1. Call `muggle-remote-test-case-get` to fetch full details
 2. Call `muggle-local-execute-test-generation`:
    - `testCase`: Full test case object from step 1
-   - `localUrl`: User's local URL
-   - `approveElectronAppLaunch`: `true`
+   - `localUrl`: User's local URL (from Question 1)
+   - `approveElectronAppLaunch`: `true` (only if user said "yes" in Question 2)
+   - `showUi`: `true` if user chose "visible", `false` if "headless" (from Question 3)
 3. Store the returned `runId`
 
 If a generation fails, log it and continue to the next. Do not abort the batch.
@@ -220,7 +268,7 @@ After execution and publishing are complete, open the Muggle AI dashboard so the
 
 For each published run's `viewUrl`:
 ```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}"
+open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
 ```
 
 If there are many runs (>3), open just the project-level runs page instead of individual tabs:
@@ -263,9 +311,9 @@ Construct a markdown comment with the full E2E acceptance breakdown. The format 
 
 | Test Case | Status | Details |
 |-----------|--------|---------|
-| [Login with valid creds](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}) | ✅ PASSED | 8 steps, 12.3s |
-| [Login with invalid creds](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}) | ✅ PASSED | 6 steps, 9.1s |
-| [Checkout flow](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=details&testCaseId={testCaseId}) | ❌ FAILED | Step 7: "Click checkout button" — element not found |
+| [Login with valid creds](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}) | ✅ PASSED | 8 steps, 12.3s |
+| [Login with invalid creds](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}) | ✅ PASSED | 6 steps, 9.1s |
+| [Checkout flow](https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}) | ❌ FAILED | Step 7: "Click checkout button" — element not found |
 
 <details>
 <summary>Failed test details</summary>
@@ -324,10 +372,14 @@ If creating a new PR — include the E2E acceptance section in the PR body along
 ## Guardrails
 
 - **Always confirm intent first** — never assume local vs remote without asking
-- **Always present the use case / test case scope** and wait for user confirmation before executing
+- **User MUST select project** — present numbered list, wait for explicit choice, never auto-select
+- **User MUST select use case(s)** — present numbered list, wait for explicit choice, never auto-select based on git changes or heuristics
+- **User MUST select test case(s)** — present numbered list, wait for explicit choice, never auto-select
+- **Ask three separate questions for local mode** — (1) URL, (2) Electron approval, (3) visible/headless — one at a time, wait for each answer
 - **Never launch Electron without explicit user approval** (`approveElectronAppLaunch`)
 - **Never silently drop test cases** — log failures and continue, then report them
 - **Never guess the URL** — always ask the user for localhost or preview URL
 - **Always publish before opening browser** — the dashboard needs the published data to show results
+- **Use correct dashboard URL format** — `modal=script-details` (not `modal=details`)
 - **Always check for PR before posting** — don't create a PR comment if there's no PR (ask user first)
 - **Can be invoked at any state** — if the user already has a project or use cases set up, skip to the relevant step rather than re-doing everything

@@ -29,4 +29,18 @@ If the user intent clearly matches one command, route to that command behavior:
 - test localhost/validate single feature -> `muggle-test-feature-local`
 - build/implement from request -> `muggle-do`
 
-If intent is ambiguous, ask one concise clarification question.
+If intent is ambiguous, present numbered choices:
+
+```
+What would you like to do?
+──────────────────────────────────────────────────────────────
+1. Test my changes (E2E acceptance testing)
+2. Test a single feature locally
+3. Check Muggle status
+4. Repair Muggle installation
+5. Upgrade Muggle to latest version
+6. Build/implement from request
+──────────────────────────────────────────────────────────────
+```
+
+Route based on the user's selection.

@@ -40,7 +40,19 @@ If the user is vague, scan the current directory for test file patterns and show
 
 Also ask for the **base URL of the app under test** if it is not embedded in the source files — you will need it for every test case.
 
-Confirm the final file list before reading.
+Confirm the final file list using numbered choice:
+
+```
+Files to import:
+──────────────────────────────────────────────────────────────
+- e2e/auth.spec.ts
+- e2e/cart.spec.ts
+- e2e/checkout.spec.ts
+──────────────────────────────────────────────────────────────
+1. Yes, analyse these files
+2. No, let me change the selection
+──────────────────────────────────────────────────────────────
+```
 
 ---
 
@@ -114,11 +126,17 @@ Found 3 use cases with 8 test cases:
    ✦ [HIGH]   Checkout fails with invalid payment info
 ```
 
-Ask:
-- "Does this structure look right?"
-- "Anything to add, remove, rename, or re-prioritise before I import?"
+Ask for confirmation using numbered choices:
 
-Incorporate feedback, then confirm: "Ready to import — shall I proceed?"
+```
+Does this structure look right?
+──────────────────────────────────────────────────────────────
+1. Yes, proceed to import
+2. No, I want to make changes
+──────────────────────────────────────────────────────────────
+```
+
+If user selects 2, ask what they want to change and incorporate feedback. Then confirm again with the same numbered prompt.
 
 > For Path A (native PRD upload): present the use case/test case list that Muggle extracted
 > after the processing workflow completes, and ask the user to confirm before adding any
@@ -145,20 +163,36 @@ If not authenticated:
 Call `muggle-remote-project-list` and show the results as a numbered menu:
 
 ```
-Existing projects:
-  1. Acme Web App
-  2. Admin Portal
-  3. Mobile API
-
-Or: [C] Create new project
+Select a project:
+──────────────────────────────────────────────────────────────
+1. Acme Web App
+2. Admin Portal
+3. Mobile API
+4. Create new project
+──────────────────────────────────────────────────────────────
 ```
 
-**If creating a new project**, propose values based on what you learned from the source files:
+Ask: "Reply with the number."
+
+**If user selects "Create new project"**, propose values based on what you learned from the source files:
 - **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App")
 - **Description**: "Imported from [filename(s)] — [date]"
 - **URL**: the base URL of the app under test
 
-Show the proposal and confirm before calling `muggle-remote-project-create`.
+Show the proposal and confirm using numbered choice:
+
+```
+Create project with these settings?
+  Name: [proposed name]
+  Description: [proposed description]
+  URL: [proposed URL]
+──────────────────────────────────────────────────────────────
+1. Yes, create it
+2. No, let me change something
+──────────────────────────────────────────────────────────────
+```
+
+Only call `muggle-remote-project-create` after user selects 1.
 
 ---
 

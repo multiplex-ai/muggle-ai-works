@@ -64,8 +64,16 @@ Ask the user to pick **project**, **use case**, and **test case** (do not infer)
 
 `muggle-remote-test-script-list` with `testCaseId`.
 
-- **If any replayable/succeeded scripts exist:** list them in a **numbered** list and ask: replay one **or** generate new.  
-  Show: name, id, created/updated, step count. Include **`Generate new script`** as the **last** numbered option (e.g. last number) so it is selectable by number too.
+- **If any replayable/succeeded scripts exist:** list them in a **numbered** list:
+  ```
+  Existing test scripts for this test case:
+  ──────────────────────────────────────────────────────────────
+  1. [Script name] — 12 steps, created 2024-01-15
+  2. [Script name] — 8 steps, created 2024-01-10
+  3. Generate new script
+  ──────────────────────────────────────────────────────────────
+  ```
+  Ask: "Reply with the number to replay an existing script or generate a new one."
 - **If none:** go straight to generation (no need to ask replay vs generate).
 
 ### 5. Load data for the chosen path
@@ -97,8 +105,29 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 
 ### 6. Approval before any local execution
 
-Get **explicit** OK to launch Electron. State: replay vs generation, test case name, URL.  
-Only then call local execute tools with `approveElectronAppLaunch: true`.
+Get **explicit** OK to launch Electron using numbered choices:
+
+```
+Ready to launch Muggle browser for [replay/generation]:
+  Test case: [test case name]
+  URL: [local URL]
+──────────────────────────────────────────────────────────────
+1. Yes, launch it
+2. No, cancel
+──────────────────────────────────────────────────────────────
+```
+
+If user selects 1, also ask for visibility preference:
+
+```
+How should the browser window appear?
+──────────────────────────────────────────────────────────────
+1. Visible (watch the browser as it runs)
+2. Headless (run in background)
+──────────────────────────────────────────────────────────────
+```
+
+Only then call local execute tools with `approveElectronAppLaunch: true` and appropriate `showUi` value.
 
 ### 7. After successful generation only
 

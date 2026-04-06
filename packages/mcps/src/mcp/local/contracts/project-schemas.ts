@@ -62,7 +62,10 @@ export const TestScriptDetailsSchema = z.object({
   /** Cloud test case ID this script belongs to. */
   testCaseId: z.string().min(1).describe("Cloud test case ID this script was generated from"),
   /** Action script ID reference (use muggle-remote-action-script-get to fetch content). */
-  actionScriptId: z.string().min(1).describe("Action script ID - use muggle-remote-action-script-get to fetch the full script"),
+  actionScriptId: z
+    .string()
+    .uuid()
+    .describe("Action script ID (UUID) — use muggle-remote-action-script-get to fetch the full script"),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
   /** Cloud project ID (required for electron workflow context). */

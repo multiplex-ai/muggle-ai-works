@@ -3,6 +3,10 @@
  */
 
 import { z } from "zod";
+
+import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+
+export { MuggleEntityIdSchema };
 export * from "./local-run-schemas.js";
 
 // =============================================================================
@@ -19,12 +23,12 @@ export const PaginationInputSchema = z.object({
  * UUID string schema for Muggle Test cloud resource IDs
  * (projects, PRD files, secrets, use cases, test cases, scripts, workflow runtimes, etc.).
  */
-export const IdSchema = z.string().uuid();
+export const IdSchema = MuggleEntityIdSchema;
 
 /**
  * Bulk test-script replay batch id (server assigns via randomUUID per TestScriptReplayBulkWorkflowRun).
  */
-export const RunBatchIdSchema = z.string().uuid().describe("Bulk replay run batch ID (UUID)");
+export const RunBatchIdSchema = MuggleEntityIdSchema.describe("Bulk replay run batch ID (UUID)");
 
 /** Token package id from wallet catalog (Stripe metadata SKU; not a UUID). */
 export const TokenPackageIdSchema = z.string().min(1).describe("Token package ID from wallet catalog");

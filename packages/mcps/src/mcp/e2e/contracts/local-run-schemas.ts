@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+
 /**
  * Local execution context schema for local-run upload.
  */
@@ -19,9 +21,9 @@ export const LocalExecutionContextInputSchema = z.object({
  * Input schema for remote local-run upload tool.
  */
 export const LocalRunUploadInputSchema = z.object({
-  projectId: z.string().min(1).describe("Project ID for the local run"),
-  useCaseId: z.string().min(1).describe("Use case ID for the local run"),
-  testCaseId: z.string().min(1).describe("Test case ID for the local run"),
+  projectId: MuggleEntityIdSchema.describe("Project ID (UUID) for the local run"),
+  useCaseId: MuggleEntityIdSchema.describe("Use case ID (UUID) for the local run"),
+  testCaseId: MuggleEntityIdSchema.describe("Test case ID (UUID) for the local run"),
   runType: z.enum(["generation", "replay"]).describe("Type of local run to upload"),
   productionUrl: z.string().url().describe("Cloud production URL associated with the run"),
   localExecutionContext: LocalExecutionContextInputSchema.describe("Local execution metadata"),

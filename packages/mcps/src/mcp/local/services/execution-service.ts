@@ -390,6 +390,7 @@ function buildGenerationActionScript(params: {
     url: params.localUrl,
     description: params.testCase.title,
     precondition: params.testCase.precondition ?? "",
+    instructions: params.testCase.instructions ?? "",
     expectedResult: params.testCase.expectedResult,
     steps: [],
     ownerId: params.ownerUserId,

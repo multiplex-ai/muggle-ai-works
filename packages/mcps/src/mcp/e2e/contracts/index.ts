@@ -3,6 +3,10 @@
  */
 
 import { z } from "zod";
+
+import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+
+export { MuggleEntityIdSchema };
 export * from "./local-run-schemas.js";
 
 // =============================================================================
@@ -15,8 +19,34 @@ export const PaginationInputSchema = z.object({
   pageSize: z.number().int().positive().max(100).optional().describe("Number of items per page"),
 });
 
-/** ID string schema. */
-export const IdSchema = z.string().min(1).describe("Unique identifier");
+/**
+ * UUID string schema for Muggle Test cloud resource IDs
+ * (projects, PRD files, secrets, use cases, test cases, scripts, workflow runtimes, etc.).
+ */
+export const IdSchema = MuggleEntityIdSchema;
+
+/**
+ * Bulk test-script replay batch id (server assigns via randomUUID per TestScriptReplayBulkWorkflowRun).
+ */
+export const RunBatchIdSchema = MuggleEntityIdSchema.describe("Bulk replay run batch ID (UUID)");
+
+/** Token package id from wallet catalog (Stripe metadata SKU; not a UUID). */
+export const TokenPackageIdSchema = z.string().min(1).describe("Token package ID from wallet catalog");
+
+/** Stripe payment method id (pm_…). */
+export const StripePaymentMethodIdSchema = z
+  .string()
+  .regex(/^pm_[a-zA-Z0-9]+$/)
+  .describe("Stripe payment method ID (pm_…)");
+
+/**
+ * API key record id from the server (24 hex chars from randomBytes(12); not a UUID).
+ */
+export const ApiKeyRecordIdSchema = z
+  .string()
+  .length(24)
+  .regex(/^[0-9a-f]+$/i)
+  .describe("API key record ID (24-character hex)");
 
 /** Optional memory configuration overrides in workflow params. */
 export const WorkflowMemoryParamsSchema = z.object({
@@ -29,6 +59,17 @@ export const WorkflowParamsSchema = z.object({
   memory: WorkflowMemoryParamsSchema.optional().describe("Per-run memory override settings"),
 }).passthrough().optional().describe("Optional workflow parameters for workflow-level overrides");
 
+/**
+ * Token usage cost breakdown dimension (matches server TokenUsageFilterType).
+ */
+export const TokenUsageFilterTypeSchema = z.enum([
+  "project",
+  "useCase",
+  "testCase",
+  "testScript",
+  "actionScript",
+]).describe("Token cost aggregation dimension");
+
 // =============================================================================
 // Project Schemas
 // =============================================================================
@@ -40,15 +81,15 @@ export const ProjectCreateInputSchema = z.object({
 });
 
 export const ProjectGetInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to retrieve"),
+  projectId: IdSchema.describe("Project ID (UUID) to retrieve"),
 });
 
 export const ProjectDeleteInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to delete"),
+  projectId: IdSchema.describe("Project ID (UUID) to delete"),
 });
 
 export const ProjectUpdateInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to update"),
+  projectId: IdSchema.describe("Project ID (UUID) to update"),
   projectName: z.string().min(1).max(255).optional().describe("New project name"),
   description: z.string().optional().describe("Updated description"),
   url: z.string().url().optional().describe("Updated target URL"),
@@ -61,23 +102,23 @@ export const ProjectListInputSchema = PaginationInputSchema.extend({});
 // =============================================================================
 
 export const PrdFileUploadInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to associate the PRD file with"),
+  projectId: IdSchema.describe("Project ID (UUID) to associate the PRD file with"),
   fileName: z.string().min(1).describe("Name of the file"),
   contentBase64: z.string().min(1).describe("Base64-encoded file content"),
   contentType: z.string().optional().describe("MIME type of the file"),
 });
 
 export const PrdFileListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list PRD files for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list PRD files for"),
 });
 
 export const PrdFileDeleteInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  prdFileId: IdSchema.describe("PRD file ID to delete"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  prdFileId: IdSchema.describe("PRD file ID (UUID) to delete"),
 });
 
 export const PrdFileProcessStartInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to process PRD files for"),
+  projectId: IdSchema.describe("Project ID (UUID) to process PRD files for"),
   name: z.string().min(1).describe("Workflow name"),
   description: z.string().min(1).describe("Description of the PRD processing workflow"),
   prdFilePath: z.string().min(1).describe("Storage path of the uploaded PRD file (from upload response)"),
@@ -88,7 +129,7 @@ export const PrdFileProcessStartInputSchema = z.object({
 });
 
 export const PrdFileProcessLatestRunInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("PRD processing workflow runtime ID"),
+  workflowRuntimeId: IdSchema.describe("PRD processing workflow runtime ID (UUID)"),
 });
 
 // =============================================================================
@@ -96,11 +137,11 @@ export const PrdFileProcessLatestRunInputSchema = z.object({
 // =============================================================================
 
 export const SecretListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list secrets for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list secrets for"),
 });
 
 export const SecretCreateInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to create the secret for"),
+  projectId: IdSchema.describe("Project ID (UUID) to create the secret for"),
   name: z.string().min(1).describe("Secret name/key"),
   value: z.string().min(1).describe("Secret value"),
   description: z.string().min(1).describe("Human-readable description for selection guidance"),
@@ -108,18 +149,18 @@ export const SecretCreateInputSchema = z.object({
 });
 
 export const SecretGetInputSchema = z.object({
-  secretId: IdSchema.describe("Secret ID to retrieve"),
+  secretId: IdSchema.describe("Secret ID (UUID) to retrieve"),
 });
 
 export const SecretUpdateInputSchema = z.object({
-  secretId: IdSchema.describe("Secret ID to update"),
+  secretId: IdSchema.describe("Secret ID (UUID) to update"),
   name: z.string().min(1).optional().describe("Updated secret name"),
   value: z.string().min(1).optional().describe("Updated secret value"),
   description: z.string().optional().describe("Updated description"),
 });
 
 export const SecretDeleteInputSchema = z.object({
-  secretId: IdSchema.describe("Secret ID to delete"),
+  secretId: IdSchema.describe("Secret ID (UUID) to delete"),
 });
 
 // =============================================================================
@@ -127,37 +168,37 @@ export const SecretDeleteInputSchema = z.object({
 // =============================================================================
 
 export const UseCaseDiscoveryMemoryGetInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to get use case discovery memory for"),
+  projectId: IdSchema.describe("Project ID (UUID) to get use case discovery memory for"),
 });
 
 export const UseCaseCandidatesApproveInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
   approvedCandidateIds: z.array(IdSchema).min(1).describe("IDs of candidates to approve/graduate"),
 });
 
 export const UseCaseListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list use cases for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list use cases for"),
 }).merge(PaginationInputSchema);
 
 export const UseCaseGetInputSchema = z.object({
-  useCaseId: IdSchema.describe("Use case ID to retrieve"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to retrieve"),
 });
 
 export const UseCasePromptPreviewInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to generate use case for"),
+  projectId: IdSchema.describe("Project ID (UUID) to generate use case for"),
   instruction: z.string().min(1).describe("Natural language instruction describing the use case (e.g., 'As a logged-in user, I can add items to cart')"),
 });
 
 export const UseCaseCreateFromPromptsInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to create use cases for"),
+  projectId: IdSchema.describe("Project ID (UUID) to create use cases for"),
   prompts: z.array(z.object({
     instruction: z.string().min(1).describe("Natural language instruction describing the use case"),
   })).min(1).describe("Array of prompts to generate use cases from"),
 });
 
 export const UseCaseUpdateFromPromptInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID to update"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to update"),
   instruction: z.string().min(1).describe("Natural language instruction to regenerate the use case from"),
 });
 
@@ -166,26 +207,26 @@ export const UseCaseUpdateFromPromptInputSchema = z.object({
 // =============================================================================
 
 export const TestCaseListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list test cases for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list test cases for"),
 }).merge(PaginationInputSchema);
 
 export const TestCaseGetInputSchema = z.object({
-  testCaseId: IdSchema.describe("Test case ID to retrieve"),
+  testCaseId: IdSchema.describe("Test case ID (UUID) to retrieve"),
 });
 
 export const TestCaseListByUseCaseInputSchema = z.object({
-  useCaseId: IdSchema.describe("Use case ID to list test cases for"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to list test cases for"),
 });
 
 export const TestCaseGenerateFromPromptInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID to generate test cases for"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to generate test cases for"),
   instruction: z.string().min(1).describe("Natural language instruction describing the test cases to generate"),
 });
 
 export const TestCaseCreateInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID to associate the test case with"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to associate the test case with"),
   title: z.string().min(1).describe("Test case title"),
   description: z.string().min(1).describe("Detailed description of what the test case validates"),
   goal: z.string().min(1).describe("Concise, measurable goal of the test"),
@@ -204,16 +245,16 @@ export const TestCaseCreateInputSchema = z.object({
 // =============================================================================
 
 export const TestScriptListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list test scripts for"),
-  testCaseId: IdSchema.optional().describe("Optional test case ID to filter scripts by"),
+  projectId: IdSchema.describe("Project ID (UUID) to list test scripts for"),
+  testCaseId: IdSchema.optional().describe("Optional test case ID (UUID) to filter scripts by"),
 }).merge(PaginationInputSchema);
 
 export const TestScriptGetInputSchema = z.object({
-  testScriptId: IdSchema.describe("Test script ID to retrieve"),
+  testScriptId: IdSchema.describe("Test script ID (UUID) to retrieve"),
 });
 
 export const TestScriptListPaginatedInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to list test scripts for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list test scripts for"),
 }).merge(PaginationInputSchema);
 
 // =============================================================================
@@ -221,7 +262,7 @@ export const TestScriptListPaginatedInputSchema = z.object({
 // =============================================================================
 
 export const ActionScriptGetInputSchema = z.object({
-  actionScriptId: IdSchema.describe("Action script ID to retrieve"),
+  actionScriptId: IdSchema.describe("Action script ID (UUID) to retrieve"),
 });
 
 // =============================================================================
@@ -229,7 +270,7 @@ export const ActionScriptGetInputSchema = z.object({
 // =============================================================================
 
 export const WorkflowStartWebsiteScanInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to scan"),
+  projectId: IdSchema.describe("Project ID (UUID) to scan"),
   url: z.string().url().describe("Website URL to scan"),
   description: z.string().min(1).describe("Description of what to scan/discover"),
   archiveUnapproved: z.boolean().optional().describe("Whether to archive unapproved candidates before scanning"),
@@ -237,16 +278,16 @@ export const WorkflowStartWebsiteScanInputSchema = z.object({
 });
 
 export const WorkflowListRuntimesInputSchema = z.object({
-  projectId: IdSchema.optional().describe("Filter by project ID"),
+  projectId: IdSchema.optional().describe("Filter by project ID (UUID)"),
 });
 
 export const WorkflowGetLatestRunInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("Workflow runtime ID"),
+  workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID)"),
 });
 
 export const WorkflowStartTestCaseDetectionInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID to detect test cases for"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID) to detect test cases for"),
   name: z.string().min(1).describe("Workflow name"),
   description: z.string().min(1).describe("Workflow description"),
   url: z.string().url().describe("Target website URL"),
@@ -254,9 +295,9 @@ export const WorkflowStartTestCaseDetectionInputSchema = z.object({
 });
 
 export const WorkflowStartTestScriptGenerationInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID"),
-  testCaseId: IdSchema.describe("Test case ID"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID)"),
+  testCaseId: IdSchema.describe("Test case ID (UUID)"),
   name: z.string().min(1).describe("Workflow name"),
   url: z.string().url().describe("Target website URL"),
   goal: z.string().min(1).describe("Test goal"),
@@ -267,40 +308,40 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
 });
 
 export const WorkflowGetLatestScriptGenByTestCaseInputSchema = z.object({
-  testCaseId: IdSchema.describe("Test case ID"),
+  testCaseId: IdSchema.describe("Test case ID (UUID)"),
 });
 
 export const WorkflowStartTestScriptReplayInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
-  useCaseId: IdSchema.describe("Use case ID"),
-  testCaseId: IdSchema.describe("Test case ID"),
-  testScriptId: IdSchema.describe("Test script ID to replay"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Use case ID (UUID)"),
+  testCaseId: IdSchema.describe("Test case ID (UUID)"),
+  testScriptId: IdSchema.describe("Test script ID (UUID) to replay"),
   name: z.string().min(1).describe("Workflow name"),
   workflowParams: WorkflowParamsSchema,
 });
 
 export const WorkflowStartTestScriptReplayBulkInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
   name: z.string().min(1).describe("Workflow name"),
   intervalSec: z.number().int().describe("Interval in seconds (-1 for one-time / on-demand)"),
-  useCaseId: IdSchema.optional().describe("Optional: only replay test cases under this use case"),
+  useCaseId: IdSchema.optional().describe("Optional: only replay test cases under this use case (UUID)"),
   namePrefix: z.string().optional().describe("Optional: prefix for generated workflow names"),
   limit: z.number().int().optional().describe("Optional: limit number of test cases to replay"),
-  testCaseIds: z.array(IdSchema).optional().describe("Optional: targeted test cases to replay"),
+  testCaseIds: z.array(IdSchema).optional().describe("Optional: targeted test case UUIDs to replay"),
   repeatPerTestCase: z.number().int().optional().describe("Optional: repeat count per test case"),
   workflowParams: WorkflowParamsSchema,
 });
 
 export const WorkflowGetReplayBulkBatchSummaryInputSchema = z.object({
-  runBatchId: IdSchema.describe("Run batch ID"),
+  runBatchId: RunBatchIdSchema.describe("Run batch ID (UUID) from bulk replay workflow"),
 });
 
 export const WorkflowCancelRunInputSchema = z.object({
-  workflowRunId: IdSchema.describe("Workflow run ID to cancel"),
+  workflowRunId: IdSchema.describe("Workflow run ID (UUID) to cancel"),
 });
 
 export const WorkflowCancelRuntimeInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("Workflow runtime ID to cancel"),
+  workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID) to cancel"),
 });
 
 // =============================================================================
@@ -308,31 +349,31 @@ export const WorkflowCancelRuntimeInputSchema = z.object({
 // =============================================================================
 
 export const ProjectTestResultsSummaryInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to get test results summary for"),
+  projectId: IdSchema.describe("Project ID (UUID) to get test results summary for"),
 });
 
 export const ProjectTestScriptsSummaryInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to get test scripts summary for"),
+  projectId: IdSchema.describe("Project ID (UUID) to get test scripts summary for"),
 });
 
 export const ProjectTestRunsSummaryInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to get test runs summary for"),
+  projectId: IdSchema.describe("Project ID (UUID) to get test runs summary for"),
 });
 
 export const ReportStatsSummaryInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to get report stats for"),
+  projectId: IdSchema.describe("Project ID (UUID) to get report stats for"),
 });
 
 export const ReportCostQueryInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
   startDateKey: z.string().optional().describe("Start date key (YYYYMMDD)"),
   endDateKey: z.string().optional().describe("End date key (YYYYMMDD)"),
-  filterType: z.string().optional().describe("Filter type for cost breakdown"),
-  filterIds: z.array(z.unknown()).optional().describe("Filter IDs"),
+  filterType: TokenUsageFilterTypeSchema.optional().describe("Aggregation dimension for cost breakdown"),
+  filterIds: z.array(IdSchema).optional().describe("Entity UUIDs matching filterType (project / use case / test case / test script / action script)"),
 });
 
 export const ReportPreferencesUpsertInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID"),
+  projectId: IdSchema.describe("Project ID (UUID)"),
   channels: z.array(z.unknown()).describe("Delivery channels to enable"),
   emails: z.array(z.unknown()).optional().describe("Email addresses for delivery"),
   phones: z.array(z.unknown()).optional().describe("Phone numbers for SMS delivery"),
@@ -341,7 +382,7 @@ export const ReportPreferencesUpsertInputSchema = z.object({
 });
 
 export const ReportFinalGenerateInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID to generate report for"),
+  projectId: IdSchema.describe("Project ID (UUID) to generate report for"),
   exportFormat: z.enum(["pdf", "html", "markdown"]).describe("Export format for the report"),
 });
 
@@ -350,7 +391,7 @@ export const ReportFinalGenerateInputSchema = z.object({
 // =============================================================================
 
 export const WalletTopUpInputSchema = z.object({
-  packageId: IdSchema.describe("Token package ID to purchase"),
+  packageId: TokenPackageIdSchema.describe("Token package ID to purchase"),
   checkoutSuccessCallback: z.string().url().describe("URL to redirect to when checkout succeeds"),
   checkoutCancelCallback: z.string().url().describe("URL to redirect to when checkout is canceled"),
 });
@@ -361,7 +402,7 @@ export const WalletPaymentMethodCreateSetupSessionInputSchema = z.object({
 });
 
 export const WalletAutoTopUpSetPaymentMethodInputSchema = z.object({
-  paymentMethodId: IdSchema.describe("Saved Stripe payment method ID (e.g., pm_xxx)"),
+  paymentMethodId: StripePaymentMethodIdSchema.describe("Saved Stripe payment method ID"),
 });
 
 export const WalletPaymentMethodListInputSchema = z.object({});
@@ -369,7 +410,7 @@ export const WalletPaymentMethodListInputSchema = z.object({});
 export const WalletAutoTopUpUpdateInputSchema = z.object({
   enabled: z.boolean().describe("Whether auto top-up is enabled"),
   topUpTriggerTokenThreshold: z.number().int().min(0).describe("Token balance threshold to trigger auto top-up"),
-  packageId: IdSchema.describe("Token package ID to purchase when auto top-up triggers"),
+  packageId: TokenPackageIdSchema.describe("Token package ID to purchase when auto top-up triggers"),
 });
 
 // =============================================================================
@@ -377,13 +418,13 @@ export const WalletAutoTopUpUpdateInputSchema = z.object({
 // =============================================================================
 
 export const RecommendScheduleInputSchema = z.object({
-  projectId: IdSchema.optional().describe("Project ID for context"),
+  projectId: IdSchema.optional().describe("Project ID (UUID) for context"),
   testFrequency: z.enum(["daily", "weekly", "onDemand"]).optional().describe("Desired test frequency"),
   timezone: z.string().optional().describe("Timezone for scheduling"),
 });
 
 export const RecommendCicdSetupInputSchema = z.object({
-  projectId: IdSchema.optional().describe("Project ID for context"),
+  projectId: IdSchema.optional().describe("Project ID (UUID) for context"),
   repositoryProvider: z.enum(["github", "azureDevOps", "gitlab", "other"]).optional().describe("Git repository provider"),
   cadence: z.enum(["onPullRequest", "nightly", "onDemand"]).optional().describe("CI/CD trigger cadence"),
 });
@@ -400,11 +441,11 @@ export const ApiKeyCreateInputSchema = z.object({
 export const ApiKeyListInputSchema = z.object({});
 
 export const ApiKeyGetInputSchema = z.object({
-  apiKeyId: IdSchema.describe("ID of the API key to retrieve"),
+  apiKeyId: ApiKeyRecordIdSchema.describe("ID of the API key record to retrieve"),
 });
 
 export const ApiKeyRevokeInputSchema = z.object({
-  apiKeyId: IdSchema.describe("ID of the API key to revoke"),
+  apiKeyId: ApiKeyRecordIdSchema.describe("ID of the API key record to revoke"),
 });
 
 // =============================================================================

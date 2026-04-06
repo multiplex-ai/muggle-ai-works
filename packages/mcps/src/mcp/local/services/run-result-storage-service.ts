@@ -9,123 +9,31 @@
  * All entity management (projects, use cases, test cases) happens in the cloud.
  */
 
+import { randomUUID } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { getLogger } from "../../../shared/logger.js";
 
+import type {
+  ILocalExecutionContext,
+  IRunResult,
+  IRunResultStorageTestScript,
+  RunResultType,
+} from "../types/run-result-storage-types.js";
+
 import { getStorageService } from "./storage-service.js";
 
 const logger = getLogger();
 
-// ========================================
-// Types
-// ========================================
-
-/**
- * Run result status.
- */
-export type RunResultStatus = "pending" | "running" | "passed" | "failed" | "cancelled";
-
-/**
- * Run result type.
- */
-export type RunResultType = "generation" | "replay";
-
-/**
- * Local execution context captured during local run execution.
- */
-export interface ILocalExecutionContext {
-  /** URL executed locally (typically localhost). */
-  originalUrl: string;
-  /** Cloud production URL associated with the test case/script. */
-  productionUrl: string;
-  /** User ID who ran the local execution. */
-  runByUserId: string;
-  /** Machine hostname for the local execution environment. */
-  machineHostname?: string;
-  /** OS information for local execution environment. */
-  osInfo?: string;
-  /** Electron app version used for local execution. */
-  electronAppVersion?: string;
-  /** MCP server version used for local execution. */
-  mcpServerVersion?: string;
-  /** Local execution completion timestamp (epoch ms). */
-  localExecutionCompletedAt?: number;
-}
-
-/**
- * Run result record.
- */
-export interface IRunResult {
-  /** Unique run ID. */
-  id: string;
-  /** Run type. */
-  runType: RunResultType;
-  /** Run status. */
-  status: RunResultStatus;
-  /** Cloud test case ID. */
-  cloudTestCaseId: string;
-  /** Cloud project ID. */
-  projectId: string;
-  /** Cloud use case ID. */
-  useCaseId: string;
-  /** Local URL used for testing. */
-  localUrl: string;
-  /** Cloud production URL for the same test. */
-  productionUrl: string;
-  /** Local execution context details. */
-  localExecutionContext: ILocalExecutionContext;
-  /** Associated test script ID (if generated). */
-  testScriptId?: string;
-  /** Path to run artifacts directory (action script, screenshots, results). */
-  artifactsDir?: string;
-  /** Execution time in ms. */
-  executionTimeMs?: number;
-  /** Error message if failed. */
-  errorMessage?: string;
-  /** Created timestamp. */
-  createdAt: string;
-  /** Updated timestamp. */
-  updatedAt: string;
-  /** Studio returned result (populated by electron-app after execution). */
-  studioReturnedResult?: unknown;
-}
-
-/**
- * Test script status.
- */
-export type TestScriptStatus = "pending" | "generated" | "published" | "failed";
-
-/**
- * Locally generated test script.
- */
-export interface ILocalTestScript {
-  /** Unique script ID. */
-  id: string;
-  /** Script name. */
-  name: string;
-  /** Target URL. */
-  url: string;
-  /** Script status. */
-  status: TestScriptStatus;
-  /** Cloud test case ID. */
-  cloudTestCaseId: string;
-  /** Test goal. */
-  goal?: string;
-  /** Action script steps. */
-  actionScript?: unknown[];
-  /** Cloud action script ID (if published). */
-  cloudActionScriptId?: string;
-  /** Created timestamp. */
-  createdAt: string;
-  /** Updated timestamp. */
-  updatedAt: string;
-}
-
-// ========================================
-// Service Implementation
-// ========================================
+export type {
+  ILocalExecutionContext,
+  IRunResult,
+  IRunResultStorageTestScript,
+  RunResultStatus,
+  RunResultType,
+  TestScriptStatus,
+} from "../types/run-result-storage-types.js";
 
 /**
  * Run Result Storage Service class.
@@ -225,7 +133,7 @@ export class RunResultStorageService {
     localExecutionContext: ILocalExecutionContext;
   }): IRunResult {
     const now = new Date().toISOString();
-    const id = `run_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const id = randomUUID();
 
     const result: IRunResult = {
       id: id,
@@ -271,15 +179,15 @@ export class RunResultStorageService {
   /**
    * List all test scripts.
    */
-  listTestScripts(): ILocalTestScript[] {
+  listTestScripts(): IRunResultStorageTestScript[] {
     try {
       const files = fs.readdirSync(this.testScriptsDir).filter((f) => f.endsWith(".json"));
-      const scripts: ILocalTestScript[] = [];
+      const scripts: IRunResultStorageTestScript[] = [];
 
       for (const file of files) {
         try {
           const content = fs.readFileSync(path.join(this.testScriptsDir, file), "utf-8");
-          scripts.push(JSON.parse(content) as ILocalTestScript);
+          scripts.push(JSON.parse(content) as IRunResultStorageTestScript);
         } catch {
           logger.warn("Failed to read test script file", { file: file });
         }
@@ -295,7 +203,7 @@ export class RunResultStorageService {
   /**
    * Get a test script by ID.
    */
-  getTestScript(testScriptId: string): ILocalTestScript | undefined {
+  getTestScript(testScriptId: string): IRunResultStorageTestScript | undefined {
     const filePath = path.join(this.testScriptsDir, `${testScriptId}.json`);
     if (!fs.existsSync(filePath)) {
       return undefined;
@@ -303,7 +211,7 @@ export class RunResultStorageService {
 
     try {
       const content = fs.readFileSync(filePath, "utf-8");
-      return JSON.parse(content) as ILocalTestScript;
+      return JSON.parse(content) as IRunResultStorageTestScript;
     } catch {
       return undefined;
     }
@@ -312,7 +220,7 @@ export class RunResultStorageService {
   /**
    * Save a test script.
    */
-  saveTestScript(script: ILocalTestScript): void {
+  saveTestScript(script: IRunResultStorageTestScript): void {
     const filePath = path.join(this.testScriptsDir, `${script.id}.json`);
     fs.writeFileSync(filePath, JSON.stringify(script, null, 2));
   }
@@ -325,11 +233,11 @@ export class RunResultStorageService {
     url: string;
     cloudTestCaseId: string;
     goal?: string;
-  }): ILocalTestScript {
+  }): IRunResultStorageTestScript {
     const now = new Date().toISOString();
-    const id = `ts_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const id = randomUUID();
 
-    const script: ILocalTestScript = {
+    const script: IRunResultStorageTestScript = {
       id: id,
       name: params.name,
       url: params.url,
@@ -347,13 +255,16 @@ export class RunResultStorageService {
   /**
    * Update a test script.
    */
-  updateTestScript(testScriptId: string, updates: Partial<ILocalTestScript>): ILocalTestScript | undefined {
+  updateTestScript(
+    testScriptId: string,
+    updates: Partial<IRunResultStorageTestScript>,
+  ): IRunResultStorageTestScript | undefined {
     const script = this.getTestScript(testScriptId);
     if (!script) {
       return undefined;
     }
 
-    const updated: ILocalTestScript = {
+    const updated: IRunResultStorageTestScript = {
       ...script,
       ...updates,
       updatedAt: new Date().toISOString(),

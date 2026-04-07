@@ -48,62 +48,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE22: true
 
 jobs:
-  # Fast OIDC auth check — runs in parallel (no deps) for quick iteration.
-  # Remove this job once publishing works reliably.
-  auth-check:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    environment: npm-publish
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Upgrade to npm 11 (required for OIDC)
-        run: |
-          echo "=== npm before upgrade ==="
-          npm --version
-          npm install -g npm@11.5.1
-          echo "=== npm after upgrade ==="
-          npm --version
-          if ! npm --version | grep -q "^11\."; then
-            echo "ERROR: npm 11.x required for OIDC publishing"
-            exit 1
-          fi
-
-      - name: Debug .npmrc and npm config
-        run: |
-          echo "=== NPM_CONFIG_USERCONFIG ==="
-          echo "$NPM_CONFIG_USERCONFIG"
-          echo "=== .npmrc contents ==="
-          cat "$NPM_CONFIG_USERCONFIG" || echo "(file not found)"
-          echo "=== npm config list ==="
-          npm config list
-          echo "=== npm config list -l (auth-related) ==="
-          npm config list -l 2>/dev/null | grep -i auth || true
-
-      - name: Remove _authToken line (let npm use OIDC)
-        run: |
-          if [ -f "$NPM_CONFIG_USERCONFIG" ]; then
-            sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
-            echo "=== .npmrc after removing _authToken ==="
-            cat "$NPM_CONFIG_USERCONFIG"
-          fi
-
-      - name: Test npm whoami (OIDC)
-        run: npm whoami --registry https://registry.npmjs.org || echo "whoami failed (expected if OIDC only works during publish)"
-
-      - name: Dry-run publish (OIDC test)
-        run: |
-          mkdir -p /tmp/dummy-pkg && cd /tmp/dummy-pkg
-          echo '{"name":"@muggleai/works-oidc-test","version":"0.0.0-oidc-check","private":true}' > package.json
-          npm publish --dry-run --access public --provenance 2>&1 || true
-
   verify:
     runs-on: ubuntu-latest
     steps:
@@ -294,16 +238,8 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      # REQUIRED: keep this step. Bundled npm is often 10.x; trusted publishing
-      # needs npm CLI >= 11.5.1.
-      - name: Upgrade to npm 11 for trusted publishing
-        run: |
-          npm install -g npm@11.5.1
-          npm --version
-          if ! npm --version | grep -q "^11\."; then
-            echo "ERROR: npm 11.x required for OIDC publishing"
-            exit 1
-          fi
+      - name: Upgrade to npm 11 (required for OIDC)
+        run: npm install -g npm@11.5.1
 
       - name: Download package artifact
         uses: actions/download-artifact@v8
@@ -325,7 +261,6 @@ jobs:
   notify-on-failure:
     runs-on: ubuntu-latest
     needs:
-      - auth-check
       - verify
       - package-audit
       - smoke-install

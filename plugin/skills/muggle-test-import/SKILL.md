@@ -160,7 +160,7 @@ A **project** is where all your imported use cases, test cases, and future test 
 
 ## Step 6 — Import
 
-Import in two passes. Show progress to the user as you go.
+Import in two passes using bulk-preview. Show progress to the user as you go.
 
 ### Path A — Native PRD upload (for document files)
 
@@ -214,25 +214,98 @@ prompts: [
 After the call returns, collect the use case IDs from the response.
 If IDs are not in the response, call `muggle-remote-use-case-list` and match by name.
 
-### Pass 2 — Create test cases
+> **Note:** Use case creation still uses the sequential `create-from-prompts` MCP tool because no direct-create MCP tool exists for use cases yet. Only Pass 2 (test cases) uses the new bulk-preview endpoint for ~50% LLM cost savings. When a direct-create tool is added for use cases, Pass 1 can be migrated to the same bulk-preview flow.
 
-For each use case, call `muggle-remote-test-case-create` for every test case under it:
+### Pass 2 — Generate and create test cases
+
+For each use case, submit its test cases as a single bulk-preview job:
+
+```
+POST /projects/<projectId>/use-cases/<useCaseId>/test-cases/prompts/bulk-preview
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "prompts": [
+    {
+      "clientRef": "tc-0",
+      "instruction": "<title> | goal: <goal> | expectedResult: <expectedResult> | precondition: <precondition> | priority: <HIGH|MEDIUM|LOW> | url: <url>"
+    },
+    ...
+  ]
+}
+```
+
+Limits to enforce before submitting:
+- Maximum 100 prompts per request. If you have more, split into batches of 100 and submit sequentially.
+- Maximum 4000 characters per instruction.
+- Maximum 3 in-flight jobs per project (HTTP 429 if exceeded).
+
+**Handle submission errors:**
+
+| HTTP status | What happened | What to do |
+|---|---|---|
+| `202 Accepted` | Job queued successfully | Proceed to polling |
+| `404 Not Found` | `BULK_PREVIEW_ENABLED` flag is off on the server | Tell the user: "The bulk-preview feature is not enabled on this server. Ask an admin to set `BULK_PREVIEW_ENABLED=true`." Stop. |
+| `409 Conflict` with `error: "QUOTA_EXCEEDED_PREFLIGHT"` | Batch is too large for the account's quota | Show: "Your quota allows at most `<maxPromptsAllowed>` prompts in this batch (current headroom: `<headroom>`). Please reduce the number of test cases and try again." Stop. |
+| `429 Too Many Requests` | Already 3 in-flight jobs for this project | Tell the user: "There are already 3 preview jobs in progress for this project. Wait for them to finish, then retry." Stop. |
+| `413 Payload Too Large` | Body exceeds 1 MB | Tell the user: "The request payload is too large. Try splitting into smaller batches." Stop. |
+
+**Poll for completion** (`GET /projects/<projectId>/bulk-preview-jobs/<jobId>`):
+
+Poll every 15 seconds. Show progress:
+```
+Generating test case previews for "User Authentication"... (status: running, elapsed: 30s)
+```
+
+`status` values and what to do:
+
+| Status | Terminal? | Action |
+|---|---|---|
+| `queued` | No | Keep polling |
+| `submitted` | No | Keep polling |
+| `running` | No | Keep polling |
+| `succeeded` | Yes | All prompts processed — proceed |
+| `partial` | Yes | Some prompts succeeded — show summary, ask user whether to proceed |
+| `failed` | Yes | Job failed entirely — show `error.message` and stop |
+| `cancelled` | Yes | Job was cancelled — stop |
+| `expired` | Yes | Job expired before completing — tell user to retry |
+
+**If status is `partial`**, show:
+```
+Preview completed with partial results: <N> of <promptCount> test cases generated successfully.
+
+Failed items:
+  - [tc-1] "Checkout with expired card": <error message>
+
+Proceed with the <N> successful items, or cancel to review?
+```
+Use `AskQuestion` with options "Proceed with successful items" / "Cancel import". Only continue if the user chooses to proceed.
+
+**Process results** (at `succeeded` or `partial` after user confirms):
+
+Each successful result has this shape:
+```jsonc
+{ "clientRef": "tc-0", "index": 0, "status": "success", "testCases": [ /* ITestCaseCreationRequest[] — fan-out 1–5 */ ] }
+```
+
+Note: one input prompt may produce 1–5 test case items (fan-out). For each item in `result.testCases`, call `muggle-remote-test-case-create`:
 
 ```
 projectId: <project ID>
 useCaseId: <use case ID>
-title:          "Login with valid credentials"
-description:    "Navigate to the login page, enter a valid email and password, submit the form"
-goal:           "Verify that a registered user can log in successfully"
-expectedResult: "User is redirected to the dashboard and sees their name in the header"
-precondition:   "A user account exists and is not locked"
-priority:       "HIGH"
-url:            "https://app.example.com/login"
+title:          <from testCase.title>
+description:    <from testCase.description>
+goal:           <from testCase.goal>
+expectedResult: <from testCase.expectedResult>
+precondition:   <from testCase.precondition>
+priority:       <from testCase.priority>
+url:            <from testCase.url>
 ```
 
 Print progress: `Creating test cases for "User Authentication"... (1/3)`
 
-It is safe to create test cases for different use cases in parallel — do so when you have many to create.
+It is safe to create test cases for different use cases in parallel — do so when you have many to create. However, submit bulk-preview jobs for use cases **sequentially** to avoid exceeding the 3 in-flight job cap.
 
 ---
 
@@ -243,6 +316,7 @@ When all imports are done, print a clean summary. Include:
 - Total use cases and test cases created
 - A line per use case with its test case count and a link to view it
 - A link to the project overview
+- If any items failed during preview (partial status), list them so the user can retry
 
 Construct view URLs using the Muggle dashboard URL pattern:
 - Project test cases: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/testcases`

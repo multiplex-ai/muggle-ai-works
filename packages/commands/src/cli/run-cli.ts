@@ -6,6 +6,7 @@ import { Command } from "commander";
 
 import { getLogger } from "@muggleai/mcp";
 import {
+  buildPrSectionCommand,
   cleanupCommand,
   doctorCommand,
   helpCommand,
@@ -113,6 +114,12 @@ function createProgram (): Command {
     .command("status")
     .description("Show authentication status")
     .action(statusCommand);
+
+  program
+    .command("build-pr-section")
+    .description("Render a muggle-do PR body evidence block from an e2e report on stdin")
+    .option("--max-body-bytes <n>", "Max UTF-8 byte budget for the PR body (default 60000)")
+    .action(buildPrSectionCommand);
 
   program.action(() => {
     helpCommand();

@@ -1,0 +1,22 @@
+[
+  { "query": "ok so we just imported about 40 test cases from the PRD into our muggle project and most of them are sitting in DRAFT with no scripts attached — can you kick off script generation for all the ones that don't have an active script yet? project is 'Acme Checkout QA'", "should_trigger": true },
+  { "query": "bulk regen missing test scripts in my muggle project", "should_trigger": true },
+  { "query": "I looked at the test cases page in muggle and like 30 out of 80 are still showing as DRAFT. is there a way to batch-regenerate all the ones without an active script instead of clicking each one in the UI?", "should_trigger": true },
+  { "query": "can you fill in the gaps in my muggle project — i want every test case that doesn't have a working script to have one. the project is called 'internal-admin-e2e'", "should_trigger": true },
+  { "query": "all my muggle test cases without active scripts need a script now please", "should_trigger": true },
+  { "query": "regenerate every test case in 'tanka staging' that doesn't currently have an active test script attached. default filter is fine, just don't touch the ACTIVE ones.", "should_trigger": true },
+  { "query": "I have a ton of generation_pending and draft test cases in muggle — they've been stuck for days. kick off generation for all of them at once.", "should_trigger": true },
+  { "query": "rebuild the missing muggle scripts for my project, the inactive test cases need to be regenerated in one batch", "should_trigger": true },
+  { "query": "kick off muggle script generation for every test case that's still in DRAFT state — i don't want to go through them one by one in the dashboard", "should_trigger": true },
+  { "query": "bulk fill the empty test scripts across my whole project so they all become active", "should_trigger": true },
+  { "query": "I just pushed a new commit on branch users/stan/checkout-refactor — can you run the muggle e2e acceptance tests against my localhost dev server (it's on port 3000) and make sure nothing is broken before I open the PR?", "should_trigger": false },
+  { "query": "write me a playwright test for the checkout flow that covers the happy path — user adds item, enters address, pays with test card", "should_trigger": false },
+  { "query": "can you run a single muggle test against my localhost for the signup flow? I want to watch it in the visible Electron window, the dev server is on http://localhost:5173", "should_trigger": false },
+  { "query": "my muggle-ai-ui CI is failing — the test script for 'login with valid creds' keeps timing out. can you look at the action script, figure out why, and fix it?", "should_trigger": false },
+  { "query": "I have a cypress test suite in cypress/integration/** and a few markdown PRDs in docs/requirements. import them into muggle as use cases and test cases under my project 'Acme Checkout QA'", "should_trigger": false },
+  { "query": "what muggle projects do I have right now? just list them for me with their URLs", "should_trigger": false },
+  { "query": "create a new muggle test case for 'apply expired coupon shows error banner' under the Checkout Flow use case in project 'Acme Checkout QA'", "should_trigger": false },
+  { "query": "regen my package-lock.json and reinstall node_modules — something is off with the muggle-ai-works workspace after the dependabot merge", "should_trigger": false },
+  { "query": "check the status of my current muggle test script generation — i kicked off about 15 runs earlier and i want to know which ones finished and which are still running", "should_trigger": false },
+  { "query": "generate a brand new use case and some test cases from scratch for my muggle project using a plain-english description of our new onboarding flow", "should_trigger": false }
+]

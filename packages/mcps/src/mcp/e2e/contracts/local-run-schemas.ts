@@ -14,7 +14,7 @@ export const LocalExecutionContextInputSchema = z.object({
   electronAppVersion: z.string().optional().describe("Electron app version used for local run"),
   mcpServerVersion: z.string().optional().describe("MCP server version used for local run"),
   localExecutionCompletedAt: z.number().int().positive().describe("Epoch milliseconds when local run completed"),
-  uploadedAt: z.number().int().positive().optional().describe("Epoch milliseconds when uploaded to cloud"),
+  uploadedAt: z.number().int().positive().describe("Epoch milliseconds when uploaded to cloud"),
 });
 
 /**

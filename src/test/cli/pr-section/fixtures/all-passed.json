@@ -1,0 +1,42 @@
+{
+  "projectId": "5365f324-5c5f-4adf-b702-11f457b29b04",
+  "tests": [
+    {
+      "name": "Login flow",
+      "testCaseId": "tc-1",
+      "testScriptId": "ts-1",
+      "runId": "run-1",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-1",
+      "status": "passed",
+      "steps": [
+        { "stepIndex": 0, "action": "Navigate to /login", "screenshotUrl": "https://cdn.muggle.ai/run-1/0.png" },
+        { "stepIndex": 1, "action": "Enter username", "screenshotUrl": "https://cdn.muggle.ai/run-1/1.png" },
+        { "stepIndex": 2, "action": "Click Sign In", "screenshotUrl": "https://cdn.muggle.ai/run-1/2.png" }
+      ]
+    },
+    {
+      "name": "Dashboard renders",
+      "testCaseId": "tc-2",
+      "testScriptId": "ts-2",
+      "runId": "run-2",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-2",
+      "status": "passed",
+      "steps": [
+        { "stepIndex": 0, "action": "Open /dashboard", "screenshotUrl": "https://cdn.muggle.ai/run-2/0.png" },
+        { "stepIndex": 1, "action": "Verify charts visible", "screenshotUrl": "https://cdn.muggle.ai/run-2/1.png" }
+      ]
+    },
+    {
+      "name": "Logout flow",
+      "testCaseId": "tc-3",
+      "testScriptId": "ts-3",
+      "runId": "run-3",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-3",
+      "status": "passed",
+      "steps": [
+        { "stepIndex": 0, "action": "Click user menu", "screenshotUrl": "https://cdn.muggle.ai/run-3/0.png" },
+        { "stepIndex": 1, "action": "Click Logout", "screenshotUrl": "https://cdn.muggle.ai/run-3/1.png" }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@
  * through this package surface to establish package boundaries first.
  */
 
+export { buildPrSectionCommand } from "../../../../src/cli/build-pr-section.js";
 export { cleanupCommand, versionsCommand } from "../../../../src/cli/cleanup.js";
 export { doctorCommand } from "../../../../src/cli/doctor.js";
 export { helpCommand } from "../../../../src/cli/help.js";

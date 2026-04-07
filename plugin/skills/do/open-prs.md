@@ -27,90 +27,96 @@ For each repo with changes:
    - `## Goal` — the requirements goal
    - `## Acceptance Criteria` — bulleted list (omit section if empty)
    - `## Changes` — summary of what changed in this repo
-   - `## E2E Acceptance Results` — summary table (see format below)
+   - E2E acceptance evidence block from `muggle build-pr-section` (see "Rendering the E2E acceptance results block" below)
 4. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
 5. **Capture the PR URL** and extract the PR number.
-6. **Post E2E acceptance evidence comment** with screenshots (see format below).
+6. **Post the overflow comment only if `muggle build-pr-section` emitted one** (see "Rendering the E2E acceptance results block" below). In the common case, no comment is posted.
 
-## E2E acceptance results section format (PR body)
+## Rendering the E2E acceptance results block
 
-```markdown
-## E2E Acceptance Results
+Do **not** hand-write the `## E2E Acceptance Results` markdown. Use the `muggle build-pr-section` CLI, which renders a deterministic block and decides whether the evidence fits in the PR description or needs to spill into an overflow comment.
 
-**X passed / Y failed**
+### Step A: Build the report JSON
 
-| Test Case | Status | Details |
-|-----------|--------|---------|
-| [Name]({viewUrl}) | ✅ PASSED | — |
-| [Name]({viewUrl}) | ❌ FAILED | {error} |
+Assemble the e2e-acceptance report you collected in `e2e-acceptance.md` into a JSON object with this shape:
+
+```json
+{
+  "projectId": "<project UUID>",
+  "tests": [
+    {
+      "name": "<test case name>",
+      "testCaseId": "<UUID>",
+      "testScriptId": "<UUID or omitted>",
+      "runId": "<UUID>",
+      "viewUrl": "<muggle-ai.com run URL>",
+      "status": "passed",
+      "steps": [
+        { "stepIndex": 0, "action": "<action>", "screenshotUrl": "<URL>" }
+      ]
+    },
+    {
+      "name": "<test case name>",
+      "testCaseId": "<UUID>",
+      "runId": "<UUID>",
+      "viewUrl": "<muggle-ai.com run URL>",
+      "status": "failed",
+      "failureStepIndex": 2,
+      "error": "<error message>",
+      "artifactsDir": "<path, optional>",
+      "steps": [
+        { "stepIndex": 0, "action": "<action>", "screenshotUrl": "<URL>" }
+      ]
+    }
+  ]
+}
 ```
 
-## E2E acceptance evidence comment format
+### Step B: Render the evidence block
 
-After creating the PR, post a comment with embedded screenshots:
+Pipe the JSON into `muggle build-pr-section`. It writes `{ "body": "...", "comment": "..." | null }` to stdout:
 
 ```bash
-gh pr comment <PR#> --body "$(cat <<'EOF'
-## 🧪 E2E acceptance evidence
-
-**X passed / Y failed**
-
-| Test Case | Status | Summary |
-|-----------|--------|---------|
-| [Login Flow]({viewUrl}) | ✅ PASSED | <a href="{lastStepScreenshotUrl}"><img src="{lastStepScreenshotUrl}" width="120"></a> |
-| [Checkout]({viewUrl}) | ❌ FAILED | <a href="{failureStepScreenshotUrl}"><img src="{failureStepScreenshotUrl}" width="120"></a> |
-
-<details>
-<summary>📸 <strong>Login Flow</strong> — 5 steps</summary>
-
-| # | Action | Screenshot |
-|---|--------|------------|
-| 1 | Navigate to `/login` | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-| 2 | Enter username | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-| 3 | Click "Sign In" | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-
-</details>
-
-<details>
-<summary>📸 <strong>Checkout</strong> — 4 steps (failed at step 3)</summary>
-
-| # | Action | Screenshot |
-|---|--------|------------|
-| 1 | Add item to cart | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-| 2 | View cart | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-| 3 ⚠️ | Click confirm — **Element not found** | <a href="{screenshotUrl}"><img src="{screenshotUrl}" width="200"></a> |
-
-</details>
-EOF
-)"
+echo "$REPORT_JSON" | muggle build-pr-section > /tmp/muggle-pr-section.json
 ```
 
-### Comment Building Rules
+The command exits nonzero on malformed input and writes a descriptive error to stderr — do not swallow that error, surface it to the user.
 
-1. **Summary table:**
-   - Show thumbnail (120px) of **last step** for passed tests
-   - Show thumbnail of **failure step** for failed tests
-   - Thumbnail links to full-size image
+### Step C: Build the PR body
 
-2. **Collapsible details per test case:**
-   - Show all steps with 200px thumbnails
-   - Mark failure step with ⚠️ and inline error message
-   - Include step count in summary line
+Build the PR body by concatenating, in order:
 
-3. **HTML for thumbnails:**
-   - Use `<a href="{url}"><img src="{url}" width="N"></a>` for clickable thumbnails
-   - 120px width in summary table, 200px in details
+- `## Goal` — the requirements goal
+- `## Acceptance Criteria` — bulleted list (omit section if empty)
+- `## Changes` — summary of what changed in this repo
+- The `body` field from the CLI output (already contains its own `## E2E Acceptance Results` header)
 
-4. **All tests get screenshots:**
-   - Passing tests show proof of success
-   - Failing tests highlight the failure point
+### Step D: Create the PR, then post the overflow comment only if present
+
+1. Create the PR with `gh pr create --title "..." --body "..." --head <branch>`.
+2. Capture the PR URL and extract the PR number.
+3. If the CLI output's `comment` field is `null`, **do not post a comment** — everything is already in the PR description.
+4. If the CLI output's `comment` field is a non-null string, post it as a follow-up comment:
+
+   ```bash
+   gh pr comment <PR#> --body "$(cat <<'EOF'
+   <comment field contents>
+   EOF
+   )"
+   ```
+
+### Notes on fit vs. overflow
+
+- **The common case is fit**: the full evidence (summary, per-test rows, collapsible failure details) lives in the PR description, no comment is posted.
+- **The overflow case** is triggered automatically when the full inline body would exceed the CLI's budget. In that case the PR description contains the summary, the per-test rows, and a pointer line; the full step-by-step failure details live in the follow-up comment.
+- You do not make the fit-vs-overflow decision — the CLI does. Never post the comment speculatively.
 
 ## Output
 
 **PRs Created:**
 - (repo name): (PR URL)
 
-**E2E acceptance evidence comments posted:**
+**E2E acceptance overflow comments posted:** (only include repos where an overflow comment was actually posted)
 - (repo name): comment posted to PR #(number)
 
 **Errors:** (any repos where PR creation or comment posting failed, with the error message)

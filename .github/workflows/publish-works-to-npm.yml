@@ -9,10 +9,11 @@ name: Publish Works to npm
 # - GitHub → Settings → Environments → `npm-publish`: confirm `NPM_TOKEN` (or
 #   OIDC-only setup) still applies; environment rules are per-repo, but any
 #   external docs or runbooks that reference the old workflow path need updating.
-# - Do not remove the publish job step that upgrades npm (see that job below).
+# - Do not remove the publish job step that activates npm 11.x (see that job below).
 #   Node 22 images ship npm 10.x; trusted publishing / OIDC needs npm >= 11.5.1.
-#   Without it, publish often fails with ENEEDAUTH when OIDC is required or tokens
-#   are disallowed. See: https://docs.npmjs.com/trusted-publishers
+#   Do not switch back to `npm install -g npm`—it can fail on ubuntu-latest + Node 22
+#   (MODULE_NOT_FOUND / promise-retry). Use Corepack to activate npm 11.5.1 instead.
+#   See: https://docs.npmjs.com/trusted-publishers
 # -----------------------------------------------------------------------------
 
 run-name: >-
@@ -238,14 +239,14 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      # REQUIRED: keep this step. npm on the runner is often 10.x; trusted
-      # publishing (OIDC) requires npm CLI >= 11.5.1 per npm docs. The CLI prefers
-      # OIDC over NODE_AUTH_TOKEN when both apply; a too-old npm breaks OIDC and
-      # you get ENEEDAUTH / publish failures—especially if the package disallows
-      # classic tokens. Do not delete to "simplify" or fix unrelated npm warnings;
-      # see reverted commit e9460c5 and npm trusted-publishers troubleshooting.
-      - name: Upgrade npm
-        run: npm install -g npm@latest
+      # REQUIRED: keep this step. Bundled npm is often 10.x; trusted publishing
+      # needs npm CLI >= 11.5.1. Use Corepack—`npm install -g npm` is unreliable on
+      # Node 22+ runners (see job failures on "Upgrade npm" with exit 1).
+      - name: Activate npm 11 for trusted publishing (Corepack)
+        run: |
+          corepack enable
+          corepack prepare npm@11.5.1 --activate
+          npm --version
 
       - name: Download package artifact
         uses: actions/download-artifact@v8

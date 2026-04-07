@@ -114,11 +114,11 @@ Found 3 use cases with 8 test cases:
    ✦ [HIGH]   Checkout fails with invalid payment info
 ```
 
-Ask:
-- "Does this structure look right?"
-- "Anything to add, remove, rename, or re-prioritise before I import?"
+Use `AskQuestion` to confirm:
+- "Looks good — proceed with import"
+- "I want to make changes first"
 
-Incorporate feedback, then confirm: "Ready to import — shall I proceed?"
+If the user wants changes, incorporate feedback, then ask again. Only proceed after explicit approval.
 
 > For Path A (native PRD upload): present the use case/test case list that Muggle extracted
 > after the processing workflow completes, and ask the user to confirm before adding any
@@ -142,23 +142,19 @@ If not authenticated:
 
 ## Step 5 — Pick or create a project
 
-Call `muggle-remote-project-list` and show the results as a numbered menu:
+A **project** is where all your imported use cases, test cases, and future test results are grouped on the Muggle AI dashboard.
 
-```
-Existing projects:
-  1. Acme Web App
-  2. Admin Portal
-  3. Mobile API
+1. Call `muggle-remote-project-list`
+2. Use `AskQuestion` to present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
 
-Or: [C] Create new project
-```
+   Prompt: "Pick the project to import into:"
 
-**If creating a new project**, propose values based on what you learned from the source files:
-- **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App")
-- **Description**: "Imported from [filename(s)] — [date]"
-- **URL**: the base URL of the app under test
+3. **If creating a new project**, propose values based on what you learned from the source files:
+   - **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App")
+   - **Description**: "Imported from [filename(s)] — [date]"
+   - **URL**: the base URL of the app under test
 
-Show the proposal and confirm before calling `muggle-remote-project-create`.
+   Show the proposal and confirm before calling `muggle-remote-project-create`.
 
 ---
 

@@ -7,6 +7,15 @@ description: "Run change-driven E2E acceptance testing using Muggle AI — detec
 
 A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, publishes results to the Muggle AI dashboard, and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
 
+## UX Guidelines — Minimize Typing
+
+**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
+
+- **Selections** (project, use case, test case, mode, approval): Use `AskQuestion` with labeled options the user can click.
+- **Multi-select** (use cases, test cases): Use `AskQuestion` with `allow_multiple: true`.
+- **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
+- **Batch related questions**: If two questions are independent, present them together in a single `AskQuestion` call rather than asking sequentially.
+
 ## Step 1: Confirm Scope of Work (Always First)
 
 Parse the user's query and explicitly confirm their expectation. There are exactly two modes:
@@ -27,23 +36,13 @@ Signs the user wants this: mentions "preview", "staging", "deployed", "preview U
 
 ### Confirming
 
-If the user's intent is clear, state back what you understood and ask for confirmation:
-```
-I'll run [local/remote] test generation. Confirm?
-──────────────────────────────────────────────────────────────
-1. Yes, proceed
-2. No, switch to [the other mode]
-──────────────────────────────────────────────────────────────
-```
+If the user's intent is clear, state back what you understood and use `AskQuestion` to confirm:
+- Option 1: "Yes, proceed"
+- Option 2: "Switch to [the other mode]"
 
-If ambiguous, ask the user to choose:
-```
-How do you want to run the test?
-──────────────────────────────────────────────────────────────
-1. Local — launch browser on your machine against localhost
-2. Remote — Muggle cloud tests against a preview/staging URL
-──────────────────────────────────────────────────────────────
-```
+If ambiguous, use `AskQuestion` to let the user choose:
+- Option 1: "Local — launch browser on your machine against localhost"
+- Option 2: "Remote — Muggle cloud tests against a preview/staging URL"
 
 Only proceed after the user selects an option.
 
@@ -75,26 +74,21 @@ If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal
 
 ## Step 4: Select Project (User Must Choose)
 
+A **project** is where all your test results, use cases, and test scripts are grouped on the Muggle AI dashboard. Pick the project that matches what you're working on.
+
 1. Call `muggle-remote-project-list`
-2. Present **all** projects as a numbered list:
+2. Use `AskQuestion` to present all projects as clickable options. Include the project URL in each label so the user can identify the right one. Always include a "Create new project" option at the end.
 
-```
-Available Muggle Projects:
-──────────────────────────────────────────────────────────────
-1. MUGGLE AI STAGING 1       https://staging.muggle-ai.com/
-2. Tanka Testing             https://www.tanka.ai
-3. Staging muggleTestV0      https://staging.muggle-ai.com/muggleTestV0
-4. [Create new project]
-──────────────────────────────────────────────────────────────
-```
+   Example labels:
+   - "MUGGLE AI STAGING 1 — https://staging.muggle-ai.com/"
+   - "Tanka Testing — https://www.tanka.ai"
+   - "Create new project"
 
-> "Which project should I use? Reply with the number."
+   Prompt: "Pick the project to group this test run into:"
 
 3. **Wait for the user to explicitly choose** — do NOT auto-select based on repo name or URL matching
 4. **If user chooses "Create new project"**:
-   - Ask for `projectName`
-   - Ask for `description`
-   - Ask for the production/preview URL
+   - Ask for `projectName`, `description`, and the production/preview URL
    - Call `muggle-remote-project-create`
 
 Store the `projectId` only after user confirms.
@@ -104,21 +98,11 @@ Store the `projectId` only after user confirms.
 ### 5a: List existing use cases
 Call `muggle-remote-use-case-list` with the project ID.
 
-### 5b: Present ALL use cases as a numbered list for user selection
+### 5b: Present ALL use cases for user selection
 
-```
-Available Use Cases for [Project Name]:
-──────────────────────────────────────────────────────────────────────────
-1. Sign up for Muggle Test account
-2. Access existing account via login
-3. Manually Add a Use Case
-4. View Generated Test Script After Test Run
-5. Generate comprehensive UX testing reports
-6. [Create new use case]
-──────────────────────────────────────────────────────────────────────────
-```
+Use `AskQuestion` with `allow_multiple: true` to present all use cases as clickable options. Always include a "Create new use case" option at the end.
 
-> "Which use case do you want to test? Reply with the number (or multiple numbers separated by commas)."
+Prompt: "Which use case(s) do you want to test?"
 
 ### 5c: Wait for explicit user selection
 
@@ -143,19 +127,11 @@ For the selected use case(s):
 ### 6a: List existing test cases
 Call `muggle-remote-test-case-list-by-use-case` with each use case ID.
 
-### 6b: Present ALL test cases as a numbered list for user selection
+### 6b: Present ALL test cases for user selection
 
-```
-Available Test Cases for "[Use Case Name]":
-──────────────────────────────────────────────────────────────────────────
-1. E2E: Login with valid credentials
-2. E2E: Login with invalid password
-3. E2E: Login with expired session
-4. [Generate new test case]
-──────────────────────────────────────────────────────────────────────────
-```
+Use `AskQuestion` with `allow_multiple: true` to present all test cases as clickable options. Always include a "Generate new test case" option at the end.
 
-> "Which test case(s) do you want to run? Reply with the number (or multiple numbers separated by commas)."
+Prompt: "Which test case(s) do you want to run?"
 
 ### 6c: Wait for explicit user selection
 
@@ -170,40 +146,34 @@ Available Test Cases for "[Use Case Name]":
 
 ### 6e: Confirm final selection
 
-> "You selected [N] test case(s): [list titles]. Ready to proceed?"
+Use `AskQuestion` to confirm: "You selected [N] test case(s): [list titles]. Ready to proceed?"
+- Option 1: "Yes, run them"
+- Option 2: "No, let me re-select"
 
 Wait for user confirmation before moving to execution.
 
 ## Step 7A: Execute — Local Mode
 
-### Three separate questions (ask one at a time, wait for answer before next)
+### Pre-flight questions (batch where possible)
 
 **Question 1 — Local URL:**
-> "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
 
-Wait for user to provide URL before asking question 2.
+Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
+- Option 1: "http://localhost:3000" (or whatever was detected)
+- Option 2: "Other — let me type a URL"
 
-**Question 2 — Electron launch approval:**
-```
-I'll launch the Muggle Electron browser to run [N] test case(s).
-──────────────────────────────────────────────────────────────
-1. Yes, launch it
-2. No, cancel
-──────────────────────────────────────────────────────────────
-```
+If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
 
-Wait for "1" before asking question 3. If "2", stop and ask what they want to do instead.
+**Question 2 — Electron launch + window visibility (ask together):**
 
-**Question 3 — Window visibility:**
-```
-How should the browser window appear?
-──────────────────────────────────────────────────────────────
-1. Visible (watch the browser as it runs)
-2. Headless (run in background)
-──────────────────────────────────────────────────────────────
-```
+After getting the URL, use a single `AskQuestion` call with two questions:
 
-Wait for answer (1 or 2) before proceeding.
+1. "Ready to launch the Muggle Electron browser for [N] test case(s)?"
+   - "Yes, launch it (visible — I want to watch)"
+   - "Yes, launch it (headless — run in background)"
+   - "No, cancel"
+
+If user cancels, stop and ask what they want to do instead.
 
 ### Run sequentially
 
@@ -213,8 +183,8 @@ For each test case:
 2. Call `muggle-local-execute-test-generation`:
    - `testCase`: Full test case object from step 1
    - `localUrl`: User's local URL (from Question 1)
-   - `approveElectronAppLaunch`: `true` (only if user said "yes" in Question 2)
-   - `showUi`: `true` if user chose "visible", `false` if "headless" (from Question 3)
+   - `approveElectronAppLaunch`: `true` (only if user approved in Question 2)
+   - `showUi`: `true` if user chose "visible", `false` if "headless" (from Question 2)
 3. Store the returned `runId`
 
 If a generation fails, log it and continue to the next. Do not abort the batch.
@@ -320,16 +290,9 @@ gh pr view --json number,url,title 2>/dev/null
 ```
 
 - If a PR exists → post results as a comment
-- If no PR exists → ask:
-```
-No open PR found for this branch.
-──────────────────────────────────────────────────────────────
-1. Create PR with E2E acceptance results
-2. Skip posting to PR
-──────────────────────────────────────────────────────────────
-```
-  - If 1: create PR with E2E acceptance results in the body (use `gh pr create`)
-  - If 2: skip this step
+- If no PR exists → use `AskQuestion`:
+  - "Create PR with E2E acceptance results"
+  - "Skip posting to PR"
 
 ### 9b: Build the E2E acceptance comment body
 
@@ -403,10 +366,11 @@ If creating a new PR — include the E2E acceptance section in the PR body along
 ## Guardrails
 
 - **Always confirm intent first** — never assume local vs remote without asking
-- **User MUST select project** — present numbered list, wait for explicit choice, never auto-select
-- **User MUST select use case(s)** — present numbered list, wait for explicit choice, never auto-select based on git changes or heuristics
-- **User MUST select test case(s)** — present numbered list, wait for explicit choice, never auto-select
-- **Ask three separate questions for local mode** — (1) URL as text input, (2) Electron approval as numbered choice, (3) visibility as numbered choice — one at a time, wait for each answer
+- **User MUST select project** — present clickable options via `AskQuestion`, wait for explicit choice, never auto-select
+- **User MUST select use case(s)** — present clickable options via `AskQuestion`, wait for explicit choice, never auto-select based on git changes or heuristics
+- **User MUST select test case(s)** — present clickable options via `AskQuestion`, wait for explicit choice, never auto-select
+- **Use `AskQuestion` for every selection** — never ask the user to type a number; always present clickable options
+- **Batch related questions** — combine Electron approval + visibility into one question; auto-detect localhost URL when possible
 - **Never launch Electron without explicit user approval** (`approveElectronAppLaunch`)
 - **Never silently drop test cases** — log failures and continue, then report them
 - **Never guess the URL** — always ask the user for localhost or preview URL

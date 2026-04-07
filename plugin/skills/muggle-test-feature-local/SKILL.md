@@ -5,7 +5,7 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 # Muggle Test Feature Local
 
-**Goal:** Run or generate an end-to-end test against a **local URL** using Muggle’s Electron browser.
+**Goal:** Run or generate an end-to-end test against a **local URL** using Muggle's Electron browser.
 
 | Scope | MCP tools |
 | :---- | :-------- |
@@ -15,12 +15,19 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 The local URL only changes where the browser opens; it does not change the remote project or test definitions.
 
+## UX Guidelines — Minimize Typing
+
+**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
+
+- **Selections** (project, use case, test case, script, approval): Use `AskQuestion` with labeled options the user can click.
+- **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
+
 ## Workflow
 
 ### 1. Auth
 
 - `muggle-remote-auth-status`
-- If not signed in: `muggle-remote-auth-login` then `muggle-remote-auth-poll`  
+- If not signed in: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
   Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
@@ -31,41 +38,45 @@ Ask the user to pick **project**, **use case**, and **test case** (do not infer)
 - `muggle-remote-use-case-list` (with `projectId`)
 - `muggle-remote-test-case-list-by-use-case` (with `useCaseId`)
 
-**Selection UI (mandatory):** After each list call, present choices as a **numbered list** (`1.` … `n.`). Keep each line minimal: number, short title, UUID. Ask the user to **reply with the number** or the UUID.
+**Selection UI (mandatory):** Every selection MUST use `AskQuestion` with clickable options. Never ask the user to "reply with the number" in plain text.
 
-**Fixed tail of each pick list (project, use case, test case):** After the relevance-ranked rows, end with the options below. **Create new …** is never omitted; **Show full list** is omitted when it would be pointless (see empty list).
+**Project selection context:** A **project** groups all your test results, use cases, and test scripts on the Muggle AI dashboard. Include the project URL in each option label so the user can identify the right one.
 
-1. **Show full list** — user sees every row from the API (then re-number the full list including the tails below again). **Skip this option** if the API returned **zero** rows for that step (e.g. no test cases yet for the chosen use case). There is nothing to expand.
-2. **Create new …** — user creates a new entity instead of picking an existing one. Label per step: **Create new project**, **Create new use case**, or **Create new test case**.
+Prompt for projects: "Pick the project to group this test into:"
 
 **Relevance-first filtering (mandatory for project, use case, and test case lists):**
 
 - Do **not** dump the full list by default.
-- Rank items by semantic relevance to the user’s stated goal (title first, then description / user story / acceptance criteria).
-- Show only the **top 3–5** most relevant options, then **Show full list** (unless the API list is empty — see above), then **Create new …** as above.
-- If the user picks **Show full list**, then present the complete numbered list (still ending with **Create new …**; include **Show full list** again only when the full list has at least one row).
+- Rank items by semantic relevance to the user's stated goal (title first, then description / user story / acceptance criteria).
+- Show only the **top 3-5** most relevant options via `AskQuestion`, plus these fixed tail options:
+  - **"Show full list"** — present the complete list in a new `AskQuestion` call. **Skip this option** if the API returned zero rows.
+  - **"Create new ..."** — never omitted. Label per step: "Create new project", "Create new use case", or "Create new test case".
 
 **Create new — tools and flow (use these MCP tools; preview before persist):**
 
 - **Project — Create new project:** Collect `projectName`, `description`, and `url` (may be the local app URL, e.g. `http://localhost:3999`). Call `muggle-remote-project-create`. Use the returned `projectId` and continue.
-- **Use case — Create new use case:** User provides a natural-language instruction (or you reuse their testing goal).  
-  1. `muggle-remote-use-case-prompt-preview` with `projectId`, `instruction` — show preview; get confirmation.  
+- **Use case — Create new use case:** User provides a natural-language instruction (or you reuse their testing goal).
+  1. `muggle-remote-use-case-prompt-preview` with `projectId`, `instruction` — show preview; get confirmation via `AskQuestion`.
   2. `muggle-remote-use-case-create-from-prompts` with `projectId`, `prompts: [{ instruction }]` — persist. Use the created use case id and continue to test-case selection.
-- **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.  
-  1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation.  
-  2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **§4** with that `testCaseId`.
+- **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.
+  1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskQuestion`.
+  2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 4** with that `testCaseId`.
 
 ### 3. Local URL
 
-- Use the URL the user gives. If none, ask; **do not guess**.
-- Remind them: local URL is only the execution target, not tied to cloud project config.
+Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
+- Option 1: "http://localhost:3000" (or whatever was detected)
+- Option 2: "Other — let me type a URL"
+
+If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
+
+Remind them: local URL is only the execution target, not tied to cloud project config.
 
 ### 4. Existing scripts vs new generation
 
 `muggle-remote-test-script-list` with `testCaseId`.
 
-- **If any replayable/succeeded scripts exist:** list them in a **numbered** list and ask: replay one **or** generate new.  
-  Show: name, id, created/updated, step count. Include **`Generate new script`** as the **last** numbered option (e.g. last number) so it is selectable by number too.
+- **If any replayable/succeeded scripts exist:** use `AskQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
 - **If none:** go straight to generation (no need to ask replay vs generate).
 
 ### 5. Load data for the chosen path
@@ -77,8 +88,8 @@ Ask the user to pick **project**, **use case**, and **test case** (do not infer)
 
 **Replay**
 
-1. `muggle-remote-test-script-get` → note `actionScriptId`
-2. `muggle-remote-action-script-get` with that id → full `actionScript`  
+1. `muggle-remote-test-script-get` — note `actionScriptId`
+2. `muggle-remote-action-script-get` with that id — full `actionScript`
    **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
 3. `muggle-local-execute-replay` (after approval in step 6) with `testScript`, `actionScript`, `localUrl`, `approveElectronAppLaunch: true` (optional: `showUi: true`, **`timeoutMs`** — see below)
 
@@ -88,17 +99,22 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 
 - **Always pass `timeoutMs`** for flows that may be long — for example **`600000` (10 min)** or **`900000` (15 min)** — unless the user explicitly wants a short cap.
 - If the tool reports **`Electron execution timed out after 300000ms`** (or similar) **but** Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry** (after user re-approves if your policy requires it).
-- **Test case design:** Preconditions like “a test run has already completed” on an **empty account** can force many steps (sign-up, new project, crawl). Prefer an account/project that **already has** the needed state, or narrow the test goal so generation does not try to create a full project from scratch unless that is intentional.
+- **Test case design:** Preconditions like "a test run has already completed" on an **empty account** can force many steps (sign-up, new project, crawl). Prefer an account/project that **already has** the needed state, or narrow the test goal so generation does not try to create a full project from scratch unless that is intentional.
 
 ### Interpreting `failed` / non-zero Electron exit
 
 - **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see **`timeoutMs`** above.
-- **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. verifying “view script after a successful run” when **no run or script exists yet** in the UI. Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash. **Fix:** choose a **project that already has** completed runs and scripts, or **change the test case** so preconditions match what localhost can satisfy (e.g. include steps to create and run a test first, or assert only empty-state UI when no runs exist).
+- **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. verifying "view script after a successful run" when **no run or script exists yet** in the UI. Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash. **Fix:** choose a **project that already has** completed runs and scripts, or **change the test case** so preconditions match what localhost can satisfy (e.g. include steps to create and run a test first, or assert only empty-state UI when no runs exist).
 
 ### 6. Approval before any local execution
 
-Get **explicit** OK to launch Electron. State: replay vs generation, test case name, URL.  
-Only then call local execute tools with `approveElectronAppLaunch: true`.
+Use `AskQuestion` to get explicit approval before launching Electron. State: replay vs generation, test case name, URL.
+
+- "Yes, launch Electron (visible — I want to watch)"
+- "Yes, launch Electron (headless — run in background)"
+- "No, cancel"
+
+Only call local execute tools with `approveElectronAppLaunch: true` after the user selects a "Yes" option. Map visible to `showUi: true`, headless to `showUi: false`.
 
 ### 7. After successful generation only
 
@@ -112,8 +128,9 @@ Only then call local execute tools with `approveElectronAppLaunch: true`.
 
 ## Non-negotiables
 
-- No silent auth skip; no launching Electron without approval.
+- No silent auth skip; no launching Electron without approval via `AskQuestion`.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
-- Project, use case, and test case selection lists must always include **Create new …**. Include **Show full list** whenever the API returned at least one row for that step; **omit Show full list** when the list is empty (offer **Create new …** only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
+- Use `AskQuestion` for every selection — project, use case, test case, script, and approval. Never ask the user to type a number.
+- Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.

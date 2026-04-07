@@ -42,6 +42,7 @@ This installs:
 - `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
 - `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
 - `/muggle:muggle-test-feature-local` — local quick E2E acceptance testing
+- `/muggle:muggle-test-regenerate-missing` — bulk-regenerate test scripts for every test case that has no active script
 - `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
 - `/muggle:muggle-repair` — diagnose and fix broken installation
 - `/muggle:muggle-upgrade` — update to the latest version
@@ -479,6 +480,7 @@ muggle-ai-works/
 │   │   ├── muggle/                        # /muggle:muggle — command router and menu
 │   │   ├── muggle-do/                     # /muggle:muggle-do — autonomous dev pipeline
 │   │   ├── muggle-test-feature-local/     # /muggle:muggle-test-feature-local
+│   │   ├── muggle-test-regenerate-missing/# /muggle:muggle-test-regenerate-missing
 │   │   ├── muggle-status/                 # /muggle:muggle-status
 │   │   ├── muggle-repair/                 # /muggle:muggle-repair
 │   │   └── muggle-upgrade/                # /muggle:muggle-upgrade

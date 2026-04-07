@@ -1,0 +1,196 @@
+---
+name: muggle-test-regenerate-missing
+description: "Bulk-regenerate test scripts for every test case in a Muggle AI project that doesn't currently have an active script. Scans the project, finds test cases stuck in DRAFT or GENERATION_PENDING (no usable script attached), shows the user the list, and on approval kicks off remote test script generation for each one in parallel via the Muggle cloud. Use this skill whenever the user asks to 'regenerate missing scripts', 'fill in missing test scripts', 'generate scripts for test cases without one', 'regen all the test cases that don't have scripts', 'rebuild scripts for stale test cases', 'fix test cases with no script', 'bulk regenerate', or any phrasing that means 'kick off script generation across a project for the cases that need it'. Triggers on: 'regenerate missing test scripts', 'generate scripts for all empty test cases', 'fill the gaps in my test scripts', 'bulk test script regen', 'all my test cases without active scripts'. This is the go-to skill for project-wide script catch-up — it handles discovery, filtering, confirmation, and remote workflow dispatch end-to-end."
+---
+
+# Muggle Test — Regenerate Missing Test Scripts
+
+A bulk maintenance skill for Muggle AI projects. It finds every test case in a project that does **not** currently have an active (ready-to-run) test script, shows the list to the user, and on approval triggers a remote test script generation workflow for each one. Useful after creating a batch of new test cases or when cleaning up a project that has drifted.
+
+Execution is **remote only** — Muggle's cloud generates the scripts in parallel against the project URL. The user's machine is not involved beyond making API calls.
+
+## Concept: what counts as "no active script"
+
+In the Muggle data model, a test case carries a status that reflects whether it has a usable script attached:
+
+| Status | Meaning | Regenerate? |
+|:-------|:--------|:-----------:|
+| `ACTIVE` | Has a generated, ready-to-run script | No — already good |
+| `DRAFT` | Created but never generated | **Yes** |
+| `GENERATION_PENDING` | Queued but generation never started | **Yes** |
+| `GENERATING` | Currently generating | No — generation is in flight; don't double-dispatch |
+| `REPLAY_PENDING` / `REPLAYING` | A replay is in flight; script exists | No — busy with replay |
+| `DEPRECATED` | Marked stale on purpose | No — user decision |
+| `ARCHIVED` | Hidden from normal flows | No — user decision |
+
+The skill targets exactly **DRAFT** and **GENERATION_PENDING** by default. These are the two states that mean "no usable script attached and nothing running to produce one." `GENERATING` is deliberately excluded — a workflow is already in progress, and firing a second one races against the first and wastes budget.
+
+Treat this filter as a default, not a law. If the user explicitly says "include generating ones too, they're stuck" or "include deprecated", respect the override — but don't widen the filter on your own.
+
+## UX Guidelines — Minimize Typing
+
+**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" — always present clickable options.
+
+- **Selections** (project, which test cases to include): Use `AskQuestion`, with `allow_multiple: true` for the test case picker.
+- **Free-text inputs** (project URL when creating, override filters): Only ask as plain text when the option set isn't finite.
+- **Batch related questions** when independent. Don't ask sequentially what could be one screen.
+
+## Workflow
+
+### Step 1 — Authenticate
+
+1. Call `muggle-remote-auth-status`.
+2. If not authenticated or expired → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
+3. Do not skip auth and do not assume a stale token still works.
+
+If auth keeps failing, suggest the user run `muggle logout && muggle login` from a terminal.
+
+### Step 2 — Select Project (user must choose)
+
+A **project** is the unit on the Muggle AI dashboard that groups test cases, scripts, and runs. The user must pick the one to scan — never auto-select from repo name, branch, or URL heuristics.
+
+1. Call `muggle-remote-project-list`.
+2. Use `AskQuestion` to present projects as clickable options. Include the project URL in each label so the user can disambiguate. Always include "Create new project" as the last option.
+3. Wait for explicit selection.
+4. If the user picks "Create new project": collect `projectName`, `description`, and `url`, then call `muggle-remote-project-create`.
+
+Store `projectId` and `projectUrl` only after the user confirms — both are needed downstream.
+
+### Step 3 — Scan Test Cases
+
+Pull the full set of test cases for the project. The list endpoint is paginated.
+
+1. Call `muggle-remote-test-case-list` with `projectId`. Start at page 1; continue requesting pages until the response indicates no more items. Use a generous `pageSize` (e.g. 100) to keep the call count low.
+2. Accumulate everything into a single in-memory array.
+3. Tell the user the totals as you go if the project is large (e.g., "Found 247 test cases across the project").
+
+If the call returns zero test cases, stop and tell the user — there is nothing to regenerate. Suggest they create test cases first (point them at `muggle-test` or `muggle-test-feature-local`).
+
+### Step 4 — Filter to Missing Scripts
+
+Apply the default filter: keep only test cases where `status` ∈ `{DRAFT, GENERATION_PENDING}`.
+
+Then show a one-line summary. Also surface how many cases are currently `GENERATING` so the user knows about in-flight work (but don't include them in the candidate list unless they override the filter):
+
+```
+Project: <name> (<projectId>)
+Total test cases: 247
+With active script (skipped): 198
+Currently generating (skipped, in-flight): 32
+Needs regeneration: 17
+  • DRAFT: 12
+  • GENERATION_PENDING: 5
+```
+
+If after filtering the list is empty, congratulate the user — every test case already has an active script — and stop. Do not invent work.
+
+### Step 5 — Present and Confirm Selection
+
+Use `AskQuestion` with `allow_multiple: true` to present every candidate test case as a clickable option. The user must explicitly approve which ones to regenerate.
+
+For each option label, show enough context for the user to make a real decision:
+
+```
+[<status>] <title> — use case: <use case title>
+```
+
+For example:
+- `[DRAFT] Sign up with valid email — use case: User Registration`
+- `[GENERATION_PENDING] Add item to cart — use case: Checkout Flow`
+
+Default behavior:
+- If there are **≤ 25** candidates, present all of them in a single `AskQuestion` with everything pre-checked and let the user deselect anything they want to skip.
+- If there are **> 25** candidates, show the first 25 ranked by status priority (`DRAFT` → `GENERATION_PENDING`), plus a tail option **"Include all N — don't make me click each one"**. The user can also pick "Show next batch" to see more.
+
+After selection, call `AskQuestion` once more for a final confirmation:
+
+> "About to start remote test script generation for **N** test cases against `<projectUrl>`. This will consume Muggle workflow budget. Proceed?"
+>
+> - "Yes, start all N"
+> - "No, cancel"
+
+Only proceed after the user picks "Yes".
+
+### Step 6 — Dispatch Remote Generations
+
+For each selected test case, in order:
+
+1. Call `muggle-remote-test-case-get` with `testCaseId` to fetch the full record (the list endpoint returns a slim shape; generation needs `goal`, `precondition`, `instructions`, `expectedResult`, `url`).
+2. Call `muggle-remote-workflow-start-test-script-generation` with:
+   - `projectId` — from Step 2
+   - `useCaseId` — from the test case
+   - `testCaseId` — the test case being regenerated
+   - `name` — `"muggle-test-regenerate-missing: {test case title}"` (so it's easy to find this batch later in the dashboard)
+   - `url` — prefer the test case's own `url` if set, else the project URL from Step 2
+   - `goal`, `precondition`, `instructions`, `expectedResult` — straight from the test case. If `precondition` is empty, pass `"None"` (the schema requires a non-empty string).
+3. Capture the returned workflow runtime ID and store it alongside the test case.
+
+**Failure handling:** if a single dispatch fails (validation error, server error, missing field), log it inline, mark the test case as `dispatch_failed`, and continue to the next one. Do not abort the whole batch — partial progress is more useful than nothing.
+
+**Pacing:** Muggle's cloud handles parallelism on its side, so you don't need to throttle. Just dispatch sequentially as fast as the API will accept them.
+
+### Step 7 — Report
+
+After all dispatches are done, print a summary table:
+
+```
+Test Case                          Use Case             Prev Status       Dispatch       Runtime
+───────────────────────────────────────────────────────────────────────────────────────────────────
+Sign up with valid email           User Registration    DRAFT             ✅ started      rt-abc123
+Sign up with disposable email      User Registration    DRAFT             ✅ started      rt-def456
+Add item to cart                   Checkout Flow        GENERATION_PEND.  ✅ started      rt-ghi789
+Apply expired coupon               Checkout Flow        GENERATION_PEND.  ❌ failed       —
+───────────────────────────────────────────────────────────────────────────────────────────────────
+Total: 17 dispatched | 16 started | 1 failed
+```
+
+For failures: include a one-line error excerpt and (where possible) a hint at the cause (e.g., "missing instructions field — edit the test case in the dashboard, then re-run this skill").
+
+### Step 8 — Open the Dashboard
+
+Open the Muggle AI dashboard so the user can watch progress visually:
+
+```bash
+open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
+```
+
+Tell them:
+
+> "I've opened the project's runs page. Generation jobs typically take a few minutes each — they'll appear here as they progress. Your test cases will move into `ACTIVE` status as scripts complete."
+
+### Step 9 (optional) — Poll Status
+
+Only if the user explicitly asks for a status check, call `muggle-remote-wf-get-ts-gen-latest-run` for each runtime ID and report progress. **Do not poll on a tight loop by default** — the dispatch step is the actual goal of this skill, and the dashboard already shows live status better than a CLI loop ever can. Polling exists as a courtesy for users who don't want to leave the terminal.
+
+If the user wants a one-shot snapshot, present a small table:
+
+```
+Test Case                Runtime     Status      Steps so far
+────────────────────────────────────────────────────────────
+Sign up with valid email rt-abc123   RUNNING     6
+Add item to cart         rt-ghi789   COMPLETED   12
+```
+
+## Tool Reference
+
+| Phase | Tool |
+|:------|:-----|
+| Auth | `muggle-remote-auth-status`, `muggle-remote-auth-login`, `muggle-remote-auth-poll` |
+| Project | `muggle-remote-project-list`, `muggle-remote-project-create` |
+| Scan | `muggle-remote-test-case-list` (paginated) |
+| Detail | `muggle-remote-test-case-get` |
+| Dispatch | `muggle-remote-workflow-start-test-script-generation` |
+| Status (optional) | `muggle-remote-wf-get-ts-gen-latest-run`, `muggle-remote-wf-get-latest-ts-gen-by-tc` |
+| Browser | `open` (shell command) |
+
+## Non-negotiables
+
+- **The user MUST select the project** — present projects via `AskQuestion`, never infer from cwd, repo name, or URL guesses.
+- **The user MUST approve which test cases to regenerate** — show the candidates via `AskQuestion`, let them deselect, then confirm again before any dispatch. Bulk-regenerating without approval can waste meaningful workflow budget.
+- **Default filter is `DRAFT` + `GENERATION_PENDING`** — never include `GENERATING`, `ACTIVE`, `DEPRECATED`, `ARCHIVED`, `REPLAYING`, or `REPLAY_PENDING` unless the user explicitly says so. `GENERATING` already has a workflow in flight and dispatching another races against it. `ACTIVE` test cases already have working scripts. The rest reflect deliberate user decisions or in-flight replays the skill should not interfere with.
+- **Use `muggle-remote-test-case-get` before each dispatch** — the list endpoint returns a slim shape and generation needs the full payload.
+- **Failures don't abort the batch** — log and continue, then surface them at the end. Partial progress beats no progress.
+- **Never throttle artificially** — dispatch sequentially as fast as the API accepts. Muggle's cloud handles parallelism.
+- **Open the dashboard, don't poll by default** — the runs page is the canonical view of progress. Only poll if the user explicitly asks.
+- **Use `AskQuestion` for every selection** — never ask the user to type a number.
+- **Can be invoked at any state** — if the user already has a project chosen in conversation context, skip Step 2 and go straight to scanning.

@@ -28,6 +28,7 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-test` | Change-driven E2E acceptance router: detects code changes, maps to use cases, runs test generation locally or remotely, publishes to dashboard, opens in browser, posts E2E acceptance results to PR. |
 | `/muggle:muggle-test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |
 | `/muggle:muggle-test-import` | Import existing tests into Muggle Test — from Playwright/Cypress specs, PRDs, Gherkin feature files, test plan docs, or any test artifact. |
+| `/muggle:muggle-test-regenerate-missing` | Bulk-regenerate test scripts for every test case in a project that doesn't currently have an active script. Scans DRAFT + GENERATION_PENDING, confirms the list with the user, and dispatches remote generation workflows for each. |
 | `/muggle:muggle-status` | Health check for Electron browser test runner, MCP server, and authentication. |
 | `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | Update Electron browser test runner and MCP server to latest version. |

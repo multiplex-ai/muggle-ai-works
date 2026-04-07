@@ -1,0 +1,58 @@
+{
+  "skill_name": "muggle-test-regenerate-missing",
+  "notes": "These evals test the PLAN behavior. Because Muggle MCP tools require live auth and a real project, the subagents can't actually execute the workflow — each prompt tells them to write a step-by-step plan instead. The assertions check whether the plan reflects the skill's non-negotiables (correct filter, AskQuestion-based selection, no auto-select, dispatch via the remote workflow tool, batch-failure tolerance, dashboard open-at-end).",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "vague-catch-up-request",
+      "prompt": "I just finished importing a bunch of test cases from our PRD into our Muggle project 'Acme Checkout QA' and half of them never got actual scripts generated — they're still sitting there as drafts. Can you kick off script generation for the ones that need it?",
+      "files": [],
+      "assertions": [
+        { "name": "calls_auth_status_first", "text": "Plan starts by calling muggle-remote-auth-status (and login/poll if needed) before any other Muggle tool." },
+        { "name": "project_selection_via_AskQuestion", "text": "Plan calls muggle-remote-project-list and presents projects via AskQuestion rather than auto-selecting 'Acme Checkout QA' by name match." },
+        { "name": "default_filter_is_draft_and_generation_pending", "text": "Plan states that the status filter is DRAFT + GENERATION_PENDING and explicitly excludes GENERATING, ACTIVE, DEPRECATED, ARCHIVED, REPLAYING, and REPLAY_PENDING." },
+        { "name": "uses_test_case_list_paginated", "text": "Plan calls muggle-remote-test-case-list with pagination (or equivalent full-enumeration) for the project scan step." },
+        { "name": "test_case_get_before_dispatch", "text": "Plan calls muggle-remote-test-case-get for each candidate before dispatching generation, to obtain the full payload (goal, precondition, instructions, expectedResult, url)." },
+        { "name": "dispatch_via_remote_workflow_tool", "text": "Plan dispatches each regeneration via muggle-remote-workflow-start-test-script-generation (not a local Electron tool)." },
+        { "name": "candidate_list_via_AskQuestion_multi_select", "text": "Plan presents the candidate test cases via AskQuestion with multi-select (allow_multiple: true) so the user can deselect individuals." },
+        { "name": "final_confirmation_step", "text": "Plan includes a final yes/no confirmation AskQuestion before any dispatch, showing the count of test cases about to be regenerated." },
+        { "name": "batch_failure_tolerance", "text": "Plan explicitly states that a single dispatch failure does not abort the batch — failures are logged and the loop continues." },
+        { "name": "opens_dashboard_runs_page_at_end", "text": "Plan ends by opening the Muggle dashboard project runs page for the user to watch progress." }
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "explicit-filter-override",
+      "prompt": "Our project 'Tanka Staging' has about 200 test cases. I want to regenerate scripts for everything that's not active — including the ones that are stuck in GENERATING, because those have been sitting there for two days and I'm pretty sure they're dead. Please walk me through what you'd do.",
+      "files": [],
+      "assertions": [
+        { "name": "calls_auth_status_first", "text": "Plan starts by calling muggle-remote-auth-status before any other Muggle tool." },
+        { "name": "project_selection_via_AskQuestion", "text": "Plan uses AskQuestion to let the user confirm project choice; does not auto-select 'Tanka Staging' by name match alone." },
+        { "name": "honors_override_to_include_generating", "text": "Plan explicitly honors the user's override and includes GENERATING in the filter for this run, noting that this is a deliberate override of the default filter." },
+        { "name": "still_excludes_active_deprecated_archived", "text": "Even with the override, the plan still excludes ACTIVE, DEPRECATED, ARCHIVED, REPLAY_PENDING, and REPLAYING — it only widens the filter to include GENERATING, not everything." },
+        { "name": "handles_large_candidate_list", "text": "Plan acknowledges that with ~200 test cases the candidate list may exceed 25 and describes paging or bulk-include handling (e.g., 'Include all N' tail option)." },
+        { "name": "dispatch_via_remote_workflow_tool", "text": "Plan dispatches each regeneration via muggle-remote-workflow-start-test-script-generation." },
+        { "name": "final_confirmation_step", "text": "Plan includes a final yes/no AskQuestion confirmation before any dispatch, showing the total count." },
+        { "name": "batch_failure_tolerance", "text": "Plan states that a single dispatch failure does not abort the batch." },
+        { "name": "opens_dashboard_runs_page_at_end", "text": "Plan ends by opening the Muggle dashboard project runs page." }
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "small-project-confirmation",
+      "prompt": "can you bulk regen my muggle test cases that don't have scripts? The project is tiny — I think there are only like 6 or 7 test cases in DRAFT.",
+      "files": [],
+      "assertions": [
+        { "name": "calls_auth_status_first", "text": "Plan starts by calling muggle-remote-auth-status before any other Muggle tool." },
+        { "name": "project_selection_via_AskQuestion", "text": "Plan uses AskQuestion to let the user pick the project — does not infer it." },
+        { "name": "default_filter_is_draft_and_generation_pending", "text": "Plan states that the status filter is DRAFT + GENERATION_PENDING by default." },
+        { "name": "small_list_all_preselected", "text": "Plan describes presenting all candidates in a single AskQuestion with everything pre-checked (since the candidate list is ≤ 25)." },
+        { "name": "test_case_get_before_dispatch", "text": "Plan calls muggle-remote-test-case-get for each candidate before dispatching generation." },
+        { "name": "dispatch_via_remote_workflow_tool", "text": "Plan dispatches each regeneration via muggle-remote-workflow-start-test-script-generation." },
+        { "name": "final_confirmation_step", "text": "Plan includes a final yes/no AskQuestion confirmation before any dispatch." },
+        { "name": "batch_failure_tolerance", "text": "Plan states that a single dispatch failure does not abort the batch." },
+        { "name": "opens_dashboard_runs_page_at_end", "text": "Plan ends by opening the Muggle dashboard project runs page." }
+      ]
+    }
+  ]
+}

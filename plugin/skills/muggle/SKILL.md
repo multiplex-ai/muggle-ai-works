@@ -9,24 +9,24 @@ Use this as the top-level Muggle command router.
 
 ## Menu
 
-When user asks for "muggle" with no specific subcommand, show this command set:
+When user asks for "muggle" with no specific subcommand, use `AskQuestion` to present the command set as clickable options:
 
-- `/muggle:muggle-do` — autonomous dev pipeline
-- `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
-- `/muggle:muggle-test-feature-local` — local feature E2E acceptance testing
-- `/muggle:muggle-status` — health check
-- `/muggle:muggle-repair` — repair broken installation
-- `/muggle:muggle-upgrade` — upgrade local installation
+- "Test my changes — change-driven E2E acceptance testing (local or remote)" → `muggle-test`
+- "Test a feature on localhost — run a single E2E test locally" → `muggle-test-feature-local`
+- "Autonomous dev pipeline — requirements to PR" → `muggle-do`
+- "Health check — verify installation status" → `muggle-status`
+- "Repair — fix broken installation" → `muggle-repair`
+- "Upgrade — update to latest version" → `muggle-upgrade`
 
 ## Routing
 
-If the user intent clearly matches one command, route to that command behavior:
+If the user intent clearly matches one command, route directly — no menu needed:
 
-- status/health/check -> `muggle-status`
-- repair/fix/install broken -> `muggle-repair`
-- upgrade/update latest -> `muggle-upgrade`
-- test my changes/acceptance test my work/test before push/post E2E acceptance results to PR/test on staging/test on preview -> `muggle-test`
-- test localhost/validate single feature -> `muggle-test-feature-local`
-- build/implement from request -> `muggle-do`
+- status/health/check → `muggle-status`
+- repair/fix/install broken → `muggle-repair`
+- upgrade/update latest → `muggle-upgrade`
+- test my changes/acceptance test my work/test before push/post E2E acceptance results to PR/test on staging/test on preview → `muggle-test`
+- test localhost/validate single feature → `muggle-test-feature-local`
+- build/implement from request → `muggle-do`
 
-If intent is ambiguous, ask one concise clarification question.
+If intent is ambiguous, use `AskQuestion` with the most likely options rather than asking the user to type a clarification.

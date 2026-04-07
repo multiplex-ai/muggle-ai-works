@@ -9,10 +9,9 @@ name: Publish Works to npm
 # - GitHub → Settings → Environments → `npm-publish`: confirm the environment
 #   exists and OIDC trusted publishing is configured on npmjs.com.
 #   Auth is handled via OIDC (id-token: write), not via NPM_TOKEN.
-# - Do not remove the publish job step that activates npm 11.x (see that job below).
+# - Do not remove the publish job step that upgrades npm to 11.x (see that job below).
 #   Node 22 images ship npm 10.x; trusted publishing / OIDC needs npm >= 11.5.1.
-#   Do not switch back to `npm install -g npm`—it can fail on ubuntu-latest + Node 22
-#   (MODULE_NOT_FOUND / promise-retry). Use Corepack to activate npm 11.5.1 instead.
+#   Corepack doesn't manage npm (only yarn/pnpm), so we use `npm install -g npm@11.5.1`.
 #   See: https://docs.npmjs.com/trusted-publishers
 # -----------------------------------------------------------------------------
 
@@ -65,11 +64,17 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Activate npm 11 (required for OIDC)
+      - name: Upgrade to npm 11 (required for OIDC)
         run: |
-          corepack enable
-          corepack prepare npm@11.5.1 --activate
+          echo "=== npm before upgrade ==="
           npm --version
+          npm install -g npm@11.5.1
+          echo "=== npm after upgrade ==="
+          npm --version
+          if ! npm --version | grep -q "^11\."; then
+            echo "ERROR: npm 11.x required for OIDC publishing"
+            exit 1
+          fi
 
       - name: Debug .npmrc and npm config
         run: |
@@ -290,13 +295,15 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       # REQUIRED: keep this step. Bundled npm is often 10.x; trusted publishing
-      # needs npm CLI >= 11.5.1. Use Corepack—`npm install -g npm` is unreliable on
-      # Node 22+ runners (see job failures on "Upgrade npm" with exit 1).
-      - name: Activate npm 11 for trusted publishing (Corepack)
+      # needs npm CLI >= 11.5.1.
+      - name: Upgrade to npm 11 for trusted publishing
         run: |
-          corepack enable
-          corepack prepare npm@11.5.1 --activate
+          npm install -g npm@11.5.1
           npm --version
+          if ! npm --version | grep -q "^11\."; then
+            echo "ERROR: npm 11.x required for OIDC publishing"
+            exit 1
+          fi
 
       - name: Download package artifact
         uses: actions/download-artifact@v8

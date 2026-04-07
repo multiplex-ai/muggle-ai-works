@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { selectHero, buildOneLiner } from "./selectors.js";
-import type { E2eReport } from "./types.js";
+import { selectHero, buildOneLiner } from "../../../cli/pr-section/selectors.js";
+import type { E2eReport } from "../../../cli/pr-section/types.js";
 
 function report(partial: Partial<E2eReport> = {}): E2eReport {
   return { projectId: "p1", tests: [], ...partial };

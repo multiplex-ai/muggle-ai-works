@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { E2eReportSchema } from "./types.js";
+import { E2eReportSchema } from "../../../cli/pr-section/types.js";
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 

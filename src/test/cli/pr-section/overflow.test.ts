@@ -3,8 +3,8 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { splitWithOverflow } from "./overflow.js";
-import { E2eReportSchema } from "./types.js";
+import { splitWithOverflow } from "../../../cli/pr-section/overflow.js";
+import { E2eReportSchema } from "../../../cli/pr-section/types.js";
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 function load(name: string) {

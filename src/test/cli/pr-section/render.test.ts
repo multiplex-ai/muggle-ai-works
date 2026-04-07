@@ -7,8 +7,8 @@ import {
   renderFailureDetails,
   renderBody,
   renderComment,
-} from "./render.js";
-import type { E2eReport, FailedTest, PassedTest } from "./types.js";
+} from "../../../cli/pr-section/render.js";
+import type { E2eReport, FailedTest, PassedTest } from "../../../cli/pr-section/types.js";
 
 const passed: PassedTest = {
   name: "Login flow",

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Readable } from "stream";
 
-import { runBuildPrSection } from "./build-pr-section.js";
+import { runBuildPrSection } from "../../cli/build-pr-section.js";
 
 function makeStdin(json: unknown): NodeJS.ReadableStream {
   return Readable.from([JSON.stringify(json)]);

@@ -1,0 +1,36 @@
+{
+  "projectId": "5365f324-5c5f-4adf-b702-11f457b29b04",
+  "tests": [
+    {
+      "name": "Giant failed flow 1",
+      "testCaseId": "tc-1",
+      "runId": "run-1",
+      "viewUrl": "https://www.muggle-ai.com/x/run-1",
+      "status": "failed",
+      "failureStepIndex": 19,
+      "error": "Element not found",
+      "steps": [
+        { "stepIndex": 0, "action": "Step 0 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000000.png" },
+        { "stepIndex": 1, "action": "Step 1 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000001.png" },
+        { "stepIndex": 2, "action": "Step 2 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000002.png" },
+        { "stepIndex": 3, "action": "Step 3 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000003.png" },
+        { "stepIndex": 4, "action": "Step 4 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000004.png" },
+        { "stepIndex": 5, "action": "Step 5 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000005.png" },
+        { "stepIndex": 6, "action": "Step 6 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000006.png" },
+        { "stepIndex": 7, "action": "Step 7 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000007.png" },
+        { "stepIndex": 8, "action": "Step 8 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000008.png" },
+        { "stepIndex": 9, "action": "Step 9 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000009.png" },
+        { "stepIndex": 10, "action": "Step 10 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000010.png" },
+        { "stepIndex": 11, "action": "Step 11 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000011.png" },
+        { "stepIndex": 12, "action": "Step 12 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000012.png" },
+        { "stepIndex": 13, "action": "Step 13 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000013.png" },
+        { "stepIndex": 14, "action": "Step 14 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000014.png" },
+        { "stepIndex": 15, "action": "Step 15 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000015.png" },
+        { "stepIndex": 16, "action": "Step 16 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000016.png" },
+        { "stepIndex": 17, "action": "Step 17 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000017.png" },
+        { "stepIndex": 18, "action": "Step 18 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000018.png" },
+        { "stepIndex": 19, "action": "Step 19 with a long enough action description to take space", "screenshotUrl": "https://cdn.muggle.ai/run-1/000000019.png" }
+      ]
+    }
+  ]
+}

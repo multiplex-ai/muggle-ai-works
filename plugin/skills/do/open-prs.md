@@ -23,80 +23,15 @@ For each repo with changes:
    - If E2E acceptance tests have failures: `[E2E FAILING] <goal>`
    - Otherwise: `<goal>`
    - Keep under 70 characters
-3. **Build the PR body** with these sections:
+3. **Render the E2E acceptance block** by invoking the shared `muggle-pr-visual-walkthrough` skill in **Mode B** (render-only for embedding). See "Rendering the E2E acceptance block via the shared skill" below. You receive `{body, comment}` where `body` is the E2E markdown block and `comment` is a non-null overflow comment only when the content exceeds the CLI's byte budget.
+4. **Build the PR body** by concatenating, in order:
    - `## Goal` — the requirements goal
    - `## Acceptance Criteria` — bulleted list (omit section if empty)
    - `## Changes` — summary of what changed in this repo
-   - E2E acceptance evidence block from `muggle build-pr-section` (see "Rendering the E2E acceptance results block" below)
-4. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
-5. **Capture the PR URL** and extract the PR number.
-6. **Post the overflow comment only if `muggle build-pr-section` emitted one** (see "Rendering the E2E acceptance results block" below). In the common case, no comment is posted.
-
-## Rendering the E2E acceptance results block
-
-Do **not** hand-write the `## E2E Acceptance Results` markdown. Use the `muggle build-pr-section` CLI, which renders a deterministic block and decides whether the evidence fits in the PR description or needs to spill into an overflow comment.
-
-### Step A: Build the report JSON
-
-Assemble the e2e-acceptance report you collected in `e2e-acceptance.md` into a JSON object with this shape:
-
-```json
-{
-  "projectId": "<project UUID>",
-  "tests": [
-    {
-      "name": "<test case name>",
-      "testCaseId": "<UUID>",
-      "testScriptId": "<UUID or omitted>",
-      "runId": "<UUID>",
-      "viewUrl": "<muggle-ai.com run URL>",
-      "status": "passed",
-      "steps": [
-        { "stepIndex": 0, "action": "<action>", "screenshotUrl": "<URL>" }
-      ]
-    },
-    {
-      "name": "<test case name>",
-      "testCaseId": "<UUID>",
-      "runId": "<UUID>",
-      "viewUrl": "<muggle-ai.com run URL>",
-      "status": "failed",
-      "failureStepIndex": 2,
-      "error": "<error message>",
-      "artifactsDir": "<path, optional>",
-      "steps": [
-        { "stepIndex": 0, "action": "<action>", "screenshotUrl": "<URL>" }
-      ]
-    }
-  ]
-}
-```
-
-### Step B: Render the evidence block
-
-Pipe the JSON into `muggle build-pr-section`. It writes `{ "body": "...", "comment": "..." | null }` to stdout:
-
-```bash
-echo "$REPORT_JSON" | muggle build-pr-section > /tmp/muggle-pr-section.json
-```
-
-The command exits nonzero on malformed input and writes a descriptive error to stderr — do not swallow that error, surface it to the user.
-
-### Step C: Build the PR body
-
-Build the PR body by concatenating, in order:
-
-- `## Goal` — the requirements goal
-- `## Acceptance Criteria` — bulleted list (omit section if empty)
-- `## Changes` — summary of what changed in this repo
-- The `body` field from the CLI output (already contains its own `## E2E Acceptance Results` header)
-
-### Step D: Create the PR, then post the overflow comment only if present
-
-1. Create the PR with `gh pr create --title "..." --body "..." --head <branch>`.
-2. Capture the PR URL and extract the PR number.
-3. If the CLI output's `comment` field is `null`, **do not post a comment** — everything is already in the PR description.
-4. If the CLI output's `comment` field is a non-null string, post it as a follow-up comment:
+   - The `body` field from the skill output (already contains its own `## E2E Acceptance Results` header — do not add another)
+5. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
+6. **Capture the PR URL** and extract the PR number.
+7. **Post the overflow `comment` only if it is non-null.** In the common case, `comment` is `null` and nothing is posted. Never post speculatively.
 
    ```bash
    gh pr comment <PR#> --body "$(cat <<'EOF'
@@ -105,11 +40,37 @@ Build the PR body by concatenating, in order:
    )"
    ```
 
+## Rendering the E2E acceptance block via the shared skill
+
+**Do not hand-write the `## E2E Acceptance Results` markdown, and do not call `muggle build-pr-section` directly from this stage.** The rendering workflow is owned by the shared **`muggle-pr-visual-walkthrough`** skill (see `plugin/skills/muggle-pr-visual-walkthrough/SKILL.md`), which wraps the CLI and enforces the `E2eReport` input contract with a Zod schema.
+
+### Input — the `E2eReport` JSON
+
+The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape the skill expects (`projectId` + `tests[]` with per-test `name`, `testCaseId`, `testScriptId`, `runId`, `viewUrl`, `status`, and `steps[]` of `{stepIndex, action, screenshotUrl}`; failed tests additionally have `failureStepIndex`, `error`, and optionally `artifactsDir`). Pass it through unchanged — do not reshape it. The full schema is documented in the shared skill.
+
+### Invocation — Mode B (render-only)
+
+Invoke `muggle-pr-visual-walkthrough` via the `Skill` tool with the `E2eReport` already in context. The skill will:
+
+1. Validate the `E2eReport` and call `muggle build-pr-section` (piping the JSON to stdin).
+2. Parse the CLI's `{body, comment}` stdout.
+3. **Return `{body, comment}` to this stage's conversation** without posting anything — because Mode B is render-only. `body` is the E2E markdown block; `comment` is a non-null overflow follow-up comment only when content exceeds the byte budget, otherwise `null`.
+
+Mode A (where the skill itself finds an existing PR and posts a `gh pr comment`) is **not used by `muggle-do`** — it's for interactive callers like `muggle-test` that are mid-development with a PR already open. `muggle-do` always creates new PRs, so it always uses Mode B.
+
+### After rendering
+
+Back in this stage:
+
+- Embed `body` in the `gh pr create --body` body (see step 4 above).
+- Post the overflow `comment` as a follow-up **only when it is non-null** (see step 7 above).
+- If the CLI exited non-zero, the skill surfaces the stderr error — do not swallow it, surface it to the user.
+
 ### Notes on fit vs. overflow
 
-- **The common case is fit**: the full evidence (summary, per-test rows, collapsible failure details) lives in the PR description, no comment is posted.
-- **The overflow case** is triggered automatically when the full inline body would exceed the CLI's budget. In that case the PR description contains the summary, the per-test rows, and a pointer line; the full step-by-step failure details live in the follow-up comment.
-- You do not make the fit-vs-overflow decision — the CLI does. Never post the comment speculatively.
+- **Common case (fit):** the full evidence (summary, per-test rows, collapsible failure details) lives in the PR description, `comment` is `null`, no follow-up comment is posted.
+- **Overflow case:** the CLI detects the full body would exceed its byte budget; `body` contains the summary, per-test rows, and a pointer line; `comment` contains the overflow details. Post both.
+- You do not make the fit-vs-overflow decision — the CLI does. Never post the comment when it is `null`.
 
 ## Output
 

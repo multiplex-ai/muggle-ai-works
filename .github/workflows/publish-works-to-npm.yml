@@ -99,6 +99,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build
+        env:
+          RELEASE_BUILD_ID: run-${{ github.run_number }}-${{ github.run_attempt }}
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+          RELEASE_TIME: ${{ github.event.repository.updated_at }}
         run: pnpm run build
 
       - name: Extract version from tag

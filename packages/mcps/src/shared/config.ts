@@ -9,6 +9,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { getDataDir as getSharedDataDir } from "./data-dir.js";
+import { readReleaseManifest } from "./release_manifest.js";
 import type {
   IAuth0Config,
   IConfig,
@@ -462,9 +463,14 @@ export function getConfig(): IConfig {
     return configInstance;
   }
 
+  // serverVersion was previously hardcoded to "1.0.0", which drifted from
+  // the root @muggleai/works package.json version. Sourcing from the release
+  // manifest keeps both in sync and removes the need to remember to bump it.
+  const manifest = readReleaseManifest();
+
   configInstance = {
     serverName: "muggle",
-    serverVersion: "1.0.0",
+    serverVersion: manifest.release,
     logLevel: process.env.LOG_LEVEL ?? "info",
     auth0: buildAuth0Config(),
     e2e: buildE2eConfig(),

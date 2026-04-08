@@ -128,21 +128,52 @@ Only call local execute tools with `approveElectronAppLaunch: true` after the us
 
 ### 9. Offer to post a visual walkthrough to the PR
 
-After reporting results, ask the user — via `AskQuestion` — if they want to attach a **visual walkthrough** to the current branch's open PR:
+After reporting results, gather the required input and hand off to the shared **`muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
+
+#### 9a: Gather per-step screenshots
+
+The shared skill takes an **`E2eReport` JSON** that includes per-step screenshot URLs. After step 7 has called `muggle-local-publish-test-script` and you have the `testScriptId`:
+
+1. Call `muggle-remote-test-script-get` with the `testScriptId`.
+2. Extract per step: `steps[].operation.action` and `steps[].operation.screenshotUrl`.
+3. Build the `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
+4. If the run failed, capture `failureStepIndex`, `error`, and the local `artifactsDir` from the run result in step 8.
+
+Assemble the `E2eReport`:
+
+```json
+{
+  "projectId": "<projectId from step 2>",
+  "tests": [
+    {
+      "name": "<test case title>",
+      "testCaseId": "<id>",
+      "testScriptId": "<id from publish>",
+      "runId": "<runId from execute>",
+      "viewUrl": "<viewUrl from publish>",
+      "status": "passed",
+      "steps": [{ "stepIndex": 0, "action": "...", "screenshotUrl": "..." }]
+    }
+  ]
+}
+```
+
+See the `muggle-pr-visual-walkthrough` skill for the full schema including the failed-test shape.
+
+#### 9b: Ask the user
+
+Use `AskQuestion`:
 
 > "Post a visual walkthrough of this run to the PR? Reviewers can click the test case to see step-by-step screenshots on the Muggle AI dashboard."
 
 - Option 1: "Yes, post to PR"
 - Option 2: "Skip"
 
-If the user chooses "Yes, post to PR", invoke the shared **`muggle-pr-visual-walkthrough`** skill via the `Skill` tool. That skill handles finding the PR, building the markdown comment, posting it, and confirming the URL to the user.
+#### 9c: Invoke the shared skill in Mode A
 
-**Required context for the hand-off** — before invoking, make sure these are already in the conversation:
+If the user chooses "Yes, post to PR", invoke the `muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, finds the PR via `gh pr view`, posts `body` as a comment, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
 
-- `projectId` (from step 2)
-- For the executed test case: `title`, `testCaseId`, `status`, `steps`, `duration`, `viewUrl` (from `muggle-local-publish-test-script` in step 7), and failure details / artifact paths if the run failed
-
-Do not inline the walkthrough markdown or call `gh pr comment` directly from this skill — always delegate to `muggle-pr-visual-walkthrough`.
+Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle-pr-visual-walkthrough`.
 
 ## Non-negotiables
 

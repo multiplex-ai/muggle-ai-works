@@ -191,9 +191,7 @@ export const UseCasePromptPreviewInputSchema = z.object({
 
 export const UseCaseCreateFromPromptsInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to create use cases for"),
-  prompts: z.array(z.object({
-    instruction: z.string().min(1).describe("Natural language instruction describing the use case"),
-  })).min(1).describe("Array of prompts to generate use cases from"),
+  instructions: z.array(z.string().min(1)).min(1).describe("Natural-language instructions — one use case is generated per string (e.g., [\"As a user, I can log in\"])"),
 });
 
 export const UseCaseUpdateFromPromptInputSchema = z.object({

@@ -117,16 +117,7 @@ The user MUST explicitly tell you which use case(s) to use.
 1. Ask the user to describe the use case in plain English
 2. Call `muggle-remote-use-case-create-from-prompts`:
    - `projectId`: The project ID
-   - `prompts`: A native JSON array — `[{ "instruction": "<user's description>" }]`
-
-   **`prompts` MUST be a real JSON array literal, not a stringified JSON.** The schema is `Array<{ instruction: string }>` and rejects strings with `"expected array, received string"`. Correct shape:
-   ```json
-   {
-     "projectId": "<uuid>",
-     "prompts": [{ "instruction": "<the user's natural-language instruction>" }]
-   }
-   ```
-   Do **not** wrap `prompts` in extra quotes (e.g. `"prompts": "[{\"instruction\":...}]"` will fail). The same rule applies to every other tool with an array/object parameter — pass them as native JSON values, never as stringified JSON.
+   - `instructions`: A plain array of strings, one per use case — e.g. `["<user's description>"]`
 3. Present the created use case and confirm it's correct
 
 ## Step 6: Select Test Case (User Must Choose)

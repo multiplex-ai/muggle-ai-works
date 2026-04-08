@@ -126,6 +126,24 @@ Only call local execute tools with `approveElectronAppLaunch: true` after the us
 - `muggle-local-run-result-get` with the run id from execute.
 - Include: status, duration, pass/fail summary, per-step summary, artifact/screenshot paths, errors if failed, and script view URL when publishing ran.
 
+### 9. Offer to post a visual walkthrough to the PR
+
+After reporting results, ask the user — via `AskQuestion` — if they want to attach a **visual walkthrough** to the current branch's open PR:
+
+> "Post a visual walkthrough of this run to the PR? Reviewers can click the test case to see step-by-step screenshots on the Muggle AI dashboard."
+
+- Option 1: "Yes, post to PR"
+- Option 2: "Skip"
+
+If the user chooses "Yes, post to PR", invoke the shared **`muggle-pr-visual-walkthrough`** skill via the `Skill` tool. That skill handles finding the PR, building the markdown comment, posting it, and confirming the URL to the user.
+
+**Required context for the hand-off** — before invoking, make sure these are already in the conversation:
+
+- `projectId` (from step 2)
+- For the executed test case: `title`, `testCaseId`, `status`, `steps`, `duration`, `viewUrl` (from `muggle-local-publish-test-script` in step 7), and failure details / artifact paths if the run failed
+
+Do not inline the walkthrough markdown or call `gh pr comment` directly from this skill — always delegate to `muggle-pr-visual-walkthrough`.
+
 ## Non-negotiables
 
 - No silent auth skip; no launching Electron without approval via `AskQuestion`.
@@ -134,3 +152,4 @@ Only call local execute tools with `approveElectronAppLaunch: true` after the us
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
 - Use `AskQuestion` for every selection — project, use case, test case, script, and approval. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
+- PR posting is always optional and always delegated to the `muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

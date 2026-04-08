@@ -57,7 +57,16 @@ Prompt for projects: "Pick the project to group this test into:"
 - **Project — Create new project:** Collect `projectName`, `description`, and `url` (may be the local app URL, e.g. `http://localhost:3999`). Call `muggle-remote-project-create`. Use the returned `projectId` and continue.
 - **Use case — Create new use case:** User provides a natural-language instruction (or you reuse their testing goal).
   1. `muggle-remote-use-case-prompt-preview` with `projectId`, `instruction` — show preview; get confirmation via `AskQuestion`.
-  2. `muggle-remote-use-case-create-from-prompts` with `projectId`, `prompts: [{ instruction }]` — persist. Use the created use case id and continue to test-case selection.
+  2. `muggle-remote-use-case-create-from-prompts` with `projectId`, `prompts` — persist. Use the created use case id and continue to test-case selection.
+
+     **`prompts` MUST be a real JSON array literal, not a stringified JSON.** The schema is `Array<{ instruction: string }>` and rejects strings with `"expected array, received string"`. Pass it as:
+     ```json
+     {
+       "projectId": "<uuid>",
+       "prompts": [{ "instruction": "<the user's natural-language instruction>" }]
+     }
+     ```
+     Do **not** wrap `prompts` in extra quotes (e.g. `"prompts": "[{\"instruction\":...}]"` will fail). The same rule applies to every other tool with an array/object parameter — pass them as native JSON values, never as stringified JSON.
 - **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.
   1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskQuestion`.
   2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 4** with that `testCaseId`.

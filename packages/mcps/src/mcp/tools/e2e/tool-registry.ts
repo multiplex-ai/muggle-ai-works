@@ -176,7 +176,10 @@ const useCaseTools: IQaToolDefinition[] = [
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/prompts/bulk`,
-        body: { projectId: data.projectId, prompts: data.prompts },
+        body: {
+          projectId: data.projectId,
+          prompts: data.instructions.map((instruction) => ({ instruction })),
+        },
       };
     },
   },

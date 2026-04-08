@@ -117,7 +117,7 @@ The user MUST explicitly tell you which use case(s) to use.
 1. Ask the user to describe the use case in plain English
 2. Call `muggle-remote-use-case-create-from-prompts`:
    - `projectId`: The project ID
-   - `prompts`: Array of `{ instruction: "..." }` with the user's description
+   - `instructions`: A plain array of strings, one per use case — e.g. `["<user's description>"]`
 3. Present the created use case and confirm it's correct
 
 ## Step 6: Select Test Case (User Must Choose)

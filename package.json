@@ -16,7 +16,7 @@
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build": "tsup && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
+        "build": "tsup && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
         "sync:versions": "node scripts/sync-versions.mjs",
         "build:release": "npm run build",

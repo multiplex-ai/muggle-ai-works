@@ -5,7 +5,10 @@
 import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios";
 
 import { getConfig } from "../../shared/config.js";
+import { detectMcpHost } from "../../shared/host_detection.js";
+import { getInstallId } from "../../shared/install_id.js";
 import { getLogger } from "../../shared/logger.js";
+import { readReleaseManifest } from "../../shared/release_manifest.js";
 
 import {
   GatewayError,
@@ -74,8 +77,25 @@ export class PromptServiceClient {
     credentials: ICallerCredentials,
     correlationId: string,
   ): Record<string, string> {
+    // Release identity + per-install identity + host detection, sent on every
+    // backend call. The backend's clientIdentityMiddleware (see
+    // muggle-ai-prompt-service/src/middleware/clientIdentity.ts) reads these
+    // and decorates its own telemetry so fleet visibility and incident
+    // attribution can slice by client release, install, and host. See
+    // muggle-ai-brain/execution/2026-04-07-release-telemetry-rollout/design.md
+    // §5 Category B and §9 canonical schema.
+    const manifest = readReleaseManifest();
+    const installId = getInstallId();
+    const host = detectMcpHost();
+
     const headers: Record<string, string> = {
       "X-Correlation-Id": correlationId,
+      "X-Client-Service-Name": manifest.serviceName,
+      "X-Client-Release": manifest.release,
+      "X-Client-Build-Id": manifest.buildId,
+      "X-Client-Commit-Sha": manifest.commitSha,
+      "X-Client-Install-Id": installId,
+      "X-Client-Host": host,
     };
 
     if (credentials.bearerToken) {

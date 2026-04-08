@@ -74,14 +74,20 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-list",
-    description: "List all projects accessible to the authenticated user.",
+    description:
+      "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.ProjectListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.ProjectListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
-        queryParams: { page: data.page, pageSize: data.pageSize },
+        queryParams: {
+          page: data.page,
+          pageSize: data.pageSize,
+          sortBy: data.sortBy,
+          sortOrder: data.sortOrder,
+        },
       };
     },
   },
@@ -131,14 +137,21 @@ const useCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-use-case-list",
-    description: "List all use cases for a project.",
+    description:
+      "List use cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.UseCaseListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.UseCaseListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/use-cases`,
-        queryParams: { projectId: data.projectId, page: data.page, pageSize: data.pageSize },
+        queryParams: {
+          projectId: data.projectId,
+          page: data.page,
+          pageSize: data.pageSize,
+          sortBy: data.sortBy,
+          sortOrder: data.sortOrder,
+        },
       };
     },
   },
@@ -239,14 +252,21 @@ const useCaseTools: IQaToolDefinition[] = [
 const testCaseTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-case-list",
-    description: "List test cases for a project.",
+    description:
+      "List test cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestCaseListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.TestCaseListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-cases`,
-        queryParams: { projectId: data.projectId, page: data.page, pageSize: data.pageSize },
+        queryParams: {
+          projectId: data.projectId,
+          page: data.page,
+          pageSize: data.pageSize,
+          sortBy: data.sortBy,
+          sortOrder: data.sortOrder,
+        },
       };
     },
   },
@@ -385,14 +405,22 @@ const bulkPreviewTools: IQaToolDefinition[] = [
 const testScriptTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-script-list",
-    description: "List test scripts for a project, optionally filtered by test case.",
+    description:
+      "List test scripts for a project, optionally filtered by test case. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestScriptListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.TestScriptListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-scripts`,
-        queryParams: { projectId: data.projectId, testCaseId: data.testCaseId, page: data.page, pageSize: data.pageSize },
+        queryParams: {
+          projectId: data.projectId,
+          testCaseId: data.testCaseId,
+          page: data.page,
+          pageSize: data.pageSize,
+          sortBy: data.sortBy,
+          sortOrder: data.sortOrder,
+        },
       };
     },
   },
@@ -405,19 +433,6 @@ const testScriptTools: IQaToolDefinition[] = [
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-scripts/${data.testScriptId}`,
-      };
-    },
-  },
-  {
-    name: "muggle-remote-test-script-list-paginated",
-    description: "List test scripts with full pagination support.",
-    inputSchema: schemas.TestScriptListPaginatedInputSchema,
-    mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestScriptListPaginatedInputSchema>;
-      return {
-        method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/test-scripts/paginated`,
-        queryParams: { projectId: data.projectId, page: data.page, pageSize: data.pageSize },
       };
     },
   },

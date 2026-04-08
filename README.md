@@ -247,24 +247,40 @@ Project Management (muggle-remote-project-*)
 Use Cases (muggle-remote-use-case-*)
 
 
-| Tool                                         | Purpose                      |
-| -------------------------------------------- | ---------------------------- |
-| `muggle-remote-use-case-list`                | List use cases               |
-| `muggle-remote-use-case-create-from-prompts` | Create from natural language |
-| `muggle-remote-use-case-prompt-preview`      | Preview before creating      |
-| `muggle-remote-use-case-update-from-prompt`  | Regenerate from new prompt   |
+| Tool                                           | Purpose                                                  |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `muggle-remote-use-case-list`                  | List use cases                                           |
+| `muggle-remote-use-case-create`                | Persist a fully-specified use case (no LLM)              |
+| `muggle-remote-use-case-create-from-prompts`   | Create from natural language                             |
+| `muggle-remote-use-case-prompt-preview`        | Preview before creating                                  |
+| `muggle-remote-use-case-update-from-prompt`    | Regenerate from new prompt                               |
+| `muggle-remote-use-case-bulk-preview-submit`   | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
 
 
 Test Cases (muggle-remote-test-case-*)
 
 
-| Tool                                           | Purpose               |
-| ---------------------------------------------- | --------------------- |
-| `muggle-remote-test-case-list`                 | List all test cases   |
-| `muggle-remote-test-case-list-by-use-case`     | List by use case      |
-| `muggle-remote-test-case-get`                  | Get test case details |
-| `muggle-remote-test-case-create`               | Create test case      |
-| `muggle-remote-test-case-generate-from-prompt` | Generate from prompt  |
+| Tool                                           | Purpose                                                  |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `muggle-remote-test-case-list`                 | List all test cases                                      |
+| `muggle-remote-test-case-list-by-use-case`     | List by use case                                         |
+| `muggle-remote-test-case-get`                  | Get test case details                                    |
+| `muggle-remote-test-case-create`               | Create test case                                         |
+| `muggle-remote-test-case-generate-from-prompt` | Generate from prompt                                     |
+| `muggle-remote-test-case-bulk-preview-submit`  | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
+
+
+Bulk Preview Jobs (muggle-remote-bulk-preview-job-*)
+
+Manage async jobs started by the `*-bulk-preview-submit` tools above. Submit returns a
+`jobId` immediately; poll `-get` until a terminal status, then persist the results via
+`muggle-remote-use-case-create` / `muggle-remote-test-case-create`.
+
+| Tool                                    | Purpose                                 |
+| --------------------------------------- | --------------------------------------- |
+| `muggle-remote-bulk-preview-job-get`    | Poll a bulk-preview job for status/results |
+| `muggle-remote-bulk-preview-job-list`   | List bulk-preview jobs for a project    |
+| `muggle-remote-bulk-preview-job-cancel` | Cooperatively cancel an in-flight job   |
 
 
 Test Scripts and Workflows (muggle-remote-workflow-*)

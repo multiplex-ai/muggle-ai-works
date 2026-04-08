@@ -202,6 +202,82 @@ export const UseCaseUpdateFromPromptInputSchema = z.object({
   instruction: z.string().min(1).describe("Natural language instruction to regenerate the use case from"),
 });
 
+/**
+ * Shape of a fully-specified use case, matching IUseCaseCreationRequest on the server.
+ * Used by muggle-remote-use-case-create to persist use cases returned by bulk-preview.
+ */
+export const UseCaseCreateInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) the use case belongs to"),
+  title: z.string().min(1).describe("Use case title"),
+  description: z.string().min(1).describe("Description of the use case, including actor and preconditions"),
+  userStory: z.string().min(1).describe("One-line user story from the end-user point of view"),
+  url: z.string().url().optional().describe("URL where the use case takes place (defaults to project URL)"),
+  useCaseBreakdown: z.array(z.object({
+    requirement: z.string().min(1).describe("One requirement of the use case"),
+    acceptanceCriteria: z.string().min(1).describe("Concrete, measurable acceptance criteria for the requirement"),
+  })).describe("Main/alternative/error flows broken down as requirement + acceptance criteria pairs"),
+  status: z.enum(["DRAFT", "IN_REVIEW", "APPROVED", "IMPLEMENTED", "ARCHIVED"]).describe("Use case status"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).describe("Use case priority"),
+  source: z.enum(["PRD_FILE", "SITEMAP", "CRAWLER", "PROMPT", "MANUAL"]).describe("How this use case was produced"),
+  category: z.string().optional().describe("Optional category"),
+});
+
+// =============================================================================
+// Bulk Preview Schemas
+// =============================================================================
+
+/** One prompt inside a bulk-preview submit request. */
+export const BulkPreviewPromptSchema = z.object({
+  clientRef: z.string().max(128).optional().describe("Optional caller-supplied reference echoed back on results"),
+  instruction: z.string().min(1).max(4000).describe("Natural language instruction (max 4000 chars)"),
+});
+
+/** Submit a bulk-preview job that generates use cases from a batch of prompts. */
+export const BulkPreviewSubmitUseCaseInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) the use cases belong to"),
+  prompts: z.array(BulkPreviewPromptSchema).min(1).max(100).describe("Prompts to generate use cases from (max 100 per request)"),
+});
+
+/** Submit a bulk-preview job that generates test cases for a single use case from a batch of prompts. */
+export const BulkPreviewSubmitTestCaseInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  useCaseId: IdSchema.describe("Parent use case ID (UUID) the test cases will belong to"),
+  prompts: z.array(BulkPreviewPromptSchema).min(1).max(100).describe("Prompts to generate test cases from (max 100 per request)"),
+});
+
+/** Bulk-preview job status values (mirrors server BulkPreviewJobStatus). */
+export const BulkPreviewJobStatusSchema = z.enum([
+  "queued",
+  "submitted",
+  "running",
+  "succeeded",
+  "partial",
+  "failed",
+  "cancelled",
+  "expired",
+]);
+
+/** Bulk-preview job kind values (mirrors server BulkPreviewJobKind). */
+export const BulkPreviewJobKindSchema = z.enum(["useCase", "testCase"]);
+
+export const BulkPreviewJobGetInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  jobId: IdSchema.describe("Bulk-preview job ID (UUID)"),
+});
+
+export const BulkPreviewJobCancelInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  jobId: IdSchema.describe("Bulk-preview job ID (UUID) to cancel"),
+});
+
+export const BulkPreviewJobListInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) to list bulk-preview jobs for"),
+  status: z.array(BulkPreviewJobStatusSchema).optional().describe("Optional filter — only return jobs matching any of these statuses"),
+  kind: BulkPreviewJobKindSchema.optional().describe("Optional filter — only return jobs of this kind"),
+  limit: z.number().int().min(1).max(100).optional().describe("Max jobs to return (default 20, max 100)"),
+  cursor: z.string().optional().describe("Pagination cursor returned by a previous call"),
+});
+
 // =============================================================================
 // Test Case Schemas
 // =============================================================================

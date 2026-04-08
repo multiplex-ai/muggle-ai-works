@@ -193,6 +193,43 @@ const useCaseTools: IQaToolDefinition[] = [
       };
     },
   },
+  {
+    name: "muggle-remote-use-case-create",
+    description: "Create a single use case from a fully-specified payload. Use this to persist use cases returned by muggle-remote-use-case-bulk-preview-submit — no LLM is invoked.",
+    inputSchema: schemas.UseCaseCreateInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.UseCaseCreateInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/use-cases`,
+        body: {
+          projectId: data.projectId,
+          title: data.title,
+          description: data.description,
+          userStory: data.userStory,
+          url: data.url,
+          useCaseBreakdown: data.useCaseBreakdown,
+          status: data.status,
+          priority: data.priority,
+          source: data.source,
+          category: data.category,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-use-case-bulk-preview-submit",
+    description: "Submit an async bulk-preview job that uses the OpenAI Batch API to generate use cases from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-use-case-create.",
+    inputSchema: schemas.BulkPreviewSubmitUseCaseInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.BulkPreviewSubmitUseCaseInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/prompts/bulk-preview`,
+        body: { prompts: data.prompts },
+      };
+    },
+  },
 ];
 
 // =============================================================================
@@ -274,6 +311,68 @@ const testCaseTools: IQaToolDefinition[] = [
           category: data.category || "Functional",
           automated: data.automated ?? true,
         },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-case-bulk-preview-submit",
+    description: "Submit an async bulk-preview job that uses the OpenAI Batch API to generate test cases for a single use case from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-test-case-create. Note: one input prompt may fan out to 1–5 test cases.",
+    inputSchema: schemas.BulkPreviewSubmitTestCaseInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.BulkPreviewSubmitTestCaseInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/${data.useCaseId}/test-cases/prompts/bulk-preview`,
+        body: { prompts: data.prompts },
+      };
+    },
+  },
+];
+
+// =============================================================================
+// Bulk Preview Job Tools
+// =============================================================================
+
+const bulkPreviewTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-bulk-preview-job-get",
+    description: "Get the current status and (when terminal) results of a bulk-preview job. Poll this after submitting a bulk-preview job — every 10–15 seconds is fine. Terminal statuses: succeeded, partial, failed, cancelled, expired.",
+    inputSchema: schemas.BulkPreviewJobGetInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.BulkPreviewJobGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs/${data.jobId}`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-bulk-preview-job-list",
+    description: "List bulk-preview jobs for a project, optionally filtered by status or kind.",
+    inputSchema: schemas.BulkPreviewJobListInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.BulkPreviewJobListInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs`,
+        queryParams: {
+          status: data.status?.join(","),
+          kind: data.kind,
+          limit: data.limit,
+          cursor: data.cursor,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-bulk-preview-job-cancel",
+    description: "Request cancellation of a bulk-preview job. Cancellation is cooperative — the harvester picks it up on its next tick and moves the job to status=cancelled.",
+    inputSchema: schemas.BulkPreviewJobCancelInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.BulkPreviewJobCancelInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs/${data.jobId}`,
       };
     },
   },
@@ -1409,6 +1508,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
   ...useCaseTools,
   ...testCaseTools,
+  ...bulkPreviewTools,
   ...testScriptTools,
   ...actionScriptTools,
   ...workflowTools,

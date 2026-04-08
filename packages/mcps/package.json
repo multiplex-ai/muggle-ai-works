@@ -16,6 +16,11 @@
     "build": "tsup --config tsup.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "echo \"mcp lint placeholder\"",
-    "test": "echo \"mcp test placeholder\""
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "*",
+    "typescript": "*"
   }
 }

@@ -62,7 +62,6 @@ For each relevant test case:
      - `testScript`: the full script object
      - `actionScript`: the full action script object (from `muggle-remote-action-script-get`)
      - `localUrl`: the resolved local URL
-     - `approveElectronAppLaunch`: `true` *(pipeline context — user starting `muggle-do` is implicit approval)*
      - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
 
 3. **If no script exists** (generation path):
@@ -70,7 +69,6 @@ For each relevant test case:
    - `muggle-local-execute-test-generation` with:
      - `testCase`: the full test case object
      - `localUrl`: the resolved local URL
-     - `approveElectronAppLaunch`: `true`
      - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
 
 4. When execution completes, call `muggle-local-run-result-get` with the `runId` returned by the execute call.

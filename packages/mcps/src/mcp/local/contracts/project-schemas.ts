@@ -90,12 +90,10 @@ export const ExecuteTestGenerationInputSchema = z.object({
   testCase: TestCaseDetailsSchema.describe("Test case details obtained from muggle-remote-test-case-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Explicit approval to launch electron-app. */
-  approveElectronAppLaunch: z.boolean().describe("Set to true after the user explicitly approves launching electron-app"),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
-  /** Show the electron-app UI during execution. Ask the user before approving; true = visible window, false or omit = headless. */
-  showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Ask the user: true to watch the window, false or omit for headless."),
+  /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
+  showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -111,12 +109,10 @@ export const ExecuteReplayInputSchema = z.object({
   actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Explicit approval to launch electron-app. */
-  approveElectronAppLaunch: z.boolean().describe("Set to true after the user explicitly approves launching electron-app"),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
-  /** Show the electron-app UI during execution. Ask the user before approving; true = visible window, false or omit = headless. */
-  showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Ask the user: true to watch the window, false or omit for headless."),
+  /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
+  showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

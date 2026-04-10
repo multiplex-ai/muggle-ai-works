@@ -1423,7 +1423,9 @@ const authTools: IQaToolDefinition[] = [
       const data = input as z.infer<typeof schemas.AuthLoginInputSchema>;
       const authService = getAuthService();
 
-      const deviceCodeResponse = await authService.startDeviceCodeFlow();
+      const deviceCodeResponse = await authService.startDeviceCodeFlow({
+        forceNewSession: data.forceNewSession,
+      });
       const waitForCompletion = data.waitForCompletion ?? true;
 
       if (!waitForCompletion) {

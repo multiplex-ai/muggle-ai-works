@@ -76,8 +76,9 @@ export class AuthService {
 
   /**
    * Start the device code flow.
+   * @param options.forceNewSession - Clear existing Auth0 browser session before login to allow account switching.
    */
-  async startDeviceCodeFlow(): Promise<IDeviceCodeResponse> {
+  async startDeviceCodeFlow(options?: { forceNewSession?: boolean }): Promise<IDeviceCodeResponse> {
     const logger = getLogger();
     const config = getConfig();
     const { domain, clientId, audience, scopes } = config.localQa.auth0;
@@ -129,8 +130,20 @@ export class AuthService {
       expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
     });
 
+    let browserUrl = data.verification_uri_complete;
+
+    if (options?.forceNewSession) {
+      const logoutUrl = new URL(`https://${domain}/v2/logout`);
+      logoutUrl.searchParams.set("client_id", clientId);
+      logoutUrl.searchParams.set("returnTo", data.verification_uri_complete);
+      browserUrl = logoutUrl.toString();
+      logger.info("Force new session: opening logout-redirect URL", {
+        logoutUrl: browserUrl,
+      });
+    }
+
     const browserOpenResult = await openBrowserUrl({
-      url: data.verification_uri_complete,
+      url: browserUrl,
     });
 
     if (browserOpenResult.opened) {
@@ -138,7 +151,7 @@ export class AuthService {
     } else {
       logger.warn("Failed to open browser for device code login", {
         error: browserOpenResult.error,
-        verificationUriComplete: data.verification_uri_complete,
+        url: browserUrl,
       });
     }
 

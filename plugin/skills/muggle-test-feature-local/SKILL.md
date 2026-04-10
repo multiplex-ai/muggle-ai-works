@@ -19,7 +19,7 @@ The local URL only changes where the browser opens; it does not change the remot
 
 **Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
 
-- **Selections** (project, use case, test case, script, approval): Use `AskQuestion` with labeled options the user can click.
+- **Selections** (project, use case, test case, script): Use `AskQuestion` with labeled options the user can click.
 - **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
 
 ## Workflow
@@ -84,21 +84,21 @@ Remind them: local URL is only the execution target, not tied to cloud project c
 **Generate**
 
 1. `muggle-remote-test-case-get`
-2. `muggle-local-execute-test-generation` (after approval in step 6) with that test case + `localUrl` + `approveElectronAppLaunch: true` (optional: `showUi: true`, **`timeoutMs`** — see below)
+2. `muggle-local-execute-test-generation` with that test case + `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`timeoutMs`** — see below)
 
 **Replay**
 
 1. `muggle-remote-test-script-get` — note `actionScriptId`
 2. `muggle-remote-action-script-get` with that id — full `actionScript`
    **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
-3. `muggle-local-execute-replay` (after approval in step 6) with `testScript`, `actionScript`, `localUrl`, `approveElectronAppLaunch: true` (optional: `showUi: true`, **`timeoutMs`** — see below)
+3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`timeoutMs`** — see below)
 
 ### Local execution timeout (`timeoutMs`)
 
 The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggle-local-execute-test-generation` and `muggle-local-execute-replay`. **Exploratory script generation** (Auth0 login, dashboards, multi-step wizards, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
 
 - **Always pass `timeoutMs`** for flows that may be long — for example **`600000` (10 min)** or **`900000` (15 min)** — unless the user explicitly wants a short cap.
-- If the tool reports **`Electron execution timed out after 300000ms`** (or similar) **but** Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry** (after user re-approves if your policy requires it).
+- If the tool reports **`Electron execution timed out after 300000ms`** (or similar) **but** Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry**.
 - **Test case design:** Preconditions like "a test run has already completed" on an **empty account** can force many steps (sign-up, new project, crawl). Prefer an account/project that **already has** the needed state, or narrow the test goal so generation does not try to create a full project from scratch unless that is intentional.
 
 ### Interpreting `failed` / non-zero Electron exit
@@ -106,15 +106,9 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 - **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see **`timeoutMs`** above.
 - **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. verifying "view script after a successful run" when **no run or script exists yet** in the UI. Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash. **Fix:** choose a **project that already has** completed runs and scripts, or **change the test case** so preconditions match what localhost can satisfy (e.g. include steps to create and run a test first, or assert only empty-state UI when no runs exist).
 
-### 6. Approval before any local execution
+### 6. Execute (no approval prompt)
 
-Use `AskQuestion` to get explicit approval before launching Electron. State: replay vs generation, test case name, URL.
-
-- "Yes, launch Electron (visible — I want to watch)"
-- "Yes, launch Electron (headless — run in background)"
-- "No, cancel"
-
-Only call local execute tools with `approveElectronAppLaunch: true` after the user selects a "Yes" option. Map visible to `showUi: true`, headless to `showUi: false`.
+Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval. The browser defaults to visible; only pass `showUi: false` if the user explicitly asked for headless.
 
 ### 7. After successful generation only
 
@@ -177,10 +171,11 @@ Always use **Mode A** (post to existing PR) from this skill. Never hand-write th
 
 ## Non-negotiables
 
-- No silent auth skip; no launching Electron without approval via `AskQuestion`.
+- No silent auth skip.
+- **Never prompt for Electron launch approval** before execution — invoking this skill is the approval. Just run.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
-- Use `AskQuestion` for every selection — project, use case, test case, script, and approval. Never ask the user to type a number.
+- Use `AskQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
 - PR posting is always optional and always delegated to the `muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

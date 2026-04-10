@@ -1,7 +1,7 @@
 {
     "name": "@muggleai/works",
     "mcpName": "io.github.multiplex-ai/muggle",
-    "version": "4.5.0",
+    "version": "4.6.0",
     "description": "Ship quality products with AI-powered E2E acceptance testing that validates your web app like a real user — from Claude Code and Cursor to PR.",
     "type": "module",
     "main": "dist/index.js",
@@ -42,14 +42,14 @@
         "test:watch": "vitest"
     },
     "muggleConfig": {
-        "electronAppVersion": "1.0.47",
+        "electronAppVersion": "1.0.49",
         "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
         "runtimeTargetDefault": "dev",
         "checksums": {
-            "darwin-arm64": "f80b943ea5f05e7113d603ee8104c07be101a26092c4fa50ed6fcb37a0cbebff",
-            "darwin-x64": "3189a5c07087f9ba2ef03f99e3735055c00a752b2421ae9cffc113f04933da61",
-            "win32-x64": "d8e102fce024776262f856dfea0b12429e853689d29d03e27e54dbeffbe59725",
-            "linux-x64": "d7218dddcbab47f78c64fe438cf5bd129740f20f6ad160b615a648415f8faffc"
+            "darwin-arm64": "0a93aa97ace4c2afbb8dd7e49c91673e352eefbc6df6bebb0ea0e7142ee5d63c",
+            "darwin-x64": "98e37f7ddf4b86fef15bfe6ab8275072d04857690de776b89611a1a4d83d4691",
+            "win32-x64": "5d72b318388ae45f8aad0a9f6363dd680f870effc69991ea8ab244786a6f9d31",
+            "linux-x64": "5275c5c8fca3435ac0294d3ded00d68ecf5cd7d602a4f58b6de8fef3568559ee"
         }
     },
     "dependencies": {

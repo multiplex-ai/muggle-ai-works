@@ -27,7 +27,12 @@ The local URL only changes where the browser opens; it does not change the remot
 ### 1. Auth
 
 - `muggle-remote-auth-status`
-- If not signed in: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
+- If **authenticated**: print the logged-in email and ask via `AskQuestion`:
+  > "You're logged in as **{email}**. Continue with this account?"
+  - Option 1: "Yes, continue"
+  - Option 2: "No, switch account"
+  If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true` then `muggle-remote-auth-poll`.
+- If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`.
   Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)

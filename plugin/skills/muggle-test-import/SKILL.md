@@ -130,9 +130,12 @@ If the user wants changes, incorporate feedback, then ask again. Only proceed af
 
 Call `muggle-remote-auth-status` first.
 
-If already authenticated → skip to Step 5.
+If **already authenticated** → print the logged-in email and ask via `AskQuestion`:
+> "You're logged in as **{email}**. Continue with this account?"
+- Option 1: "Yes, continue" → skip to Step 5.
+- Option 2: "No, switch account" → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 
-If not authenticated:
+If **not authenticated**:
 1. Tell the user a browser window is about to open.
 2. Call `muggle-remote-auth-login` (opens browser automatically).
 3. Tell the user to complete login in the browser.

@@ -555,6 +555,7 @@ export const ApiKeyRevokeInputSchema = z.object({
 export const AuthLoginInputSchema = z.object({
   waitForCompletion: z.boolean().optional().describe("Whether to wait for browser login completion before returning. Default: true"),
   timeoutMs: z.number().int().positive().min(1000).max(900000).optional().describe("Maximum time to wait for login completion in milliseconds. Default: 120000"),
+  forceNewSession: z.boolean().optional().describe("Force a fresh login by clearing any existing Auth0 browser session before redirecting to the device activation page. Use this to switch accounts. Default: false"),
 });
 
 /**

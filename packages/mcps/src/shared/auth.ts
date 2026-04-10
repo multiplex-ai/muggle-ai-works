@@ -32,7 +32,7 @@ const logger = getLogger();
  * @returns Device code response with URLs and codes.
  * @throws Error if the device code request fails.
  */
-export async function startDeviceCodeFlow(config: IAuth0Config): Promise<IDeviceCodeResponse> {
+export async function startDeviceCodeFlow(config: IAuth0Config, options?: { forceNewSession?: boolean }): Promise<IDeviceCodeResponse> {
   const deviceCodeUrl = `https://${config.domain}/oauth/device/code`;
 
   try {
@@ -63,8 +63,18 @@ export async function startDeviceCodeFlow(config: IAuth0Config): Promise<IDevice
     });
 
     // Try to open browser automatically
+    let browserUrl = data.verification_uri_complete;
+
+    if (options?.forceNewSession) {
+      const logoutUrl = new URL(`https://${config.domain}/v2/logout`);
+      logoutUrl.searchParams.set("client_id", config.clientId);
+      logoutUrl.searchParams.set("returnTo", data.verification_uri_complete);
+      browserUrl = logoutUrl.toString();
+      logger.info("[Auth] Force new session: opening logout-redirect URL");
+    }
+
     const browserOpenResult = await openBrowserUrl({
-      url: data.verification_uri_complete,
+      url: browserUrl,
     });
 
     if (browserOpenResult.opened) {

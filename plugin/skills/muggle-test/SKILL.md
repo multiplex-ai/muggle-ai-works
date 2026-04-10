@@ -82,8 +82,12 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 ## Step 3: Authenticate
 
 1. Call `muggle-remote-auth-status`
-2. If authenticated and not expired → proceed
-3. If not authenticated or expired → call `muggle-remote-auth-login`
+2. If **authenticated and not expired** → print the logged-in email and ask via `AskQuestion`:
+   > "You're logged in as **{email}**. Continue with this account?"
+   - Option 1: "Yes, continue"
+   - Option 2: "No, switch account"
+   If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+3. If **not authenticated or expired** → call `muggle-remote-auth-login`
 4. If login pending → call `muggle-remote-auth-poll`
 
 If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal.

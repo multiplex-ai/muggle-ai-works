@@ -40,8 +40,13 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 ### Step 1 — Authenticate
 
 1. Call `muggle-remote-auth-status`.
-2. If not authenticated or expired → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
-3. Do not skip auth and do not assume a stale token still works.
+2. If **authenticated and not expired** → print the logged-in email and ask via `AskQuestion`:
+   > "You're logged in as **{email}**. Continue with this account?"
+   - Option 1: "Yes, continue"
+   - Option 2: "No, switch account"
+   If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
+3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
+4. Do not skip auth and do not assume a stale token still works.
 
 If auth keeps failing, suggest the user run `muggle logout && muggle login` from a terminal.
 

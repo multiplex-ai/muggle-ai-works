@@ -33,7 +33,12 @@ Read `localUrl` for each repo from the context. If it is not provided, ask the u
 ### Step 1: Check Authentication
 
 - `muggle-remote-auth-status`
-- If not signed in: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
+- If **authenticated**: print the logged-in email and ask via `AskQuestion`:
+  > "You're logged in as **{email}**. Continue with this account?"
+  - Option 1: "Yes, continue"
+  - Option 2: "No, switch account"
+  If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true` then `muggle-remote-auth-poll`.
+- If **not signed in or expired**: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
 
 Do not skip or assume auth.
 

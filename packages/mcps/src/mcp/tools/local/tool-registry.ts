@@ -519,6 +519,7 @@ const publishTestScriptTool: ILocalMcpTool = {
               uploadedAt: uploadedAt,
             },
             actionScript: testScript.actionScript,
+            summaryStep: testScript.summaryStep,
             status: runResult.status === "passed" ? "passed" : "failed",
             executionTimeMs: runResult.executionTimeMs,
             errorMessage: runResult.errorMessage,

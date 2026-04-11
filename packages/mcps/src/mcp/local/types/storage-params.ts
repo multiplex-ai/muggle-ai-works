@@ -386,6 +386,7 @@ export interface IUpdateLocalTestScriptParams {
     status: import("./enums.js").LocalTestScriptStatus;
     actionScriptId: string;
     actionScript: unknown[];
+    summaryStep: unknown;
   }>;
 }
 

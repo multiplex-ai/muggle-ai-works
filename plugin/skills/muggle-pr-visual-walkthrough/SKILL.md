@@ -82,6 +82,7 @@ After `muggle-local-publish-test-script` returns `{testScriptId, viewUrl, ...}` 
 4. For failures, read `failureStepIndex`, `error`, and `artifactsDir` from the run result.
 5. Assemble the `E2eReport` with `projectId` from the test run.
 6. When you have the `testCaseId`, also call `muggle-remote-test-case-get` to pull the test case `title`/`description` for the report, and `muggle-remote-use-case-get` to pull the parent use case `title` into `useCaseName`. These two fields are optional but strongly recommended: they drive the grouped overview and the per-test collapsible headers.
+   - **Tip:** if the test case `title`/`description` and parent use case `title` are already in your conversation context from earlier steps in this session (e.g. the test case you just created via `muggle-remote-test-case-generate-from-prompt`, selected from `muggle-remote-test-case-list-by-use-case`, or the use case you confirmed from `muggle-remote-use-case-list`), reuse those values directly and skip the `...-get` calls — no need to re-fetch what you already have.
 
 ### From `muggle-do` (`open-prs.md`)
 

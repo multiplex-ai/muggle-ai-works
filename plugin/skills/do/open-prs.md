@@ -13,7 +13,7 @@ You receive:
   - `steps`: array of `{ stepIndex, action, screenshotUrl }`
   - `failureStepIndex` and `error` (if failed)
   - `artifactsDir` (for local debugging)
-  - `description` and `useCaseName` (optional but recommended) — test case one-liner and parent use case title; drive the grouped overview and the per-test collapsible headers in the rendered walkthrough. Pull via `muggle-remote-test-case-get` (test case `title`/`description`) and `muggle-remote-use-case-get` (use case `title`) while the `e2e-acceptance.md` stage assembles the report.
+  - `description` and `useCaseName` (optional but recommended) — test case one-liner and parent use case title; drive the grouped overview and the per-test collapsible headers in the rendered walkthrough. Pull via `muggle-remote-test-case-get` (test case `title`/`description`) and `muggle-remote-use-case-get` (use case `title`) while the `e2e-acceptance.md` stage assembles the report. **Tip:** if those titles/descriptions are already in your conversation context from earlier steps in this session (e.g. a test case you just created or a use case you just confirmed), reuse those values directly and skip the `...-get` calls — no need to re-fetch what you already have.
 
 ## Your Job
 

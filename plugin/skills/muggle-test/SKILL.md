@@ -319,6 +319,7 @@ For the published runs from Step 7A, issue **all** `muggle-remote-test-script-ge
 2. Build a `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
 3. If the run failed, also capture `failureStepIndex`, `error`, and the local `artifactsDir` from `muggle-local-run-result-get`.
 4. For each test case, also call `muggle-remote-test-case-get` to pull the test case `title`/`description`, and `muggle-remote-use-case-get` on its parent use-case id to pull the use case `title`. Populate `description` and `useCaseName` on the report entry (both optional but strongly recommended — they drive the grouped overview and the per-test collapsible headers in the rendered walkthrough).
+   - **Tip:** if the test case `title`/`description` and parent use case `title` are already in your conversation context from earlier steps in this session (e.g. the test case you just created via `muggle-remote-test-case-generate-from-prompt`, selected from `muggle-remote-test-case-list-by-use-case`, or the use case you confirmed from `muggle-remote-use-case-list`), reuse those values directly and skip the `...-get` calls — no need to re-fetch what you already have.
 
 Assemble the report:
 

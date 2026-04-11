@@ -9,6 +9,7 @@
 import { ZodError } from "zod";
 
 import { buildPrSection, E2eReportSchema } from "./pr-section/index.js";
+import { resolveGsScreenshotUrls } from "./pr-section/resolve-urls.js";
 
 /** Default UTF-8 byte budget for the PR description. */
 export const DEFAULT_MAX_BODY_BYTES = 60_000;
@@ -66,7 +67,8 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
     }
     return 1;
   }
-  const result = buildPrSection(report, { maxBodyBytes: opts.maxBodyBytes });
+  const resolvedReport = await resolveGsScreenshotUrls(report, { stderrWrite: opts.stderrWrite });
+  const result = buildPrSection(resolvedReport, { maxBodyBytes: opts.maxBodyBytes });
   opts.stdoutWrite(JSON.stringify({ body: result.body, comment: result.comment }));
   return 0;
 }

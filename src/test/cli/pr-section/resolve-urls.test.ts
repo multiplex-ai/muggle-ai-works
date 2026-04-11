@@ -23,11 +23,17 @@ vi.mock("../../../../packages/mcps/src/index.js", () => ({
 import axios from "axios";
 
 import { resolveGsScreenshotUrls } from "../../../cli/pr-section/resolve-urls.js";
+import { IMAGE_PROXY_PREFIX } from "../../../cli/pr-section/resolve-urls-types.js";
 import type { E2eReport } from "../../../cli/pr-section/types.js";
 import {
   getCallerCredentialsAsync,
   getConfig,
 } from "../../../../packages/mcps/src/index.js";
+
+/** Build the expected image-proxy-wrapped form of a resolved URL. */
+function wrapped (url: string): string {
+  return `${IMAGE_PROXY_PREFIX}${encodeURIComponent(url)}`;
+}
 
 const mockedAxiosPost = vi.mocked(axios.post);
 const mockedGetCredentials = vi.mocked(getCallerCredentialsAsync);
@@ -103,11 +109,12 @@ describe("resolveGsScreenshotUrls", () => {
     expect(stderr.lines).toEqual([]);
   });
 
-  it("only resolves gs:// URLs and leaves https:// URLs alone", async () => {
+  it("only resolves gs:// URLs and leaves https:// URLs alone; resolved URLs are image-proxy-wrapped", async () => {
     mockedGetCredentials.mockResolvedValue({ bearerToken: "tkn" });
+    const firebaseUrl = "https://firebasestorage.googleapis.com/v0/b/bucket/o/a.jpg?alt=media&token=abc";
     mockedAxiosPost.mockResolvedValue({
       status: 200,
-      data: { resourceUrl: "https://firebasestorage.googleapis.com/v0/b/bucket/o/a.jpg?alt=media&token=abc" },
+      data: { resourceUrl: firebaseUrl },
     });
     const report = makeReport([
       { screenshotUrl: "https://cdn.example.com/https.png" },
@@ -123,13 +130,54 @@ describe("resolveGsScreenshotUrls", () => {
       { resourceUrl: "gs://bucket/a.jpg" },
       expect.anything(),
     );
+    // Untouched https:// stays untouched.
     expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/https.png");
-    expect(result.tests[0]!.steps[1]!.screenshotUrl).toBe(
-      "https://firebasestorage.googleapis.com/v0/b/bucket/o/a.jpg?alt=media&token=abc",
-    );
+    // Resolved gs:// is wrapped through the public image proxy so Camo sees image/jpeg.
+    expect(result.tests[0]!.steps[1]!.screenshotUrl).toBe(wrapped(firebaseUrl));
     expect(stderr.lines).toEqual([]);
     // Report is a fresh object (not mutated).
     expect(result).not.toBe(report);
+  });
+
+  it("wraps endingScreenshotUrl through the image proxy too (surfacing the action script's summary step)", async () => {
+    mockedGetCredentials.mockResolvedValue({ bearerToken: "tkn" });
+    const firebaseUrl = "https://firebasestorage.googleapis.com/v0/b/bucket/o/summary.jpg?alt=media&token=s";
+    mockedAxiosPost.mockResolvedValue({ status: 200, data: { resourceUrl: firebaseUrl } });
+
+    const report: E2eReport = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "A",
+          testCaseId: "tc-a",
+          runId: "r-a",
+          viewUrl: "https://example.com/a",
+          status: "passed",
+          steps: [
+            { stepIndex: 0, action: "navigate", screenshotUrl: "https://cdn.example.com/step0.png" },
+          ],
+          endingScreenshotUrl: "gs://bucket/summary.jpg",
+          endingScreenshotCaption: "Goal achieved",
+        },
+      ],
+    };
+    const stderr = makeStderr();
+
+    const result = await resolveGsScreenshotUrls(report, { stderrWrite: stderr.write });
+
+    // The summary-step URL was the only gs:// in the report, and it was sent to the resolver.
+    expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
+    expect(mockedAxiosPost).toHaveBeenCalledWith(
+      PUBLIC_URL_ENDPOINT,
+      { resourceUrl: "gs://bucket/summary.jpg" },
+      expect.anything(),
+    );
+    // endingScreenshotUrl is resolved and then wrapped through the image proxy.
+    expect(result.tests[0]!.endingScreenshotUrl).toBe(wrapped(firebaseUrl));
+    // The non-gs step URL is left alone.
+    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/step0.png");
+    // Caption passes through unchanged.
+    expect(result.tests[0]!.endingScreenshotCaption).toBe("Goal achieved");
   });
 
   it("logs a login hint and skips HTTP calls when no credentials are available", async () => {
@@ -184,7 +232,7 @@ describe("resolveGsScreenshotUrls", () => {
     expect(headers.Authorization).toBeUndefined();
   });
 
-  it("swaps successful URLs and keeps failed URLs (per-URL 401)", async () => {
+  it("swaps successful URLs (proxy-wrapped) and keeps failed URLs (per-URL 401)", async () => {
     mockedGetCredentials.mockResolvedValue({ bearerToken: "tkn" });
     mockedAxiosPost.mockImplementation(async (_url: string, body: unknown) => {
       const { resourceUrl } = body as { resourceUrl: string };
@@ -201,7 +249,7 @@ describe("resolveGsScreenshotUrls", () => {
 
     const result = await resolveGsScreenshotUrls(report, { stderrWrite: stderr.write });
 
-    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/ok.jpg");
+    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe(wrapped("https://cdn.example.com/ok.jpg"));
     expect(result.tests[0]!.steps[1]!.screenshotUrl).toBe("gs://bucket/bad.jpg");
 
     const joined = stderr.lines.join("");
@@ -226,7 +274,7 @@ describe("resolveGsScreenshotUrls", () => {
 
     const result = await resolveGsScreenshotUrls(report, { stderrWrite: stderr.write });
 
-    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/ok.jpg");
+    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe(wrapped("https://cdn.example.com/ok.jpg"));
     expect(result.tests[0]!.steps[1]!.screenshotUrl).toBe("gs://bucket/bad.jpg");
 
     const joined = stderr.lines.join("");
@@ -284,8 +332,8 @@ describe("resolveGsScreenshotUrls", () => {
     const result = await resolveGsScreenshotUrls(report, { stderrWrite: stderr.write });
 
     expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
-    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/dup.jpg");
-    expect(result.tests[1]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/dup.jpg");
+    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe(wrapped("https://cdn.example.com/dup.jpg"));
+    expect(result.tests[1]!.steps[0]!.screenshotUrl).toBe(wrapped("https://cdn.example.com/dup.jpg"));
     expect(stderr.lines).toEqual([]);
   });
 });

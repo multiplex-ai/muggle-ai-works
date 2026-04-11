@@ -28,3 +28,22 @@ export const RESOLVE_TIMEOUT_MS = 10_000;
 
 /** Log prefix used for every stderr line written by the resolver. */
 export const LOG_PREFIX = "build-pr-section";
+
+/**
+ * Public image-proxy prefix used to wrap resolved Firebase Storage URLs so
+ * GitHub's image proxy (Camo) sees a declared `Content-Type: image/jpeg`.
+ *
+ * Firebase download URLs serve whatever Content-Type is stored in the GCS
+ * object metadata — and the Muggle action-script uploader stores screenshots
+ * with `Content-Type: application/octet-stream`. Camo refuses to embed
+ * anything that isn't declared `image/*`, so the images render as broken
+ * icons in PR comments unless we route them through a proxy that re-serves
+ * the bytes with the correct header.
+ *
+ * `images.weserv.nl` is a free, widely-used public image proxy that reads the
+ * bytes and forwards them with the right `Content-Type` (and caches by URL).
+ * We keep the prefix as a constant so it's trivial to swap for a Muggle-owned
+ * proxy later, and so the root cause — fix the Content-Type at upload time in
+ * muggle-ai-teaching-service / the Electron app — is easy to link back to.
+ */
+export const IMAGE_PROXY_PREFIX = "https://images.weserv.nl/?url=";

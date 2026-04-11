@@ -21,6 +21,8 @@ const PassedTestSchema = z.object({
   steps: z.array(StepSchema),
   useCaseName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  endingScreenshotUrl: z.string().url().optional(),
+  endingScreenshotCaption: z.string().min(1).optional(),
 });
 
 const FailedTestSchema = z.object({
@@ -36,6 +38,8 @@ const FailedTestSchema = z.object({
   artifactsDir: z.string().min(1).optional(),
   useCaseName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  endingScreenshotUrl: z.string().url().optional(),
+  endingScreenshotCaption: z.string().min(1).optional(),
 });
 
 const TestResultSchema = z.discriminatedUnion("status", [

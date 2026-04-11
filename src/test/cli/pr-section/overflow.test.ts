@@ -65,9 +65,9 @@ describe("splitWithOverflow", () => {
     const fit = splitWithOverflow(report, { maxBodyBytes: 60_000 });
     expect(fit.comment).toBeNull();
     expect(fit.body).toContain("- **Create a New Project**");
-    expect(fit.body).toContain("  - ✅ User creates a new project with valid URL");
-    expect(fit.body).toContain("  - ❌ User receives error for invalid URL format");
-    expect(fit.body).toContain("  - ✅ Login with valid credentials");
+    expect(fit.body).toContain("  - **1.** ✅ User creates a new project with valid URL");
+    expect(fit.body).toContain("  - **2.** ❌ User receives error for invalid URL format");
+    expect(fit.body).toContain("  - **3.** ✅ Login with valid credentials");
 
     const spilled = splitWithOverflow(report, { maxBodyBytes: 500 });
     expect(spilled.comment).not.toBeNull();

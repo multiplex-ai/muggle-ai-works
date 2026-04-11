@@ -151,6 +151,8 @@ export interface ILocalTestScript {
   actionScriptId?: string;
   /** Action script steps. */
   actionScript?: unknown[];
+  /** Optional summary step capturing run verdict, structured summary, and final screenshot. */
+  summaryStep?: unknown;
   /** Created timestamp. */
   createdAt: number;
   /** Updated timestamp. */

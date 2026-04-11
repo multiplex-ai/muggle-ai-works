@@ -723,10 +723,12 @@ export async function executeTestGeneration(params: {
           `Generated script does not contain a valid 'steps' array. File: ${generatedScriptPath}`,
         );
       }
+      const generatedSummaryStep = generatedScript.summaryStep;
 
       storage.updateTestScript(localTestScript.id, {
         status: "generated",
         actionScript: generatedSteps,
+        summaryStep: generatedSummaryStep,
       });
 
       const artifactsDir = await moveResultsToArtifacts({

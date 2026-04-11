@@ -99,6 +99,8 @@ export interface IRunResultStorageTestScript {
   goal?: string;
   /** Action script steps. */
   actionScript?: unknown[];
+  /** Optional summary step capturing run verdict, structured summary, and final screenshot. */
+  summaryStep?: unknown;
   /** Cloud action script ID (if published). */
   cloudActionScriptId?: string;
   /** Created timestamp. */

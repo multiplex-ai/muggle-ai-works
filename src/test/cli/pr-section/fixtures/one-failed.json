@@ -3,6 +3,8 @@
   "tests": [
     {
       "name": "Login flow",
+      "description": "Verify that a returning user can sign in with valid credentials and land on the dashboard.",
+      "useCaseName": "User Authentication",
       "testCaseId": "tc-1",
       "testScriptId": "ts-1",
       "runId": "run-1",
@@ -16,6 +18,8 @@
     },
     {
       "name": "Checkout flow",
+      "description": "Verify a shopper can complete checkout with a saved payment method.",
+      "useCaseName": "Purchase",
       "testCaseId": "tc-2",
       "testScriptId": "ts-2",
       "runId": "run-2",

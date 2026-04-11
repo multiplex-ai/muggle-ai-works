@@ -137,6 +137,7 @@ The shared skill takes an **`E2eReport` JSON** that includes per-step screenshot
 2. Extract per step: `steps[].operation.action` and `steps[].operation.screenshotUrl`.
 3. Build the `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
 4. If the run failed, capture `failureStepIndex`, `error`, and the local `artifactsDir` from the run result in step 8.
+5. Also call `muggle-remote-test-case-get` for the `testCaseId` to pull the test case `title`/`description`, and `muggle-remote-use-case-get` on its parent use-case id to pull the use case `title`. Populate `description` and `useCaseName` on the report entry — both optional but strongly recommended; they drive the grouped overview and the per-test collapsible headers in the rendered walkthrough.
 
 Assemble the `E2eReport`:
 
@@ -146,6 +147,8 @@ Assemble the `E2eReport`:
   "tests": [
     {
       "name": "<test case title>",
+      "description": "<one-line description of what this test verifies (optional but recommended)>",
+      "useCaseName": "<parent use case title (optional but recommended)>",
       "testCaseId": "<id>",
       "testScriptId": "<id from publish>",
       "runId": "<runId from execute>",

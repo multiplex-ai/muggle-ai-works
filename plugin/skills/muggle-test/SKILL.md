@@ -318,6 +318,7 @@ For the published runs from Step 7A, issue **all** `muggle-remote-test-script-ge
 1. Extract `steps[].operation.action` (description) and `steps[].operation.screenshotUrl` (cloud URL).
 2. Build a `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
 3. If the run failed, also capture `failureStepIndex`, `error`, and the local `artifactsDir` from `muggle-local-run-result-get`.
+4. For each test case, also call `muggle-remote-test-case-get` to pull the test case `title`/`description`, and `muggle-remote-use-case-get` on its parent use-case id to pull the use case `title`. Populate `description` and `useCaseName` on the report entry (both optional but strongly recommended — they drive the grouped overview and the per-test collapsible headers in the rendered walkthrough).
 
 Assemble the report:
 
@@ -327,6 +328,8 @@ Assemble the report:
   "tests": [
     {
       "name": "<test case title>",
+      "description": "<one-line description of what this test verifies (optional but recommended)>",
+      "useCaseName": "<parent use case title (optional but recommended)>",
       "testCaseId": "<id>",
       "testScriptId": "<id>",
       "runId": "<id>",

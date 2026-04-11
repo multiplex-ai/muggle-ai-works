@@ -13,6 +13,7 @@ You receive:
   - `steps`: array of `{ stepIndex, action, screenshotUrl }`
   - `failureStepIndex` and `error` (if failed)
   - `artifactsDir` (for local debugging)
+  - `description` and `useCaseName` (optional but recommended) — test case one-liner and parent use case title; drive the grouped overview and the per-test collapsible headers in the rendered walkthrough. Pull via `muggle-remote-test-case-get` (test case `title`/`description`) and `muggle-remote-use-case-get` (use case `title`) while the `e2e-acceptance.md` stage assembles the report.
 
 ## Your Job
 
@@ -46,7 +47,7 @@ For each repo with changes:
 
 ### Input — the `E2eReport` JSON
 
-The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape the skill expects (`projectId` + `tests[]` with per-test `name`, `testCaseId`, `testScriptId`, `runId`, `viewUrl`, `status`, and `steps[]` of `{stepIndex, action, screenshotUrl}`; failed tests additionally have `failureStepIndex`, `error`, and optionally `artifactsDir`). Pass it through unchanged — do not reshape it. The full schema is documented in the shared skill.
+The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape the skill expects (`projectId` + `tests[]` with per-test `name`, `testCaseId`, `testScriptId`, `runId`, `viewUrl`, `status`, and `steps[]` of `{stepIndex, action, screenshotUrl}`; failed tests additionally have `failureStepIndex`, `error`, and optionally `artifactsDir`; every test may additionally carry `description` and `useCaseName` — optional but recommended — which drive the grouped overview and per-test collapsible headers in the rendered walkthrough). Pass it through unchanged — do not reshape it. The full schema is documented in the shared skill.
 
 ### Invocation — Mode B (render-only)
 

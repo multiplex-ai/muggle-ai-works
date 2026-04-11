@@ -3,9 +3,10 @@
  * No I/O, no length measurement, no overflow logic — see overflow.ts for that.
  *
  * Layout (two sections):
- *   1. Overview: counts + per-test name list, grouped by useCaseName when present.
- *   2. Per-test details: one <details> block per test (passed and failed alike), in
- *      report order, showing the ending screenshot and a compact result summary.
+ *   1. Overview: counts + per-test name list (numbered; grouped by useCaseName when present).
+ *   2. Per-test details: one <details> block per numbered test (passed and failed alike),
+ *      in report order, showing the ending screen (a caption-labelled screenshot) and
+ *      a compact result summary.
  */
 
 import type { E2eReport, Step, TestResult } from "./types.js";
@@ -15,6 +16,14 @@ export const DASHBOARD_URL_BASE =
 
 /** Width of the per-test ending screenshot inside each <details> block. */
 const DETAIL_IMAGE_WIDTH = 720;
+
+/** The screenshot + caption displayed inside each test's details block. */
+interface IEndingFrame {
+  /** HTTPS URL of the screenshot to render. */
+  url: string;
+  /** Short human-readable caption labelling what the screenshot shows. */
+  caption: string;
+}
 
 /** Compact counts for a report. */
 interface ICounts {
@@ -34,7 +43,7 @@ function statusEmoji (test: TestResult): string {
   return test.status === "passed" ? "✅" : "❌";
 }
 
-/** The "ending screenshot" for a test: failure-step for failed, last step for passed. */
+/** The "ending screenshot" step for a test: failure-step for failed, last step for passed. */
 function endingScreenshot (test: TestResult): Step | null {
   if (test.steps.length === 0) {
     return null;
@@ -50,6 +59,38 @@ function endingScreenshot (test: TestResult): Step | null {
   return test.steps[test.steps.length - 1];
 }
 
+/** Default caption text used when the caller doesn't provide one. */
+function defaultEndingCaption (test: TestResult): string {
+  if (test.status === "failed") {
+    return `Failure at step ${test.failureStepIndex}`;
+  }
+  return "Final page after the test completed";
+}
+
+/**
+ * Resolve the single screenshot + caption rendered inside a test's details block.
+ *
+ * Precedence: an explicit `endingScreenshotUrl` on the test wins (this is how
+ * a caller surfaces the action script's dedicated summary step), otherwise
+ * we fall back to the failure / last step from `steps[]`.
+ */
+function endingFrame (test: TestResult): IEndingFrame | null {
+  if (test.endingScreenshotUrl) {
+    return {
+      url: test.endingScreenshotUrl,
+      caption: test.endingScreenshotCaption ?? defaultEndingCaption(test),
+    };
+  }
+  const step = endingScreenshot(test);
+  if (!step) {
+    return null;
+  }
+  return {
+    url: step.screenshotUrl,
+    caption: test.endingScreenshotCaption ?? defaultEndingCaption(test),
+  };
+}
+
 /** Clickable full-width image. */
 function fullSizeImage (url: string, alt: string): string {
   return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${alt}"></a>`;
@@ -63,8 +104,22 @@ function safeInlineCode (s: string): string {
 }
 
 /**
- * Render the overview section: header, counts line, and the per-test name list
- * (grouped by useCaseName when any test has one, otherwise flat).
+ * Build a `Map<testCaseId, testNumber>` so both the overview and the per-test
+ * details use the same 1-based numbering regardless of grouping. Tests without
+ * a testCaseId (shouldn't happen — schema requires it) are silently skipped.
+ */
+function buildTestNumbering (report: E2eReport): Map<string, number> {
+  const map = new Map<string, number>();
+  report.tests.forEach((t, i) => {
+    map.set(t.testCaseId, i + 1);
+  });
+  return map;
+}
+
+/**
+ * Render the overview section: header, counts line, and the per-test numbered
+ * name list (grouped by useCaseName when any test has one, otherwise flat).
+ * Numbering is global across groups so it matches the details block headings.
  */
 export function renderOverview (report: E2eReport): string {
   const { total, passed, failed } = countTests(report);
@@ -78,10 +133,11 @@ export function renderOverview (report: E2eReport): string {
     return lines.join("\n");
   }
   lines.push("", "**Tests run:**");
+  const numbering = buildTestNumbering(report);
   const anyGrouped = report.tests.some((t) => Boolean(t.useCaseName));
   if (!anyGrouped) {
     for (const t of report.tests) {
-      lines.push(`- ${statusEmoji(t)} ${t.name}`);
+      lines.push(`- **${numbering.get(t.testCaseId)}.** ${statusEmoji(t)} ${t.name}`);
     }
     return lines.join("\n");
   }
@@ -108,32 +164,37 @@ export function renderOverview (report: E2eReport): string {
   }
   for (const entry of flat) {
     if (entry.type === "test") {
-      lines.push(`- ${statusEmoji(entry.test)} ${entry.test.name}`);
+      lines.push(`- **${numbering.get(entry.test.testCaseId)}.** ${statusEmoji(entry.test)} ${entry.test.name}`);
     } else {
       lines.push(`- **${entry.key}**`);
       for (const t of groups.get(entry.key)!) {
-        lines.push(`  - ${statusEmoji(t)} ${t.name}`);
+        lines.push(`  - **${numbering.get(t.testCaseId)}.** ${statusEmoji(t)} ${t.name}`);
       }
     }
   }
   return lines.join("\n");
 }
 
-/** Render one `<details>` block for a test case (passed or failed). */
-export function renderTestDetails (test: TestResult, projectId: string): string {
-  const summary = renderSummaryLine(test);
-  const image = renderEndingImage(test);
+/**
+ * Render one `<details>` block for a test case (passed or failed).
+ *
+ * `testNumber` is the 1-based index used to prefix the collapsible summary line
+ * so it lines up with the numbered list in the overview section.
+ */
+export function renderTestDetails (test: TestResult, projectId: string, testNumber: number): string {
+  const summary = renderSummaryLine(test, testNumber);
+  const frameBlock = renderEndingFrame(test);
   const resultLines = renderResultSummary(test, projectId);
   const body: string[] = ["", "<br>", ""];
-  if (image) {
-    body.push(image, "");
+  if (frameBlock) {
+    body.push(...frameBlock, "");
   }
   body.push(...resultLines);
   return `<details>\n<summary>${summary}</summary>\n${body.join("\n")}\n\n</details>`;
 }
 
-function renderSummaryLine (test: TestResult): string {
-  const base = `${statusEmoji(test)} <b>${test.name}</b>`;
+function renderSummaryLine (test: TestResult, testNumber: number): string {
+  const base = `<b>${testNumber}. ${test.name}</b> ${statusEmoji(test)}`;
   const tail = " <i>▶ click to expand</i>";
   if (test.description) {
     return `${base} — ${test.description}${tail}`;
@@ -141,12 +202,22 @@ function renderSummaryLine (test: TestResult): string {
   return `${base}${tail}`;
 }
 
-function renderEndingImage (test: TestResult): string | null {
-  const step = endingScreenshot(test);
-  if (!step) {
+/**
+ * Render the ending-frame block: a bold caption line identifying what the
+ * screenshot shows, followed by the clickable full-width image. Returns null
+ * if there is nothing to render (e.g. an empty-steps passed test with no
+ * endingScreenshotUrl override).
+ */
+function renderEndingFrame (test: TestResult): string[] | null {
+  const frame = endingFrame(test);
+  if (!frame) {
     return null;
   }
-  return fullSizeImage(step.screenshotUrl, test.name);
+  return [
+    `**📸 Ending screen — ${frame.caption}**`,
+    "",
+    fullSizeImage(frame.url, test.name),
+  ];
 }
 
 function renderResultSummary (test: TestResult, projectId: string): string[] {
@@ -188,7 +259,7 @@ export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string
       "_Full per-test details in the comment below — the PR description was too large to inline them._",
     ].join("\n");
   }
-  const detailBlocks = report.tests.map((t) => renderTestDetails(t, report.projectId));
+  const detailBlocks = report.tests.map((t, i) => renderTestDetails(t, report.projectId, i + 1));
   return [
     overview,
     "",
@@ -203,7 +274,7 @@ export function renderComment (report: E2eReport): string {
   if (report.tests.length === 0) {
     return "";
   }
-  const detailBlocks = report.tests.map((t) => renderTestDetails(t, report.projectId));
+  const detailBlocks = report.tests.map((t, i) => renderTestDetails(t, report.projectId, i + 1));
   return [
     "## E2E acceptance evidence (overflow)",
     "",

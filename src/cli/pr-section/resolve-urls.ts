@@ -23,6 +23,7 @@ import type { ICallerCredentials } from "../../../packages/mcps/src/index.js";
 
 import {
   GS_SCHEME,
+  IMAGE_PROXY_PREFIX,
   LOG_PREFIX,
   PUBLIC_URL_PATH,
   RESOLVE_TIMEOUT_MS,
@@ -39,6 +40,23 @@ function isGsUrl (url: string): boolean {
   return url.startsWith(GS_SCHEME);
 }
 
+/**
+ * Wrap a resolved Firebase Storage URL in the public image proxy so GitHub's
+ * image proxy (Camo) sees a declared `Content-Type: image/jpeg`. Idempotent:
+ * URLs already wrapped with {@link IMAGE_PROXY_PREFIX} are returned untouched.
+ *
+ * This is a render-time workaround — the proper fix is for the action-script
+ * uploader in muggle-ai-teaching-service / the Electron app to set
+ * `Content-Type: image/jpeg` at upload time, after which this wrap can be
+ * removed without touching every caller.
+ */
+function wrapInImageProxy (url: string): string {
+  if (url.startsWith(IMAGE_PROXY_PREFIX)) {
+    return url;
+  }
+  return `${IMAGE_PROXY_PREFIX}${encodeURIComponent(url)}`;
+}
+
 /** Build the auth headers for a prompt service request. Mirrors upstream-client. */
 function buildAuthHeaders (credentials: ICallerCredentials): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -53,7 +71,14 @@ function buildAuthHeaders (credentials: ICallerCredentials): Record<string, stri
   return headers;
 }
 
-/** Collect every unique `gs://` screenshot URL in the report, in insertion order. */
+/**
+ * Collect every unique `gs://` screenshot URL in the report, in insertion order.
+ *
+ * Walks both `steps[].screenshotUrl` and the optional per-test
+ * `endingScreenshotUrl` override — the latter is how a caller surfaces the
+ * action script's dedicated summary-step screenshot without stuffing it into
+ * `steps[]`.
+ */
 function collectGsUrls (report: E2eReport): string[] {
   const seen = new Set<string>();
   for (const test of report.tests) {
@@ -61,6 +86,9 @@ function collectGsUrls (report: E2eReport): string[] {
       if (isGsUrl(step.screenshotUrl)) {
         seen.add(step.screenshotUrl);
       }
+    }
+    if (test.endingScreenshotUrl && isGsUrl(test.endingScreenshotUrl)) {
+      seen.add(test.endingScreenshotUrl);
     }
   }
   return Array.from(seen);
@@ -117,12 +145,23 @@ function remapStep (step: Step, urlMap: Map<string, string>): Step {
 }
 
 /**
- * Return a new `TestResult` with freshly remapped `steps`. Preserves every
- * other field (and the discriminated `status` so the zod union stays valid)
- * via a shallow spread.
+ * Return a new `TestResult` with freshly remapped `steps` and, if present,
+ * a freshly remapped `endingScreenshotUrl`. Preserves every other field
+ * (and the discriminated `status` so the zod union stays valid) via a
+ * shallow spread.
  */
 function remapTest (test: TestResult, urlMap: Map<string, string>): TestResult {
-  return { ...test, steps: test.steps.map((s) => remapStep(s, urlMap)) };
+  const remapped: TestResult = {
+    ...test,
+    steps: test.steps.map((s) => remapStep(s, urlMap)),
+  };
+  if (test.endingScreenshotUrl) {
+    const resolved = urlMap.get(test.endingScreenshotUrl);
+    if (resolved) {
+      remapped.endingScreenshotUrl = resolved;
+    }
+  }
+  return remapped;
 }
 
 /**
@@ -169,7 +208,10 @@ export async function resolveGsScreenshotUrls (
     for (let i = 0; i < gsUrls.length; i++) {
       const https = resolved[i];
       if (https) {
-        urlMap.set(gsUrls[i]!, https);
+        // Wrap every resolved URL in the public image proxy so GitHub's Camo
+        // sees a proper Content-Type: image/jpeg header. See the note on
+        // IMAGE_PROXY_PREFIX in resolve-urls-types.ts for the root cause.
+        urlMap.set(gsUrls[i]!, wrapInImageProxy(https));
       } else {
         failureCount++;
       }

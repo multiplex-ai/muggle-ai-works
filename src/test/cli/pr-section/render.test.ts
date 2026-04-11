@@ -107,25 +107,26 @@ const allPassedNoMeta: E2eReport = {
 const emptyReport: E2eReport = { projectId: PROJECT_ID, tests: [] };
 
 describe("renderOverview", () => {
-  it("renders counts and a flat list when no test has a useCaseName", () => {
+  it("renders counts and a flat numbered list when no test has a useCaseName", () => {
     const md = renderOverview(flatReport);
     expect(md).toContain("## E2E Acceptance Results");
     expect(md).toContain("**2 tests ran — 1 passed / 1 failed**");
     expect(md).toContain("**Tests run:**");
-    expect(md).toContain("- ✅ Logout flow");
-    expect(md).toContain("- ❌ Checkout breaks");
-    // No nested use-case bullets.
-    expect(md).not.toMatch(/^- \*\*/m);
+    expect(md).toContain("- **1.** ✅ Logout flow");
+    expect(md).toContain("- **2.** ❌ Checkout breaks");
+    // No nested use-case bullets (but the numbering does start the bullet with **).
+    // So the "no group bullets" check is by the em-style: "- **Word**" with no digit.
+    expect(md).not.toMatch(/^- \*\*[A-Za-z]/m);
   });
 
-  it("groups tests by useCaseName when at least one test has one", () => {
+  it("groups tests by useCaseName with global numbering across groups", () => {
     const md = renderOverview(groupedReport);
     expect(md).toContain("**3 tests ran — 2 passed / 1 failed**");
     expect(md).toContain("- **Create a New Project**");
-    expect(md).toContain("  - ✅ User creates a new project with valid URL");
-    expect(md).toContain("  - ❌ User receives error for invalid URL format");
+    expect(md).toContain("  - **1.** ✅ User creates a new project with valid URL");
+    expect(md).toContain("  - **2.** ❌ User receives error for invalid URL format");
     expect(md).toContain("- **User Authentication**");
-    expect(md).toContain("  - ✅ Login with valid credentials");
+    expect(md).toContain("  - **3.** ✅ Login with valid credentials");
   });
 
   it("handles an empty report with a friendly placeholder", () => {
@@ -138,14 +139,15 @@ describe("renderOverview", () => {
 });
 
 describe("renderTestDetails", () => {
-  it("renders a passed test with description in the summary line", () => {
-    const md = renderTestDetails(passedWithDesc, PROJECT_ID);
+  it("renders a passed test with description and numbered summary line", () => {
+    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
     expect(md).toContain("<details>");
     expect(md).toContain("<summary>");
-    expect(md).toContain("✅ <b>User creates a new project with valid URL</b>");
+    expect(md).toContain("<b>1. User creates a new project with valid URL</b> ✅");
     expect(md).toContain("— Verify that a logged-in user can create a new project");
     expect(md).toContain("<i>▶ click to expand</i>");
-    // Ending screenshot = last step.
+    // Ending screenshot = last step, with a caption above it.
+    expect(md).toContain("**📸 Ending screen — Final page after the test completed**");
     expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
     expect(md).toContain("**Result:** ✅ PASSED");
     expect(md).toContain("**Steps:** 3");
@@ -154,24 +156,39 @@ describe("renderTestDetails", () => {
   });
 
   it("renders a passed test without description (no em-dash, no description text)", () => {
-    const md = renderTestDetails(passedNoMeta, PROJECT_ID);
-    expect(md).toContain("✅ <b>Logout flow</b> <i>▶ click to expand</i>");
+    const md = renderTestDetails(passedNoMeta, PROJECT_ID, 4);
+    expect(md).toContain("<b>4. Logout flow</b> ✅ <i>▶ click to expand</i>");
     // No " — " separator between name and the tail.
-    expect(md).not.toMatch(/<b>Logout flow<\/b> —/);
+    expect(md).not.toMatch(/<b>4\. Logout flow<\/b> ✅ —/);
   });
 
-  it("renders a failed test with error and failure-step screenshot", () => {
-    const md = renderTestDetails(failedWithDesc, PROJECT_ID);
-    expect(md).toContain("❌ <b>User receives error for invalid URL format</b>");
+  it("renders a failed test with error, numbered summary, and failure-step screenshot", () => {
+    const md = renderTestDetails(failedWithDesc, PROJECT_ID, 2);
+    expect(md).toContain("<b>2. User receives error for invalid URL format</b> ❌");
     expect(md).toContain("**Result:** ❌ FAILED at step 3");
     expect(md).toContain("**Error:** `Element not found: submit button`");
     expect(md).toContain("**Steps:** 4");
-    // Ending screenshot = failure step (stepIndex 3).
+    // Ending screenshot = failure step (stepIndex 3). Caption reflects failure.
+    expect(md).toContain("**📸 Ending screen — Failure at step 3**");
     expect(md).toContain('<img src="https://cdn/2-3.png"');
   });
 
+  it("uses endingScreenshotUrl + endingScreenshotCaption when provided on the test", () => {
+    const overrideTest: PassedTest = {
+      ...passedWithDesc,
+      endingScreenshotUrl: "https://cdn/summary.png",
+      endingScreenshotCaption: "Success. The goal is achieved.",
+    };
+    const md = renderTestDetails(overrideTest, PROJECT_ID, 1);
+    // Caption shows the caller-provided summary text, not the default.
+    expect(md).toContain("**📸 Ending screen — Success. The goal is achieved.**");
+    // Image uses the override URL, NOT the last step in steps[].
+    expect(md).toContain('<img src="https://cdn/summary.png"');
+    expect(md).not.toContain('<img src="https://cdn/1-2.png"');
+  });
+
   it("escapes backticks in the error message so inline code stays balanced", () => {
-    const md = renderTestDetails(failedNoMeta, PROJECT_ID);
+    const md = renderTestDetails(failedNoMeta, PROJECT_ID, 5);
     expect(md).toContain("**Error:**");
     // Raw backticks from the error must not appear unescaped in the rendered output.
     expect(md).not.toMatch(/Timeout waiting for `button/);
@@ -208,10 +225,11 @@ describe("renderBody", () => {
     expect(detailsCount).toBe(2);
   });
 
-  it("renders a flat list when no test has a useCaseName", () => {
+  it("renders a flat numbered list when no test has a useCaseName", () => {
     const body = renderBody(allPassedNoMeta, { inlineDetails: true });
-    expect(body).toContain("- ✅ Logout flow");
-    expect(body).not.toContain("- **");
+    expect(body).toContain("- **1.** ✅ Logout flow");
+    // No use-case group bullets (letter-prefixed, not digit-prefixed).
+    expect(body).not.toMatch(/^- \*\*[A-Za-z]/m);
   });
 
   it("empty report: no details, no horizontal rule", () => {

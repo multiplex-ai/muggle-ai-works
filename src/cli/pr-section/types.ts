@@ -19,6 +19,8 @@ const PassedTestSchema = z.object({
   viewUrl: z.string().url(),
   status: z.literal("passed"),
   steps: z.array(StepSchema),
+  useCaseName: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
 });
 
 const FailedTestSchema = z.object({
@@ -32,6 +34,8 @@ const FailedTestSchema = z.object({
   failureStepIndex: z.number().int().nonnegative(),
   error: z.string().min(1),
   artifactsDir: z.string().min(1).optional(),
+  useCaseName: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
 });
 
 const TestResultSchema = z.discriminatedUnion("status", [

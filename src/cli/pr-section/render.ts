@@ -1,145 +1,215 @@
 /**
  * Pure markdown emitters for the PR body evidence block and the overflow comment.
  * No I/O, no length measurement, no overflow logic — see overflow.ts for that.
+ *
+ * Layout (two sections):
+ *   1. Overview: counts + per-test name list, grouped by useCaseName when present.
+ *   2. Per-test details: one <details> block per test (passed and failed alike), in
+ *      report order, showing the ending screenshot and a compact result summary.
  */
 
-import { buildOneLiner, selectHero } from "./selectors.js";
-import type { E2eReport, FailedTest, TestResult, Step } from "./types.js";
+import type { E2eReport, Step, TestResult } from "./types.js";
 
 export const DASHBOARD_URL_BASE =
   "https://www.muggle-ai.com/muggleTestV0/dashboard/projects";
 
-/** Width of thumbnails in the per-test compact rows. */
-const ROW_THUMB_WIDTH = 120;
-/** Width of thumbnails in the collapsible failure-details blocks. */
-const DETAIL_THUMB_WIDTH = 200;
-/** Width of the hero image in the summary block. */
-const HERO_WIDTH = 480;
+/** Width of the per-test ending screenshot inside each <details> block. */
+const DETAIL_IMAGE_WIDTH = 720;
 
-/** Build a clickable thumbnail image: links to full size, displays at width. */
-function thumbnail (url: string, width: number): string {
-  return `<a href="${url}"><img src="${url}" width="${width}"></a>`;
+/** Compact counts for a report. */
+interface ICounts {
+  total: number;
+  passed: number;
+  failed: number;
 }
 
-/** Compact counts string, e.g. "3 passed / 1 failed". */
-function counts (report: E2eReport): { passed: number; failed: number; text: string } {
+function countTests (report: E2eReport): ICounts {
+  const total = report.tests.length;
   const passed = report.tests.filter((t) => t.status === "passed").length;
   const failed = report.tests.filter((t) => t.status === "failed").length;
-  return { passed, failed, text: `**${passed} passed / ${failed} failed**` };
+  return { total, passed, failed };
+}
+
+function statusEmoji (test: TestResult): string {
+  return test.status === "passed" ? "✅" : "❌";
+}
+
+/** The "ending screenshot" for a test: failure-step for failed, last step for passed. */
+function endingScreenshot (test: TestResult): Step | null {
+  if (test.steps.length === 0) {
+    return null;
+  }
+  if (test.status === "failed") {
+    const failStep = test.steps.find((s) => s.stepIndex === test.failureStepIndex);
+    if (failStep) {
+      return failStep;
+    }
+    // Fall back to the last step if the failure index isn't represented.
+    return test.steps[test.steps.length - 1];
+  }
+  return test.steps[test.steps.length - 1];
+}
+
+/** Clickable full-width image. */
+function fullSizeImage (url: string, alt: string): string {
+  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${alt}"></a>`;
+}
+
+/** Escape backticks in an error message so inline-code formatting stays balanced. */
+function safeInlineCode (s: string): string {
+  // Replace backticks with the visually-similar U+2018/U+2019 so the surrounding
+  // inline-code markers don't get closed early.
+  return s.replace(/`/g, "\u2018");
 }
 
 /**
- * Render the top summary block: counts, one-liner, hero screenshot, dashboard link.
+ * Render the overview section: header, counts line, and the per-test name list
+ * (grouped by useCaseName when any test has one, otherwise flat).
  */
-export function renderSummary (report: E2eReport): string {
-  const { text: countsLine } = counts(report);
-  const oneLiner = buildOneLiner(report);
-  const hero = selectHero(report);
-  const dashboard = `${DASHBOARD_URL_BASE}/${report.projectId}/scripts`;
+export function renderOverview (report: E2eReport): string {
+  const { total, passed, failed } = countTests(report);
   const lines: string[] = [
-    countsLine,
+    "## E2E Acceptance Results",
     "",
-    oneLiner,
-    "",
+    `**${total} tests ran — ${passed} passed / ${failed} failed**`,
   ];
-  if (hero) {
-    lines.push(
-      `<a href="${hero.screenshotUrl}"><img src="${hero.screenshotUrl}" width="${HERO_WIDTH}" alt="${hero.testName}"></a>`,
-      "",
-    );
+  if (total === 0) {
+    lines.push("", "_No tests were executed._");
+    return lines.join("\n");
   }
-  lines.push(`[View project dashboard on muggle-ai.com](${dashboard})`);
+  lines.push("", "**Tests run:**");
+  const anyGrouped = report.tests.some((t) => Boolean(t.useCaseName));
+  if (!anyGrouped) {
+    for (const t of report.tests) {
+      lines.push(`- ${statusEmoji(t)} ${t.name}`);
+    }
+    return lines.join("\n");
+  }
+  // Grouped layout. Preserve first-seen order of use case groups; ungrouped tests
+  // are rendered as top-level bullets interleaved at their position in the report.
+  const groupOrder: string[] = [];
+  const groups = new Map<string, TestResult[]>();
+  const flat: Array<{ type: "group"; key: string } | { type: "test"; test: TestResult }> = [];
+  const seenGroups = new Set<string>();
+  for (const t of report.tests) {
+    if (t.useCaseName) {
+      if (!groups.has(t.useCaseName)) {
+        groups.set(t.useCaseName, []);
+        groupOrder.push(t.useCaseName);
+      }
+      groups.get(t.useCaseName)!.push(t);
+      if (!seenGroups.has(t.useCaseName)) {
+        seenGroups.add(t.useCaseName);
+        flat.push({ type: "group", key: t.useCaseName });
+      }
+    } else {
+      flat.push({ type: "test", test: t });
+    }
+  }
+  for (const entry of flat) {
+    if (entry.type === "test") {
+      lines.push(`- ${statusEmoji(entry.test)} ${entry.test.name}`);
+    } else {
+      lines.push(`- **${entry.key}**`);
+      for (const t of groups.get(entry.key)!) {
+        lines.push(`  - ${statusEmoji(t)} ${t.name}`);
+      }
+    }
+  }
   return lines.join("\n");
 }
 
-/**
- * Render one compact row for a test case. Caller is responsible for wrapping rows
- * in a markdown table header.
- */
-export function renderRow (test: TestResult): string {
-  const link = `[${test.name}](${test.viewUrl})`;
+/** Render one `<details>` block for a test case (passed or failed). */
+export function renderTestDetails (test: TestResult, projectId: string): string {
+  const summary = renderSummaryLine(test);
+  const image = renderEndingImage(test);
+  const resultLines = renderResultSummary(test, projectId);
+  const body: string[] = ["", "<br>", ""];
+  if (image) {
+    body.push(image, "");
+  }
+  body.push(...resultLines);
+  return `<details>\n<summary>${summary}</summary>\n${body.join("\n")}\n\n</details>`;
+}
+
+function renderSummaryLine (test: TestResult): string {
+  const base = `${statusEmoji(test)} <b>${test.name}</b>`;
+  const tail = " <i>▶ click to expand</i>";
+  if (test.description) {
+    return `${base} — ${test.description}${tail}`;
+  }
+  return `${base}${tail}`;
+}
+
+function renderEndingImage (test: TestResult): string | null {
+  const step = endingScreenshot(test);
+  if (!step) {
+    return null;
+  }
+  return fullSizeImage(step.screenshotUrl, test.name);
+}
+
+function renderResultSummary (test: TestResult, projectId: string): string[] {
+  const dashboardUrl = `${DASHBOARD_URL_BASE}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
+  const lines: string[] = [];
   if (test.status === "passed") {
-    const lastStep = test.steps[test.steps.length - 1];
-    const thumb = lastStep ? thumbnail(lastStep.screenshotUrl, ROW_THUMB_WIDTH) : "—";
-    return `| ${link} | ✅ PASSED | ${thumb} |`;
+    lines.push(`**Result:** ✅ PASSED`);
+  } else {
+    lines.push(`**Result:** ❌ FAILED at step ${test.failureStepIndex}`);
+    lines.push(`**Error:** \`${safeInlineCode(test.error)}\``);
   }
-  const failStep = test.steps.find((s) => s.stepIndex === test.failureStepIndex);
-  const thumb = failStep ? thumbnail(failStep.screenshotUrl, ROW_THUMB_WIDTH) : "—";
-  return `| ${link} | ❌ FAILED — ${test.error} | ${thumb} |`;
-}
-
-/** Render one collapsible `<details>` block for a failed test. */
-export function renderFailureDetails (test: FailedTest): string {
-  const stepCount = test.steps.length;
-  const header = `<details>\n<summary>📸 <strong>${test.name}</strong> — ${stepCount} steps (failed at step ${test.failureStepIndex})</summary>\n\n| # | Action | Screenshot |\n|---|--------|------------|`;
-  const rows = test.steps.map((step) => renderFailureStepRow(step, test)).join("\n");
-  return `${header}\n${rows}\n\n</details>`;
-}
-
-function renderFailureStepRow (step: Step, test: FailedTest): string {
-  const isFailure = step.stepIndex === test.failureStepIndex;
-  const marker = isFailure ? `${step.stepIndex} ⚠️` : String(step.stepIndex);
-  const action = isFailure
-    ? `${step.action} — **${test.error}**`
-    : step.action;
-  return `| ${marker} | ${action} | ${thumbnail(step.screenshotUrl, DETAIL_THUMB_WIDTH)} |`;
-}
-
-/** Render the compact per-test table (always goes in the body). */
-function renderRowsTable (report: E2eReport): string {
-  if (report.tests.length === 0) {
-    return "_No tests were executed._";
-  }
-  const header = "| Test Case | Status | Evidence |\n|-----------|--------|----------|";
-  const rows = report.tests.map(renderRow).join("\n");
-  return `${header}\n${rows}`;
+  lines.push(`**Steps:** ${test.steps.length}`);
+  lines.push(`[View on Muggle AI dashboard →](${dashboardUrl})`);
+  return lines;
 }
 
 /** Options for renderBody. */
 export interface IRenderBodyOptions {
   /**
-   * When true, collapsible `<details>` blocks for failed tests are included inline in the body.
-   * When false, a single pointer line is written instead and the details are expected to be
-   * posted as an overflow comment by the caller.
+   * When true, the per-test `<details>` blocks are included inline in the body.
+   * When false, a single pointer line is written instead and the details are expected
+   * to be posted as an overflow comment by the caller.
    */
-  inlineFailureDetails: boolean;
+  inlineDetails: boolean;
 }
 
-/** Render the full PR-body evidence block (top summary + rows + optional details). */
+/** Render the full PR-body evidence block (overview + optional per-test details). */
 export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string {
-  const sections: string[] = [
-    "## E2E Acceptance Results",
-    "",
-    renderSummary(report),
-    "",
-    renderRowsTable(report),
-  ];
-  const failures = report.tests.filter((t): t is FailedTest => t.status === "failed");
-  if (failures.length > 0) {
-    if (opts.inlineFailureDetails) {
-      sections.push("", ...failures.map(renderFailureDetails));
-    } else {
-      sections.push(
-        "",
-        "_Full step-by-step evidence in the comment below — the PR description was too large to inline it._",
-      );
-    }
+  const overview = renderOverview(report);
+  if (report.tests.length === 0) {
+    return overview;
   }
-  return sections.join("\n");
+  if (!opts.inlineDetails) {
+    return [
+      overview,
+      "",
+      "---",
+      "",
+      "_Full per-test details in the comment below — the PR description was too large to inline them._",
+    ].join("\n");
+  }
+  const detailBlocks = report.tests.map((t) => renderTestDetails(t, report.projectId));
+  return [
+    overview,
+    "",
+    "---",
+    "",
+    detailBlocks.join("\n\n"),
+  ].join("\n");
 }
 
-/** Render the overflow comment body. Returns empty string if there are no failures to show. */
+/** Render the overflow comment body. Returns empty string if there are no tests. */
 export function renderComment (report: E2eReport): string {
-  const failures = report.tests.filter((t): t is FailedTest => t.status === "failed");
-  if (failures.length === 0) {
+  if (report.tests.length === 0) {
     return "";
   }
-  const sections: string[] = [
+  const detailBlocks = report.tests.map((t) => renderTestDetails(t, report.projectId));
+  return [
     "## E2E acceptance evidence (overflow)",
     "",
-    "_This comment was posted because the full step-by-step evidence did not fit in the PR description._",
+    "_This comment was posted because the full per-test details did not fit in the PR description._",
     "",
-    ...failures.map(renderFailureDetails),
-  ];
-  return sections.join("\n");
+    detailBlocks.join("\n\n"),
+  ].join("\n");
 }
+

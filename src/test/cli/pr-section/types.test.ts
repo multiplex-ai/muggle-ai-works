@@ -68,4 +68,89 @@ describe("E2eReportSchema", () => {
     };
     expect(() => E2eReportSchema.parse(bad)).toThrow();
   });
+
+  it("accepts optional useCaseName and description on passed tests", () => {
+    const parsed = E2eReportSchema.parse({
+      projectId: "p1",
+      tests: [
+        {
+          name: "Login works",
+          description: "Verify login succeeds for a valid user.",
+          useCaseName: "User Authentication",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "passed",
+          steps: [{ stepIndex: 0, action: "click", screenshotUrl: "https://s/1" }],
+        },
+      ],
+    });
+    expect(parsed.tests[0].useCaseName).toBe("User Authentication");
+    expect(parsed.tests[0].description).toBe("Verify login succeeds for a valid user.");
+  });
+
+  it("accepts optional useCaseName and description on failed tests", () => {
+    const parsed = E2eReportSchema.parse({
+      projectId: "p1",
+      tests: [
+        {
+          name: "Checkout breaks",
+          description: "Verify checkout with saved card.",
+          useCaseName: "Purchase",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "failed",
+          steps: [{ stepIndex: 0, action: "click", screenshotUrl: "https://s/1" }],
+          failureStepIndex: 0,
+          error: "Click failed",
+        },
+      ],
+    });
+    const t = parsed.tests[0];
+    expect(t.useCaseName).toBe("Purchase");
+    expect(t.description).toBe("Verify checkout with saved card.");
+  });
+
+  it("accepts tests with useCaseName and description omitted entirely", () => {
+    const parsed = E2eReportSchema.parse({
+      projectId: "p1",
+      tests: [
+        {
+          name: "Bare test",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "passed",
+          steps: [{ stepIndex: 0, action: "click", screenshotUrl: "https://s/1" }],
+        },
+      ],
+    });
+    expect(parsed.tests[0].useCaseName).toBeUndefined();
+    expect(parsed.tests[0].description).toBeUndefined();
+  });
+
+  it("rejects empty-string useCaseName and description", () => {
+    const bad = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "X",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "passed",
+          steps: [{ stepIndex: 0, action: "click", screenshotUrl: "https://s/1" }],
+          useCaseName: "",
+        },
+      ],
+    };
+    expect(() => E2eReportSchema.parse(bad)).toThrow();
+  });
+
+  it("parses the grouped-by-use-case fixture", () => {
+    const parsed = E2eReportSchema.parse(loadFixture("grouped-by-use-case.json"));
+    expect(parsed.tests).toHaveLength(3);
+    expect(parsed.tests.every((t) => typeof t.useCaseName === "string")).toBe(true);
+  });
 });

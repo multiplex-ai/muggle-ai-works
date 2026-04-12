@@ -582,6 +582,25 @@ const workflowTools: IQaToolDefinition[] = [
     },
   },
   {
+    name: "muggle-remote-workflow-start-test-script-generation-bulk",
+    description: "Start a bulk test script generation workflow to generate scripts for multiple test cases in a single request.",
+    inputSchema: schemas.WorkflowStartTestScriptGenerationBulkInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationBulkInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/bulk`,
+        body: {
+          projectId: data.projectId,
+          name: data.name,
+          ...(data.testCaseIds && { testCaseIds: data.testCaseIds }),
+          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+        },
+        timeoutMs: getWorkflowTimeoutMs(),
+      };
+    },
+  },
+  {
     name: "muggle-remote-wf-get-ts-gen-latest-run",
     description: "Get the latest run status for a test script generation workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,

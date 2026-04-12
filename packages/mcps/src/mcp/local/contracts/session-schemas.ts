@@ -21,3 +21,10 @@ export const CleanupSessionsInputSchema = z.object({
 });
 
 export type CleanupSessionsInput = z.infer<typeof CleanupSessionsInputSchema>;
+
+/**
+ * Empty input schema for tools that take no parameters.
+ */
+export const EmptyInputSchema = z.object({});
+
+export type EmptyInput = z.infer<typeof EmptyInputSchema>;

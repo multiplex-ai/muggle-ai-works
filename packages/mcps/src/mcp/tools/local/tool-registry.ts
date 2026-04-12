@@ -320,6 +320,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
+        freshSession: input.freshSession,
       });
 
       const content = [
@@ -365,6 +366,7 @@ const executeReplayTool: ILocalMcpTool = {
         localUrl: input.localUrl,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
+        freshSession: input.freshSession,
       });
 
       const content = [

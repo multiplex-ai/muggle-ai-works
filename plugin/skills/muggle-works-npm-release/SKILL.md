@@ -7,9 +7,6 @@ description: >-
   dispatch publish-works-to-npm.yml—no local npm publish.
 ---
 
-Canonical source of truth: **`plugin/skills/muggle-works-npm-release/SKILL.md`**.
-Keep this `.cursor` copy aligned for local Cursor discovery.
-
 # Muggle Works — npm release (single playbook)
 
 Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish-works-to-npm.yml`** (“Publish Works to npm”). **Never** run local **`npm publish`** (OIDC trusted publishing in CI).

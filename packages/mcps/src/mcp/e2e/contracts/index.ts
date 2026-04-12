@@ -404,6 +404,13 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
   workflowParams: WorkflowParamsSchema,
 });
 
+export const WorkflowStartTestScriptGenerationBulkInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID)"),
+  name: z.string().min(1).describe("Workflow name"),
+  testCaseIds: z.array(IdSchema).optional().describe("Optional: targeted test case UUIDs to generate scripts for; when absent generates for all eligible test cases in the project"),
+  workflowParams: WorkflowParamsSchema,
+});
+
 export const WorkflowGetLatestScriptGenByTestCaseInputSchema = z.object({
   testCaseId: IdSchema.describe("Test case ID (UUID)"),
 });

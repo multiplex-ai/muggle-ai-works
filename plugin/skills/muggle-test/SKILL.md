@@ -243,7 +243,7 @@ Store every `viewUrl` — these are used in the next steps.
 ### Report summary
 
 ```
-Test Case                  Status    Duration   Steps   View on Muggle
+Test Case                  Status    Duration   Steps   View Steps on Muggle AI
 ─────────────────────────────────────────────────────────────────────────
 Login with valid creds     PASSED    12.3s      8       https://www.muggle-ai.com/...
 Login with invalid creds   PASSED    9.1s       6       https://www.muggle-ai.com/...

@@ -230,7 +230,7 @@ function renderResultSummary (test: TestResult, projectId: string): string[] {
     lines.push(`**Error:** \`${safeInlineCode(test.error)}\``);
   }
   lines.push(`**Steps:** ${test.steps.length}`);
-  lines.push(`[View on Muggle AI dashboard →](${dashboardUrl})`);
+  lines.push(`[View steps on Muggle AI →](${dashboardUrl})`);
   return lines;
 }
 

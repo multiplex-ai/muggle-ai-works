@@ -86,17 +86,28 @@ Remind them: local URL is only the execution target, not tied to cloud project c
 
 ### 5. Load data for the chosen path
 
+**Determine `freshSession`**
+
+Before calling either execution tool, inspect the test case content (title, goal, instructions, preconditions) for signals that the test requires a **clean browser state** — no prior cookies, localStorage, or logged-in session. Pass `freshSession: true` when the test case involves any of:
+
+- **Registration / sign-up** — creating a new account
+- **Login / authentication** — verifying the login flow itself (not a test that merely *uses* login as a prerequisite)
+- **Cookie consent / GDPR banners** — verifying first-visit consent prompts
+- **Onboarding flows** — first-time user experiences that only appear on a fresh session
+
+If none of the above apply, omit `freshSession` (defaults to `false`, preserving any existing session state).
+
 **Generate**
 
 1. `muggle-remote-test-case-get`
-2. `muggle-local-execute-test-generation` with that test case + `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`timeoutMs`** — see below)
+2. `muggle-local-execute-test-generation` with that test case + `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`freshSession`** — see above; **`timeoutMs`** — see below)
 
 **Replay**
 
 1. `muggle-remote-test-script-get` — note `actionScriptId`
 2. `muggle-remote-action-script-get` with that id — full `actionScript`
    **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
-3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`timeoutMs`** — see below)
+3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`freshSession`** — see above; **`timeoutMs`** — see below)
 
 ### Local execution timeout (`timeoutMs`)
 

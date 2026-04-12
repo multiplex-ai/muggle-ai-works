@@ -200,6 +200,17 @@ If nothing detected, ask as free text: "Your local app should be running. What's
 
 Before execution, fetch full test case details for all selected test cases by issuing **all** `muggle-remote-test-case-get` calls in parallel (single message, multiple tool calls).
 
+### Determine `freshSession` per test case
+
+Before executing each test case, inspect its content (title, goal, instructions, preconditions) for signals that it requires a **clean browser state** — no prior cookies, localStorage, or logged-in session. Set `freshSession: true` when the test case involves any of:
+
+- **Registration / sign-up** — creating a new account
+- **Login / authentication** — verifying the login flow itself (not a test that merely *uses* login as a prerequisite)
+- **Cookie consent / GDPR banners** — verifying first-visit consent prompts
+- **Onboarding flows** — first-time user experiences that only appear on a fresh session
+
+If none of the above apply, omit `freshSession` (defaults to `false`, preserving any existing session state). Evaluate this per test case — in a batch, some may need it and others may not.
+
 ### Run sequentially (Electron constraint)
 
 Execution itself **must** be sequential because there is only one local Electron browser. For each test case, in order:
@@ -208,6 +219,7 @@ Execution itself **must** be sequential because there is only one local Electron
    - `testCase`: Full test case object from the parallel fetch above
    - `localUrl`: User's local URL from the pre-flight question
    - `showUi`: omit (default visible) unless the user explicitly asked for headless, then pass `false`
+   - `freshSession`: `true` if the test case requires a clean browser state (see above), omit otherwise
 2. Store the returned `runId`
 
 If a generation fails, log it and continue to the next. Do not abort the batch.

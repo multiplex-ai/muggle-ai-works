@@ -471,6 +471,7 @@ async function executeElectronAppAsync(params: {
   authFilePath: string;
   timeoutMs: number;
   showUi?: boolean;
+  freshSession?: boolean;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
   const electronAppPath = getElectronAppPathOrThrow();
@@ -478,6 +479,10 @@ async function executeElectronAppAsync(params: {
 
   if (params.showUi) {
     spawnArgs.push("--show-ui");
+  }
+
+  if (params.freshSession) {
+    spawnArgs.push("--fresh-session");
   }
 
   logger.info("Spawning electron-app for local execution", {
@@ -605,6 +610,7 @@ export async function executeTestGeneration(params: {
   localUrl: string;
   timeoutMs?: number;
   showUi?: boolean;
+  freshSession?: boolean;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 300000;
@@ -672,6 +678,7 @@ export async function executeTestGeneration(params: {
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
         showUi: params.showUi,
+        freshSession: params.freshSession,
       });
 
       const completedAt = Date.now();
@@ -799,6 +806,7 @@ export async function executeReplay(params: {
   localUrl: string;
   timeoutMs?: number;
   showUi?: boolean;
+  freshSession?: boolean;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 180000;
@@ -858,6 +866,7 @@ export async function executeReplay(params: {
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
         showUi: params.showUi,
+        freshSession: params.freshSession,
       });
 
       const completedAt = Date.now();

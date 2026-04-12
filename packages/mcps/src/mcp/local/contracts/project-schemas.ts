@@ -94,6 +94,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
   showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
+  /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
+  freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -113,6 +115,8 @@ export const ExecuteReplayInputSchema = z.object({
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
   showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
+  /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
+  freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

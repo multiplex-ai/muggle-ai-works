@@ -554,12 +554,7 @@ CI/CD and publishing
 | `verify-end-user-upgrade.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
 | `publish-works-to-npm.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
 
-
-```bash
-git tag v<version> && git push --tags
-# publish-works-to-npm.yml handles the rest
-```
-
+**Publishing `@muggleai/works`:** use the repo-level skill **`plugin/skills/muggle-works-npm-release/SKILL.md`** (bump + `pnpm run sync:versions`, local verify, `chore(release)` PR, merge, then `workflow_dispatch` with an explicit `version`). Do not rely on tagging alone while `package.json` / marketplace manifests on `master` are still old — CI can publish a version that does not match the checked-in manifests. Tag `v*` push remains a valid workflow trigger when it matches the merged release commit.
 
 Release tag strategy
 

@@ -593,7 +593,7 @@ const workflowTools: IQaToolDefinition[] = [
         body: {
           projectId: data.projectId,
           name: data.name,
-          testCaseIds: data.testCaseIds,
+          ...(data.testCaseIds && { testCaseIds: data.testCaseIds }),
           ...(data.workflowParams && { workflowParams: data.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),

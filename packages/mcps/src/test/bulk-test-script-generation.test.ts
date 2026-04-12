@@ -183,7 +183,6 @@ describe("muggle-remote-workflow-start-test-script-generation-bulk tool", () => 
     expect(call.body).toEqual({
       projectId: VALID_UUID,
       name: "bulk generation",
-      testCaseIds: undefined,
     });
   });
 

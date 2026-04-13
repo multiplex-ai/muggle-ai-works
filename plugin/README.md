@@ -15,7 +15,7 @@ For npm installs:
 npm install -g @muggleai/works
 ```
 
-This updates the CLI and syncs `muggle-*` skills into `~/.cursor/skills/` for Cursor. Claude slash commands remain plugin-managed, so use `/plugin update muggleai@muggle-works` to refresh them.
+This updates the CLI, configures Cursor MCP (`~/.cursor/mcp.json`), and syncs `muggle-*` skills into `~/.cursor/skills/`. Claude slash commands remain plugin-managed, so use `/plugin update muggleai@muggle-works` to refresh them.
 
 ## Skills
 

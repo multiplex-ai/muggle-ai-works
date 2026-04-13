@@ -4,9 +4,9 @@
  */
 
 import { execFile } from "child_process";
-import { createWriteStream, existsSync, mkdirSync, rmSync, writeFileSync } from "fs";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import * as path from "path";
-import { arch, platform } from "os";
+import { arch, homedir, platform } from "os";
 import { pipeline } from "stream/promises";
 
 import {
@@ -244,6 +244,50 @@ function cleanupFailedInstall(versionDir: string): void {
 }
 
 /**
+ * Upsert the muggle MCP server entry into ~/.cursor/mcp.json.
+ * Reads the existing config, merges in the muggle server, and writes back.
+ * Preserves any other MCP servers the user has configured.
+ */
+function upsertCursorMcpConfig(): void {
+  const cursorMcpConfigPath = path.join(homedir(), ".cursor", "mcp.json");
+  const cursorDir = path.join(homedir(), ".cursor");
+
+  let config: Record<string, unknown> = {};
+
+  if (existsSync(cursorMcpConfigPath)) {
+    try {
+      const raw = readFileSync(cursorMcpConfigPath, "utf-8");
+      const parsed: unknown = JSON.parse(raw);
+
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        console.log("Warning: ~/.cursor/mcp.json has unexpected shape, skipping MCP config upsert.");
+        return;
+      }
+
+      config = parsed as Record<string, unknown>;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log("Warning: ~/.cursor/mcp.json is invalid JSON, skipping MCP config upsert.");
+      console.log(`  Parse error: ${message}`);
+      return;
+    }
+  }
+
+  if (!config.mcpServers || typeof config.mcpServers !== "object") {
+    config.mcpServers = {};
+  }
+
+  (config.mcpServers as Record<string, unknown>).muggle = {
+    command: "muggle",
+    args: ["serve"],
+  };
+
+  mkdirSync(cursorDir, { recursive: true });
+  writeFileSync(cursorMcpConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+  console.log(`Cursor MCP config updated at ${cursorMcpConfigPath}`);
+}
+
+/**
  * Execute the setup command.
  * @param options - Command options.
  */
@@ -251,6 +295,9 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
   const version = getElectronAppVersion();
   const versionDir = getElectronAppDir(version);
   const platformKey = getPlatformKey();
+
+  // Ensure Cursor MCP config is up to date regardless of Electron state
+  upsertCursorMcpConfig();
 
   // Check if already installed
   if (!options.force && isElectronAppInstalled()) {

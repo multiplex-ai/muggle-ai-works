@@ -754,8 +754,53 @@ async function extractTarGz(tarPath, destDir) {
     });
 }
 
+/**
+ * Upsert the muggle MCP server entry into ~/.cursor/mcp.json.
+ * Reads the existing config, merges in the muggle server, and writes back.
+ * Preserves any other MCP servers the user has configured.
+ */
+function upsertCursorMcpConfig() {
+    const cursorMcpConfigPath = join(homedir(), ".cursor", "mcp.json");
+    const cursorDir = join(homedir(), ".cursor");
+
+    /** @type {{ mcpServers?: Record<string, unknown> }} */
+    let config = {};
+
+    if (existsSync(cursorMcpConfigPath)) {
+        try {
+            const raw = readFileSync(cursorMcpConfigPath, "utf-8");
+            const parsed = JSON.parse(raw);
+
+            if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+                log(`Warning: ~/.cursor/mcp.json has unexpected shape, skipping MCP config upsert.`);
+                return;
+            }
+
+            config = parsed;
+        } catch (error) {
+            log(`Warning: ~/.cursor/mcp.json is invalid JSON, skipping MCP config upsert.`);
+            log(`  Parse error: ${error.message}`);
+            return;
+        }
+    }
+
+    if (!config.mcpServers) {
+        config.mcpServers = {};
+    }
+
+    config.mcpServers.muggle = {
+        command: "muggle",
+        args: ["serve"],
+    };
+
+    mkdirSync(cursorDir, { recursive: true });
+    writeFileSync(cursorMcpConfigPath, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+    log(`Cursor MCP config updated at ${cursorMcpConfigPath}`);
+}
+
 // Run postinstall
 initLogFile();
 removeVersionOverrideFile();
 syncCursorSkills();
+upsertCursorMcpConfig();
 downloadElectronApp().catch(logError);

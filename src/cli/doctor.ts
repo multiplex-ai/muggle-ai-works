@@ -389,7 +389,7 @@ function runDiagnostics (): ICheckResult[] {
     name: "Cursor MCP Config",
     passed: cursorMcpConfigValidationResult.passed,
     description: cursorMcpConfigValidationResult.description,
-    suggestion: "Re-run npm install -g @muggleai/works to refresh ~/.cursor/mcp.json",
+    suggestion: "Run 'muggle setup' to configure ~/.cursor/mcp.json",
   });
 
   return results;

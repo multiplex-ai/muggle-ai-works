@@ -55,7 +55,9 @@ This installs:
 npm install -g @muggleai/works
 ```
 
-Then configure your MCP client:
+For Cursor, that's it — the install automatically configures `~/.cursor/mcp.json` and syncs `muggle-*` skills to `~/.cursor/skills/`. Just restart Cursor.
+
+For other MCP clients, add this to your client's config:
 
 ```json
 {
@@ -71,7 +73,7 @@ Then configure your MCP client:
 }
 ```
 
-`npm install` also syncs `muggle-*` skills to `~/.cursor/skills/` for Cursor discovery. Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
+Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
 
 ### 2. Verify
 
@@ -519,7 +521,7 @@ muggle-ai-works/
 │   ├── verify-plugin-marketplace.mjs  # Validates plugin/marketplace consistency
 │   ├── verify-compatibility-contracts.mjs # Validates long-term surface contracts
 │   ├── verify-upgrade-experience.mjs  # Validates in-place upgrade behavior
-│   └── postinstall.mjs      #   npm postinstall (Electron app download)
+│   └── postinstall.mjs      #   npm postinstall (Electron app download, Cursor MCP config, skills sync)
 │
 ├── config/compatibility/     # Contract baselines (CLI/MCP/plugin/skills)
 ├── bin/                     # CLI entrypoint (muggle.js → dist/cli.js)

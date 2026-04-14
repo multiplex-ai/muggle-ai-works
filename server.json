@@ -6,12 +6,12 @@
     "url": "https://github.com/multiplex-ai/muggle-ai-works",
     "source": "github"
   },
-  "version": "4.8.0",
+  "version": "4.8.1",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@muggleai/works",
-      "version": "4.8.0",
+      "version": "4.8.1",
       "runtime": "node",
       "runtimeArgs": [
         ">=22.0.0"

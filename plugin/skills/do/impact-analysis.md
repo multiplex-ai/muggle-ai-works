@@ -1,6 +1,14 @@
-# Impact Analysis Agent
+# Impact Analysis Agent (Stage 3/7)
 
 You are analyzing git repositories to determine which ones have actual code changes that need to go through the dev cycle pipeline.
+
+## Turn preamble
+
+Start the turn with:
+
+```
+**Stage 3/7 — Impact analysis** — diffing each affected repo against its default branch.
+```
 
 ## Input
 

@@ -1,6 +1,14 @@
-# E2E / acceptance agent
+# E2E / acceptance agent (Stage 6/7)
 
 You are running **end-to-end (E2E) acceptance** test cases against code changes using Muggle AI's local testing infrastructure. These tests simulate real users in a browser — they are not unit tests.
+
+## Turn preamble
+
+Start the turn with:
+
+```
+**Stage 6/7 — E2E acceptance** — running browser tests against the validation target from pre-flight.
+```
 
 ## Design
 
@@ -15,32 +23,35 @@ This guarantees E2E acceptance tests always run — no dependency on cloud repla
 
 ## Input
 
-You receive:
-- The Muggle project ID
+You receive everything from `state.md` already — pre-flight resolved it:
+
+- `localUrl` — the locally running dev server URL
+- `projectId` — the chosen Muggle project
+- The validation strategy (`local-e2e`, `staging-replay`, `unit-only`, `skip`)
+- Test-user credential status (existing / new / skip)
 - The list of changed repos, files, and a summary of changes
 - The requirements goal
-- `localUrl` per repo (from `muggle-repos.json`) — the locally running dev server URL
 
 ## Your Job
 
-### Step 0: Resolve Local URL
+### Step 0: Consume pre-flight (no user questions)
 
-Read `localUrl` for each repo from the context. If it is not provided, ask the user:
-> "E2E acceptance testing requires a running local server. What URL is the `<repo>` app running on? (e.g. `http://localhost:3000`)"
+Read `state.md`. If the validation strategy is `unit-only` or `skip`, **do not run this stage** — skip to stage 7 and record the skip reason. Otherwise use `localUrl` directly; **do not ask the user** for it.
 
-**Do not skip E2E acceptance tests.** Wait for the user to provide the URL before proceeding.
+If `localUrl` or `projectId` is missing from `state.md`, that is a pre-flight bug. **Do not paper over it by asking the user** — escalate once with the session path and halt. The fix is to expand `pre-flight.md`, not to grow a new question here.
 
-### Step 1: Check Authentication
+### Step 0.5: Pre-flight verification probes
 
-- `muggle-remote-auth-status`
-- If **authenticated**: print the logged-in email and ask via `AskQuestion`:
-  > "You're logged in as **{email}**. Continue with this account?"
-  - Option 1: "Yes, continue"
-  - Option 2: "No, switch account"
-  If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true` then `muggle-remote-auth-poll`.
-- If **not signed in or expired**: `muggle-remote-auth-login` then `muggle-remote-auth-poll`
+Before launching Electron, run these live checks and fail loudly if any fails:
 
-Do not skip or assume auth.
+1. `curl -s -o /dev/null -w "%{http_code}" <localUrl>` — expect 2xx or 3xx. If the dev server isn't up, halt with the exact command the user needs to start it.
+2. If a backend URL is recorded, probe its health endpoint. A 5xx or unreachable backend means the dashboard will render in an error state and test results will be meaningless — halt.
+3. `muggle-remote-auth-status` — must be `authenticated`. If not, the pre-flight missed this; escalate.
+4. If test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the tenant the secrets were created under (recorded in `state.md`). Tenant mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
+
+### Step 1: Authentication already verified
+
+Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
 
 ### Step 2: Get Test Cases
 

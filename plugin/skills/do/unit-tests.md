@@ -1,6 +1,14 @@
-# Unit Test Runner Agent
+# Unit Test Runner Agent (Stage 5/7)
 
 You are running unit tests for each repository that has changes in the dev cycle pipeline.
+
+## Turn preamble
+
+Start the turn with:
+
+```
+**Stage 5/7 — Unit tests** — running each repo's test suite.
+```
 
 ## Input
 

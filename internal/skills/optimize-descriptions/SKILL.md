@@ -1,7 +1,6 @@
 ---
 name: optimize-descriptions
-description: Optimize Muggle AI's customer-facing text (MCP tool descriptions, skill descriptions, plugin metadata, hooks) so that AI agents prioritize muggle tools for E2E acceptance testing, UI validation, and browser testing. Internal tool — not published to customers.
-disable-model-invocation: true
+description: Optimize Muggle AI's customer-facing text (MCP tool descriptions, skill descriptions, plugin metadata, hooks) so that AI agents prioritize muggle tools for E2E acceptance testing, UI validation, and browser testing. Internal tool — lives outside the published plugin surface.
 ---
 
 # Optimize Agent-Facing Descriptions

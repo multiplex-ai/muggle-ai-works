@@ -571,13 +571,7 @@ Optimizing agent-facing descriptions
 
 AI agents decide which tools to use based on text in MCP server instructions, hook context injection, skill descriptions, tool descriptions, and plugin metadata. If these don't match what users actually say, agents won't reach for muggle tools.
 
-The `/muggle:optimize-descriptions` skill documents the full optimization process:
-
-```
-/muggle:optimize-descriptions
-```
-
-This is an **internal-only skill** (not published to customers). It covers:
+The `optimize-descriptions` skill documents the full optimization process. It lives at `internal/skills/optimize-descriptions/SKILL.md` — an internal-only skill that does **not** ship via npm or the plugin marketplace. To use it as a slash command on a dev machine, symlink or copy the folder into `~/.claude/skills/`. It covers:
 
 - The five layers of agent-facing text and where each lives in the codebase
 - How to write descriptions that match real user intent ("test my signup flow" not "execute test generation")
@@ -611,7 +605,7 @@ python3 -m scripts.run_eval \
   --verbose
 ```
 
-See `plugin/skills/optimize-descriptions/SKILL.md` for the full guide.
+See `internal/skills/optimize-descriptions/SKILL.md` for the full guide.
 
 ---
 

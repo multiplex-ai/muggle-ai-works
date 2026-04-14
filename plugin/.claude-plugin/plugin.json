@@ -1,7 +1,7 @@
 {
   "name": "muggle",
   "description": "Run real-browser end-to-end (E2E) acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
-  "version": "4.8.0",
+  "version": "4.8.1",
   "author": {
     "name": "Muggle AI",
     "email": "support@muggle-ai.com"

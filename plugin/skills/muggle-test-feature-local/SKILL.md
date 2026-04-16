@@ -65,9 +65,20 @@ Prompt for projects: "Pick the project to group this test into:"
   2. `muggle-remote-use-case-create-from-prompts` with `projectId` and `instructions: ["<the user's natural-language instruction>"]` — persist. Use the created use case id and continue to test-case selection.
 - **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.
   1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskQuestion`.
-  2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 4** with that `testCaseId`.
+  2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 5** with that `testCaseId`.
 
-### 3. Local URL
+### 3. Ensure Local Services Are Ready
+
+Before detecting the local URL, verify that the services the user needs are actually running. Use the `muggle:muggle-test-prepare` integration contract:
+
+1. Check if `/tmp/muggle-test-prepare.json` exists.
+2. If it exists, verify tracked PIDs are alive with `kill -0`.
+3. If all live → services are ready, proceed to Step 4 (Local URL).
+4. If the file is missing or has stale PIDs → invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool to get services started. Once it completes, proceed to Step 4.
+
+This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
+
+### 4. Local URL
 
 Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
 - Option 1: "http://localhost:3000" (or whatever was detected)
@@ -77,14 +88,14 @@ If nothing detected, ask as free text: "Your local app should be running. What's
 
 Remind them: local URL is only the execution target, not tied to cloud project config.
 
-### 4. Existing scripts vs new generation
+### 5. Existing scripts vs new generation
 
 `muggle-remote-test-script-list` with `testCaseId`.
 
 - **If any replayable/succeeded scripts exist:** use `AskQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
 - **If none:** go straight to generation (no need to ask replay vs generate).
 
-### 5. Load data for the chosen path
+### 6. Load data for the chosen path
 
 **Determine `freshSession`**
 
@@ -122,39 +133,39 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 - **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see **`timeoutMs`** above.
 - **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. verifying "view script after a successful run" when **no run or script exists yet** in the UI. Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash. **Fix:** choose a **project that already has** completed runs and scripts, or **change the test case** so preconditions match what localhost can satisfy (e.g. include steps to create and run a test first, or assert only empty-state UI when no runs exist).
 
-### 6. Execute (no approval prompt)
+### 7. Execute (no approval prompt)
 
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval. The browser defaults to visible; only pass `showUi: false` if the user explicitly asked for headless.
 
-### 7. After successful generation only
+### 8. After successful generation only
 
 - `muggle-local-publish-test-script`
 - Open returned `viewUrl` for the user (`open "<viewUrl>"` on macOS or OS equivalent).
 
-### 8. Report
+### 9. Report
 
 - `muggle-local-run-result-get` with the run id from execute.
 - Include: status, duration, pass/fail summary, per-step summary, artifact/screenshot paths, errors if failed, and script view URL when publishing ran.
 
-### 9. Offer to post a visual walkthrough to the PR
+### 10. Offer to post a visual walkthrough to the PR
 
-After reporting results, gather the required input and hand off to the shared **`muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
+After reporting results, gather the required input and hand off to the shared **`muggle:muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
 
-#### 9a: Gather per-step screenshots
+#### 10a: Gather per-step screenshots
 
-The shared skill takes an **`E2eReport` JSON** that includes per-step screenshot URLs. After step 7 has called `muggle-local-publish-test-script` and you have the `testScriptId`:
+The shared skill takes an **`E2eReport` JSON** that includes per-step screenshot URLs. After step 8 has called `muggle-local-publish-test-script` and you have the `testScriptId`:
 
 1. Call `muggle-remote-test-script-get` with the `testScriptId`.
 2. Extract per step: `steps[].operation.action` and `steps[].operation.screenshotUrl`.
 3. Build the `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
-4. If the run failed, capture `failureStepIndex`, `error`, and the local `artifactsDir` from the run result in step 8.
+4. If the run failed, capture `failureStepIndex`, `error`, and the local `artifactsDir` from the run result in step 9.
 5. Populate `description` (test case title/description) and `useCaseName` (parent use case title) on the report entry — optional but strongly recommended; they drive the grouped overview and the per-test collapsible headers. Prefer values already in your conversation context from earlier steps (e.g. the test case you just created or selected, or the use case you confirmed); only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` for anything you don't already have.
 
 Assemble the `E2eReport`:
 
 ```json
 {
-  "projectId": "<projectId from step 2>",
+  "projectId": "<projectId from step 2 (Targets)>",
   "tests": [
     {
       "name": "<test case title>",
@@ -171,9 +182,9 @@ Assemble the `E2eReport`:
 }
 ```
 
-See the `muggle-pr-visual-walkthrough` skill for the full schema including the failed-test shape.
+See the `muggle:muggle-pr-visual-walkthrough` skill for the full schema including the failed-test shape.
 
-#### 9b: Ask the user
+#### 10b: Ask the user
 
 Use `AskQuestion`:
 
@@ -182,11 +193,11 @@ Use `AskQuestion`:
 - Option 1: "Yes, post to PR"
 - Option 2: "Skip"
 
-#### 9c: Invoke the shared skill in Mode A
+#### 10c: Invoke the shared skill in Mode A
 
-If the user chooses "Yes, post to PR", invoke the `muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, finds the PR via `gh pr view`, posts `body` as a comment, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
+If the user chooses "Yes, post to PR", invoke the `muggle:muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, finds the PR via `gh pr view`, posts `body` as a comment, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
 
-Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle-pr-visual-walkthrough`.
+Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle:muggle-pr-visual-walkthrough`.
 
 ## Non-negotiables
 
@@ -197,4 +208,4 @@ Always use **Mode A** (post to existing PR) from this skill. Never hand-write th
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
 - Use `AskQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
-- PR posting is always optional and always delegated to the `muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.
+- PR posting is always optional and always delegated to the `muggle:muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

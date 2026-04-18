@@ -12,14 +12,19 @@ import { pipeline } from "stream/promises";
 import {
   buildElectronAppReleaseAssetUrl,
   calculateFileChecksum,
+  DEFAULT_PREFERENCES,
   getChecksumForPlatform,
+  getDataDir,
   getElectronAppChecksums,
   getElectronAppDir,
   getElectronAppVersion,
   getLogger,
   getPlatformKey,
   isElectronAppInstalled,
+  isFirstRun,
+  PREFERENCES_FILE_NAME,
   verifyFileChecksum,
+  writePreferences,
 } from "../../packages/mcps/src/index.js";
 
 const logger = getLogger();
@@ -298,6 +303,13 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
 
   // Ensure Cursor MCP config is up to date regardless of Electron state
   upsertCursorMcpConfig();
+
+  // Initialize default preferences if this is the first run
+  if (isFirstRun()) {
+    writePreferences(DEFAULT_PREFERENCES, "global");
+    console.log(`Default preferences written to ${path.join(getDataDir(), PREFERENCES_FILE_NAME)}`);
+    console.log("All preferences default to 'ask'. You can customize them anytime by editing the file or telling the agent to change a preference.");
+  }
 
   // Check if already installed
   if (!options.force && isElectronAppInstalled()) {

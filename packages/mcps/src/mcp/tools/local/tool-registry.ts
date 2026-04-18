@@ -24,7 +24,14 @@ import {
   TestScriptListInputSchema,
   TestScriptGetInputSchema,
   PublishTestScriptInputSchema,
+  PreferencesSetInputSchema,
 } from "../../local/contracts/index.js";
+import {
+  resolvePreferences,
+  writePreferences,
+  formatPreferencesOneLiner,
+} from "../../../shared/preferences.js";
+import { PREFERENCES_FILE_NAME } from "../../../shared/preferences-constants.js";
 import {
   cancelExecution,
   executeReplay,
@@ -575,6 +582,46 @@ const publishTestScriptTool: ILocalMcpTool = {
 };
 
 // ========================================
+// Preferences Tools
+// ========================================
+
+const preferencesSetTool: ILocalMcpTool = {
+  name: "muggle-local-preferences-set",
+  description:
+    "Set a Muggle AI user preference. Preferences control automation behavior (auto-login, show browser, suggest test cases, etc.). " +
+    "Values: 'always' (proceed without asking), 'ask' (prompt each time), 'never' (skip without asking). " +
+    "Scope: 'global' writes to ~/.muggle-ai/preferences.json, 'project' writes to .muggle-ai/preferences.json in the repo root.",
+  inputSchema: PreferencesSetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-preferences-set");
+
+    const input = PreferencesSetInputSchema.parse(ctx.input);
+
+    writePreferences(
+      { [input.key]: input.value },
+      input.scope,
+      undefined,
+      input.cwd,
+    );
+
+    const resolved = resolvePreferences(undefined, input.cwd);
+    const oneLiner = formatPreferencesOneLiner(resolved);
+
+    const content = [
+      `**${input.key}** set to **${input.value}** (${input.scope}).`,
+      "",
+      `Preferences file: ~/.muggle-ai/${PREFERENCES_FILE_NAME}`,
+      "",
+      "Current resolved preferences:",
+      `\`${oneLiner}\``,
+    ].join("\n");
+
+    return { content: content, isError: false };
+  },
+};
+
+// ========================================
 // All Tools Registry
 // ========================================
 
@@ -598,6 +645,8 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   cancelExecutionTool,
   // Publishing tools
   publishTestScriptTool,
+  // Preferences tools
+  preferencesSetTool,
 ];
 
 /**

@@ -11,6 +11,7 @@ import {
   PreferenceKey,
   PreferenceValue,
 } from "../shared/preferences-types.js";
+import { PreferencesSetInputSchema } from "../mcp/local/contracts/preferences-schemas.js";
 import {
   DEFAULT_PREFERENCES,
   PREFERENCES_FILE_NAME,
@@ -241,5 +242,39 @@ describe("PreferencesService", () => {
       expect(result).toContain("autoLogin=ask");
       expect(result).toContain("verboseOutput=ask");
     });
+  });
+});
+
+describe("PreferencesSetInputSchema", () => {
+  it("accepts valid input", () => {
+    const result = PreferencesSetInputSchema.parse({
+      key: "autoLogin",
+      value: "always",
+    });
+    expect(result.key).toBe("autoLogin");
+    expect(result.value).toBe("always");
+    expect(result.scope).toBe("global");
+  });
+
+  it("accepts project scope", () => {
+    const result = PreferencesSetInputSchema.parse({
+      key: "autoLogin",
+      value: "never",
+      scope: "project",
+      cwd: "/some/path",
+    });
+    expect(result.scope).toBe("project");
+  });
+
+  it("rejects invalid key", () => {
+    expect(() =>
+      PreferencesSetInputSchema.parse({ key: "badKey", value: "always" }),
+    ).toThrow();
+  });
+
+  it("rejects invalid value", () => {
+    expect(() =>
+      PreferencesSetInputSchema.parse({ key: "autoLogin", value: "sometimes" }),
+    ).toThrow();
   });
 });

@@ -32,6 +32,28 @@ Every test case verifies exactly **one** user-observable behavior. Never bundle 
 
 **Never skip the generate→review cycle.** Even when you are 100% confident about the right shape, always present the generated test cases to the user before calling `muggle-remote-test-case-create`. "I'll skip the generate→review cycle and create directly" is a sign you're about to get it wrong.
 
+## Preferences
+
+User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+
+If no preferences line is present, treat all preferences as `"ask"`.
+
+When you reach a decision gated by a preference:
+- **`always`** → proceed without asking the user
+- **`never`** → skip without asking the user  
+- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+
+This skill uses these preferences:
+
+| Preference | Decision it gates |
+|------------|------------------|
+| `autoLogin` | Reuse saved credentials when auth is required |
+| `autoSelectProject` | Reuse last-used Muggle project for this repo |
+| `autoDetectChanges` | Scan local git changes and map to affected test cases |
+| `defaultExecutionMode` | Default to local or remote test execution |
+| `autoPublishLocalResults` | Upload local results to Muggle cloud after run |
+| `postPRVisualWalkthrough` | Post visual walkthrough to PR after results are available |
+
 ## Step 1: Confirm Scope of Work (Always First)
 
 Parse the user's query and explicitly confirm their expectation. There are exactly two modes:

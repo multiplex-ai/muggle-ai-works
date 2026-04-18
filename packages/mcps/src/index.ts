@@ -16,3 +16,6 @@ export * as localQa from "./mcp/local/index.js";
 export { getAuthService } from "./mcp/local/services/index.js";
 export { getLocalQaTools } from "./mcp/local/index.js";
 export { getQaTools } from "./mcp/e2e/index.js";
+export * from "./shared/preferences-types.js";
+export * from "./shared/preferences-constants.js";
+export * from "./shared/preferences.js";

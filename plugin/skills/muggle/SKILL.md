@@ -7,6 +7,23 @@ description: Muggle AI command router and menu. Use when user types "muggle" or 
 
 Use this as the top-level Muggle command router.
 
+## Preferences
+
+User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+
+If no preferences line is present, treat all preferences as `"ask"`.
+
+When you reach a decision gated by a preference:
+- **`always`** → proceed without asking the user
+- **`never`** → skip without asking the user  
+- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+
+This skill uses these preferences:
+
+| Preference | Decision it gates |
+|------------|------------------|
+| `checkForUpdates` | Check for newer Muggle version |
+
 ## Menu
 
 When user asks for "muggle" with no specific subcommand, use `AskQuestion` to present these four options:

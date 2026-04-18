@@ -17,6 +17,23 @@ This is the **canonical PR-walkthrough workflow** shared across every Muggle ent
 
 Rendering is always done by `muggle build-pr-section`, a battle-tested CLI that handles deterministic markdown layout, per-step screenshots, and automatic fit-vs-overflow (oversized content spills into a follow-up comment). Never hand-write the walkthrough markdown.
 
+## Preferences
+
+User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+
+If no preferences line is present, treat all preferences as `"ask"`.
+
+When you reach a decision gated by a preference:
+- **`always`** → proceed without asking the user
+- **`never`** → skip without asking the user  
+- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+
+This skill uses these preferences:
+
+| Preference | Decision it gates |
+|------------|------------------|
+| `postPRVisualWalkthrough` | Post visual walkthrough to PR |
+
 ## Input contract: the `E2eReport` JSON
 
 Every caller must build an `E2eReport` JSON object and have it in conversation context before invoking this skill. The schema is defined in `src/cli/pr-section/types.ts` (`E2eReportSchema`) and enforced by the CLI with Zod — malformed input exits non-zero with a descriptive stderr message.

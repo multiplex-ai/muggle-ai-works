@@ -22,6 +22,26 @@ The local URL only changes where the browser opens; it does not change the remot
 - **Selections** (project, use case, test case, script): Use `AskQuestion` with labeled options the user can click.
 - **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
 
+## Preferences
+
+User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+
+If no preferences line is present, treat all preferences as `"ask"`.
+
+When you reach a decision gated by a preference:
+- **`always`** → proceed without asking the user
+- **`never`** → skip without asking the user  
+- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+
+This skill uses these preferences:
+
+| Preference | Decision it gates |
+|------------|------------------|
+| `autoLogin` | Reuse saved credentials when auth is required |
+| `autoSelectProject` | Reuse last-used Muggle project for this repo |
+| `showElectronBrowser` | Show Electron browser window during local E2E tests |
+| `openTestResultsAfterRun` | Open results page on Muggle dashboard after run |
+
 ## Workflow
 
 ### 1. Auth

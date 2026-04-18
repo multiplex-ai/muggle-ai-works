@@ -7,6 +7,23 @@ description: Check health of the Muggle AI installation. Use when user types mug
 
 Run a full health check and report results.
 
+## Preferences
+
+User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+
+If no preferences line is present, treat all preferences as `"ask"`.
+
+When you reach a decision gated by a preference:
+- **`always`** → proceed without asking the user
+- **`never`** → skip without asking the user  
+- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+
+This skill uses these preferences:
+
+| Preference | Decision it gates |
+|------------|------------------|
+| `checkForUpdates` | Check for newer Muggle version |
+
 ## Checks
 
 1. **Electron app** — read `~/.muggle-ai/electron-app/` to find the installed version directory. Read `.install-metadata.json` to get version and checksum. Verify the binary exists at the expected path. On macOS, check code signing with `spctl --assess --verbose`.

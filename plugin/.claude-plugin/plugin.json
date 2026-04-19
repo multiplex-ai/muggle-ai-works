@@ -9,6 +9,13 @@
   "homepage": "https://www.muggletest.com",
   "repository": "https://github.com/multiplex-ai/muggle-ai-works",
   "license": "MIT",
+  "agents": [
+    {
+      "name": "acceptance-tester",
+      "path": "agents/acceptance-tester.md",
+      "description": "E2E acceptance testing agent — runs real-browser tests, reports structured results with blocking issues and suggested fixes, imports test artifacts, manages preferences, and operates the Muggle AI suite."
+    }
+  ],
   "keywords": [
     "acceptance-testing",
     "testing",

@@ -440,3 +440,7 @@ This skill always uses **Mode A** (post to an existing PR); `muggle-do` is the o
 - **Always publish before opening browser** — the dashboard needs the published data to show results
 - **Delegate PR posting to `muggle-pr-visual-walkthrough`** — never inline the walkthrough markdown or call `gh pr comment` directly from this skill; ask the user and hand off
 - **Can be invoked at any state** — if the user already has a project or use cases set up, skip to the relevant step rather than re-doing everything
+
+## Agent Dispatch
+
+When used in a multi-agent team (e.g., muggle-ai-teams), this skill is available through the **acceptance-tester** agent at `plugin/agents/acceptance-tester.md`. Orchestrators can dispatch it via `Agent()` instead of invoking this skill directly. The agent wraps this skill and four others (muggle-test-import, muggle-preferences, muggle-repair, muggle-status) and returns structured test results with blocking issues and suggested fixes for coding agents to act on.

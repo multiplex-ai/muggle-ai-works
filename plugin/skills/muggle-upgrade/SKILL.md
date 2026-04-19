@@ -24,10 +24,18 @@ Update all Muggle AI components to the latest published version. This means **bo
 4. Run `muggle upgrade` to pull the Electron runner version that the (now-latest) CLI expects.
    - Note: `muggle upgrade` only manages the Electron runner — it does NOT upgrade the CLI npm package. That is why step 3 must run first.
 
-5. Run `/muggle:muggle-status` again to confirm everything is healthy after upgrade.
+5. **Reload plugins** — the npm install (step 3) triggers a postinstall script that updates the plugin cache at `~/.claude/plugins/cache/`, but Claude Code only picks up new skills/agents/hooks after a reload. Tell the user:
+
+   > Run **`/reload-plugins`** to load the updated skills, agents, and hooks.
+
+   Wait for the user to confirm they've reloaded before proceeding.
+
+6. Run `/muggle:muggle-status` again to confirm everything is healthy after upgrade.
 
 ## Output
 
 Show a before/after table for **CLI**, **Electron runner**, **MCP server**, and **Auth**. Call out any version that did not change so the user understands what shipped vs what was already current.
+
+If any component upgraded, always end with the `/reload-plugins` reminder — even if the user doesn't need new features right away, stale cached skills can cause confusing behavior.
 
 If the upgrade fails at any step, report the error and suggest running `/muggle:muggle-repair`.

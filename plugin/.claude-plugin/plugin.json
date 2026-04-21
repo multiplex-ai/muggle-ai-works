@@ -1,7 +1,7 @@
 {
   "name": "muggle",
   "description": "Run real-browser end-to-end (E2E) acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
-  "version": "4.9.1",
+  "version": "4.9.2",
   "author": {
     "name": "Muggle AI",
     "email": "support@muggle-ai.com"
@@ -9,13 +9,6 @@
   "homepage": "https://www.muggletest.com",
   "repository": "https://github.com/multiplex-ai/muggle-ai-works",
   "license": "MIT",
-  "agents": [
-    {
-      "name": "acceptance-tester",
-      "path": "agents/acceptance-tester.md",
-      "description": "E2E acceptance testing agent — runs real-browser tests, reports structured results with blocking issues and suggested fixes, imports test artifacts, manages preferences, and operates the Muggle AI suite."
-    }
-  ],
   "keywords": [
     "acceptance-testing",
     "testing",

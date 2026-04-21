@@ -1,14 +1,7 @@
 ---
 name: acceptance-tester
-description: >-
-  E2E acceptance testing agent — runs real-browser tests against web apps and
-  reports structured results with blocking issues and suggested fixes. Also
-  imports existing test artifacts, manages Muggle preferences, and operates
-  the Muggle AI suite (status checks, repairs). Dispatch this agent when the
-  team needs acceptance test feedback, test coverage for a feature, or Muggle
-  suite operations.
+description: "E2E acceptance testing agent — runs real-browser tests against web apps and reports structured results with blocking issues and suggested fixes. Also imports existing test artifacts, manages Muggle preferences, and operates the Muggle AI suite (status checks, repairs). Dispatch this agent when the team needs acceptance test feedback, test coverage for a feature, or Muggle suite operations."
 model: sonnet
-tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 ---
 
 # Acceptance Tester

@@ -25,6 +25,9 @@ import {
   TestScriptGetInputSchema,
   PublishTestScriptInputSchema,
   PreferencesSetInputSchema,
+  LastProjectGetInputSchema,
+  LastProjectSetInputSchema,
+  LastProjectClearInputSchema,
 } from "../../local/contracts/index.js";
 import {
   resolvePreferences,
@@ -32,6 +35,12 @@ import {
   formatPreferencesOneLiner,
 } from "../../../shared/preferences.js";
 import { PREFERENCES_FILE_NAME } from "../../../shared/preferences-constants.js";
+import {
+  readLastProject,
+  writeLastProject,
+  clearLastProject,
+  LAST_PROJECT_FILE_NAME,
+} from "../../../shared/last-project.js";
 import {
   cancelExecution,
   executeReplay,
@@ -622,6 +631,99 @@ const preferencesSetTool: ILocalMcpTool = {
 };
 
 // ========================================
+// Last-Project Cache Tools
+// ========================================
+
+const lastProjectGetTool: ILocalMcpTool = {
+  name: "muggle-local-last-project-get",
+  description:
+    "Get the cached last-used Muggle project for a repo (read from <cwd>/.muggle-ai/last-project.json). " +
+    "Returns the project ID, URL, name, and saved-at timestamp, or null if no cache exists. " +
+    "Skills consult this when 'autoSelectProject = always' to silently reuse the project the user picked previously, instead of presenting the project picker every time.",
+  inputSchema: LastProjectGetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-project-get");
+
+    const input = LastProjectGetInputSchema.parse(ctx.input);
+    const cached = readLastProject(input.cwd);
+
+    if (!cached) {
+      const content = [
+        "No cached last-used project for this repo.",
+        "",
+        `Looked at: \`${input.cwd}/.muggle-ai/${LAST_PROJECT_FILE_NAME}\``,
+        "",
+        "The cache is populated when a user picks an existing project AND chooses 'Yes, save it' on the memory picker (the autoSelectProject preference).",
+      ].join("\n");
+      return { content: content, isError: false };
+    }
+
+    const content = [
+      "**Cached last-used project:**",
+      "",
+      `- ID: \`${cached.projectId}\``,
+      `- URL: ${cached.projectUrl}`,
+      `- Name: ${cached.projectName}`,
+      `- Saved at: ${cached.savedAt}`,
+    ].join("\n");
+    return { content: content, isError: false };
+  },
+};
+
+const lastProjectSetTool: ILocalMcpTool = {
+  name: "muggle-local-last-project-set",
+  description:
+    "Save the user's selected Muggle project as the cached last-used project for this repo. " +
+    "Writes to <cwd>/.muggle-ai/last-project.json. Subsequent skill invocations honor 'autoSelectProject = always' " +
+    "by silently reusing this entry — no project picker shown. Always pair this call with " +
+    "'muggle-local-preferences-set autoSelectProject=always' when the user chose 'Yes, save it'.",
+  inputSchema: LastProjectSetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-project-set");
+
+    const input = LastProjectSetInputSchema.parse(ctx.input);
+    writeLastProject(input.cwd, {
+      projectId: input.projectId,
+      projectUrl: input.projectUrl,
+      projectName: input.projectName,
+    });
+
+    const content = [
+      `Cached **${input.projectName}** as the last-used project for this repo.`,
+      "",
+      `Written to: \`${input.cwd}/.muggle-ai/${LAST_PROJECT_FILE_NAME}\``,
+      "",
+      "Skills will silently reuse this project on future runs when `autoSelectProject = always`.",
+    ].join("\n");
+    return { content: content, isError: false };
+  },
+};
+
+const lastProjectClearTool: ILocalMcpTool = {
+  name: "muggle-local-last-project-clear",
+  description:
+    "Remove the cached last-used project for this repo. After this, `autoSelectProject = always` will fall through to ask " +
+    "until the user picks a new project. No-op if no cache exists.",
+  inputSchema: LastProjectClearInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-project-clear");
+
+    const input = LastProjectClearInputSchema.parse(ctx.input);
+    clearLastProject(input.cwd);
+
+    const content = [
+      "Cleared the cached last-used project for this repo.",
+      "",
+      `Path: \`${input.cwd}/.muggle-ai/${LAST_PROJECT_FILE_NAME}\``,
+    ].join("\n");
+    return { content: content, isError: false };
+  },
+};
+
+// ========================================
 // All Tools Registry
 // ========================================
 
@@ -647,6 +749,10 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   publishTestScriptTool,
   // Preferences tools
   preferencesSetTool,
+  // Last-project cache tools (per-repo "last used Muggle project")
+  lastProjectGetTool,
+  lastProjectSetTool,
+  lastProjectClearTool,
 ];
 
 /**

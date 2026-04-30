@@ -14,6 +14,7 @@ import {
 import { PreferencesSetInputSchema } from "../mcp/local/contracts/preferences-schemas.js";
 import {
   DEFAULT_PREFERENCES,
+  PREFERENCE_ALLOWED_VALUES,
   PREFERENCES_FILE_NAME,
   PREFERENCES_SCHEMA,
   PREFERENCES_VERSION,
@@ -53,14 +54,40 @@ describe("PreferenceKey enum", () => {
 });
 
 describe("PreferenceValue enum", () => {
-  it("has exactly 3 values", () => {
-    expect(Object.values(PreferenceValue)).toHaveLength(3);
+  it("has exactly 5 values (always/ask/never + local/remote)", () => {
+    expect(Object.values(PreferenceValue)).toHaveLength(5);
   });
 
-  it("contains always, ask, never", () => {
+  it("contains always, ask, never, local, remote", () => {
     expect(PreferenceValue.Always).toBe("always");
     expect(PreferenceValue.Ask).toBe("ask");
     expect(PreferenceValue.Never).toBe("never");
+    expect(PreferenceValue.Local).toBe("local");
+    expect(PreferenceValue.Remote).toBe("remote");
+  });
+});
+
+describe("PREFERENCE_ALLOWED_VALUES", () => {
+  it("has an entry for every PreferenceKey", () => {
+    for (const key of Object.values(PreferenceKey)) {
+      expect(PREFERENCE_ALLOWED_VALUES[key]).toBeDefined();
+      expect(PREFERENCE_ALLOWED_VALUES[key].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("uses always/ask/never for most keys", () => {
+    const usual = [PreferenceValue.Always, PreferenceValue.Ask, PreferenceValue.Never];
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.AutoLogin]).toEqual(usual);
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.VerboseOutput]).toEqual(usual);
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.CheckForUpdates]).toEqual(usual);
+  });
+
+  it("uses local/remote/ask for defaultExecutionMode", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.DefaultExecutionMode]).toEqual([
+      PreferenceValue.Local,
+      PreferenceValue.Remote,
+      PreferenceValue.Ask,
+    ]);
   });
 });
 
@@ -155,10 +182,10 @@ describe("PreferencesService", () => {
       fs.mkdirSync(overrideDir, { recursive: true });
       fs.writeFileSync(
         path.join(overrideDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { defaultExecutionMode: "always" } }),
+        JSON.stringify({ version: 1, preferences: { defaultExecutionMode: "local" } }),
       );
       const prefs = readProjectPreferences(projectDir);
-      expect(prefs.defaultExecutionMode).toBe("always");
+      expect(prefs.defaultExecutionMode).toBe("local");
     });
   });
 
@@ -191,10 +218,10 @@ describe("PreferencesService", () => {
     });
 
     it("writes project preferences file", () => {
-      writePreferences({ defaultExecutionMode: "always" }, "project", globalDir, projectDir);
+      writePreferences({ defaultExecutionMode: "local" }, "project", globalDir, projectDir);
       const overridePath = path.join(projectDir, ".muggle-ai", "preferences.json");
       const raw = JSON.parse(fs.readFileSync(overridePath, "utf-8"));
-      expect(raw.preferences.defaultExecutionMode).toBe("always");
+      expect(raw.preferences.defaultExecutionMode).toBe("local");
     });
   });
 
@@ -222,9 +249,26 @@ describe("PreferencesService", () => {
   });
 
   describe("validatePreference", () => {
-    it("accepts valid key and value", () => {
+    it("accepts valid key and value (always/ask/never keys)", () => {
       expect(validatePreference("autoLogin", "always")).toBe(true);
       expect(validatePreference("verboseOutput", "never")).toBe(true);
+      expect(validatePreference("autoLogin", "ask")).toBe(true);
+    });
+
+    it("accepts local/remote/ask for defaultExecutionMode", () => {
+      expect(validatePreference("defaultExecutionMode", "local")).toBe(true);
+      expect(validatePreference("defaultExecutionMode", "remote")).toBe(true);
+      expect(validatePreference("defaultExecutionMode", "ask")).toBe(true);
+    });
+
+    it("rejects always/never for defaultExecutionMode", () => {
+      expect(validatePreference("defaultExecutionMode", "always")).toBe(false);
+      expect(validatePreference("defaultExecutionMode", "never")).toBe(false);
+    });
+
+    it("rejects local/remote for keys that don't accept them", () => {
+      expect(validatePreference("autoLogin", "local")).toBe(false);
+      expect(validatePreference("verboseOutput", "remote")).toBe(false);
     });
 
     it("rejects invalid key", () => {
@@ -275,6 +319,27 @@ describe("PreferencesSetInputSchema", () => {
   it("rejects invalid value", () => {
     expect(() =>
       PreferencesSetInputSchema.parse({ key: "autoLogin", value: "sometimes" }),
+    ).toThrow();
+  });
+
+  it("accepts local/remote for defaultExecutionMode", () => {
+    expect(
+      PreferencesSetInputSchema.parse({ key: "defaultExecutionMode", value: "local" }).value,
+    ).toBe("local");
+    expect(
+      PreferencesSetInputSchema.parse({ key: "defaultExecutionMode", value: "remote" }).value,
+    ).toBe("remote");
+  });
+
+  it("rejects always for defaultExecutionMode", () => {
+    expect(() =>
+      PreferencesSetInputSchema.parse({ key: "defaultExecutionMode", value: "always" }),
+    ).toThrow();
+  });
+
+  it("rejects local for autoLogin", () => {
+    expect(() =>
+      PreferencesSetInputSchema.parse({ key: "autoLogin", value: "local" }),
     ).toThrow();
   });
 });

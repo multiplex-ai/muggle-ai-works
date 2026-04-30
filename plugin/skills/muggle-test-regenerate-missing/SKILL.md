@@ -11,21 +11,25 @@ Execution is **remote only** — Muggle's cloud generates the scripts in paralle
 
 ## Preferences
 
-User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
 
-If no preferences line is present, treat all preferences as `"ask"`.
+**At every preference-gated step below**, apply this rule:
 
-When you reach a decision gated by a preference:
-- **`always`** → proceed without asking the user
-- **`never`** → skip without asking the user  
-- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+- `always` → perform the auto-action silently. **Skip both pickers.**
+- `never` → skip the action silently. **Skip both pickers.**
+- `ask` (or absent) → run the **2-picker flow**:
+  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option maps to either `always` or `never`.
+  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
+     - "Yes, save it"
+     - "No, just for this run"
+  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
 
-This skill uses these preferences:
+The `<action description>` and the substantive options are step-specific — see each gated step below.
 
-| Preference | Decision it gates |
-|------------|------------------|
-| `autoLogin` | Reuse saved credentials when auth is required |
-| `autoSelectProject` | Reuse last-used Muggle project for this repo |
+| Preference | Step | Decision it gates |
+|------------|------|-------------------|
+| `autoLogin` | 1 | Reuse saved credentials when auth is required |
+| `autoSelectProject` | 2 | Reuse last-used Muggle project for this repo |
 
 ## Concept: what counts as "no active script"
 
@@ -55,24 +59,43 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 
 ## Workflow
 
-### Step 1 — Authenticate
+### Step 1 — Authenticate (gated by `autoLogin`)
 
 1. Call `muggle-remote-auth-status`.
-2. If **authenticated and not expired** → print the logged-in email and ask via `AskQuestion`:
-   > "You're logged in as **{email}**. Continue with this account?"
-   - Option 1: "Yes, continue"
-   - Option 2: "No, switch account"
-   If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
+2. If **authenticated and not expired** → apply the `autoLogin` gate (see Preferences for the full 2-picker flow):
+   - **`autoLogin = always`** → continue with the saved session silently. Skip both pickers.
+   - **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`. Skip both pickers.
+   - **`autoLogin = ask` (or absent)** → run the 2-picker flow:
+     - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
+       - "Yes, continue" → maps to `autoLogin = always`. Proceed with the saved session.
+       - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
+     - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
+       - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
+       - "No, just for this run" → continue without saving.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
 4. Do not skip auth and do not assume a stale token still works.
 
 If auth keeps failing, suggest the user run `muggle logout && muggle login` from a terminal.
 
-### Step 2 — Select Project (user must choose)
+### Step 2 — Select Project (gated by `autoSelectProject`)
 
 A **project** is the unit on the Muggle AI dashboard that groups test cases, scripts, and runs. The user must pick the one to scan — never auto-select from repo name, branch, or URL heuristics.
 
-1. Call `muggle-remote-project-list`.
+The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
+
+Apply the `autoSelectProject` gate (see Preferences for the full 2-picker flow):
+- **`autoSelectProject = always`** with the `Muggle Last Project` line present → use that `projectId` silently. Skip both pickers and proceed to Step 3. If no cache line is present, fall through to `ask`.
+- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
+- **`autoSelectProject = ask` (or absent)** → present the project list (Picker 1), then offer Picker 2 only after a successful pick of an existing project (skip Picker 2 if user picked "Create new project"):
+  - Picker 2: `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
+    - **"Yes, save it"** → make BOTH calls:
+      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
+      2. `muggle-local-last-project-set` with `cwd`, `projectId`, `projectUrl`, `projectName`.
+    - "No, just for this run" → continue without saving.
+
+### Logic
+
+1. Call `muggle-remote-project-list` (only when not satisfied by the `always` cache).
 2. Use `AskQuestion` to present projects as clickable options. Include the project URL in each label so the user can disambiguate. Always include "Create new project" as the last option.
 3. Wait for explicit selection.
 4. If the user picks "Create new project": collect `projectName`, `description`, and `url`, then call `muggle-remote-project-create`.

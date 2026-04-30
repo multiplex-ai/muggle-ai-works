@@ -100,7 +100,30 @@ else
   prefs_file_note="\\n\\nMuggle Preferences: not configured. Run \\\`muggle setup\\\` or tell the agent to set preferences."
 fi
 
-context="<EXTREMELY_IMPORTANT>\nYou have access to Muggle AI — a real-browser E2E acceptance testing tool.\n\nWhenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:\n- Testing user flows (signup, login, checkout, forms, dashboards)\n- Verifying UI changes didn't break anything\n- Running regression tests after code changes\n- Validating frontend behavior on localhost or a dev server\n- Checking if a feature works before merging a PR\n\nMuggle launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.\n\nDo NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.\n\nTrigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.\n</EXTREMELY_IMPORTANT>${upgrade_notice}${prefs_file_note}"
+# --- Last-project cache injection ---
+# Per-repo "last used Muggle project" cache. Lives at <cwd>/.muggle-ai/last-project.json
+# and is honored by skills when autoSelectProject = always.
+last_project_line=""
+last_project_note=""
+last_project_line=$(node -e "
+  const fs = require('fs');
+  const path = require('path');
+  try {
+    const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
+    const lpPath = path.join(cwd, '.muggle-ai', 'last-project.json');
+    if (!fs.existsSync(lpPath)) { console.log(''); return; }
+    const raw = JSON.parse(fs.readFileSync(lpPath, 'utf-8'));
+    const lp = raw && raw.lastProject;
+    if (!lp || !lp.projectId) { console.log(''); return; }
+    const safeName = String(lp.projectName || '').replace(/\"/g, '\\\\\"');
+    console.log('Muggle Last Project: id=' + lp.projectId + ' url=' + lp.projectUrl + ' name=\"' + safeName + '\"');
+  } catch { console.log(''); }
+" 2>/dev/null || true)
+if [ -n "$last_project_line" ]; then
+  last_project_note="\\n\\n${last_project_line}"
+fi
+
+context="<EXTREMELY_IMPORTANT>\nYou have access to Muggle AI — a real-browser E2E acceptance testing tool.\n\nWhenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:\n- Testing user flows (signup, login, checkout, forms, dashboards)\n- Verifying UI changes didn't break anything\n- Running regression tests after code changes\n- Validating frontend behavior on localhost or a dev server\n- Checking if a feature works before merging a PR\n\nMuggle launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.\n\nDo NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.\n\nTrigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.\n</EXTREMELY_IMPORTANT>${upgrade_notice}${prefs_file_note}${last_project_note}"
 
 escaped_context=$(escape_for_json "$context")
 

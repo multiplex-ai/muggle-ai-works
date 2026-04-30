@@ -19,20 +19,15 @@ Rendering is always done by `muggle build-pr-section`, a battle-tested CLI that 
 
 ## Preferences
 
-User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
 
-If no preferences line is present, treat all preferences as `"ask"`.
+This skill is invoked by callers (`muggle-test`, `muggle-test-feature-local`, `muggle-do`) **after** the caller has already consulted `postPRVisualWalkthrough` and decided to post. Therefore **the gating happens upstream, not in this skill** — by the time this skill runs, the user has already said "post the walkthrough" (either via `postPRVisualWalkthrough = always` or by explicitly picking "Yes, post to PR" in the caller's 2-picker flow).
 
-When you reach a decision gated by a preference:
-- **`always`** → proceed without asking the user
-- **`never`** → skip without asking the user  
-- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+| Preference | Where it's gated | Decision it gates |
+|------------|------------------|-------------------|
+| `postPRVisualWalkthrough` | Caller skill (e.g. `muggle-test` Step 9, `muggle-test-feature-local` Step 10) | Post visual walkthrough to PR |
 
-This skill uses these preferences:
-
-| Preference | Decision it gates |
-|------------|------------------|
-| `postPRVisualWalkthrough` | Post visual walkthrough to PR |
+The full 2-picker flow lives in the caller's SKILL.md. This skill only renders and posts.
 
 ## Input contract: the `E2eReport` JSON
 

@@ -34,6 +34,38 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.VerboseOutput]: PreferenceValue.Ask,
 };
 
+const ALWAYS_ASK_NEVER = [
+  PreferenceValue.Always,
+  PreferenceValue.Ask,
+  PreferenceValue.Never,
+] as const;
+
+const LOCAL_REMOTE_ASK = [
+  PreferenceValue.Local,
+  PreferenceValue.Remote,
+  PreferenceValue.Ask,
+] as const;
+
+/**
+ * Per-key allowed values. Most preferences accept `always`/`ask`/`never`.
+ * `defaultExecutionMode` is the exception: it accepts `local`/`remote`/`ask`
+ * because "always" / "never" don't meaningfully describe a binary mode choice.
+ */
+export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly PreferenceValue[]> = {
+  [PreferenceKey.AutoLogin]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoSelectProject]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.ShowElectronBrowser]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.OpenTestResultsAfterRun]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.DefaultExecutionMode]: LOCAL_REMOTE_ASK,
+  [PreferenceKey.AutoPublishLocalResults]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.SuggestRelatedUseCases]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.SuggestRelatedTestCases]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoDetectChanges]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.PostPRVisualWalkthrough]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.CheckForUpdates]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.VerboseOutput]: ALWAYS_ASK_NEVER,
+};
+
 /** Human-readable schema for each preference — used in setup wizard and validation. */
 export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> = {
   [PreferenceKey.AutoLogin]: {

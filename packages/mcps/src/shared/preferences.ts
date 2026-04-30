@@ -12,13 +12,13 @@ import { getDataDir } from "./data-dir.js";
 import { getLogger } from "./logger.js";
 import {
   PreferenceKey,
-  PreferenceValue,
   type IPartialPreferences,
   type IPreferences,
   type IPreferencesFile,
 } from "./preferences-types.js";
 import {
   DEFAULT_PREFERENCES,
+  PREFERENCE_ALLOWED_VALUES,
   PREFERENCES_FILE_NAME,
   PREFERENCES_PROJECT_DIR_NAME,
   PREFERENCES_VERSION,
@@ -157,12 +157,16 @@ export function resetPreference(
 }
 
 /**
- * Validate that a key and value are valid preferences.
+ * Validate that a key and value are valid preferences. Per-key validation:
+ * each key has its own set of allowed values (see PREFERENCE_ALLOWED_VALUES).
  */
 export function validatePreference(key: string, value: string): boolean {
   const validKeys = Object.values(PreferenceKey) as string[];
-  const validValues = Object.values(PreferenceValue) as string[];
-  return validKeys.includes(key) && validValues.includes(value);
+  if (!validKeys.includes(key)) {
+    return false;
+  }
+  const allowed = PREFERENCE_ALLOWED_VALUES[key as PreferenceKey] as readonly string[];
+  return allowed.includes(value);
 }
 
 /**

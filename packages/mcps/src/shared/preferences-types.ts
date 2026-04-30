@@ -33,7 +33,12 @@ export enum PreferenceKey {
 }
 
 /**
- * Allowed values for every preference knob.
+ * Allowed values for preference knobs.
+ *
+ * Most knobs use `Always` / `Ask` / `Never`. A few use domain-specific values:
+ *  - `DefaultExecutionMode` uses `Local` / `Remote` / `Ask`.
+ *
+ * Per-key validity is enforced via `PREFERENCE_ALLOWED_VALUES` in preferences-constants.ts.
  */
 export enum PreferenceValue {
   /** Proceed without asking. */
@@ -42,6 +47,10 @@ export enum PreferenceValue {
   Ask = "ask",
   /** Skip without asking. */
   Never = "never",
+  /** For DefaultExecutionMode: always run tests on the local Electron browser. */
+  Local = "local",
+  /** For DefaultExecutionMode: always run tests in the Muggle cloud. */
+  Remote = "remote",
 }
 
 /**

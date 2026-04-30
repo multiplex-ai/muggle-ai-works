@@ -34,25 +34,29 @@ Every test case verifies exactly **one** user-observable behavior. Never bundle 
 
 ## Preferences
 
-User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
 
-If no preferences line is present, treat all preferences as `"ask"`.
+**At every preference-gated step below**, apply this rule:
 
-When you reach a decision gated by a preference:
-- **`always`** → proceed without asking the user
-- **`never`** → skip without asking the user  
-- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+- `always` → perform the auto-action silently. **Skip both pickers.**
+- `never` → skip the action silently. **Skip both pickers.**
+- `ask` (or absent) → run the **2-picker flow**:
+  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option's value maps to either `always` or `never` (e.g. "Yes, continue" → `always`, "No, switch account" → `never`).
+  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
+     - "Yes, save it"
+     - "No, just for this run"
+  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
 
-This skill uses these preferences:
+The `<action description>` and the substantive options are step-specific — see each gated step below.
 
-| Preference | Decision it gates |
-|------------|------------------|
-| `autoLogin` | Reuse saved credentials when auth is required |
-| `autoSelectProject` | Reuse last-used Muggle project for this repo |
-| `autoDetectChanges` | Scan local git changes and map to affected test cases |
-| `defaultExecutionMode` | Default to local or remote test execution |
-| `autoPublishLocalResults` | Upload local results to Muggle cloud after run |
-| `postPRVisualWalkthrough` | Post visual walkthrough to PR after results are available |
+| Preference | Step | Decision it gates |
+|------------|------|-------------------|
+| `autoLogin` | 3 | Reuse saved credentials when auth is required |
+| `autoSelectProject` | 4 | Reuse last-used Muggle project for this repo |
+| `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
+| `defaultExecutionMode` | 1 | Default to local or remote test execution |
+| `autoPublishLocalResults` | 7A | Upload local results to Muggle cloud after run |
+| `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 
 ## Step 1: Confirm Scope of Work (Always First)
 
@@ -72,19 +76,41 @@ Signs the user wants this: mentions "localhost", "local", "my machine", "dev ser
 
 Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides a non-localhost URL.
 
-### Confirming
+### Confirming (gated by `defaultExecutionMode`)
 
-If the user's intent is clear, state back what you understood and use `AskQuestion` to confirm:
-- Option 1: "Yes, proceed"
-- Option 2: "Switch to [the other mode]"
+This preference uses a domain-specific value set: **`local`** / **`remote`** / **`ask`** (not `always`/`never`). Apply the gate:
 
-If ambiguous, use `AskQuestion` to let the user choose:
-- Option 1: "On my computer — test your localhost dev server in a browser on your machine"
-- Option 2: "In the cloud — test remotely targeting your deployed preview/staging URL"
+- **`defaultExecutionMode = local`** → proceed in Local mode silently. Skip both pickers.
+- **`defaultExecutionMode = remote`** → proceed in Remote mode silently. Skip both pickers.
+- **`defaultExecutionMode = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1** (`AskQuestion`):
+    - If the user's intent is clear, state back what you understood and confirm:
+      - "Yes, proceed" → use the inferred mode; this is a confirmation of a one-shot intent, **do NOT show Picker 2**.
+      - "Switch to [the other mode]" → use the other mode; correction, **do NOT show Picker 2**.
+    - If ambiguous, ask the user to pick the mode:
+      - "On my computer — test your localhost dev server in a browser on your machine" → maps to `defaultExecutionMode = local`
+      - "In the cloud — test remotely targeting your deployed preview/staging URL" → maps to `defaultExecutionMode = remote`
+  - **Picker 2** (`AskQuestion`, ambiguous-case only): `"Remember this? Next time I'll automatically run in <Local|Remote> mode without asking. (preference: defaultExecutionMode = <local|remote>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "defaultExecutionMode"`, `value: "<local|remote>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
 
 Only proceed after the user selects an option.
 
-## Step 2: Detect Local Changes
+## Step 2: Detect Local Changes (gated by `autoDetectChanges`)
+
+See Preferences section for the full 2-picker flow.
+
+- **`autoDetectChanges = always`** → run the git scan automatically. Skip both pickers; continue to the analysis below.
+- **`autoDetectChanges = never`** → skip the git scan entirely. Ask the user directly: "What would you like to test?" Then jump to Step 3.
+- **`autoDetectChanges = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1** (`AskQuestion`): `"Scan local git changes to scope the test run?"`
+    - "Yes, scan changes" → maps to `autoDetectChanges = always`. Proceed with the analysis below.
+    - "No, I'll specify what to test" → maps to `autoDetectChanges = never`. Ask the user directly and jump to Step 3.
+  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <scan local git changes | skip the scan and ask you> without asking. (preference: autoDetectChanges = <always|never>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoDetectChanges"`, `value: "<always|never>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
+
+### Analysis (when scan is enabled)
 
 Analyze the working directory to understand what changed.
 
@@ -104,36 +130,60 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 ## Step 3: Authenticate
 
 1. Call `muggle-remote-auth-status`
-2. If **authenticated and not expired** → print the logged-in email and ask via `AskQuestion`:
-   > "You're logged in as **{email}**. Continue with this account?"
-   - Option 1: "Yes, continue"
-   - Option 2: "No, switch account"
-   If the user picks "switch account", call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+2. If **authenticated and not expired** → **gated by `autoLogin`** (see Preferences section for the full 2-picker flow):
+   - **`autoLogin = always`** → continue with the saved session silently. Skip both pickers.
+   - **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`. Skip both pickers.
+   - **`autoLogin = ask` (or absent)** → run the 2-picker flow:
+     - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
+       - "Yes, continue" → maps to `autoLogin = always`. Proceed with the saved session.
+       - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+     - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
+       - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
+       - "No, just for this run" → continue without saving.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`
 4. If login pending → call `muggle-remote-auth-poll`
 
 If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal.
 
-## Step 4: Select Project (User Must Choose)
+## Step 4: Select Project (gated by `autoSelectProject`)
 
 A **project** is where all your test results, use cases, and test scripts are grouped on the Muggle AI dashboard. Pick the project that matches what you're working on.
 
-1. Call `muggle-remote-project-list`
-2. Use `AskQuestion` to present all projects as clickable options. Include the project URL in each label so the user can identify the right one. Always include a "Create new project" option at the end.
+The per-repo cache lives at `<cwd>/.muggle-ai/last-project.json` (managed via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for the `Muggle Last Project: id=… url=… name="…"` line in session context — if present, that's this repo's cached pick.
 
-   Example labels:
-   - "MUGGLE AI STAGING 1 — https://staging.muggle-ai.com/"
-   - "Tanka Testing — https://www.tanka.ai"
-   - "Create new project"
+Apply the gate (see Preferences for the standard 2-picker flow):
 
-   Prompt: "Pick the project to group this test run into:"
+- **`autoSelectProject = always`**:
+  - If the `Muggle Last Project` line is in session context → use that `projectId` silently. Skip both pickers and skip to Step 5. (Optionally call `muggle-local-last-project-get` with `cwd` to verify and re-fetch the URL/name if needed.)
+  - If no cache line is present → fall through to `ask` (the user has never picked one for this repo yet).
+- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
+- **`autoSelectProject = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1** (`AskQuestion`): present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
 
-3. **Wait for the user to explicitly choose** — do NOT auto-select based on repo name or URL matching
+    Example labels:
+    - "MUGGLE AI STAGING 1 — https://staging.muggle-ai.com/"
+    - "Tanka Testing — https://www.tanka.ai"
+    - "Create new project"
+
+    Prompt: `"Pick the project to group this test run into:"`
+
+  - **Picker 2** (`AskQuestion`, only after a successful pick of an existing project — skip if user picked "Create new project"): `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
+    - **"Yes, save it"** → make BOTH calls:
+      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
+      2. `muggle-local-last-project-set` with `cwd` (current working directory), `projectId`, `projectUrl`, `projectName`.
+      Both calls together establish the silent-reuse behavior for future sessions.
+    - **"No, just for this run"** → continue without saving.
+
+### Logic
+
+1. Resolve the chosen project per the gate above.
+2. Call `muggle-remote-project-list` only when the gate doesn't already give a `projectId` from the cache.
+3. **Wait for the user to explicitly choose** when presenting the picker — do NOT auto-select based on repo name or URL matching.
 4. **If user chooses "Create new project"**:
    - Ask for `projectName`, `description`, and the production/preview URL
    - Call `muggle-remote-project-create`
 
-Store the `projectId` only after user confirms.
+Store the `projectId` only after user confirms (or after silent reuse from the cache).
 
 ## Step 5: Select Use Case (Best-Effort Shortlist)
 
@@ -250,7 +300,21 @@ If a generation fails, log it and continue to the next. Do not abort the batch.
 
 For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Extract: status, duration, step count, `artifactsDir`.
 
-### Publish each run to cloud (in parallel)
+### Publish each run to cloud (gated by `autoPublishLocalResults`)
+
+See Preferences section for the full 2-picker flow.
+
+- **`autoPublishLocalResults = always`** → publish all runs silently. Skip both pickers; proceed to the publish logic below.
+- **`autoPublishLocalResults = never`** → skip publishing entirely. Skip both pickers; jump to the report summary. **Note**: Step 8 (open dashboard), Step 9 (PR walkthrough), and any per-step screenshot fetches that depend on cloud-side data will be unavailable. Tell the user.
+- **`autoPublishLocalResults = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1** (`AskQuestion`): `"Upload these local results to Muggle cloud? Required for the dashboard view, PR walkthrough, and team visibility."`
+    - "Yes, publish" → maps to `autoPublishLocalResults = always`. Proceed with the publish logic.
+    - "No, keep local-only" → maps to `autoPublishLocalResults = never`. Skip publishing.
+  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <upload local results to Muggle cloud | keep results local-only> without asking. (preference: autoPublishLocalResults = <always|never>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoPublishLocalResults"`, `value: "<always|never>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
+
+### Publish logic (when publishing is enabled)
 
 For every completed run, issue all `muggle-local-publish-test-script` calls in parallel (single message, multiple tool calls):
 - `runId`: The local run ID
@@ -377,18 +441,23 @@ Assemble the report:
 
 See the shared skill for the full schema (including the failed-test shape with `failureStepIndex` and `error`).
 
-### 9b: Ask the user
+### 9b: Ask the user (gated by `postPRVisualWalkthrough`)
 
-Use `AskQuestion`:
+See Preferences section for the full 2-picker flow.
 
-> "Post a visual walkthrough of these results to the PR? Reviewers can click each test case to see step-by-step screenshots on the Muggle AI dashboard."
-
-- Option 1: "Yes, post to PR"
-- Option 2: "Skip"
+- **`postPRVisualWalkthrough = always`** → proceed straight to 9c silently (post the walkthrough). Skip both pickers.
+- **`postPRVisualWalkthrough = never`** → skip the walkthrough silently. Stop here.
+- **`postPRVisualWalkthrough = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1** (`AskQuestion`): `"Post a visual walkthrough of these results to the PR? Reviewers can click each test case to see step-by-step screenshots on the Muggle AI dashboard."`
+    - "Yes, post to PR" → maps to `postPRVisualWalkthrough = always`. Proceed to 9c.
+    - "Skip" → maps to `postPRVisualWalkthrough = never`. Stop here.
+  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <post the visual walkthrough | skip posting it> without asking. (preference: postPRVisualWalkthrough = <always|never>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "postPRVisualWalkthrough"`, `value: "<always|never>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
 
 ### 9c: Invoke the shared skill in Mode A
 
-If the user chooses "Yes, post to PR", invoke the `muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` already in context, the skill will:
+If 9b resolved to "post" (either via `postPRVisualWalkthrough = always` or the user picking "Yes, post to PR"), invoke the `muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` already in context, the skill will:
 
 1. Call `muggle build-pr-section` to render the markdown block (fit-vs-overflow automatic)
 2. Find the PR via `gh pr view`

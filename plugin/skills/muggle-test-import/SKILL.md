@@ -20,23 +20,27 @@ in a Muggle project via the API.
 
 ## Preferences
 
-User preferences are available in the session context (injected at session start). Look for the line starting with `Muggle Preferences` — it contains key=value pairs like `autoLogin=ask showElectronBrowser=always ...`.
+User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
 
-If no preferences line is present, treat all preferences as `"ask"`.
+**At every preference-gated step below**, apply this rule:
 
-When you reach a decision gated by a preference:
-- **`always`** → proceed without asking the user
-- **`never`** → skip without asking the user  
-- **`ask`** → ask the user, then offer: "Want me to remember this choice for future sessions?" If yes, call `muggle-local-preferences-set` with the key, their chosen value, and scope `global`.
+- `always` → perform the auto-action silently. **Skip both pickers.**
+- `never` → skip the action silently. **Skip both pickers.**
+- `ask` (or absent) → run the **2-picker flow**:
+  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option maps to either `always` or `never`.
+  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
+     - "Yes, save it"
+     - "No, just for this run"
+  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
 
-This skill uses these preferences:
+The `<action description>` and the substantive options are step-specific — see each gated step below.
 
-| Preference | Decision it gates |
-|------------|------------------|
-| `autoLogin` | Reuse saved credentials when auth is required |
-| `autoSelectProject` | Reuse last-used Muggle project for this repo |
-| `suggestRelatedUseCases` | Suggest related use cases after import |
-| `suggestRelatedTestCases` | Suggest related test cases after import |
+| Preference | Step | Decision it gates |
+|------------|------|-------------------|
+| `autoLogin` | 4 | Reuse saved credentials when auth is required |
+| `autoSelectProject` | 5 | Reuse last-used Muggle project for this repo |
+| `suggestRelatedUseCases` | 7 | Suggest related use cases after import |
+| `suggestRelatedTestCases` | 7 | Suggest related test cases after import |
 
 ## Concepts
 
@@ -146,14 +150,20 @@ If the user wants changes, incorporate feedback, then ask again. Only proceed af
 
 ---
 
-## Step 4 — Authenticate
+## Step 4 — Authenticate (gated by `autoLogin`)
 
 Call `muggle-remote-auth-status` first.
 
-If **already authenticated** → print the logged-in email and ask via `AskQuestion`:
-> "You're logged in as **{email}**. Continue with this account?"
-- Option 1: "Yes, continue" → skip to Step 5.
-- Option 2: "No, switch account" → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+If **already authenticated** → apply the `autoLogin` gate (see Preferences for the full 2-picker flow):
+- **`autoLogin = always`** → skip to Step 5 silently. Skip both pickers.
+- **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`. Skip both pickers.
+- **`autoLogin = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
+    - "Yes, continue" → maps to `autoLogin = always`. Skip to Step 5.
+    - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
 
 If **not authenticated**:
 1. Tell the user a browser window is about to open.
@@ -163,14 +173,28 @@ If **not authenticated**:
 
 ---
 
-## Step 5 — Pick or create a project
+## Step 5 — Pick or create a project (gated by `autoSelectProject`)
 
 A **project** is where all your imported use cases, test cases, and future test results are grouped on the Muggle AI dashboard.
 
-1. Call `muggle-remote-project-list`
+The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
+
+Apply the `autoSelectProject` gate (see Preferences for the full 2-picker flow):
+- **`autoSelectProject = always`** with the `Muggle Last Project` line present → use that `projectId` silently. Skip both pickers and skip to Step 6. If no cache line is present, fall through to `ask`.
+- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
+- **`autoSelectProject = ask` (or absent)** → present the project list (Picker 1), then offer Picker 2 only after a successful pick of an existing project (skip Picker 2 if user picked "Create new project"):
+  - Picker 2: `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
+    - **"Yes, save it"** → make BOTH calls:
+      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
+      2. `muggle-local-last-project-set` with `cwd`, `projectId`, `projectUrl`, `projectName`.
+    - "No, just for this run" → continue without saving.
+
+### Logic
+
+1. Call `muggle-remote-project-list` (only when not satisfied by the `always` cache).
 2. Use `AskQuestion` to present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
 
-   Prompt: "Pick the project to import into:"
+   Prompt: `"Pick the project to import into:"`
 
 3. **If creating a new project**, propose values based on what you learned from the source files:
    - **Name**: infer the app name from filenames, URLs, or document headings (e.g., "Acme App")
@@ -392,3 +416,43 @@ Imported: 3 use cases · 8 test cases
 
 Next step: run /muggle:do to generate executable browser test scripts for these test cases.
 ```
+
+### Step 8 — Optional follow-up suggestions
+
+Two preferences gate optional follow-ups: `suggestRelatedUseCases` and `suggestRelatedTestCases`. Both are independent — handle each in turn.
+
+#### 8a — Related use cases (gated by `suggestRelatedUseCases`)
+
+The query is: "from the use cases already in this project, which ones are *not* in the import set but look related to it?" — surface them so the user can decide whether their import missed something the project already tracks.
+
+Apply the gate:
+- **`suggestRelatedUseCases = always`** → run the query and present silently. Skip both pickers.
+- **`suggestRelatedUseCases = never`** → skip. Skip both pickers.
+- **`suggestRelatedUseCases = ask` (or absent)** → run the 2-picker flow:
+  - **Picker 1**: `"Want me to surface related use cases already in this project that you might have missed?"`
+    - "Yes, suggest related" → maps to `suggestRelatedUseCases = always`. Run the query.
+    - "No, skip" → maps to `suggestRelatedUseCases = never`. Skip.
+  - **Picker 2**: `"Remember this? Next time I'll automatically <surface related use cases | skip the suggestion> without asking. (preference: suggestRelatedUseCases = <always|never>)"`
+    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "suggestRelatedUseCases"`, `value: "<always|never>"`, `scope: "global"`.
+    - "No, just for this run" → continue without saving.
+
+When running the query:
+1. Call `muggle-remote-use-case-list` for the project.
+2. Filter out any use case whose `useCaseId` is in the set you just imported in Step 6 (Pass 1).
+3. Rank the remainder by semantic relevance to the imported titles/descriptions (substring overlap, shared keywords — best-effort, no LLM call needed).
+4. Present the top 3-5 via `AskQuestion` with `allow_multiple: true`. Label each with `<title> — <one-line description>`.
+5. For any the user selects, prompt to add follow-up test cases (treat each as a Pass 2 invocation: `muggle-remote-test-case-bulk-preview-submit` → poll → persist via `muggle-remote-test-case-create`).
+6. If the filtered list is empty (the import covers everything in the project), say so and skip.
+
+#### 8b — Related test cases (gated by `suggestRelatedTestCases`)
+
+For each use case the user just created, surface other test cases already attached that the import didn't add — same idea, scoped to a single use case.
+
+Apply the gate the same way as 8a (substitute `suggestRelatedTestCases` for the key, "surface related test cases" / "skip the suggestion" for the action description).
+
+When running the query, for each use case in the import:
+1. Call `muggle-remote-test-case-list-by-use-case` with that `useCaseId`.
+2. Filter out any test case you just created in Pass 2 of Step 6.
+3. Present the remainder via `AskQuestion` with `allow_multiple: true`, labeled `[<priority>] <title> — <goal>`.
+4. For any the user selects: nothing to create (they already exist) — just confirm to the user that those tests are now part of their Muggle project alongside the imported ones.
+5. If a use case has no extra test cases, skip it silently.

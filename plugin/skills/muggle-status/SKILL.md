@@ -9,18 +9,11 @@ Run a full health check and report results.
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
+This skill uses preference gates to skip / auto-confirm decisions when the user has saved a choice.
 
-**At every preference-gated step below**, apply this rule:
+**Single source of truth: `plugin/skills/muggle-preferences/preference-gates.md`.** Read that doc for: how a gate fires, the silent-mode footer, the shared Picker 2 template, the saved-value invariant, and per-key Picker 1 specs.
 
-- `always` → perform the auto-action silently. **Skip both pickers.**
-- `never` → skip the action silently. **Skip both pickers.**
-- `ask` (or absent) → run the **2-picker flow**:
-  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option maps to either `always` or `never`.
-  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
-     - "Yes, save it"
-     - "No, just for this run"
-  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
+This skill must NOT redefine prompts inline — it only names which gate fires at which step, plus any step-specific side effects.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -34,16 +27,9 @@ User preferences are injected by the SessionStart hook into a `Muggle Preference
 
 3. **Authentication** — call `muggle-remote-auth-status`. Report whether credentials are valid and when they expire.
 
-4. **CLI version** (gated by `checkForUpdates`) — apply the gate (see Preferences for the full 2-picker flow):
-   - **`checkForUpdates = always`** → run the version check silently and report. Skip both pickers.
-   - **`checkForUpdates = never`** → skip this check entirely; render the row as `[skip]  check disabled by preference`. Skip both pickers.
-   - **`checkForUpdates = ask` (or absent)** → run the 2-picker flow:
-     - **Picker 1**: `"Check npm for a newer Muggle version? Requires a network call."`
-       - "Yes, check" → maps to `checkForUpdates = always`. Run the check.
-       - "No, skip" → maps to `checkForUpdates = never`. Render `[skip]`.
-     - **Picker 2**: `"Remember this? Next time I'll automatically <check for updates | skip the check> without asking. (preference: checkForUpdates = <always|never>)"`
-       - "Yes, save it" → call `muggle-local-preferences-set` with `key: "checkForUpdates"`, `value: "<always|never>"`, `scope: "global"`.
-       - "No, just for this run" → continue without saving.
+4. **CLI version** (gated by `checkForUpdates`) — apply the `checkForUpdates` gate (see `preference-gates.md`).
+   - On `always` (or Picker 1 → "Yes, check"): run the check.
+   - On `never` (or Picker 1 → "No, skip"): render the row as `[skip]  check disabled by preference`.
 
    When the check runs: capture installed (`muggle --version`) and latest (`npm view @muggleai/works version`). Compare with `sort -V`; flag as out-of-date only when latest is strictly greater.
 

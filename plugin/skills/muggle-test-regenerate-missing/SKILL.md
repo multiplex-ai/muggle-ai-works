@@ -11,20 +11,11 @@ Execution is **remote only** — Muggle's cloud generates the scripts in paralle
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
+This skill uses preference gates to skip / auto-confirm decisions when the user has saved a choice.
 
-**At every preference-gated step below**, apply this rule:
+**Single source of truth: `plugin/skills/muggle-preferences/preference-gates.md`.** Read that doc for: how a gate fires, the silent-mode footer, the shared Picker 2 template, the saved-value invariant, and per-key Picker 1 specs.
 
-- `always` → perform the auto-action silently. **Skip both pickers.**
-- `never` → skip the action silently. **Skip both pickers.**
-- `ask` (or absent) → run the **2-picker flow**:
-  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option maps to either `always` or `never`.
-  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
-     - "Yes, save it"
-     - "No, just for this run"
-  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
-
-The `<action description>` and the substantive options are step-specific — see each gated step below.
+This skill must NOT redefine prompts inline — it only names which gate fires at which step, plus any step-specific side effects.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -62,16 +53,9 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 ### Step 1 — Authenticate (gated by `autoLogin`)
 
 1. Call `muggle-remote-auth-status`.
-2. If **authenticated and not expired** → apply the `autoLogin` gate (see Preferences for the full 2-picker flow):
-   - **`autoLogin = always`** → continue with the saved session silently. Skip both pickers.
-   - **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`. Skip both pickers.
-   - **`autoLogin = ask` (or absent)** → run the 2-picker flow:
-     - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
-       - "Yes, continue" → maps to `autoLogin = always`. Proceed with the saved session.
-       - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
-     - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
-       - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
-       - "No, just for this run" → continue without saving.
+2. If **authenticated and not expired** → apply the `autoLogin` gate (see `preference-gates.md`).
+   - On `always` (or Picker 1 → "Continue as me"): proceed with the saved session.
+   - On `never` (or Picker 1 → "Switch account"): call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
 4. Do not skip auth and do not assume a stale token still works.
 
@@ -83,15 +67,10 @@ A **project** is the unit on the Muggle AI dashboard that groups test cases, scr
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Apply the `autoSelectProject` gate (see Preferences for the full 2-picker flow):
-- **`autoSelectProject = always`** with the `Muggle Last Project` line present → use that `projectId` silently. Skip both pickers and proceed to Step 3. If no cache line is present, fall through to `ask`.
-- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
-- **`autoSelectProject = ask` (or absent)** → present the project list (Picker 1), then offer Picker 2 only after a successful pick of an existing project (skip Picker 2 if user picked "Create new project"):
-  - Picker 2: `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
-    - **"Yes, save it"** → make BOTH calls:
-      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
-      2. `muggle-local-last-project-set` with `cwd`, `projectId`, `projectUrl`, `projectName`.
-    - "No, just for this run" → continue without saving.
+Apply the `autoSelectProject` gate (see `preference-gates.md`).
+- On `always` with the `Muggle Last Project` line present → use that `projectId` and proceed to Step 3. If no cache line, fall through to `ask`.
+- On `never` → always present the full project list; skip Picker 2.
+- On `ask` (or absent) → Picker 1 here is the project list itself. After the user picks an *existing* project, run Picker 2 from `preference-gates.md` (`autoSelectProject` entry overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
 
 ### Logic
 

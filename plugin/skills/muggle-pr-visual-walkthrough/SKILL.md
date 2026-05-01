@@ -19,15 +19,13 @@ Rendering is always done by `muggle build-pr-section`, a battle-tested CLI that 
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
-
-This skill is invoked by callers (`muggle-test`, `muggle-test-feature-local`, `muggle-do`) **after** the caller has already consulted `postPRVisualWalkthrough` and decided to post. Therefore **the gating happens upstream, not in this skill** — by the time this skill runs, the user has already said "post the walkthrough" (either via `postPRVisualWalkthrough = always` or by explicitly picking "Yes, post to PR" in the caller's 2-picker flow).
+This skill is invoked by callers (`muggle-test`, `muggle-test-feature-local`, `muggle-do`) **after** the caller has already consulted the `postPRVisualWalkthrough` gate and decided to post. Therefore **the gating happens upstream, not in this skill** — by the time this skill runs, the user has already approved posting (either via the saved gate value or by explicit pick).
 
 | Preference | Where it's gated | Decision it gates |
 |------------|------------------|-------------------|
 | `postPRVisualWalkthrough` | Caller skill (e.g. `muggle-test` Step 9, `muggle-test-feature-local` Step 10) | Post visual walkthrough to PR |
 
-The full 2-picker flow lives in the caller's SKILL.md. This skill only renders and posts.
+Per-key gate definitions live in `plugin/skills/muggle-preferences/preference-gates.md`. This skill only renders and posts.
 
 ## Input contract: the `E2eReport` JSON
 

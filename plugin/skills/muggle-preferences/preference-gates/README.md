@@ -1,20 +1,12 @@
 # Preference Gates — Contract
 
-One file per gate in this directory. Skills load this contract + only the
-gates they actually fire.
+One file per key in this directory — `ls preference-gates/*.md` is the
+authoritative key list. Skills load this contract + only the gates they
+actually fire.
 
-## Keys
-
-12 keys total, grouped by category. Each key's description and value
-mappings live in its own `<key>.md` file — read that, don't restate it
-here. Default allowed values: `always` / `never` / `ask`.
-
-- **Auth & session:** `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`*
-- **Test run:** `showElectronBrowser`, `openTestResultsAfterRun`, `autoPublishLocalResults`, `autoDetectChanges`
-- **Suggestions & PR:** `suggestRelatedUseCases`, `suggestRelatedTestCases`, `postPRVisualWalkthrough`
-- **Default mode:** `defaultExecutionMode` (uses `local` / `remote` / `ask`)
-
-\* `verboseOutput` has no gate file — UX-only knob, never gated.
+Default allowed values: `always` / `never` / `ask`. Per-key overrides
+are noted in their own file (currently only `defaultExecutionMode`,
+which uses `local` / `remote` / `ask`).
 
 ## Resolution
 

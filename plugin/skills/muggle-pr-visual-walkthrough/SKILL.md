@@ -25,7 +25,7 @@ This skill is invoked by callers (`muggle-test`, `muggle-test-feature-local`, `m
 |------------|------------------|-------------------|
 | `postPRVisualWalkthrough` | Caller skill (e.g. `muggle-test` Step 9, `muggle-test-feature-local` Step 10) | Post visual walkthrough to PR |
 
-Per-key gate definitions live in `plugin/skills/muggle-preferences/preference-gates.md`. This skill only renders and posts.
+Per-key gate definitions live in `plugin/skills/muggle-preferences/preference-gates/`. This skill only renders and posts.
 
 ## Input contract: the `E2eReport` JSON
 

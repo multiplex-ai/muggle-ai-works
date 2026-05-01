@@ -20,11 +20,7 @@ in a Muggle project via the API.
 
 ## Preferences
 
-This skill uses preference gates to skip / auto-confirm decisions when the user has saved a choice.
-
-**Single source of truth: `plugin/skills/muggle-preferences/preference-gates.md`.** Read that doc for: how a gate fires, the silent-mode footer, the shared Picker 2 template, the saved-value invariant, and per-key Picker 1 specs.
-
-This skill must NOT redefine prompts inline — it only names which gate fires at which step, plus any step-specific side effects.
+Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract. Per-step references below point at the specific gate file.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -145,7 +141,7 @@ If the user wants changes, incorporate feedback, then ask again. Only proceed af
 
 Call `muggle-remote-auth-status` first.
 
-If **already authenticated** → apply the `autoLogin` gate (see `preference-gates.md`).
+If **already authenticated** → apply the `autoLogin` gate (see `preference-gates/autoLogin.md`).
 - On `always` (or Picker 1 → "Continue as me"): skip to Step 5.
 - On `never` (or Picker 1 → "Switch account"): call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 
@@ -163,10 +159,10 @@ A **project** is where all your imported use cases, test cases, and future test 
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Apply the `autoSelectProject` gate (see `preference-gates.md`).
+Apply the `autoSelectProject` gate (see `preference-gates/autoSelectProject.md`).
 - On `always` with the `Muggle Last Project` line present → use that `projectId` and skip to Step 6. If no cache line, fall through to `ask`.
 - On `never` → always present the full project list; skip Picker 2.
-- On `ask` (or absent) → Picker 1 here is the project list itself. After the user picks an *existing* project, run Picker 2 from `preference-gates.md` (`autoSelectProject` entry overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
+- On `ask` (or absent) → Picker 1 here is the project list itself. After the user picks an *existing* project, run Picker 2 from `preference-gates/autoSelectProject.md` (overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
 
 ### Logic
 
@@ -404,7 +400,7 @@ Two preferences gate optional follow-ups: `suggestRelatedUseCases` and `suggestR
 
 The query is: "from the use cases already in this project, which ones are *not* in the import set but look related to it?" — surface them so the user can decide whether their import missed something the project already tracks.
 
-Apply the `suggestRelatedUseCases` gate (see `preference-gates.md`).
+Apply the `suggestRelatedUseCases` gate (see `preference-gates/suggestRelatedUseCases.md`).
 - On `always` (or Picker 1 → "Yes, suggest related"): run the query below.
 - On `never` (or Picker 1 → "No, skip"): skip the query.
 
@@ -420,7 +416,7 @@ When running the query:
 
 For each use case the user just created, surface other test cases already attached that the import didn't add — same idea, scoped to a single use case.
 
-Apply the `suggestRelatedTestCases` gate (see `preference-gates.md`).
+Apply the `suggestRelatedTestCases` gate (see `preference-gates/suggestRelatedTestCases.md`).
 - On `always` (or Picker 1 → "Yes, suggest related"): run the query below.
 - On `never` (or Picker 1 → "No, skip"): skip the query.
 

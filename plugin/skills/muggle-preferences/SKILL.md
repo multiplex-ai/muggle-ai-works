@@ -18,12 +18,12 @@ View, set, or reset the preference knobs that control Muggle AI behavior.
 Parse the user's request to decide which operation to run:
 
 - **List** — show current values. Default when no change is requested.
-- **Change one** — re-run the gate's picker for a single key. Use this when the user invokes `/muggle-preferences <key>` (the silent-mode footer command from `preference-gates.md`) or says "change my <key> preference".
+- **Change one** — re-run the gate's picker for a single key. Use this when the user invokes `/muggle-preferences <key>` or says "change my <key> preference".
 - **Configure** — interactive picker covering all keys at once. Default when the user wants to change preferences but hasn't named a specific one (e.g. "muggle setup", "configure muggle", "change my preferences").
 - **Set** — direct set when the user names a key+value (e.g. "set autoLogin to always").
 - **Reset** — restore preferences to default (`ask`).
 
-The full per-key prompt content (Picker 1 question, options, sub-labels, value mapping, silent-mode footer wording) lives in **`preference-gates.md`** — keep it as the single source of truth and reference it from this skill rather than restating per-key prompts here.
+Per-key gate definitions (Picker 1, sub-labels, value mappings, silent footer) live in `preference-gates/` — one file per key. The contract (`always`/`never`/`ask`, Picker 2 template, re-prompt rule) is in `preference-gates/README.md`.
 
 ## Reading current values
 
@@ -62,13 +62,13 @@ Scope:  global (~/.muggle-ai/) or project (.muggle-ai/ in repo root)
 Use this when the user invokes `/muggle-preferences <key>` or says "change my <key> preference" / "show me the <key> options". Behavior:
 
 1. Validate `<key>` against the schema list (see **Set** below for the full list). If unrecognized, list valid keys and ask the user to pick one.
-2. Open `preference-gates.md` and find the per-key entry.
-3. Run **Picker 1 only** from that entry — header, question, options exactly as defined.
-4. On the user's choice, immediately call `muggle-local-preferences-set` with `key`, the mapped value (the entry says which value each option maps to), `scope: "global"`.
-5. **Skip Picker 2.** The user explicitly asked to change the setting; the "save this choice?" question would just be noise.
+2. Open `preference-gates/<key>.md` and find the Picker 1 spec.
+3. Run **Picker 1 only** — header, question, options exactly as defined.
+4. On the user's choice, immediately call `muggle-local-preferences-set` with `key`, the mapped value, `scope: "global"`.
+5. **Skip Picker 2.** The user explicitly asked to change the setting; "save this choice?" would just be noise.
 6. Confirm: `Set <key> to <value>.`
 
-This is the entry point that the silent-mode footers in `preference-gates.md` point at, so its UX must mirror the per-key gate exactly — same question, same options, same mappings.
+This is the entry point that silent-mode footers point at, so its UX must mirror the per-key gate exactly — same question, same options, same mappings.
 
 ## Configure (interactive picker)
 

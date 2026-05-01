@@ -9,11 +9,7 @@ Run a full health check and report results.
 
 ## Preferences
 
-This skill uses preference gates to skip / auto-confirm decisions when the user has saved a choice.
-
-**Single source of truth: `plugin/skills/muggle-preferences/preference-gates.md`.** Read that doc for: how a gate fires, the silent-mode footer, the shared Picker 2 template, the saved-value invariant, and per-key Picker 1 specs.
-
-This skill must NOT redefine prompts inline — it only names which gate fires at which step, plus any step-specific side effects.
+Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract. Per-step references below point at the specific gate file.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -27,7 +23,7 @@ This skill must NOT redefine prompts inline — it only names which gate fires a
 
 3. **Authentication** — call `muggle-remote-auth-status`. Report whether credentials are valid and when they expire.
 
-4. **CLI version** (gated by `checkForUpdates`) — apply the `checkForUpdates` gate (see `preference-gates.md`).
+4. **CLI version** (gated by `checkForUpdates`) — apply the `checkForUpdates` gate (see `preference-gates/checkForUpdates.md`).
    - On `always` (or Picker 1 → "Yes, check"): run the check.
    - On `never` (or Picker 1 → "No, skip"): render the row as `[skip]  check disabled by preference`.
 

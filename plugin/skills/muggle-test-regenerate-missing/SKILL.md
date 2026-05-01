@@ -11,11 +11,7 @@ Execution is **remote only** — Muggle's cloud generates the scripts in paralle
 
 ## Preferences
 
-This skill uses preference gates to skip / auto-confirm decisions when the user has saved a choice.
-
-**Single source of truth: `plugin/skills/muggle-preferences/preference-gates.md`.** Read that doc for: how a gate fires, the silent-mode footer, the shared Picker 2 template, the saved-value invariant, and per-key Picker 1 specs.
-
-This skill must NOT redefine prompts inline — it only names which gate fires at which step, plus any step-specific side effects.
+Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract. Per-step references below point at the specific gate file.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -53,7 +49,7 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 ### Step 1 — Authenticate (gated by `autoLogin`)
 
 1. Call `muggle-remote-auth-status`.
-2. If **authenticated and not expired** → apply the `autoLogin` gate (see `preference-gates.md`).
+2. If **authenticated and not expired** → apply the `autoLogin` gate (see `preference-gates/autoLogin.md`).
    - On `always` (or Picker 1 → "Continue as me"): proceed with the saved session.
    - On `never` (or Picker 1 → "Switch account"): call `muggle-remote-auth-login` with `forceNewSession: true`, then poll with `muggle-remote-auth-poll`.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
@@ -67,10 +63,10 @@ A **project** is the unit on the Muggle AI dashboard that groups test cases, scr
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Apply the `autoSelectProject` gate (see `preference-gates.md`).
+Apply the `autoSelectProject` gate (see `preference-gates/autoSelectProject.md`).
 - On `always` with the `Muggle Last Project` line present → use that `projectId` and proceed to Step 3. If no cache line, fall through to `ask`.
 - On `never` → always present the full project list; skip Picker 2.
-- On `ask` (or absent) → Picker 1 here is the project list itself. After the user picks an *existing* project, run Picker 2 from `preference-gates.md` (`autoSelectProject` entry overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
+- On `ask` (or absent) → Picker 1 here is the project list itself. After the user picks an *existing* project, run Picker 2 from `preference-gates/autoSelectProject.md` (overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
 
 ### Logic
 

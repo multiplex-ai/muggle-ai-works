@@ -3,28 +3,18 @@
 One file per gate in this directory. Skills load this contract + only the
 gates they actually fire.
 
-## Keys (single source of truth)
+## Keys
 
-12 total. The `muggle-preferences` skill renders its List, Configure, and
-Set operations from this index — do **not** duplicate this table elsewhere.
+12 keys total, grouped by category. Each key's description and value
+mappings live in its own `<key>.md` file — read that, don't restate it
+here. Default allowed values: `always` / `never` / `ask`.
 
-| Key | Allowed values | Category | Description |
-|-----|----------------|----------|-------------|
-| `autoLogin` | always/never/ask | Auth & session | Reuse saved credentials without prompting |
-| `autoSelectProject` | always/never/ask | Auth & session | Reuse last-used project for this repo |
-| `checkForUpdates` | always/never/ask | Auth & session | Check for newer Muggle version at session start |
-| `verboseOutput` | always/never/ask | Auth & session | Show detailed progress logs during execution |
-| `showElectronBrowser` | always/never/ask | Test run | Show browser window during local tests |
-| `openTestResultsAfterRun` | always/never/ask | Test run | Open results page on dashboard after a local run |
-| `autoPublishLocalResults` | always/never/ask | Test run | Upload local results to Muggle cloud |
-| `autoDetectChanges` | always/never/ask | Test run | Scan local git changes and map to affected test cases |
-| `suggestRelatedUseCases` | always/never/ask | Suggestions & PR | Suggest related use cases after creating/running one |
-| `suggestRelatedTestCases` | always/never/ask | Suggestions & PR | Suggest related test cases after creating/running one |
-| `postPRVisualWalkthrough` | always/never/ask | Suggestions & PR | Post visual walkthrough with screenshots to PR |
-| `defaultExecutionMode` | local/remote/ask | Default mode | Default to local or remote test execution |
+- **Auth & session:** `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`*
+- **Test run:** `showElectronBrowser`, `openTestResultsAfterRun`, `autoPublishLocalResults`, `autoDetectChanges`
+- **Suggestions & PR:** `suggestRelatedUseCases`, `suggestRelatedTestCases`, `postPRVisualWalkthrough`
+- **Default mode:** `defaultExecutionMode` (uses `local` / `remote` / `ask`)
 
-`verboseOutput` is a UX-only knob — no gate file for it; everything else
-has `<key>.md` in this directory with its Picker 1 spec.
+\* `verboseOutput` has no gate file — UX-only knob, never gated.
 
 ## Resolution
 
@@ -42,13 +32,24 @@ has `<key>.md` in this directory with its Picker 1 spec.
 
 ## Silent footer (whenever pickers are skipped)
 
+The user must always be told **what happened**, **why it was silent**, and
+**how to change it**. Two lines:
+
 ```
-✓ <silent action from per-key file>. Change with `/muggle-preferences <key>`.
+✓ <silent action from per-key file>
+  (Skipped the prompt — `<key>` is set to `<value>`. Change: `/muggle-preferences <key>`.)
+```
+
+Concrete example (gate `autoLogin = always`):
+
+```
+✓ Continuing as foo@bar.com
+  (Skipped the prompt — `autoLogin` is set to `always`. Change: `/muggle-preferences autoLogin`.)
 ```
 
 ## Picker 2 — shared template
 
-Header `Save this choice?`. Question: `"Always <restate Picker 1 choice in
+Header `Remember this choice?`. Question: `"Always <restate Picker 1 choice in
 plain language> from now on, without asking?"`. Never put the raw key or
 `=` in the user-visible text.
 

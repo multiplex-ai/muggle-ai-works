@@ -33,10 +33,14 @@ If no preferences line is present, treat all preferences as `"ask"` (the default
 
 ## List
 
-Render a `Preference | Value | Description` table by joining the key index in `preference-gates/README.md` (Key + Description columns) with values from session context (default `ask`). Title it `Muggle AI — Preferences`. Footer:
+Render a `Preference | Value | Description` table titled `Muggle AI — Preferences`.
+- Keys + categories: from `preference-gates/README.md`.
+- Values: from session context (default `ask`).
+- Description: read each `preference-gates/<key>.md`'s first paragraph (the line under `# \`<key>\``); for `verboseOutput`, use `Show detailed progress logs during execution`.
 
+Footer:
 ```
-Values: always · ask · never (or local/remote/ask for defaultExecutionMode — see key index)
+Values: always · ask · never (defaultExecutionMode: local/remote/ask)
 Scope:  global (~/.muggle-ai/) or project (.muggle-ai/ in repo root)
 ```
 
@@ -76,10 +80,10 @@ you can tell me which (if any) should instead be set to `never`.
 
 ### Step 3 — call AskUserQuestion
 
-Build the questions from the key index in `preference-gates/README.md`. Group keys by their `Category` column. Each key's option label is its key name; the option description is its `Description` column.
+Build the questions from the category groups in `preference-gates/README.md`. For each key, the option label is the key name; the option description is the first paragraph of `preference-gates/<key>.md` (for `verboseOutput`: `Show detailed progress logs during execution`).
 
-- One `multiSelect: true` question per category that uses `always`/`never`/`ask` values (categories `Auth & session`, `Test run`, `Suggestions & PR`). `header` = the category name. Question text: `Which of these should auto-proceed (set to "always")?`. Selected = `always`.
-- One `multiSelect: false` question for `defaultExecutionMode` (category `Default mode`). `header: "Default mode"`. Question text: `Default execution mode for muggle-test?`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle cloud` (`remote`), `Ask each time` (don't change).
+- One `multiSelect: true` question per category that uses `always`/`never`/`ask` (`Auth & session`, `Test run`, `Suggestions & PR`). `header` = category name. Question text: `Which of these should auto-proceed (set to "always")?`. Selected = `always`.
+- One `multiSelect: false` question for `defaultExecutionMode`. `header: "Default mode"`. Question text: `Default execution mode for muggle-test?`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle cloud` (`remote`), `Ask each time` (don't change).
 - Final scope question, `multiSelect: false`. `header: "Scope"`. Question text: `Where should these preferences be saved?`. Options: `Global (all repos)` (~/.muggle-ai/), `This project only` (.muggle-ai/ in repo).
 
 `AskUserQuestion` accepts up to 4 questions per call — split into two calls if needed (categories first, scope second).
@@ -102,7 +106,7 @@ When the user names both key and value (e.g. "set autoLogin to always", "make sh
 
 1. Parse `key` and `value` from the user's message.
 2. Validate `key` against the index in `preference-gates/README.md`. If unrecognized, show valid keys and ask.
-3. Validate `value` against that key's `Allowed values` column.
+3. Validate `value`: `always`/`never`/`ask` for every key except `defaultExecutionMode` which takes `local`/`remote`/`ask`.
 4. Scope defaults to `global`. If user says "for this project" / "just this repo", use `project` and pass `cwd`.
 5. Call `muggle-local-preferences-set`.
 6. Confirm: `Set {key} to {value} ({scope}).`

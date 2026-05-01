@@ -3,6 +3,29 @@
 One file per gate in this directory. Skills load this contract + only the
 gates they actually fire.
 
+## Keys (single source of truth)
+
+12 total. The `muggle-preferences` skill renders its List, Configure, and
+Set operations from this index — do **not** duplicate this table elsewhere.
+
+| Key | Allowed values | Category | Description |
+|-----|----------------|----------|-------------|
+| `autoLogin` | always/never/ask | Auth & session | Reuse saved credentials without prompting |
+| `autoSelectProject` | always/never/ask | Auth & session | Reuse last-used project for this repo |
+| `checkForUpdates` | always/never/ask | Auth & session | Check for newer Muggle version at session start |
+| `verboseOutput` | always/never/ask | Auth & session | Show detailed progress logs during execution |
+| `showElectronBrowser` | always/never/ask | Test run | Show browser window during local tests |
+| `openTestResultsAfterRun` | always/never/ask | Test run | Open results page on dashboard after a local run |
+| `autoPublishLocalResults` | always/never/ask | Test run | Upload local results to Muggle cloud |
+| `autoDetectChanges` | always/never/ask | Test run | Scan local git changes and map to affected test cases |
+| `suggestRelatedUseCases` | always/never/ask | Suggestions & PR | Suggest related use cases after creating/running one |
+| `suggestRelatedTestCases` | always/never/ask | Suggestions & PR | Suggest related test cases after creating/running one |
+| `postPRVisualWalkthrough` | always/never/ask | Suggestions & PR | Post visual walkthrough with screenshots to PR |
+| `defaultExecutionMode` | local/remote/ask | Default mode | Default to local or remote test execution |
+
+`verboseOutput` is a UX-only knob — no gate file for it; everything else
+has `<key>.md` in this directory with its Picker 1 spec.
+
 ## Resolution
 
 `SessionStart` injects a `Muggle Preferences` line (`key=value` pairs) from

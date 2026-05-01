@@ -33,27 +33,10 @@ If no preferences line is present, treat all preferences as `"ask"` (the default
 
 ## List
 
-Present all 12 preferences in this table, filling each `Value` column from session context:
+Render a `Preference | Value | Description` table by joining the key index in `preference-gates/README.md` (Key + Description columns) with values from session context (default `ask`). Title it `Muggle AI — Preferences`. Footer:
 
 ```
-Muggle AI — Preferences
-
-| Preference               | Value  | Description                                              |
-|--------------------------|--------|----------------------------------------------------------|
-| autoLogin                | ask    | Reuse saved credentials without prompting                |
-| autoSelectProject        | ask    | Reuse last-used project for this repo                    |
-| showElectronBrowser      | ask    | Show browser window during local tests                   |
-| openTestResultsAfterRun  | ask    | Open results page on dashboard after local test          |
-| defaultExecutionMode     | ask    | Default to local or remote test execution                |
-| autoPublishLocalResults  | ask    | Upload local results to Muggle cloud                     |
-| suggestRelatedUseCases   | ask    | Suggest related use cases after creating/running one     |
-| suggestRelatedTestCases  | ask    | Suggest related test cases after creating/running one    |
-| autoDetectChanges        | ask    | Scan local git changes and map to affected test cases    |
-| postPRVisualWalkthrough  | ask    | Post visual walkthrough with screenshots to PR           |
-| checkForUpdates          | ask    | Check for newer Muggle version at session start          |
-| verboseOutput            | ask    | Show detailed progress logs during execution             |
-
-Values: always (proceed without asking) · ask (prompt each time) · never (skip without asking)
+Values: always · ask · never (or local/remote/ask for defaultExecutionMode — see key index)
 Scope:  global (~/.muggle-ai/) or project (.muggle-ai/ in repo root)
 ```
 
@@ -61,12 +44,10 @@ Scope:  global (~/.muggle-ai/) or project (.muggle-ai/ in repo root)
 
 Use this when the user invokes `/muggle-preferences <key>` or says "change my <key> preference" / "show me the <key> options". Behavior:
 
-1. Validate `<key>` against the schema list (see **Set** below for the full list). If unrecognized, list valid keys and ask the user to pick one.
-2. Open `preference-gates/<key>.md` and find the Picker 1 spec.
-3. Run **Picker 1 only** — header, question, options exactly as defined.
-4. On the user's choice, immediately call `muggle-local-preferences-set` with `key`, the mapped value, `scope: "global"`.
-5. **Skip Picker 2.** The user explicitly asked to change the setting; "save this choice?" would just be noise.
-6. Confirm: `Set <key> to <value>.`
+1. Validate `<key>` against the index in `preference-gates/README.md`. If unrecognized, list valid keys and ask.
+2. Open `preference-gates/<key>.md`, run **Picker 1 only**.
+3. Call `muggle-local-preferences-set` with the mapped value, `scope: "global"`. **Skip Picker 2** (user explicitly asked to change).
+4. Confirm: `Set <key> to <value>.`
 
 This is the entry point that silent-mode footers point at, so its UX must mirror the per-key gate exactly — same question, same options, same mappings.
 
@@ -95,95 +76,40 @@ you can tell me which (if any) should instead be set to `never`.
 
 ### Step 3 — call AskUserQuestion
 
-Make a single `AskUserQuestion` call with these 4 questions. Group preferences so each question stays within the 4-option limit.
+Build the questions from the key index in `preference-gates/README.md`. Group keys by their `Category` column. Each key's option label is its key name; the option description is its `Description` column.
 
-- **Question 1** — `header: "Auth & session"`, `multiSelect: true`
-  Question text: `Which of these should auto-proceed (set to "always")?`
-  Options (label / description):
-  - `autoLogin` — Reuse saved credentials without prompting
-  - `autoSelectProject` — Reuse last-used project for this repo
-  - `checkForUpdates` — Check for newer Muggle version at session start
-  - `verboseOutput` — Show detailed progress logs during execution
+- One `multiSelect: true` question per category that uses `always`/`never`/`ask` values (categories `Auth & session`, `Test run`, `Suggestions & PR`). `header` = the category name. Question text: `Which of these should auto-proceed (set to "always")?`. Selected = `always`.
+- One `multiSelect: false` question for `defaultExecutionMode` (category `Default mode`). `header: "Default mode"`. Question text: `Default execution mode for muggle-test?`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle cloud` (`remote`), `Ask each time` (don't change).
+- Final scope question, `multiSelect: false`. `header: "Scope"`. Question text: `Where should these preferences be saved?`. Options: `Global (all repos)` (~/.muggle-ai/), `This project only` (.muggle-ai/ in repo).
 
-- **Question 2** — `header: "Test run"`, `multiSelect: true`
-  Question text: `Which of these should auto-proceed (set to "always")?`
-  Options:
-  - `showElectronBrowser` — Show browser window during local tests
-  - `openTestResultsAfterRun` — Open results page on dashboard after a local run
-  - `autoPublishLocalResults` — Upload local results to Muggle cloud
-  - `autoDetectChanges` — Scan local git changes and map to affected test cases
-
-- **Question 3** — `header: "Suggestions & PR"`, `multiSelect: true`
-  Question text: `Which of these should auto-proceed (set to "always")?`
-  Options (3 — `defaultExecutionMode` is intentionally **excluded** here because it doesn't accept "always"; it's handled separately in Question 4):
-  - `suggestRelatedUseCases` — Suggest related use cases after creating/running one
-  - `suggestRelatedTestCases` — Suggest related test cases after creating/running one
-  - `postPRVisualWalkthrough` — Post visual walkthrough with screenshots to PR
-
-- **Question 4** — `header: "Default mode"`, `multiSelect: false`
-  Question text: `Default execution mode for muggle-test? (preference: defaultExecutionMode)`
-  Options:
-  - `Local — run on my computer (Electron)` → `defaultExecutionMode = local`
-  - `Remote — run in the Muggle cloud` → `defaultExecutionMode = remote`
-  - `Ask each time` → `defaultExecutionMode = ask` (don't change)
-
-- **Question 5** — `header: "Scope"`, `multiSelect: false`
-  Question text: `Where should these preferences be saved?`
-  Options:
-  - `Global (all repos)` — Saved to ~/.muggle-ai/, applies everywhere
-  - `This project only` — Saved to .muggle-ai/ in this repo
-
-> **Note**: `AskUserQuestion` allows up to 4 questions per call. If you need 5, split into two sequential calls: Q1+Q2+Q3+Q4 first, then Q5 (scope).
+`AskUserQuestion` accepts up to 4 questions per call — split into two calls if needed (categories first, scope second).
 
 ### Step 4 — apply selections
 
-For every preference the user toggled across **questions 1–3**, call `muggle-local-preferences-set` with:
-- `key`: the preference name
-- `value`: `"always"`
-- `scope`: `"global"` or `"project"` based on the scope question (Q5)
-- `cwd`: current working directory if scope is `"project"`
-
-For **Question 4** (defaultExecutionMode), call `muggle-local-preferences-set` only if the user picked "Local" or "Remote" (skip if they picked "Ask each time"):
-- `key: "defaultExecutionMode"`
-- `value: "local"` or `"remote"` based on choice
-- `scope`: from Q5
-- `cwd`: current working directory if scope is `"project"`
-- `cwd`: current working directory (required when scope is `"project"`)
+For each toggled key (multi-select questions): `muggle-local-preferences-set` with `value: "always"`. For `defaultExecutionMode`: only set if user picked Local/Remote (skip "Ask each time"). Pass `scope` from the scope question; pass `cwd` when scope is `project`.
 
 ### Step 5 — offer the `never` follow-up
 
-After applying, ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on autoPublishLocalResults", or say "no".`
-
-If the user names keys, call `muggle-local-preferences-set` with `value: "never"` and the same scope.
+Ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on autoPublishLocalResults", or say "no".`. For named keys, call `muggle-local-preferences-set` with `value: "never"`, same scope.
 
 ### Step 6 — confirm
 
-Print a short summary of what changed: `Set autoLogin=always, openTestResultsAfterRun=always (global).`
+Print a one-liner summary: `Set autoLogin=always, openTestResultsAfterRun=always (global).`
 
 ## Set (direct)
 
 When the user names both key and value (e.g. "set autoLogin to always", "make showElectronBrowser never for this project"):
 
-1. Parse the key and value from the user's message.
-
-2. Validate the key is one of: `autoLogin`, `autoSelectProject`, `showElectronBrowser`, `openTestResultsAfterRun`, `defaultExecutionMode`, `autoPublishLocalResults`, `suggestRelatedUseCases`, `suggestRelatedTestCases`, `autoDetectChanges`, `postPRVisualWalkthrough`, `checkForUpdates`, `verboseOutput`.
-
-   If the key is ambiguous or not recognized, show the full list and ask the user to clarify.
-
-3. Validate the value is one of: `always`, `ask`, `never`.
-
-4. Determine scope:
-   - Default to `global`.
-   - If the user says "for this project", "project-level", or "just this repo", use `project` scope and pass `cwd` as the current working directory.
-
-5. Call `muggle-local-preferences-set` with the key, value, scope, and (if project scope) `cwd`.
-
+1. Parse `key` and `value` from the user's message.
+2. Validate `key` against the index in `preference-gates/README.md`. If unrecognized, show valid keys and ask.
+3. Validate `value` against that key's `Allowed values` column.
+4. Scope defaults to `global`. If user says "for this project" / "just this repo", use `project` and pass `cwd`.
+5. Call `muggle-local-preferences-set`.
 6. Confirm: `Set {key} to {value} ({scope}).`
 
 ## Reset
 
-1. If the user asks to reset a **specific key**: call `muggle-local-preferences-set` with `value: "ask"` for that key.
+- Specific key: `muggle-local-preferences-set` with `value: "ask"` for that key.
+- All preferences: same call for every key in the `preference-gates/README.md` index.
 
-2. If the user asks to reset **all preferences**: call `muggle-local-preferences-set` for each of the 12 keys with `value: "ask"`.
-
-3. Confirm what was reset.
+Confirm what was reset.

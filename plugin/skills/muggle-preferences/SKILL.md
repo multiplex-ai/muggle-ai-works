@@ -110,7 +110,7 @@ When the user names both key and value (e.g. "set autoLogin to always", "make sh
 
 1. Parse `key` and `value` from the user's message.
 2. Validate `key`: `preference-gates/<key>.md` must exist. If not, list `preference-gates/*.md` and ask.
-3. Validate `value` per `preference-gates/README.md`.
+3. Validate `value`: must be `always`/`never`/`ask` for all keys; `defaultExecutionMode` accepts `local`/`remote`/`ask` instead.
 4. Scope defaults to `global`. If user says "for this project" / "just this repo", use `project` and pass `cwd`.
 5. Call `muggle-local-preferences-set`.
 6. Confirm: `Set {key} to {value} ({scope}).`

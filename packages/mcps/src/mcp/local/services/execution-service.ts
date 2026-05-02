@@ -11,6 +11,7 @@
 import { spawn } from "child_process";
 import * as fs from "fs/promises";
 import * as os from "node:os";
+import { fileURLToPath } from "node:url";
 import * as path from "path";
 
 import { getConfig, getElectronAppDir, getElectronAppVersion } from "../../../shared/config.js";
@@ -112,7 +113,7 @@ async function findPackageJsonAsync(): Promise<{
   muggleConfig: { electronAppVersion: string };
 }> {
   const currentFileUrl = import.meta.url;
-  const currentDir = path.dirname(new URL(currentFileUrl).pathname);
+  const currentDir = path.dirname(fileURLToPath(currentFileUrl));
 
   const candidatePaths = [
     path.resolve(currentDir, "../../../package.json"),

@@ -9,7 +9,7 @@ Run a full health check and report results.
 
 ## Preferences
 
-Gates run per `preference-gates/GATE.md`.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -23,7 +23,7 @@ Gates run per `preference-gates/GATE.md`.
 
 3. **Authentication** — call `muggle-remote-auth-status`. Report whether credentials are valid and when they expire.
 
-4. **CLI version** — gate `checkForUpdates` (per `preference-gates/GATE.md`):
+4. **CLI version** — gate `checkForUpdates` (per `preference-gates/README.md`):
    - Pro-action: run the check below.
    - Skip-action: render the row as `[skip]  check disabled by preference`.
 

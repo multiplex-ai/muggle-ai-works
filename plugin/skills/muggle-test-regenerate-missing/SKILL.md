@@ -11,7 +11,7 @@ Execution is **remote only** — Muggle's cloud generates the scripts in paralle
 
 ## Preferences
 
-Gates run per `preference-gates/GATE.md`.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -49,7 +49,7 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 ### Step 1 — Authenticate (gated by `autoLogin`)
 
 1. Call `muggle-remote-auth-status`.
-2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/GATE.md`):
+2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
    - Pro-action: proceed with saved session.
    - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
@@ -63,7 +63,7 @@ A **project** is the unit on the Muggle AI dashboard that groups test cases, scr
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/GATE.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
 - `always` + cache → use cached `projectId`, proceed to Step 3. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".

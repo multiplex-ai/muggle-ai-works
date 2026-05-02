@@ -20,7 +20,7 @@ in a Muggle project via the API.
 
 ## Preferences
 
-Gates run per `preference-gates/GATE.md`.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -141,7 +141,7 @@ If the user wants changes, incorporate feedback, then ask again. Only proceed af
 
 Call `muggle-remote-auth-status` first.
 
-If **already authenticated** → gate `autoLogin` (per `preference-gates/GATE.md`):
+If **already authenticated** → gate `autoLogin` (per `preference-gates/README.md`):
 - Pro-action: skip to Step 5.
 - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 
@@ -159,7 +159,7 @@ A **project** is where all your imported use cases, test cases, and future test 
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/GATE.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to Step 6. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -400,7 +400,7 @@ Two preferences gate optional follow-ups: `suggestRelatedUseCases` and `suggestR
 
 The query is: "from the use cases already in this project, which ones are *not* in the import set but look related to it?" — surface them so the user can decide whether their import missed something the project already tracks.
 
-Gate `suggestRelatedUseCases` (per `preference-gates/GATE.md`):
+Gate `suggestRelatedUseCases` (per `preference-gates/README.md`):
 - Pro-action: run the query below.
 - Skip-action: skip.
 
@@ -416,7 +416,7 @@ When running the query:
 
 For each use case the user just created, surface other test cases already attached that the import didn't add — same idea, scoped to a single use case.
 
-Gate `suggestRelatedTestCases` (per `preference-gates/GATE.md`):
+Gate `suggestRelatedTestCases` (per `preference-gates/README.md`):
 - Pro-action: run the query below.
 - Skip-action: skip.
 

@@ -24,7 +24,7 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## Preferences
 
-Gates run per `preference-gates/GATE.md`.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -39,7 +39,7 @@ Gates run per `preference-gates/GATE.md`.
 ### 1. Auth (gated by `autoLogin`)
 
 - `muggle-remote-auth-status`
-- If **authenticated**: gate `autoLogin` (per `preference-gates/GATE.md`):
+- If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
   - Pro-action: proceed with saved session.
   - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
@@ -48,7 +48,7 @@ Gates run per `preference-gates/GATE.md`.
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/GATE.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to use case selection. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -153,14 +153,14 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
-Gate `showElectronBrowser` (per `preference-gates/GATE.md`). Reuse choice within a session.
+Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
 - Pro-action: omit `showUi`.
 - Skip-action: pass `showUi: false`.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 
 - `muggle-local-publish-test-script`
-- Gate `openTestResultsAfterRun` (per `preference-gates/GATE.md`):
+- Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - Skip-action: print the URL only.
 
@@ -208,7 +208,7 @@ See the `muggle:muggle-pr-visual-walkthrough` skill for the full schema includin
 
 #### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 
-Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/GATE.md` + gate file):
+Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file):
 - **Case A (PR found)** — `always` → proceed to 10c; `never`/skip → stop.
 - **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 10c; "Skip" → stop.
 

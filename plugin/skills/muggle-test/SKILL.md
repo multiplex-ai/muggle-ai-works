@@ -34,7 +34,7 @@ Every test case verifies exactly **one** user-observable behavior. Never bundle 
 
 ## Preferences
 
-Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract (`always`/`never`/`ask`; `local`/`remote`/`ask` for `defaultExecutionMode`). Per-step references below point at the specific gate file.
+Gates run per `preference-gates/GATE.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -66,20 +66,19 @@ Signs the user wants this: mentions "preview", "staging", "deployed", "preview U
 
 ### Confirming (gated by `defaultExecutionMode`)
 
-Apply the `defaultExecutionMode` gate (see `preference-gates/defaultExecutionMode.md`). Uses `local` / `remote` / `ask`.
-- On `local`: proceed in Local mode.
-- On `remote`: proceed in Remote mode.
-- On `ask` (or absent):
-  - If the user's intent is already clear from their query (e.g. "test on staging" → remote), skip Picker 1 — confirm with a one-shot `"Yes, proceed in <mode>"` / `"Switch to <other mode>"` and skip Picker 2.
-  - If ambiguous, run Picker 1 from the gate doc.
+Gate `defaultExecutionMode` (per `preference-gates/GATE.md`). Uses `local`/`remote`/`ask`.
+- `local` → proceed in Local mode.
+- `remote` → proceed in Remote mode.
+- `ask` + intent clear → skip Picker 1, confirm one-shot then skip Picker 2.
+- `ask` + ambiguous → run Picker 1 from gate file.
 
-Only proceed after the user selects an option.
+Only proceed after selection.
 
 ## Step 2: Detect Local Changes (gated by `autoDetectChanges`)
 
-Apply the `autoDetectChanges` gate (see `preference-gates/autoDetectChanges.md`).
-- On `always` (or Picker 1 → "Yes, scan changes"): run the scan and proceed to analysis below.
-- On `never` (or Picker 1 → "No, I'll specify"): skip the scan; ask `"What would you like to test?"` then jump to Step 3.
+Gate `autoDetectChanges` (per `preference-gates/GATE.md`):
+- Pro-action: run the scan and proceed to analysis below.
+- Skip-action: ask "What would you like to test?" then jump to Step 3.
 
 ### Analysis (when scan is enabled)
 
@@ -101,9 +100,9 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 ## Step 3: Authenticate
 
 1. Call `muggle-remote-auth-status`
-2. If **authenticated and not expired** → apply the `autoLogin` gate (see `preference-gates/autoLogin.md`).
-   - On `always` (or Picker 1 → "Continue as me"): reuse the saved session.
-   - On `never` (or Picker 1 → "Switch account"): call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/GATE.md`):
+   - Pro-action: reuse saved session.
+   - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`
 4. If login pending → call `muggle-remote-auth-poll`
 
@@ -115,10 +114,10 @@ A **project** is where all your test results, use cases, and test scripts are gr
 
 The per-repo cache lives at `<cwd>/.muggle-ai/last-project.json` (managed via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for the `Muggle Last Project: id=… url=… name="…"` line in session context — if present, that's this repo's cached pick.
 
-Apply the `autoSelectProject` gate (see `preference-gates/autoSelectProject.md`).
-- On `always` with the `Muggle Last Project` line present → reuse that `projectId` and skip to Step 5. If no cache line, fall through to `ask`.
-- On `never` → always show the full project list; skip Picker 2.
-- On `ask` (or absent) → Picker 1 here is the project list itself (`"Pick the project to group this test run into:"`, labels `"<name> — <url>"`, plus a final "Create new project" option). After the user picks an *existing* project, run Picker 2 from `preference-gates/autoSelectProject.md` (overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 if user picked "Create new project".
+Gate `autoSelectProject` (per `preference-gates/GATE.md`). Cache: `Muggle Last Project` session line.
+- `always` + cache → use cached `projectId`, skip to Step 5. No cache → fall through to `ask`.
+- `never` → full project list; skip Picker 2.
+- `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
 
 ### Logic
 
@@ -214,9 +213,9 @@ If nothing detected, ask as free text: "Your local app should be running. What's
 
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 
-Apply the `showElectronBrowser` gate (see `preference-gates/showElectronBrowser.md`). Resolve once per session; apply the same `showUi` decision to every test case in this run.
-- On `always` (or Picker 1 → "Show it"): omit `showUi` (defaults to visible).
-- On `never` (or Picker 1 → "Run hidden"): pass `showUi: false`.
+Gate `showElectronBrowser` (per `preference-gates/GATE.md`). Resolve once; apply same `showUi` to every test case.
+- Pro-action: omit `showUi` (defaults visible).
+- Skip-action: pass `showUi: false`.
 
 ### Fetch test case details (in parallel)
 
@@ -252,9 +251,9 @@ For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Ex
 
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 
-Apply the `autoPublishLocalResults` gate (see `preference-gates/autoPublishLocalResults.md`).
-- On `always` (or Picker 1 → "Upload them"): proceed to publish logic below.
-- On `never` (or Picker 1 → "Keep local-only"): skip to the report summary; tell the user that Steps 8/9 and per-step screenshots are unavailable without publishing.
+Gate `autoPublishLocalResults` (per `preference-gates/GATE.md`):
+- Pro-action: proceed to publish logic below.
+- Skip-action: skip to report summary; tell user Steps 8/9 and per-step screenshots are unavailable without publishing.
 
 ### Publish logic (when publishing is enabled)
 
@@ -385,19 +384,9 @@ See the shared skill for the full schema (including the failed-test shape with `
 
 ### 9b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 
-**First, detect the PR for the current branch** (mandatory before any picker — see `preference-gates/postPRVisualWalkthrough.md`):
-
-```bash
-gh pr view --json number,title,url 2>/dev/null
-```
-
-Then apply the gate. The gate has two cases — pick the matching one:
-- **Case A (PR found):** the gate's Picker 1 names the specific PR (`#{prNumber}`, `{prTitle}`).
-  - On `always` (or "Yes, post to #{prNumber}"): proceed to 9c.
-  - On `never` (or "Skip"): stop here.
-- **Case B (no PR):** the gate's Picker 1 asks whether to create one or skip — fired even when the saved value is `always` (auto-creating PRs without consent isn't safe). Picker 2 is skipped (situational fork, not a durable preference).
-  - On "Create a PR and post": run the PR-creation flow first (collect title/body, `gh pr create`), then proceed to 9c.
-  - On "Skip": stop here.
+Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory — gate uses the result). Then gate `postPRVisualWalkthrough` (per `preference-gates/GATE.md` + gate file for two-case Picker 1):
+- **Case A (PR found)** — `always` → proceed to 9c; `never`/skip → stop.
+- **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 9c; "Skip" → stop.
 
 ### 9c: Invoke the shared skill in Mode A
 

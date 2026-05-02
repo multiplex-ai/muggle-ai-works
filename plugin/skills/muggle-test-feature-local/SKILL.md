@@ -24,7 +24,7 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## Preferences
 
-Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract (`always`/`never`/`ask`, silent footer, Picker 2 template, saved-value invariant). Per-step references below point at the specific gate file.
+Gates run per `preference-gates/GATE.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -39,19 +39,19 @@ Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README
 ### 1. Auth (gated by `autoLogin`)
 
 - `muggle-remote-auth-status`
-- If **authenticated**: apply the `autoLogin` gate (see `preference-gates/autoLogin.md`).
-  - On `always` (or Picker 1 → "Continue as me"): proceed with the saved session.
-  - On `never` (or Picker 1 → "Switch account"): call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+- If **authenticated**: gate `autoLogin` (per `preference-gates/GATE.md`):
+  - Pro-action: proceed with saved session.
+  - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-For project selection: apply the `autoSelectProject` gate (see `preference-gates/autoSelectProject.md`).
-- On `always` with the `Muggle Last Project` line present → use that `projectId` silently and skip to use case selection. If no cache line, fall through to `ask`.
-- On `never` → always present the full project list; skip Picker 2.
-- On `ask` (or absent) → present the project list (the substantive Picker 1 — see selection logic below). After a successful pick of an *existing* project, run Picker 2 from `preference-gates/autoSelectProject.md` (overrides the shared template). On "Yes, always", make BOTH calls listed there. Skip Picker 2 entirely when the user picked "Create new project".
+Gate `autoSelectProject` (per `preference-gates/GATE.md`). Cache: `Muggle Last Project` session line.
+- `always` + cache → use cached `projectId`, skip to use case selection. No cache → fall through to `ask`.
+- `never` → full project list; skip Picker 2.
+- `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
 
 Ask the user to pick **project**, **use case**, and **test case** (do not infer).
 
@@ -153,17 +153,16 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
-Apply the `showElectronBrowser` gate (see `preference-gates/showElectronBrowser.md`) to decide whether to pass `showUi: false`.
-- On `always` (or Picker 1 → "Show it"): omit `showUi` (defaults to visible).
-- On `never` (or Picker 1 → "Run hidden"): pass `showUi: false`.
-- On `ask` and the user has already chosen for this session: reuse that choice; don't re-ask.
+Gate `showElectronBrowser` (per `preference-gates/GATE.md`). Reuse choice within a session.
+- Pro-action: omit `showUi`.
+- Skip-action: pass `showUi: false`.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 
 - `muggle-local-publish-test-script`
-- Apply the `openTestResultsAfterRun` gate (see `preference-gates/openTestResultsAfterRun.md`) to decide whether to open the returned `viewUrl`.
-  - On `always` (or Picker 1 → "Open the dashboard"): open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
-  - On `never` (or Picker 1 → "Just print the link"): don't open — just print the URL so the user can copy it.
+- Gate `openTestResultsAfterRun` (per `preference-gates/GATE.md`):
+  - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
+  - Skip-action: print the URL only.
 
 ### 9. Report
 
@@ -209,19 +208,9 @@ See the `muggle:muggle-pr-visual-walkthrough` skill for the full schema includin
 
 #### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 
-**First, detect the PR for the current branch** (mandatory before any picker — see `preference-gates/postPRVisualWalkthrough.md`):
-
-```bash
-gh pr view --json number,title,url 2>/dev/null
-```
-
-Then apply the gate. The gate has two cases — pick the matching one:
-- **Case A (PR found):** the gate's Picker 1 names the specific PR (`#{prNumber}`, `{prTitle}`).
-  - On `always` (or "Yes, post to #{prNumber}"): proceed to 10c.
-  - On `never` (or "Skip"): stop here.
-- **Case B (no PR):** the gate's Picker 1 asks whether to create one or skip — fired even when the saved value is `always` (auto-creating PRs without consent isn't safe). Picker 2 is skipped (situational fork, not a durable preference).
-  - On "Create a PR and post": run the PR-creation flow first (collect title/body, `gh pr create`), then proceed to 10c.
-  - On "Skip": stop here.
+Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/GATE.md` + gate file):
+- **Case A (PR found)** — `always` → proceed to 10c; `never`/skip → stop.
+- **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 10c; "Skip" → stop.
 
 #### 10c: Invoke the shared skill in Mode A
 

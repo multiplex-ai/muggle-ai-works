@@ -9,7 +9,7 @@ Run a full health check and report results.
 
 ## Preferences
 
-Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README.md` once for the contract. Per-step references below point at the specific gate file.
+Gates run per `preference-gates/GATE.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -23,9 +23,9 @@ Gates live in `plugin/skills/muggle-preferences/preference-gates/`. Read `README
 
 3. **Authentication** — call `muggle-remote-auth-status`. Report whether credentials are valid and when they expire.
 
-4. **CLI version** (gated by `checkForUpdates`) — apply the `checkForUpdates` gate (see `preference-gates/checkForUpdates.md`).
-   - On `always` (or Picker 1 → "Yes, check"): run the check.
-   - On `never` (or Picker 1 → "No, skip"): render the row as `[skip]  check disabled by preference`.
+4. **CLI version** — gate `checkForUpdates` (per `preference-gates/GATE.md`):
+   - Pro-action: run the check below.
+   - Skip-action: render the row as `[skip]  check disabled by preference`.
 
    When the check runs: capture installed (`muggle --version`) and latest (`npm view @muggleai/works version`). Compare with `sort -V`; flag as out-of-date only when latest is strictly greater.
 

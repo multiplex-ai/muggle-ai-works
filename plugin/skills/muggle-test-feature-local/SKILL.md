@@ -24,20 +24,7 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
-
-**At every preference-gated step below**, apply this rule:
-
-- `always` → perform the auto-action silently. **Skip both pickers.**
-- `never` → skip the action silently. **Skip both pickers.**
-- `ask` (or absent) → run the **2-picker flow**:
-  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option maps to either `always` or `never`.
-  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
-     - "Yes, save it"
-     - "No, just for this run"
-  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
-
-The `<action description>` and the substantive options are step-specific — see each gated step below.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -45,38 +32,26 @@ The `<action description>` and the substantive options are step-specific — see
 | `autoSelectProject` | 2 | Reuse last-used Muggle project for this repo |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle dashboard after run |
+| `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
 
 ## Workflow
 
 ### 1. Auth (gated by `autoLogin`)
 
 - `muggle-remote-auth-status`
-- If **authenticated**, apply the `autoLogin` gate (see Preferences for the full 2-picker flow):
-  - **`autoLogin = always`** → continue with the saved session silently. Skip both pickers.
-  - **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`. Skip both pickers.
-  - **`autoLogin = ask` (or absent)** → run the 2-picker flow:
-    - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
-      - "Yes, continue" → maps to `autoLogin = always`. Proceed with the saved session.
-      - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
-    - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
-      - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
-      - "No, just for this run" → continue without saving.
-- If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`.
-  Do not skip or assume auth.
+- If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
+  - Pro-action: proceed with saved session.
+  - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+- If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
 
 The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
 
-For project selection: apply the `autoSelectProject` gate (see Preferences):
-- **`autoSelectProject = always`** with the `Muggle Last Project` line present → use that `projectId` silently. Skip both pickers and skip to use case selection. If no cache line is present, fall through to `ask`.
-- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
-- **`autoSelectProject = ask` (or absent)** → present the full project list (Picker 1), then offer Picker 2 only after a successful pick of an existing project (skip Picker 2 if user picked "Create new project"):
-  - Picker 2: `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
-    - **"Yes, save it"** → make BOTH calls:
-      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
-      2. `muggle-local-last-project-set` with `cwd`, `projectId`, `projectUrl`, `projectName`.
-    - "No, just for this run" → continue without saving.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+- `always` + cache → use cached `projectId`, skip to use case selection. No cache → fall through to `ask`.
+- `never` → full project list; skip Picker 2.
+- `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
 
 Ask the user to pick **project**, **use case**, and **test case** (do not infer).
 
@@ -178,30 +153,16 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
-Apply the `showElectronBrowser` gate to decide whether to pass `showUi: false`:
-- **`showElectronBrowser = always`** → omit `showUi` (defaults to visible). Skip both pickers.
-- **`showElectronBrowser = never`** → pass `showUi: false` (headless). Skip both pickers.
-- **`showElectronBrowser = ask` (or absent)** → only ask if the user has not already stated a preference in this session. Otherwise default to visible. If asking, run the 2-picker flow:
-  - **Picker 1**: `"Show the Electron browser window during this run?"`
-    - "Yes, show the browser" → maps to `showElectronBrowser = always`. Omit `showUi`.
-    - "No, run headless" → maps to `showElectronBrowser = never`. Pass `showUi: false`.
-  - **Picker 2**: `"Remember this? Next time I'll automatically <show the browser | run headless> without asking. (preference: showElectronBrowser = <always|never>)"`
-    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "showElectronBrowser"`, `value: "<always|never>"`, `scope: "global"`.
-    - "No, just for this run" → continue without saving.
+Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
+- Pro-action: omit `showUi`.
+- Skip-action: pass `showUi: false`.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 
 - `muggle-local-publish-test-script`
-- Apply the `openTestResultsAfterRun` gate to decide whether to open the returned `viewUrl`:
-  - **`openTestResultsAfterRun = always`** → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent). Skip both pickers.
-  - **`openTestResultsAfterRun = never`** → don't open. Just print the URL so the user can copy it. Skip both pickers.
-  - **`openTestResultsAfterRun = ask` (or absent)** → run the 2-picker flow:
-    - **Picker 1**: `"Open the run on Muggle dashboard now?"`
-      - "Yes, open it" → maps to `openTestResultsAfterRun = always`. Open `viewUrl`.
-      - "No, just print the URL" → maps to `openTestResultsAfterRun = never`. Print and continue.
-    - **Picker 2**: `"Remember this? Next time I'll automatically <open the dashboard | print the URL only> without asking. (preference: openTestResultsAfterRun = <always|never>)"`
-      - "Yes, save it" → call `muggle-local-preferences-set` with `key: "openTestResultsAfterRun"`, `value: "<always|never>"`, `scope: "global"`.
-      - "No, just for this run" → continue without saving.
+- Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
+  - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
+  - Skip-action: print the URL only.
 
 ### 9. Report
 
@@ -245,18 +206,15 @@ Assemble the `E2eReport`:
 
 See the `muggle:muggle-pr-visual-walkthrough` skill for the full schema including the failed-test shape.
 
-#### 10b: Ask the user
+#### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 
-Use `AskQuestion`:
-
-> "Post a visual walkthrough of this run to the PR? Reviewers can click the test case to see step-by-step screenshots on the Muggle AI dashboard."
-
-- Option 1: "Yes, post to PR"
-- Option 2: "Skip"
+Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file):
+- **Case A (PR found)** — `always` → proceed to 10c; `never`/skip → stop.
+- **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 10c; "Skip" → stop.
 
 #### 10c: Invoke the shared skill in Mode A
 
-If the user chooses "Yes, post to PR", invoke the `muggle:muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, finds the PR via `gh pr view`, posts `body` as a comment, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
+Invoke the `muggle:muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, posts `body` as a comment to the PR, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
 
 Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle:muggle-pr-visual-walkthrough`.
 

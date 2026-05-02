@@ -34,20 +34,7 @@ Every test case verifies exactly **one** user-observable behavior. Never bundle 
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json` (global) → `<repo>/.muggle-ai/preferences.json` (project). Treat absent prefs as `ask`.
-
-**At every preference-gated step below**, apply this rule:
-
-- `always` → perform the auto-action silently. **Skip both pickers.**
-- `never` → skip the action silently. **Skip both pickers.**
-- `ask` (or absent) → run the **2-picker flow**:
-  1. **Picker 1** (`AskQuestion`): the substantive choice for this step. Each option's value maps to either `always` or `never` (e.g. "Yes, continue" → `always`, "No, switch account" → `never`).
-  2. **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <action description> without asking. (preference: <key> = <value>)"` with options:
-     - "Yes, save it"
-     - "No, just for this run"
-  3. On **"Yes, save it"** → call `muggle-local-preferences-set` with `key`, the value chosen in Picker 1, `scope: "global"`.
-
-The `<action description>` and the substantive options are step-specific — see each gated step below.
+Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
@@ -56,6 +43,7 @@ The `<action description>` and the substantive options are step-specific — see
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
 | `autoPublishLocalResults` | 7A | Upload local results to Muggle cloud after run |
+| `showElectronBrowser` | 7A | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 
 ## Step 1: Confirm Scope of Work (Always First)
@@ -78,37 +66,19 @@ Signs the user wants this: mentions "preview", "staging", "deployed", "preview U
 
 ### Confirming (gated by `defaultExecutionMode`)
 
-This preference uses a domain-specific value set: **`local`** / **`remote`** / **`ask`** (not `always`/`never`). Apply the gate:
+Gate `defaultExecutionMode` (per `preference-gates/README.md`). Uses `local`/`remote`/`ask`.
+- `local` → proceed in Local mode.
+- `remote` → proceed in Remote mode.
+- `ask` + intent clear → skip Picker 1, confirm one-shot then skip Picker 2.
+- `ask` + ambiguous → run Picker 1 from gate file.
 
-- **`defaultExecutionMode = local`** → proceed in Local mode silently. Skip both pickers.
-- **`defaultExecutionMode = remote`** → proceed in Remote mode silently. Skip both pickers.
-- **`defaultExecutionMode = ask` (or absent)** → run the 2-picker flow:
-  - **Picker 1** (`AskQuestion`):
-    - If the user's intent is clear, state back what you understood and confirm:
-      - "Yes, proceed" → use the inferred mode; this is a confirmation of a one-shot intent, **do NOT show Picker 2**.
-      - "Switch to [the other mode]" → use the other mode; correction, **do NOT show Picker 2**.
-    - If ambiguous, ask the user to pick the mode:
-      - "On my computer — test your localhost dev server in a browser on your machine" → maps to `defaultExecutionMode = local`
-      - "In the cloud — test remotely targeting your deployed preview/staging URL" → maps to `defaultExecutionMode = remote`
-  - **Picker 2** (`AskQuestion`, ambiguous-case only): `"Remember this? Next time I'll automatically run in <Local|Remote> mode without asking. (preference: defaultExecutionMode = <local|remote>)"`
-    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "defaultExecutionMode"`, `value: "<local|remote>"`, `scope: "global"`.
-    - "No, just for this run" → continue without saving.
-
-Only proceed after the user selects an option.
+Only proceed after selection.
 
 ## Step 2: Detect Local Changes (gated by `autoDetectChanges`)
 
-See Preferences section for the full 2-picker flow.
-
-- **`autoDetectChanges = always`** → run the git scan automatically. Skip both pickers; continue to the analysis below.
-- **`autoDetectChanges = never`** → skip the git scan entirely. Ask the user directly: "What would you like to test?" Then jump to Step 3.
-- **`autoDetectChanges = ask` (or absent)** → run the 2-picker flow:
-  - **Picker 1** (`AskQuestion`): `"Scan local git changes to scope the test run?"`
-    - "Yes, scan changes" → maps to `autoDetectChanges = always`. Proceed with the analysis below.
-    - "No, I'll specify what to test" → maps to `autoDetectChanges = never`. Ask the user directly and jump to Step 3.
-  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <scan local git changes | skip the scan and ask you> without asking. (preference: autoDetectChanges = <always|never>)"`
-    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoDetectChanges"`, `value: "<always|never>"`, `scope: "global"`.
-    - "No, just for this run" → continue without saving.
+Gate `autoDetectChanges` (per `preference-gates/README.md`):
+- Pro-action: run the scan and proceed to analysis below.
+- Skip-action: ask "What would you like to test?" then jump to Step 3.
 
 ### Analysis (when scan is enabled)
 
@@ -130,16 +100,9 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 ## Step 3: Authenticate
 
 1. Call `muggle-remote-auth-status`
-2. If **authenticated and not expired** → **gated by `autoLogin`** (see Preferences section for the full 2-picker flow):
-   - **`autoLogin = always`** → continue with the saved session silently. Skip both pickers.
-   - **`autoLogin = never`** → call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`. Skip both pickers.
-   - **`autoLogin = ask` (or absent)** → run the 2-picker flow:
-     - **Picker 1**: `"You're logged in as {email}. Continue with this account?"`
-       - "Yes, continue" → maps to `autoLogin = always`. Proceed with the saved session.
-       - "No, switch account" → maps to `autoLogin = never`. Call `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
-     - **Picker 2**: `"Remember this? Next time I'll automatically <reuse your saved login | force a fresh login> without asking. (preference: autoLogin = <always|never>)"`
-       - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoLogin"`, `value: "<always|never>"`, `scope: "global"`.
-       - "No, just for this run" → continue without saving.
+2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
+   - Pro-action: reuse saved session.
+   - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`
 4. If login pending → call `muggle-remote-auth-poll`
 
@@ -151,28 +114,10 @@ A **project** is where all your test results, use cases, and test scripts are gr
 
 The per-repo cache lives at `<cwd>/.muggle-ai/last-project.json` (managed via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for the `Muggle Last Project: id=… url=… name="…"` line in session context — if present, that's this repo's cached pick.
 
-Apply the gate (see Preferences for the standard 2-picker flow):
-
-- **`autoSelectProject = always`**:
-  - If the `Muggle Last Project` line is in session context → use that `projectId` silently. Skip both pickers and skip to Step 5. (Optionally call `muggle-local-last-project-get` with `cwd` to verify and re-fetch the URL/name if needed.)
-  - If no cache line is present → fall through to `ask` (the user has never picked one for this repo yet).
-- **`autoSelectProject = never`** → always present the full project list; skip Picker 2 (memory).
-- **`autoSelectProject = ask` (or absent)** → run the 2-picker flow:
-  - **Picker 1** (`AskQuestion`): present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
-
-    Example labels:
-    - "MUGGLE AI STAGING 1 — https://staging.muggle-ai.com/"
-    - "Tanka Testing — https://www.tanka.ai"
-    - "Create new project"
-
-    Prompt: `"Pick the project to group this test run into:"`
-
-  - **Picker 2** (`AskQuestion`, only after a successful pick of an existing project — skip if user picked "Create new project"): `"Remember this? Next time I'll automatically reuse this project for this repo without asking. (preference: autoSelectProject = always)"`
-    - **"Yes, save it"** → make BOTH calls:
-      1. `muggle-local-preferences-set` with `key: "autoSelectProject"`, `value: "always"`, `scope: "global"`.
-      2. `muggle-local-last-project-set` with `cwd` (current working directory), `projectId`, `projectUrl`, `projectName`.
-      Both calls together establish the silent-reuse behavior for future sessions.
-    - **"No, just for this run"** → continue without saving.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+- `always` + cache → use cached `projectId`, skip to Step 5. No cache → fall through to `ask`.
+- `never` → full project list; skip Picker 2.
+- `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
 
 ### Logic
 
@@ -266,7 +211,11 @@ Try to auto-detect the dev server URL by checking running terminals or common po
 
 If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
 
-**No separate approval or visibility question.** The user picking Local mode in Step 1 *is* the approval — do not ask "ready to launch Electron?" before every run. The Electron browser defaults to visible; if the user wants headless, they will say so, otherwise let it run visible.
+### Pre-flight visibility (gated by `showElectronBrowser`)
+
+Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; apply same `showUi` to every test case.
+- Pro-action: omit `showUi` (defaults visible).
+- Skip-action: pass `showUi: false`.
 
 ### Fetch test case details (in parallel)
 
@@ -290,7 +239,7 @@ Execution itself **must** be sequential because there is only one local Electron
 1. Call `muggle-local-execute-test-generation`:
    - `testCase`: Full test case object from the parallel fetch above
    - `localUrl`: User's local URL from the pre-flight question
-   - `showUi`: omit (default visible) unless the user explicitly asked for headless, then pass `false`
+   - `showUi`: from the `showElectronBrowser` resolution — omit (default visible) for `always`, pass `false` for `never`
    - `freshSession`: `true` if the test case requires a clean browser state (see above), omit otherwise
 2. Store the returned `runId`
 
@@ -302,17 +251,9 @@ For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Ex
 
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 
-See Preferences section for the full 2-picker flow.
-
-- **`autoPublishLocalResults = always`** → publish all runs silently. Skip both pickers; proceed to the publish logic below.
-- **`autoPublishLocalResults = never`** → skip publishing entirely. Skip both pickers; jump to the report summary. **Note**: Step 8 (open dashboard), Step 9 (PR walkthrough), and any per-step screenshot fetches that depend on cloud-side data will be unavailable. Tell the user.
-- **`autoPublishLocalResults = ask` (or absent)** → run the 2-picker flow:
-  - **Picker 1** (`AskQuestion`): `"Upload these local results to Muggle cloud? Required for the dashboard view, PR walkthrough, and team visibility."`
-    - "Yes, publish" → maps to `autoPublishLocalResults = always`. Proceed with the publish logic.
-    - "No, keep local-only" → maps to `autoPublishLocalResults = never`. Skip publishing.
-  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <upload local results to Muggle cloud | keep results local-only> without asking. (preference: autoPublishLocalResults = <always|never>)"`
-    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "autoPublishLocalResults"`, `value: "<always|never>"`, `scope: "global"`.
-    - "No, just for this run" → continue without saving.
+Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
+- Pro-action: proceed to publish logic below.
+- Skip-action: skip to report summary; tell user Steps 8/9 and per-step screenshots are unavailable without publishing.
 
 ### Publish logic (when publishing is enabled)
 
@@ -441,19 +382,11 @@ Assemble the report:
 
 See the shared skill for the full schema (including the failed-test shape with `failureStepIndex` and `error`).
 
-### 9b: Ask the user (gated by `postPRVisualWalkthrough`)
+### 9b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 
-See Preferences section for the full 2-picker flow.
-
-- **`postPRVisualWalkthrough = always`** → proceed straight to 9c silently (post the walkthrough). Skip both pickers.
-- **`postPRVisualWalkthrough = never`** → skip the walkthrough silently. Stop here.
-- **`postPRVisualWalkthrough = ask` (or absent)** → run the 2-picker flow:
-  - **Picker 1** (`AskQuestion`): `"Post a visual walkthrough of these results to the PR? Reviewers can click each test case to see step-by-step screenshots on the Muggle AI dashboard."`
-    - "Yes, post to PR" → maps to `postPRVisualWalkthrough = always`. Proceed to 9c.
-    - "Skip" → maps to `postPRVisualWalkthrough = never`. Stop here.
-  - **Picker 2** (`AskQuestion`): `"Remember this? Next time I'll automatically <post the visual walkthrough | skip posting it> without asking. (preference: postPRVisualWalkthrough = <always|never>)"`
-    - "Yes, save it" → call `muggle-local-preferences-set` with `key: "postPRVisualWalkthrough"`, `value: "<always|never>"`, `scope: "global"`.
-    - "No, just for this run" → continue without saving.
+Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory — gate uses the result). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file for two-case Picker 1):
+- **Case A (PR found)** — `always` → proceed to 9c; `never`/skip → stop.
+- **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 9c; "Skip" → stop.
 
 ### 9c: Invoke the shared skill in Mode A
 
@@ -503,7 +436,6 @@ This skill always uses **Mode A** (post to an existing PR); `muggle-do` is the o
 - **One atomic behavior per test case** — every test case verifies exactly one user-observable behavior. Never bundle signup/login/navigation/bootstrap/teardown into a test case body. Ordering and dependencies are Muggle's service responsibility, not the skill's.
 - **Never consolidate the generator's output** — if `muggle-remote-test-case-generate-from-prompt` returns N micro-tests, accept all N; never merge them into fewer test cases, even if "the plan" says 4 UC / 4 TC.
 - **Never skip the generate→review cycle** — always present generated test cases to the user before calling `muggle-remote-test-case-create`, even when you're confident. "I'll skip the review and create directly" is always wrong.
-- **Never ask for Electron launch approval before each run** — the user picking Local mode is the approval. Don't prompt "Ready to launch Electron?" before execution; just run.
 - **Never silently drop test cases** — log failures and continue, then report them
 - **Never guess the URL** — always ask the user for localhost or preview URL
 - **Always publish before opening browser** — the dashboard needs the published data to show results

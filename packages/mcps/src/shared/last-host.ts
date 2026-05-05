@@ -1,7 +1,7 @@
 /**
  * Per-repo last-used local dev server URL cache.
  *
- * Lives at `<repo>/.muggle-ai/last-host.json`. Honors `localDevHost = always`:
+ * Lives at `<repo>/.muggle-ai/last-host.json`. Honors `autoSelectLocalHost = always`:
  * when set, skills silently reuse the URL the user used last time in this repo
  * instead of prompting again. Cache is updated on every pick — independent of
  * the "Remember this URL?" Picker 2 — so `Use {lastHost}` always shows the

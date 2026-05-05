@@ -40,7 +40,7 @@ Gates run per `preference-gates/README.md`.
 |------------|------|-------------------|
 | `autoLogin` | 3 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 4 | Reuse last-used Muggle Test project for this repo |
-| `localDevHost` | 7A | Reuse last-used local dev server URL for this repo |
+| `autoSelectLocalHost` | 7A | Reuse last-used local dev server URL for this repo |
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
 | `autoPublishLocalResults` | 7A | Upload local results to Muggle Test cloud after run |
@@ -204,14 +204,14 @@ Wait for user confirmation before moving to execution.
 
 ## Step 7A: Execute — Local Mode
 
-### Pre-flight question — Local URL (gated by `localDevHost`)
+### Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
 
-Skill responsibilities (the rest is in `preference-gates/localDevHost.md`):
+Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):
 - **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
 - **Auto-detect a suggested URL**: `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`. Pass as `{suggestedHost}`.
 - **Save the cache**: call `muggle-local-last-host-set` after the user picks (the gate file requires this on every pick).
 
-Gate `localDevHost` per `preference-gates/README.md` + `preference-gates/localDevHost.md`.
+Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/autoSelectLocalHost.md`.
 
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 

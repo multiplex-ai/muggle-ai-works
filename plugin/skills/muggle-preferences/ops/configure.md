@@ -26,7 +26,7 @@ you can tell me which (if any) should instead be set to `never`.
 For each option: label = key name, description = first paragraph of `preference-gates/<key>.md`. Multi-select question text = `Which of these should auto-proceed (set to "always")?`; selected = `always`.
 
 - `multiSelect: true`, `header: "Auth & session"` — `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`
-- `multiSelect: true`, `header: "Test setup"` — `localDevHost`, `autoDetectChanges`
+- `multiSelect: true`, `header: "Test setup"` — `autoSelectLocalHost`, `autoDetectChanges`
 - `multiSelect: true`, `header: "Test run"` — `showElectronBrowser`, `openTestResultsAfterRun`, `autoPublishLocalResults`
 - `multiSelect: true`, `header: "Suggestions & PR"` — `suggestRelatedUseCases`, `suggestRelatedTestCases`, `postPRVisualWalkthrough`
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).

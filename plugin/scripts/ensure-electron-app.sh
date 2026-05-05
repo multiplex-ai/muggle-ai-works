@@ -77,8 +77,9 @@ if [ -f "$prefs_global_file" ]; then
     try {
       const g = JSON.parse(fs.readFileSync('${prefs_global_file}', 'utf-8')).preferences || {};
       const defaults = {
-        autoLogin:'ask', autoSelectProject:'ask', showElectronBrowser:'ask',
-        openTestResultsAfterRun:'ask', defaultExecutionMode:'ask', autoPublishLocalResults:'ask',
+        autoLogin:'ask', autoSelectProject:'ask', autoSelectLocalHost:'ask',
+        showElectronBrowser:'ask', openTestResultsAfterRun:'ask',
+        defaultExecutionMode:'ask', autoPublishLocalResults:'ask',
         suggestRelatedUseCases:'ask', suggestRelatedTestCases:'ask', autoDetectChanges:'ask',
         postPRVisualWalkthrough:'ask', checkForUpdates:'ask', verboseOutput:'ask'
       };
@@ -126,7 +127,7 @@ fi
 # --- Last-host cache injection ---
 # Per-repo cache of the local dev server URL the user picked on the previous
 # run. Lives at <cwd>/.muggle-ai/last-host.json. Skills silently reuse it
-# when the user has set the localDevHost preference to "always".
+# when the user has set the autoSelectLocalHost preference to "always".
 last_host_line=""
 last_host_note=""
 last_host_line=$(node -e "

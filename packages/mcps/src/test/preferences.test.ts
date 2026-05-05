@@ -40,7 +40,7 @@ describe("PreferenceKey enum", () => {
   it("contains all expected keys", () => {
     expect(PreferenceKey.AutoLogin).toBe("autoLogin");
     expect(PreferenceKey.AutoSelectProject).toBe("autoSelectProject");
-    expect(PreferenceKey.LocalDevHost).toBe("localDevHost");
+    expect(PreferenceKey.AutoSelectLocalHost).toBe("autoSelectLocalHost");
     expect(PreferenceKey.ShowElectronBrowser).toBe("showElectronBrowser");
     expect(PreferenceKey.OpenTestResultsAfterRun).toBe("openTestResultsAfterRun");
     expect(PreferenceKey.DefaultExecutionMode).toBe("defaultExecutionMode");

@@ -11,7 +11,7 @@ export enum PreferenceKey {
   /** Reuse the last-used Muggle Test project for this repo. */
   AutoSelectProject = "autoSelectProject",
   /** Reuse the last-used local dev server URL for this repo. */
-  LocalDevHost = "localDevHost",
+  AutoSelectLocalHost = "autoSelectLocalHost",
   /** Show the Electron browser window during local E2E tests. */
   ShowElectronBrowser = "showElectronBrowser",
   /** Open the per-run results page on Muggle Test dashboard after local test completion. */

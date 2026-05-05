@@ -727,7 +727,7 @@ const lastHostGetTool: ILocalMcpTool = {
   description:
     "Get the cached last-used local dev server URL for a repo (read from <cwd>/.muggle-ai/last-host.json). " +
     "Returns the URL and saved-at timestamp, or null if no cache exists. " +
-    "Skills consult this when 'localDevHost = always' to silently reuse the URL the user used previously.",
+    "Skills consult this when 'autoSelectLocalHost = always' to silently reuse the URL the user used previously.",
   inputSchema: LastHostGetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -760,7 +760,7 @@ const lastHostSetTool: ILocalMcpTool = {
   description:
     "Save the user's chosen local dev server URL as the cached last-used host for this repo. " +
     "Writes to <cwd>/.muggle-ai/last-host.json. Call this on every host pick (independent of 'Remember this URL?' Picker 2) " +
-    "so future runs can offer 'Use {lastHost}' regardless of whether the user opted to set localDevHost=always.",
+    "so future runs can offer 'Use {lastHost}' regardless of whether the user opted to set autoSelectLocalHost=always.",
   inputSchema: LastHostSetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -779,7 +779,7 @@ const lastHostSetTool: ILocalMcpTool = {
 const lastHostClearTool: ILocalMcpTool = {
   name: "muggle-local-last-host-clear",
   description:
-    "Remove the cached last-used host for this repo. After this, `localDevHost = always` will fall through to ask " +
+    "Remove the cached last-used host for this repo. After this, `autoSelectLocalHost = always` will fall through to ask " +
     "until the user picks a new URL. No-op if no cache exists.",
   inputSchema: LastHostClearInputSchema,
   execute: async (ctx) => {

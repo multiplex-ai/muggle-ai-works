@@ -24,18 +24,29 @@ Power users — devs, automation-minded people, founders — want to use Muggle 
 - Result reporting or dashboards beyond what the electron app already shows.
 - Background / headless execution (electron app runs visibly).
 
+## Routing
+
+The task runner is a **third route** inside the existing `muggle-do` skill, alongside the dev cycle and the help menu:
+
+| Input | Route |
+|-------|-------|
+| Empty / `help` / `menu` / `?` | Menu + session selector |
+| `task "<prompt>"` or `run "<prompt>"` | **Task runner (this feature)** |
+| Anything else | Dev cycle (7-stage implementation) |
+
 ## Invocation
 
 ```
-/muggle-do "<natural language task>"
-/muggle-do "<natural language task>" [--no-create-project] [--no-create-use-case] [--no-create-test-case] [--no-generate-script]
+/muggle-do task "<natural language task>"
+/muggle-do run "<natural language task>"
+/muggle-do task "<natural language task>" [--no-create-project] [--no-create-use-case] [--no-create-test-case] [--no-generate-script]
 ```
 
 **Examples:**
 ```
-/muggle-do "Publish a post on X with content 'Hello world'"
-/muggle-do "Add to cart on amazon.com the item 'mechanical keyboard'" --no-create-project
-/muggle-do "Submit a form on myapp.localhost:3000 with email 'test@example.com'" --no-generate-script
+/muggle-do task "Publish a post on X with content 'Hello world'"
+/muggle-do run "Add to cart on amazon.com the item 'mechanical keyboard'" --no-create-project
+/muggle-do task "Submit a form on myapp.localhost:3000 with email 'test@example.com'" --no-generate-script
 ```
 
 ## Architecture

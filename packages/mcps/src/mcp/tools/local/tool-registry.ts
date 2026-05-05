@@ -29,12 +29,7 @@ import {
   LastProjectSetInputSchema,
   LastProjectClearInputSchema,
 } from "../../local/contracts/index.js";
-import {
-  resolvePreferences,
-  writePreferences,
-  formatPreferencesOneLiner,
-} from "../../../shared/preferences.js";
-import { PREFERENCES_FILE_NAME } from "../../../shared/preferences-constants.js";
+import { writePreferences } from "../../../shared/preferences.js";
 import {
   readLastProject,
   writeLastProject,
@@ -614,19 +609,10 @@ const preferencesSetTool: ILocalMcpTool = {
       input.cwd,
     );
 
-    const resolved = resolvePreferences(undefined, input.cwd);
-    const oneLiner = formatPreferencesOneLiner(resolved);
-
-    const content = [
-      `**${input.key}** set to **${input.value}** (${input.scope}).`,
-      "",
-      `Preferences file: ~/.muggle-ai/${PREFERENCES_FILE_NAME}`,
-      "",
-      "Current resolved preferences:",
-      `\`${oneLiner}\``,
-    ].join("\n");
-
-    return { content: content, isError: false };
+    return {
+      content: `**${input.key}** set to **${input.value}** (${input.scope}).`,
+      isError: false,
+    };
   },
 };
 

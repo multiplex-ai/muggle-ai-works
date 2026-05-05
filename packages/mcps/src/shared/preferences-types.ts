@@ -10,6 +10,8 @@ export enum PreferenceKey {
   AutoLogin = "autoLogin",
   /** Reuse the last-used Muggle project for this repo. */
   AutoSelectProject = "autoSelectProject",
+  /** Reuse the last-used local dev server URL for this repo. */
+  LocalDevHost = "localDevHost",
   /** Show the Electron browser window during local E2E tests. */
   ShowElectronBrowser = "showElectronBrowser",
   /** Open the per-run results page on Muggle dashboard after local test completion. */

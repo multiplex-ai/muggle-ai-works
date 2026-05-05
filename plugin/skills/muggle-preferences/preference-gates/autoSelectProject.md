@@ -1,7 +1,6 @@
 # `autoSelectProject`
 
-Reuse the cached project for this repo (`<cwd>/.muggle-ai/last-project.json`),
-or pick from the list. Substitute `{projectName}`.
+Reuse the saved project for this repo, or pick from the list. Substitute `{projectName}`.
 
 Picker 1 *is* the project list (rendered by the calling skill — format and
 tail options like "Show full list" / "Create new project" are skill-defined).

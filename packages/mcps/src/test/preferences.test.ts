@@ -32,14 +32,15 @@ import {
 } from "../shared/preferences.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 12 keys", () => {
+  it("has exactly 13 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(12);
+    expect(keys).toHaveLength(13);
   });
 
   it("contains all expected keys", () => {
     expect(PreferenceKey.AutoLogin).toBe("autoLogin");
     expect(PreferenceKey.AutoSelectProject).toBe("autoSelectProject");
+    expect(PreferenceKey.LocalDevHost).toBe("localDevHost");
     expect(PreferenceKey.ShowElectronBrowser).toBe("showElectronBrowser");
     expect(PreferenceKey.OpenTestResultsAfterRun).toBe("openTestResultsAfterRun");
     expect(PreferenceKey.DefaultExecutionMode).toBe("defaultExecutionMode");

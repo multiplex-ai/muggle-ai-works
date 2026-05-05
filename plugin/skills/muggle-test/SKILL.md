@@ -40,6 +40,7 @@ Gates run per `preference-gates/README.md`.
 |------------|------|-------------------|
 | `autoLogin` | 3 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 4 | Reuse last-used Muggle project for this repo |
+| `localDevHost` | 7A | Reuse last-used local dev server URL for this repo |
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
 | `autoPublishLocalResults` | 7A | Upload local results to Muggle cloud after run |
@@ -203,13 +204,16 @@ Wait for user confirmation before moving to execution.
 
 ## Step 7A: Execute — Local Mode
 
-### Pre-flight question — Local URL
+### Pre-flight question — Local URL (gated by `localDevHost`)
 
-Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
-- Option 1: "http://localhost:3000" (or whatever was detected)
-- Option 2: "Other — let me type a URL"
+Cache lookup: `muggle-local-last-host-get` (or read the `Muggle Last Host: <url>` line from session context). Auto-detect a suggested URL by checking common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`).
 
-If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
+Gate `localDevHost` (per `preference-gates/README.md` + `preference-gates/localDevHost.md`). Cache: `Muggle Last Host:` session line.
+- `always` + cache → use cached `{lastHost}` silently. No cache → fall through to `ask`.
+- `never` → always run Picker 1; skip Picker 2.
+- `ask` → run Picker 1 from the gate file (options: `Use {lastHost}` if cached / `Use {suggestedHost}` if detected / `Type a URL`). After the user picks, run Picker 2 from the gate file.
+
+Always call `muggle-local-last-host-set` with the resolved URL — independent of Picker 2 — so future runs can offer `Use {lastHost}`.
 
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 

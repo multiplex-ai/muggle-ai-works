@@ -123,7 +123,29 @@ if [ -n "$last_project_line" ]; then
   last_project_note="\\n\\n${last_project_line}"
 fi
 
-context="<EXTREMELY_IMPORTANT>\nYou have access to Muggle AI — a real-browser E2E acceptance testing tool.\n\nWhenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:\n- Testing user flows (signup, login, checkout, forms, dashboards)\n- Verifying UI changes didn't break anything\n- Running regression tests after code changes\n- Validating frontend behavior on localhost or a dev server\n- Checking if a feature works before merging a PR\n\nMuggle launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.\n\nDo NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.\n\nTrigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.\n</EXTREMELY_IMPORTANT>${upgrade_notice}${prefs_file_note}${last_project_note}"
+# --- Last-host cache injection ---
+# Per-repo "last used local dev server URL" cache. Lives at <cwd>/.muggle-ai/last-host.json
+# and is honored by skills when localDevHost = always.
+last_host_line=""
+last_host_note=""
+last_host_line=$(node -e "
+  const fs = require('fs');
+  const path = require('path');
+  try {
+    const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
+    const lhPath = path.join(cwd, '.muggle-ai', 'last-host.json');
+    if (!fs.existsSync(lhPath)) { console.log(''); return; }
+    const raw = JSON.parse(fs.readFileSync(lhPath, 'utf-8'));
+    const lh = raw && raw.lastHost;
+    if (!lh || !lh.host) { console.log(''); return; }
+    console.log('Muggle Last Host: ' + lh.host);
+  } catch { console.log(''); }
+" 2>/dev/null || true)
+if [ -n "$last_host_line" ]; then
+  last_host_note="\\n\\n${last_host_line}"
+fi
+
+context="<EXTREMELY_IMPORTANT>\nYou have access to Muggle AI — a real-browser E2E acceptance testing tool.\n\nWhenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:\n- Testing user flows (signup, login, checkout, forms, dashboards)\n- Verifying UI changes didn't break anything\n- Running regression tests after code changes\n- Validating frontend behavior on localhost or a dev server\n- Checking if a feature works before merging a PR\n\nMuggle launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.\n\nDo NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.\n\nTrigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.\n</EXTREMELY_IMPORTANT>${upgrade_notice}${prefs_file_note}${last_project_note}${last_host_note}"
 
 escaped_context=$(escape_for_json "$context")
 

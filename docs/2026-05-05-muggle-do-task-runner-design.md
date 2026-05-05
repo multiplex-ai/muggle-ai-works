@@ -14,7 +14,6 @@ Power users — devs, automation-minded people, founders — want to use Muggle 
 - **Idempotent entity resolution**: Project, use case, and test case are created once, reused forever. Same domain + use case name → same entities.
 - **Mutation-driven execution**: Variable parameters (content, dates, values) are passed as mutations to the LLM step predictor, not baked into the script.
 - **Two-phase graceful handling**: If no script exists, kick off generation and guide the user to run again. Don't block indefinitely.
-- **Surgical opt-out**: Each auto-creation/generation step can be disabled independently via flags.
 
 ## Non-Goals (v1)
 
@@ -38,14 +37,14 @@ The task runner is a **third route** inside the existing `muggle-do` skill, alon
 ## Invocation
 
 ```
-/muggle-do "<natural language task>" [--no-create-project] [--no-create-use-case] [--no-create-test-case] [--no-generate-script]
+/muggle-do "<natural language task>"
 ```
 
 **Examples:**
 ```
 /muggle-do "Publish a post on X with content 'Hello world'"
-/muggle-do "Add to cart on amazon.com the item 'mechanical keyboard'" --no-create-project
-/muggle-do "Submit a form on myapp.localhost:3000 with email 'test@example.com'" --no-generate-script
+/muggle-do "Add to cart on amazon.com the item 'mechanical keyboard'"
+/muggle-do "Submit a form on myapp.localhost:3000 with email 'test@example.com'"
 ```
 
 ## Architecture
@@ -81,7 +80,7 @@ User: /muggle-do "Publish a post on X with content 'Hello'"
 
 ## Entity Resolution Rules
 
-Each entity is resolved in order. If an entity is missing and its `--no-create-*` flag is set, the skill errors out with a clear message.
+Each entity is resolved in order, auto-creating if missing.
 
 | Entity | Lookup | Match logic | Create tool |
 |--------|--------|-------------|-------------|
@@ -113,17 +112,6 @@ Mutations are written as a `string[]` JSON file — same format the electron app
 ```
 
 The LLM step predictor receives this array and adapts each script step accordingly. The script itself is never modified — mutations are purely runtime instructions.
-
-## Opt-Out Flags
-
-| Flag | Effect if set |
-|------|--------------|
-| `--no-create-project` | Error if project not found; never create |
-| `--no-create-use-case` | Error if use case not found; never create |
-| `--no-create-test-case` | Error if test case not found; never create |
-| `--no-generate-script` | Error if no active script; never start generation |
-
-Flags compose. `--no-create-use-case` also implies "don't create test case or generate script" even without those flags, since there's nothing to attach them to.
 
 ## Electron App CLI Contract
 

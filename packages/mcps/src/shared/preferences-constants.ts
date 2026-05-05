@@ -22,6 +22,7 @@ export const PREFERENCES_VERSION = 1;
 export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoLogin]: PreferenceValue.Ask,
   [PreferenceKey.AutoSelectProject]: PreferenceValue.Ask,
+  [PreferenceKey.LocalDevHost]: PreferenceValue.Ask,
   [PreferenceKey.ShowElectronBrowser]: PreferenceValue.Ask,
   [PreferenceKey.OpenTestResultsAfterRun]: PreferenceValue.Ask,
   [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Ask,
@@ -54,6 +55,7 @@ const LOCAL_REMOTE_ASK = [
 export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly PreferenceValue[]> = {
   [PreferenceKey.AutoLogin]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoSelectProject]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.LocalDevHost]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ShowElectronBrowser]: ALWAYS_ASK_NEVER,
   [PreferenceKey.OpenTestResultsAfterRun]: ALWAYS_ASK_NEVER,
   [PreferenceKey.DefaultExecutionMode]: LOCAL_REMOTE_ASK,
@@ -73,6 +75,9 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.AutoSelectProject]: {
     description: "When a skill needs a Muggle project and one was used previously in this repo, reuse it without prompting",
+  },
+  [PreferenceKey.LocalDevHost]: {
+    description: "When running local tests, reuse the dev server URL from the previous run in this repo without prompting",
   },
   [PreferenceKey.ShowElectronBrowser]: {
     description: "When running local E2E tests, show the Electron browser window",

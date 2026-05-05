@@ -1,9 +1,9 @@
 ---
 name: muggle-upgrade
-description: Update Muggle AI to latest version. Use when user types muggle upgrade or asks to update Muggle tools.
+description: Update Muggle AI to latest version. Use when user types muggle upgrade or asks to update Muggle Test tools.
 ---
 
-# Muggle Upgrade
+# Muggle Test Upgrade
 
 Update all Muggle AI components to the latest published version. This means **both** the `@muggleai/works` CLI on npm **and** the Electron runner the CLI manages.
 

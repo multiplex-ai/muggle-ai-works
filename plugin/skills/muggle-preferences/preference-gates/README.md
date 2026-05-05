@@ -10,7 +10,7 @@ which uses `local` / `remote` / `ask`).
 
 ## Resolution
 
-`SessionStart` injects a `Muggle Preferences` line (`key=value` pairs) from
+`SessionStart` injects a `Muggle Test Preferences` line (`key=value` pairs) from
 `~/.muggle-ai/preferences.json` (global) overlaid by
 `<repo>/.muggle-ai/preferences.json` (project). Absent → treat as `ask`.
 

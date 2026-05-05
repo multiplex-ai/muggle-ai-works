@@ -1,12 +1,12 @@
 /**
- * Per-repo last-used Muggle project cache.
+ * Per-repo last-used Muggle Test project cache.
  *
  * Stored at `<repo>/.muggle-ai/last-project.json`. Honors the
  * `autoSelectProject = always` preference: when set, skills can silently reuse
  * the project that the user most recently picked for this repo, instead of
  * presenting the project picker every time.
  *
- * Skills consume this via the `Muggle Last Project` line injected into session
+ * Skills consume this via the `Muggle Test Last Project` line injected into session
  * context by the SessionStart hook (zero tokens). MCP tools import this module
  * directly (zero tokens).
  */
@@ -102,5 +102,5 @@ export function formatLastProjectOneLiner(cwd: string): string {
     return "";
   }
   const safeName = cached.projectName.replace(/"/g, '\\"');
-  return `Muggle Last Project: id=${cached.projectId} url=${cached.projectUrl} name="${safeName}"`;
+  return `Muggle Test Last Project: id=${cached.projectId} url=${cached.projectUrl} name="${safeName}"`;
 }

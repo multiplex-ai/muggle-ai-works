@@ -100,7 +100,7 @@ describe("last-host cache", () => {
     it("formats a one-liner suitable for session context", () => {
       writeLastHost(projectDir, "http://localhost:3000");
       expect(formatLastHostOneLiner(projectDir)).toBe(
-        "Muggle Last Host: http://localhost:3000",
+        "Muggle Test Last Host: http://localhost:3000",
       );
     });
   });

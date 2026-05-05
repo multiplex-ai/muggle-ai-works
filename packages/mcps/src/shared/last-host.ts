@@ -71,5 +71,5 @@ export function formatLastHostOneLiner(cwd: string): string {
   if (!cached) {
     return "";
   }
-  return `Muggle Last Host: ${cached.host}`;
+  return `Muggle Test Last Host: ${cached.host}`;
 }

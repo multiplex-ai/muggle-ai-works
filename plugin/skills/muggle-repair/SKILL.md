@@ -1,9 +1,9 @@
 ---
 name: muggle-repair
-description: Diagnose and fix a broken Muggle AI installation. Use when user types muggle repair or asks to fix Muggle setup.
+description: Diagnose and fix a broken Muggle AI installation. Use when user types muggle repair or asks to fix Muggle Test setup.
 ---
 
-# Muggle Repair
+# Muggle Test Repair
 
 Automatically diagnose and fix broken components.
 

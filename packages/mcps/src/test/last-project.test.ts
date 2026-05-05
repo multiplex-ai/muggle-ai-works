@@ -122,7 +122,7 @@ describe("last-project cache", () => {
       });
       const line = formatLastProjectOneLiner(projectDir);
       expect(line).toBe(
-        'Muggle Last Project: id=proj-abc url=https://app.example.com name="Example App"',
+        'Muggle Test Last Project: id=proj-abc url=https://app.example.com name="Example App"',
       );
     });
 

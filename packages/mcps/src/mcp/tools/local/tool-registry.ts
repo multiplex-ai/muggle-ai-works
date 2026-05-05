@@ -632,7 +632,7 @@ const preferencesSetTool: ILocalMcpTool = {
 const lastProjectGetTool: ILocalMcpTool = {
   name: "muggle-local-last-project-get",
   description:
-    "Get the cached last-used Muggle project for a repo (read from <cwd>/.muggle-ai/last-project.json). " +
+    "Get the cached last-used Muggle Test project for a repo (read from <cwd>/.muggle-ai/last-project.json). " +
     "Returns the project ID, URL, name, and saved-at timestamp, or null if no cache exists. " +
     "Skills consult this when 'autoSelectProject = always' to silently reuse the project the user picked previously, instead of presenting the project picker every time.",
   inputSchema: LastProjectGetInputSchema,
@@ -669,7 +669,7 @@ const lastProjectGetTool: ILocalMcpTool = {
 const lastProjectSetTool: ILocalMcpTool = {
   name: "muggle-local-last-project-set",
   description:
-    "Save the user's selected Muggle project as the cached last-used project for this repo. " +
+    "Save the user's selected Muggle Test project as the cached last-used project for this repo. " +
     "Writes to <cwd>/.muggle-ai/last-project.json. Subsequent skill invocations honor 'autoSelectProject = always' " +
     "by silently reusing this entry — no project picker shown. Always pair this call with " +
     "'muggle-local-preferences-set autoSelectProject=always' when the user chose 'Yes, save it'.",
@@ -822,7 +822,7 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   publishTestScriptTool,
   // Preferences tools
   preferencesSetTool,
-  // Last-project cache tools (per-repo "last used Muggle project")
+  // Last-project cache tools (per-repo "last used Muggle Test project")
   lastProjectGetTool,
   lastProjectSetTool,
   lastProjectClearTool,

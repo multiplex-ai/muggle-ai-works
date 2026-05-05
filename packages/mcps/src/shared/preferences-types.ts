@@ -8,17 +8,17 @@
 export enum PreferenceKey {
   /** Reuse saved credentials when a tool requires auth. */
   AutoLogin = "autoLogin",
-  /** Reuse the last-used Muggle project for this repo. */
+  /** Reuse the last-used Muggle Test project for this repo. */
   AutoSelectProject = "autoSelectProject",
   /** Reuse the last-used local dev server URL for this repo. */
   LocalDevHost = "localDevHost",
   /** Show the Electron browser window during local E2E tests. */
   ShowElectronBrowser = "showElectronBrowser",
-  /** Open the per-run results page on Muggle dashboard after local test completion. */
+  /** Open the per-run results page on Muggle Test dashboard after local test completion. */
   OpenTestResultsAfterRun = "openTestResultsAfterRun",
   /** Default to local or remote test execution. */
   DefaultExecutionMode = "defaultExecutionMode",
-  /** Upload local test results to Muggle cloud for team visibility. */
+  /** Upload local test results to Muggle Test cloud for team visibility. */
   AutoPublishLocalResults = "autoPublishLocalResults",
   /** Suggest related use cases after creating or running one. */
   SuggestRelatedUseCases = "suggestRelatedUseCases",
@@ -28,7 +28,7 @@ export enum PreferenceKey {
   AutoDetectChanges = "autoDetectChanges",
   /** Post visual walkthrough comment with screenshots to the PR. */
   PostPRVisualWalkthrough = "postPRVisualWalkthrough",
-  /** Check for newer Muggle versions at session start. */
+  /** Check for newer Muggle Test versions at session start. */
   CheckForUpdates = "checkForUpdates",
   /** Show detailed progress logs during execution. */
   VerboseOutput = "verboseOutput",
@@ -51,7 +51,7 @@ export enum PreferenceValue {
   Never = "never",
   /** For DefaultExecutionMode: always run tests on the local Electron browser. */
   Local = "local",
-  /** For DefaultExecutionMode: always run tests in the Muggle cloud. */
+  /** For DefaultExecutionMode: always run tests in the Muggle Test cloud. */
   Remote = "remote",
 }
 

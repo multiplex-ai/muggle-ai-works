@@ -23,7 +23,7 @@ Type `muggle` to discover the full command family.
 
 | Skill | What it does |
 |:---|:---|
-| `/muggle:muggle` | Router and menu for all Muggle commands. |
+| `/muggle:muggle` | Router and menu for all Muggle Test commands. |
 | `/muggle:muggle-do` | Autonomous dev pipeline: requirements, code, unit tests, E2E acceptance tests, PR. |
 | `/muggle:muggle-test` | Change-driven E2E acceptance router: detects code changes, maps to use cases, runs test generation locally or remotely, publishes to dashboard, opens in browser, posts E2E acceptance results to PR. |
 | `/muggle:muggle-test-feature-local` | Test a feature on localhost with AI-driven browser automation. Offers publish to cloud after each run. |

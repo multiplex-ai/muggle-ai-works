@@ -124,8 +124,9 @@ if [ -n "$last_project_line" ]; then
 fi
 
 # --- Last-host cache injection ---
-# Per-repo "last used local dev server URL" cache. Lives at <cwd>/.muggle-ai/last-host.json
-# and is honored by skills when localDevHost = always.
+# Per-repo cache of the local dev server URL the user picked on the previous
+# run. Lives at <cwd>/.muggle-ai/last-host.json. Skills silently reuse it
+# when the user has set the localDevHost preference to "always".
 last_host_line=""
 last_host_note=""
 last_host_line=$(node -e "

@@ -206,14 +206,12 @@ Wait for user confirmation before moving to execution.
 
 ### Pre-flight question — Local URL (gated by `localDevHost`)
 
-Cache lookup: `muggle-local-last-host-get` (or read the `Muggle Test Last Host: <url>` line from session context). Auto-detect a suggested URL by checking common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`).
+Skill responsibilities (the rest is in `preference-gates/localDevHost.md`):
+- **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
+- **Auto-detect a suggested URL**: `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`. Pass as `{suggestedHost}`.
+- **Save the cache**: call `muggle-local-last-host-set` after the user picks (the gate file requires this on every pick).
 
-Gate `localDevHost` (per `preference-gates/README.md` + `preference-gates/localDevHost.md`). Cache: `Muggle Test Last Host:` session line.
-- `always` + cache → use cached `{lastHost}` silently. No cache → fall through to `ask`.
-- `never` → always run Picker 1; skip Picker 2.
-- `ask` → run Picker 1 from the gate file (options: `Use {lastHost}` if cached / `Use {suggestedHost}` if detected / `Type a URL`). After the user picks, run Picker 2 from the gate file.
-
-Always call `muggle-local-last-host-set` with the resolved URL — independent of Picker 2 — so future runs can offer `Use {lastHost}`.
+Gate `localDevHost` per `preference-gates/README.md` + `preference-gates/localDevHost.md`.
 
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 

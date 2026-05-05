@@ -14,7 +14,12 @@ import * as os from "node:os";
 import { fileURLToPath } from "node:url";
 import * as path from "path";
 
-import { getConfig, getElectronAppDir, getElectronAppVersion } from "../../../shared/config.js";
+import {
+  getConfig,
+  getElectronAppDir,
+  getElectronAppVersion,
+  resolveElectronAppPathOrNull,
+} from "../../../shared/config.js";
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
@@ -295,39 +300,42 @@ async function writeExecutionLogs(params: {
 }
 
 /**
- * Resolve the electron-app binary path from config.
+ * Resolve the electron-app binary path on every call.
+ *
+ * Re-resolves from the filesystem each invocation so a long-running MCP
+ * server picks up `muggle upgrade` / `muggle setup` changes without a
+ * process restart.
+ *
  * Throws a detailed error if the binary cannot be found.
  */
 function getElectronAppPathOrThrow(): string {
-  const config = getConfig();
-  const electronAppPath = config.localQa.electronAppPath;
-
-  if (!electronAppPath || electronAppPath.trim() === "") {
-    const version = getElectronAppVersion();
-    const versionDir = getElectronAppDir(version);
-    const envPath = process.env.ELECTRON_APP_PATH;
-
-    const errorLines = [
-      "Electron app binary not found.",
-      "",
-      `  Expected version: ${version}`,
-      `  Checked directory: ${versionDir}`,
-    ];
-
-    if (envPath) {
-      errorLines.push(`  ELECTRON_APP_PATH: ${envPath} (not found or invalid)`);
-    } else {
-      errorLines.push("  ELECTRON_APP_PATH: (not set)");
-    }
-
-    errorLines.push("");
-    errorLines.push("To fix this, run: muggle setup");
-    errorLines.push("Or set ELECTRON_APP_PATH to the path of the MuggleAI executable.");
-
-    throw new Error(errorLines.join("\n"));
+  const electronAppPath = resolveElectronAppPathOrNull();
+  if (electronAppPath && electronAppPath.trim() !== "") {
+    return electronAppPath;
   }
 
-  return electronAppPath;
+  const version = getElectronAppVersion();
+  const versionDir = getElectronAppDir(version);
+  const envPath = process.env.ELECTRON_APP_PATH;
+
+  const errorLines = [
+    "Electron app binary not found.",
+    "",
+    `  Expected version: ${version}`,
+    `  Checked directory: ${versionDir}`,
+  ];
+
+  if (envPath) {
+    errorLines.push(`  ELECTRON_APP_PATH: ${envPath} (not found or invalid)`);
+  } else {
+    errorLines.push("  ELECTRON_APP_PATH: (not set)");
+  }
+
+  errorLines.push("");
+  errorLines.push("To fix this, run: muggle setup");
+  errorLines.push("Or set ELECTRON_APP_PATH to the path of the MuggleAI executable.");
+
+  throw new Error(errorLines.join("\n"));
 }
 
 /**

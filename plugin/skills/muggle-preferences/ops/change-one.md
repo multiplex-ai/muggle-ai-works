@@ -1,7 +1,7 @@
 # Change one — `/muggle-preferences <key>`
 
 1. Verify `preference-gates/<key>.md` exists. If not, list `preference-gates/*.md` and ask.
-2. Read it. Run **Picker 1** with **three options**: the gate's two options (mapped to `always`/`never`) plus `Ask me each time` (sub: `Prompt me at decision time.`) → `ask`.
+2. Read it. Run **Picker 1** with the options defined in the gate file, plus an additional `Ask me each time` (sub: `Prompt me at decision time.`) → `ask`.
 3. `muggle-local-preferences-set` with the mapped value, `scope: "global"`.
 4. Confirm: `Set <key> to <value>.`
 

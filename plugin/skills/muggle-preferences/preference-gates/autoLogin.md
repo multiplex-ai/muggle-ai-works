@@ -8,4 +8,4 @@ Reuse the saved session, or force a fresh login. Substitute `{email}`.
 
 **Silent action**
 - `always` → `Continuing as {email}`
-- `never` → `Forcing a fresh login`
+- `never` → `Logging in fresh`

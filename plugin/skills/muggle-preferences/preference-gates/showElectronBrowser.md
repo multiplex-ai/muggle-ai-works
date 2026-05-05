@@ -1,6 +1,6 @@
 # `showElectronBrowser`
 
-Show the Electron browser during local tests, or run hidden.
+Show the browser during local tests, or run hidden.
 
 **Picker 1** — header `Browser window`, question `"Show the test browser as it runs?"`
 - `Show it` — `Watch the test live — useful when something's failing.` → `always` (omit `showUi`)

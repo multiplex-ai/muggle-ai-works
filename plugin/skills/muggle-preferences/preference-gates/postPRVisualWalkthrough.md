@@ -8,7 +8,7 @@ Substitute `{prNumber}`, `{prTitle}` into prompts.
 ## Case A — open PR found
 
 **Picker 1** — header `Share with the team`, question `"Post a visual walkthrough to PR #{prNumber} ({prTitle})?"`
-- `Yes, post to #{prNumber}` — `Reviewers see clickable per-test screenshots and dashboard links.` → `always`
+- `Post to #{prNumber}` — `Reviewers see clickable per-test screenshots and dashboard links.` → `always`
 - `Skip` — `Keep it off the PR — you can post later from the dashboard.` → `never`
 
 **Silent action (Case A)**
@@ -26,5 +26,5 @@ Situational fork — saved value is *not* updated from this picker.
 **Picker 2** — skipped entirely.
 
 **Silent action (Case B)** — when saved gate is `always` or `never` but no PR exists:
-- `always` → fall through to Case B Picker 1 (don't auto-create silently). Print: `(`postPRVisualWalkthrough = always`, but this branch has no PR — asking what to do.)`
+- `always` → fall through to Case B Picker 1 (don't auto-create silently). Print: `(Your saved choice says always, but this branch has no PR — asking what to do.)`
 - `never` → `Skipping PR walkthrough — no open PR for this branch`

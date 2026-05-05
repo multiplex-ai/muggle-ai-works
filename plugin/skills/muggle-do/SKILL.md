@@ -21,8 +21,11 @@ For maintenance tasks, use the dedicated skills:
 Treat `$ARGUMENTS` as the user command:
 
 - Empty / `help` / `menu` / `?` → show menu and session selector.
-- `task "<prompt>"` or `run "<prompt>"` → invoke `muggle:muggle-do-task` skill with the quoted prompt as arguments.
-- Anything else → treat as a new task description and start/resume a dev-cycle session.
+- Anything else → infer intent:
+  - **Task automation** (user wants to perform an action on a website — post something, fill a form, click through a flow) → invoke `muggle:muggle-do-task` skill with the full prompt as arguments.
+  - **Feature development** (user wants to build, implement, fix, or refactor code) → treat as a new task description and start/resume a dev-cycle session.
+
+  When in doubt, ask one question: "Do you want me to run this as a browser automation task, or implement it as a code change?"
 
 ## The seven stages
 

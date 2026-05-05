@@ -26,27 +26,26 @@ Power users — devs, automation-minded people, founders — want to use Muggle 
 
 ## Routing
 
-The task runner is a **third route** inside the existing `muggle-do` skill, alongside the dev cycle and the help menu:
+The task runner is a **third route** inside the existing `muggle-do` skill, alongside the dev cycle and the help menu. No prefix required — the LLM infers intent from the prompt:
 
 | Input | Route |
 |-------|-------|
 | Empty / `help` / `menu` / `?` | Menu + session selector |
-| `task "<prompt>"` or `run "<prompt>"` | **Task runner (this feature)** |
-| Anything else | Dev cycle (7-stage implementation) |
+| Prompt describes acting on a website (post, fill, click, submit) | **Task runner (this feature)** |
+| Prompt describes building, implementing, fixing, or refactoring code | Dev cycle (7-stage implementation) |
+| Ambiguous | Ask one triage question |
 
 ## Invocation
 
 ```
-/muggle-do task "<natural language task>"
-/muggle-do run "<natural language task>"
-/muggle-do task "<natural language task>" [--no-create-project] [--no-create-use-case] [--no-create-test-case] [--no-generate-script]
+/muggle-do "<natural language task>" [--no-create-project] [--no-create-use-case] [--no-create-test-case] [--no-generate-script]
 ```
 
 **Examples:**
 ```
-/muggle-do task "Publish a post on X with content 'Hello world'"
-/muggle-do run "Add to cart on amazon.com the item 'mechanical keyboard'" --no-create-project
-/muggle-do task "Submit a form on myapp.localhost:3000 with email 'test@example.com'" --no-generate-script
+/muggle-do "Publish a post on X with content 'Hello world'"
+/muggle-do "Add to cart on amazon.com the item 'mechanical keyboard'" --no-create-project
+/muggle-do "Submit a form on myapp.localhost:3000 with email 'test@example.com'" --no-generate-script
 ```
 
 ## Architecture

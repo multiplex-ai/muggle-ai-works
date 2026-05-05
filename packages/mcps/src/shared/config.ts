@@ -253,9 +253,13 @@ function getSystemElectronAppPath(): string | null {
 
 /**
  * Resolve the electron-app executable path if available.
+ *
+ * Resolves from the filesystem on every call — no caching. Long-running MCP
+ * servers must pick up `muggle upgrade` / `muggle setup` changes without
+ * needing a process restart.
  * @returns The path to the electron-app executable, or null when not installed.
  */
-function resolveElectronAppPathOrNull(): string | null {
+export function resolveElectronAppPathOrNull(): string | null {
   // 1. Check environment override
   const customPath = process.env.ELECTRON_APP_PATH;
   if (customPath && fs.existsSync(customPath)) {
@@ -442,7 +446,6 @@ function buildLocalQaConfig(): ILocalQaConfig {
     tempDir: path.join(dataDir, "temp"),
     apiKeyFilePath: path.join(dataDir, API_KEY_FILE),
     oauthSessionFilePath: path.join(dataDir, "oauth-session.json"),
-    electronAppPath: resolveElectronAppPathOrNull(),
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),
     auth0: {

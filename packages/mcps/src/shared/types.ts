@@ -94,8 +94,6 @@ export interface ILocalQaConfig {
   apiKeyFilePath: string;
   /** Path to OAuth session file (OAuth tokens with refresh). */
   oauthSessionFilePath: string;
-  /** Path to electron-app executable (null if not installed). */
-  electronAppPath: string | null;
   /** Path to web-service entry point (null if not found). */
   webServicePath: string | null;
   /** Path to web-service PID file. */

@@ -7,7 +7,7 @@ description: >-
   dispatch publish-works-to-npm.yml—no local npm publish.
 ---
 
-# Muggle Works — npm release (single playbook)
+# Muggle Test Works — npm release (single playbook)
 
 Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish-works-to-npm.yml`** (“Publish Works to npm”). **Never** run local **`npm publish`** (OIDC trusted publishing in CI).
 

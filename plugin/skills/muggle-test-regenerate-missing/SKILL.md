@@ -1,13 +1,13 @@
 ---
 name: muggle-test-regenerate-missing
-description: "Bulk-regenerate test scripts for every test case in a Muggle AI project that doesn't currently have an active script. Scans the project, finds test cases stuck in DRAFT or GENERATION_PENDING (no usable script attached), shows the user the list, and on approval kicks off bulk remote test script generation via the Muggle cloud. Use this skill whenever the user asks to 'regenerate missing scripts', 'fill in missing test scripts', 'generate scripts for test cases without one', 'regen all the test cases that don't have scripts', 'rebuild scripts for stale test cases', 'fix test cases with no script', 'bulk regenerate', or any phrasing that means 'kick off script generation across a project for the cases that need it'. Triggers on: 'regenerate missing test scripts', 'generate scripts for all empty test cases', 'fill the gaps in my test scripts', 'bulk test script regen', 'all my test cases without active scripts'. This is the go-to skill for project-wide script catch-up — it handles discovery, filtering, confirmation, and remote workflow dispatch end-to-end."
+description: "Bulk-regenerate test scripts for every test case in a Muggle AI project that doesn't currently have an active script. Scans the project, finds test cases stuck in DRAFT or GENERATION_PENDING (no usable script attached), shows the user the list, and on approval kicks off bulk remote test script generation via the Muggle Test cloud. Use this skill whenever the user asks to 'regenerate missing scripts', 'fill in missing test scripts', 'generate scripts for test cases without one', 'regen all the test cases that don't have scripts', 'rebuild scripts for stale test cases', 'fix test cases with no script', 'bulk regenerate', or any phrasing that means 'kick off script generation across a project for the cases that need it'. Triggers on: 'regenerate missing test scripts', 'generate scripts for all empty test cases', 'fill the gaps in my test scripts', 'bulk test script regen', 'all my test cases without active scripts'. This is the go-to skill for project-wide script catch-up — it handles discovery, filtering, confirmation, and remote workflow dispatch end-to-end."
 ---
 
 # Muggle Test — Regenerate Missing Test Scripts
 
 A bulk maintenance skill for Muggle AI projects. It finds every test case in a project that does **not** currently have an active (ready-to-run) test script, shows the list to the user, and on approval triggers a remote test script generation workflow for each one. Useful after creating a batch of new test cases or when cleaning up a project that has drifted.
 
-Execution is **remote only** — Muggle's cloud generates the scripts in parallel against the project URL. The user's machine is not involved beyond making API calls.
+Execution is **remote only** — Muggle Test's cloud generates the scripts in parallel against the project URL. The user's machine is not involved beyond making API calls.
 
 ## Preferences
 
@@ -16,11 +16,11 @@ Gates run per `preference-gates/README.md`.
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
-| `autoSelectProject` | 2 | Reuse last-used Muggle project for this repo |
+| `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 
 ## Concept: what counts as "no active script"
 
-In the Muggle data model, a test case carries a status that reflects whether it has a usable script attached:
+In the Muggle Test data model, a test case carries a status that reflects whether it has a usable script attached:
 
 | Status | Meaning | Regenerate? |
 |:-------|:--------|:-----------:|
@@ -61,9 +61,9 @@ If auth keeps failing, suggest the user run `muggle logout && muggle login` from
 
 A **project** is the unit on the Muggle AI dashboard that groups test cases, scripts, and runs. The user must pick the one to scan — never auto-select from repo name, branch, or URL heuristics.
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, proceed to Step 3. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -125,7 +125,7 @@ Default behavior:
 
 After selection, call `AskQuestion` once more for a final confirmation:
 
-> "About to start remote test script generation for **N** test cases against `<projectUrl>`. This will consume Muggle workflow budget. Proceed?"
+> "About to start remote test script generation for **N** test cases against `<projectUrl>`. This will consume Muggle Test workflow budget. Proceed?"
 >
 > - "Yes, start all N"
 > - "No, cancel"

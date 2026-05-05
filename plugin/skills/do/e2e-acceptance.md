@@ -26,7 +26,7 @@ This guarantees E2E acceptance tests always run — no dependency on cloud repla
 You receive everything from `state.md` already — pre-flight resolved it:
 
 - `localUrl` — the locally running dev server URL
-- `projectId` — the chosen Muggle project
+- `projectId` — the chosen Muggle Test project
 - The validation strategy (`local-e2e`, `staging-replay`, `unit-only`, `skip`)
 - Test-user credential status (existing / new / skip)
 - The list of changed repos, files, and a summary of changes

@@ -28,6 +28,9 @@ import {
   LastProjectGetInputSchema,
   LastProjectSetInputSchema,
   LastProjectClearInputSchema,
+  LastHostGetInputSchema,
+  LastHostSetInputSchema,
+  LastHostClearInputSchema,
 } from "../../local/contracts/index.js";
 import { writePreferences } from "../../../shared/preferences.js";
 import {
@@ -36,6 +39,12 @@ import {
   clearLastProject,
   LAST_PROJECT_FILE_NAME,
 } from "../../../shared/last-project.js";
+import {
+  readLastHost,
+  writeLastHost,
+  clearLastHost,
+  LAST_HOST_FILE_NAME,
+} from "../../../shared/last-host.js";
 import {
   cancelExecution,
   executeReplay,
@@ -623,7 +632,7 @@ const preferencesSetTool: ILocalMcpTool = {
 const lastProjectGetTool: ILocalMcpTool = {
   name: "muggle-local-last-project-get",
   description:
-    "Get the cached last-used Muggle project for a repo (read from <cwd>/.muggle-ai/last-project.json). " +
+    "Get the cached last-used Muggle Test project for a repo (read from <cwd>/.muggle-ai/last-project.json). " +
     "Returns the project ID, URL, name, and saved-at timestamp, or null if no cache exists. " +
     "Skills consult this when 'autoSelectProject = always' to silently reuse the project the user picked previously, instead of presenting the project picker every time.",
   inputSchema: LastProjectGetInputSchema,
@@ -660,7 +669,7 @@ const lastProjectGetTool: ILocalMcpTool = {
 const lastProjectSetTool: ILocalMcpTool = {
   name: "muggle-local-last-project-set",
   description:
-    "Save the user's selected Muggle project as the cached last-used project for this repo. " +
+    "Save the user's selected Muggle Test project as the cached last-used project for this repo. " +
     "Writes to <cwd>/.muggle-ai/last-project.json. Subsequent skill invocations honor 'autoSelectProject = always' " +
     "by silently reusing this entry — no project picker shown. Always pair this call with " +
     "'muggle-local-preferences-set autoSelectProject=always' when the user chose 'Yes, save it'.",
@@ -710,6 +719,84 @@ const lastProjectClearTool: ILocalMcpTool = {
 };
 
 // ========================================
+// Last-Host Cache Tools
+// ========================================
+
+const lastHostGetTool: ILocalMcpTool = {
+  name: "muggle-local-last-host-get",
+  description:
+    "Get the cached last-used local dev server URL for a repo (read from <cwd>/.muggle-ai/last-host.json). " +
+    "Returns the URL and saved-at timestamp, or null if no cache exists. " +
+    "Skills consult this when 'autoSelectLocalHost = always' to silently reuse the URL the user used previously.",
+  inputSchema: LastHostGetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-host-get");
+
+    const input = LastHostGetInputSchema.parse(ctx.input);
+    const cached = readLastHost(input.cwd);
+
+    if (!cached) {
+      const content = [
+        "No cached last-used host for this repo.",
+        "",
+        `Looked at: \`${input.cwd}/.muggle-ai/${LAST_HOST_FILE_NAME}\``,
+      ].join("\n");
+      return { content: content, isError: false };
+    }
+
+    const content = [
+      "**Cached last-used host:**",
+      "",
+      `- URL: ${cached.host}`,
+      `- Saved at: ${cached.savedAt}`,
+    ].join("\n");
+    return { content: content, isError: false };
+  },
+};
+
+const lastHostSetTool: ILocalMcpTool = {
+  name: "muggle-local-last-host-set",
+  description:
+    "Save the user's chosen local dev server URL as the cached last-used host for this repo. " +
+    "Writes to <cwd>/.muggle-ai/last-host.json. Call this on every host pick (independent of 'Remember this URL?' Picker 2) " +
+    "so future runs can offer 'Use {lastHost}' regardless of whether the user opted to set autoSelectLocalHost=always.",
+  inputSchema: LastHostSetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-host-set");
+
+    const input = LastHostSetInputSchema.parse(ctx.input);
+    writeLastHost(input.cwd, input.host);
+
+    return {
+      content: `Cached **${input.host}** as the last-used host for this repo.`,
+      isError: false,
+    };
+  },
+};
+
+const lastHostClearTool: ILocalMcpTool = {
+  name: "muggle-local-last-host-clear",
+  description:
+    "Remove the cached last-used host for this repo. After this, `autoSelectLocalHost = always` will fall through to ask " +
+    "until the user picks a new URL. No-op if no cache exists.",
+  inputSchema: LastHostClearInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-last-host-clear");
+
+    const input = LastHostClearInputSchema.parse(ctx.input);
+    clearLastHost(input.cwd);
+
+    return {
+      content: `Cleared the cached last-used host for this repo.`,
+      isError: false,
+    };
+  },
+};
+
+// ========================================
 // All Tools Registry
 // ========================================
 
@@ -735,10 +822,14 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   publishTestScriptTool,
   // Preferences tools
   preferencesSetTool,
-  // Last-project cache tools (per-repo "last used Muggle project")
+  // Last-project cache tools (per-repo "last used Muggle Test project")
   lastProjectGetTool,
   lastProjectSetTool,
   lastProjectClearTool,
+  // Last-host cache tools (per-repo "last used local dev server URL")
+  lastHostGetTool,
+  lastHostSetTool,
+  lastHostClearTool,
 ];
 
 /**

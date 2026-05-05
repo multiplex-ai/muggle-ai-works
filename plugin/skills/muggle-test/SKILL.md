@@ -1,6 +1,6 @@
 ---
 name: muggle-test
-description: "Run change-driven E2E acceptance testing using Muggle AI — detects local code changes, maps them to use cases, and generates test scripts either locally (real browser on localhost) or remotely (cloud execution on a preview/staging URL). Publishes results to Muggle dashboard, opens them in the browser, and posts E2E acceptance summaries with screenshots to the PR. Use this skill whenever the user wants to test their changes, run E2E acceptance tests on recent work, validate what they've been working on, or check if their code changes broke anything. Triggers on: 'test my changes', 'run tests on my changes', 'acceptance test my work', 'check my changes', 'validate my changes', 'test before I push', 'make sure my changes work', 'regression test my changes', 'test on preview', 'test on staging'. This is the go-to skill for change-driven E2E acceptance testing — it handles everything from change detection to test execution to result reporting."
+description: "Run change-driven E2E acceptance testing using Muggle AI — detects local code changes, maps them to use cases, and generates test scripts either locally (real browser on localhost) or remotely (cloud execution on a preview/staging URL). Publishes results to Muggle Test dashboard, opens them in the browser, and posts E2E acceptance summaries with screenshots to the PR. Use this skill whenever the user wants to test their changes, run E2E acceptance tests on recent work, validate what they've been working on, or check if their code changes broke anything. Triggers on: 'test my changes', 'run tests on my changes', 'acceptance test my work', 'check my changes', 'validate my changes', 'test before I push', 'make sure my changes work', 'regression test my changes', 'test on preview', 'test on staging'. This is the go-to skill for change-driven E2E acceptance testing — it handles everything from change detection to test execution to result reporting."
 ---
 
 # Muggle Test — Change-Driven E2E Acceptance Router
@@ -21,7 +21,7 @@ A router skill that detects code changes, resolves impacted test cases, executes
 
 Every test case verifies exactly **one** user-observable behavior. Never bundle multiple concerns, sequential flows, or bootstrap/setup into a single test case — even if you think it would be "cleaner" or "more efficient."
 
-**Ordering, dependencies, and bootstrap are Muggle's service responsibility, not yours.** Muggle's cloud handles test case dependencies, prerequisite state, and execution ordering. Your job is to describe the *atomic behavior to verify* — never the flow that gets there.
+**Ordering, dependencies, and bootstrap are Muggle Test's service responsibility, not yours.** Muggle Test's cloud handles test case dependencies, prerequisite state, and execution ordering. Your job is to describe the *atomic behavior to verify* — never the flow that gets there.
 
 - ❌ Wrong: one test case that "signs up, logs in, navigates to the detail modal, verifies icon stacking, verifies tab order, verifies history format, and verifies reference layout."
 - ✅ Right: four separate test cases — one per verifiable behavior — each with instruction text like "Verify the detail modal shows stacked pair of icons per card" with **no** signup / login / navigation / setup language.
@@ -39,10 +39,11 @@ Gates run per `preference-gates/README.md`.
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
 | `autoLogin` | 3 | Reuse saved credentials when auth is required |
-| `autoSelectProject` | 4 | Reuse last-used Muggle project for this repo |
+| `autoSelectProject` | 4 | Reuse last-used Muggle Test project for this repo |
+| `autoSelectLocalHost` | 7A | Reuse last-used local dev server URL for this repo |
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
-| `autoPublishLocalResults` | 7A | Upload local results to Muggle cloud after run |
+| `autoPublishLocalResults` | 7A | Upload local results to Muggle Test cloud after run |
 | `showElectronBrowser` | 7A | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 
@@ -58,7 +59,7 @@ Parse the user's query and explicitly confirm their expectation. There are exact
 Signs the user wants this: mentions "localhost", "local", "my machine", "dev server", "my changes locally", or just "test my changes" in a repo context.
 
 ### Mode B: Remote Test Generation
-> Ask Muggle's cloud to generate test scripts against a **preview/staging URL**.
+> Ask Muggle Test's cloud to generate test scripts against a **preview/staging URL**.
 >
 > Execution tool: `muggle-remote-workflow-start-test-script-generation`
 
@@ -112,9 +113,9 @@ If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal
 
 A **project** is where all your test results, use cases, and test scripts are grouped on the Muggle AI dashboard. Pick the project that matches what you're working on.
 
-The per-repo cache lives at `<cwd>/.muggle-ai/last-project.json` (managed via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for the `Muggle Last Project: id=… url=… name="…"` line in session context — if present, that's this repo's cached pick.
+The per-repo cache lives at `<cwd>/.muggle-ai/last-project.json` (managed via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for the `Muggle Test Last Project: id=… url=… name="…"` line in session context — if present, that's this repo's cached pick.
 
-Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to Step 5. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -203,13 +204,14 @@ Wait for user confirmation before moving to execution.
 
 ## Step 7A: Execute — Local Mode
 
-### Pre-flight question — Local URL
+### Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
 
-Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
-- Option 1: "http://localhost:3000" (or whatever was detected)
-- Option 2: "Other — let me type a URL"
+Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):
+- **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
+- **Auto-detect a suggested URL**: `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`. Pass as `{suggestedHost}`.
+- **Save the cache**: call `muggle-local-last-host-set` after the user picks (the gate file requires this on every pick).
 
-If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
+Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/autoSelectLocalHost.md`.
 
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 
@@ -433,7 +435,7 @@ This skill always uses **Mode A** (post to an existing PR); `muggle-do` is the o
 - **Use `AskQuestion` for every selection** — never ask the user to type a number; always present clickable options
 - **Auto-detect localhost URL when possible**; only fall back to free-text when nothing is listening on a common port
 - **Parallelize independent cloud jobs** — when creating N use cases, generating/creating N test cases, fetching N test case details, starting N remote workflows, polling N workflow runtimes, publishing N local runs, or fetching N per-step test scripts, issue all N calls in a single message so they fan out in parallel. The only tolerated sequential loop is local Electron execution (one browser, one test at a time). For use case creation specifically, use the native batch form of `muggle-remote-use-case-create-from-prompts` (all descriptions in one `instructions` array) instead of parallel calls.
-- **One atomic behavior per test case** — every test case verifies exactly one user-observable behavior. Never bundle signup/login/navigation/bootstrap/teardown into a test case body. Ordering and dependencies are Muggle's service responsibility, not the skill's.
+- **One atomic behavior per test case** — every test case verifies exactly one user-observable behavior. Never bundle signup/login/navigation/bootstrap/teardown into a test case body. Ordering and dependencies are Muggle Test's service responsibility, not the skill's.
 - **Never consolidate the generator's output** — if `muggle-remote-test-case-generate-from-prompt` returns N micro-tests, accept all N; never merge them into fewer test cases, even if "the plan" says 4 UC / 4 TC.
 - **Never skip the generate→review cycle** — always present generated test cases to the user before calling `muggle-remote-test-case-create`, even when you're confident. "I'll skip the review and create directly" is always wrong.
 - **Never silently drop test cases** — log failures and continue, then report them

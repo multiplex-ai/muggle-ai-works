@@ -1,4 +1,4 @@
-# `localDevHost`
+# `autoSelectLocalHost`
 
 Reuse the saved local dev server URL for this repo, or pick one each run. Substitute `{lastHost}` (the URL used in the previous run for this repo — omit the option entirely when no cache exists) and `{suggestedHost}` (auto-detected from running ports, e.g. `http://localhost:3000`).
 
@@ -11,7 +11,7 @@ Cache lives at `<cwd>/.muggle-ai/last-host.json`. The calling skill **always** u
 
 **Picker 2 — overrides shared template.** Fires after the user picks a URL.
 - Header `Remember this URL?`, question `"Always use {chosenHost} for this repo from now on, without asking?"`
-- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` (`localDevHost=always`, global). The cache is already up to date.
+- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` (`autoSelectLocalHost=always`, global). The cache is already up to date.
 - `Just this once` (sub: `I'll ask again next time.`) → don't save the preference. The cache still updates.
 
 **Silent action**

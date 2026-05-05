@@ -22,7 +22,7 @@ export const PREFERENCES_VERSION = 1;
 export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoLogin]: PreferenceValue.Ask,
   [PreferenceKey.AutoSelectProject]: PreferenceValue.Ask,
-  [PreferenceKey.LocalDevHost]: PreferenceValue.Ask,
+  [PreferenceKey.AutoSelectLocalHost]: PreferenceValue.Ask,
   [PreferenceKey.ShowElectronBrowser]: PreferenceValue.Ask,
   [PreferenceKey.OpenTestResultsAfterRun]: PreferenceValue.Ask,
   [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Ask,
@@ -55,7 +55,7 @@ const LOCAL_REMOTE_ASK = [
 export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly PreferenceValue[]> = {
   [PreferenceKey.AutoLogin]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoSelectProject]: ALWAYS_ASK_NEVER,
-  [PreferenceKey.LocalDevHost]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoSelectLocalHost]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ShowElectronBrowser]: ALWAYS_ASK_NEVER,
   [PreferenceKey.OpenTestResultsAfterRun]: ALWAYS_ASK_NEVER,
   [PreferenceKey.DefaultExecutionMode]: LOCAL_REMOTE_ASK,
@@ -74,22 +74,22 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
     description: "When a tool requires auth and saved credentials exist, reuse them without prompting",
   },
   [PreferenceKey.AutoSelectProject]: {
-    description: "When a skill needs a Muggle project and one was used previously in this repo, reuse it without prompting",
+    description: "When a skill needs a Muggle Test project and one was used previously in this repo, reuse it without prompting",
   },
-  [PreferenceKey.LocalDevHost]: {
+  [PreferenceKey.AutoSelectLocalHost]: {
     description: "When running local tests, reuse the dev server URL from the previous run in this repo without prompting",
   },
   [PreferenceKey.ShowElectronBrowser]: {
     description: "When running local E2E tests, show the Electron browser window",
   },
   [PreferenceKey.OpenTestResultsAfterRun]: {
-    description: "After a local E2E test run completes, open the per-run results page on Muggle dashboard",
+    description: "After a local E2E test run completes, open the per-run results page on Muggle Test dashboard",
   },
   [PreferenceKey.DefaultExecutionMode]: {
     description: "When a skill supports both local and remote test execution, which to default to",
   },
   [PreferenceKey.AutoPublishLocalResults]: {
-    description: "After a local E2E test run completes, upload results to Muggle cloud for team visibility",
+    description: "After a local E2E test run completes, upload results to Muggle Test cloud for team visibility",
   },
   [PreferenceKey.SuggestRelatedUseCases]: {
     description: "After creating or running a use case, suggest related use cases to add",
@@ -104,7 +104,7 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
     description: "After test results are available, post visual walkthrough comment with screenshots to the PR",
   },
   [PreferenceKey.CheckForUpdates]: {
-    description: "At session start, check if a newer Muggle version is available and notify",
+    description: "At session start, check if a newer Muggle Test version is available and notify",
   },
   [PreferenceKey.VerboseOutput]: {
     description: "Show detailed progress logs during skill and tool execution",

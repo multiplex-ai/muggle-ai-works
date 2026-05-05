@@ -2,14 +2,14 @@
 name: muggle-preferences
 description: >-
   View, set, or reset Muggle AI preferences that control testing behavior.
-  Use when user asks to see preferences, change a setting, configure Muggle
+  Use when user asks to see preferences, change a setting, configure Muggle Test
   defaults, or manage muggle config. Triggers on: 'muggle preferences',
   'show muggle settings', 'change muggle preference', 'set autoLogin to
   always', 'muggle config', 'reset muggle preferences', 'show my muggle
   settings', 'configure muggle', 'muggle setup'.
 ---
 
-# Muggle Preferences
+# Muggle Test Preferences
 
 Pick the operation, then read its op file for the procedure.
 
@@ -23,7 +23,7 @@ Pick the operation, then read its op file for the procedure.
 
 ## Shared context (all ops)
 
-- **Current values**: session-context line `Muggle Preferences key=value …`. Default `ask`.
+- **Current values**: session-context line `Muggle Test Preferences key=value …`. Default `ask`.
 - **Per-key files**: `preference-gates/<key>.md`. Key list = `ls preference-gates/*.md` minus `README.md`.
 - **Allowed values**: `always`/`never`/`ask` (or `local`/`remote`/`ask` for `defaultExecutionMode`).
 - **Scope**: `global` default; `project` if user says "for this project" / "just this repo" (pass `cwd`).

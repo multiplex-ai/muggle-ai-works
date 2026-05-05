@@ -1,9 +1,9 @@
 ---
 name: muggle-status
-description: Check health of the Muggle AI installation. Use when user types muggle status, asks for Muggle health, MCP health, or auth validity.
+description: Check health of the Muggle AI installation. Use when user types muggle status, asks for Muggle Test health, MCP health, or auth validity.
 ---
 
-# Muggle Status
+# Muggle Test Status
 
 Run a full health check and report results.
 
@@ -13,7 +13,7 @@ Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
-| `checkForUpdates` | Check 4 | Check for newer Muggle version |
+| `checkForUpdates` | Check 4 | Check for newer Muggle Test version |
 
 ## Checks
 

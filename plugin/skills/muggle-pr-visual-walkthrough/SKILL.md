@@ -1,13 +1,13 @@
 ---
 name: muggle-pr-visual-walkthrough
-description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance test results to a PR — per-test-case dashboard links, step-by-step screenshots, and pass/fail summary — using the `muggle build-pr-section` CLI for deterministic formatting with automatic fit-vs-overflow. Use at the end of any Muggle test run (local or remote) to give PR reviewers clickable visual evidence that user flows work. Triggers on 'post results to PR', 'attach walkthrough to PR', 'share E2E screenshots on the PR', 'add visual walkthrough to PR'.
+description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance test results to a PR — per-test-case dashboard links, step-by-step screenshots, and pass/fail summary — using the `muggle build-pr-section` CLI for deterministic formatting with automatic fit-vs-overflow. Use at the end of any Muggle Test test run (local or remote) to give PR reviewers clickable visual evidence that user flows work. Triggers on 'post results to PR', 'attach walkthrough to PR', 'share E2E screenshots on the PR', 'add visual walkthrough to PR'.
 ---
 
-# Muggle PR Visual Walkthrough
+# Muggle Test PR Visual Walkthrough
 
 Renders a visual walkthrough of Muggle AI E2E acceptance test results and posts it to a PR. Each test case is linked to its detail page on the Muggle AI dashboard, so PR reviewers can click through to see step-by-step screenshots and action scripts — not just a pass/fail flag.
 
-This is the **canonical PR-walkthrough workflow** shared across every Muggle entry point:
+This is the **canonical PR-walkthrough workflow** shared across every Muggle Test entry point:
 
 | Caller | Mode | When to invoke |
 | :--- | :--- | :--- |

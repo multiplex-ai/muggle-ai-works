@@ -17,7 +17,7 @@ Start the turn with:
 You receive:
 
 - The user's task description (from `$ARGUMENTS`).
-- The list of configured repos (names + paths) from the Muggle config.
+- The list of configured repos (names + paths) from the Muggle Test config.
 - Any session directory that already exists (resumption case).
 
 ## Silent detection (do this first — no user prompts)
@@ -28,9 +28,9 @@ Before asking anything, gather every fact you can resolve without the user:
 2. **Current branch and default branch** for each candidate repo. Run `git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short` and `git -C <repo> branch --show-current`. If the current branch is the default, the pre-flight must collect a new branch name.
 3. **Running dev server.** Scan common dev ports — `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'` — and hit `/` with `curl -s -o /dev/null -w "%{http_code}"` to confirm 2xx.
 4. **Running backend.** If the repo's `.env.local` (or equivalent) declares a backend URL (e.g. `REACT_APP_BACKEND_BASE_URL=http://localhost:5050`), probe the health endpoint; note up/down.
-5. **Muggle MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
-6. **Candidate Muggle projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
-7. **Existing test-user secrets.** For each candidate Muggle project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.
+5. **Muggle Test MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
+6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
+7. **Existing test-user secrets.** For each candidate Muggle Test project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.
 8. **Auth0 tenant in use for local dev.** Grep the repo's env file for `*AUTH0_DOMAIN*`; record the tenant. This tells the user whether the staging-tenant test user will work or not.
 
 ## The consolidated questionnaire
@@ -41,16 +41,16 @@ Present **one `AskQuestion`** (or the platform's structured-selection equivalent
 2. **Repo(s) to modify** — pre-selected with the best silent match. "Confirm <repo>" / "Change repo" / "Multi-repo (list them)".
 3. **Branch name** — default: `users/<user>/<slug>` derived from the task. "Use default" / "Use different name (type)".
 4. **Validation strategy** — the single most important question. Options:
-   - **Local E2E** (Muggle Electron against a running localhost) — default if a dev server was detected.
+   - **Local E2E** (Muggle Test Electron against a running localhost) — default if a dev server was detected.
    - **Staging replay** — for changes already deployed to a preview URL.
    - **Unit tests only** — skip E2E, acceptable for pure refactors or backend-only changes.
    - **Skip validation** — explicit opt-out; the PR title gets `[UNVERIFIED]`.
 5. **Local URL** — only if validation is Local E2E. Default: the detected port. "Confirm `<detected>`" / "Type a different URL".
 6. **Backend reachable?** — only if validation is Local E2E and a backend URL is declared. If the health probe failed, ask "Start the backend now and I'll re-probe" / "Proceed anyway" / "Skip to unit tests only".
-7. **Muggle project** — pre-selected with the best silent match. "Use <top match>" / "Use a different existing project (list)" / "Create new".
+7. **Muggle Test project** — pre-selected with the best silent match. "Use <top match>" / "Use a different existing project (list)" / "Create new".
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
-10. **Re-auth Muggle MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
+10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 
@@ -73,7 +73,7 @@ After the user answers, write **`state.md`** with every resolved value, verbatim
 - Validation: <strategy>
 - Local URL: <url or N/A>
 - Backend status: <up | down | N/A>
-- Muggle project: <name> (<uuid>)
+- Muggle Test project: <name> (<uuid>)
 - Test credentials: <existing | new | skip>
 - PR target: <branch>
 - Auth status: <ok | re-authed | N/A>

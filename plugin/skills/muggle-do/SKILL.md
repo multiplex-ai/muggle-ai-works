@@ -4,9 +4,9 @@ description: Unified Muggle AI workflow entry point. Use when user types muggle 
 disable-model-invocation: true
 ---
 
-# Muggle Do
+# Muggle Test Do
 
-Muggle Do runs a battle-tested autonomous dev cycle: **pre-flight → requirements → impact analysis → validate code → unit tests → E2E acceptance → open PR**.
+Muggle Test Do runs a battle-tested autonomous dev cycle: **pre-flight → requirements → impact analysis → validate code → unit tests → E2E acceptance → open PR**.
 
 The design goal is **fire and review**: the user answers one consolidated pre-flight questionnaire, then walks away. Every subsequent stage runs unattended until completion or a genuine blocker.
 
@@ -39,7 +39,7 @@ Treat `$ARGUMENTS` as the user command:
 
 ## Front-loading (stage 1 non-negotiable)
 
-All ambiguity — task scope, repo selection, validation strategy, localhost URL, backend health, Muggle project, test-user credentials, branch name, PR target — is resolved in a **single** pre-flight turn. See `pre-flight.md` for the exact questionnaire.
+All ambiguity — task scope, repo selection, validation strategy, localhost URL, backend health, Muggle Test project, test-user credentials, branch name, PR target — is resolved in a **single** pre-flight turn. See `pre-flight.md` for the exact questionnaire.
 
 **Red-flag behaviors (do not do):**
 

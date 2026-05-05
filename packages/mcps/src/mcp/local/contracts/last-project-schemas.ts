@@ -18,9 +18,9 @@ export const LastProjectSetInputSchema = z.object({
   cwd: z
     .string()
     .describe("Project root directory to save the cached project to."),
-  projectId: z.string().min(1).describe("Muggle project ID."),
-  projectUrl: z.string().min(1).describe("Muggle project URL."),
-  projectName: z.string().min(1).describe("Muggle project name."),
+  projectId: z.string().min(1).describe("Muggle Test project ID."),
+  projectUrl: z.string().min(1).describe("Muggle Test project URL."),
+  projectName: z.string().min(1).describe("Muggle Test project name."),
 });
 
 export type LastProjectSetInput = z.infer<typeof LastProjectSetInputSchema>;

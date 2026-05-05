@@ -17,7 +17,7 @@ export interface IMuggleConfigChecksums {
 }
 
 /**
- * Muggle config from package.json.
+ * Muggle Test config from package.json.
  */
 export interface IMuggleConfig {
   /** Electron app version. */

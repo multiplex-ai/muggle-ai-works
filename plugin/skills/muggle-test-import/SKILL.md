@@ -4,11 +4,11 @@ description: >
   Bring existing tests and test artifacts INTO Muggle Test — from Playwright, Cypress, PRDs,
   Gherkin feature files, test plan docs, Notion exports, or any source.
   TRIGGER when: user wants to import/migrate/load/upload/add/convert existing test files or
-  test docs into Muggle — e.g. "import my playwright tests", "migrate from cypress to muggle",
+  test docs into Muggle Test — e.g. "import my playwright tests", "migrate from cypress to muggle",
   "upload my PRD to muggle", "add my e2e specs to our muggle project", "load these test cases
   into muggle", "turn this feature file into muggle test cases", "create muggle test cases from
   my PRD", "track my specs in muggle", or any .spec.ts/.cy.js/.feature/.md file + muggle.
-  DO NOT TRIGGER when: user wants to run/replay Muggle scripts, scan a site, generate new
+  DO NOT TRIGGER when: user wants to run/replay Muggle Test scripts, scan a site, generate new
   tests from scratch, or check existing test results.
 ---
 
@@ -16,7 +16,7 @@ description: >
 
 This skill migrates existing test artifacts into Muggle Test. It reads your source files,
 structures them into use cases and test cases, gets your approval, then creates everything
-in a Muggle project via the API.
+in a Muggle Test project via the API.
 
 ## Preferences
 
@@ -25,7 +25,7 @@ Gates run per `preference-gates/README.md`.
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
 | `autoLogin` | 4 | Reuse saved credentials when auth is required |
-| `autoSelectProject` | 5 | Reuse last-used Muggle project for this repo |
+| `autoSelectProject` | 5 | Reuse last-used Muggle Test project for this repo |
 | `suggestRelatedUseCases` | 8a | Suggest related use cases after import |
 | `suggestRelatedTestCases` | 8b | Suggest related test cases after import |
 
@@ -61,7 +61,7 @@ The extraction strategy depends on the file type. Choose the right path before r
 
 ### Path A — PRD / design documents (preferred for document sources)
 
-Muggle has a native PRD processing workflow that extracts use cases more accurately than
+Muggle Test has a native PRD processing workflow that extracts use cases more accurately than
 manual parsing. Use this path for `.md`, `.txt`, `.pdf`, or any prose document.
 
 After authentication and project selection (Steps 4–5), come back and:
@@ -131,7 +131,7 @@ Use `AskQuestion` to confirm:
 
 If the user wants changes, incorporate feedback, then ask again. Only proceed after explicit approval.
 
-> For Path A (native PRD upload): present the use case/test case list that Muggle extracted
+> For Path A (native PRD upload): present the use case/test case list that Muggle Test extracted
 > after the processing workflow completes, and ask the user to confirm before adding any
 > extra test cases manually.
 
@@ -157,9 +157,9 @@ If **not authenticated**:
 
 A **project** is where all your imported use cases, test cases, and future test results are grouped on the Muggle AI dashboard.
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to Step 6. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -184,12 +184,12 @@ Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last
 
 Import in two passes using bulk-preview. Show progress to the user as you go.
 
-Both passes use Muggle's async bulk-preview MCP tools, which route prompts through OpenAI's
+Both passes use Muggle Test's async bulk-preview MCP tools, which route prompts through OpenAI's
 Batch API for roughly ~50% of normal LLM cost. The flow is always: **submit → poll → persist**.
 
 ### Path A — Native PRD upload (for document files)
 
-If the source is a PRD or design document, use Muggle's built-in processing pipeline:
+If the source is a PRD or design document, use Muggle Test's built-in processing pipeline:
 
 1. Read the file and base64-encode its content:
    ```bash
@@ -365,7 +365,7 @@ When all imports are done, print a clean summary. Include:
 - A link to the project overview
 - If any items failed during preview (partial status), list them so the user can retry
 
-Construct view URLs using the Muggle dashboard URL pattern:
+Construct view URLs using the Muggle Test dashboard URL pattern:
 - Project test cases: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/testcases`
 - Use case within project: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/testcases?useCaseId=<useCaseId>`
 
@@ -424,5 +424,5 @@ When running the query, for each use case in the import:
 1. Call `muggle-remote-test-case-list-by-use-case` with that `useCaseId`.
 2. Filter out any test case you just created in Pass 2 of Step 6.
 3. Present the remainder via `AskQuestion` with `allow_multiple: true`, labeled `[<priority>] <title> — <goal>`.
-4. For any the user selects: nothing to create (they already exist) — just confirm to the user that those tests are now part of their Muggle project alongside the imported ones.
+4. For any the user selects: nothing to create (they already exist) — just confirm to the user that those tests are now part of their Muggle Test project alongside the imported ones.
 5. If a use case has no extra test cases, skip it silently.

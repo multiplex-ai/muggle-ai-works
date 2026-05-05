@@ -5,7 +5,7 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 # Muggle Test Feature Local
 
-**Goal:** Run or generate an end-to-end test against a **local URL** using Muggle's Electron browser.
+**Goal:** Run or generate an end-to-end test against a **local URL** using Muggle Test's Electron browser.
 
 | Scope | MCP tools |
 | :---- | :-------- |
@@ -29,9 +29,10 @@ Gates run per `preference-gates/README.md`.
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
-| `autoSelectProject` | 2 | Reuse last-used Muggle project for this repo |
+| `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
+| `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
-| `openTestResultsAfterRun` | 8 | Open results page on Muggle dashboard after run |
+| `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
 
 ## Workflow
@@ -46,9 +47,9 @@ Gates run per `preference-gates/README.md`.
 
 ### 2. Targets (user must confirm)
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
-Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Last Project` session line.
+Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to use case selection. No cache → fall through to `ask`.
 - `never` → full project list; skip Picker 2.
 - `ask` → project list picker (see gate file for spec + Picker 2 override). Skip Picker 2 if "Create new project".
@@ -94,13 +95,14 @@ Before detecting the local URL, verify that the services the user needs are actu
 
 This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
 
-### 4. Local URL
+### 4. Local URL (gated by `autoSelectLocalHost`)
 
-Try to auto-detect the dev server URL by checking running terminals or common ports (e.g., `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`). If a likely URL is found, present it as a clickable default via `AskQuestion`:
-- Option 1: "http://localhost:3000" (or whatever was detected)
-- Option 2: "Other — let me type a URL"
+Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):
+- **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
+- **Auto-detect a suggested URL**: `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`. Pass as `{suggestedHost}`.
+- **Save the cache**: call `muggle-local-last-host-set` after the user picks (the gate file requires this on every pick).
 
-If nothing detected, ask as free text: "Your local app should be running. What's the URL? (e.g., http://localhost:3000)"
+Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/autoSelectLocalHost.md`.
 
 Remind them: local URL is only the execution target, not tied to cloud project config.
 

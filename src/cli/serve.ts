@@ -3,6 +3,7 @@
  */
 
 import { getConfig, getLocalQaTools, getLogger, getQaTools } from "../../packages/mcps/src/index.js";
+import { initTelemetry, track } from "../../packages/mcps/src/_telemetry/index.js";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 
 const logger = getLogger();
@@ -36,6 +37,16 @@ export async function serveCommand (options: IServeOptions): Promise<void> {
     enableLocal: enableLocal,
     transport: "stdio",
   });
+
+  // Init client telemetry before any tool dispatch — no-op if not configured.
+  try {
+    initTelemetry({ serviceName: "muggle-mcp", surface: "mcp-local" });
+    track({ name: "system.startup", props: { serviceName: "muggle-mcp" } });
+  } catch (err) {
+    logger.warn("Telemetry init skipped", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   try {
     // Register tools based on options

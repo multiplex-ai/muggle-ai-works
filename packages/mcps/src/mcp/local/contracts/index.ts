@@ -8,3 +8,4 @@ export * from "./session-schemas.js";
 export * from "./preferences-schemas.js";
 export * from "./last-project-schemas.js";
 export * from "./last-host-schemas.js";
+export * from "./telemetry-schemas.js";

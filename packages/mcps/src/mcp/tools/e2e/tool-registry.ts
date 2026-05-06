@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getConfig } from "../../../shared/config.js";
 import { createChildLogger } from "../../../shared/logger.js";
+import { track } from "../../../_telemetry/index.js";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
 import * as schemas from "../../e2e/contracts/index.js";
@@ -1600,6 +1601,14 @@ export async function executeQaTool(
     };
   }
 
+  const startTime = Date.now();
+  safeTrack({
+    name: "mcp.tool.invoked",
+    props: { toolName: toolName, toolSurface: "remote", correlationId: correlationId },
+  });
+
+  let outcome: "success" | "error" = "success";
+  let errorCode: string | undefined;
   try {
     // Validate input
     const validatedInput = tool.inputSchema.parse(input);
@@ -1643,7 +1652,9 @@ export async function executeQaTool(
       throw error;
     }
   } catch (error) {
+    outcome = "error";
     if (error instanceof GatewayError) {
+      errorCode = error.code;
       logger.warn("Tool call failed with gateway error", {
         tool: toolName,
         code: error.code,
@@ -1655,11 +1666,33 @@ export async function executeQaTool(
       };
     }
 
+    errorCode = error instanceof Error ? error.name : "UnknownError";
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Tool call failed", { tool: toolName, error: errorMessage });
     return {
       content: JSON.stringify({ error: "INTERNAL_ERROR", message: errorMessage }),
       isError: true,
     };
+  } finally {
+    safeTrack({
+      name: "mcp.tool.completed",
+      props: {
+        toolName: toolName,
+        toolSurface: "remote",
+        correlationId: correlationId,
+        durationMs: Date.now() - startTime,
+        outcome: outcome,
+        ...(errorCode !== undefined ? { errorCode: errorCode } : {}),
+      },
+    });
+  }
+}
+
+// Defensive wrapper — telemetry must never propagate exceptions to the host.
+function safeTrack(event: Parameters<typeof track>[0]): void {
+  try {
+    track(event);
+  } catch {
+    // intentionally swallowed
   }
 }

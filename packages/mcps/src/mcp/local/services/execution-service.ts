@@ -478,13 +478,14 @@ async function executeElectronAppAsync(params: {
   runType: "generation" | "replay";
   scriptFilePath: string;
   authFilePath: string;
+  mutationsFilePath?: string;
   timeoutMs: number;
   showUi?: boolean;
   freshSession?: boolean;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
   const electronAppPath = getElectronAppPathOrThrow();
-  const spawnArgs = [mode, params.scriptFilePath, "", params.authFilePath];
+  const spawnArgs = [mode, params.scriptFilePath, params.mutationsFilePath ?? "", params.authFilePath];
 
   if (params.showUi) {
     spawnArgs.push("--show-ui");
@@ -813,6 +814,7 @@ export async function executeReplay(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
   localUrl: string;
+  mutations?: string[];
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
@@ -866,12 +868,20 @@ export async function executeReplay(params: {
       filename: `${runId}_auth.json`,
       data: authContent,
     });
+    const mutationsFilePath =
+      params.mutations && params.mutations.length > 0
+        ? await writeTempFile({
+            filename: `${runId}_mutations.json`,
+            data: params.mutations,
+          })
+        : undefined;
 
     try {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "replay",
         scriptFilePath: inputFilePath,
+        mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
         showUi: params.showUi,

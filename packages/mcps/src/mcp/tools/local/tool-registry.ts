@@ -384,6 +384,7 @@ const executeReplayTool: ILocalMcpTool = {
         testScript: input.testScript,
         actionScript: input.actionScript,
         localUrl: input.localUrl,
+        mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
         freshSession: input.freshSession,

@@ -11,7 +11,7 @@ Runs a browser automation task described in plain English. Finds or creates the 
 
 From `$ARGUMENTS`, extract:
 
-- **`domain`** — the target website domain (e.g., `x.com`, `amazon.com`, `localhost:3000`). Normalize: strip `www.`, strip `https://`, lowercase.
+- **`domain`** — the target website domain (e.g., `x.com`, `amazon.com`, `localhost:3000`). Normalize: strip `www.`, strip `https://`, lowercase. The result should be a bare domain like `x.com` or `localhost:3000` — no scheme, no trailing slash.
 - **`useCaseName`** — the core action being performed, stripped of variable content (e.g., `"Publish a post"`, `"Add to cart"`, `"Submit a form"`).
 - **`mutations`** — the variable parameters as a `string[]`. Each mutation is a plain-English instruction describing what changes this run (e.g., `["The post content should be 'Hello world'"]`, `["The item to add is 'mechanical keyboard'"]`).
 
@@ -43,13 +43,13 @@ If multiple candidates, pick the closest. If a match is found, tell the user whi
 - `projectId`: from Step 2
 - `instructions`: `["<original prompt>"]`
 
-This returns the created use case(s). Use the first result.
+This returns the created use case(s). Use the first result. If the result is empty or the call fails, stop and tell the user: "Could not create use case — try rephrasing the task description."
 
 Tell the user: `Created use case: <title>`.
 
 ## Step 4 — Find or create Test Case
 
-Load and call `muggle-remote-test-case-list-by-use-case` with `useCaseId`. Take the first active test case.
+Load and call `muggle-remote-test-case-list-by-use-case` with `useCaseId`. Filter for test cases where `status` equals `ACTIVE`. If none are active, create a new one.
 
 **If not found:** call `muggle-remote-test-case-create` with:
 - `projectId`: from Step 2
@@ -68,7 +68,7 @@ Load and call `muggle-remote-test-script-list` with:
 - `projectId`: from Step 2
 - `testCaseId`: from Step 4
 
-Take the first script with an active/published status.
+Filter for scripts where `status` equals `ACTIVE` or `PUBLISHED`. If all returned scripts have a different status (e.g., `DRAFT`, `GENERATION_PENDING`, `FAILED`), treat this as "no active script found" and proceed to generation.
 
 **If no active script found:**
 1. Load and call `muggle-remote-workflow-start-test-script-generation` with:
@@ -90,29 +90,35 @@ Do not proceed further.
 
 ## Step 6 — Fetch Action Script
 
-1. Load and call `muggle-remote-test-script-get` with `testScriptId` from Step 5. Extract `actionScriptId` from the response.
+1. Load and call `muggle-remote-test-script-get` with `testScriptId` from Step 5. Extract `actionScriptId` from the response. If `actionScriptId` is missing or null, stop and tell the user: "The script record is incomplete — it may still be generating. Try again in a moment."
 2. Load and call `muggle-remote-action-script-get` with `actionScriptId`. This returns the full `ActionScript` JSON object (with `goal`, `url`, `steps`, etc.) that the electron app reads from disk.
+
+Tell the user: `Preparing script file...`
 
 ## Step 7 — Write temp files
 
 Use PowerShell (via Bash tool) to write both files:
 
 ```powershell
-# Create temp directory (idempotent)
 New-Item -ItemType Directory -Force -Path "$env:TEMP\muggle-do" | Out-Null
 
-# Write ActionScript JSON (full object from Step 6, serialized)
-'<ActionScript JSON>' | Out-File -FilePath "$env:TEMP\muggle-do\script-<testCaseId>.json" -Encoding utf8NoBOM
+$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$scriptPath = "$env:TEMP\muggle-do\script-<testCaseId>.json"
+$mutationsPath = "$env:TEMP\muggle-do\mutations-$timestamp.json"
 
-# Write mutations JSON array
-'["mutation 1", "mutation 2"]' | Out-File -FilePath "$env:TEMP\muggle-do\mutations-<timestamp>.json" -Encoding utf8NoBOM
+$actionScriptJson = '<ActionScript object from Step 6, serialized via ConvertTo-Json -Depth 20>'
+$actionScriptJson | Out-File -FilePath $scriptPath -Encoding utf8NoBOM
+
+$mutationsJson = '<mutations[] from Step 1, serialized via ConvertTo-Json>'
+$mutationsJson | Out-File -FilePath $mutationsPath -Encoding utf8NoBOM
 ```
 
 Substitute real values:
 - `<testCaseId>`: test case ID from Step 4 (stable — same file reused for the same use case)
-- `<timestamp>`: `[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()` (unique per run)
 - ActionScript JSON: the full object from Step 6, serialized as JSON
 - Mutations JSON: the `mutations[]` array from Step 1, serialized as JSON array of strings
+
+Use PowerShell `ConvertTo-Json` to serialize objects to JSON strings before assigning to variables. Do not embed raw JSON with curly braces directly in single-quoted strings.
 
 ## Step 8 — Locate electron app
 
@@ -135,14 +141,15 @@ $exePath
 If the output is empty or the path doesn't exist, stop and tell the user:
 > Muggle Test electron app not found. Install it from the Muggle Test dashboard, or set `ELECTRON_APP_PATH` to its full path.
 
+Capture the last line of output — that is `<exePath>`. Use it in Step 9.
+
 ## Step 9 — Launch
 
 ```powershell
-& "<exePath>" engine `
-  "$env:TEMP\muggle-do\script-<testCaseId>.json" `
-  "$env:TEMP\muggle-do\mutations-<timestamp>.json" `
-  "$env:USERPROFILE\.muggle-ai\oauth-session.json"
+& "<exePath>" engine $scriptPath $mutationsPath "$env:USERPROFILE\.muggle-ai\oauth-session.json"
 ```
+
+Always double-quote `<exePath>` when substituting — paths containing spaces (e.g., a username with a space) will silently fail without quotes.
 
 Tell the user:
 > Running **[useCaseName]** on [domain]. Watch the Muggle Test window — it will execute the task using your mutation parameters.

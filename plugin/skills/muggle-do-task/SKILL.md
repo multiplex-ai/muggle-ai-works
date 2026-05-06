@@ -43,7 +43,7 @@ If multiple candidates, pick the closest. If a match is found, tell the user whi
 - `projectId`: from Step 2
 - `instructions`: `["<original prompt>"]`
 
-This returns the created use case(s). Use the first result. If the result is empty or the call fails, stop and tell the user: "Could not create use case — try rephrasing the task description."
+This returns the created use case(s). Use the first result. Capture its `id` field as `useCaseId` to carry forward into Steps 4 and 5. If the result is empty or the call fails, stop and tell the user: "Could not create use case — try rephrasing the task description."
 
 Tell the user: `Created use case: <title>`.
 
@@ -102,9 +102,8 @@ Use PowerShell (via Bash tool) to write both files:
 ```powershell
 New-Item -ItemType Directory -Force -Path "$env:TEMP\muggle-do" | Out-Null
 
-$timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $scriptPath = "$env:TEMP\muggle-do\script-<testCaseId>.json"
-$mutationsPath = "$env:TEMP\muggle-do\mutations-$timestamp.json"
+$mutationsPath = "$env:TEMP\muggle-do\mutations-<testCaseId>.json"
 
 $actionScriptJson = '<ActionScript object from Step 6, serialized via ConvertTo-Json -Depth 20>'
 $actionScriptJson | Out-File -FilePath $scriptPath -Encoding utf8NoBOM
@@ -146,10 +145,13 @@ Capture the last line of output — that is `<exePath>`. Use it in Step 9.
 ## Step 9 — Launch
 
 ```powershell
-& "<exePath>" engine $scriptPath $mutationsPath "$env:USERPROFILE\.muggle-ai\oauth-session.json"
+& "<exePath>" engine `
+  "$env:TEMP\muggle-do\script-<testCaseId>.json" `
+  "$env:TEMP\muggle-do\mutations-<testCaseId>.json" `
+  "$env:USERPROFILE\.muggle-ai\oauth-session.json"
 ```
 
-Always double-quote `<exePath>` when substituting — paths containing spaces (e.g., a username with a space) will silently fail without quotes.
+Always double-quote `<exePath>` when substituting — paths containing spaces (e.g., a username with a space) will silently fail without quotes. Substitute `<testCaseId>` with the actual test case ID from Step 4 in both paths.
 
 Tell the user:
 > Running **[useCaseName]** on [domain]. Watch the Muggle Test window — it will execute the task using your mutation parameters.

@@ -24,6 +24,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup telemetry deploy key
+        # Grants the build read-only SSH access to multiplex-ai/muggle-ai-telemetry
+        # so scripts/fetch-telemetry.mjs can clone the private source. If the
+        # secret is missing, the script falls back to a no-op stub.
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
+
       - name: Run lint
         run: pnpm run lint:check
 
@@ -81,6 +90,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup telemetry deploy key
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' && runner.os != 'Windows' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
+
       - name: Run tests
         run: pnpm test
 
@@ -108,6 +123,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup telemetry deploy key
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' && runner.os != 'Windows' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
+
       - name: Run tests
         run: pnpm test
 
@@ -131,6 +152,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Setup telemetry deploy key
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
 
       - name: Build
         run: pnpm run build

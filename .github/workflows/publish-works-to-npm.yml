@@ -65,6 +65,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Setup telemetry deploy key
+        # Required to bundle private @multiplex-ai/telemetry source into dist.
+        # Missing secret falls through to a no-op stub via fetch-telemetry.mjs.
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
+
       - name: Run lint
         run: pnpm run lint:check
 
@@ -97,6 +105,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Setup telemetry deploy key
+        if: ${{ secrets.TELEMETRY_REPO_KEY != '' }}
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.TELEMETRY_REPO_KEY }}
 
       - name: Build
         env:

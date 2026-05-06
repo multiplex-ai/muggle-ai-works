@@ -57,10 +57,7 @@ For each repo with changes:
 7. **Post the overflow `comment` only if it is non-null.** In the common case, `comment` is `null` and nothing is posted. Never post speculatively.
 
    ```bash
-   gh pr comment <PR#> --body "$(cat <<'EOF'
-   <comment field contents>
-   EOF
-   )"
+   jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <PR#> --body-file -
    ```
 
 ## Rendering the E2E acceptance block via the shared skill

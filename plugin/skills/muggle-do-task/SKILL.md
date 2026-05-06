@@ -13,7 +13,11 @@ From `$ARGUMENTS`, extract:
 
 - **`domain`** — the target website domain (e.g., `x.com`, `amazon.com`, `localhost:3000`). Normalize: strip `www.`, strip `https://`, lowercase. Result: bare domain with no scheme, no trailing slash.
 - **`useCaseName`** — the core action being performed, stripped of variable content (e.g., `"Publish a post"`, `"Add to cart"`, `"Submit a form"`).
-- **`mutations`** — the variable parameters as a `string[]`. Each is a plain-English instruction describing what varies this run (e.g., `["The post content should be 'Hello world'"]`).
+- **`mutations`** — variable parameters as a `string[]` (JSON array of strings). Each string is either:
+  - A plain-English instruction describing what varies this run (e.g., `"The post content should be 'Hello world'"`)
+  - A local file path for uploads (e.g., `"Attach the image at C:\\Users\\stan4\\Pictures\\photo.jpg"`)
+  
+  Examples: `["The post content should be 'Hello world'"]`, `["Attach the image at C:\\Users\\stan4\\photo.jpg", "Caption should be 'My photo'"]`
 - **`localUrl`** — the full URL to test against (e.g., `https://x.com`, `http://localhost:3000`). For external sites, use `https://<domain>`. For local dev servers, use the port the user's app is running on.
 
 If the prompt is ambiguous and you cannot confidently extract these, ask one clarifying question before proceeding.

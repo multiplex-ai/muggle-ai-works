@@ -96,6 +96,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
+  /** Mutation parameters providing variable context for this generation run — a string[] where each element is a plain-English instruction or a local file path for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. */
+  mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -117,6 +119,8 @@ export const ExecuteReplayInputSchema = z.object({
   showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
+  /** Mutation parameters passed to the LLM step predictor — a string[] where each element is an instruction describing what varies this run. Supports plain-English instructions (e.g. "The post content should be 'Hello world'") and local file paths for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
+  mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

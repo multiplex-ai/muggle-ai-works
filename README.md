@@ -19,7 +19,7 @@ Your AI assistant writes code fast. But does the feature actually work? Does the
 
 muggle-ai-works closes the gap between "code complete" and "actually works."
 
-- **Catch UX regressions before your users do** — AI drives a real browser against your localhost across desktop and mobile resolutions, clicks through flows like a user would, and reports failures with step-by-step screenshots. No Playwright scripts to maintain.
+- **Catch UX regressions before your users do** — `/muggle:muggle-test` AI drives a real browser against your localhost across desktop and mobile resolutions, clicks through flows like a user would, and reports failures with step-by-step screenshots. No Playwright scripts to maintain.
 - **Go from requirement to merged PR in one command** — `/muggle:muggle-do` handles the full cycle: code the feature, run unit tests, run E2E acceptance tests against the app in a real browser at multiple viewports, triage failures, and open a PR with evidence attached.
 - **70+ MCP tools for custom workflows** — manage projects, generate test cases from plain English, replay test scripts, batch-run regressions, and publish results to your team. Works in Claude Code, Cursor, and any MCP client.
 
@@ -27,7 +27,7 @@ muggle-ai-works closes the gap between "code complete" and "actually works."
 
 ## Quick Start
 
-### 1. Install (choose your client)
+### 1. Install skills and mcps (choose your client)
 
 **Claude Code (full plugin experience)**
 

@@ -5,6 +5,8 @@ description: Run a browser automation task on a website using natural language. 
 
 # Muggle Test Task Runner
 
+> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-do-task"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+
 Runs a browser automation task described in plain English. Finds or creates the necessary Muggle Test entities automatically, then executes locally with mutation-driven step prediction.
 
 ## Step 1 — Parse the prompt

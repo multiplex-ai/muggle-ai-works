@@ -5,6 +5,8 @@ description: Diagnose and fix a broken Muggle AI installation. Use when user typ
 
 # Muggle Test Repair
 
+> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-repair"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+
 Automatically diagnose and fix broken components.
 
 ## Steps

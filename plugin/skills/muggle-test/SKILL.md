@@ -5,6 +5,8 @@ description: "Run change-driven E2E acceptance testing using Muggle AI — detec
 
 # Muggle Test — Change-Driven E2E Acceptance Router
 
+> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-test"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+
 A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, publishes results to the Muggle AI dashboard, and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
 
 ## UX Guidelines — Minimize Typing

@@ -5,6 +5,8 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 # Muggle Test Feature Local
 
+> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-test-feature-local"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+
 **Goal:** Run or generate an end-to-end test against a **local URL** using Muggle Test's Electron browser.
 
 | Scope | MCP tools |

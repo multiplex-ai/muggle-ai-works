@@ -69,6 +69,8 @@ Load and call `muggle-remote-test-script-list` with:
 - `projectId`: from Step 2
 - `testCaseId`: from Step 4
 
+Tell the user which mutations will be applied: `Mutations: <mutations[]>` (or "no mutations" if empty).
+
 Filter for scripts where `status` equals `ACTIVE` or `PUBLISHED`. If all returned scripts have another status (`DRAFT`, `GENERATION_PENDING`, `FAILED`), treat as "no active script" and proceed to Phase 1.
 
 ---
@@ -80,6 +82,7 @@ Filter for scripts where `status` equals `ACTIVE` or `PUBLISHED`. If all returne
 2. Load and call `muggle-local-execute-test-generation` with:
    - `testCase`: the full object from step 1 above
    - `localUrl`: from Step 1
+   - `mutations`: the `mutations[]` array from Step 1 (omit if empty)
 
 3. Tell the user:
 > Script generation is running in the Muggle Test window. Once complete, run `/muggle-do "<original prompt>"` again to execute the task.

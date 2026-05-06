@@ -618,6 +618,7 @@ async function executeElectronAppAsync(params: {
 export async function executeTestGeneration(params: {
   testCase: TestCaseDetails;
   localUrl: string;
+  mutations?: string[];
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
@@ -679,12 +680,20 @@ export async function executeTestGeneration(params: {
       filename: `${runId}_auth.json`,
       data: authContent,
     });
+    const mutationsFilePath =
+      params.mutations && params.mutations.length > 0
+        ? await writeTempFile({
+            filename: `${runId}_mutations.json`,
+            data: params.mutations,
+          })
+        : undefined;
 
     try {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "generation",
         scriptFilePath: inputFilePath,
+        mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
         showUi: params.showUi,

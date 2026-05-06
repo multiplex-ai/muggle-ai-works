@@ -338,6 +338,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
       const result = await executeTestGeneration({
         testCase: input.testCase,
         localUrl: input.localUrl,
+        mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
         freshSession: input.freshSession,

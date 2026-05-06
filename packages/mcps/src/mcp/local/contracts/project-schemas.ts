@@ -96,6 +96,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
+  /** Mutation instructions providing variable context for this generation run. Each string is a plain-English instruction (e.g. "The post content should be 'Hello world'"). Matches the electron-app's string[] mutation format. */
+  mutations: z.array(z.string()).optional().describe("Plain-English mutation instructions providing variable context for this generation run (e.g. [\"The post content should be 'Hello world'\"])."),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -117,7 +119,7 @@ export const ExecuteReplayInputSchema = z.object({
   showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
-  /** Mutation instructions passed to the LLM step predictor at runtime. Each string is a plain-English instruction describing what varies this run (e.g. "The post content should be 'Hello world'"). When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
+  /** Mutation instructions for the LLM step predictor. Each string is a plain-English instruction describing what varies this run (e.g. "The post content should be 'Hello world'"). Matches the electron-app's string[] mutation format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
   mutations: z.array(z.string()).optional().describe("Plain-English mutation instructions for the LLM step predictor (e.g. [\"The post content should be 'Hello world'\"])."),
 });
 

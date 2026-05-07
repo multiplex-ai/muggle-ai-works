@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getConfig } from "../../../shared/config.js";
 import { createChildLogger } from "../../../shared/logger.js";
-import { track } from "../../../_telemetry/index.js";
+import { track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
 import * as schemas from "../../e2e/contracts/index.js";

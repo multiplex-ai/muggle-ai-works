@@ -20,6 +20,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@muggleai/telemetry": "0.2.0",
     "vitest": "*",
     "typescript": "*"
   }

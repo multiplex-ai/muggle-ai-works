@@ -3,7 +3,7 @@
  */
 
 import { getConfig, getLocalQaTools, getLogger, getQaTools } from "../../packages/mcps/src/index.js";
-import { initTelemetry, track } from "../../packages/mcps/src/_telemetry/index.js";
+import { initTelemetry, track } from "@muggleai/telemetry";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 
 const logger = getLogger();

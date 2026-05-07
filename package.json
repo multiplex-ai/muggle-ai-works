@@ -16,9 +16,7 @@
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "fetch:telemetry": "node scripts/fetch-telemetry.mjs",
-        "verify:telemetry-bundle": "node scripts/verify-telemetry-bundle.mjs",
-        "build": "node scripts/fetch-telemetry.mjs && tsup && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs && node scripts/verify-telemetry-bundle.mjs",
+        "build": "tsup && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
         "sync:versions": "node scripts/sync-versions.mjs",
         "build:release": "npm run build",
@@ -68,6 +66,7 @@
         "zod": "^4.3.6"
     },
     "devDependencies": {
+        "@muggleai/telemetry": "0.2.0",
         "@eslint/js": "^10.0.1",
         "@types/node": "^25.5.2",
         "@types/uuid": "^11.0.0",

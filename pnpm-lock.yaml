@@ -45,6 +45,9 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.2.1)
+      '@muggleai/telemetry':
+        specifier: 0.2.0
+        version: 0.2.0
       '@types/node':
         specifier: ^25.5.2
         version: 25.6.0
@@ -86,6 +89,9 @@ importers:
 
   packages/mcps:
     devDependencies:
+      '@muggleai/telemetry':
+        specifier: 0.2.0
+        version: 0.2.0
       typescript:
         specifier: '*'
         version: 6.0.3
@@ -445,6 +451,10 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@muggleai/telemetry@0.2.0':
+    resolution: {integrity: sha512-DCBCZNAP3MxpuTPN7e9IHURwJN6MDSPMqS9UKHLiBOC/gsUwc/7UOpjrW+REKowN47SV8ge0bVV+zrOqfrzmug==}
+    engines: {node: '>=20'}
 
   '@napi-rs/wasm-runtime@1.1.4':
     resolution: {integrity: sha512-3NQNNgA1YSlJb/kMH1ildASP9HW7/7kYnRI2szWJaofaS1hWmbGI4H+d3+22aGzXXN9IJ+n+GiFVcGipJP18ow==}
@@ -2927,6 +2937,12 @@ snapshots:
       raw-body: 3.0.2
       zod: 4.4.1
       zod-to-json-schema: 3.25.2(zod@4.4.1)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@muggleai/telemetry@0.2.0':
+    dependencies:
+      applicationinsights: 3.14.0
     transitivePeerDependencies:
       - supports-color
 

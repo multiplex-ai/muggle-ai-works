@@ -12,7 +12,7 @@ import * as path from "node:path";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
-import { track } from "../../../_telemetry/index.js";
+import { track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
   EmptyInputSchema,

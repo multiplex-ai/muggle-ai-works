@@ -177,7 +177,7 @@ After reporting results, gather the required input and hand off to the shared **
 
 #### 10a: Assemble the `E2eReport`
 
-Build the `E2eReport` JSON by following **Step 1 of `muggle-pr-visual-walkthrough`** — that skill is the single source of truth for assembly logic, including how to handle failed/unpublished runs.
+Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
 
 #### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 

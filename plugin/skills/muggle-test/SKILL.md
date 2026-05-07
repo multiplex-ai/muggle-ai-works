@@ -352,7 +352,7 @@ After reporting results, ask the user if they want to attach a **visual walkthro
 
 ### 9a: Assemble the `E2eReport`
 
-Build the `E2eReport` JSON by following **Step 1 of `muggle-pr-visual-walkthrough`** — that skill is the single source of truth for assembly logic, including how to handle failed/unpublished runs. All runs from Step 7A must be included (passed and failed).
+Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide. All runs from Step 7A must be included (passed and failed).
 
 ### 9b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 

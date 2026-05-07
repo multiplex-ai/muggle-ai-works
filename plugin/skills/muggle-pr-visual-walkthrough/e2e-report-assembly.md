@@ -1,44 +1,38 @@
 # E2eReport Assembly Guide
 
-This is the **single source of truth** for building the `E2eReport` JSON required by `muggle-pr-visual-walkthrough`. Load this file when assembling the report.
+Include **all** runs — passed and failed. Never drop a run.
 
-## From `muggle-test` / `muggle-test-feature-local` (local mode)
+## Published run (returned by `muggle-local-publish-test-script`)
 
-**Include ALL runs — passed and failed.** Never drop a run from the report. Reviewers need the full picture.
+Issue all `muggle-remote-test-script-get` calls in parallel — one per `testScriptId`:
 
-### For each published run (returned by `muggle-local-publish-test-script`)
+1. Build `steps[]`: `[{ stepIndex, action: steps[i].operation.action, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`
+2. `viewUrl` — from publish response.
+3. `status` — from `muggle-local-run-result-get`.
+4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
 
-Issue all `muggle-remote-test-script-get` calls in parallel — one per `testScriptId`. For each response:
+## Failed/unpublished run (timeout, `goal_not_achievable`, never published)
 
-1. Extract `steps[]`: build `[{ stepIndex: <index>, action: steps[i].operation.action, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`.
-2. Use the `viewUrl` returned by `muggle-local-publish-test-script`.
-3. Set `status` from the local run result (`muggle-local-run-result-get`).
-4. For a published-but-failed run, also capture `failureStepIndex`, `error`, and `artifactsDir` from the run result.
+1. `steps: []`
+2. `viewUrl`: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs`
+3. `status: "failed"`, `failureStepIndex: 0`, `error` from run result.
+4. `testCaseId` — from execution step selection. `runId` — from `muggle-local-execute-test-generation` (always present even on failure).
 
-### For each failed/unpublished run (timeout, `goal_not_achievable`, or any run never passed to `muggle-local-publish-test-script`)
+## Metadata (every entry)
 
-1. Set `steps: []` — no cloud screenshots available.
-2. Set `viewUrl` to the project runs page: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs`
-3. Set `status: "failed"`, `failureStepIndex: 0`, and `error` from the run result.
-4. `testCaseId` comes from the test case selected in the execution step. `runId` comes from the `runId` returned by `muggle-local-execute-test-generation` — it is always present even when the execution failed.
+- `description` — test case title/description. Prefer context; call `muggle-remote-test-case-get` only if missing.
+- `useCaseName` — parent use case title. Prefer context; call `muggle-remote-use-case-get` only if missing.
 
-### Populate metadata on every entry
-
-- `description` — the test case's title/description. Drives the collapsible header.
-- `useCaseName` — the parent use case title. When present on any entry, the overview groups by use case.
-
-Prefer values already in context; only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` for anything not already known.
-
-### Assembled E2eReport shape
+## Shape
 
 ```json
 {
   "projectId": "<projectId>",
   "tests": [
     {
-      "name": "<test case title>",
-      "description": "<one-line description (recommended)>",
-      "useCaseName": "<parent use case title (recommended)>",
+      "name": "<title>",
+      "description": "<one-line description>",
+      "useCaseName": "<use case title>",
       "testCaseId": "<testCaseId from execution step>",
       "testScriptId": "<testScriptId from publish>",
       "runId": "<runId from muggle-local-execute-test-generation>",
@@ -47,8 +41,8 @@ Prefer values already in context; only call `muggle-remote-test-case-get` / `mug
       "steps": [{ "stepIndex": 0, "action": "...", "screenshotUrl": "..." }]
     },
     {
-      "name": "<failed test case title>",
-      "description": "<description>",
+      "name": "<title>",
+      "description": "<one-line description>",
       "useCaseName": "<use case title>",
       "testCaseId": "<testCaseId from execution step>",
       "runId": "<runId from muggle-local-execute-test-generation>",
@@ -56,16 +50,12 @@ Prefer values already in context; only call `muggle-remote-test-case-get` / `mug
       "status": "failed",
       "steps": [],
       "failureStepIndex": 0,
-      "error": "<error message from run result>"
+      "error": "<error from run result>"
     }
   ]
 }
 ```
 
-## From `muggle-do` (`open-prs.md`)
+## From `muggle-do`
 
-The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape above — pass it through unchanged.
-
-## Direct invocation (user asked to post existing results)
-
-The caller must have already executed tests and published them. If the `E2eReport` is not in context, stop and tell the user to run `muggle-test` or `muggle-test-feature-local` first.
+`e2e-acceptance.md` already produces this shape — pass it through unchanged.

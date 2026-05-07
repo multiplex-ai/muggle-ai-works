@@ -78,28 +78,9 @@ Required fields per test: `name`, `testCaseId`, `runId`, `viewUrl`, `status`, `s
 
 If any required field is missing, stop and tell the caller exactly what's missing. Never fabricate data.
 
-## Step 1: Gather the `E2eReport`
+## Step 1: Assemble the `E2eReport`
 
-How to assemble the JSON depends on which caller you are:
-
-### From `muggle-test` / `muggle-test-feature-local` (local mode)
-
-After `muggle-local-publish-test-script` returns `{testScriptId, viewUrl, ...}` for each run:
-
-1. Call `muggle-remote-test-script-get` with `testScriptId` to fetch the published script.
-2. Extract `steps[]` — for each step, build `{stepIndex: <index>, action: operation.action, screenshotUrl: operation.screenshotUrl}`.
-3. Determine `status` from the local run result (`muggle-local-run-result-get`).
-4. For failures, read `failureStepIndex`, `error`, and `artifactsDir` from the run result.
-5. Assemble the `E2eReport` with `projectId` from the test run.
-6. Populate `description` (test case title/description) and `useCaseName` (parent use case title) on each report entry — optional but strongly recommended; they drive the grouped overview and the per-test collapsible headers. Prefer values already in your conversation context from earlier steps (e.g. a test case you just created or selected, or a use case you confirmed); only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` for anything you don't already have.
-
-### From `muggle-do` (`open-prs.md`)
-
-The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape above — that is the report's native output format. Pass it through unchanged.
-
-### Direct invocation (user asked to post existing results)
-
-The caller must have already executed tests and published them. If the `E2eReport` is not in context, stop and tell the user to run `muggle-test` or `muggle-test-feature-local` first.
+Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
 
 ## Step 2: Render via `muggle build-pr-section`
 

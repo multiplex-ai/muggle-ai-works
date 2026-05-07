@@ -175,38 +175,9 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 
 After reporting results, gather the required input and hand off to the shared **`muggle:muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
 
-#### 10a: Gather per-step screenshots
+#### 10a: Assemble the `E2eReport`
 
-The shared skill takes an **`E2eReport` JSON** that includes per-step screenshot URLs. After step 8 has called `muggle-local-publish-test-script` and you have the `testScriptId`:
-
-1. Call `muggle-remote-test-script-get` with the `testScriptId`.
-2. Extract per step: `steps[].operation.action` and `steps[].operation.screenshotUrl`.
-3. Build the `steps` array: `[{ stepIndex: 0, action: "...", screenshotUrl: "..." }, ...]`.
-4. If the run failed, capture `failureStepIndex`, `error`, and the local `artifactsDir` from the run result in step 9.
-5. Populate `description` (test case title/description) and `useCaseName` (parent use case title) on the report entry — optional but strongly recommended; they drive the grouped overview and the per-test collapsible headers. Prefer values already in your conversation context from earlier steps (e.g. the test case you just created or selected, or the use case you confirmed); only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` for anything you don't already have.
-
-Assemble the `E2eReport`:
-
-```json
-{
-  "projectId": "<projectId from step 2 (Targets)>",
-  "tests": [
-    {
-      "name": "<test case title>",
-      "description": "<one-line description of what this test verifies (optional but recommended)>",
-      "useCaseName": "<parent use case title (optional but recommended)>",
-      "testCaseId": "<id>",
-      "testScriptId": "<id from publish>",
-      "runId": "<runId from execute>",
-      "viewUrl": "<viewUrl from publish>",
-      "status": "passed",
-      "steps": [{ "stepIndex": 0, "action": "...", "screenshotUrl": "..." }]
-    }
-  ]
-}
-```
-
-See the `muggle:muggle-pr-visual-walkthrough` skill for the full schema including the failed-test shape.
+Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
 
 #### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
 

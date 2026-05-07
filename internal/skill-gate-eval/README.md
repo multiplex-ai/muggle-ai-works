@@ -1,0 +1,51 @@
+# Skill Gate Eval — Layer 2 (behavioral)
+
+Behavioral test harness for skill preference gates. Spawns a real agent
+session against a skill, with all Muggle MCP tools stubbed and
+`AskQuestion` intercepted, then asserts the recorded tool-call trace
+honors the gate contract for each preference value.
+
+See: `muggle-ai-brain/architecture/2026-05-07-skill-gate-eval-design.md`
+
+## Layout
+
+```
+internal/skill-gate-eval/
+  src/
+    harness.ts      # runs one scenario: spawns agent, captures trace, asserts
+    mock-mcp.ts     # in-process stub for the muggle MCP namespace
+    scenario.ts     # scenario file shape + loader
+    run.ts          # CLI entrypoint
+```
+
+Scenario data lives in `muggle-ai-brain/eval/skill-gate-eval/<gate>/`,
+not here. The harness reads scenarios from there and writes results
+back to the same place.
+
+## Running
+
+Layer 2 is run **manually** until the suite is stable. From the
+muggle-ai-works repo root:
+
+```bash
+ANTHROPIC_API_KEY=... \
+  MUGGLE_BRAIN_DIR=../muggle-ai-brain \
+  pnpm tsx internal/skill-gate-eval/src/run.ts \
+    --gate showElectronBrowser \
+    --skill muggle-test-feature-local \
+    --runs 10
+```
+
+The harness loads
+`$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/showElectronBrowser/scenarios.json`,
+runs each scenario `--runs` times, and writes results to
+`$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/showElectronBrowser/results.json`.
+
+A scenario passes if it succeeds on ≥ 99% of runs (per the design doc).
+
+## Why not vitest
+
+Layer 1 lives in `src/test/skills/` and runs via vitest on every
+commit. Layer 2 is multi-turn agent sessions — slow, costs API
+tokens, nondeterministic. Keeping it out of the vitest tree avoids
+accidental CI runs. Promote to CI only after the suite stabilizes.

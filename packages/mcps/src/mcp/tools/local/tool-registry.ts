@@ -12,6 +12,7 @@ import * as path from "node:path";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
+import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
   EmptyInputSchema,
@@ -31,6 +32,7 @@ import {
   LastHostGetInputSchema,
   LastHostSetInputSchema,
   LastHostClearInputSchema,
+  SkillTelemetryEmitInputSchema,
 } from "../../local/contracts/index.js";
 import { writePreferences } from "../../../shared/preferences.js";
 import {
@@ -799,6 +801,28 @@ const lastHostClearTool: ILocalMcpTool = {
 };
 
 // ========================================
+// Telemetry Tool
+// ========================================
+
+// Skills call this in their first step so we can count skill invocations.
+// Always returns ok — never blocks the skill on telemetry failure.
+const telemetrySkillEmitTool: ILocalMcpTool = {
+  name: "muggle-local-telemetry-skill-emit",
+  description:
+    "Emit a client telemetry event recording that a Muggle Test skill was invoked. Each muggle-* skill " +
+    "calls this in its first step so we can measure skill usage. Never fails the skill on telemetry errors.",
+  inputSchema: SkillTelemetryEmitInputSchema,
+  execute: async (ctx) => {
+    const input = SkillTelemetryEmitInputSchema.parse(ctx.input);
+    safeTrack({
+      name: EventName.SkillInvoked,
+      props: { skillName: input.skillName, trigger: input.trigger },
+    });
+    return { content: "ok", isError: false, data: { recorded: true } };
+  },
+};
+
+// ========================================
 // All Tools Registry
 // ========================================
 
@@ -832,6 +856,8 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   lastHostGetTool,
   lastHostSetTool,
   lastHostClearTool,
+  // Client telemetry: skills emit invocation events through this tool
+  telemetrySkillEmitTool,
 ];
 
 /**
@@ -865,5 +891,46 @@ export async function executeTool(
     };
   }
 
-  return tool.execute({ input: input, correlationId: correlationId });
+  // Telemetry around the dispatch — must never throw out of this function.
+  const startTime = Date.now();
+  safeTrack({
+    name: EventName.McpToolInvoked,
+    props: { toolName: name, toolSurface: ToolSurface.Local, correlationId: correlationId },
+  });
+  try {
+    const result = await tool.execute({ input: input, correlationId: correlationId });
+    safeTrack({
+      name: EventName.McpToolCompleted,
+      props: {
+        toolName: name,
+        toolSurface: ToolSurface.Local,
+        correlationId: correlationId,
+        durationMs: Date.now() - startTime,
+        outcome: result.isError ? Outcome.Error : Outcome.Success,
+      },
+    });
+    return result;
+  } catch (err) {
+    safeTrack({
+      name: EventName.McpToolCompleted,
+      props: {
+        toolName: name,
+        toolSurface: ToolSurface.Local,
+        correlationId: correlationId,
+        durationMs: Date.now() - startTime,
+        outcome: Outcome.Error,
+        errorCode: err instanceof Error ? err.name : "UnknownError",
+      },
+    });
+    throw err;
+  }
+}
+
+// Defensive wrapper — telemetry must never propagate exceptions to the host.
+function safeTrack(event: Parameters<typeof track>[0]): void {
+  try {
+    track(event);
+  } catch {
+    // intentionally swallowed
+  }
 }

@@ -5,6 +5,8 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 # Muggle Test Feature Local
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-feature-local"`.
+
 **Goal:** Run or generate an end-to-end test against a **local URL** using Muggle Test's Electron browser.
 
 | Scope | MCP tools |

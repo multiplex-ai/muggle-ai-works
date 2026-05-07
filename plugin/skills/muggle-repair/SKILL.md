@@ -5,6 +5,8 @@ description: Diagnose and fix a broken Muggle AI installation. Use when user typ
 
 # Muggle Test Repair
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-repair"`.
+
 Automatically diagnose and fix broken components.
 
 ## Steps

@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 # Muggle Test Do
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-do"`.
+
 Muggle Test Do runs a battle-tested autonomous dev cycle: **pre-flight → requirements → impact analysis → validate code → unit tests → E2E acceptance → open PR**.
 
 The design goal is **fire and review**: the user answers one consolidated pre-flight questionnaire, then walks away. Every subsequent stage runs unattended until completion or a genuine blocker.

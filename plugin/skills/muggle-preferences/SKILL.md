@@ -11,6 +11,8 @@ description: >-
 
 # Muggle Test Preferences
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-preferences"`.
+
 Pick the operation, then read its op file for the procedure.
 
 | Intent | Op file |

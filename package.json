@@ -16,7 +16,7 @@
     ],
     "scripts": {
         "clean": "rimraf dist",
-        "build": "tsup && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
+        "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
         "build:plugin": "node scripts/build-plugin.mjs",
         "sync:versions": "node scripts/sync-versions.mjs",
         "build:release": "npm run build",
@@ -56,6 +56,7 @@
         "@muggleai/mcp": "file:packages/mcps",
         "@muggleai/workflows": "file:packages/workflows",
         "@modelcontextprotocol/sdk": "^1.25.3",
+        "applicationinsights": "^3.14.0",
         "axios": "^1.7.9",
         "commander": "^14.0.3",
         "open": "^11.0.0",
@@ -65,6 +66,7 @@
         "zod": "^4.3.6"
     },
     "devDependencies": {
+        "@muggleai/telemetry": "0.3.1",
         "@eslint/js": "^10.0.1",
         "@types/node": "^25.5.2",
         "@types/uuid": "^11.0.0",

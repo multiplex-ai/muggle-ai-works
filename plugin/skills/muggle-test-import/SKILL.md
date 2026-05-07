@@ -14,6 +14,8 @@ description: >
 
 # Muggle Test Import
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-import"`.
+
 This skill migrates existing test artifacts into Muggle Test. It reads your source files,
 structures them into use cases and test cases, gets your approval, then creates everything
 in a Muggle Test project via the API.

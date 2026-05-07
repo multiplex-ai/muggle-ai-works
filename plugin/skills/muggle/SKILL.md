@@ -5,6 +5,8 @@ description: Muggle AI command router and menu. Use when user types "muggle" or 
 
 # Muggle Test
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle"`.
+
 Use this as the top-level Muggle Test command router.
 
 ## Preferences

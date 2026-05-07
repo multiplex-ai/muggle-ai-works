@@ -5,6 +5,8 @@ description: "Bulk-regenerate test scripts for every test case in a Muggle AI pr
 
 # Muggle Test — Regenerate Missing Test Scripts
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-regenerate-missing"`.
+
 A bulk maintenance skill for Muggle AI projects. It finds every test case in a project that does **not** currently have an active (ready-to-run) test script, shows the list to the user, and on approval triggers a remote test script generation workflow for each one. Useful after creating a batch of new test cases or when cleaning up a project that has drifted.
 
 Execution is **remote only** — Muggle Test's cloud generates the scripts in parallel against the project URL. The user's machine is not involved beyond making API calls.

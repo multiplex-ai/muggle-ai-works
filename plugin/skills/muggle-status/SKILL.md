@@ -5,6 +5,8 @@ description: Check health of the Muggle AI installation. Use when user types mug
 
 # Muggle Test Status
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-status"`.
+
 Run a full health check and report results.
 
 ## Preferences

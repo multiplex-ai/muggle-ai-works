@@ -5,6 +5,8 @@ description: Run a browser automation task on a website using natural language. 
 
 # Muggle Test Task Runner
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-do-task"`.
+
 Runs a browser automation task described in plain English. Finds or creates the necessary Muggle Test entities automatically, then executes locally with mutation-driven step prediction.
 
 ## Step 1 — Parse the prompt

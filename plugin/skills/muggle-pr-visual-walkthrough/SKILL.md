@@ -5,6 +5,8 @@ description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance 
 
 # Muggle Test PR Visual Walkthrough
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-pr-visual-walkthrough"`.
+
 Renders a visual walkthrough of Muggle AI E2E acceptance test results and posts it to a PR. Each test case is linked to its detail page on the Muggle AI dashboard, so PR reviewers can click through to see step-by-step screenshots and action scripts — not just a pass/fail flag.
 
 This is the **canonical PR-walkthrough workflow** shared across every Muggle Test entry point:
@@ -115,20 +117,16 @@ gh pr view --json number,url,title 2>/dev/null
 
 ### 3A.2: Post the body as a PR comment
 
+Extract the `body` field with `jq -r` (not `sed`) so JSON escape sequences are properly decoded, then pipe to `--body-file -`:
+
 ```bash
-gh pr comment <pr-number> --body "$(cat <<'EOF'
-<contents of body field from CLI output>
-EOF
-)"
+jq -r '.body' /tmp/muggle-pr-section.json | gh pr comment <pr-number> --body-file -
 ```
 
 ### 3A.3: Post the overflow comment only if the CLI emitted one
 
 ```bash
-gh pr comment <pr-number> --body "$(cat <<'EOF'
-<contents of comment field from CLI output>
-EOF
-)"
+jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <pr-number> --body-file -
 ```
 
 **Skip this step entirely if `comment` is `null`** — do not post a placeholder. The CLI decides fit-vs-overflow; never post the overflow comment speculatively.
@@ -150,10 +148,7 @@ Instead of posting, **return** the CLI output to the caller's context so they ca
 3. **Post `comment` as a follow-up only if the CLI emitted one:**
 
    ```bash
-   gh pr comment <new-pr-number> --body "$(cat <<'EOF'
-   <contents of comment field>
-   EOF
-   )"
+   jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <new-pr-number> --body-file -
    ```
 
    Skip if `comment` is `null`.

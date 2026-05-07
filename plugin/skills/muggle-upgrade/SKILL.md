@@ -5,6 +5,8 @@ description: Update Muggle AI to latest version. Use when user types muggle upgr
 
 # Muggle Test Upgrade
 
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-upgrade"`.
+
 Update all Muggle AI components to the latest published version. This means **both** the `@muggleai/works` CLI on npm **and** the Electron runner the CLI manages.
 
 ## Steps

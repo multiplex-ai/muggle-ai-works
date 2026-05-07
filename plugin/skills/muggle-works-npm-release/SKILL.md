@@ -9,7 +9,7 @@ description: >-
 
 # Muggle Test Works — npm release (single playbook)
 
-> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-works-npm-release"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-works-npm-release"`.
 
 Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish-works-to-npm.yml`** (“Publish Works to npm”). **Never** run local **`npm publish`** (OIDC trusted publishing in CI).
 

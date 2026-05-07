@@ -12,7 +12,7 @@ import * as path from "node:path";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
-import { track } from "@muggleai/telemetry";
+import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
   EmptyInputSchema,
@@ -815,7 +815,7 @@ const telemetrySkillEmitTool: ILocalMcpTool = {
   execute: async (ctx) => {
     const input = SkillTelemetryEmitInputSchema.parse(ctx.input);
     safeTrack({
-      name: "skill.invoked",
+      name: EventName.SkillInvoked,
       props: { skillName: input.skillName, trigger: input.trigger },
     });
     return { content: "ok", isError: false, data: { recorded: true } };
@@ -894,31 +894,31 @@ export async function executeTool(
   // Telemetry around the dispatch — must never throw out of this function.
   const startTime = Date.now();
   safeTrack({
-    name: "mcp.tool.invoked",
-    props: { toolName: name, toolSurface: "local", correlationId: correlationId },
+    name: EventName.McpToolInvoked,
+    props: { toolName: name, toolSurface: ToolSurface.Local, correlationId: correlationId },
   });
   try {
     const result = await tool.execute({ input: input, correlationId: correlationId });
     safeTrack({
-      name: "mcp.tool.completed",
+      name: EventName.McpToolCompleted,
       props: {
         toolName: name,
-        toolSurface: "local",
+        toolSurface: ToolSurface.Local,
         correlationId: correlationId,
         durationMs: Date.now() - startTime,
-        outcome: result.isError ? "error" : "success",
+        outcome: result.isError ? Outcome.Error : Outcome.Success,
       },
     });
     return result;
   } catch (err) {
     safeTrack({
-      name: "mcp.tool.completed",
+      name: EventName.McpToolCompleted,
       props: {
         toolName: name,
-        toolSurface: "local",
+        toolSurface: ToolSurface.Local,
         correlationId: correlationId,
         durationMs: Date.now() - startTime,
-        outcome: "error",
+        outcome: Outcome.Error,
         errorCode: err instanceof Error ? err.name : "UnknownError",
       },
     });

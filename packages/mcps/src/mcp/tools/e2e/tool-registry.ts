@@ -7,7 +7,7 @@ import { z } from "zod";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getConfig } from "../../../shared/config.js";
 import { createChildLogger } from "../../../shared/logger.js";
-import { track } from "@muggleai/telemetry";
+import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
 import * as schemas from "../../e2e/contracts/index.js";
@@ -1603,11 +1603,11 @@ export async function executeQaTool(
 
   const startTime = Date.now();
   safeTrack({
-    name: "mcp.tool.invoked",
-    props: { toolName: toolName, toolSurface: "remote", correlationId: correlationId },
+    name: EventName.McpToolInvoked,
+    props: { toolName: toolName, toolSurface: ToolSurface.Remote, correlationId: correlationId },
   });
 
-  let outcome: "success" | "error" = "success";
+  let outcome: Outcome = Outcome.Success;
   let errorCode: string | undefined;
   try {
     // Validate input
@@ -1652,7 +1652,7 @@ export async function executeQaTool(
       throw error;
     }
   } catch (error) {
-    outcome = "error";
+    outcome = Outcome.Error;
     if (error instanceof GatewayError) {
       errorCode = error.code;
       logger.warn("Tool call failed with gateway error", {
@@ -1675,10 +1675,10 @@ export async function executeQaTool(
     };
   } finally {
     safeTrack({
-      name: "mcp.tool.completed",
+      name: EventName.McpToolCompleted,
       props: {
         toolName: toolName,
-        toolSurface: "remote",
+        toolSurface: ToolSurface.Remote,
         correlationId: correlationId,
         durationMs: Date.now() - startTime,
         outcome: outcome,

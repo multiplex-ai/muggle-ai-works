@@ -5,7 +5,7 @@ description: Check health of the Muggle AI installation. Use when user types mug
 
 # Muggle Test Status
 
-> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-status"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-status"`.
 
 Run a full health check and report results.
 

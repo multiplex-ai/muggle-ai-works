@@ -14,7 +14,7 @@ description: >
 
 # Muggle Test Import
 
-> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-test-import"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-import"`.
 
 This skill migrates existing test artifacts into Muggle Test. It reads your source files,
 structures them into use cases and test cases, gets your approval, then creates everything

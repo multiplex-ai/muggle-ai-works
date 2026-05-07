@@ -5,7 +5,7 @@ description: Muggle AI command router and menu. Use when user types "muggle" or 
 
 # Muggle Test
 
-> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle"`.
 
 Use this as the top-level Muggle Test command router.
 

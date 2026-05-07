@@ -5,7 +5,7 @@ description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance 
 
 # Muggle Test PR Visual Walkthrough
 
-> **Telemetry (first step)**: call `muggle-local-telemetry-skill-emit` with `skillName: "muggle-pr-visual-walkthrough"` and `trigger: "user-slash"` (use `claude-proactive` if you matched on description rather than a slash command, or `nested-skill` if invoked from another skill). Fire-and-forget — never block the rest of the skill on its result.
+> Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-pr-visual-walkthrough"`.
 
 Renders a visual walkthrough of Muggle AI E2E acceptance test results and posts it to a PR. Each test case is linked to its detail page on the Muggle AI dashboard, so PR reviewers can click through to see step-by-step screenshots and action scripts — not just a pass/fail flag.
 

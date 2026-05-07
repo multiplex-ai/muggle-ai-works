@@ -1,73 +1,17 @@
-/**
- * Scenario file shape. Scenarios live in muggle-ai-brain/eval/, this
- * file just describes what the harness consumes.
- */
+/** Loads scenario files and the fixtures they reference. Types live in `./types`. */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-export type PreferenceValue =
-  | "always"
-  | "never"
-  | "ask"
-  | "local"
-  | "remote";
+import type { ScenarioFile } from "./types.js";
 
-export interface ScenarioExpectation {
-  /**
-   * Whether the agent should call AskQuestion specifically for the gate
-   * being tested. `false` for `always`/`never` (silent path); `true`
-   * for absent / `ask`. Other AskQuestion calls (project picker, etc.)
-   * are unrelated and do not violate this expectation.
-   */
-  askQuestionForGate: boolean;
-
-  /**
-   * Substring that must appear in the AskQuestion text when the gate
-   * fires (only checked when askQuestionForGate=true). Lets the
-   * scenario assert "the question that was asked is the gate's
-   * canonical Picker 1 question, not some other AskQuestion call."
-   */
-  gateQuestionSubstring?: string;
-
-  /**
-   * Which Muggle execute tool the agent must end up calling, and the
-   * arg shape that proves the gate's effect was applied. Use the
-   * literal string "OMITTED" as a value to assert the key was not
-   * present in the call (e.g., showUi must be omitted for `always`).
-   */
-  executeTool?:
-    | "muggle-local-execute-test-generation"
-    | "muggle-local-execute-replay";
-  executeArgs?: Record<string, unknown | "OMITTED">;
-}
-
-export interface Scenario {
-  name: string;
-  preferences: Record<string, PreferenceValue>;
-  /**
-   * Extra session-context lines beyond the preferences line — e.g. the
-   * `Muggle Test Last Project: ...` cache. Each entry becomes a line
-   * under the SessionStart context.
-   */
-  sessionContext?: string[];
-  userPrompt: string;
-  /**
-   * Canned answers for AskQuestion calls the harness must auto-respond
-   * to in order to keep the agent flowing (e.g., project picker). Map
-   * by a substring of the question; first match wins.
-   */
-  askQuestionAnswers?: Array<{ questionContains: string; answer: string }>;
-  expect: ScenarioExpectation;
-}
-
-export interface ScenarioFile {
-  skill: string;
-  gate: string;
-  fixturesPath: string; // relative to scenario file
-  scenarios: Scenario[];
-}
-
+/**
+ * Read and parse a scenarios.json file.
+ *
+ * Output shape: `ScenarioFile` — { skill, gate, fixturesPath, scenarios[] }.
+ * Throws on missing required fields rather than silently returning a
+ * malformed object.
+ */
 export function loadScenarioFile(filePath: string): ScenarioFile {
   const raw = fs.readFileSync(filePath, "utf8");
   const parsed = JSON.parse(raw) as ScenarioFile;
@@ -77,6 +21,13 @@ export function loadScenarioFile(filePath: string): ScenarioFile {
   return parsed;
 }
 
+/**
+ * Load a fixtures.json sitting next to (or relative to) the scenario file.
+ *
+ * Output shape: arbitrary record consumed by `mock-mcp.ts` stubs — keys
+ * map to per-tool canned responses (e.g. `projects`, `useCases`,
+ * `executeResult`).
+ */
 export function loadFixtures(
   scenarioFile: string,
   fixturesPath: string,

@@ -5,7 +5,7 @@ session against a skill, with all Muggle MCP tools stubbed and
 `AskQuestion` intercepted, then asserts the recorded tool-call trace
 honors the gate contract for each preference value.
 
-See: `muggle-ai-brain/architecture/2026-05-07-skill-gate-eval-design.md`
+Design: `muggle-ai-brain/architecture/` — grep for "skill preference-gate eval".
 
 ## Layout
 
@@ -14,7 +14,9 @@ internal/skill-gate-eval/
   src/
     harness.ts      # runs one scenario: spawns agent, captures trace, asserts
     mock-mcp.ts     # in-process stub for the muggle MCP namespace
-    scenario.ts     # scenario file shape + loader
+    scenario.ts     # scenario file loader (types live in types.ts)
+    types.ts        # shared types + PreferenceValue enum
+    constants.ts    # ASK_QUESTION_TOOL, PASS_THRESHOLD, DEFAULT_MODEL
     run.ts          # CLI entrypoint
 ```
 

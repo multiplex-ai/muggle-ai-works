@@ -4,8 +4,6 @@
  * Verifies wiring between SKILL.md preference tables and the
  * preference-gates/<key>.md contract files. Catches drift; does NOT
  * catch "the LLM forgot to fire the gate" — that is Layer 2.
- *
- * See: muggle-ai-brain/architecture/2026-05-07-skill-gate-eval-design.md
  */
 
 import { describe, it, expect } from "vitest";

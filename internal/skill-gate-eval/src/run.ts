@@ -10,27 +10,15 @@
  *     --runs 10 \
  *     [--brain-dir ../muggle-ai-brain] \
  *     [--model claude-sonnet-4-6]
- *
- * Pass threshold: 99% (per design doc).
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { DEFAULT_MODEL, PASS_THRESHOLD } from "./constants.js";
+import { runScenarioOnce } from "./harness.js";
 import { loadScenarioFile } from "./scenario.js";
-import { runScenarioOnce, RunVerdict } from "./harness.js";
-
-const PASS_THRESHOLD = 0.99;
-const DEFAULT_MODEL = "claude-sonnet-4-6";
-
-interface CliArgs {
-  gate: string;
-  skill: string;
-  runs: number;
-  brainDir: string;
-  skillsDir: string;
-  model: string;
-}
+import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
 
 function parseArgs(argv: string[]): CliArgs {
   const out: Record<string, string> = {};
@@ -59,15 +47,6 @@ function parseArgs(argv: string[]): CliArgs {
   };
 }
 
-interface ScenarioReport {
-  name: string;
-  runs: number;
-  passes: number;
-  passRate: number;
-  passed: boolean;
-  failureReasons: string[];
-}
-
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const scenarioFilePath = path.resolve(
@@ -94,9 +73,9 @@ async function main(): Promise<void> {
       // eslint-disable-next-line no-await-in-loop
       verdicts.push(
         await runScenarioOnce({
-          scenarioFile,
-          scenarioFilePath,
-          scenario,
+          scenarioFile: scenarioFile,
+          scenarioFilePath: scenarioFilePath,
+          scenario: scenario,
           skillsDir: path.resolve(args.skillsDir),
           model: args.model,
         }),
@@ -110,10 +89,10 @@ async function main(): Promise<void> {
     reports.push({
       name: scenario.name,
       runs: verdicts.length,
-      passes,
-      passRate,
+      passes: passes,
+      passRate: passRate,
       passed: passRate >= PASS_THRESHOLD,
-      failureReasons,
+      failureReasons: failureReasons,
     });
   }
 

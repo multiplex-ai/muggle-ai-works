@@ -21,29 +21,30 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { ASK_QUESTION_TOOL } from "./constants.js";
 import { buildMockMcpServer, MockCall } from "./mock-mcp.js";
-import { Scenario, ScenarioFile, loadFixtures } from "./scenario.js";
+import { loadFixtures } from "./scenario.js";
+import type {
+  AskQuestionRecord,
+  RunOptions,
+  RunVerdict,
+  Scenario,
+} from "./types.js";
 
-export interface RunVerdict {
-  scenario: string;
-  pass: boolean;
-  reasons: string[];
-  trace: {
-    mcpCalls: MockCall[];
-    askQuestions: { question: string; answer: string | null }[];
-  };
-}
-
-export interface RunOptions {
-  scenarioFile: ScenarioFile;
-  scenarioFilePath: string;
-  scenario: Scenario;
-  skillsDir: string;
-  model: string;
-}
-
-const ASK_QUESTION_TOOL = "AskQuestion";
-
+/**
+ * Build the system prompt from the SKILL.md plus a synthesized
+ * SessionStart context block.
+ *
+ * Output shape (one string, lines joined with `\n`):
+ *
+ *     <full SKILL.md body>
+ *
+ *     ---
+ *     # Synthesized SessionStart context (test harness)
+ *     Muggle Test Preferences: showElectronBrowser=always autoLogin=always ...
+ *     Muggle Test Last Project: id=proj-stub-1 url=http://localhost:3000 ...
+ *     Muggle Test Last Host: http://localhost:3000
+ */
 function buildSystemPrompt(opts: RunOptions): string {
   const skillMdPath = path.join(
     opts.skillsDir,
@@ -103,7 +104,7 @@ export async function runScenarioOnce(opts: RunOptions): Promise<RunVerdict> {
     opts.scenarioFile.fixturesPath,
   );
   const mock = buildMockMcpServer(fixtures);
-  const askQuestions: { question: string; answer: string | null }[] = [];
+  const askQuestions: AskQuestionRecord[] = [];
   let gateQuestionFired = false;
 
   const systemPrompt = buildSystemPrompt(opts);
@@ -121,7 +122,7 @@ export async function runScenarioOnce(opts: RunOptions): Promise<RunVerdict> {
       );
       if (isGateQuestion(question, opts.scenario)) gateQuestionFired = true;
       const answer = matchAskQuestionAnswer(question, opts.scenario);
-      askQuestions.push({ question, answer });
+      askQuestions.push({ question: question, answer: answer });
       // Returning `deny` short-circuits: the agent gets the message as
       // the tool result, which we use to inject our scripted answer.
       // Real SDK shape may differ; adjust to whatever the canUseTool
@@ -135,10 +136,10 @@ export async function runScenarioOnce(opts: RunOptions): Promise<RunVerdict> {
   };
 
   await runAgent({
-    systemPrompt,
+    systemPrompt: systemPrompt,
     userPrompt: opts.scenario.userPrompt,
     mcpServer: mock.server,
-    canUseTool,
+    canUseTool: canUseTool,
     model: opts.model,
   });
 
@@ -170,7 +171,7 @@ async function runAgent(_args: {
 function verdict(
   scenario: Scenario,
   mcpCalls: MockCall[],
-  askQuestions: { question: string; answer: string | null }[],
+  askQuestions: AskQuestionRecord[],
   gateQuestionFired: boolean,
 ): RunVerdict {
   const reasons: string[] = [];
@@ -212,7 +213,10 @@ function verdict(
   return {
     scenario: scenario.name,
     pass: reasons.length === 0,
-    reasons,
-    trace: { mcpCalls, askQuestions },
+    reasons: reasons,
+    trace: {
+      mcpCalls: mcpCalls,
+      askQuestions: askQuestions,
+    },
   };
 }

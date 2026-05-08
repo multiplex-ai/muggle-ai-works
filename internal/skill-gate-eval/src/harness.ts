@@ -186,8 +186,8 @@ export async function runScenarioOnce(
       canUseTool: canUseTool,
       model: opts.model,
       maxTurns: opts.maxTurns ?? DEFAULT_MAX_TURNS,
-      // Disable everything except our mock MCP namespace + AskQuestion.
-      tools: ["AskQuestion"],
+      // Disable everything except our mock MCP namespace + AskUserQuestion.
+      tools: ["AskUserQuestion"],
     },
   });
 

@@ -158,8 +158,9 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
-- Pro-action: omit `showUi`.
-- Skip-action: pass `showUi: false`.
+- `always` → omit `showUi`.
+- `never` → pass `showUi: false`.
+- `ask` → **invoke the `AskUserQuestion` tool — not a prose question, not markdown, not a final assistant message that asks**. The Picker 1 contract lives in `preference-gates/showElectronBrowser.md` (header `Browser window`, question `"Show the test browser as it runs?"`, options `Show it` / `Run hidden`). Call `AskUserQuestion` with that header/question/options BEFORE calling execute. Map the answer: `Show it` → omit `showUi`; `Run hidden` → pass `showUi: false`. If you find yourself writing the question in regular text instead, stop and use the tool.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 

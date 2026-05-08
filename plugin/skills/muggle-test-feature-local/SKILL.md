@@ -43,8 +43,9 @@ Gates run per `preference-gates/README.md`.
 
 - `muggle-remote-auth-status`
 - If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
-  - Pro-action: proceed with saved session.
-  - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `always` → proceed with saved session.
+  - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoLogin.md` (header `You're already logged in`, question with `{email}` substituted, options `Continue as me` / `Switch account`); map the answer: `Continue as me` → reuse session; `Switch account` → force fresh login. Use the tool, not prose.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
@@ -158,15 +159,17 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
-- Pro-action: omit `showUi`.
-- Skip-action: pass `showUi: false`.
+- `always` → omit `showUi`.
+- `never` → pass `showUi: false`.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/showElectronBrowser.md` (header `Browser window`, question `"Show the test browser as it runs?"`, options `Show it` / `Run hidden`) **before** calling execute. Map the answer: `Show it` → omit `showUi`; `Run hidden` → pass `showUi: false`. Do not infer a default and do not ask in plain prose — use the tool.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 
 - `muggle-local-publish-test-script`
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
-  - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
-  - Skip-action: print the URL only.
+  - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
+  - `never` → print the URL only.
+  - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/openTestResultsAfterRun.md` (header `After the run`, question `"Open the test results in your browser when this finishes?"`, options `Open the dashboard` / `Just print the link`); map the answer: `Open the dashboard` → open; `Just print the link` → print only. Use the tool, not prose.
 
 ### 9. Report
 

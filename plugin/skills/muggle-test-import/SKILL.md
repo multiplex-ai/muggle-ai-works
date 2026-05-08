@@ -144,8 +144,9 @@ If the user wants changes, incorporate feedback, then ask again. Only proceed af
 Call `muggle-remote-auth-status` first.
 
 If **already authenticated** → gate `autoLogin` (per `preference-gates/README.md`):
-- Pro-action: skip to Step 5.
-- Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+- `always` → skip to Step 5.
+- `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoLogin.md` (header `You're already logged in`, question with `{email}` substituted, options `Continue as me` / `Switch account`); map the answer: `Continue as me` → skip to Step 5; `Switch account` → force fresh login. Use the tool, not prose.
 
 If **not authenticated**:
 1. Tell the user a browser window is about to open.
@@ -403,8 +404,9 @@ Two preferences gate optional follow-ups: `suggestRelatedUseCases` and `suggestR
 The query is: "from the use cases already in this project, which ones are *not* in the import set but look related to it?" — surface them so the user can decide whether their import missed something the project already tracks.
 
 Gate `suggestRelatedUseCases` (per `preference-gates/README.md`):
-- Pro-action: run the query below.
-- Skip-action: skip.
+- `always` → run the query below.
+- `never` → skip.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/suggestRelatedUseCases.md` (header `Related use cases`, question `"Show related use cases already in this project?"`, options `Show related` / `Skip`); map the answer: `Show related` → run query; `Skip` → skip. Use the tool, not prose.
 
 When running the query:
 1. Call `muggle-remote-use-case-list` for the project.
@@ -419,8 +421,9 @@ When running the query:
 For each use case the user just created, surface other test cases already attached that the import didn't add — same idea, scoped to a single use case.
 
 Gate `suggestRelatedTestCases` (per `preference-gates/README.md`):
-- Pro-action: run the query below.
-- Skip-action: skip.
+- `always` → run the query below.
+- `never` → skip.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/suggestRelatedTestCases.md` (header `Related test cases`, question `"Show related test cases already attached to this use case?"`, options `Show related` / `Skip`); map the answer: `Show related` → run query; `Skip` → skip. Use the tool, not prose.
 
 When running the query, for each use case in the import:
 1. Call `muggle-remote-test-case-list-by-use-case` with that `useCaseId`.

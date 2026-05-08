@@ -26,8 +26,9 @@ Gates run per `preference-gates/README.md`.
 3. **Authentication** — call `muggle-remote-auth-status`. Report whether credentials are valid and when they expire.
 
 4. **CLI version** — gate `checkForUpdates` (per `preference-gates/README.md`):
-   - Pro-action: run the check below.
-   - Skip-action: render the row as `[skip]  check disabled by preference`.
+   - `always` → run the check below.
+   - `never` → render the row as `[skip]  check disabled by preference`.
+   - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/checkForUpdates.md` (header `Update check`, question `"Check for a newer Muggle Test version (one quick network call)?"`, options `Check now` / `Skip check`); map the answer: `Check now` → run check; `Skip check` → render `[skip]` row. Use the tool, not prose.
 
    When the check runs: capture installed (`muggle --version`) and latest (`npm view @muggleai/works version`). Compare with `sort -V`; flag as out-of-date only when latest is strictly greater.
 

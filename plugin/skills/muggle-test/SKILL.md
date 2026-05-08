@@ -80,8 +80,9 @@ Only proceed after selection.
 ## Step 2: Detect Local Changes (gated by `autoDetectChanges`)
 
 Gate `autoDetectChanges` (per `preference-gates/README.md`):
-- Pro-action: run the scan and proceed to analysis below.
-- Skip-action: ask "What would you like to test?" then jump to Step 3.
+- `always` → run the scan and proceed to analysis below.
+- `never` → ask "What would you like to test?" then jump to Step 3.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoDetectChanges.md` (header `Scan changes?`, question `"Scan git changes to scope what to test?"`, options `Scan changes` / `Skip scan`); map the answer: `Scan changes` → run scan; `Skip scan` → ask user. Use the tool, not prose.
 
 ### Analysis (when scan is enabled)
 
@@ -104,8 +105,9 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 
 1. Call `muggle-remote-auth-status`
 2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
-   - Pro-action: reuse saved session.
-   - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+   - `always` → reuse saved session.
+   - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+   - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoLogin.md` (header `You're already logged in`, question with `{email}` substituted, options `Continue as me` / `Switch account`); map the answer: `Continue as me` → reuse session; `Switch account` → force fresh login. Use the tool, not prose.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`
 4. If login pending → call `muggle-remote-auth-poll`
 
@@ -218,8 +220,9 @@ Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/
 ### Pre-flight visibility (gated by `showElectronBrowser`)
 
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; apply same `showUi` to every test case.
-- Pro-action: omit `showUi` (defaults visible).
-- Skip-action: pass `showUi: false`.
+- `always` → omit `showUi` (defaults visible).
+- `never` → pass `showUi: false`.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/showElectronBrowser.md` (header `Browser window`, question `"Show the test browser as it runs?"`, options `Show it` / `Run hidden`); map the answer: `Show it` → omit `showUi`; `Run hidden` → pass `showUi: false`. Use the tool, not prose.
 
 ### Fetch test case details (in parallel)
 
@@ -256,8 +259,9 @@ For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Ex
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 
 Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
-- Pro-action: proceed to publish logic below.
-- Skip-action: skip to report summary; tell user Steps 8/9 and per-step screenshots are unavailable without publishing.
+- `always` → proceed to publish logic below.
+- `never` → skip to report summary; tell user Steps 8/9 and per-step screenshots are unavailable without publishing.
+- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoPublishLocalResults.md` (header `Share results?`, question `"Upload these results to the Muggle Test dashboard?"`, options `Upload them` / `Keep local-only`); map the answer: `Upload them` → publish; `Keep local-only` → skip. Use the tool, not prose.
 
 ### Publish logic (when publishing is enabled)
 

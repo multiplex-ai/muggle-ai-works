@@ -42,6 +42,9 @@ importers:
         specifier: ^4.3.6
         version: 4.4.1
     devDependencies:
+      '@anthropic-ai/claude-agent-sdk':
+        specifier: ^0.2.133
+        version: 0.2.133(zod@4.4.1)
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.2.1)
@@ -110,6 +113,61 @@ importers:
 
 packages:
 
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.133':
+    resolution: {integrity: sha512-J79AWcnoPaVU55fLAcdUdgYuj4PjXx1qkZGHtoKAMQ7XMktH21nW/VTFkIo/aKcGDsbSYNxMtw+zp/gduCmYww==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.2.133':
+    resolution: {integrity: sha512-juKz5zhWMYPClHWzraJ+CY/DoRfYfgaKsIQC0Tvln+scVJecEYt7tmvw+mmy2yQtPI66BqtoH12Aqnwyq5+RVw==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.2.133':
+    resolution: {integrity: sha512-lvB9C7mnGO1zZp6W90H7zcj11Qaw2Thcwcoov5cFRuC31NDuIZTdMHYMwXBqACep61aBX1fgawoY/+pq0Hptpw==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.2.133':
+    resolution: {integrity: sha512-80agdXdE1/wCofiyiSGw1EINXv+xcjXaXkmAQgtAwhE22rtzjPh6D+Zm6sHRhyEdogj8PAVw6iAVRVV1xLYq6w==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.2.133':
+    resolution: {integrity: sha512-IShZIbuXLxHzjVcccKFZUYXtN6FwrHVlh3y5YDuQORLYSGSHtcUAfGAT1csGz7fTQ3ZvBfY8ApoWXMR8I65l8g==}
+    cpu: [x64]
+    os: [linux]
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.133':
+    resolution: {integrity: sha512-nl9Law15GS90GEhddMaMuuSJXpRCHLOFm39Aqy5KxSqA6sdLXvi1kLEs2IIJ6XrUDTq0LnwDYACSTR21ybq3cg==}
+    cpu: [x64]
+    os: [linux]
+
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.133':
+    resolution: {integrity: sha512-yiQqa9t5OLXsM2a49FS7evQyalEWPtAd5sv4LbymSlq/QrBqDymvgrxSwxHwaZan5JlNYoQKRlUW27lc2vTLQA==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.2.133':
+    resolution: {integrity: sha512-tH6tviy+vYPoL6M7qGCg4gKLt3w5AxhmUN7yi8Rs/2AjMbYjPuM6F/G7T+4/CTg246k9gZxxA86Dxs95gQMv8A==}
+    cpu: [x64]
+    os: [win32]
+
+  '@anthropic-ai/claude-agent-sdk@0.2.133':
+    resolution: {integrity: sha512-teqnsqYB7LeZ7BYRQx66BSB+ykiswiVJyeEQ3chdQrTsVhz7lK47uWqZ70zD6vJIh4a5PgljFcZabTNFHjJcJA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@anthropic-ai/sdk@0.81.0':
+    resolution: {integrity: sha512-D4K5PvEV6wPiRtVlVsJHIUhHAmOZ6IT/I9rKlTf84gR7GyyAurPJK7z9BOf/AZqC5d1DhYQGJNKRmV+q8dGhgw==}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
   '@azure/abort-controller@2.1.2':
     resolution: {integrity: sha512-nBrLsEWm4J2u5LpAPjxADTlq3trDgVZZXHNKabeXZtpq3d3AbN/KGO82R87rdDz5/lYB024rtEf10/q0urNgsA==}
     engines: {node: '>=18.0.0'}
@@ -176,6 +234,10 @@ packages:
   '@azure/opentelemetry-instrumentation-azure-sdk@1.0.0':
     resolution: {integrity: sha512-Y8rZOIMXQY/GwNRL+uLVuwIn9aEa/KnnggyYUmFxC1MigmRJCNH5NxMmxKSpddXF9SW6Z1ijRd6Pptd2A5OhGw==}
     engines: {node: '>=20.0.0'}
+
+  '@babel/runtime@7.29.2':
+    resolution: {integrity: sha512-JiDShH45zKHWyGe4ZNVRrCjBz8Nh9TMmZG1kh4QTK8hCBTWBi8Da+i7s1fJw7/lYpM4ccepSNfqzZ/QvABBi5g==}
+    engines: {node: '>=6.9.0'}
 
   '@colors/colors@1.6.0':
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
@@ -1767,6 +1829,10 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-schema-to-ts@3.1.1:
+    resolution: {integrity: sha512-+DWg8jCJG2TEnpy7kOm/7/AxaYoaRbjVB4LFZLySZlWn8exGs3A4OLJR966cVvU26N7X9TWxl+Jsw7dzAqKT6g==}
+    engines: {node: '>=16'}
+
   json-schema-traverse@0.4.1:
     resolution: {integrity: sha512-xbbCH5dCYU5T8LcEhhuh7HJ88HXuW3qsI3Y0zOZFKfZEHcpWiHU/Jxzk629Brsab/mMiHQti9wMP+845RPe3Vg==}
 
@@ -2338,6 +2404,9 @@ packages:
     resolution: {integrity: sha512-aZbgViZrg1QNcG+LULa7nhZpJTZSLm/mXnHXnbAbjmN5aSa0y7V+wvv6+4WaBtpISJzThKy+PIPxc1Nq1EJ9mg==}
     engines: {node: '>= 14.0.0'}
 
+  ts-algebra@2.0.0:
+    resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
   ts-api-utils@2.5.0:
     resolution: {integrity: sha512-OJ/ibxhPlqrMM0UiNHJ/0CKQkoKF243/AEmplt3qpRgkW8VG7IfOS41h7V8TjITqdByHzrjcS/2si+y4lIh8NA==}
     engines: {node: '>=18.12'}
@@ -2575,6 +2644,54 @@ packages:
 
 snapshots:
 
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-darwin-x64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-arm64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-linux-x64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-win32-arm64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk-win32-x64@0.2.133':
+    optional: true
+
+  '@anthropic-ai/claude-agent-sdk@0.2.133(zod@4.4.1)':
+    dependencies:
+      '@anthropic-ai/sdk': 0.81.0(zod@4.4.1)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.1)
+      zod: 4.4.1
+    optionalDependencies:
+      '@anthropic-ai/claude-agent-sdk-darwin-arm64': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-darwin-x64': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-linux-arm64': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-linux-arm64-musl': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-linux-x64': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-linux-x64-musl': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-win32-arm64': 0.2.133
+      '@anthropic-ai/claude-agent-sdk-win32-x64': 0.2.133
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+
+  '@anthropic-ai/sdk@0.81.0(zod@4.4.1)':
+    dependencies:
+      json-schema-to-ts: 3.1.1
+    optionalDependencies:
+      zod: 4.4.1
+
   '@azure/abort-controller@2.1.2':
     dependencies:
       tslib: 2.8.1
@@ -2731,6 +2848,8 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+
+  '@babel/runtime@7.29.2': {}
 
   '@colors/colors@1.6.0': {}
 
@@ -4319,6 +4438,11 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-schema-to-ts@3.1.1:
+    dependencies:
+      '@babel/runtime': 7.29.2
+      ts-algebra: 2.0.0
+
   json-schema-traverse@0.4.1: {}
 
   json-schema-traverse@1.0.0: {}
@@ -4896,6 +5020,8 @@ snapshots:
   tree-kill@1.2.2: {}
 
   triple-beam@1.4.1: {}
+
+  ts-algebra@2.0.0: {}
 
   ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:

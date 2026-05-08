@@ -11,10 +11,27 @@
  */
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
 
 import type { Fixtures, MockServerHandle } from "./types.js";
 
 const PERMISSIVE_SHAPE = {} as const;
+
+/**
+ * Schema for the execute-* tools. The fields the gates care about
+ * (`showUi`, `freshSession`) MUST be declared here — zod strips
+ * undeclared keys before the SDK forwards them to canUseTool, so the
+ * agent's emitted args would arrive empty otherwise.
+ */
+const EXECUTE_SHAPE = {
+  testCase: z.unknown().optional(),
+  testScript: z.unknown().optional(),
+  actionScript: z.unknown().optional(),
+  localUrl: z.string().optional(),
+  showUi: z.boolean().optional(),
+  freshSession: z.boolean().optional(),
+  timeoutMs: z.number().optional(),
+} as const;
 
 function jsonResult(value: unknown): { content: Array<{ type: "text"; text: string }> } {
   return {
@@ -125,7 +142,7 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
       tool(
         "muggle-local-execute-test-generation",
         "Execute test generation (mock — args recorded by canUseTool, never actually runs).",
-        PERMISSIVE_SHAPE,
+        EXECUTE_SHAPE,
         async () =>
           jsonResult(
             fixtures.executeResult ?? {
@@ -138,7 +155,7 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
       tool(
         "muggle-local-execute-replay",
         "Execute replay (mock — args recorded by canUseTool, never actually runs).",
-        PERMISSIVE_SHAPE,
+        EXECUTE_SHAPE,
         async () =>
           jsonResult(
             fixtures.executeResult ?? {

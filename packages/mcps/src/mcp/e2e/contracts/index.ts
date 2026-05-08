@@ -553,6 +553,44 @@ export const ApiKeyRevokeInputSchema = z.object({
 });
 
 // =============================================================================
+// User Feedback Schemas
+// =============================================================================
+
+/**
+ * Target type values mirror the server's UserFeedbackTargetTypeEnum:
+ *  - actionScript: feedback about a script's overall outcome (targetId = actionScriptId)
+ *  - step: feedback about a specific step within a script (targetId = `${actionScriptId}:${stepIndex}`)
+ */
+export const UserFeedbackTargetTypeSchema = z.enum(["actionScript", "step"]);
+
+export const UserFeedbackTargetSchema = z.object({
+  targetType: UserFeedbackTargetTypeSchema.describe("Target entity kind: 'actionScript' for whole-script feedback, 'step' for a specific step"),
+  targetId: z
+    .string()
+    .min(1)
+    .describe("Target identifier. For 'actionScript' use the actionScriptId; for 'step' use `${actionScriptId}:${stepIndex}` (0-based stepIndex)"),
+});
+
+export const UserFeedbackCreateInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) the feedback belongs to"),
+  target: UserFeedbackTargetSchema.describe("What entity this feedback is about (action script or a specific step)"),
+  feedbackText: z
+    .string()
+    .min(1)
+    .describe("Free-form paragraph describing what went wrong and what the expected behavior should be"),
+});
+
+export const UserFeedbackListInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) to list feedback for"),
+  limit: z.number().int().positive().max(1000).optional().describe("Max entries to return (default 100)"),
+  offset: z.number().int().min(0).optional().describe("Offset for pagination (default 0)"),
+});
+
+export const UserFeedbackDeleteInputSchema = z.object({
+  feedbackId: IdSchema.describe("User feedback ID (UUID) to soft-delete"),
+});
+
+// =============================================================================
 // Auth Schemas (Device Code Flow)
 // =============================================================================
 

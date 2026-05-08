@@ -127,7 +127,7 @@ Found 3 use cases with 8 test cases:
    ✦ [HIGH]   Checkout fails with invalid payment info
 ```
 
-Use `AskQuestion` to confirm:
+Use `AskUserQuestion` to confirm:
 - "Looks good — proceed with import"
 - "I want to make changes first"
 
@@ -169,7 +169,7 @@ Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test
 ### Logic
 
 1. Call `muggle-remote-project-list` (only when not satisfied by the `always` cache).
-2. Use `AskQuestion` to present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
+2. Use `AskUserQuestion` to present all projects as clickable options. Include the project URL in each label. Always include a "Create new project" option at the end.
 
    Prompt: `"Pick the project to import into:"`
 
@@ -275,7 +275,7 @@ Failed items:
 
 Proceed with the <N> successful items, or cancel to review?
 ```
-Use `AskQuestion` with options "Proceed with successful items" / "Cancel import". Only continue
+Use `AskUserQuestion` with options "Proceed with successful items" / "Cancel import". Only continue
 if the user chooses to proceed.
 
 If you need to abort an in-flight job, call `muggle-remote-bulk-preview-job-cancel` — the
@@ -410,7 +410,7 @@ When running the query:
 1. Call `muggle-remote-use-case-list` for the project.
 2. Filter out any use case whose `useCaseId` is in the set you just imported in Step 6 (Pass 1).
 3. Rank the remainder by semantic relevance to the imported titles/descriptions (substring overlap, shared keywords — best-effort, no LLM call needed).
-4. Present the top 3-5 via `AskQuestion` with `allow_multiple: true`. Label each with `<title> — <one-line description>`.
+4. Present the top 3-5 via `AskUserQuestion` with `allow_multiple: true`. Label each with `<title> — <one-line description>`.
 5. For any the user selects, prompt to add follow-up test cases (treat each as a Pass 2 invocation: `muggle-remote-test-case-bulk-preview-submit` → poll → persist via `muggle-remote-test-case-create`).
 6. If the filtered list is empty (the import covers everything in the project), say so and skip.
 
@@ -425,6 +425,6 @@ Gate `suggestRelatedTestCases` (per `preference-gates/README.md`):
 When running the query, for each use case in the import:
 1. Call `muggle-remote-test-case-list-by-use-case` with that `useCaseId`.
 2. Filter out any test case you just created in Pass 2 of Step 6.
-3. Present the remainder via `AskQuestion` with `allow_multiple: true`, labeled `[<priority>] <title> — <goal>`.
+3. Present the remainder via `AskUserQuestion` with `allow_multiple: true`, labeled `[<priority>] <title> — <goal>`.
 4. For any the user selects: nothing to create (they already exist) — just confirm to the user that those tests are now part of their Muggle Test project alongside the imported ones.
 5. If a use case has no extra test cases, skip it silently.

@@ -11,12 +11,12 @@ A router skill that detects code changes, resolves impacted test cases, executes
 
 ## UX Guidelines — Minimize Typing
 
-**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
+**Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
 
-- **Selections** (project, use case, test case, mode, approval): Use `AskQuestion` with labeled options the user can click.
-- **Multi-select** (use cases, test cases): Use `AskQuestion` with `allow_multiple: true`.
+- **Selections** (project, use case, test case, mode, approval): Use `AskUserQuestion` with labeled options the user can click.
+- **Multi-select** (use cases, test cases): Use `AskUserQuestion` with `allow_multiple: true`.
 - **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
-- **Batch related questions**: If two questions are independent, present them together in a single `AskQuestion` call rather than asking sequentially.
+- **Batch related questions**: If two questions are independent, present them together in a single `AskUserQuestion` call rather than asking sequentially.
 - **Parallelize job-creation calls**: Whenever you're kicking off N independent cloud jobs — creating multiple use cases, generating/creating multiple test cases, fetching details for multiple test cases, starting multiple remote workflows, publishing multiple local runs, or fetching per-step screenshots for multiple runs — issue all N tool calls in a single message so they run in parallel. Never loop them sequentially unless there is a real ordering constraint (e.g. a single local Electron browser that can only run one test at a time).
 
 ## Test Case Design: One Atomic Behavior Per Test Case
@@ -146,7 +146,7 @@ If nothing looks like a confident match, fall back to asking the user which use 
 
 ### 5c: Present the shortlist for confirmation
 
-Use `AskQuestion` with `allow_multiple: true`:
+Use `AskUserQuestion` with `allow_multiple: true`:
 
 Prompt: "These use cases look most relevant to your changes — confirm which to test:"
 
@@ -155,7 +155,7 @@ Prompt: "These use cases look most relevant to your changes — confirm which to
 - Include "Create new use case" at the end
 
 ### 5d: If user picks "Pick a different use case"
-Re-present the full list from 5a via `AskQuestion` with `allow_multiple: true`, then continue.
+Re-present the full list from 5a via `AskUserQuestion` with `allow_multiple: true`, then continue.
 
 ### 5e: If user chooses "Create new use case"
 1. Ask the user to describe the use case(s) in plain English — they may want more than one
@@ -179,7 +179,7 @@ If nothing looks like a confident match, fall back to offering to run all test c
 
 ### 6c: Present the shortlist for confirmation
 
-Use `AskQuestion` with `allow_multiple: true`:
+Use `AskUserQuestion` with `allow_multiple: true`:
 
 Prompt: "These test cases look most relevant — confirm which to run:"
 
@@ -198,7 +198,7 @@ Prompt: "These test cases look most relevant — confirm which to run:"
 
 ### 6e: Confirm final selection
 
-Use `AskQuestion` to confirm: "You selected [N] test case(s): [list titles]. Ready to proceed?"
+Use `AskUserQuestion` to confirm: "You selected [N] test case(s): [list titles]. Ready to proceed?"
 - Option 1: "Yes, run them"
 - Option 2: "No, let me re-select"
 
@@ -401,10 +401,10 @@ This skill always uses **Mode A** (post to an existing PR); `muggle-do` is the o
 ## Guardrails
 
 - **Always confirm intent first** — never assume local vs remote without asking
-- **User MUST select project** — present clickable options via `AskQuestion`, wait for explicit choice, never auto-select
+- **User MUST select project** — present clickable options via `AskUserQuestion`, wait for explicit choice, never auto-select
 - **Best-effort shortlist use cases** — use the change summary to narrow the list to the most relevant 1–5 use cases and pre-check them; never dump every use case in the project on the user. Always leave an escape hatch to reveal the full list.
 - **Best-effort shortlist test cases** — same idea: pre-check the test cases most relevant to the change summary; never enumerate every test case attached to a use case. Always leave an escape hatch to reveal the full list.
-- **Use `AskQuestion` for every selection** — never ask the user to type a number; always present clickable options
+- **Use `AskUserQuestion` for every selection** — never ask the user to type a number; always present clickable options
 - **Auto-detect localhost URL when possible**; only fall back to free-text when nothing is listening on a common port
 - **Parallelize independent cloud jobs** — when creating N use cases, generating/creating N test cases, fetching N test case details, starting N remote workflows, polling N workflow runtimes, publishing N local runs, or fetching N per-step test scripts, issue all N calls in a single message so they fan out in parallel. The only tolerated sequential loop is local Electron execution (one browser, one test at a time). For use case creation specifically, use the native batch form of `muggle-remote-use-case-create-from-prompts` (all descriptions in one `instructions` array) instead of parallel calls.
 - **One atomic behavior per test case** — every test case verifies exactly one user-observable behavior. Never bundle signup/login/navigation/bootstrap/teardown into a test case body. Ordering and dependencies are Muggle Test's service responsibility, not the skill's.

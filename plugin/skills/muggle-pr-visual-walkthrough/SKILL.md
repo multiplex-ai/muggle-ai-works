@@ -13,8 +13,8 @@ This is the **canonical PR-walkthrough workflow** shared across every Muggle Tes
 
 | Caller | Mode | When to invoke |
 | :--- | :--- | :--- |
-| `muggle-test` | **Mode A** (post to existing PR) | After publishing results, user opts in via `AskQuestion` |
-| `muggle-test-feature-local` | **Mode A** (post to existing PR) | After publishing the run, user opts in via `AskQuestion` |
+| `muggle-test` | **Mode A** (post to existing PR) | After publishing results, user opts in via `AskUserQuestion` |
+| `muggle-test-feature-local` | **Mode A** (post to existing PR) | After publishing the run, user opts in via `AskUserQuestion` |
 | `muggle-do` / `open-prs.md` | **Mode B** (render-only for embedding) | During PR creation — caller embeds `body` in `gh pr create` and posts `comment` as follow-up |
 
 Rendering is always done by `muggle build-pr-section`, a battle-tested CLI that handles deterministic markdown layout, per-step screenshots, and automatic fit-vs-overflow (oversized content spills into a follow-up comment). Never hand-write the walkthrough markdown.
@@ -109,7 +109,7 @@ gh pr view --json number,url,title 2>/dev/null
 ```
 
 - **PR exists** → continue to 3A.2
-- **No PR exists** → use `AskQuestion`:
+- **No PR exists** → use `AskUserQuestion`:
   - "Create a new PR with the visual walkthrough in the body"
   - "Skip posting"
   - If the user chooses to create a new PR, switch to Mode B and return the rendered `body`/`comment` to the caller for embedding in `gh pr create`. Do not create the PR directly from this skill unless the caller has no better way to do it.
@@ -164,7 +164,7 @@ In Mode B, this skill does not call `gh pr comment` or `gh pr create` itself —
 | Find existing PR (Mode A) | `gh pr view` |
 | Post comment(s) (Mode A) | `gh pr comment` |
 | Create new PR (Mode B, caller handles) | `gh pr create` |
-| User confirmation (Mode A no-PR branch) | `AskQuestion` |
+| User confirmation (Mode A no-PR branch) | `AskUserQuestion` |
 
 ## Guardrails
 

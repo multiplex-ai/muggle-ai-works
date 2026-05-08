@@ -19,9 +19,9 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## UX Guidelines — Minimize Typing
 
-**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
+**Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
 
-- **Selections** (project, use case, test case, script): Use `AskQuestion` with labeled options the user can click.
+- **Selections** (project, use case, test case, script): Use `AskUserQuestion` with labeled options the user can click.
 - **Free-text inputs** (URLs, descriptions): Only use plain text prompts when there is no finite set of options. Even then, offer a detected/default value when possible.
 
 ## Preferences
@@ -62,7 +62,7 @@ Ask the user to pick **project**, **use case**, and **test case** (do not infer)
 - `muggle-remote-use-case-list` (with `projectId`)
 - `muggle-remote-test-case-list-by-use-case` (with `useCaseId`)
 
-**Selection UI (mandatory):** Every selection MUST use `AskQuestion` with clickable options. Never ask the user to "reply with the number" in plain text.
+**Selection UI (mandatory):** Every selection MUST use `AskUserQuestion` with clickable options. Never ask the user to "reply with the number" in plain text.
 
 **Project selection context:** A **project** groups all your test results, use cases, and test scripts on the Muggle AI dashboard. Include the project URL in each option label so the user can identify the right one.
 
@@ -72,18 +72,18 @@ Prompt for projects: "Pick the project to group this test into:"
 
 - Do **not** dump the full list by default.
 - Rank items by semantic relevance to the user's stated goal (title first, then description / user story / acceptance criteria).
-- Show only the **top 3-5** most relevant options via `AskQuestion`, plus these fixed tail options:
-  - **"Show full list"** — present the complete list in a new `AskQuestion` call. **Skip this option** if the API returned zero rows.
+- Show only the **top 3-5** most relevant options via `AskUserQuestion`, plus these fixed tail options:
+  - **"Show full list"** — present the complete list in a new `AskUserQuestion` call. **Skip this option** if the API returned zero rows.
   - **"Create new ..."** — never omitted. Label per step: "Create new project", "Create new use case", or "Create new test case".
 
 **Create new — tools and flow (use these MCP tools; preview before persist):**
 
 - **Project — Create new project:** Collect `projectName`, `description`, and `url` (may be the local app URL, e.g. `http://localhost:3999`). Call `muggle-remote-project-create`. Use the returned `projectId` and continue.
 - **Use case — Create new use case:** User provides a natural-language instruction (or you reuse their testing goal).
-  1. `muggle-remote-use-case-prompt-preview` with `projectId`, `instruction` — show preview; get confirmation via `AskQuestion`.
+  1. `muggle-remote-use-case-prompt-preview` with `projectId`, `instruction` — show preview; get confirmation via `AskUserQuestion`.
   2. `muggle-remote-use-case-create-from-prompts` with `projectId` and `instructions: ["<the user's natural-language instruction>"]` — persist. Use the created use case id and continue to test-case selection.
 - **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.
-  1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskQuestion`.
+  1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskUserQuestion`.
   2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 5** with that `testCaseId`.
 
 ### 3. Ensure Local Services Are Ready
@@ -112,7 +112,7 @@ Remind them: local URL is only the execution target, not tied to cloud project c
 
 `muggle-remote-test-script-list` with `testCaseId`.
 
-- **If any replayable/succeeded scripts exist:** use `AskQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
+- **If any replayable/succeeded scripts exist:** use `AskUserQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
 - **If none:** go straight to generation (no need to ask replay vs generate).
 
 ### 6. Load data for the chosen path
@@ -200,6 +200,6 @@ Always use **Mode A** (post to existing PR) from this skill. Never hand-write th
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
-- Use `AskQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
+- Use `AskUserQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
 - PR posting is always optional and always delegated to the `muggle:muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

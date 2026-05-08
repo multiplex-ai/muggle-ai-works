@@ -47,7 +47,7 @@ The `testing_scope` field records what the user is testing (from Step 1). The `e
 
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), present the running services and ask:
 
-Use `AskQuestion`:
+Use `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
 - Option 2: "Tear down and start fresh"
 - Option 3: "Add more services to the running set"
@@ -58,7 +58,7 @@ Prune any dead PIDs silently (the process crashed on its own — no point asking
 
 ### Step 1: What Are You Testing?
 
-Before discovering services, understand the shape of the testing so you can scope correctly. Use `AskQuestion`:
+Before discovering services, understand the shape of the testing so you can scope correctly. Use `AskUserQuestion`:
 
 > "What are you testing locally?"
 
@@ -74,7 +74,7 @@ Some services can't run on a developer's machine by design — they need product
 
 **If the user already volunteered this information** in their initial message (e.g., "the payment-gateway can't run locally"), acknowledge it and skip the question — don't re-ask what they already answered.
 
-Otherwise, use `AskQuestion`:
+Otherwise, use `AskUserQuestion`:
 
 > "Are there any services in your stack that **can't** run locally? (e.g., needs production secrets, specific certificates, or cloud-only infra)"
 
@@ -100,7 +100,7 @@ Figure out which services need to be running. Start by listing folder names in t
 ls -d "$(dirname "$PWD")"/*/ | xargs -I{} basename {}
 ```
 
-Present folder names only (not contents) as candidates. Use `AskQuestion` with `multiSelect: true`:
+Present folder names only (not contents) as candidates. Use `AskUserQuestion` with `multiSelect: true`:
 
 > "Which of these need to be running for your tests?"
 
@@ -114,7 +114,7 @@ If the user provides manual paths, verify they exist before continuing. If a pat
 
 **Immediately after the user selects services**, ask how they want to handle startup. This avoids making someone who prefers their own scripts wait through command detection before they get to say "I'll handle it."
 
-Use `AskQuestion`:
+Use `AskUserQuestion`:
 
 > "How do you want to handle these?"
 
@@ -139,7 +139,7 @@ Cross-reference against the selected service directories. If a selected service 
 
 If **all** required services are already running, report readiness and skip straight to Step 7. No need to go through Steps 5-6.
 
-If some are running and some aren't, acknowledge the running ones and continue to Step 5 only for the missing services. Use `AskQuestion` for any already-running service the user might want restarted:
+If some are running and some aren't, acknowledge the running ones and continue to Step 5 only for the missing services. Use `AskUserQuestion` for any already-running service the user might want restarted:
 - Option 1: "It's fine, keep it"
 - Option 2: "Restart it"
 
@@ -176,7 +176,7 @@ frontend             ~/Github/frontend                  npm run dev
 ────────────────────────────────────────────────────────────────
 ```
 
-Use `AskQuestion`:
+Use `AskUserQuestion`:
 - Option 1: "Looks good, start them"
 - Option 2: "I need to edit some commands"
 

@@ -40,9 +40,9 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 
 ## UX Guidelines — Minimize Typing
 
-**Every selection-based question MUST use the `AskQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" — always present clickable options.
+**Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" — always present clickable options.
 
-- **Selections** (project, which test cases to include): Use `AskQuestion`, with `allow_multiple: true` for the test case picker.
+- **Selections** (project, which test cases to include): Use `AskUserQuestion`, with `allow_multiple: true` for the test case picker.
 - **Free-text inputs** (project URL when creating, override filters): Only ask as plain text when the option set isn't finite.
 - **Batch related questions** when independent. Don't ask sequentially what could be one screen.
 
@@ -73,7 +73,7 @@ Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test
 ### Logic
 
 1. Call `muggle-remote-project-list` (only when not satisfied by the `always` cache).
-2. Use `AskQuestion` to present projects as clickable options. Include the project URL in each label so the user can disambiguate. Always include "Create new project" as the last option.
+2. Use `AskUserQuestion` to present projects as clickable options. Include the project URL in each label so the user can disambiguate. Always include "Create new project" as the last option.
 3. Wait for explicit selection.
 4. If the user picks "Create new project": collect `projectName`, `description`, and `url`, then call `muggle-remote-project-create`.
 
@@ -109,7 +109,7 @@ If after filtering the list is empty, congratulate the user — every test case 
 
 ### Step 5 — Present and Confirm Selection
 
-Use `AskQuestion` with `allow_multiple: true` to present every candidate test case as a clickable option. The user must explicitly approve which ones to regenerate.
+Use `AskUserQuestion` with `allow_multiple: true` to present every candidate test case as a clickable option. The user must explicitly approve which ones to regenerate.
 
 For each option label, show enough context for the user to make a real decision:
 
@@ -122,10 +122,10 @@ For example:
 - `[GENERATION_PENDING] Add item to cart — use case: Checkout Flow`
 
 Default behavior:
-- If there are **≤ 25** candidates, present all of them in a single `AskQuestion` with everything pre-checked and let the user deselect anything they want to skip.
+- If there are **≤ 25** candidates, present all of them in a single `AskUserQuestion` with everything pre-checked and let the user deselect anything they want to skip.
 - If there are **> 25** candidates, show the first 25 ranked by status priority (`DRAFT` → `GENERATION_PENDING`), plus a tail option **"Include all N — don't make me click each one"**. The user can also pick "Show next batch" to see more.
 
-After selection, call `AskQuestion` once more for a final confirmation:
+After selection, call `AskUserQuestion` once more for a final confirmation:
 
 > "About to start remote test script generation for **N** test cases against `<projectUrl>`. This will consume Muggle Test workflow budget. Proceed?"
 >
@@ -202,11 +202,11 @@ Add item to cart         rt-ghi789   COMPLETED   12
 
 ## Non-negotiables
 
-- **The user MUST select the project** — present projects via `AskQuestion`, never infer from cwd, repo name, or URL guesses.
-- **The user MUST approve which test cases to regenerate** — show the candidates via `AskQuestion`, let them deselect, then confirm again before any dispatch. Bulk-regenerating without approval can waste meaningful workflow budget.
+- **The user MUST select the project** — present projects via `AskUserQuestion`, never infer from cwd, repo name, or URL guesses.
+- **The user MUST approve which test cases to regenerate** — show the candidates via `AskUserQuestion`, let them deselect, then confirm again before any dispatch. Bulk-regenerating without approval can waste meaningful workflow budget.
 - **Default filter is `DRAFT` + `GENERATION_PENDING`** — never include `GENERATING`, `ACTIVE`, `DEPRECATED`, `ARCHIVED`, `REPLAYING`, or `REPLAY_PENDING` unless the user explicitly says so. `GENERATING` already has a workflow in flight and dispatching another races against it. `ACTIVE` test cases already have working scripts. The rest reflect deliberate user decisions or in-flight replays the skill should not interfere with.
 - **Use the bulk endpoint for dispatch** — call `muggle-remote-workflow-start-test-script-generation-bulk` once with all selected test case IDs rather than dispatching one-by-one. The backend resolves full test case details internally.
 - **Failures don't abort the batch** — the bulk API returns per-item status. Surface failures in the report. Partial progress beats no progress.
 - **Open the dashboard, don't poll by default** — the runs page is the canonical view of progress. Only poll if the user explicitly asks.
-- **Use `AskQuestion` for every selection** — never ask the user to type a number.
+- **Use `AskUserQuestion` for every selection** — never ask the user to type a number.
 - **Can be invoked at any state** — if the user already has a project chosen in conversation context, skip Step 2 and go straight to scanning.

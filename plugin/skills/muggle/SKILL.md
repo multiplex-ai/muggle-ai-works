@@ -19,7 +19,7 @@ If the user types "muggle" with no subcommand and you want to surface a contextu
 
 ## Menu
 
-When user asks for "muggle" with no specific subcommand, use `AskQuestion` to present these four options:
+When user asks for "muggle" with no specific subcommand, use `AskUserQuestion` to present these four options:
 
 - "Test a feature — run E2E acceptance tests locally or remotely" → `muggle-test-feature-local` (local) or `muggle-test` (remote/change-driven)
 - "Build something — implement a feature with E2E acceptance tests and a visual PR" → `muggle-do`
@@ -38,4 +38,4 @@ If the user intent clearly matches one command, route directly — no menu neede
 - build/implement from request/end-to-end → `muggle-do`
 - post results to PR/attach walkthrough/visual evidence on PR → `muggle-pr-visual-walkthrough`
 
-If intent is ambiguous, use `AskQuestion` with the most likely options rather than asking the user to type a clarification.
+If intent is ambiguous, use `AskUserQuestion` with the most likely options rather than asking the user to type a clarification.

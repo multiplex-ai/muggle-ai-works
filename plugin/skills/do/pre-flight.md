@@ -35,7 +35,7 @@ Before asking anything, gather every fact you can resolve without the user:
 
 ## The consolidated questionnaire
 
-Present **one `AskQuestion`** (or the platform's structured-selection equivalent) that collects every remaining decision. Use detected values as defaults whenever possible. Questions to include, in this order:
+Present **one `AskUserQuestion`** (or the platform's structured-selection equivalent) that collects every remaining decision. Use detected values as defaults whenever possible. Questions to include, in this order:
 
 1. **Task scope clarification** — only if the task description is genuinely ambiguous. Offer 2–3 interpretations as options plus "Other — type a clarification." If the task is unambiguous, omit.
 2. **Repo(s) to modify** — pre-selected with the best silent match. "Confirm <repo>" / "Change repo" / "Multi-repo (list them)".

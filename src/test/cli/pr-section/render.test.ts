@@ -157,8 +157,8 @@ describe("renderTestDetails", () => {
 
   it("renders a passed test without description (no em-dash, no description text)", () => {
     const md = renderTestDetails(passedNoMeta, PROJECT_ID, 4);
-    expect(md).toContain("<b>4. Logout flow</b> ✅ <i>▶ click to expand</i>");
-    // No " — " separator between name and the tail.
+    expect(md).toContain("<i>▶ click to expand</i> <b>4. Logout flow</b> ✅");
+    // No " — " separator between name and the description-free summary.
     expect(md).not.toMatch(/<b>4\. Logout flow<\/b> ✅ —/);
   });
 
@@ -197,6 +197,12 @@ describe("renderTestDetails", () => {
     // The `**Error:** `...` ` inline-code wrapper must still be a clean pair.
     const errorLine = md.split("\n").find((l) => l.startsWith("**Error:**"))!;
     expect(errorLine).toMatch(/^\*\*Error:\*\* `[^`]+`$/);
+  });
+
+  it("renders the dashboard link to open in a new tab", () => {
+    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
+    expect(md).toContain("target=\"_blank\"");
+    expect(md).toContain("rel=\"noopener noreferrer\"");
   });
 });
 

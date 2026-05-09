@@ -195,11 +195,11 @@ export function renderTestDetails (test: TestResult, projectId: string, testNumb
 
 function renderSummaryLine (test: TestResult, testNumber: number): string {
   const base = `<b>${testNumber}. ${test.name}</b> ${statusEmoji(test)}`;
-  const tail = " <i>▶ click to expand</i>";
+  const head = "<i>▶ click to expand</i> ";
   if (test.description) {
-    return `${base} — ${test.description}${tail}`;
+    return `${head}${base} — ${test.description}`;
   }
-  return `${base}${tail}`;
+  return `${head}${base}`;
 }
 
 /**
@@ -230,7 +230,7 @@ function renderResultSummary (test: TestResult, projectId: string): string[] {
     lines.push(`**Error:** \`${safeInlineCode(test.error)}\``);
   }
   lines.push(`**Steps:** ${test.steps.length}`);
-  lines.push(`[View steps on Muggle AI →](${dashboardUrl})`);
+  lines.push(`<a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer">View steps on Muggle AI →</a>`);
   return lines;
 }
 

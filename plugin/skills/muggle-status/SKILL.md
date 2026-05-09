@@ -28,7 +28,7 @@ Gates run per `preference-gates/README.md`.
 4. **CLI version** — gate `checkForUpdates` (per `preference-gates/README.md`):
    - `always` → run the check below.
    - `never` → render the row as `[skip]  check disabled by preference`.
-   - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/checkForUpdates.md` (header `Update check`, question `"Check for a newer Muggle Test version (one quick network call)?"`, options `Check now` / `Skip check`); map the answer: `Check now` → run check; `Skip check` → render `[skip]` row. Use the tool, not prose.
+   - `ask` → run Picker 1 from `preference-gates/checkForUpdates.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
    When the check runs: capture installed (`muggle --version`) and latest (`npm view @muggleai/works version`). Compare with `sort -V`; flag as out-of-date only when latest is strictly greater.
 

@@ -54,7 +54,7 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
    - `always` → proceed with saved session.
    - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
-   - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoLogin.md` (header `You're already logged in`, question with `{email}` substituted, options `Continue as me` / `Switch account`); map the answer: `Continue as me` → reuse session; `Switch account` → force fresh login. Use the tool, not prose.
+   - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
 4. Do not skip auth and do not assume a stale token still works.
 

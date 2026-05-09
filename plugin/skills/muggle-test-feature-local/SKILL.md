@@ -45,7 +45,7 @@ Gates run per `preference-gates/README.md`.
 - If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
   - `always` → proceed with saved session.
   - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
-  - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/autoLogin.md` (header `You're already logged in`, question with `{email}` substituted, options `Continue as me` / `Switch account`); map the answer: `Continue as me` → reuse session; `Switch account` → force fresh login. Use the tool, not prose.
+  - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
@@ -161,7 +161,7 @@ Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` dir
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
 - `always` → omit `showUi`.
 - `never` → pass `showUi: false`.
-- `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/showElectronBrowser.md` (header `Browser window`, question `"Show the test browser as it runs?"`, options `Show it` / `Run hidden`) **before** calling execute. Map the answer: `Show it` → omit `showUi`; `Run hidden` → pass `showUi: false`. Do not infer a default and do not ask in plain prose — use the tool.
+- `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 
@@ -169,7 +169,7 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - `never` → print the URL only.
-  - `ask` → call the `AskUserQuestion` tool with the Picker 1 from `preference-gates/openTestResultsAfterRun.md` (header `After the run`, question `"Open the test results in your browser when this finishes?"`, options `Open the dashboard` / `Just print the link`); map the answer: `Open the dashboard` → open; `Just print the link` → print only. Use the tool, not prose.
+  - `ask` → run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 ### 9. Report
 

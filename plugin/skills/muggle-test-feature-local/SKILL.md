@@ -160,7 +160,7 @@ Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` dir
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
 - `always` → omit `showUi`.
 - `never` → pass `showUi: false`.
-- `ask` → **invoke the `AskUserQuestion` tool — not a prose question, not markdown, not a final assistant message that asks**. The Picker 1 contract lives in `preference-gates/showElectronBrowser.md` (header `Browser window`, question `"Show the test browser as it runs?"`, options `Show it` / `Run hidden`). Call `AskUserQuestion` with that header/question/options BEFORE calling execute. Map the answer: `Show it` → omit `showUi`; `Run hidden` → pass `showUi: false`. If you find yourself writing the question in regular text instead, stop and use the tool.
+- `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 

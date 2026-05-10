@@ -1,20 +1,29 @@
 # E2eReport Assembly Guide
 
-Include **all** runs — passed and failed. Never drop a run.
+Include **all** runs — passed and failed. Never drop a run. Always best-effort to upload so the dashboard has a record reviewers can open from the PR — even when the local run produced zero action steps.
 
-## Published run (returned by `muggle-local-publish-test-script`)
+## Uploaded run (passed or failed; the common path)
 
-Issue all `muggle-remote-test-script-get` calls in parallel — one per `testScriptId`. For each response:
+Every run that completed locally — pass or fail, with or without action steps — should reach the cloud via Step 8 of the caller skill. The upload response carries `actionScriptId` and `viewUrl`; `testScriptId` is **only present for passing runs and replays** (failed generations skip the test script wrapper to avoid clobbering the canonical replay target).
 
-1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`
-2. `viewUrl` — from publish response.
+Fetch step screenshots in parallel — pick the right tool per upload:
+
+- **`testScriptId` present** → `muggle-remote-test-script-get` with that id.
+- **`testScriptId` missing** (failed generation, or zero-step fallback via `muggle-remote-local-run-upload`) → `muggle-remote-action-script-get` with `actionScriptId` from the upload response. Same `steps[]` + `summaryStep` shape; just one less hop.
+
+For each result:
+
+1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. Empty array is fine — zero-step runs still render the failure summary header in the walkthrough.
+2. `viewUrl` — from upload response (deep-links to the specific run via `actionScriptId`).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
 
-## Failed/unpublished run (timeout, `goal_not_achievable`, or any run never passed to `muggle-local-publish-test-script`)
+## Last-resort: upload genuinely failed
 
-1. `steps: []` — no cloud screenshots available.
-2. `viewUrl`: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs`
+Reach this branch only when **both** `muggle-local-publish-test-script` AND the `muggle-remote-local-run-upload` fallback errored (network failure, auth issue, etc.) — not for ordinary zero-step runs, which the fallback handles. Don't drop the run; render a stub entry so reviewers still see something happened.
+
+1. `steps: []`.
+2. `viewUrl`: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs` (generic dashboard).
 3. `status: "failed"`, `failureStepIndex: 0`, `error` from run result.
 4. `testCaseId` — from execution step selection. `runId` — from `muggle-local-execute-test-generation` (always present even on failure).
 
@@ -45,7 +54,7 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "useCaseName": "<parent use case title (recommended)>",
       "testCaseId": "<testCaseId from execution step>",
       "runId": "<runId from muggle-local-execute-test-generation>",
-      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/runs",
+      "viewUrl": "<viewUrl from upload response, deep-linked via actionScriptId>",
       "status": "failed",
       "steps": [],
       "failureStepIndex": 0,

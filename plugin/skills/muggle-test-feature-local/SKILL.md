@@ -171,7 +171,7 @@ Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-ste
   - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - Skip-action: print the URL only.
 
-If publish rejects with `has no generated actionScript steps to publish` (true zero-step runs — Electron never produced an action), skip publish and fall through; step 10's report assembly handles the no-steps branch.
+If publish rejects with `has no generated actionScript steps to publish` (true zero-step runs — Electron never produced an action), fall back to `muggle-remote-local-run-upload` directly with whatever data exists (`summaryStep`, `errorMessage`, empty `actionScript`). This still gets the failure summary and any goal-not-achievable verdict onto the dashboard so reviewers can see why the run failed. Capture the returned `actionScriptId` and `viewUrl` from this fallback path the same way you would from publish.
 
 ### 9. Report
 

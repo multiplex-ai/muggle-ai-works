@@ -53,9 +53,9 @@
         }
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.25.3",
         "@muggleai/mcp": "file:packages/mcps",
         "@muggleai/workflows": "file:packages/workflows",
-        "@modelcontextprotocol/sdk": "^1.25.3",
         "applicationinsights": "^3.14.0",
         "axios": "^1.7.9",
         "commander": "^14.0.3",
@@ -66,8 +66,9 @@
         "zod": "^4.3.6"
     },
     "devDependencies": {
-        "@muggleai/telemetry": "0.3.2",
+        "@anthropic-ai/claude-agent-sdk": "^0.2.133",
         "@eslint/js": "^10.0.1",
+        "@muggleai/telemetry": "0.3.2",
         "@types/node": "^25.5.2",
         "@types/uuid": "^11.0.0",
         "@typescript-eslint/eslint-plugin": "^8.34.0",
@@ -75,9 +76,9 @@
         "eslint": "^10.2.0",
         "eslint-plugin-unused-imports": "^4.2.0",
         "rimraf": "^6.0.1",
-        "turbo": "^2.9.4",
         "tsup": "^8.5.1",
         "tsx": "^4.19.2",
+        "turbo": "^2.9.4",
         "typescript": "^6.0.2",
         "vitest": "^4.0.18"
     },

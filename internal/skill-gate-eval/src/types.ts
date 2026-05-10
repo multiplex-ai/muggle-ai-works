@@ -3,7 +3,7 @@
  * run.ts, and scenario.ts don't each redeclare the contract.
  */
 
-import type { MockCall } from "./mock-mcp.js";
+import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 
 /** Canonical preference values a gate can resolve to. */
 export enum PreferenceValue {
@@ -12,6 +12,31 @@ export enum PreferenceValue {
   Ask = "ask",
   Local = "local",
   Remote = "remote",
+}
+
+/** Canned per-tool responses keyed by the slot the mock-mcp stubs read. */
+export interface Fixtures {
+  authStatus?: unknown;
+  lastProject?: unknown;
+  lastHost?: unknown;
+  projects?: unknown;
+  useCases?: unknown;
+  testCases?: unknown;
+  testCase?: unknown;
+  executeResult?: unknown;
+  runResult?: unknown;
+  [key: string]: unknown;
+}
+
+/** Returned from `buildMockMcpServer`; the harness mounts `config` and calls are recorded by the harness via canUseTool. */
+export interface MockServerHandle {
+  config: McpSdkServerConfigWithInstance;
+}
+
+/** One tool call captured by the harness — the agent's raw input, not the post-zod-parsed handler args. */
+export interface MockCall {
+  tool: string;
+  args: Record<string, unknown>;
 }
 
 export interface ScenarioExpectation {
@@ -91,6 +116,8 @@ export interface RunOptions {
   scenario: Scenario;
   skillsDir: string;
   model: string;
+  /** Hard cap on agent turns. Exceeding raises a verdict failure rather than running unbounded. */
+  maxTurns?: number;
 }
 
 export interface CliArgs {

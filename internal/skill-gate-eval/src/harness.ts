@@ -2,34 +2,42 @@
  * Runs one scenario end-to-end and returns a per-run verdict.
  *
  * Mechanics:
- *   - Loads the target SKILL.md as the system prompt.
- *   - Synthesizes a SessionStart context block (preferences line + any
- *     extra session-context lines from the scenario) and appends it.
- *   - Wires the mock muggle MCP server into the agent SDK.
- *   - Hooks `canUseTool` to record every tool call. AskQuestion calls
- *     get auto-answered from the scenario's `askQuestionAnswers`, or
- *     fail the scenario if the gate's question fired when it shouldn't.
- *   - After the run, asserts the captured trace against the scenario's
- *     `expect` block.
- *
- * The Claude Agent SDK API used here is the canonical TS SDK shape; if
- * the package import path or hook names diverge in the installed
- * version, adjust the imports — the structure of the harness is
- * stable.
+ *   - Loads the target SKILL.md as the system prompt + a synthesized
+ *     SessionStart context block (preferences, last-project, last-host).
+ *   - Mounts the in-process mock muggle MCP server via the agent SDK's
+ *     `mcpServers` option.
+ *   - Hooks `canUseTool` to record every tool call. Mock muggle tools
+ *     are allowed (the SDK then runs the canned handler). AskQuestion
+ *     is denied with a scripted user-selection message — the deny
+ *     channel is what feeds the agent its "answer."
+ *   - Iterates the SDK query stream to completion, then asserts the
+ *     captured trace against the scenario's `expect` block.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import {
+  query,
+  type CanUseTool,
+  type PermissionResult,
+} from "@anthropic-ai/claude-agent-sdk";
+
 import { ASK_QUESTION_TOOL } from "./constants.js";
-import { buildMockMcpServer, MockCall } from "./mock-mcp.js";
+import { buildMockMcpServer } from "./mock-mcp.js";
 import { loadFixtures } from "./scenario.js";
 import type {
   AskQuestionRecord,
+  Fixtures,
+  MockCall,
   RunOptions,
   RunVerdict,
   Scenario,
 } from "./types.js";
+
+const DEFAULT_MAX_TURNS = 40;
+const MOCK_MCP_PREFIX = "mcp__eval_mock__";
+const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
 
 /**
  * Build the system prompt from the SKILL.md plus a synthesized
@@ -63,6 +71,16 @@ function buildSystemPrompt(opts: RunOptions): string {
     "# Synthesized SessionStart context (test harness)",
     `Muggle Test Preferences: ${prefs}`,
     extraContext,
+    "",
+    "---",
+    "# ENVIRONMENT NOTE",
+    "This is a behavioral test harness for the muggle skills. The production",
+    "`mcp__plugin_muggle_muggle__*` tools are NOT available — every call to",
+    "them is denied. Use the matching `mcp__eval_mock__*` tools instead;",
+    "they return canned data so the skill can complete without contacting",
+    "real services. The skill text refers to bare tool names (e.g.",
+    "`muggle-local-execute-test-generation`); resolve those to",
+    "`mcp__eval_mock__muggle-local-execute-test-generation` and so on.",
   ].join("\n");
 }
 
@@ -88,84 +106,108 @@ function isGateQuestion(question: string, scenario: Scenario): boolean {
 }
 
 /**
- * Run one scenario once and return a verdict. Caller invokes this N
- * times to compute a pass rate.
- *
- * The actual agent invocation is left abstract: a real implementation
- * imports `query` from `@anthropic-ai/claude-agent-sdk`, wires
- * `mcpServers: { muggle: handle.server }` and a `canUseTool` callback
- * that records and answers AskQuestion. This file is the contract for
- * what the harness emits — fill in `runAgent` once the SDK package is
- * installed.
+ * Strip the mock MCP prefix from a recorded tool name so the verdict
+ * can match against the bare names used in scenarios
+ * (`muggle-local-execute-test-generation`).
  */
-export async function runScenarioOnce(opts: RunOptions): Promise<RunVerdict> {
+function bareToolName(toolName: string): string {
+  if (toolName.startsWith(MOCK_MCP_PREFIX)) {
+    return toolName.slice(MOCK_MCP_PREFIX.length);
+  }
+  return toolName;
+}
+
+/** Run one scenario once and return a verdict. Caller invokes this N times to compute a pass rate. */
+export async function runScenarioOnce(
+  opts: RunOptions,
+  onMessage?: (msg: unknown) => void,
+): Promise<RunVerdict> {
   const fixtures = loadFixtures(
     opts.scenarioFilePath,
     opts.scenarioFile.fixturesPath,
-  );
+  ) as Fixtures;
   const mock = buildMockMcpServer(fixtures);
+
+  const mcpCalls: MockCall[] = [];
   const askQuestions: AskQuestionRecord[] = [];
   let gateQuestionFired = false;
 
   const systemPrompt = buildSystemPrompt(opts);
 
-  // canUseTool intercepts every tool call. For mocked muggle tools we
-  // allow + the mock server records the call. For AskQuestion we
-  // record + auto-answer or fail the scenario.
-  const canUseTool = async (
-    toolName: string,
-    input: Record<string, unknown>,
-  ): Promise<{ behavior: "allow"; updatedInput?: unknown } | { behavior: "deny"; message: string }> => {
+  const canUseTool: CanUseTool = async (
+    toolName,
+    input,
+  ): Promise<PermissionResult> => {
     if (toolName === ASK_QUESTION_TOOL) {
-      const question = String(
-        (input as { question?: unknown }).question ?? "",
-      );
-      if (isGateQuestion(question, opts.scenario)) gateQuestionFired = true;
-      const answer = matchAskQuestionAnswer(question, opts.scenario);
-      askQuestions.push({ question: question, answer: answer });
-      // Returning `deny` short-circuits: the agent gets the message as
-      // the tool result, which we use to inject our scripted answer.
-      // Real SDK shape may differ; adjust to whatever the canUseTool
-      // contract is in the installed version.
+      // The agent's AskQuestion input is { questions: [{ question, options, ... }] }.
+      // Extract the first question's text; that's what we match on.
+      const firstQuestion = extractFirstQuestionText(input);
+      if (isGateQuestion(firstQuestion, opts.scenario)) {
+        gateQuestionFired = true;
+      }
+      const answer = matchAskQuestionAnswer(firstQuestion, opts.scenario);
+      askQuestions.push({ question: firstQuestion, answer: answer });
       return {
         behavior: "deny",
-        message: answer ?? "[harness] no scripted answer for this question",
+        message:
+          answer !== null
+            ? `User selected: "${answer}"`
+            : "[harness] no scripted answer for this question — scenario should add one",
       };
     }
-    return { behavior: "allow" };
+
+    if (toolName.startsWith(MOCK_MCP_PREFIX)) {
+      mcpCalls.push({ tool: bareToolName(toolName), args: input });
+      return { behavior: "allow", updatedInput: input };
+    }
+
+    // Production muggle plugin is loaded in the parent Claude Code session
+    // and bleeds into the SDK; redirect the agent to the mock equivalents.
+    if (toolName.startsWith(PRODUCTION_MUGGLE_PREFIX)) {
+      const bare = toolName.slice(PRODUCTION_MUGGLE_PREFIX.length);
+      return {
+        behavior: "deny",
+        message: `[harness] the production muggle plugin is not available in this eval. Use \`${MOCK_MCP_PREFIX}${bare}\` instead.`,
+      };
+    }
+
+    // Anything else (built-in Read/Bash/etc.) — deny. The skill shouldn't need them.
+    return {
+      behavior: "deny",
+      message: `[harness] tool ${toolName} is not available in this eval — the skill should not need it`,
+    };
   };
 
-  await runAgent({
-    systemPrompt: systemPrompt,
-    userPrompt: opts.scenario.userPrompt,
-    mcpServer: mock.server,
-    canUseTool: canUseTool,
-    model: opts.model,
+  const stream = query({
+    prompt: opts.scenario.userPrompt,
+    options: {
+      systemPrompt: systemPrompt,
+      mcpServers: { eval_mock: mock.config },
+      canUseTool: canUseTool,
+      model: opts.model,
+      maxTurns: opts.maxTurns ?? DEFAULT_MAX_TURNS,
+      // Disable everything except our mock MCP namespace + AskUserQuestion.
+      tools: ["AskUserQuestion"],
+    },
   });
 
-  return verdict(opts.scenario, mock.calls, askQuestions, gateQuestionFired);
+  // Drain the stream so the SDK actually runs the agent to completion.
+  for await (const msg of stream) {
+    if (onMessage) onMessage(msg);
+  }
+
+  return verdict(opts.scenario, mcpCalls, askQuestions, gateQuestionFired);
 }
 
-/**
- * Stub for the real Claude Agent SDK call. Replace this body with the
- * concrete `query()` invocation from `@anthropic-ai/claude-agent-sdk`
- * once that dep is installed and pinned. Until then, calling
- * `runScenarioOnce` will throw — by design, so the harness scaffold
- * doesn't masquerade as runnable.
- */
-async function runAgent(_args: {
-  systemPrompt: string;
-  userPrompt: string;
-  mcpServer: unknown;
-  canUseTool: (
-    toolName: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  model: string;
-}): Promise<void> {
-  throw new Error(
-    "[skill-gate-eval] runAgent not wired yet. Install @anthropic-ai/claude-agent-sdk and replace this stub. See README.",
-  );
+function extractFirstQuestionText(input: Record<string, unknown>): string {
+  const questions = (input as { questions?: unknown }).questions;
+  if (Array.isArray(questions) && questions.length > 0) {
+    const q = questions[0] as { question?: unknown };
+    return typeof q.question === "string" ? q.question : "";
+  }
+  // Fallback: some callers may pass a flat `question` field.
+  const flat = (input as { question?: unknown }).question;
+  return typeof flat === "string" ? flat : "";
 }
 
 function verdict(

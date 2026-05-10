@@ -158,8 +158,9 @@ The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggl
 Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
 
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
-- Pro-action: omit `showUi`.
-- Skip-action: pass `showUi: false`.
+- `always` → omit `showUi`.
+- `never` → pass `showUi: false`.
+- `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 ### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
 

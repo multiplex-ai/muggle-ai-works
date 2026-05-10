@@ -9,7 +9,9 @@
  *     --skill muggle-test-feature-local \
  *     --runs 10 \
  *     [--brain-dir ../muggle-ai-brain] \
- *     [--model claude-sonnet-4-6]
+ *     [--model claude-sonnet-4-6] \
+ *     [--scenario <substring>]   # only run scenarios whose name contains this
+ *     [--verbose]                 # dump per-run trace to stderr
  */
 
 import * as fs from "node:fs";
@@ -20,16 +22,22 @@ import { runScenarioOnce } from "./harness.js";
 import { loadScenarioFile } from "./scenario.js";
 import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
 
-function parseArgs(argv: string[]): CliArgs {
+interface RunCliArgs extends CliArgs {
+  scenarioFilter?: string;
+  verbose: boolean;
+}
+
+function parseArgs(argv: string[]): RunCliArgs {
   const out: Record<string, string> = {};
+  const flags = new Set<string>();
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a.startsWith("--")) {
-      const key = a.slice(2);
-      const val = argv[i + 1];
-      if (val === undefined || val.startsWith("--")) {
-        throw new Error(`Missing value for --${key}`);
-      }
+    if (!a.startsWith("--")) continue;
+    const key = a.slice(2);
+    const val = argv[i + 1];
+    if (val === undefined || val.startsWith("--")) {
+      flags.add(key);
+    } else {
       out[key] = val;
       i++;
     }
@@ -44,6 +52,8 @@ function parseArgs(argv: string[]): CliArgs {
     brainDir: out["brain-dir"] ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain",
     skillsDir: out["skills-dir"] ?? "plugin/skills",
     model: out.model ?? DEFAULT_MODEL,
+    scenarioFilter: out.scenario,
+    verbose: flags.has("verbose"),
   };
 }
 
@@ -66,20 +76,37 @@ async function main(): Promise<void> {
     );
   }
 
+  const filteredScenarios = args.scenarioFilter
+    ? scenarioFile.scenarios.filter((s) => s.name.includes(args.scenarioFilter!))
+    : scenarioFile.scenarios;
+  if (filteredScenarios.length === 0) {
+    throw new Error(
+      `No scenarios match --scenario "${args.scenarioFilter}" — available: ${scenarioFile.scenarios.map((s) => s.name).join(", ")}`,
+    );
+  }
+
   const reports: ScenarioReport[] = [];
-  for (const scenario of scenarioFile.scenarios) {
+  for (const scenario of filteredScenarios) {
     const verdicts: RunVerdict[] = [];
     for (let i = 0; i < args.runs; i++) {
+      // eslint-disable-next-line no-console
+      console.error(`[skill-gate-eval] running ${scenario.name} (rep ${i + 1}/${args.runs})…`);
       // eslint-disable-next-line no-await-in-loop
-      verdicts.push(
-        await runScenarioOnce({
+      const v = await runScenarioOnce(
+        {
           scenarioFile: scenarioFile,
           scenarioFilePath: scenarioFilePath,
           scenario: scenario,
           skillsDir: path.resolve(args.skillsDir),
           model: args.model,
-        }),
+        },
+        args.verbose ? (msg) => process.stderr.write(`[sdk] ${oneLine(msg)}\n`) : undefined,
       );
+      verdicts.push(v);
+      if (args.verbose) {
+        // eslint-disable-next-line no-console
+        console.error(JSON.stringify(v, null, 2));
+      }
     }
     const passes = verdicts.filter((v) => v.pass).length;
     const passRate = passes / verdicts.length;
@@ -133,6 +160,11 @@ async function main(): Promise<void> {
     }
   }
   process.exit(allPassed ? 0 : 1);
+}
+
+function oneLine(msg: unknown): string {
+  const s = JSON.stringify(msg);
+  return s.length > 500 ? s.slice(0, 500) + "…" : s;
 }
 
 main().catch((err: unknown) => {

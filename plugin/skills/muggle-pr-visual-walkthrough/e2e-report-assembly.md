@@ -2,7 +2,9 @@
 
 Include **all** runs — passed and failed. Never drop a run.
 
-## Published run (returned by `muggle-local-publish-test-script`)
+## Published run (passed or failed — anything with action steps)
+
+Most runs end up here, including failures. Any run with at least one action step should be uploaded via `muggle-local-publish-test-script` — pass-or-fail. The `status: "failed"` payload tells the backend to record the run without promoting its action script as the test case's canonical replay script, so screenshots become cloud-accessible without clobbering a previously working script.
 
 Issue all `muggle-remote-test-script-get` calls in parallel — one per `testScriptId`. For each response:
 
@@ -11,9 +13,11 @@ Issue all `muggle-remote-test-script-get` calls in parallel — one per `testScr
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
 
-## Failed/unpublished run (timeout, `goal_not_achievable`, or any run never passed to `muggle-local-publish-test-script`)
+## True unpublishable (no steps recorded)
 
-1. `steps: []` — no cloud screenshots available.
+Reserved for runs Electron rejected before producing any action — orchestration timeout before launch, hard crash, `goal_not_achievable` halt at step 0. Recognizable because `muggle-local-publish-test-script` rejects with `has no generated actionScript steps to publish`.
+
+1. `steps: []` — nothing to render.
 2. `viewUrl`: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs`
 3. `status: "failed"`, `failureStepIndex: 0`, `error` from run result.
 4. `testCaseId` — from execution step selection. `runId` — from `muggle-local-execute-test-generation` (always present even on failure).

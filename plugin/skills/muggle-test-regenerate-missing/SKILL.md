@@ -164,6 +164,19 @@ Total: 17 dispatched | 16 started | 1 failed
 
 For failures: include a one-line error excerpt from the item's error field and (where possible) a hint at the cause (e.g., "missing instructions field — edit the test case in the dashboard, then re-run this skill").
 
+### Per-item failure routing (regen)
+
+For every item with a non-success dispatch status, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section C (regen failure buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
+
+Because this skill is bulk-dispatch (no live user attention per item), batch the routing — don't ask the user per item:
+
+1. Group failed items by AI-classified bucket using the signal heuristics in the shared doc (most failures here will be `transient` or `infra` since dispatch failures rarely surface product-uxux signals).
+2. Emit one `regen-failure-classified` event per failed item via `muggle-local-telemetry-event-emit`.
+3. Present the buckets to the user via a single `AskUserQuestion` summarizing counts: e.g., "12 transient (recommend retry), 3 infra (recommend report-bug). What do you want to do?" Options: "Retry transient items", "Report all to Muggle AI", "muggle-feedback for selected items", "Skip — leave them as-is".
+4. Emit one `regen-failure-resolved` event per item with the user's batch decision applied.
+
+Bulk regen does not run replays, so the section B (replay) router does not apply here.
+
 ### Step 8 — Open the Dashboard
 
 Open the Muggle AI dashboard so the user can watch progress visually:

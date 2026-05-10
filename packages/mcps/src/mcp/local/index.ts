@@ -74,6 +74,7 @@ function isLocalOnlyTool(toolName: string): boolean {
     "muggle_test_script_get",
     // Client telemetry — purely local, no backend call
     "muggle-local-telemetry-skill-emit",
+    "muggle-local-telemetry-event-emit",
   ];
 
   return localOnlyTools.includes(toolName);

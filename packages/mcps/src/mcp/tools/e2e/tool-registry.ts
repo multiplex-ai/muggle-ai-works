@@ -1399,6 +1399,65 @@ const apiKeyTools: IQaToolDefinition[] = [
 ];
 
 // =============================================================================
+// User Feedback Tools
+// =============================================================================
+
+const userFeedbackTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-user-feedback-create",
+    description:
+      "Submit user feedback on a generated action script — either the whole script (targetType='actionScript', targetId=actionScriptId) or a specific step (targetType='step', targetId=`${actionScriptId}:${stepIndex}` with 0-based stepIndex). Persists the feedback and triggers an async feedback-analysis workflow that may regenerate the script. The response includes the saved feedback and, when the analysis workflow was started, a feedbackAnalysisWorkflowRuntimeId for polling.",
+    inputSchema: schemas.UserFeedbackCreateInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.UserFeedbackCreateInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/user-feedback`,
+        body: {
+          projectId: data.projectId,
+          target: data.target,
+          feedbackText: data.feedbackText,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-user-feedback-list",
+    description:
+      "List active user feedback entries for a project. Optionally narrow by exactly one of actionScriptId / testScriptId / testCaseId / useCaseId — the typical query is 'show me feedback on this test case (or test script, or use case).' Supports limit/offset pagination. Response: { feedback: IUserFeedback[], total: number, hasMore: boolean }.",
+    inputSchema: schemas.UserFeedbackListInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.UserFeedbackListInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/user-feedback`,
+        queryParams: {
+          projectId: data.projectId,
+          actionScriptId: data.actionScriptId,
+          testScriptId: data.testScriptId,
+          testCaseId: data.testCaseId,
+          useCaseId: data.useCaseId,
+          limit: data.limit,
+          offset: data.offset,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-user-feedback-delete",
+    description: "Soft-delete a user feedback entry by ID. Returns 204 on success.",
+    inputSchema: schemas.UserFeedbackDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.UserFeedbackDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/user-feedback/${data.feedbackId}`,
+      };
+    },
+  },
+];
+
+// =============================================================================
 // Auth Tools (Device Code Flow)
 // =============================================================================
 
@@ -1558,6 +1617,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...walletTools,
   ...recommendationTools,
   ...apiKeyTools,
+  ...userFeedbackTools,
   ...authTools,
 ];
 

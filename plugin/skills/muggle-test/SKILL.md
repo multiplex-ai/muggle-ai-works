@@ -374,6 +374,18 @@ If 9b resolved to "post" (either via `postPRVisualWalkthrough = always` or the u
 
 This skill always uses **Mode A** (post to an existing PR); `muggle-do` is the only caller that uses Mode B. Do not attempt to render the walkthrough markdown yourself — delegate to the shared skill.
 
+## Step 10: Offer feedback on failures
+
+After the report is complete, if **any** test in the run had a `failed` or unexpected status (or the user verbally flags something looked off), suggest the feedback skill:
+
+> "Looks like `<N>` test(s) didn't go as expected. Want to leave feedback on what should've happened? It triggers regeneration on the affected scripts."
+
+Use `AskUserQuestion`:
+- **Yes — give feedback** → invoke the `muggle-feedback` skill via the `Skill` tool. Pass the failed run's `runId` (local) or `testScriptId` (remote) as anchor context so the submit flow opens with the correct script already loaded.
+- **No — skip**
+
+This is a suggestion, not automatic invocation. Skip silently if every test passed cleanly.
+
 ## Tool Reference
 
 | Phase | Tool | Mode |

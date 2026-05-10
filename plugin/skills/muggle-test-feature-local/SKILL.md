@@ -174,6 +174,16 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 - `muggle-local-run-result-get` with the run id from execute.
 - Include: status, duration, pass/fail summary, per-step summary, artifact/screenshot paths, errors if failed, and script view URL when publishing ran.
 
+### 9a. Offer feedback when something looked wrong
+
+If the run's status is `failed`, the per-step summary shows an error, or the user verbally flags that the script did the wrong thing, suggest the feedback skill via `AskUserQuestion`:
+
+> "Want to leave feedback on what should've happened? It triggers regeneration of the affected script."
+> - **Yes — give feedback** → invoke the `muggle-feedback` skill via the `Skill` tool, passing the just-finished `runId` so the submit flow opens with this run preloaded.
+> - **No — skip**
+
+Skip silently if the run passed cleanly and the user did not flag anything.
+
 ### 10. Offer to post a visual walkthrough to the PR
 
 After reporting results, gather the required input and hand off to the shared **`muggle:muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.

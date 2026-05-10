@@ -1,6 +1,6 @@
 # Failure-Mode Handling — Shared Reference
 
-> Source of truth for **(a)** the pre-execution replay-vs-regen choice and **(b)** the post-execution failure router used by `muggle-test`, `muggle-test-feature-local`, `muggle-do-task`, and `muggle-test-regenerate-missing`. Skills MUST link here rather than restate the rules.
+> Source of truth for **(a)** the pre-execution replay-vs-regen choice and **(b)** the post-execution failure router used by `muggle-test`, `muggle-test-feature-local`, and `muggle-do-task`. Skills MUST link here rather than restate the rules.
 
 ## The contract
 

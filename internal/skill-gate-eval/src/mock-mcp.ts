@@ -57,6 +57,12 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
         async () => jsonResult({ ok: true }),
       ),
       tool(
+        "muggle-local-telemetry-event-emit",
+        "Failure-mode telemetry sink (mock).",
+        PERMISSIVE_SHAPE,
+        async () => jsonResult({ ok: true }),
+      ),
+      tool(
         "muggle-remote-auth-status",
         "Auth status (mock).",
         PERMISSIVE_SHAPE,

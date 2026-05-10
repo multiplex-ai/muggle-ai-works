@@ -33,7 +33,9 @@ import {
   LastHostSetInputSchema,
   LastHostClearInputSchema,
   SkillTelemetryEmitInputSchema,
+  EventTelemetryEmitInputSchema,
 } from "../../local/contracts/index.js";
+import { appendFailureEvent } from "../../../shared/failure-events.js";
 import { writePreferences } from "../../../shared/preferences.js";
 import {
   readLastProject,
@@ -822,6 +824,36 @@ const telemetrySkillEmitTool: ILocalMcpTool = {
   },
 };
 
+// Records structured failure-mode events (AI classification + suggested action +
+// user's actual choice) so we can later measure classification accuracy and
+// refine guidance. See plugin/skills/_shared/failure-mode-handling.md.
+const telemetryEventEmitTool: ILocalMcpTool = {
+  name: "muggle-local-telemetry-event-emit",
+  description:
+    "Emit a structured failure-mode telemetry event recording how a Muggle Test skill " +
+    "classified a situation and what action the user took. Used at five decision points: " +
+    "'pre-execution-classification' (replay vs regen), 'replay-failure-classified', " +
+    "'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved'. " +
+    "Records to ~/.muggle-ai/telemetry/failure-events.jsonl. Never fails the skill on telemetry errors.",
+  inputSchema: EventTelemetryEmitInputSchema,
+  execute: async (ctx) => {
+    const input = EventTelemetryEmitInputSchema.parse(ctx.input);
+    appendFailureEvent({
+      eventType: input.eventType,
+      skillName: input.skillName,
+      aiClassification: input.aiClassification,
+      aiSuggestion: input.aiSuggestion,
+      userAction: input.userAction,
+      runId: input.runId,
+      testCaseId: input.testCaseId,
+      projectId: input.projectId,
+      signals: input.signals,
+      metadata: input.metadata,
+    });
+    return { content: "ok", isError: false, data: { recorded: true } };
+  },
+};
+
 // ========================================
 // All Tools Registry
 // ========================================
@@ -858,6 +890,7 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   lastHostClearTool,
   // Client telemetry: skills emit invocation events through this tool
   telemetrySkillEmitTool,
+  telemetryEventEmitTool,
 ];
 
 /**

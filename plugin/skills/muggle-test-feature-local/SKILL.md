@@ -162,27 +162,38 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 - `never` → pass `showUi: false`.
 - `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
-### 8. After successful generation only (open `viewUrl` gated by `openTestResultsAfterRun`)
+### 8. Upload run to cloud (every completed run; open `viewUrl` gated by `openTestResultsAfterRun`)
+
+Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-step actions for the PR walkthrough — without them reviewers see only a generic "failed" link. The `status` field in the upload payload tells the backend whether to promote the run's action script as the test case's canonical replay script (passed → promote; failed → record only).
 
 - `muggle-local-publish-test-script`
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - Skip-action: print the URL only.
 
+If publish rejects with `has no generated actionScript steps to publish` (true zero-step runs — Electron never produced an action), skip publish and fall through; step 10's report assembly handles the no-steps branch.
+
 ### 9. Report
 
 - `muggle-local-run-result-get` with the run id from execute.
 - Include: status, duration, pass/fail summary, per-step summary, artifact/screenshot paths, errors if failed, and script view URL when publishing ran.
 
-### 9a. Offer feedback when something looked wrong
+### 9a. Route failures through the failure-mode handler
 
-If the run's status is `failed`, the per-step summary shows an error, or the user verbally flags that the script did the wrong thing, suggest the feedback skill via `AskUserQuestion`:
+If the run's status is `failed` or any non-passing terminal state, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md):
 
-> "Want to leave feedback on what should've happened? It triggers regeneration of the affected script."
-> - **Yes — give feedback** → invoke the `muggle-feedback` skill via the `Skill` tool, passing the just-finished `runId` so the submit flow opens with this run preloaded.
-> - **No — skip**
+- **Replay-mode run failed** (the user picked an existing script in Step 5) → section B (buckets: `infra` / `stale-script` / `product-defect`).
+- **Regen-mode run failed** (the user picked "Generate new script" or no script existed) → section C (buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
 
-Skip silently if the run passed cleanly and the user did not flag anything.
+Steps:
+1. Read the run via `muggle-local-run-result-get` and extract signals per the heuristics in the shared doc.
+2. Emit `replay-failure-classified` or `regen-failure-classified` via `muggle-local-telemetry-event-emit` **before** asking the user.
+3. Present the recommended action via `AskUserQuestion` with the alternatives the shared doc lists for that bucket.
+4. After the user picks, emit the matching `*-resolved` event with `userAction`.
+
+If the user picks `muggle-feedback` from any bucket's options, invoke the `muggle-feedback` skill via the `Skill` tool, passing the just-finished `runId` so the submit flow opens with this run preloaded.
+
+Skip silently when the run passed cleanly — failure-mode events are by definition about failures.
 
 ### 10. Offer to post a visual walkthrough to the PR
 

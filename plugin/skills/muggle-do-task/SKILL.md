@@ -117,3 +117,18 @@ Load and call `muggle-local-execute-replay` with:
 
 Tell the user:
 > Running **[useCaseName]** on [domain]. Watch the Muggle Test window — it will execute the task with your parameters applied.
+
+## Step 8 — Route failures through the failure-mode handler
+
+If Phase 1 generation or Phase 2 replay returns `failed` or any non-passing terminal state, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md):
+
+- **Phase 1 (generation) failure** → section C (buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
+- **Phase 2 (replay) failure** → section B (buckets: `infra` / `stale-script` / `product-defect`).
+
+Steps:
+1. Read the run via `muggle-local-run-result-get` and extract signals per the heuristics in the shared doc.
+2. Emit `regen-failure-classified` or `replay-failure-classified` via `muggle-local-telemetry-event-emit` **before** asking the user.
+3. Present the recommended action via `AskUserQuestion` with the alternatives the shared doc lists for that bucket.
+4. After the user picks, emit the matching `*-resolved` event with `userAction`.
+
+If the user picks `muggle-feedback` from any bucket's options, invoke the `muggle-feedback` skill via the `Skill` tool with the `runId`. Skip silently on clean success.

@@ -204,6 +204,23 @@ Use `AskUserQuestion` to confirm: "You selected [N] test case(s): [list titles].
 
 Wait for user confirmation before moving to execution.
 
+### 6f: Classify execution mode per test case (replay vs regen)
+
+For each selected test case, decide whether the run should be a **replay** of an existing script or a fresh **regen**, using the rules in [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section A. Inputs: the change summary from Step 2, the test case body, and the result of `muggle-remote-test-script-list` for that test case (last passing timestamp + whether any replayable script exists).
+
+Per test case, fire one `muggle-local-telemetry-event-emit` with `eventType: "pre-execution-classification"` capturing the picked mode, the rule that fired, and the matched changed-file paths.
+
+Then show the per-case decision in one `AskUserQuestion`:
+
+> "Here's how I plan to run each test case — replay reuses the saved script, regen rebuilds it from scratch:
+> - [REPLAY] Login with valid creds — selectors look unchanged
+> - [REGEN] Sign up with valid email — last passed > 30 days ago
+> - [REGEN] Add to cart — `app/cart/page.tsx` changed (UI/markup)"
+>
+> Options: "Looks good — proceed", "Override one or more", "Cancel"
+
+If the user picks "Override one or more", let them flip the mode for any test case via a second multi-select `AskUserQuestion`. Emit a follow-up `pre-execution-classification` event with `userAction` set whenever the user overrides.
+
 ## Step 7A: Execute — Local Mode
 
 ### Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
@@ -238,16 +255,25 @@ If none of the above apply, omit `freshSession` (defaults to `false`, preserving
 
 ### Run sequentially (Electron constraint)
 
-Execution itself **must** be sequential because there is only one local Electron browser. For each test case, in order:
+Execution itself **must** be sequential because there is only one local Electron browser. For each test case, in the order chosen, branch on the mode picked in Step 6f:
 
+**Regen-mode test case:**
 1. Call `muggle-local-execute-test-generation`:
    - `testCase`: Full test case object from the parallel fetch above
    - `localUrl`: User's local URL from the pre-flight question
    - `showUi`: from the `showElectronBrowser` resolution — omit (default visible) for `always`, pass `false` for `never`
    - `freshSession`: `true` if the test case requires a clean browser state (see above), omit otherwise
-2. Store the returned `runId`
+2. Store the returned `runId` and tag the result `mode: "regen"`.
 
-If a generation fails, log it and continue to the next. Do not abort the batch.
+**Replay-mode test case:**
+1. Fetch the action script: `muggle-remote-test-script-get` (latest replayable script id) → `muggle-remote-action-script-get` (full `actionScript` — use as-is, never edit). For batches, fan these calls out in parallel before the sequential execution loop begins.
+2. Call `muggle-local-execute-replay`:
+   - `testScript`: from `muggle-remote-test-script-get`
+   - `actionScript`: from `muggle-remote-action-script-get`
+   - `localUrl`, `showUi`, `freshSession`: same resolution as regen
+3. Store the returned `runId` and tag the result `mode: "replay"`.
+
+If a run fails, log it and continue to the next — do not abort the batch. Failures are routed through Step 7C's post-failure handler after the batch completes.
 
 ### Collect results (in parallel)
 
@@ -297,7 +323,9 @@ Issue all `muggle-remote-test-case-get` calls in parallel (single message, multi
 
 ### Trigger remote workflows (in parallel)
 
-Once details are in hand, issue all `muggle-remote-workflow-start-test-script-generation` calls in parallel — never loop them sequentially. For each test case:
+Branch each test case on the mode chosen in Step 6f, then issue **all** workflow-start calls in parallel — never loop them sequentially. Mix regen and replay starts in the same parallel batch.
+
+**Regen-mode test case** — `muggle-remote-workflow-start-test-script-generation`:
 
 - `projectId`: The project ID
 - `useCaseId`: The use case ID
@@ -309,7 +337,9 @@ Once details are in hand, issue all `muggle-remote-workflow-start-test-script-ge
 - `instructions`: From the test case
 - `expectedResult`: From the test case
 
-Store each returned workflow runtime ID.
+**Replay-mode test case** — `muggle-remote-workflow-start-test-script-replay` against the latest replayable script for that test case (resolve via `muggle-remote-test-script-list` if not already in hand from Step 6f). Tag results with `mode: "replay"` so Step 7C can route failures correctly.
+
+Store each returned workflow runtime ID along with its mode tag.
 
 ### Monitor and report (in parallel)
 
@@ -322,6 +352,21 @@ Login with valid creds     RUNNING           rt-abc123
 Login with invalid creds   COMPLETED         rt-def456
 Checkout flow              QUEUED            rt-ghi789
 ```
+
+## Step 7C: Route failures through the failure-mode handler
+
+For every run with `status: "failed"` (or any non-passing terminal state) from 7A or 7B, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md):
+
+- **Replay-mode failures** — section B (buckets: `infra` / `stale-script` / `product-defect`).
+- **Regen-mode failures** — section C (buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
+
+For each failed run:
+1. Read the run with `muggle-local-run-result-get` (local) or `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run` (remote) and extract signals per the heuristics in the shared doc.
+2. Emit `replay-failure-classified` or `regen-failure-classified` via `muggle-local-telemetry-event-emit` **before** asking the user.
+3. Present the recommended action via `AskUserQuestion` along with the alternatives the shared doc lists for that bucket.
+4. After the user picks, emit the matching `*-resolved` event with `userAction` set to what they chose.
+
+Process failures one at a time so the user isn't drowning in pickers — but emit telemetry per failure regardless.
 
 ## Step 8: Open Results in Browser
 
@@ -401,10 +446,14 @@ This is a suggestion, not automatic invocation. Skip silently if every test pass
 | Test Case | `muggle-remote-test-case-generate-from-prompt` | Both |
 | Test Case | `muggle-remote-test-case-create` | Both |
 | Test Case | `muggle-remote-test-case-get` | Both |
-| Execute | `muggle-local-execute-test-generation` | Local |
-| Execute | `muggle-remote-workflow-start-test-script-generation` | Remote |
+| Execute (regen) | `muggle-local-execute-test-generation` | Local |
+| Execute (replay) | `muggle-local-execute-replay` | Local |
+| Replay action script fetch | `muggle-remote-test-script-get`, `muggle-remote-action-script-get` | Local replay |
+| Execute (regen) | `muggle-remote-workflow-start-test-script-generation` | Remote |
+| Execute (replay) | `muggle-remote-workflow-start-test-script-replay` | Remote |
+| Failure-mode telemetry | `muggle-local-telemetry-event-emit` | Both |
 | Results | `muggle-local-run-result-get` | Local |
-| Results | `muggle-remote-wf-get-ts-gen-latest-run` | Remote |
+| Results | `muggle-remote-wf-get-ts-gen-latest-run`, `muggle-remote-wf-get-ts-replay-latest-run` | Remote |
 | Publish | `muggle-local-publish-test-script` | Local |
 | Per-step screenshots (for walkthrough) | `muggle-remote-test-script-get` | Both |
 | Browser | `open` (shell command) | Both |

@@ -1424,7 +1424,7 @@ const userFeedbackTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-user-feedback-list",
     description:
-      "List active user feedback entries for a project. Supports limit/offset pagination. Response: { feedback: IUserFeedback[], total: number, hasMore: boolean }.",
+      "List active user feedback entries for a project. Optionally narrow by exactly one of actionScriptId / testScriptId / testCaseId / useCaseId — the typical query is 'show me feedback on this test case (or test script, or use case).' Supports limit/offset pagination. Response: { feedback: IUserFeedback[], total: number, hasMore: boolean }.",
     inputSchema: schemas.UserFeedbackListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.UserFeedbackListInputSchema>;
@@ -1433,6 +1433,10 @@ const userFeedbackTools: IQaToolDefinition[] = [
         path: `${MUGGLE_TEST_PREFIX}/user-feedback`,
         queryParams: {
           projectId: data.projectId,
+          actionScriptId: data.actionScriptId,
+          testScriptId: data.testScriptId,
+          testCaseId: data.testCaseId,
+          useCaseId: data.useCaseId,
           limit: data.limit,
           offset: data.offset,
         },

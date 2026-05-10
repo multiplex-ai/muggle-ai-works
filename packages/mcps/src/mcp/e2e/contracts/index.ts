@@ -581,10 +581,20 @@ export const UserFeedbackCreateInputSchema = z.object({
 });
 
 export const UserFeedbackListInputSchema = z.object({
-  projectId: IdSchema.describe("Project ID (UUID) to list feedback for"),
+  projectId: IdSchema.describe("Project ID (UUID) to list feedback for. Always required — defines the auth boundary."),
+  actionScriptId: IdSchema.optional().describe("Narrow to feedback whose target resolves to this action script. Mutually exclusive with the other narrowing filters."),
+  testScriptId: IdSchema.optional().describe("Narrow to feedback on the action script of this test script. Mutually exclusive with the other narrowing filters."),
+  testCaseId: IdSchema.optional().describe("Narrow to feedback on any action script ever generated for this test case. Mutually exclusive with the other narrowing filters."),
+  useCaseId: IdSchema.optional().describe("Narrow to feedback on any action script ever generated under this use case. Mutually exclusive with the other narrowing filters."),
   limit: z.number().int().positive().max(1000).optional().describe("Max entries to return (default 100)"),
   offset: z.number().int().min(0).optional().describe("Offset for pagination (default 0)"),
-});
+}).refine(
+  (data) => {
+    const set = [data.actionScriptId, data.testScriptId, data.testCaseId, data.useCaseId].filter(Boolean);
+    return set.length <= 1;
+  },
+  { message: "At most one of actionScriptId / testScriptId / testCaseId / useCaseId may be set" },
+);
 
 export const UserFeedbackDeleteInputSchema = z.object({
   feedbackId: IdSchema.describe("User feedback ID (UUID) to soft-delete"),

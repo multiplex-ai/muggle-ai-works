@@ -43,8 +43,9 @@ Gates run per `preference-gates/README.md`.
 
 - `muggle-remote-auth-status`
 - If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
-  - Pro-action: proceed with saved session.
-  - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `always` → proceed with saved session.
+  - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
@@ -166,8 +167,9 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 
 - `muggle-local-publish-test-script`
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
-  - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
-  - Skip-action: print the URL only.
+  - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
+  - `never` → print the URL only.
+  - `ask` → run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 ### 9. Report
 

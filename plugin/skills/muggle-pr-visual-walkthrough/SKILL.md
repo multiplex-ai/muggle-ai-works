@@ -16,6 +16,7 @@ This is the **canonical PR-walkthrough workflow** shared across every Muggle Tes
 | `muggle-test` | **Mode A** (post to existing PR) | After publishing results, user opts in via `AskUserQuestion` |
 | `muggle-test-feature-local` | **Mode A** (post to existing PR) | After publishing the run, user opts in via `AskUserQuestion` |
 | `muggle-do` / `open-prs.md` | **Mode B** (render-only for embedding) | During PR creation — caller embeds `body` in `gh pr create` and posts `comment` as follow-up |
+| `muggle-test` Mode C / `acceptance-tester` agent | **Mode C** (embed in verdict comment) | Inside a PR-loop orchestrator — caller folds the rendered body into a single per-PR verdict comment instead of posting separately |
 
 Rendering is always done by `muggle build-pr-section`, a battle-tested CLI that handles deterministic markdown layout, per-step screenshots, and automatic fit-vs-overflow (oversized content spills into a follow-up comment). Never hand-write the walkthrough markdown.
 
@@ -180,6 +181,28 @@ Instead of posting, **return** the CLI output to the caller's context so they ca
 
 In Mode B, this skill does not call `gh pr comment` or `gh pr create` itself — the caller owns PR creation because it also owns branch pushing, title building (including `[E2E FAILING]` prefix on failures), and multi-repo orchestration.
 
+## Step 3 — Mode C: Embed mode for PR-loop orchestrators
+
+Used when invoked as a sub-step of a PR-loop orchestrator (see `plugin/skills/muggle-test/SKILL.md` Mode C) rather than as a top-level user invocation. The orchestrator's `acceptance-tester` subagent (see `plugin/agents/acceptance-tester.md`) composes a **single per-PR verdict comment** and folds the walkthrough into it — posting separately would create 2–3 disparate comments per test cycle and clutter the PR.
+
+### 3C.1: Detect embed mode
+
+The caller passes `mode: "embed"` as a skill argument. Default behavior (no `mode` passed, or `mode: "post"`) is Mode A — unchanged.
+
+### 3C.2: Render but do not post
+
+Run `muggle build-pr-section` exactly as in Step 2. Then, **instead of calling `gh pr comment`**:
+
+1. **Return** the CLI output (`{ body, comment }`) to the caller as this skill's result.
+2. Do **not** find a PR, do **not** post a standalone comment, do **not** prompt the user.
+3. If `comment` is non-null (overflow case), return it alongside `body` — the orchestrator decides how to handle overflow (typically: inline `body` in the verdict comment, post `comment` as a follow-up).
+
+### 3C.3: Hand off
+
+The orchestrator (`acceptance-tester`) concatenates the returned `body` into its verdict comment template alongside the verdict summary, change-list, and any other sections it owns, then posts a single `gh pr comment` itself. This skill's job ends at returning the rendered markdown.
+
+In Mode C, the same fit-vs-overflow contract from Step 2 applies — never modify the CLI's output, never fabricate fields, never post anything. The caller owns posting.
+
 ## Tool Reference
 
 | Phase | Tool |
@@ -199,4 +222,5 @@ In Mode B, this skill does not call `gh pr comment` or `gh pr create` itself —
 - **Never post the overflow comment when `comment` is `null`** — the CLI decides fit-vs-overflow.
 - **Never create a PR without confirmation in Mode A** — if no PR exists, ask the user or switch to Mode B and hand back to the caller.
 - **Don't run tests** — this skill only renders and posts existing results. If the `E2eReport` is not in context, redirect the caller to `muggle-test`, `muggle-test-feature-local`, or `muggle-do`.
-- **Mode A vs Mode B is chosen by the caller, not the user** — `muggle-test` always uses Mode A; `muggle-do` always uses Mode B. Don't ask the user which mode to use.
+- **Mode is chosen by the caller, not the user** — `muggle-test` top-level uses Mode A; `muggle-do` uses Mode B; PR-loop orchestrators (`muggle-test` Mode C / `acceptance-tester`) pass `mode: "embed"` for Mode C. Don't ask the user which mode to use.
+- **Never post in Mode C** — when `mode: "embed"` is passed, return the rendered body to the caller and stop. The orchestrator owns the single verdict comment.

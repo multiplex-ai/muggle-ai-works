@@ -143,9 +143,8 @@ describe("renderTestDetails", () => {
     const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
     expect(md).toContain("<details>");
     expect(md).toContain("<summary>");
-    expect(md).toContain("<b>1. User creates a new project with valid URL</b> ✅");
+    expect(md).toContain("<b>1. </b><i>▶ click to expand</i> <b>User creates a new project with valid URL</b> ✅");
     expect(md).toContain("— Verify that a logged-in user can create a new project");
-    expect(md).toContain("<i>▶ click to expand</i>");
     // Ending screenshot = last step, with a caption above it.
     expect(md).toContain("**📸 Ending screen — Final page after the test completed**");
     expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
@@ -157,14 +156,14 @@ describe("renderTestDetails", () => {
 
   it("renders a passed test without description (no em-dash, no description text)", () => {
     const md = renderTestDetails(passedNoMeta, PROJECT_ID, 4);
-    expect(md).toContain("<i>▶ click to expand</i> <b>4. Logout flow</b> ✅");
+    expect(md).toContain("<b>4. </b><i>▶ click to expand</i> <b>Logout flow</b> ✅");
     // No " — " separator between name and the description-free summary.
-    expect(md).not.toMatch(/<b>4\. Logout flow<\/b> ✅ —/);
+    expect(md).not.toMatch(/<b>Logout flow<\/b> ✅ —/);
   });
 
   it("renders a failed test with error, numbered summary, and failure-step screenshot", () => {
     const md = renderTestDetails(failedWithDesc, PROJECT_ID, 2);
-    expect(md).toContain("<b>2. User receives error for invalid URL format</b> ❌");
+    expect(md).toContain("<b>2. </b><i>▶ click to expand</i> <b>User receives error for invalid URL format</b> ❌");
     expect(md).toContain("**Result:** ❌ FAILED at step 3");
     expect(md).toContain("**Error:** `Element not found: submit button`");
     expect(md).toContain("**Steps:** 4");

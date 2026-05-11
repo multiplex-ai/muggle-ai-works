@@ -52,8 +52,9 @@ Treat this filter as a default, not a law. If the user explicitly says "include 
 
 1. Call `muggle-remote-auth-status`.
 2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
-   - Pro-action: proceed with saved session.
-   - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+   - `always` → proceed with saved session.
+   - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+   - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 3. If **not authenticated or expired** → call `muggle-remote-auth-login`, then poll with `muggle-remote-auth-poll`.
 4. Do not skip auth and do not assume a stale token still works.
 

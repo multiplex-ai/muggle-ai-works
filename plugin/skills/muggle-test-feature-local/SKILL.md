@@ -43,8 +43,9 @@ Gates run per `preference-gates/README.md`.
 
 - `muggle-remote-auth-status`
 - If **authenticated**: gate `autoLogin` (per `preference-gates/README.md`):
-  - Pro-action: proceed with saved session.
-  - Skip-action: `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `always` → proceed with saved session.
+  - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
+  - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 - If **not signed in or expired**: call `muggle-remote-auth-login` then `muggle-remote-auth-poll`. Do not skip or assume auth.
 
 ### 2. Targets (user must confirm)
@@ -168,8 +169,9 @@ Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-ste
 
 - `muggle-local-publish-test-script`
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
-  - Pro-action: open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
-  - Skip-action: print the URL only.
+  - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
+  - `never` → print the URL only.
+  - `ask` → run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
 If publish rejects with `has no generated actionScript steps to publish` (true zero-step runs — Electron never produced an action), fall back to `muggle-remote-local-run-upload` directly with whatever data exists (`summaryStep`, `errorMessage`, empty `actionScript`). This still gets the failure summary and any goal-not-achievable verdict onto the dashboard so reviewers can see why the run failed. Capture the returned `actionScriptId` and `viewUrl` from this fallback path the same way you would from publish.
 

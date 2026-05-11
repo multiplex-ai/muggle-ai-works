@@ -5,6 +5,7 @@
 import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "fs";
 import { homedir } from "os";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
 import { getDataDir, getElectronAppVersion, getLogger } from "../../packages/mcps/src/index.js";
 
@@ -19,6 +20,27 @@ const CURSOR_SKILLS_SUBDIR = "skills";
 
 /** Prefix for muggle skills. */
 const MUGGLE_SKILL_PREFIX = "muggle";
+
+/**
+ * Resolve the muggle alias-skill manifest. The file ships under `plugin/skills/` so it
+ * is reachable from both this source location (`src/cli/`) and the bundled output (`dist/`)
+ * by walking up to the package root. Single source of truth shared with
+ * scripts/postinstall.mjs.
+ */
+function loadMuggleAliasSkills (): Set<string> {
+  let dir = path.dirname(fileURLToPath(import.meta.url));
+  while (dir !== path.dirname(dir)) {
+    const manifestPath = path.join(dir, "plugin", "skills", "_aliases.json");
+    if (existsSync(manifestPath)) {
+      const parsed = JSON.parse(readFileSync(manifestPath, "utf-8")) as { aliases: string[] };
+      return new Set<string>(parsed.aliases);
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error("Could not locate plugin/skills/_aliases.json relative to cleanup module");
+}
+
+const MUGGLE_ALIAS_SKILLS = loadMuggleAliasSkills();
 
 /** Install manifest filename. */
 const INSTALL_MANIFEST_FILE = "install-manifest.json";
@@ -145,7 +167,7 @@ export function listObsoleteSkills (): IObsoleteSkill[] {
         continue;
       }
 
-      if (!entry.name.startsWith(MUGGLE_SKILL_PREFIX)) {
+      if (!entry.name.startsWith(MUGGLE_SKILL_PREFIX) && !MUGGLE_ALIAS_SKILLS.has(entry.name)) {
         continue;
       }
 

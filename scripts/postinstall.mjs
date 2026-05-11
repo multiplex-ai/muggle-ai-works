@@ -34,6 +34,16 @@ const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 const CURSOR_SKILLS_DIRECTORY_NAME = ".cursor";
 const CURSOR_SKILLS_SUBDIRECTORY_NAME = "skills";
 const MUGGLE_SKILL_PREFIX = "muggle";
+const ALIAS_SKILLS_MANIFEST_PATH = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "plugin",
+    "skills",
+    "_aliases.json",
+);
+const MUGGLE_ALIAS_SKILLS = new Set(
+    JSON.parse(readFileSync(ALIAS_SKILLS_MANIFEST_PATH, "utf-8")).aliases,
+);
 
 /**
  * Get the path to the postinstall log file.
@@ -241,7 +251,7 @@ function syncCursorSkills() {
             continue;
         }
 
-        if (!skillEntry.name.startsWith(MUGGLE_SKILL_PREFIX)) {
+        if (!skillEntry.name.startsWith(MUGGLE_SKILL_PREFIX) && !MUGGLE_ALIAS_SKILLS.has(skillEntry.name)) {
             continue;
         }
 

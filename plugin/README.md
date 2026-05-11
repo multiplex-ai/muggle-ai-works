@@ -15,7 +15,7 @@ For npm installs:
 npm install -g @muggleai/works
 ```
 
-This updates the CLI, configures Cursor MCP (`~/.cursor/mcp.json`), and syncs `muggle-*` skills into `~/.cursor/skills/`. Claude slash commands remain plugin-managed, so use `/plugin update muggleai@muggle-works` to refresh them.
+This updates the CLI, configures Cursor MCP (`~/.cursor/mcp.json`), and syncs `muggle-*` skills (plus their short `m*` aliases) into `~/.cursor/skills/`. Claude slash commands remain plugin-managed, so use `/plugin update muggleai@muggle-works` to refresh them.
 
 ## Skills
 
@@ -32,6 +32,8 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-status` | Health check for Electron browser test runner, MCP server, and authentication. |
 | `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | Update Electron browser test runner and MCP server to latest version. |
+
+Each skill above also ships a short alias to save typing — `m` (router), `mtest`, `mdo`, `mpr`, `mprefs`, `mstatus`, `mrepair`, `mupgrade`, `mfeedback`, `mimport`, `mtestlocal`, `mtestprep`, `mregen`, `mrelease`. Type `/m` (Claude Code) or `m` (Cursor) to open the menu, or jump straight to one (e.g. `/mtest`).
 
 ## MCP Tools
 

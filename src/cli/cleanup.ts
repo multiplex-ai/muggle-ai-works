@@ -20,6 +20,24 @@ const CURSOR_SKILLS_SUBDIR = "skills";
 /** Prefix for muggle skills. */
 const MUGGLE_SKILL_PREFIX = "muggle";
 
+/** Short-name alias skills that ship alongside the muggle-* skills (kept in sync with scripts/postinstall.mjs). */
+const MUGGLE_ALIAS_SKILLS = new Set<string>([
+  "m",
+  "mtest",
+  "mdo",
+  "mpr",
+  "mprefs",
+  "mstatus",
+  "mrepair",
+  "mupgrade",
+  "mfeedback",
+  "mimport",
+  "mtestlocal",
+  "mtestprep",
+  "mregen",
+  "mrelease",
+]);
+
 /** Install manifest filename. */
 const INSTALL_MANIFEST_FILE = "install-manifest.json";
 
@@ -145,7 +163,7 @@ export function listObsoleteSkills (): IObsoleteSkill[] {
         continue;
       }
 
-      if (!entry.name.startsWith(MUGGLE_SKILL_PREFIX)) {
+      if (!entry.name.startsWith(MUGGLE_SKILL_PREFIX) && !MUGGLE_ALIAS_SKILLS.has(entry.name)) {
         continue;
       }
 

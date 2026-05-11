@@ -26,13 +26,15 @@ Before asking anything, gather every fact you can resolve without the user:
 
 1. **Candidate repo(s).** Match keywords in the task description against configured repo names. If one repo is an obvious match, propose it as the default; if two or three are plausible, list them.
 2. **Current branch and default branch** for each candidate repo. Run `git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short` and `git -C <repo> branch --show-current`. If the current branch is the default, the pre-flight must collect a new branch name.
-3. **Running dev server.** Detect listening ports and reconcile env-file URL/port using [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md).
-4. **Running backend.** Probe backend health per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) ("Backend health"). Note up/down.
+3. **Running dev server.** Scan common dev ports — `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'` — and hit `/` with `curl -s -o /dev/null -w "%{http_code}"` to confirm 2xx. Then **reconcile against `.env.local`**:
+   - Read `.env.local` in the repo's cwd if present. If it declares `PORT=<N>` and the listening port differs, record a `PORT mismatch` warning in `state.md` (the dev server is bound to a non-canonical port — tests later may target the wrong URL).
+   - If `.env.local` is **missing in cwd** but **exists in the main worktree of the same repo** (locate via `git worktree list`), record a `missing-env-local` recommendation: the user should `cp <main-worktree>/.env.local .` before stage 6, because `.env.local` is gitignored and holds the dev `PORT` plus secrets that webpack and the backend client need at boot. See `_shared/worktree-isolation.md`.
+4. **Running backend.** If the repo's `.env.local` (or equivalent) declares a backend URL (e.g. `REACT_APP_BACKEND_BASE_URL=http://localhost:5050`), probe the health endpoint; note up/down.
 5. **Muggle Test MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
 7. **Existing test-user secrets.** For each candidate Muggle Test project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.
 8. **Auth0 tenant in use for local dev.** Grep the repo's env file for `*AUTH0_DOMAIN*`; record the tenant. This tells the user whether the staging-tenant test user will work or not.
-9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md), [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)):
+9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/worktree-isolation.md`](../_shared/worktree-isolation.md), [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)):
    - Is the current checkout already a worktree? `git -C <repo> rev-parse --is-inside-work-tree` plus `git -C <repo> worktree list`.
    - How many commits behind `origin/<default>`? `git -C <repo> fetch origin && git -C <repo> rev-list --count "HEAD..origin/$(git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short | sed 's|origin/||')"`.
 10. **`autoE2ETest` preference.** Read the session-context preferences line. Unset → treat as `always` (this gate's default — opposite of the system-wide `ask` default). `ask` → surface in Q13. `always` → no question; stage 6 runs.
@@ -55,9 +57,9 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
-11. **Worktree for this change?** — gate: [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md). Options: create a sibling worktree, or work in the current checkout.
-12. **Rebase onto `origin/<default>` first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. Options: rebase before stage 6, or run as-is.
-13. **Run E2E at the end of every cycle?** — gate: [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md), only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle.
+11. **Worktree?** — fire `autoUseWorktree` per [`../_shared/worktree-isolation.md`](../_shared/worktree-isolation.md). When resolved as `always`/`never`, no question — record in `state.md`. When `ask`/absent, include Picker 1 (+ Picker 2) from [`autoUseWorktree.md`](../muggle-preferences/preference-gates/autoUseWorktree.md) in this consolidated turn. When the gate resolves to `always`, record the worktree-setup checklist from [`../_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) (cross-boundary files, per-worktree `npm install`, no `node_modules` symlinks) into `state.md` so stage 6 can verify before launching the dev server.
+12. **Rebase onto `origin/<default>`?** — fire `autoRebase` per [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) only if `behind > 0`. Same picker rules as Q11; record in `state.md`. The E2E stage re-checks before launching the dev server.
+13. **Run E2E acceptance at the end?** — only if `autoE2ETest` resolved to `ask` in step 10. Per [`autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md): "Always run" → `always`, "Decide each cycle" → leave as `ask`. There is no `never` — installing Muggle Test commits to running E2E. Persist via Picker 2 per the standard procedure.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

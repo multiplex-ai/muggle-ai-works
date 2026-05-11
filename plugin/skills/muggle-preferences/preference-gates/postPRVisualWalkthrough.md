@@ -1,13 +1,32 @@
 # `postPRVisualWalkthrough`
 
-Preference gate. Controls whether the cycle posts the visual walkthrough comment (per-test-case dashboard links + step-by-step screenshots) to the PR after E2E results are available, or stops at "results ready". Fires once per E2E result set when a PR exists for the working branch (if it doesn't, callers fire [`autoCreatePR`](autoCreatePR.md) separately). Substitute `{prNumber}`.
+Post a visual walkthrough of test results to a PR.
 
-**Picker 1** — header `Post to PR`, question `"Post the visual walkthrough to PR #{prNumber}?"`
-- `Post to #{prNumber}` — `Comment with screenshots is added to the PR.` → `always`
-- `Ask me each time` — `Decide per run.` → `ask`
-- `Skip` — `Walkthrough is not posted.` → `never`
+**See also:** [`autoCreatePR.md`](autoCreatePR.md) — when `muggle-do` reaches stage 7 with no PR yet, `autoCreatePR` is the gate that fires (not this one). This gate handles the test-side path (`muggle-test`, `muggle-test-feature-local`) and includes a Case B that creates the PR when needed.
 
-**Silent action**
+**PR detection (mandatory before any picker).** Run `gh pr view --json number,title,url 2>/dev/null` first. The result picks Case A or B.
+Substitute `{prNumber}`, `{prTitle}` into prompts.
+
+## Case A — open PR found
+
+**Picker 1** — header `Share with the team`, question `"Post a visual walkthrough to PR #{prNumber} ({prTitle})?"`
+- `Post to #{prNumber}` — `Reviewers see clickable per-test screenshots and dashboard links.` → `always`
+- `Skip` — `Keep it off the PR — you can post later from the dashboard.` → `never`
+
+**Silent action (Case A)**
 - `always` → `Posting walkthrough to PR #{prNumber}`
-- `ask` → `Asking about PR walkthrough`
-- `never` → `Skipping PR walkthrough`
+- `never` → `Skipping PR walkthrough for #{prNumber}`
+
+## Case B — no open PR
+
+Saved value covers this case — if the user previously set `always`, that includes auto-creating the PR. Picker 1 only runs when the gate is `ask`.
+
+**Picker 1** — header `No PR yet`, question `"This branch has no open PR. Create one and post the walkthrough, or skip?"`
+- `Create a PR and post` — `I'll open a PR for this branch, then attach the walkthrough.` → run PR-creation flow (calling skill's responsibility), then post. → `always`
+- `Skip` — `Skip the walkthrough this time — you can post later from the dashboard.` → continue. → `never`
+
+**Picker 2** — standard `Remember this choice?` template (`Always create a PR and post the walkthrough from now on, without asking?`).
+
+**Silent action (Case B)** — when saved gate is `always` or `never` but no PR exists:
+- `always` → `Creating PR for {branch} and posting walkthrough`. Run PR-creation flow, then post — no prompt.
+- `never` → `Skipping PR walkthrough — no open PR for this branch`

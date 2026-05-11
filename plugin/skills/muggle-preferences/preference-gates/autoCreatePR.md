@@ -1,13 +1,15 @@
 # `autoCreatePR`
 
-Controls whether the cycle pushes the working branch to remote and opens a pull request after local commits land, or stops at "commits made locally". Fires when the agent has buildable commits and no PR exists yet for the branch. Substitute `{branch}`.
+Push the branch and open a pull request after the dev cycle finishes, or stop short and let the user open it manually.
 
-**Picker 1** — header `Open PR?`, question `"Push '{branch}' and open a pull request?"`
-- `Open the PR` — `Push branch and run gh pr create.` → `always`
-- `Ask me next time` — `Decide per cycle.` → `ask`
-- `Skip — I'll open it myself` — `Stop after the local commits.` → `never`
+Used at the end of `muggle-do` (stage 7, `do/open-prs.md`). Substitute `{branch}`.
+
+**See also:** [`postPRVisualWalkthrough.md`](postPRVisualWalkthrough.md) Case B — when a non-`muggle-do` test run (e.g. `muggle-test`, `muggle-test-feature-local`) wants to post a walkthrough but no PR exists yet, `postPRVisualWalkthrough=always` silently creates the PR there. This gate (`autoCreatePR`) is the `muggle-do` end-of-cycle path.
+
+**Picker 1** — header `Open PR?`, question `"Push '{branch}' and open a pull request for these changes?"`
+- `Open the PR` — `Push the branch and run gh pr create with the rendered walkthrough body.` → `always`
+- `Skip — I'll open it myself` — `Stop after the local commits. You can push and open the PR manually later.` → `never`
 
 **Silent action**
 - `always` → `Opening PR for {branch}`
-- `ask` → `Asking about PR creation`
-- `never` → `Skipping PR creation`
+- `never` → `Skipping PR creation — push manually when ready`

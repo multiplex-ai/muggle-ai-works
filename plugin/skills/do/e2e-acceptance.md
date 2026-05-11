@@ -44,14 +44,34 @@ If `localUrl` or `projectId` is missing from `state.md`, that is a pre-flight bu
 
 Before launching Electron, run these live checks and fail loudly if any fails:
 
-1. `curl -s -o /dev/null -w "%{http_code}" <localUrl>` — expect 2xx or 3xx. If the dev server isn't up, halt with the exact command the user needs to start it.
-2. If a backend URL is recorded, probe its health endpoint. A 5xx or unreachable backend means the dashboard will render in an error state and test results will be meaningless — halt.
-3. `muggle-remote-auth-status` — must be `authenticated`. If not, the pre-flight missed this; escalate.
-4. If test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the tenant the secrets were created under (recorded in `state.md`). Tenant mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
+1. **Probe 1 — HTTP**: `curl -s -o /dev/null -w "%{http_code}" <localUrl>` — expect 2xx or 3xx. If the dev server isn't up, halt with the exact command the user needs to start it.
+2. **Probe 1.5 — Compile-ready log signal (NEW)**: HTTP 200 alone is not enough. CRA, Vite, and Next emit "ready" separately from the listening socket — tests against a "compiling…" overlay produce misleading failures. Tail the dev-server log file (path recorded in `state.md` from pre-flight) and require the framework-specific ready signal before proceeding:
+   - **CRA / react-scripts**: `Compiled successfully` or `webpack compiled successfully`
+   - **Vite**: `ready in <N> ms`
+   - **Next.js**: `ready - started server on` or `Ready in`
+   If the log shows `Failed to compile`, `Module not found`, or a webpack error overlay first, surface the **last 20 lines of the dev-server log** and **halt** — do not dispatch tests against a broken bundle. See `_shared/dev-server-readiness.md` for the canonical probe.
+3. If a backend URL is recorded, probe its health endpoint. A 5xx or unreachable backend means the dashboard will render in an error state and test results will be meaningless — halt.
+4. `muggle-remote-auth-status` — must be `authenticated`. If not, the pre-flight missed this; escalate.
+5. If test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the tenant the secrets were created under (recorded in `state.md`). Tenant mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
 
 ### Step 1: Authentication already verified
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
+
+### Step 1.5: Placeholder branch detection
+
+Read `pathClassification` from the impact-analysis output (emitted by `do/impact-analysis.md`). If it is `none` — i.e. `git diff <default-branch>...HEAD --stat` was empty after rebase — there is no code under test and running test cases would only re-test master. Write a one-paragraph SKIPPED result to the E2E report (or return a SKIPPED verdict to the caller) and exit the stage cleanly. **Do not** synthesize test cases or run anything.
+
+### Step 1.7: Route + project classification
+
+Consume `pathClassification` from impact-analysis and resolve the dispatch target:
+
+- `landing` → `devServerUrl = http://localhost:<port>/` (root) + landing-page test project
+- `dashboard` → `devServerUrl = http://localhost:<port>/<dashboard-route>` + dashboard test project
+- `mixed` → run the stage twice (once per route + project), or surface as INCONCLUSIVE if running both is over the wall-time budget
+- `none` → already handled in Step 1.5
+
+The `devServerUrl` resolved here overrides any default in `state.md` for the remainder of this stage. The classification logic lives in `impact-analysis.md` — do not re-derive paths here.
 
 ### Step 2: Get Test Cases
 
@@ -171,7 +191,15 @@ For each test case:
 **Metadata:**
 - projectId: `<projectId>`
 
-**Overall:** ALL PASSED | FAILURES DETECTED | INCONCLUSIVE
+**Overall:** PASS | FAIL | PARTIAL | INCONCLUSIVE | BLOCKED | SKIPPED — see [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F for the canonical taxonomy.
+
+## Hard constraints
+
+- **Do NOT shut down the dev server.** The caller manages dev-server lifecycle.
+- **Do NOT delete or move `.muggle-ai/` or `.env.local`** in the worktree.
+- **Do NOT call destructive remote MCP tools** — no `*-delete`, `*-revoke`, `*-cancel`, or `*-update` against remote-owned definitions.
+- **One replacement script generation max per stage cycle.**
+- **Honor `wallTimeBudgetSec` from the caller** — on approach, write a PARTIAL report; never silently exceed.
 
 ## Non-negotiables
 

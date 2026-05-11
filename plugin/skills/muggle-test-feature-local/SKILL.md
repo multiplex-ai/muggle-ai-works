@@ -25,6 +25,19 @@ Three gates apply, each per the standard procedure in [`preference-gates/README.
 - `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
 - `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
+## Local environment prerequisites
+
+Before any workflow step, sanity-check the cwd is wired up to run a dev server. Matters most in a **freshly-created worktree** — gitignored files don't cross.
+
+- **Env file check.** Frameworks read various env files: `.env`, `.env.local`, `.env.development`, `.env.dev`, `.env.development.local` (Next.js, CRA), `.env.test`, plus tool-specific ones (`vite.config.ts` may load `.env.*`). Inspect `package.json` start scripts and any framework config to learn which file holds `PORT=...` / secrets for this repo. If the indicated file is missing in cwd:
+  1. `git worktree list --porcelain` for sibling worktrees.
+  2. Check each for the same filename.
+  3. If found, offer to `cp <found> ./<envfile>` via `AskUserQuestion`. Without it, the dev server binds the framework default port or fails to read secrets.
+  4. If not found anywhere, surface the gap and ask the user where they keep it.
+
+  See [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) for the full cross-boundary file list.
+- **`.muggle-ai/` cache check.** If `last-project.json` or `last-host.json` is absent, the workflow re-prompts the project + host pickers. Offer to `cp -r <main-worktree>/.muggle-ai ./.muggle-ai`. Optional — skipping just means the user picks again.
+
 ## UX Guidelines — Minimize Typing
 
 **Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.
@@ -46,6 +59,7 @@ Gates run per `preference-gates/README.md`.
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
+| `autoCreatePR` | 10b | Auto-create the PR when posting the walkthrough has no PR to target |
 | `autoCleanup` | post-merge | Run cleanup after the PR for this work is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Workflow
@@ -108,6 +122,16 @@ Before detecting the local URL, verify that the services the user needs are actu
 4. If the file is missing or has stale PIDs → invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool to get services started. Once it completes, proceed to Step 4.
 
 This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
+
+**Compile-gate (do not skip)**: after `muggle-test-prepare` reports ready, port-200 alone is **not** sufficient — CRA returns 200 while the compiling overlay is still showing. Before dispatching any test, verify the dev-server log shows one of:
+
+- `Compiled successfully` / `webpack compiled` (CRA / react-scripts)
+- `ready in` (Vite)
+- `ready - started server on` (Next.js)
+
+If the log shows `Failed to compile`, `Module not found`, or any `Error:` line first, surface the last 20 log lines via the report and **halt** — do not dispatch a test against a broken bundle. The user must fix the bundle before testing.
+
+See `_shared/dev-server-readiness.md` for the canonical two-stage probe (port-listening + compile log).
 
 ### 4. Local URL (gated by `autoSelectLocalHost`)
 

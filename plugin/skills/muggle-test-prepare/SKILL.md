@@ -157,6 +157,41 @@ If some are running and some aren't, acknowledge the running ones and continue t
 
 For services that are already running and the user wants to keep, add them to the PID tracking file so cleanup can find them later, but mark them as `external: true` so cleanup knows not to kill them (the user started them independently).
 
+**Port already held** — when the user wants a port that is currently held by a process they did **not** select (typically a stale dev server from a sibling worktree). Surface the conflict via `AskUserQuestion`:
+
+> "Port 3999 is held by PID 87421 (you didn't select this process). How do you want to proceed?"
+
+- Option 1: "Use the next available port" (recommended — non-destructive)
+- Option 2: "Force-kill PID 87421 and claim port 3999"
+- Option 3: "Abort"
+
+**Option 1 — next available port:** probe `3999 + N` for `N = 1, 2, 3, ...` until `Test-NetConnection`/`lsof -i :<port>` returns nothing listening. Record the new port (and the env file edit, if `PORT=` is set in `.env.local` etc.) so downstream steps use it. The dev server may need a restart to pick up the new value.
+
+**Option 2 — force-kill (destructive):**
+- **Windows (PowerShell)**: `Get-NetTCPConnection -LocalPort <p> | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`
+- **POSIX**: `lsof -ti:<p> | xargs -r kill -9`
+
+Re-verify the port is free before continuing.
+
+### Step 4.5: Environment File Sanity
+
+Frameworks read various env files: `.env`, `.env.local`, `.env.development`, `.env.dev`, `.env.development.local`, `.env.test`, plus tool-specific ones. Inspect what this repo actually uses: scan `package.json` `scripts/*` for `.env*` literals and known port env-vars (`PORT=`, `VITE_PORT=`, etc.) supplied via env files; check framework config (`next.config.*`, `vite.config.*`) for which files load. **The file name is per-repo — don't hardcode `.env.local`.**
+
+When a dependency on an env file exists:
+
+1. Check whether `<cwd>/<envfile>` exists. If yes, no-op.
+2. If absent, `git worktree list --porcelain` and check each sibling for the same filename.
+3. If found, surface via `AskUserQuestion`:
+
+   > "`<envfile>` is missing in this worktree but exists at `<sibling>/<envfile>`. Copy it before starting services?"
+
+   - Option 1: "Yes — copy from `<sibling>`"
+   - Option 2: "No — I'll provide it another way"
+
+4. If not found anywhere, report and ask how to proceed.
+
+Skip silently when no env file is referenced. The point is to catch the common worktree-bootstrap miss, not to mandate any specific file.
+
 ### Step 5: Determine Start Commands
 
 For each required service that isn't already running, figure out how to start it. Propose the command so there's a shared understanding.
@@ -194,6 +229,27 @@ Use `AskUserQuestion`:
 
 If the user needs edits, collect corrections and re-present.
 
+### Step 5.5: Fresh-Worktree Install Probe
+
+Before launching `npm run dev` (or equivalent) in a Node service, check whether `node_modules/` is present and current. Stale or missing `node_modules/` causes silent runtime failures that look like the service is broken when actually the install is just missing.
+
+For each Node service the user selected:
+
+1. If `<service-dir>/node_modules/` is missing entirely → install is required.
+2. If `<service-dir>/package-lock.json` is newer than `<service-dir>/node_modules/.package-lock.json` → install is stale.
+3. Otherwise → install is current, no action needed.
+
+When install is required or stale, propose via `AskUserQuestion`:
+
+> "`<service-name>` needs a fresh `npm install` before starting (node_modules is missing/stale). Run `npm install --prefer-offline --no-audit --no-fund` now?"
+
+- Option 1: "Yes — install now"
+- Option 2: "No — skip; I know it's fine"
+
+**Never symlink `node_modules/` from a sibling worktree** — per `_shared/worktree-isolation.md`, webpack breaks on font asset identity with "Can't handle conflicting asset info for sourceFilename". Each worktree needs its own real install.
+
+For non-Node services (Go, Rust, Python), skip this probe — their build systems handle dependency caching differently.
+
 ### Step 6: Start Services
 
 For each service, launch in the background:
@@ -205,10 +261,27 @@ echo $!
 
 Capture the PID. Write all service entries to `/tmp/muggle-test-prepare.json`.
 
-**Startup verification** — after a short pause (~3-5 seconds per service), check:
+**Startup verification (two-stage)** — port-listening is **necessary but not sufficient**. CRA, Vite, and Next.js all bind the port before compilation finishes; a 200 response can come back while the compile-error overlay is still showing. Two-stage probe per `_shared/dev-server-readiness.md`:
+
+**Stage 1 — process + port**
 
 1. PID is alive: `kill -0 <pid> 2>/dev/null`
 2. Port is listening (if known): `lsof -iTCP:<port> -sTCP:LISTEN -nP 2>/dev/null`
+
+**Stage 2 — log ready signal** (only after Stage 1 passes)
+
+Tail `/tmp/muggle-prepare-<service-name>.log` for up to **60 seconds** looking for one of:
+
+| Stack | Ready signal |
+|:------|:-------------|
+| CRA / react-scripts | `Compiled successfully` or `webpack compiled` |
+| Vite | `ready in` |
+| Next.js | `ready - started server on` |
+| Other Node | first match of the patterns above, else fall back to port-only after timeout |
+
+If a `Failed to compile`, `Module not found`, or `Error:` line appears **before** a ready signal: **halt** — surface the last 20 log lines and report the service as failed-to-start. Do NOT claim ready and let downstream skills dispatch tests against a broken bundle.
+
+If no match within 60s and no error line either: surface the last 20 log lines and ask the user how to proceed (the service may be unusually slow, or the log format may be non-standard).
 
 If a service's PID dies immediately, read the last 20 lines of its log and show the user:
 

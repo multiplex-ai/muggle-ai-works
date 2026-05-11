@@ -15,6 +15,44 @@ The classification rules below are **starting heuristics**. Trust the AI's bucke
 
 ---
 
+## F. Run-level verdict taxonomy
+
+The buckets in sections A–C operate **per script** (one classification per test-case execution). This section defines the **single verdict** an acceptance-tester subagent returns to its orchestrator — one verdict per PR / per dispatched run, summarizing every test case it touched.
+
+### Verdicts
+
+| Verdict | Meaning |
+|---|---|
+| **PASS** | All relevant test cases ran and passed. The PR's user-visible change is exercised and works. |
+| **FAIL** | At least one test case demonstrated wrong behavior caused by the PR code. The PR is regressive. |
+| **PARTIAL** | Some relevant tests passed; some were INCONCLUSIVE (not failed). Useful coverage, with gaps. |
+| **INCONCLUSIVE** | All relevant tests were blocked by environment factors — script staleness, empty local DB, missing fixtures, tests out of date relative to current master UI. **Not a regression signal.** |
+| **BLOCKED** | An infra blocker prevented any meaningful execution: Auth0 tenant rejecting test emails, dev server unreachable, MCP service down, port wouldn't bind. **Not a regression signal.** |
+| **SKIPPED** | No code under test — placeholder branch, empty diff vs. master, deliberate no-op change. |
+
+PASS and FAIL are the only verdicts that say something about the PR itself. PARTIAL means "some coverage, some gaps." INCONCLUSIVE, BLOCKED, and SKIPPED all mean **don't draw a regression conclusion from this run** — they signal an environment, script, or input problem, not a product defect.
+
+### Mapping per-script buckets to run verdicts
+
+When the subagent aggregates per-script results from sections B and C into one verdict:
+
+| Per-script bucket | Section | Typical run verdict |
+|---|---|---|
+| `infra` (replay or regen) | B / C | **BLOCKED** |
+| `stale-script` (replay) | B | **INCONCLUSIVE** |
+| `product-defect` (replay) | B | **FAIL** |
+| `product-uxux` (regen) | C | **FAIL** |
+| `agent-course` (regen) | C | **INCONCLUSIVE** (agent couldn't complete, not a PR defect) |
+| `transient` (regen) | C | retry once; if still transient → **INCONCLUSIVE** |
+
+When a run mixes buckets across multiple test cases, take the most-significant verdict in this priority order: **FAIL > PARTIAL > BLOCKED > INCONCLUSIVE > SKIPPED > PASS**. If any one test case maps to FAIL, the run is FAIL. If some passed and some were INCONCLUSIVE, the run is PARTIAL.
+
+### How orchestrators consume the verdict
+
+Subagents return the verdict as part of a structured block, not free-form prose. The orchestrator parses this block to decide whether to post a "regression" PR comment, a "needs investigation" comment, or skip the PR. See `agents/acceptance-tester.md` for the exact block format the subagent must emit.
+
+---
+
 ## A. Pre-execution: replay vs regen (used by `muggle-test`)
 
 Run during change analysis, **per impacted test case**. Picks the initial execution mode before Step 7. Other skills with a single user-picked target (`muggle-test-feature-local`, `muggle-do-task`) skip this section — the user already chose.

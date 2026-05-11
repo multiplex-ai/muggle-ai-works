@@ -19,11 +19,11 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## Branch hygiene
 
-Before running E2E tests against a local branch, follow [`_shared/branch-hygiene.md`](../_shared/branch-hygiene.md):
+Before running E2E tests against a local branch, apply the relevant hygiene recommendations:
 
-- Section 1 (worktree) — if the user has been developing on the current checkout, recommend isolating the work in a worktree before testing.
-- Section 2 (rebase) — check whether the branch is behind `origin/<default>` and offer to rebase before running. **Mandatory check** before Step 7 (Execute).
-- Section 3 (cleanup) — once the PR for this work is merged, surface the cleanup recommendations to the user.
+- **Worktree** — if the user has been developing on the current checkout, recommend isolating the work first. See [`_shared/use-worktrees.md`](../_shared/use-worktrees.md).
+- **Rebase** — check whether the branch is behind `origin/<default>` and offer to rebase before running. **Mandatory check** before Step 7 (Execute). See [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md).
+- **Cleanup** — once the PR for this work is merged, surface the cleanup recommendations to the user. See [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md).
 
 All three are recommendations via `AskUserQuestion`, not hard requirements.
 

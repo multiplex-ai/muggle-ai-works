@@ -20,11 +20,11 @@ For maintenance tasks, use the dedicated skills:
 
 ## Branch hygiene
 
-This skill performs real development work — code changes, dev server runs, E2E tests, PR creation. Branch hygiene is consolidated in [`_shared/branch-hygiene.md`](../_shared/branch-hygiene.md):
+This skill performs real development work — code changes, dev server runs, E2E tests, PR creation. Three hygiene recommendations apply at different stages:
 
-- **Worktree** (section 1) — recommended at pre-flight before any code changes (see `do/pre-flight.md`).
-- **Rebase** (section 2) — mandatory check before the E2E acceptance stage (`do/e2e-acceptance.md`) and before any dev server is started.
-- **Cleanup** (section 3) — surfaced after the PR is merged (see `do/open-prs.md`).
+- **Worktree** — recommended at pre-flight before any code changes (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md) and `do/pre-flight.md`).
+- **Rebase** — mandatory check before the E2E acceptance stage (`do/e2e-acceptance.md`) and before any dev server is started (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
+- **Cleanup** — surfaced after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md) and `do/open-prs.md`).
 
 All three are recommendations via `AskUserQuestion`, never auto-applied without user confirmation.
 

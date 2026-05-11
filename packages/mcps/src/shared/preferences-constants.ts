@@ -37,12 +37,18 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoUseWorktree]: PreferenceValue.Ask,
   [PreferenceKey.AutoRebase]: PreferenceValue.Ask,
   [PreferenceKey.AutoCleanup]: PreferenceValue.Ask,
+  [PreferenceKey.AutoE2ETest]: PreferenceValue.Always,
 };
 
 const ALWAYS_ASK_NEVER = [
   PreferenceValue.Always,
   PreferenceValue.Ask,
   PreferenceValue.Never,
+] as const;
+
+const ALWAYS_ASK = [
+  PreferenceValue.Always,
+  PreferenceValue.Ask,
 ] as const;
 
 const LOCAL_REMOTE_ASK = [
@@ -74,6 +80,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoUseWorktree]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoRebase]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoCleanup]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoE2ETest]: ALWAYS_ASK,
 };
 
 /** Human-readable schema for each preference — used in setup wizard and validation. */
@@ -128,5 +135,8 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.AutoCleanup]: {
     description: "After a PR is merged, automatically run the cleanup sequence: remove worktree, delete branches, clear local artifacts, prune [gone] branches",
+  },
+  [PreferenceKey.AutoE2ETest]: {
+    description: "Run Stage 6 (E2E acceptance) at the end of every /muggle-do cycle (default always — running E2E is the point of muggle-do; never is not an option)",
   },
 };

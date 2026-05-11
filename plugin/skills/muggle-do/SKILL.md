@@ -25,6 +25,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 | Preference | Stage | Decision it gates |
 |------------|-------|-------------------|
 | `autoUseWorktree` | 1 (pre-flight) | Create a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
+| `autoE2ETest` | 6 (e2e-acceptance) | Run E2E every cycle (default `always`), or fold the question into pre-flight |
 | `autoRebase` | 6 (e2e-acceptance) | Rebase onto `origin/<default>` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
 | `autoCreatePR` | 7 (open-prs) | Push the branch and open the PR (see [`do/open-prs.md`](../do/open-prs.md)) |
 | `autoCleanup` | 7 (post-merge) | Run cleanup sequence (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |

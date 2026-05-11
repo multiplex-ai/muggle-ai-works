@@ -37,6 +37,7 @@ Before asking anything, gather every fact you can resolve without the user:
 9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md), [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)):
    - Is the current checkout already a worktree? `git -C <repo> rev-parse --is-inside-work-tree` plus `git -C <repo> worktree list`.
    - How many commits behind `origin/<default>`? `git -C <repo> fetch origin && git -C <repo> rev-list --count "HEAD..origin/$(git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short | sed 's|origin/||')"`.
+10. **`autoE2ETest` preference.** Read the session-context preferences line. Unset → treat as `always` (this gate's default — opposite of the system-wide `ask` default). `ask` → surface in Q13. `always` → no question; stage 6 runs.
 
 ## The consolidated questionnaire
 
@@ -58,6 +59,7 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
 11. **Worktree?** — fire `autoUseWorktree` per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md). When resolved as `always`/`never`, no question — record in `state.md`. When `ask`/absent, include Picker 1 (+ Picker 2) from [`autoUseWorktree.md`](../muggle-preferences/preference-gates/autoUseWorktree.md) in this consolidated turn. When the gate resolves to `always`, record the worktree-setup checklist from [`../_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) (cross-boundary files, per-worktree `npm install`, no `node_modules` symlinks) into `state.md` so stage 6 can verify before launching the dev server.
 12. **Rebase onto `origin/<default>`?** — fire `autoRebase` per [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) only if `behind > 0`. Same picker rules as Q11; record in `state.md`. The E2E stage re-checks before launching the dev server.
+13. **Run E2E acceptance at the end?** — only if `autoE2ETest` resolved to `ask` in step 10. Per [`autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md): "Always run" → `always`, "Decide each cycle" → leave as `ask`. There is no `never` — installing Muggle Test commits to running E2E. Persist via Picker 2 per the standard procedure.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

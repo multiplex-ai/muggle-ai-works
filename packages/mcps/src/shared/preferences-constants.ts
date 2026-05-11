@@ -33,6 +33,9 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.PostPRVisualWalkthrough]: PreferenceValue.Ask,
   [PreferenceKey.CheckForUpdates]: PreferenceValue.Ask,
   [PreferenceKey.VerboseOutput]: PreferenceValue.Ask,
+  [PreferenceKey.AutoUseWorktree]: PreferenceValue.Ask,
+  [PreferenceKey.AutoRebase]: PreferenceValue.Ask,
+  [PreferenceKey.AutoCleanup]: PreferenceValue.Ask,
 };
 
 const ALWAYS_ASK_NEVER = [
@@ -66,6 +69,9 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.PostPRVisualWalkthrough]: ALWAYS_ASK_NEVER,
   [PreferenceKey.CheckForUpdates]: ALWAYS_ASK_NEVER,
   [PreferenceKey.VerboseOutput]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoUseWorktree]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoRebase]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoCleanup]: ALWAYS_ASK_NEVER,
 };
 
 /** Human-readable schema for each preference — used in setup wizard and validation. */
@@ -108,5 +114,14 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.VerboseOutput]: {
     description: "Show detailed progress logs during skill and tool execution",
+  },
+  [PreferenceKey.AutoUseWorktree]: {
+    description: "When starting non-trivial development work, create a git worktree to isolate the change from the current checkout",
+  },
+  [PreferenceKey.AutoRebase]: {
+    description: "Before running dev servers or E2E tests on a branch behind origin, rebase onto the default branch first",
+  },
+  [PreferenceKey.AutoCleanup]: {
+    description: "After a PR is merged, automatically run the cleanup sequence: remove worktree, delete branches, clear local artifacts, prune [gone] branches",
   },
 };

@@ -32,6 +32,9 @@ Before asking anything, gather every fact you can resolve without the user:
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
 7. **Existing test-user secrets.** For each candidate Muggle Test project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.
 8. **Auth0 tenant in use for local dev.** Grep the repo's env file for `*AUTH0_DOMAIN*`; record the tenant. This tells the user whether the staging-tenant test user will work or not.
+9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md), [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)):
+   - Is the current checkout already a worktree? `git -C <repo> rev-parse --is-inside-work-tree` plus `git -C <repo> worktree list`.
+   - How many commits behind `origin/<default>`? `git -C <repo> fetch origin && git -C <repo> rev-list --count "HEAD..origin/$(git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short | sed 's|origin/||')"`.
 
 ## The consolidated questionnaire
 
@@ -51,6 +54,8 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
+11. **Worktree?** — fire `autoUseWorktree` per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md). When resolved as `always`/`never`, no question — record in `state.md`. When `ask`/absent, include Picker 1 (+ Picker 2) from [`autoUseWorktree.md`](../muggle-preferences/preference-gates/autoUseWorktree.md) in this consolidated turn.
+12. **Rebase onto `origin/<default>`?** — fire `autoRebase` per [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) only if `behind > 0`. Same picker rules as Q11; record in `state.md`. The E2E stage re-checks before launching the dev server.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

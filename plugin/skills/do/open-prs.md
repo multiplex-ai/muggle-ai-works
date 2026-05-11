@@ -101,3 +101,13 @@ Back in this stage:
 - (repo name): comment posted to PR #(number)
 
 **Errors:** (any repos where PR creation or comment posting failed, with the error message)
+
+## Post-merge cleanup (gated by `autoCleanup`)
+
+Cleanup fires in a follow-up turn after merge — never from this stage. See [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md).
+
+After printing PR URLs, append one short reminder tied to the gate's current value:
+
+- `always` → `Once merged, I'll run the cleanup sequence automatically.`
+- `never` → omit.
+- `ask` / absent → `Once merged, I'll check with you about cleanup.`

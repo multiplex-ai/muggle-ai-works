@@ -54,7 +54,19 @@ Use `AskUserQuestion`:
 
 Prune any dead PIDs silently (the process crashed on its own — no point asking about it).
 
+## Preferences
+
+Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md).
+
+| Preference | Step | Decision it gates |
+|------------|------|-------------------|
+| `autoRebase` | 0 | Rebase onto `origin/<default>` before starting dev servers (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
+
 ## Workflow
+
+### Step 0: Rebase check (gated by `autoRebase`)
+
+Fire per [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) when `behind > 0`. Otherwise skip silently.
 
 ### Step 1: What Are You Testing?
 

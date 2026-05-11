@@ -18,6 +18,16 @@ For maintenance tasks, use the dedicated skills:
 - `/muggle:muggle-repair`
 - `/muggle:muggle-upgrade`
 
+## Preferences
+
+Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md).
+
+| Preference | Stage | Decision it gates |
+|------------|-------|-------------------|
+| `autoUseWorktree` | 1 (pre-flight) | Create a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
+| `autoRebase` | 6 (e2e-acceptance) | Rebase onto `origin/<default>` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
+| `autoCleanup` | 7 (post-merge) | Run cleanup sequence (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
+
 ## Input routing
 
 Treat `$ARGUMENTS` as the user command:

@@ -32,6 +32,12 @@ export enum PreferenceKey {
   CheckForUpdates = "checkForUpdates",
   /** Show detailed progress logs during execution. */
   VerboseOutput = "verboseOutput",
+  /** Create a git worktree before starting non-trivial development work. */
+  AutoUseWorktree = "autoUseWorktree",
+  /** Rebase onto the default branch before running dev servers or E2E tests. */
+  AutoRebase = "autoRebase",
+  /** After a PR is merged, run the cleanup sequence (worktree, branches, artifacts) automatically. */
+  AutoCleanup = "autoCleanup",
 }
 
 /**

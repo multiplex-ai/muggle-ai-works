@@ -31,6 +31,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.SuggestRelatedTestCases]: PreferenceValue.Ask,
   [PreferenceKey.AutoDetectChanges]: PreferenceValue.Ask,
   [PreferenceKey.PostPRVisualWalkthrough]: PreferenceValue.Ask,
+  [PreferenceKey.AutoCreatePR]: PreferenceValue.Ask,
   [PreferenceKey.CheckForUpdates]: PreferenceValue.Ask,
   [PreferenceKey.VerboseOutput]: PreferenceValue.Ask,
   [PreferenceKey.AutoUseWorktree]: PreferenceValue.Ask,
@@ -67,6 +68,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.SuggestRelatedTestCases]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoDetectChanges]: ALWAYS_ASK_NEVER,
   [PreferenceKey.PostPRVisualWalkthrough]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoCreatePR]: ALWAYS_ASK_NEVER,
   [PreferenceKey.CheckForUpdates]: ALWAYS_ASK_NEVER,
   [PreferenceKey.VerboseOutput]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoUseWorktree]: ALWAYS_ASK_NEVER,
@@ -108,6 +110,9 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.PostPRVisualWalkthrough]: {
     description: "After test results are available, post visual walkthrough comment with screenshots to the PR",
+  },
+  [PreferenceKey.AutoCreatePR]: {
+    description: "At the end of the muggle-do dev cycle (or when a test needs an open PR to post results to), push the branch and open a PR without prompting",
   },
   [PreferenceKey.CheckForUpdates]: {
     description: "At session start, check if a newer Muggle Test version is available and notify",

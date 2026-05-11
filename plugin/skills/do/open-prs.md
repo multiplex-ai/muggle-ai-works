@@ -41,6 +41,8 @@ You receive:
 
 For each repo with changes:
 
+0. **Apply the `autoCreatePR` gate** per [`../muggle-preferences/preference-gates/README.md`](../muggle-preferences/preference-gates/README.md) + [`autoCreatePR.md`](../muggle-preferences/preference-gates/autoCreatePR.md). On the skip path, record the reason in `result.md` and move to the next repo.
+
 1. **Push the branch** to origin: `git push -u origin <branch-name>` in the repo directory.
 2. **Build the PR title:**
    - If E2E acceptance tests have failures: `[E2E FAILING] <goal>`

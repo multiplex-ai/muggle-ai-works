@@ -2,12 +2,13 @@ import { describe, it, expect } from "vitest";
 
 import {
   DASHBOARD_URL_BASE,
+  computeVerdict,
   renderOverview,
   renderTestDetails,
   renderBody,
   renderComment,
 } from "../../../cli/pr-section/render.js";
-import type { E2eReport, FailedTest, PassedTest } from "../../../cli/pr-section/types.js";
+import type { E2eReport, FailedTest, InconclusiveTest, PassedTest } from "../../../cli/pr-section/types.js";
 
 const PROJECT_ID = "p1";
 
@@ -84,9 +85,39 @@ const failedNoMeta: FailedTest = {
   ],
 };
 
+const inconclusiveWithDesc: InconclusiveTest = {
+  name: "Clear search input restores full list",
+  description: "Verify clearing the search input restores all options.",
+  useCaseName: "Filter Dropdowns",
+  testCaseId: "tc-6",
+  runId: "run-6",
+  viewUrl: "https://www.muggle-ai.com/x/run-6",
+  status: "inconclusive",
+  reason: "No replayable script exists yet — needs first generation run.",
+  steps: [],
+};
+
+const inconclusiveWithSteps: InconclusiveTest = {
+  name: "Pre-checkout banner inconclusive",
+  testCaseId: "tc-7",
+  runId: "run-7",
+  viewUrl: "https://www.muggle-ai.com/x/run-7",
+  status: "inconclusive",
+  reason: "Environment precondition unmet: cookie banner stale on this branch.",
+  steps: [
+    { stepIndex: 0, action: "Open cart", screenshotUrl: "https://cdn/7-0.png" },
+    { stepIndex: 1, action: "Hit cookie banner", screenshotUrl: "https://cdn/7-1.png" },
+  ],
+};
+
 const groupedReport: E2eReport = {
   projectId: PROJECT_ID,
   tests: [passedWithDesc, failedWithDesc, passedAuthGroup],
+};
+
+const mixedWithInconclusiveReport: E2eReport = {
+  projectId: PROJECT_ID,
+  tests: [passedWithDesc, passedAuthGroup, inconclusiveWithDesc],
 };
 
 const flatReport: E2eReport = {
@@ -106,11 +137,35 @@ const allPassedNoMeta: E2eReport = {
 
 const emptyReport: E2eReport = { projectId: PROJECT_ID, tests: [] };
 
+describe("computeVerdict", () => {
+  it("returns 'none' for an empty report", () => {
+    expect(computeVerdict({ projectId: PROJECT_ID, tests: [] })).toBe("none");
+  });
+
+  it("returns 'pass' when every test passed", () => {
+    expect(computeVerdict({ projectId: PROJECT_ID, tests: [passedWithDesc, passedAuthGroup] })).toBe("pass");
+  });
+
+  it("returns 'fail' when any test failed (even with inconclusives)", () => {
+    expect(
+      computeVerdict({
+        projectId: PROJECT_ID,
+        tests: [passedWithDesc, failedWithDesc, inconclusiveWithDesc],
+      }),
+    ).toBe("fail");
+  });
+
+  it("returns 'inconclusive' when there are no failures but at least one inconclusive", () => {
+    expect(computeVerdict(mixedWithInconclusiveReport)).toBe("inconclusive");
+  });
+});
+
 describe("renderOverview", () => {
   it("renders counts and a flat numbered list when no test has a useCaseName", () => {
     const md = renderOverview(flatReport);
     expect(md).toContain("## E2E Acceptance Results");
-    expect(md).toContain("**2 tests ran — 1 passed / 1 failed**");
+    expect(md).toContain("**Verdict: ❌ FAIL**");
+    expect(md).toContain("**2 tests ran — 1 passed / 1 failed / 0 inconclusive**");
     expect(md).toContain("**Tests run:**");
     expect(md).toContain("- **1.** ✅ Logout flow");
     expect(md).toContain("- **2.** ❌ Checkout breaks");
@@ -121,7 +176,8 @@ describe("renderOverview", () => {
 
   it("groups tests by useCaseName with global numbering across groups", () => {
     const md = renderOverview(groupedReport);
-    expect(md).toContain("**3 tests ran — 2 passed / 1 failed**");
+    expect(md).toContain("**Verdict: ❌ FAIL**");
+    expect(md).toContain("**3 tests ran — 2 passed / 1 failed / 0 inconclusive**");
     expect(md).toContain("- **Create a New Project**");
     expect(md).toContain("  - **1.** ✅ User creates a new project with valid URL");
     expect(md).toContain("  - **2.** ❌ User receives error for invalid URL format");
@@ -129,12 +185,27 @@ describe("renderOverview", () => {
     expect(md).toContain("  - **3.** ✅ Login with valid credentials");
   });
 
+  it("renders the verdict line as INCONCLUSIVE when no failures but any inconclusive test exists", () => {
+    const md = renderOverview(mixedWithInconclusiveReport);
+    expect(md).toContain("**Verdict: ⚠️ INCONCLUSIVE**");
+    expect(md).toContain("**3 tests ran — 2 passed / 0 failed / 1 inconclusive**");
+    expect(md).toContain("⚠️ Clear search input restores full list");
+  });
+
+  it("renders the verdict line as PASS when all tests passed", () => {
+    const md = renderOverview({ projectId: PROJECT_ID, tests: [passedWithDesc, passedAuthGroup] });
+    expect(md).toContain("**Verdict: ✅ PASS**");
+    expect(md).toContain("**2 tests ran — 2 passed / 0 failed / 0 inconclusive**");
+  });
+
   it("handles an empty report with a friendly placeholder", () => {
     const md = renderOverview(emptyReport);
     expect(md).toContain("## E2E Acceptance Results");
-    expect(md).toContain("**0 tests ran — 0 passed / 0 failed**");
+    expect(md).toContain("**0 tests ran — 0 passed / 0 failed / 0 inconclusive**");
     expect(md).toContain("_No tests were executed._");
     expect(md).not.toContain("**Tests run:**");
+    // No verdict line on an empty report — there's nothing to rule on.
+    expect(md).not.toContain("**Verdict:");
   });
 });
 
@@ -203,6 +274,26 @@ describe("renderTestDetails", () => {
     expect(md).toContain("target=\"_blank\"");
     expect(md).toContain("rel=\"noopener noreferrer\"");
   });
+
+  it("renders an inconclusive test with the warning emoji, reason line, and no error", () => {
+    const md = renderTestDetails(inconclusiveWithDesc, PROJECT_ID, 3);
+    expect(md).toContain("<b>3. </b><i>▶ click to expand</i> <b>Clear search input restores full list</b> ⚠️");
+    expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
+    expect(md).toContain("**Reason:** `No replayable script exists yet — needs first generation run.`");
+    expect(md).not.toContain("**Error:**");
+    expect(md).toContain("**Steps:** 0");
+    // No ending-screen block when there are zero steps.
+    expect(md).not.toContain("**📸 Ending screen");
+    // Dashboard link still works — that's what makes per-TC navigation possible.
+    expect(md).toContain(`${DASHBOARD_URL_BASE}/p1/scripts?modal=script-details&testCaseId=tc-6`);
+  });
+
+  it("renders an inconclusive test with steps using a 'cut short' caption", () => {
+    const md = renderTestDetails(inconclusiveWithSteps, PROJECT_ID, 4);
+    expect(md).toContain("**📸 Ending screen — Last frame before run was cut short**");
+    expect(md).toContain('<img src="https://cdn/7-1.png"');
+    expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
+  });
 });
 
 describe("renderBody", () => {
@@ -239,7 +330,7 @@ describe("renderBody", () => {
 
   it("empty report: no details, no horizontal rule", () => {
     const body = renderBody(emptyReport, { inlineDetails: true });
-    expect(body).toContain("**0 tests ran — 0 passed / 0 failed**");
+    expect(body).toContain("**0 tests ran — 0 passed / 0 failed / 0 inconclusive**");
     expect(body).toContain("_No tests were executed._");
     expect(body).not.toContain("---");
     expect(body).not.toContain("<details>");

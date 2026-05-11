@@ -148,6 +148,62 @@ describe("E2eReportSchema", () => {
     expect(() => E2eReportSchema.parse(bad)).toThrow();
   });
 
+  it("accepts an inconclusive test with reason + same identifiers as passed/failed", () => {
+    const parsed = E2eReportSchema.parse({
+      projectId: "p1",
+      tests: [
+        {
+          name: "Clear search input restores full list",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/run-1",
+          status: "inconclusive",
+          steps: [],
+          reason: "No replayable script exists yet — needs first generation run.",
+        },
+      ],
+    });
+    const t = parsed.tests[0];
+    expect(t.status).toBe("inconclusive");
+    if (t.status === "inconclusive") {
+      expect(t.reason).toContain("No replayable script");
+      expect(t.steps).toHaveLength(0);
+    }
+  });
+
+  it("rejects an inconclusive test that has no reason field", () => {
+    const bad = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "x",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "inconclusive",
+          steps: [],
+        },
+      ],
+    };
+    expect(() => E2eReportSchema.parse(bad)).toThrow();
+  });
+
+  it("rejects an inconclusive test that omits required runId/viewUrl", () => {
+    const bad = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "x",
+          testCaseId: "tc1",
+          status: "inconclusive",
+          steps: [],
+          reason: "prereq unmet",
+        },
+      ],
+    };
+    expect(() => E2eReportSchema.parse(bad)).toThrow();
+  });
+
   it("parses the grouped-by-use-case fixture", () => {
     const parsed = E2eReportSchema.parse(loadFixture("grouped-by-use-case.json"));
     expect(parsed.tests).toHaveLength(3);

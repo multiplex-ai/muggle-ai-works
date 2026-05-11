@@ -30,20 +30,50 @@ interface ICounts {
   total: number;
   passed: number;
   failed: number;
+  inconclusive: number;
 }
 
 function countTests (report: E2eReport): ICounts {
   const total = report.tests.length;
   const passed = report.tests.filter((t) => t.status === "passed").length;
   const failed = report.tests.filter((t) => t.status === "failed").length;
-  return { total, passed, failed };
+  const inconclusive = report.tests.filter((t) => t.status === "inconclusive").length;
+  return { total, passed, failed, inconclusive };
 }
 
 function statusEmoji (test: TestResult): string {
-  return test.status === "passed" ? "✅" : "❌";
+  if (test.status === "passed") return "✅";
+  if (test.status === "failed") return "❌";
+  return "⚠️";
 }
 
-/** The "ending screenshot" step for a test: failure-step for failed, last step for passed. */
+/** Overall verdict for a report. `none` when there are no tests at all. */
+export type Verdict = "pass" | "fail" | "inconclusive" | "none";
+
+/**
+ * Strict verdict policy:
+ * - Any failed test → FAIL (overrides everything else)
+ * - Any inconclusive test (with no failures) → INCONCLUSIVE
+ * - All passed and at least one test → PASS
+ * - Empty report → NONE
+ */
+export function computeVerdict (report: E2eReport): Verdict {
+  if (report.tests.length === 0) return "none";
+  if (report.tests.some((t) => t.status === "failed")) return "fail";
+  if (report.tests.some((t) => t.status === "inconclusive")) return "inconclusive";
+  return "pass";
+}
+
+function renderVerdictLine (verdict: Verdict): string | null {
+  switch (verdict) {
+    case "pass": return "**Verdict: ✅ PASS**";
+    case "fail": return "**Verdict: ❌ FAIL**";
+    case "inconclusive": return "**Verdict: ⚠️ INCONCLUSIVE**";
+    case "none": return null;
+  }
+}
+
+/** The "ending screenshot" step for a test: failure-step for failed, last step for passed/inconclusive. */
 function endingScreenshot (test: TestResult): Step | null {
   if (test.steps.length === 0) {
     return null;
@@ -63,6 +93,9 @@ function endingScreenshot (test: TestResult): Step | null {
 function defaultEndingCaption (test: TestResult): string {
   if (test.status === "failed") {
     return `Failure at step ${test.failureStepIndex}`;
+  }
+  if (test.status === "inconclusive") {
+    return "Last frame before run was cut short";
   }
   return "Final page after the test completed";
 }
@@ -122,12 +155,14 @@ function buildTestNumbering (report: E2eReport): Map<string, number> {
  * Numbering is global across groups so it matches the details block headings.
  */
 export function renderOverview (report: E2eReport): string {
-  const { total, passed, failed } = countTests(report);
-  const lines: string[] = [
-    "## E2E Acceptance Results",
-    "",
-    `**${total} tests ran — ${passed} passed / ${failed} failed**`,
-  ];
+  const { total, passed, failed, inconclusive } = countTests(report);
+  const verdict = computeVerdict(report);
+  const verdictLine = renderVerdictLine(verdict);
+  const lines: string[] = ["## E2E Acceptance Results", ""];
+  if (verdictLine) {
+    lines.push(verdictLine, "");
+  }
+  lines.push(`**${total} tests ran — ${passed} passed / ${failed} failed / ${inconclusive} inconclusive**`);
   if (total === 0) {
     lines.push("", "_No tests were executed._");
     return lines.join("\n");
@@ -225,9 +260,12 @@ function renderResultSummary (test: TestResult, projectId: string): string[] {
   const lines: string[] = [];
   if (test.status === "passed") {
     lines.push(`**Result:** ✅ PASSED`);
-  } else {
+  } else if (test.status === "failed") {
     lines.push(`**Result:** ❌ FAILED at step ${test.failureStepIndex}`);
     lines.push(`**Error:** \`${safeInlineCode(test.error)}\``);
+  } else {
+    lines.push(`**Result:** ⚠️ INCONCLUSIVE`);
+    lines.push(`**Reason:** \`${safeInlineCode(test.reason)}\``);
   }
   lines.push(`**Steps:** ${test.steps.length}`);
   lines.push(`<a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer">View steps on Muggle AI →</a>`);

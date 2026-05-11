@@ -66,12 +66,37 @@ Every caller must build an `E2eReport` JSON object and have it in conversation c
       "failureStepIndex": 2,
       "error": "Element not found: Click checkout button",
       "artifactsDir": "/Users/.../~/.muggle-ai/sessions/<runId>"
+    },
+    {
+      "name": "Clear search input restores full list",
+      "description": "Verify clearing the search input restores all options.",
+      "useCaseName": "Filter Dropdowns",
+      "testCaseId": "<UUID>",
+      "runId": "<UUID>",
+      "viewUrl": "https://www.muggle-ai.com/...",
+      "status": "inconclusive",
+      "steps": [],
+      "reason": "No replayable script exists yet — needs first generation run."
     }
   ]
 }
 ```
 
-Required fields per test: `name`, `testCaseId`, `runId`, `viewUrl`, `status`, `steps[]` with `{stepIndex, action, screenshotUrl}`. Failed tests additionally require `failureStepIndex` and `error`.
+Required fields per test: `name`, `testCaseId`, `runId`, `viewUrl`, `status`, `steps[]` with `{stepIndex, action, screenshotUrl}`.
+
+- **Failed** tests additionally require `failureStepIndex` and `error`.
+- **Inconclusive** tests additionally require `reason` (one short sentence on why the result is neither pass nor fail). `steps[]` may be empty — that's fine. Inconclusive is for runs that couldn't be classified pass/fail (no replayable script, environment precondition unmet, infra error blocked execution, agent stalled before reaching the assertion). **Never silently drop these — always emit them as `inconclusive`.** The CLI counts them in the overview and renders an `⚠️` row with the dashboard link so reviewers can click through. If you find yourself wanting to skip a test or hand-write a comment because the schema "doesn't fit," that is the schema fitting — use `inconclusive`.
+
+### Verdict
+
+The renderer computes a verdict from the tests and emits a `**Verdict:** ✅ PASS | ❌ FAIL | ⚠️ INCONCLUSIVE` line at the top of the overview. The policy is strict:
+
+- Any failed test → **FAIL** (regardless of how many passed or are inconclusive).
+- No failures but any inconclusive → **INCONCLUSIVE**.
+- All passed → **PASS**.
+- Empty report → no verdict line.
+
+You do not compute or render the verdict yourself — the CLI does. Never write a "Verdict: PASS" line into a hand-edited summary; it will conflict with the CLI's computed verdict.
 
 **Optional but recommended** per test:
 - `description` — a one-line summary of what the test case verifies. Shown in the collapsible header for each test and helps reviewers understand the test without expanding it. Pull from the test case's `title`/`description` via `muggle-remote-test-case-get`.
@@ -168,7 +193,7 @@ In Mode B, this skill does not call `gh pr comment` or `gh pr create` itself —
 
 ## Guardrails
 
-- **Never hand-write the walkthrough markdown** — always call `muggle build-pr-section`. The CLI is the single source of truth for formatting.
+- **Never hand-write the walkthrough markdown** — always call `muggle build-pr-section`. The CLI is the single source of truth for formatting. If a test outcome doesn't fit `passed | failed`, that's what `inconclusive` is for — never fall back to a hand-written summary, a custom table, a "Verdict: PASS" header, a `Tested on:`/`Project:` footer, or any other freeform text. The CLI already emits per-test-case dashboard links (no project-level link), uses `https://www.muggle-ai.com/...` URLs (never the test target's `localhost` URL), and computes the verdict — anything you would manually add is wrong by construction.
 - **Never modify the CLI's output** — post `body` and (if present) `comment` verbatim. Any reformatting defeats the fit-vs-overflow budget math.
 - **Never invent report fields** — if `projectId`, a per-test `viewUrl`, or per-step `screenshotUrl` is missing, stop and report what's missing. Do not fabricate URLs or fill in placeholders.
 - **Never post the overflow comment when `comment` is `null`** — the CLI decides fit-vs-overflow.

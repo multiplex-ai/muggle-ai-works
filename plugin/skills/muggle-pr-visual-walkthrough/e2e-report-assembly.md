@@ -1,6 +1,16 @@
 # E2eReport Assembly Guide
 
-Include **all** runs — passed and failed. Never drop a run. Always best-effort to upload so the dashboard has a record reviewers can open from the PR — even when the local run produced zero action steps.
+Include **all** runs — passed, failed, **and inconclusive**. Never drop a run. Always best-effort to upload so the dashboard has a record reviewers can open from the PR — even when the local run produced zero action steps.
+
+## Picking a status
+
+| Status | Use when | Required extras |
+|---|---|---|
+| `passed` | Run completed and the assertion held. | — |
+| `failed` | Run completed and the assertion failed, or the product itself broke before the assertion could be made (server error, 500, broken page). | `failureStepIndex`, `error` |
+| `inconclusive` | Run could not yield a pass/fail signal for reasons **outside the product**: no replayable script existed, environment precondition unmet, infra/Electron error, agent stalled on a cookie banner or login wall, missing secrets, agent went off-course. | `reason` (one short sentence; `steps[]` may be empty) |
+
+If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: emit a stub run via `muggle-remote-local-run-upload` if at all possible; otherwise synthesize a UUID-shaped runId and use `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs` as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
 
 ## Uploaded run (passed or failed; the common path)
 
@@ -59,6 +69,17 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "steps": [],
       "failureStepIndex": 0,
       "error": "<error message from run result>"
+    },
+    {
+      "name": "<inconclusive test case title>",
+      "description": "<one-line description (recommended)>",
+      "useCaseName": "<parent use case title (recommended)>",
+      "testCaseId": "<testCaseId from execution step>",
+      "runId": "<runId from execute, or synthesized UUID if no run started>",
+      "viewUrl": "<viewUrl from upload response, or project-level fallback URL>",
+      "status": "inconclusive",
+      "steps": [],
+      "reason": "<one short sentence: why neither pass nor fail applies>"
     }
   ]
 }

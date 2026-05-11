@@ -17,6 +17,16 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 
 The local URL only changes where the browser opens; it does not change the remote project or test definitions.
 
+## Branch hygiene
+
+Before running E2E tests against a local branch, follow [`_shared/branch-hygiene.md`](../_shared/branch-hygiene.md):
+
+- Section 1 (worktree) — if the user has been developing on the current checkout, recommend isolating the work in a worktree before testing.
+- Section 2 (rebase) — check whether the branch is behind `origin/<default>` and offer to rebase before running. **Mandatory check** before Step 7 (Execute).
+- Section 3 (cleanup) — once the PR for this work is merged, surface the cleanup recommendations to the user.
+
+All three are recommendations via `AskUserQuestion`, not hard requirements.
+
 ## UX Guidelines — Minimize Typing
 
 **Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.

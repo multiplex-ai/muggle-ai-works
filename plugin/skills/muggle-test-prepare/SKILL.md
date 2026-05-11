@@ -56,6 +56,12 @@ Prune any dead PIDs silently (the process crashed on its own — no point asking
 
 ## Workflow
 
+### Step 0: Branch hygiene check
+
+Before starting any dev servers, follow [`_shared/branch-hygiene.md`](../_shared/branch-hygiene.md) section 2 (rebase): check whether the current branch is behind `origin/<default>` and offer the user a chance to rebase first. Starting servers against a stale branch leads to test results that don't reflect the merged main line.
+
+Skip this step if the user is operating on the default branch or has already declined rebasing earlier in the session.
+
 ### Step 1: What Are You Testing?
 
 Before discovering services, understand the shape of the testing so you can scope correctly. Use `AskUserQuestion`:

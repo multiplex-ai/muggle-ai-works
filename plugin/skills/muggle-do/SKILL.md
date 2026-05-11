@@ -18,6 +18,16 @@ For maintenance tasks, use the dedicated skills:
 - `/muggle:muggle-repair`
 - `/muggle:muggle-upgrade`
 
+## Branch hygiene
+
+This skill performs real development work — code changes, dev server runs, E2E tests, PR creation. Branch hygiene is consolidated in [`_shared/branch-hygiene.md`](../_shared/branch-hygiene.md):
+
+- **Worktree** (section 1) — recommended at pre-flight before any code changes (see `do/pre-flight.md`).
+- **Rebase** (section 2) — mandatory check before the E2E acceptance stage (`do/e2e-acceptance.md`) and before any dev server is started.
+- **Cleanup** (section 3) — surfaced after the PR is merged (see `do/open-prs.md`).
+
+All three are recommendations via `AskUserQuestion`, never auto-applied without user confirmation.
+
 ## Input routing
 
 Treat `$ARGUMENTS` as the user command:

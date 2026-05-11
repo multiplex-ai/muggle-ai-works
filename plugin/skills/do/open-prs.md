@@ -101,3 +101,11 @@ Back in this stage:
 - (repo name): comment posted to PR #(number)
 
 **Errors:** (any repos where PR creation or comment posting failed, with the error message)
+
+## Post-merge cleanup recommendation
+
+The cycle ends at PR creation, **not** at merge — merging is the user's call. After printing the PR URLs, append a single short reminder to the final message pointing to the cleanup steps the user should run once the PR lands:
+
+> Once these PRs are merged, run cleanup: delete the worktree, delete the local + remote branch, clear local Muggle Test artifacts, and prune any other `[gone]` branches via `commit-commands:clean_gone`. See [`../_shared/branch-hygiene.md`](../_shared/branch-hygiene.md) section 3 for the exact commands.
+
+Do **not** run cleanup automatically from this stage — the PR is still open, the branch is still needed, and cleanup is destructive. Just point the user to the steps.

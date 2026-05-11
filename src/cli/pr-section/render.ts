@@ -194,12 +194,12 @@ export function renderTestDetails (test: TestResult, projectId: string, testNumb
 }
 
 function renderSummaryLine (test: TestResult, testNumber: number): string {
-  const base = `<b>${testNumber}. ${test.name}</b> ${statusEmoji(test)}`;
+  const base = `<b>${test.name}</b> ${statusEmoji(test)}`;
   const head = "<i>▶ click to expand</i> ";
   if (test.description) {
-    return `${head}${base} — ${test.description}`;
+    return `<b>${testNumber}. </b>${head}${base} — ${test.description}`;
   }
-  return `${head}${base}`;
+  return `<b>${testNumber}. </b>${head}${base}`;
 }
 
 /**

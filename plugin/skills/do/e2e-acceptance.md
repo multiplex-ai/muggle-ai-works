@@ -44,15 +44,10 @@ Use `localUrl`, `projectId`, and `worktreePath` from `state.md`. Missing any →
 
 Before launching Electron, run these live checks and fail loudly if any fails:
 
-1. **Probe 1 — HTTP**: `curl -s -o /dev/null -w "%{http_code}" <localUrl>` — expect 2xx or 3xx. If the dev server isn't up, halt with the exact command the user needs to start it.
-2. **Probe 1.5 — Compile-ready log signal (NEW)**: HTTP 200 alone is not enough. CRA, Vite, and Next emit "ready" separately from the listening socket — tests against a "compiling…" overlay produce misleading failures. Tail the dev-server log file (path recorded in `state.md` from pre-flight) and require the framework-specific ready signal before proceeding:
-   - **CRA / react-scripts**: `Compiled successfully` or `webpack compiled successfully`
-   - **Vite**: `ready in <N> ms`
-   - **Next.js**: `ready - started server on` or `Ready in`
-   If the log shows `Failed to compile`, `Module not found`, or a webpack error overlay first, surface the **last 20 lines of the dev-server log** and **halt** — do not dispatch tests against a broken bundle. See `_shared/dev-server-readiness.md` for the canonical probe.
-3. If a backend URL is recorded, probe its health endpoint. A 5xx or unreachable backend means the dashboard will render in an error state and test results will be meaningless — halt.
-4. `muggle-remote-auth-status` — must be `authenticated`. If not, the pre-flight missed this; escalate.
-5. If test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the tenant the secrets were created under (recorded in `state.md`). Tenant mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
+1. **Dev-server readiness** — run the two-stage probe per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) (port-200 + compile log). Halt on any failure it surfaces.
+2. **Backend health** — if a backend URL is recorded and the probe returns 5xx or unreachable, halt; test results would be meaningless.
+3. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate (pre-flight missed it).
+4. **Tenant match** — if test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the recorded tenant. Mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
 
 ### Step 1: Authentication already verified
 

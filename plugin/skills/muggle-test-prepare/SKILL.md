@@ -167,11 +167,7 @@ For services that are already running and the user wants to keep, add them to th
 
 **Option 1 — next available port:** probe `3999 + N` for `N = 1, 2, 3, ...` until `Test-NetConnection`/`lsof -i :<port>` returns nothing listening. Record the new port (and the env file edit, if `PORT=` is set in `.env.local` etc.) so downstream steps use it. The dev server may need a restart to pick up the new value.
 
-**Option 2 — force-kill (destructive):**
-- **Windows (PowerShell)**: `Get-NetTCPConnection -LocalPort <p> | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`
-- **POSIX**: `lsof -ti:<p> | xargs -r kill -9`
-
-Re-verify the port is free before continuing.
+**Option 2 — force-kill (destructive):** run the port-kill helper for the host OS — see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) "Port-kill helpers". Re-verify the port is free before continuing.
 
 ### Step 4.5: Environment File Sanity
 
@@ -261,27 +257,7 @@ echo $!
 
 Capture the PID. Write all service entries to `/tmp/muggle-test-prepare.json`.
 
-**Startup verification (two-stage)** — port-listening is **necessary but not sufficient**. CRA, Vite, and Next.js all bind the port before compilation finishes; a 200 response can come back while the compile-error overlay is still showing. Two-stage probe per `_shared/dev-server-readiness.md`:
-
-**Stage 1 — process + port**
-
-1. PID is alive: `kill -0 <pid> 2>/dev/null`
-2. Port is listening (if known): `lsof -iTCP:<port> -sTCP:LISTEN -nP 2>/dev/null`
-
-**Stage 2 — log ready signal** (only after Stage 1 passes)
-
-Tail `/tmp/muggle-prepare-<service-name>.log` for up to **60 seconds** looking for one of:
-
-| Stack | Ready signal |
-|:------|:-------------|
-| CRA / react-scripts | `Compiled successfully` or `webpack compiled` |
-| Vite | `ready in` |
-| Next.js | `ready - started server on` |
-| Other Node | first match of the patterns above, else fall back to port-only after timeout |
-
-If a `Failed to compile`, `Module not found`, or `Error:` line appears **before** a ready signal: **halt** — surface the last 20 log lines and report the service as failed-to-start. Do NOT claim ready and let downstream skills dispatch tests against a broken bundle.
-
-If no match within 60s and no error line either: surface the last 20 log lines and ask the user how to proceed (the service may be unusually slow, or the log format may be non-standard).
+**Startup verification** — first confirm the PID is alive (`kill -0 <pid> 2>/dev/null`), then run the two-stage readiness probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) against `/tmp/muggle-prepare-<service-name>.log`. Cap log-tail at 60s. Halt on whatever it surfaces; do not re-implement the ready-signal patterns here.
 
 If a service's PID dies immediately, read the last 20 lines of its log and show the user:
 

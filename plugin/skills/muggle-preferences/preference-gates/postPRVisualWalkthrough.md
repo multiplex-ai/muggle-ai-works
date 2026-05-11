@@ -2,6 +2,8 @@
 
 Post a visual walkthrough of test results to a PR.
 
+**See also:** [`autoCreatePR.md`](autoCreatePR.md) — when `muggle-do` reaches stage 7 with no PR yet, `autoCreatePR` is the gate that fires (not this one). This gate handles the test-side path (`muggle-test`, `muggle-test-feature-local`) and includes a Case B that creates the PR when needed.
+
 **PR detection (mandatory before any picker).** Run `gh pr view --json number,title,url 2>/dev/null` first. The result picks Case A or B.
 Substitute `{prNumber}`, `{prTitle}` into prompts.
 

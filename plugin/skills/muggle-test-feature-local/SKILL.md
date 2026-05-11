@@ -21,7 +21,7 @@ The local URL only changes where the browser opens; it does not change the remot
 
 Three gates apply, each per the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md):
 
-- `autoUseWorktree` at pre-flight (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
+- `autoUseWorktree` at pre-flight (see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md)).
 - `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
 - `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
@@ -54,7 +54,7 @@ Gates run per `preference-gates/README.md`.
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 | `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
-| `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
+| `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md)) |
 | `autoRebase` | 0 (pre-flight) | Rebase onto `origin/<default>` before Step 7 (Execute) (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
@@ -123,15 +123,7 @@ Before detecting the local URL, verify that the services the user needs are actu
 
 This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
 
-**Compile-gate (do not skip)**: after `muggle-test-prepare` reports ready, port-200 alone is **not** sufficient — CRA returns 200 while the compiling overlay is still showing. Before dispatching any test, verify the dev-server log shows one of:
-
-- `Compiled successfully` / `webpack compiled` (CRA / react-scripts)
-- `ready in` (Vite)
-- `ready - started server on` (Next.js)
-
-If the log shows `Failed to compile`, `Module not found`, or any `Error:` line first, surface the last 20 log lines via the report and **halt** — do not dispatch a test against a broken bundle. The user must fix the bundle before testing.
-
-See `_shared/dev-server-readiness.md` for the canonical two-stage probe (port-listening + compile log).
+**Compile-gate (do not skip)** — after `muggle-test-prepare` reports ready, run the two-stage readiness probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) before dispatching any test. Halt on any failure it surfaces; do not dispatch against a broken bundle.
 
 ### 4. Local URL (gated by `autoSelectLocalHost`)
 

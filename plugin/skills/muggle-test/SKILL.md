@@ -476,9 +476,9 @@ Each PR completes fully before the next starts. Single dev-server port = no para
 1. **Create worktree**: `git worktree add ../<repo>-wt-pr<N> pr-<N>`.
 2. **Copy templates**: `cp .env.local <worktree>/.env.local && cp -r .muggle-ai <worktree>/.muggle-ai`. The `.env.local` carries `PORT=3999` plus secrets; the `.muggle-ai/` cache skips project + host re-prompting in the subagent. See `_shared/worktree-isolation.md`.
 3. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, post a comment to the PR via `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, mark verdict `SKIPPED` in the aggregate report, continue to next PR.
-4. **Install**: `cd <worktree> && npm install --prefer-offline --no-audit --no-fund`. Each worktree gets its **own real install** — never symlink `node_modules/` (webpack breaks with "Can't handle conflicting asset info for sourceFilename"). See `_shared/worktree-isolation.md`.
-5. **Kill port**: free port 3999 before starting — helper command in `_shared/worktree-isolation.md` (Windows: `Get-NetTCPConnection -LocalPort 3999 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`; POSIX: `lsof -ti:3999 | xargs -r kill -9`).
-6. **Start dev server** in `<worktree>` (background). Wait for the **two-stage ready signal** — see `_shared/dev-server-readiness.md`. Port-200 alone is insufficient; CRA returns 200 while the compiling overlay is still up. Block dispatch until the log shows `Compiled successfully` (CRA) / `ready in` (Vite) / `ready - started server on` (Next.js).
+4. **Install**: per-worktree `npm install`, never symlink `node_modules/` — see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md).
+5. **Kill port** 3999 before starting — helper commands in [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) "Port-kill" section.
+6. **Start dev server** in `<worktree>` (background). Block dispatch on the two-stage readiness probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md).
 7. **Placeholder detection**: `git diff origin/master..HEAD --stat` in the worktree. If empty after rebase → post a `gh pr comment <N> --body "SKIPPED — placeholder branch, no code under test"`, mark verdict `SKIPPED`, continue without dispatching the agent.
 8. **Route + project classification** based on changed files:
    - Files under `src/components/landing/**` → `devServerUrl = http://localhost:<port>/` + landing-page test project.
@@ -540,9 +540,8 @@ After all PRs are processed, emit:
 
 ### Cross-references
 
-- `_shared/worktree-isolation.md` — full worktree pattern + node_modules rule + cross-boundary file list + port-kill helpers.
+- `_shared/worktree-isolation.md` — worktree gate + setup mechanics (cross-boundary files, per-worktree `npm install`, port-kill, cleanup).
 - `_shared/dev-server-readiness.md` — two-stage readiness probe (port-200 + compile log).
-- `_shared/branch-hygiene.md` sections 1A / 1B / 1C — per-PR iteration pattern.
 - `_shared/failure-mode-handling.md` section F — verdict taxonomy + infra blocker catalog.
 - `plugin/agents/acceptance-tester.md` — subagent input/output contract.
 

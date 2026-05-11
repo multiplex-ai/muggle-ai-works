@@ -1,8 +1,14 @@
-# Worktree Isolation for Multi-Branch Iteration
+# Worktrees
 
-Single source of truth for the per-branch worktree pattern used when one session needs to test multiple branches independently (PR sweeps, regression loops, before/after comparisons). Other skills reference this doc rather than restating the rules.
+Single source of truth for **(a)** the [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md) gate decision and **(b)** the per-worktree setup mechanics that any multi-branch session needs. Other skills reference this doc rather than restating the rules.
 
-## When to use
+## When to create a worktree (single-PR case — `autoUseWorktree` gate)
+
+Follow the standard gate procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md). **Fire the gate only when** the current checkout is not already a worktree (`git rev-parse --is-inside-work-tree`, inspect `git worktree list`) **and** the work is more than a trivial edit. Otherwise skip — no picker, no footer.
+
+On `always`, defer worktree creation to `superpowers:using-git-worktrees`. The setup checklist below applies once the worktree exists.
+
+## When to iterate worktrees (multi-branch case)
 
 Any time you're iterating a **set** of branches in one session and each needs an independent dev server, an independent install, and an isolated working tree:
 
@@ -11,7 +17,7 @@ Any time you're iterating a **set** of branches in one session and each needs an
 - Before/after comparison between two refs
 - Multi-branch reproduction of a flaky issue
 
-For a single one-off change, the lighter recommendation in `branch-hygiene.md` section 1 is enough. This doc is for the sequential-multi case.
+The rules below apply per worktree, in addition to the single-PR gate above.
 
 ## The pattern
 

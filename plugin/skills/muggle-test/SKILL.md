@@ -409,7 +409,10 @@ Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the
 
 Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory — gate uses the result). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file for two-case Picker 1):
 - **Case A (PR found)** — `always` → proceed to 9c; `never`/skip → stop.
-- **Case B (no PR)** — always run Picker 1 regardless of saved value; "Create a PR and post" → create PR then proceed to 9c; "Skip" → stop.
+- **Case B (no PR)** — saved value applies:
+  - `always` → silently create the PR (push branch + `gh pr create`) then proceed to 9c. Print silent footer (`Creating PR for {branch} and posting walkthrough` + the standard `Skipped the prompt` line).
+  - `never` → silently skip; print `Skipping PR walkthrough — no open PR for this branch` plus the standard footer.
+  - `ask` → run Picker 1; on "Create a PR and post" follow with Picker 2 to save, then create + proceed to 9c. On "Skip" do not save.
 
 ### 9c: Invoke the shared skill in Mode A
 

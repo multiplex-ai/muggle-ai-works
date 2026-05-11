@@ -17,14 +17,14 @@ Substitute `{prNumber}`, `{prTitle}` into prompts.
 
 ## Case B — no open PR
 
-Situational fork — saved value is *not* updated from this picker.
+Saved value covers this case — if the user previously set `always`, that includes auto-creating the PR. Picker 1 only runs when the gate is `ask`.
 
 **Picker 1** — header `No PR yet`, question `"This branch has no open PR. Create one and post the walkthrough, or skip?"`
-- `Create a PR and post` — `I'll open a PR for this branch, then attach the walkthrough.` → run PR-creation flow (calling skill's responsibility), then post.
-- `Skip` — `Skip the walkthrough this time — you can post later from the dashboard.` → continue.
+- `Create a PR and post` — `I'll open a PR for this branch, then attach the walkthrough.` → run PR-creation flow (calling skill's responsibility), then post. → `always`
+- `Skip` — `Skip the walkthrough this time — you can post later from the dashboard.` → continue. → `never`
 
-**Picker 2** — skipped entirely.
+**Picker 2** — standard `Remember this choice?` template (`Always create a PR and post the walkthrough from now on, without asking?`).
 
 **Silent action (Case B)** — when saved gate is `always` or `never` but no PR exists:
-- `always` → fall through to Case B Picker 1 (don't auto-create silently). Print: `(Your saved choice says always, but this branch has no PR — asking what to do.)`
+- `always` → `Creating PR for {branch} and posting walkthrough`. Run PR-creation flow, then post — no prompt.
 - `never` → `Skipping PR walkthrough — no open PR for this branch`

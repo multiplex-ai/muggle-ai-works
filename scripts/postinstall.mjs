@@ -34,22 +34,16 @@ const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 const CURSOR_SKILLS_DIRECTORY_NAME = ".cursor";
 const CURSOR_SKILLS_SUBDIRECTORY_NAME = "skills";
 const MUGGLE_SKILL_PREFIX = "muggle";
-const MUGGLE_ALIAS_SKILLS = new Set([
-    "m",
-    "mtest",
-    "mdo",
-    "mpr",
-    "mprefs",
-    "mstatus",
-    "mrepair",
-    "mupgrade",
-    "mfeedback",
-    "mimport",
-    "mtestlocal",
-    "mtestprep",
-    "mregen",
-    "mrelease",
-]);
+const ALIAS_SKILLS_MANIFEST_PATH = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "plugin",
+    "skills",
+    "_aliases.json",
+);
+const MUGGLE_ALIAS_SKILLS = new Set(
+    JSON.parse(readFileSync(ALIAS_SKILLS_MANIFEST_PATH, "utf-8")).aliases,
+);
 
 /**
  * Get the path to the postinstall log file.

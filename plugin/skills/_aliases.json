@@ -1,0 +1,18 @@
+{
+    "aliases": [
+        "m",
+        "mtest",
+        "mdo",
+        "mpr",
+        "mprefs",
+        "mstatus",
+        "mrepair",
+        "mupgrade",
+        "mfeedback",
+        "mimport",
+        "mtestlocal",
+        "mtestprep",
+        "mregen",
+        "mrelease"
+    ]
+}

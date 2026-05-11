@@ -18,15 +18,15 @@ For maintenance tasks, use the dedicated skills:
 - `/muggle:muggle-repair`
 - `/muggle:muggle-upgrade`
 
-## Branch hygiene
+## Preferences
 
-This skill performs real development work — code changes, dev server runs, E2E tests, PR creation. Three hygiene recommendations apply at different stages:
+Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md).
 
-- **Worktree** — recommended at pre-flight before any code changes (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md) and `do/pre-flight.md`).
-- **Rebase** — mandatory check before the E2E acceptance stage (`do/e2e-acceptance.md`) and before any dev server is started (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
-- **Cleanup** — surfaced after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md) and `do/open-prs.md`).
-
-All three are recommendations via `AskUserQuestion`, never auto-applied without user confirmation.
+| Preference | Stage | Decision it gates |
+|------------|-------|-------------------|
+| `autoUseWorktree` | 1 (pre-flight) | Create a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
+| `autoRebase` | 6 (e2e-acceptance) | Rebase onto `origin/<default>` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
+| `autoCleanup` | 7 (post-merge) | Run cleanup sequence (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Input routing
 

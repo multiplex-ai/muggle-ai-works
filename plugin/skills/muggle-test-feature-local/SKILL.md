@@ -19,13 +19,11 @@ The local URL only changes where the browser opens; it does not change the remot
 
 ## Branch hygiene
 
-Before running E2E tests against a local branch, apply the relevant hygiene recommendations:
+Three gates apply, each per the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md):
 
-- **Worktree** — if the user has been developing on the current checkout, recommend isolating the work first. See [`_shared/use-worktrees.md`](../_shared/use-worktrees.md).
-- **Rebase** — check whether the branch is behind `origin/<default>` and offer to rebase before running. **Mandatory check** before Step 7 (Execute). See [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md).
-- **Cleanup** — once the PR for this work is merged, surface the cleanup recommendations to the user. See [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md).
-
-All three are recommendations via `AskUserQuestion`, not hard requirements.
+- `autoUseWorktree` at pre-flight (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
+- `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
+- `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
 ## UX Guidelines — Minimize Typing
 
@@ -43,9 +41,12 @@ Gates run per `preference-gates/README.md`.
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 | `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
+| `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
+| `autoRebase` | 0 (pre-flight) | Rebase onto `origin/<default>` before Step 7 (Execute) (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
+| `autoCleanup` | post-merge | Run cleanup after the PR for this work is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Workflow
 

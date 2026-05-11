@@ -211,6 +211,29 @@ const useCaseTools: IQaToolDefinition[] = [
     },
   },
   {
+    name: "muggle-remote-use-case-update",
+    description: "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: changing title, description, or url triggers background regeneration of dependent test cases on the server.",
+    inputSchema: schemas.UseCaseUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.UseCaseUpdateInputSchema>;
+      const body: Record<string, unknown> = { id: data.useCaseId };
+      if (data.title !== undefined) body.title = data.title;
+      if (data.description !== undefined) body.description = data.description;
+      if (data.userStory !== undefined) body.userStory = data.userStory;
+      if (data.url !== undefined) body.url = data.url;
+      if (data.useCaseBreakdown !== undefined) body.useCaseBreakdown = data.useCaseBreakdown;
+      if (data.status !== undefined) body.status = data.status;
+      if (data.priority !== undefined) body.priority = data.priority;
+      if (data.source !== undefined) body.source = data.source;
+      if (data.category !== undefined) body.category = data.category;
+      return {
+        method: "PUT",
+        path: `${MUGGLE_TEST_PREFIX}/use-cases/${data.useCaseId}`,
+        body: body,
+      };
+    },
+  },
+  {
     name: "muggle-remote-use-case-create",
     description: "Create a single use case from a fully-specified payload. Use this to persist use cases returned by muggle-remote-use-case-bulk-preview-submit — no LLM is invoked.",
     inputSchema: schemas.UseCaseCreateInputSchema,
@@ -335,6 +358,31 @@ const testCaseTools: IQaToolDefinition[] = [
           category: data.category || "Functional",
           automated: data.automated ?? true,
         },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-case-update",
+    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    inputSchema: schemas.TestCaseUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
+      const body: Record<string, unknown> = { id: data.testCaseId };
+      if (data.title !== undefined) body.title = data.title;
+      if (data.description !== undefined) body.description = data.description;
+      if (data.goal !== undefined) body.goal = data.goal;
+      if (data.precondition !== undefined) body.precondition = data.precondition;
+      if (data.expectedResult !== undefined) body.expectedResult = data.expectedResult;
+      if (data.url !== undefined) body.url = data.url;
+      if (data.status !== undefined) body.status = data.status;
+      if (data.priority !== undefined) body.priority = data.priority;
+      if (data.tags !== undefined) body.tags = data.tags;
+      if (data.category !== undefined) body.category = data.category;
+      if (data.automated !== undefined) body.automated = data.automated;
+      return {
+        method: "PUT",
+        path: `${MUGGLE_TEST_PREFIX}/test-cases/${data.testCaseId}`,
+        body: body,
       };
     },
   },

@@ -228,6 +228,29 @@ export const UseCaseUpdateFromPromptInputSchema = z.object({
 });
 
 /**
+ * Direct field-level update for a use case, matching IUseCaseUpdateRequest on the server.
+ * All fields except `useCaseId` are optional — only the provided fields are written.
+ * Use this for cheap, deterministic edits (rename, change status/priority); use
+ * muggle-remote-use-case-update-from-prompt when you want the LLM to regenerate
+ * fields from a new instruction.
+ */
+export const UseCaseUpdateInputSchema = z.object({
+  useCaseId: IdSchema.describe("Use case ID (UUID) to update"),
+  title: z.string().min(1).optional().describe("Updated use case title"),
+  description: z.string().min(1).optional().describe("Updated description"),
+  userStory: z.string().min(1).optional().describe("Updated one-line user story"),
+  url: z.string().url().optional().describe("Updated target URL"),
+  useCaseBreakdown: z.array(z.object({
+    requirement: z.string().min(1).describe("One requirement of the use case"),
+    acceptanceCriteria: z.string().min(1).describe("Concrete, measurable acceptance criteria for the requirement"),
+  })).optional().describe("Updated main/alternative/error flows as requirement + acceptance criteria pairs"),
+  status: z.enum(["DRAFT", "IN_REVIEW", "APPROVED", "IMPLEMENTED", "ARCHIVED"]).optional().describe("Updated status"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional().describe("Updated priority"),
+  source: z.enum(["PRD_FILE", "SITEMAP", "CRAWLER", "PROMPT", "MANUAL"]).optional().describe("Updated source"),
+  category: z.string().optional().describe("Updated category"),
+});
+
+/**
  * Shape of a fully-specified use case, matching IUseCaseCreationRequest on the server.
  * Used by muggle-remote-use-case-create to persist use cases returned by bulk-preview.
  */
@@ -339,6 +362,28 @@ export const TestCaseCreateInputSchema = z.object({
   tags: z.array(z.string()).optional().describe("Tags for categorization"),
   category: z.string().optional().describe("Test case category"),
   automated: z.boolean().optional().describe("Whether this test case is automated (default: true)"),
+});
+
+/**
+ * Direct field-level update for a test case, matching ITestCaseUpdateRequest on the server.
+ * All fields except `testCaseId` are optional — only the provided fields are written.
+ * Note: editing title/description/url on a use case via muggle-remote-use-case-update will
+ * trigger background regeneration of its test cases on the server; this tool just edits
+ * a single test case's fields without touching scripts.
+ */
+export const TestCaseUpdateInputSchema = z.object({
+  testCaseId: IdSchema.describe("Test case ID (UUID) to update"),
+  title: z.string().min(1).optional().describe("Updated test case title"),
+  description: z.string().min(1).optional().describe("Updated description"),
+  goal: z.string().min(1).optional().describe("Updated goal"),
+  precondition: z.string().optional().describe("Updated precondition"),
+  expectedResult: z.string().min(1).optional().describe("Updated expected result"),
+  url: z.string().url().optional().describe("Updated target URL"),
+  status: z.enum(["DRAFT", "ACTIVE", "DEPRECATED", "ARCHIVED"]).optional().describe("Updated status"),
+  priority: z.enum(["HIGH", "MEDIUM", "LOW"]).optional().describe("Updated priority"),
+  tags: z.array(z.string()).optional().describe("Updated tags"),
+  category: z.string().optional().describe("Updated category"),
+  automated: z.boolean().optional().describe("Whether this test case is automated"),
 });
 
 // =============================================================================

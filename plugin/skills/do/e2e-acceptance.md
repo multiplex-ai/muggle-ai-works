@@ -160,10 +160,18 @@ For each test case:
   - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
   - artifactsDir: `<path>` (for local debugging)
 
+**Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
+- (test case name):
+  - testCaseId: `<id>`
+  - runId: `<id>` (synthesize a UUID if no run started)
+  - viewUrl: `<url>` (project-level dashboard fallback when no specific run URL exists)
+  - reason: `<one short sentence>`
+  - steps: `[{ stepIndex, action, screenshotUrl }, ...]` (may be empty)
+
 **Metadata:**
 - projectId: `<projectId>`
 
-**Overall:** ALL PASSED | FAILURES DETECTED
+**Overall:** ALL PASSED | FAILURES DETECTED | INCONCLUSIVE
 
 ## Non-negotiables
 
@@ -173,3 +181,4 @@ For each test case:
 - No hiding failures: surface errors, exit codes, and artifact paths.
 - Every test case must be executed — generate a new script if none exists (no skips).
 - Always publish after execution to ensure screenshots are cloud-accessible for PR comments.
+- **Never drop a test case from the report because it "couldn't run cleanly."** A test that didn't reach its assertion is `inconclusive`, not absent. Dropping it produces misleading verdicts and pushes downstream PR-comment renderers to hand-write the comment — which is the failure mode this stage exists to prevent.

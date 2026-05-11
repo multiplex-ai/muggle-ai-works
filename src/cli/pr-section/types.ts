@@ -42,9 +42,32 @@ const FailedTestSchema = z.object({
   endingScreenshotCaption: z.string().min(1).optional(),
 });
 
+// A test whose outcome cannot be classified as pass/fail: the test couldn't
+// run cleanly (no replayable script existed, environment precondition was
+// unmet, infra error blocked execution, etc.). The product is not implicated.
+// Carries the same run identifiers as passed/failed so the dashboard link
+// still works; `reason` explains why the result is inconclusive instead of
+// pass/fail. `steps[]` may be empty when the run never produced action steps.
+const InconclusiveTestSchema = z.object({
+  name: z.string().min(1),
+  testCaseId: z.string().min(1),
+  testScriptId: z.string().min(1).optional(),
+  runId: z.string().min(1),
+  viewUrl: z.string().url(),
+  status: z.literal("inconclusive"),
+  steps: z.array(StepSchema),
+  reason: z.string().min(1),
+  artifactsDir: z.string().min(1).optional(),
+  useCaseName: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  endingScreenshotUrl: z.string().url().optional(),
+  endingScreenshotCaption: z.string().min(1).optional(),
+});
+
 const TestResultSchema = z.discriminatedUnion("status", [
   PassedTestSchema,
   FailedTestSchema,
+  InconclusiveTestSchema,
 ]);
 
 export const E2eReportSchema = z.object({
@@ -56,4 +79,5 @@ export type E2eReport = z.infer<typeof E2eReportSchema>;
 export type TestResult = z.infer<typeof TestResultSchema>;
 export type PassedTest = z.infer<typeof PassedTestSchema>;
 export type FailedTest = z.infer<typeof FailedTestSchema>;
+export type InconclusiveTest = z.infer<typeof InconclusiveTestSchema>;
 export type Step = z.infer<typeof StepSchema>;

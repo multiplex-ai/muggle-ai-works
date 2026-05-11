@@ -9,7 +9,7 @@ import { splitWithOverflow, type ISplitOptions, type ISplitResult } from "./over
 import type { E2eReport } from "./types.js";
 
 export { E2eReportSchema } from "./types.js";
-export type { E2eReport, TestResult, PassedTest, FailedTest, Step } from "./types.js";
+export type { E2eReport, TestResult, PassedTest, FailedTest, InconclusiveTest, Step } from "./types.js";
 export type { ISplitOptions, ISplitResult } from "./overflow.js";
 
 /**

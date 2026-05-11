@@ -36,20 +36,27 @@ The orchestrator provides a dispatch prompt with:
 
 ### When Running Tests
 
-Always return two sections:
+Always return two sections. **This is the agent's text report back to the orchestrator — it is NOT the PR comment.** The PR comment is rendered separately by `muggle build-pr-section` via the `muggle-pr-visual-walkthrough` skill, and it has its own formatting (don't paste this template into a PR comment, don't add a "Verdict" line to a hand-written PR comment, don't add a "Project:" footer or `Tested on:` line — the CLI emits none of those).
 
 **Section 1 — Test Summary**
 
 ```
 ## Test Summary
-- **Tests:** {total} total — {passed} passed, {failed} failed
-- **Verdict:** PASS | FAIL
+- **Tests:** {total} total — {passed} passed, {failed} failed, {inconclusive} inconclusive
+- **Verdict:** PASS | FAIL | INCONCLUSIVE
 - **Dashboard:** {link to Muggle Test dashboard, if results were published}
 ```
 
+Verdict policy (matches the CLI's `computeVerdict`):
+- Any failed → **FAIL**.
+- No failures but any inconclusive → **INCONCLUSIVE**.
+- All passed → **PASS**.
+
+A test is **inconclusive** when the run could not yield a pass/fail signal for reasons outside the product itself: no replayable script, environment precondition unmet, infra error blocked execution, agent stalled before reaching the assertion (auth/cookie banner, missing secret). The product is not implicated. If you are tempted to call a run "passed except for one that didn't really run," that one is inconclusive.
+
 **Section 2 — Per-Test Highlights**
 
-Order failures first, then passes.
+Order failures first, then inconclusives, then passes.
 
 For each **failed** test:
 
@@ -57,6 +64,13 @@ For each **failed** test:
 ### {Test Name} — FAIL
 - **Blocking issue:** {What went wrong from the user's perspective. Describe the observable symptom — what the user sees or doesn't see.}
 - **Suggested fix:** {What the coding agent should investigate. Reference UI flows and components, not specific file paths — the acceptance tester operates at the UI layer.}
+```
+
+For each **inconclusive** test:
+
+```
+### {Test Name} — INCONCLUSIVE
+- **Reason:** {Why the run could not yield a pass/fail signal — one short sentence.}
 ```
 
 For each **passed** test, list the name only:

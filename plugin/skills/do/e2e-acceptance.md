@@ -36,9 +36,9 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 ### Step 0: Consume pre-flight (no user questions)
 
-Read `state.md`. If the validation strategy is `unit-only` or `skip`, **do not run this stage** — skip to stage 7 and record the skip reason. Otherwise use `localUrl` directly; **do not ask the user** for it.
+Read `state.md`. Resolve [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) first — `always` (default, including when unset) runs this stage. `ask` should already have been resolved by pre-flight Q13. The legacy `Validation: unit-only / skip` field is informational only; the gate is binding.
 
-If `localUrl` or `projectId` is missing from `state.md`, that is a pre-flight bug. **Do not paper over it by asking the user** — escalate once with the session path and halt. The fix is to expand `pre-flight.md`, not to grow a new question here.
+Use `localUrl`, `projectId`, and `worktreePath` from `state.md`. Missing any → pre-flight bug; escalate with the session path and halt; do not ask the user.
 
 ### Step 0.5: Pre-flight verification probes
 

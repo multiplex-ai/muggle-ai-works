@@ -40,6 +40,8 @@ export enum PreferenceKey {
   AutoRebase = "autoRebase",
   /** After a PR is merged, run the cleanup sequence (worktree, branches, artifacts) automatically. */
   AutoCleanup = "autoCleanup",
+  /** Run Stage 6 (E2E acceptance) at the end of every /muggle-do cycle. */
+  AutoE2ETest = "autoE2ETest",
 }
 
 /**

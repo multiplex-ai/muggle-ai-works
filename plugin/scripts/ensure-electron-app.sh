@@ -83,7 +83,8 @@ if [ -f "$prefs_global_file" ]; then
         suggestRelatedUseCases:'ask', suggestRelatedTestCases:'ask', autoDetectChanges:'ask',
         postPRVisualWalkthrough:'ask', autoCreatePR:'ask',
         checkForUpdates:'ask', verboseOutput:'ask',
-        autoUseWorktree:'ask', autoRebase:'ask', autoCleanup:'ask'
+        autoUseWorktree:'ask', autoRebase:'ask', autoCleanup:'ask',
+        autoE2ETest:'always'
       };
       const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
       const pPath = require('path').join(cwd, '.muggle-ai', 'preferences.json');

@@ -32,9 +32,9 @@ import {
 } from "../shared/preferences.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 17 keys", () => {
+  it("has exactly 18 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(17);
+    expect(keys).toHaveLength(18);
   });
 
   it("contains all expected keys", () => {
@@ -55,6 +55,7 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoUseWorktree).toBe("autoUseWorktree");
     expect(PreferenceKey.AutoRebase).toBe("autoRebase");
     expect(PreferenceKey.AutoCleanup).toBe("autoCleanup");
+    expect(PreferenceKey.AutoE2ETest).toBe("autoE2ETest");
   });
 });
 
@@ -103,9 +104,10 @@ describe("DEFAULT_PREFERENCES", () => {
     }
   });
 
-  it("defaults every key to ask", () => {
-    for (const value of Object.values(DEFAULT_PREFERENCES)) {
-      expect(value).toBe(PreferenceValue.Ask);
+  it("defaults every key to ask except autoE2ETest (always)", () => {
+    for (const [key, value] of Object.entries(DEFAULT_PREFERENCES)) {
+      const expected = key === "autoE2ETest" ? PreferenceValue.Always : PreferenceValue.Ask;
+      expect(value).toBe(expected);
     }
   });
 });

@@ -1,0 +1,66 @@
+{
+  "name": "02-question",
+  "description": "A reviewer asks a question on a specific line. Stage 8 classifies as question, replies inline with the answer, makes no code change, does not push.",
+
+  "input": {
+    "session_slug": "add-cache-layer",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 143, "url": "https://github.com/acme/widget/pull/143", "head_sha": "def4560", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#143": {
+        "commentId": 0, "reviewId": 0,
+        "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+        "last_pushed_sha": null, "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 143 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "def4560"
+      },
+      "gh pr view 143 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }, { "login": "bob" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/143/comments": [
+        {
+          "id": 9100,
+          "user": { "login": "bob" },
+          "body": "is this called from anywhere else?",
+          "path": "src/cache.ts",
+          "line": 18,
+          "pull_request_review_id": 7050,
+          "created_at": "2026-05-12T11:30:00Z"
+        }
+      ],
+      "gh api repos/acme/widget/pulls/143/reviews": [],
+      "gh pr checks 143 --repo acme/widget": []
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8/8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "items_seen": 1,
+    "items_picked": [
+      {
+        "pr_key": "acme/widget#143",
+        "type": "line_comment",
+        "classification": "question",
+        "outcome": "replied",
+        "reply_endpoint": "POST /repos/acme/widget/pulls/143/comments/9100/replies",
+        "reply_body_contains": [],
+        "commit_subject": null
+      }
+    ],
+    "telemetry_events": [
+      { "event": "item", "item_type": "question", "outcome": "replied" },
+      { "event": "tick", "items_seen": 1, "items_addressed": 1, "items_escalated": 0, "pushed": false }
+    ],
+    "state_writes": {
+      "last_seen.json": "commentId advanced to 9100; last_pushed_sha unchanged (no push)",
+      "followup.log":   "one per-item line"
+    },
+    "loop_continues": true
+  }
+}

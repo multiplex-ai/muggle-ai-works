@@ -1,0 +1,68 @@
+{
+  "name": "01-line-comment-directive",
+  "description": "Happy path. A reviewer in the allow-list leaves a clear line-level directive. Stage 8 classifies as directive, fixes the code, pushes, and replies in the same review thread.",
+
+  "input": {
+    "session_slug": "fix-foo-bar",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 142, "url": "https://github.com/acme/widget/pull/142", "head_sha": "abc1230", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#142": {
+        "commentId": 0,
+        "reviewId": 0,
+        "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+        "last_pushed_sha": null,
+        "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 142 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "abc1230"
+      },
+      "gh pr view 142 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/142/comments": [
+        {
+          "id": 9001,
+          "user": { "login": "alice" },
+          "body": "rename `fooBar` to `foo_bar`",
+          "path": "src/foo.ts",
+          "line": 42,
+          "pull_request_review_id": 7001,
+          "created_at": "2026-05-12T10:00:00Z"
+        }
+      ],
+      "gh api repos/acme/widget/pulls/142/reviews": [],
+      "gh pr checks 142 --repo acme/widget": []
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8/8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "items_seen": 1,
+    "items_picked": [
+      {
+        "pr_key": "acme/widget#142",
+        "type": "line_comment",
+        "classification": "directive",
+        "outcome": "fixed_and_pushed",
+        "reply_endpoint": "POST /repos/acme/widget/pulls/142/comments/9001/replies",
+        "reply_body_contains": ["Done in", "fooBar", "foo_bar"],
+        "commit_subject": "refactor: rename fooBar to foo_bar"
+      }
+    ],
+    "telemetry_events": [
+      { "event": "item", "item_type": "directive", "outcome": "fixed_and_pushed" },
+      { "event": "tick", "items_seen": 1, "items_addressed": 1, "items_escalated": 0, "pushed": true }
+    ],
+    "state_writes": {
+      "last_seen.json": "commentId advanced to 9001; last_pushed_sha set to the new HEAD",
+      "followup.log":   "one per-item line"
+    },
+    "loop_continues": true
+  }
+}

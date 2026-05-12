@@ -1,0 +1,68 @@
+{
+  "name": "03-ambiguous",
+  "description": "A reviewer leaves a comment that proposes an alternative without instructing. Stage 8 default-pauses on ambiguity: writes the comment id to escalated_comment_ids, marks the PR escalated in prs.json, prints a single terminal message to the user. No code change, no push, no reply written by the bot.",
+
+  "input": {
+    "session_slug": "refactor-queue",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 144, "url": "https://github.com/acme/widget/pull/144", "head_sha": "ff10009", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#144": {
+        "commentId": 0, "reviewId": 0,
+        "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+        "last_pushed_sha": null, "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 144 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "ff10009"
+      },
+      "gh pr view 144 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/144/comments": [
+        {
+          "id": 9200,
+          "user": { "login": "alice" },
+          "body": "I'd lean toward the pattern we used in bar.ts here",
+          "path": "src/queue.ts",
+          "line": 64,
+          "pull_request_review_id": 7100,
+          "created_at": "2026-05-12T12:00:00Z"
+        }
+      ],
+      "gh api repos/acme/widget/pulls/144/reviews": [],
+      "gh pr checks 144 --repo acme/widget": []
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8/8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "items_seen": 1,
+    "items_picked": [
+      {
+        "pr_key": "acme/widget#144",
+        "type": "line_comment",
+        "classification": "ambiguous",
+        "outcome": "escalated",
+        "reply_endpoint": null,
+        "reply_body_contains": [],
+        "commit_subject": null
+      }
+    ],
+    "telemetry_events": [
+      { "event": "item", "item_type": "ambiguous", "outcome": "escalated" },
+      { "event": "tick", "items_seen": 1, "items_addressed": 0, "items_escalated": 1, "pushed": false }
+    ],
+    "state_writes": {
+      "last_seen.json": "commentId advanced to 9200; escalated_comment_ids += [9200]",
+      "prs.json":       "the entry for #144 gains `escalated: true` so subsequent ticks skip it",
+      "followup.log":   "one per-item line + the ambiguous-comment paraphrase",
+      "terminal":       "single user-facing message per pr-followup.md Step 7"
+    },
+    "loop_continues": true
+  }
+}

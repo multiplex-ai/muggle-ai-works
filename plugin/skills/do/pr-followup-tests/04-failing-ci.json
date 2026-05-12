@@ -1,0 +1,65 @@
+{
+  "name": "04-failing-ci",
+  "description": "A check completed FAILURE on the current HEAD. last_pushed_sha is null (we haven't pushed yet this session), so the head_sha guard does not skip it. Stage 8 reads the failing job log, makes the fix, pushes. No reply (no comment to reply to).",
+
+  "input": {
+    "session_slug": "fix-validation",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 145, "url": "https://github.com/acme/widget/pull/145", "head_sha": "aa11220", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#145": {
+        "commentId": 0, "reviewId": 0,
+        "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+        "last_pushed_sha": null, "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 145 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "aa11220"
+      },
+      "gh pr view 145 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/145/comments": [],
+      "gh api repos/acme/widget/pulls/145/reviews": [],
+      "gh pr checks 145 --repo acme/widget": [
+        {
+          "name": "typecheck",
+          "state": "FAILURE",
+          "completedAt": "2026-05-12T12:30:00Z",
+          "detailsUrl": "https://github.com/acme/widget/actions/runs/4001",
+          "workflow": "ci.yml",
+          "headSha": "aa11220"
+        }
+      ]
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8/8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "items_seen": 1,
+    "items_picked": [
+      {
+        "pr_key": "acme/widget#145",
+        "type": "ci_failure",
+        "classification": "ci",
+        "outcome": "fixed_and_pushed",
+        "reply_endpoint": null,
+        "reply_body_contains": [],
+        "commit_subject": "fix(ci): typecheck — <one-line>"
+      }
+    ],
+    "telemetry_events": [
+      { "event": "item", "item_type": "ci_failure", "outcome": "fixed_and_pushed" },
+      { "event": "tick", "items_seen": 1, "items_addressed": 1, "items_escalated": 0, "pushed": true }
+    ],
+    "state_writes": {
+      "last_seen.json": "checkRunCompletedAt advanced to 2026-05-12T12:30:00Z; last_pushed_sha set to the new HEAD",
+      "followup.log":   "one per-item line referencing the check name"
+    },
+    "loop_continues": true
+  }
+}

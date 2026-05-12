@@ -1,6 +1,8 @@
-# Stage 6/7 — E2E acceptance
+# E2E Acceptance Agent (Stage 6/7)
 
-Stage 6 of `muggle-do`. Runs E2E browser tests against code changes.
+You are executing E2E acceptance validation for the muggle-do cycle.
+
+Stage 6 of `muggle-do`. Runs browser acceptance tests against code changes and records evidence for downstream PR rendering.
 
 Standalone subagent (different invocation path, used by `muggle-test` Mode C): [`../../agents/acceptance-tester.md`](../../agents/acceptance-tester.md).
 
@@ -14,23 +16,29 @@ Start the turn with:
 
 ## Design
 
-E2E acceptance testing runs **locally** using the `test-feature-local` approach:
+This stage is **mode-driven by pre-flight**:
+
+- `local-e2e` runs the local browser flow (`test-feature-local` approach).
+- `unit-only` or `skip` does not execute browser runs and must emit an explicit non-pass verdict (`SKIPPED` / `UNIT-ONLY` equivalent in downstream reporting).
+- `staging-replay` is not executed in this stage path and should be surfaced as `INCONCLUSIVE` unless the caller has already routed to a dedicated staging runner.
+
+For local runs, the tool boundaries are:
 
 | Scope | MCP tools |
 | :---- | :-------- |
 | Cloud (projects, cases, scripts, auth) | `muggle-remote-*` |
 | Local (Electron run, publish, results) | `muggle-local-*` |
 
-This guarantees E2E acceptance tests always run — no dependency on cloud replay service availability.
+This keeps execution deterministic: local runs do not depend on cloud replay execution availability.
 
 ## Input
 
 You receive everything from `state.md` already — pre-flight resolved it:
 
-- `localUrl` — the locally running dev server URL
+- `localUrl` — the running validation target URL (typically localhost in local mode)
 - `projectId` — the chosen Muggle Test project
 - The validation strategy (`local-e2e`, `staging-replay`, `unit-only`, `skip`)
-- Test-user credential status (existing / new / skip)
+- Test-user credential status (existing / new / skip), when credentials are needed
 - The list of changed repos, files, and a summary of changes
 - The requirements goal
 
@@ -38,21 +46,25 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 ### Step 0: Consume pre-flight (no user questions)
 
-Read `state.md`. Resolve [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) first — `always` (default, including when unset) runs this stage. `ask` should already have been resolved by pre-flight Q13. The legacy `Validation: unit-only / skip` field is informational only; the gate is binding.
+Read `state.md`. Resolve [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) first — `always` (default, including when unset) runs this stage. `ask` should already have been resolved by pre-flight Q13. Use the resolved validation mode (`local-e2e`, `staging-replay`, `unit-only`, `skip`) to pick execution vs early-exit behavior.
 
 Use `localUrl`, `projectId`, and `worktreePath` from `state.md`. Missing any → pre-flight bug; escalate with the session path and halt; do not ask the user.
 
 ### Step 0.5: Pre-flight verification probes
 
-Before launching Electron:
+Before launching the local runner:
 
 1. **Dev-server + backend readiness** — per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) (port + compile log + backend health). Halt on any failure.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
-3. **Tenant match** — if test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the recorded tenant. Mismatch → halt.
+3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
 
 ### Step 1: Authentication already verified
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
+
+If validation is `unit-only` or `skip`, emit a `SKIPPED` report with a one-line reason and exit cleanly.
+
+If validation is `staging-replay`, emit `INCONCLUSIVE` with reason `staging replay not handled in Stage 6 local runner path` and exit cleanly.
 
 ### Step 1.5: Placeholder branch detection
 
@@ -62,12 +74,12 @@ Read `pathClassification` from the impact-analysis output (emitted by `do/impact
 
 Consume `pathClassification` from impact-analysis and resolve the dispatch target:
 
-- `landing` → `devServerUrl = http://localhost:<port>/` (root) + landing-page test project
-- `dashboard` → `devServerUrl = http://localhost:<port>/<dashboard-route>` + dashboard test project
-- `mixed` → run the stage twice (once per route + project), or surface as INCONCLUSIVE if running both is over the wall-time budget
+- `surface-a` → use the classification-specific route + project mapping defined by impact-analysis output
+- `surface-b` → use the classification-specific route + project mapping defined by impact-analysis output
+- `mixed` → run once per classification mapping (route + project), or surface as INCONCLUSIVE if running both is over the wall-time budget
 - `none` → already handled in Step 1.5
 
-The `devServerUrl` resolved here overrides any default in `state.md` for the remainder of this stage. The classification logic lives in `impact-analysis.md` — do not re-derive paths here.
+The `devServerUrl` and project resolved here override any defaults in `state.md` for the remainder of this stage. Treat classification labels as routing hints provided by impact-analysis; do not hardcode product-specific paths in this stage.
 
 ### Step 2: Get Test Cases
 
@@ -109,7 +121,7 @@ For each relevant test case:
 
 ### Local Execution Timeout (`timeoutMs`)
 
-The MCP client often uses a **default wait of 300000 ms (5 minutes)**. **Exploratory script generation** (Auth0 login, dashboards, multi-step wizards, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
+The MCP client often uses a **default wait of 300000 ms (5 minutes)**. **Exploratory script generation** (identity login, multi-step app flows, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
 
 - **Always pass `timeoutMs`** — `600000` (10 min) or `900000` (15 min) — unless the test case is known to be simple.
 - If the tool reports **`Electron execution timed out after 300000ms`** but Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry**.
@@ -151,7 +163,7 @@ For each published test script:
 For each test case:
 - Record pass or fail from the run result
 - If failed, capture the error message, failure step index, and `artifactsDir` for local debugging
-- Every test case must be executed — generate a new script if none exists (no skips)
+- In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips)
 
 ## Output
 
@@ -180,7 +192,7 @@ For each test case:
 - (test case name):
   - testCaseId: `<id>`
   - runId: `<id>` (synthesize a UUID if no run started)
-  - viewUrl: `<url>` (project-level dashboard fallback when no specific run URL exists)
+  - viewUrl: `<url>` (project-level run-results fallback when no specific run URL exists)
   - reason: `<one short sentence>`
   - steps: `[{ stepIndex, action, screenshotUrl }, ...]` (may be empty)
 
@@ -192,7 +204,7 @@ For each test case:
 ## Hard constraints
 
 - **Do NOT shut down the dev server.** The caller manages dev-server lifecycle.
-- **Do NOT delete or move `.muggle-ai/` or `.env.local`** in the worktree.
+- **Do NOT delete or move workspace config/state files** (for example `.muggle-ai/`, `.env.local`, or equivalent runtime config artifacts) in the worktree.
 - **Do NOT call destructive remote MCP tools** — no `*-delete`, `*-revoke`, `*-cancel`, or `*-update` against remote-owned definitions.
 - **One replacement script generation max per stage cycle.**
 - **Honor `wallTimeBudgetSec` from the caller** — on approach, write a PARTIAL report; never silently exceed.
@@ -203,6 +215,6 @@ For each test case:
 - Replay: never hand-build or simplify `actionScript` — only use full response from `muggle-remote-action-script-get`.
 - Always pass `timeoutMs` for execution calls; do not rely on default 5-minute timeout.
 - No hiding failures: surface errors, exit codes, and artifact paths.
-- Every test case must be executed — generate a new script if none exists (no skips).
+- In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips).
 - Always publish after execution to ensure screenshots are cloud-accessible for PR comments.
 - **Never drop a test case from the report because it "couldn't run cleanly."** A test that didn't reach its assertion is `inconclusive`, not absent. Dropping it produces misleading verdicts and pushes downstream PR-comment renderers to hand-write the comment — which is the failure mode this stage exists to prevent.

@@ -1,6 +1,8 @@
-# E2E / acceptance agent (Stage 6/7)
+# Stage 6/7 — E2E acceptance (muggle-do stage instructions)
 
-You are running **end-to-end (E2E) acceptance** test cases against code changes using Muggle AI's local testing infrastructure. These tests simulate real users in a browser — they are not unit tests.
+You are executing **Stage 6** of the `muggle-do` 7-stage cycle. These are skill-side stage instructions, not an agent definition — the standalone Muggle Test acceptance subagent lives at [`../../agents/acceptance-tester.md`](../../agents/acceptance-tester.md) and is invoked separately by `muggle-test` Mode C (PR-loop). This file runs in the muggle-do cycle's silent execution path between Stage 5 (unit tests) and Stage 7 (open PR).
+
+The job: run end-to-end (E2E) acceptance tests against code changes using Muggle AI's local testing infrastructure. These tests simulate real users in a browser — they are not unit tests.
 
 ## Turn preamble
 

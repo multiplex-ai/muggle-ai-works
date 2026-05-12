@@ -167,7 +167,11 @@ For services that are already running and the user wants to keep, add them to th
 
 **Option 1 — next available port:** probe `3999 + N` for `N = 1, 2, 3, ...` until `Test-NetConnection`/`lsof -i :<port>` returns nothing listening. Record the new port (and the env file edit, if `PORT=` is set in `.env.local` etc.) so downstream steps use it. The dev server may need a restart to pick up the new value.
 
-**Option 2 — force-kill (destructive):** run the port-kill helper for the host OS — see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) "Port-kill helpers". Re-verify the port is free before continuing.
+**Option 2 — force-kill (destructive):**
+- **Windows PowerShell:** `Get-NetTCPConnection -LocalPort <port> -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } catch { } }`
+- **POSIX:** `lsof -ti:<port> 2>/dev/null | xargs -r kill -9`
+
+Both forms are silent on "nothing to kill." Re-verify the port is free before continuing.
 
 ### Step 4.5: Environment File Sanity
 
@@ -187,6 +191,8 @@ When a dependency on an env file exists:
 4. If not found anywhere, report and ask how to proceed.
 
 Skip silently when no env file is referenced. The point is to catch the common worktree-bootstrap miss, not to mandate any specific file.
+
+**Also copy `.muggle-ai/` from the sibling worktree if present.** The cached `last-project.json` and `last-host.json` let downstream subagents skip the project + host pickers; without them every dispatched run re-prompts. `cp -r <sibling>/.muggle-ai ./.muggle-ai`. Copy, don't symlink — concurrent runs must not share a cache file.
 
 ### Step 5: Determine Start Commands
 
@@ -242,7 +248,7 @@ When install is required or stale, propose via `AskUserQuestion`:
 - Option 1: "Yes — install now"
 - Option 2: "No — skip; I know it's fine"
 
-**Never symlink `node_modules/` from a sibling worktree** — per `_shared/worktree-isolation.md`, webpack breaks on font asset identity with "Can't handle conflicting asset info for sourceFilename". Each worktree needs its own real install.
+**Never symlink `node_modules/` from a sibling worktree.** webpack's `resolve.symlinks: true` default rewrites paths to the real on-disk location; when `node_modules` resolves to a path shared across worktrees, asset-identity tracking fails with `Can't handle conflicting asset info for sourceFilename` (most reproducibly on font files like `@fontsource/roboto/files/roboto-cyrillic-*.woff2`). A real per-worktree install is the fix — `resolve.symlinks: false` breaks other tooling.
 
 For non-Node services (Go, Rust, Python), skip this probe — their build systems handle dependency caching differently.
 

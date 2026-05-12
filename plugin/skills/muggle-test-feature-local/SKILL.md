@@ -21,22 +21,13 @@ The local URL only changes where the browser opens; it does not change the remot
 
 Three gates apply, each per the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md):
 
-- `autoUseWorktree` at pre-flight (see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md)).
+- `autoUseWorktree` at pre-flight (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
 - `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
 - `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
 ## Local environment prerequisites
 
-Before any workflow step, sanity-check the cwd is wired up to run a dev server. Matters most in a **freshly-created worktree** — gitignored files don't cross.
-
-- **Env file check.** Frameworks read various env files: `.env`, `.env.local`, `.env.development`, `.env.dev`, `.env.development.local` (Next.js, CRA), `.env.test`, plus tool-specific ones (`vite.config.ts` may load `.env.*`). Inspect `package.json` start scripts and any framework config to learn which file holds `PORT=...` / secrets for this repo. If the indicated file is missing in cwd:
-  1. `git worktree list --porcelain` for sibling worktrees.
-  2. Check each for the same filename.
-  3. If found, offer to `cp <found> ./<envfile>` via `AskUserQuestion`. Without it, the dev server binds the framework default port or fails to read secrets.
-  4. If not found anywhere, surface the gap and ask the user where they keep it.
-
-  See [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) for the full cross-boundary file list.
-- **`.muggle-ai/` cache check.** If `last-project.json` or `last-host.json` is absent, the workflow re-prompts the project + host pickers. Offer to `cp -r <main-worktree>/.muggle-ai ./.muggle-ai`. Optional — skipping just means the user picks again.
+Before any workflow step, ensure the cwd is wired up to run a dev server — matters most in a freshly-created worktree. Delegate to [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md): it owns the env-file check (per-repo: `.env`, `.env.local`, `.env.development`, etc.), the `.muggle-ai/` cache copy, and the per-worktree `npm install` rule. Halt on whatever it surfaces.
 
 ## UX Guidelines — Minimize Typing
 
@@ -54,7 +45,7 @@ Gates run per `preference-gates/README.md`.
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 | `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
-| `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md)) |
+| `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
 | `autoRebase` | 0 (pre-flight) | Rebase onto `origin/<default>` before Step 7 (Execute) (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |

@@ -407,18 +407,13 @@ Tell the user:
 
 ## Step 9: Offer to Post Visual Walkthrough to PR
 
-After reporting results, ask the user if they want to attach a **visual walkthrough** — a markdown block with per-test-case dashboard links and step-by-step screenshots — to the current branch's open PR. The rendering and posting workflow lives in the shared `muggle-pr-visual-walkthrough` skill; this step gathers the required input and hands off.
-
-### 9a: Assemble the `E2eReport`
-
-Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide. All runs from Step 7A must be included (passed and failed).
-
-### 9b: Post the walkthrough
+After reporting results:
 
 1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 10.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
 3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → Step 10.
-4. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
+4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md). Include all runs from Step 7A (passed and failed).
+5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
 
 ## Step 10: Offer feedback on failures
 

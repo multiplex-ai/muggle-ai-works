@@ -217,18 +217,13 @@ Skip silently when the run passed cleanly — failure-mode events are by definit
 
 ### 10. Offer to post a visual walkthrough to the PR
 
-After reporting results, gather the required input and hand off to the shared **`muggle:muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
-
-#### 10a: Assemble the `E2eReport`
-
-Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
-
-#### 10b: Post the walkthrough
+After reporting results:
 
 1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → end.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
 3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → end.
-4. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
+4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md).
+5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
 
 ## Non-negotiables
 

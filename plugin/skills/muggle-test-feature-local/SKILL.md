@@ -50,7 +50,7 @@ Gates run per `preference-gates/README.md`.
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
-| `autoCreatePR` | 10b | Auto-create the PR when posting the walkthrough has no PR to target |
+| `autoCreatePR` | 10 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
 | `autoCleanup` | post-merge | Run cleanup after the PR for this work is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Workflow
@@ -217,26 +217,13 @@ Skip silently when the run passed cleanly — failure-mode events are by definit
 
 ### 10. Offer to post a visual walkthrough to the PR
 
-After reporting results, gather the required input and hand off to the shared **`muggle:muggle-pr-visual-walkthrough`** skill, which renders the walkthrough via `muggle build-pr-section` and posts it to the current branch's open PR.
+After reporting results:
 
-#### 10a: Assemble the `E2eReport`
-
-Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
-
-#### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
-
-Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file):
-- **Case A (PR found)** — `always` → proceed to 10c; `never`/skip → stop.
-- **Case B (no PR)** — saved value applies:
-  - `always` → silently create the PR (push branch + `gh pr create`) then proceed to 10c. Print silent footer (`Creating PR for {branch} and posting walkthrough` + the standard `Skipped the prompt` line).
-  - `never` → silently skip; print `Skipping PR walkthrough — no open PR for this branch` plus the standard footer.
-  - `ask` → run Picker 1; on "Create a PR and post" follow with Picker 2 to save, then create + proceed to 10c. On "Skip" do not save.
-
-#### 10c: Invoke the shared skill in Mode A
-
-Invoke the `muggle:muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, posts `body` as a comment to the PR, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
-
-Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle:muggle-pr-visual-walkthrough`.
+1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → end.
+2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
+3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → end.
+4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md).
+5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
 
 ## Non-negotiables
 

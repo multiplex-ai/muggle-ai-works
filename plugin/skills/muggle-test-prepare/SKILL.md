@@ -139,7 +139,7 @@ If the user picks **option 1**: proceed through Steps 4-7 as normal.
 
 ### Step 4: Check What's Already Running
 
-Run port detection per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md). Cross-reference hits against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
+Run port detection and (when the app declares a backend URL) backend-health probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md). Cross-reference hits against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."
 
@@ -185,8 +185,6 @@ When a dependency on an env file exists:
 4. If not found anywhere, report and ask how to proceed.
 
 Skip silently when no env file is referenced. The point is to catch the common worktree-bootstrap miss, not to mandate any specific file.
-
-**Also copy `.muggle-ai/` from a sibling worktree if present** (it caches `last-project.json` / `last-host.json` — without it every run re-prompts for project + host): `cp -r <sibling>/.muggle-ai ./.muggle-ai`. Don't symlink — concurrent runs must not share the cache.
 
 ### Step 5: Determine Start Commands
 

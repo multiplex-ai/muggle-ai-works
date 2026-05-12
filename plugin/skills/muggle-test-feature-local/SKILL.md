@@ -27,7 +27,7 @@ Three gates apply, each per the standard procedure in [`preference-gates/README.
 
 ## Local environment prerequisites
 
-Before any workflow step, ensure the cwd is wired up to run a dev server — matters most in a freshly-created worktree. Delegate to [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md): it owns the env-file check (per-repo: `.env`, `.env.local`, `.env.development`, etc.), the `.muggle-ai/` cache copy, and the per-worktree `npm install` rule. Halt on whatever it surfaces.
+Before any workflow step, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md). Halt on what it surfaces.
 
 ## UX Guidelines — Minimize Typing
 

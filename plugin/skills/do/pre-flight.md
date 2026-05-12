@@ -1,4 +1,4 @@
-# Pre-flight Agent (Stage 1/7)
+# Pre-flight Agent (Stage 1/8)
 
 You are running the **only user-facing stage** of the muggle-do dev cycle. Your job is to consolidate every ambiguity — task scope, repos, validation strategy, environment, credentials, PR target — into a **single turn** so the rest of the cycle can run unattended.
 
@@ -9,7 +9,7 @@ You are running the **only user-facing stage** of the muggle-do dev cycle. Your 
 Start the turn with:
 
 ```
-**Stage 1/7 — Pre-flight** — consolidating everything the cycle needs before going silent.
+**Stage 1/8 — Pre-flight** — consolidating everything the cycle needs before going silent.
 ```
 
 ## Input
@@ -94,7 +94,7 @@ Also initialize `iterations/001.md` with a header:
 ```markdown
 # Iteration 001 — <ISO-8601 timestamp>
 
-### Stage 1/7 — Pre-flight (<timestamp>)
+### Stage 1/8 — Pre-flight (<timestamp>)
 
 <verbatim copy of pre-flight answers>
 ```

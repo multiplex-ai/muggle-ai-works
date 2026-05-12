@@ -8,9 +8,9 @@ disable-model-invocation: true
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-do"`.
 
-Muggle Test Do runs a battle-tested autonomous dev cycle: **pre-flight → requirements → impact analysis → validate code → unit tests → E2E acceptance → open PR**.
+Muggle Test Do runs a battle-tested autonomous dev cycle: **pre-flight → requirements → impact analysis → validate code → unit tests → E2E acceptance → open PR → PR follow-up**.
 
-The design goal is **fire and review**: the user answers one consolidated pre-flight questionnaire, then walks away. Every subsequent stage runs unattended until completion or a genuine blocker.
+The design goal is **fire and review**: the user answers one consolidated pre-flight questionnaire, then walks away. Every subsequent stage runs unattended until completion or a genuine blocker. After the PR opens, a detached `/loop` keeps addressing reviewer comments and CI failures until the PR is merged or closed.
 
 For maintenance tasks, use the dedicated skills:
 
@@ -41,7 +41,7 @@ Treat `$ARGUMENTS` as the user command:
 
   When in doubt, ask one question: "Do you want me to run this as a browser automation task, or implement it as a code change?"
 
-## The seven stages
+## The eight stages
 
 | # | Stage | File | User-facing? |
 | :- | :---- | :--- | :----------- |
@@ -52,8 +52,11 @@ Treat `$ARGUMENTS` as the user command:
 | 5 | Unit tests | [../do/unit-tests.md](../do/unit-tests.md) | No |
 | 6 | E2E acceptance | [../do/e2e-acceptance.md](../do/e2e-acceptance.md) | No |
 | 7 | Open PR | [../do/open-prs.md](../do/open-prs.md) | No |
+| 8 | PR follow-up | [../do/pr-followup.md](../do/pr-followup.md) | **Yes — only on ambiguous review comments** |
 
-**Stage 1 (pre-flight) is the ONLY stage that talks to the user.** Stages 2–7 run silently to completion. If a later stage hits a genuine blocker that the pre-flight didn't cover, escalate with a single terminal message — do not open a second round of questions.
+**Stage 1 (pre-flight) is the only stage that talks to the user during the dev cycle proper.** Stages 2–7 run silently to completion. Stage 8 runs detached (via `/loop`) after stage 7 hands off, and it may escalate to the user once if it encounters a review comment it cannot classify as a clear directive or question — see [Guardrails](#guardrails) below.
+
+If a stage 2–7 hits a genuine blocker that the pre-flight didn't cover, escalate with a single terminal message — do not open a second round of questions.
 
 ## Front-loading (stage 1 non-negotiable)
 
@@ -72,14 +75,15 @@ If any of these happen, the pre-flight was incomplete — treat it as a skill bu
 
 Every run writes to `.muggle-do/sessions/<slug>/`:
 
-- `state.md` — one-screen live status: current stage (N/7), last update timestamp, pre-flight answers verbatim, any blockers.
+- `state.md` — one-screen live status: current stage (N/8), last update timestamp, pre-flight answers verbatim, any blockers. While stage 8 is running, also tracks the tick counter and per-PR idle-tick counts.
 - `iterations/<NNN>.md` — append-only log of stage transitions for iteration NNN: what ran, what was decided, what artifacts were produced.
 - `requirements.md` — frozen output of stage 2.
-- `result.md` — final summary written by stage 7 (PR URLs, E2E outcome, open issues).
+- `result.md` — initial summary written by stage 7 (PR URLs, E2E outcome). If stage 8 was dispatched, it overwrites `result.md` on its terminating tick with the final post-merge picture (per-PR final state, count of items addressed and escalated, final commit SHA).
+- `prs.json`, `last_seen.json`, `followup.log` — owned by stage 8 only; see [`../do/pr-followup.md`](../do/pr-followup.md).
 
 **On every stage transition, you MUST:**
 
-1. Append a dated entry to the active `iterations/<NNN>.md`: `### Stage N/7 — <name> (<timestamp>)` followed by the stage's output.
+1. Append a dated entry to the active `iterations/<NNN>.md`: `### Stage N/8 — <name> (<timestamp>)` followed by the stage's output.
 2. Rewrite `state.md` to reflect the new current stage and any relevant counters.
 
 If these files don't exist, create them — missing session files means the user lost visibility into the cycle, which is the exact failure mode this skill exists to prevent.
@@ -89,14 +93,15 @@ If these files don't exist, create them — missing session files means the user
 Each stage turn MUST begin with one line in this form before any other output:
 
 ```
-**Stage N/7 — <stage name>** — <one-line intent>
+**Stage N/8 — <stage name>** — <one-line intent>
 ```
 
 This is how the user can tell, at a glance, what phase the cycle is in without parsing a long response.
 
 ## Guardrails
 
-- **No mid-cycle user questions.** Anything not covered by pre-flight is a skill bug; escalate once, do not loop.
+- **No mid-cycle user questions in stages 2–7.** Anything not covered by pre-flight is a skill bug; escalate once, do not loop.
+  - **Stage 8 is the deliberate exception.** It runs detached and may escalate to the user once when a reviewer comment cannot be classified as a clear directive or question (default-pause on ambiguity). The user has already walked away by then, and guessing on an ambiguous design comment risks pushing a wrong change. See [`../do/pr-followup.md`](../do/pr-followup.md) for the classification rule.
 - **Do not skip unit tests before E2E acceptance tests.**
 - **Do not skip E2E acceptance tests due to missing scripts** — generate when needed.
 - **Do not hand-write the E2E block of the PR body.** The `open-prs.md` stage MUST invoke `muggle-pr-visual-walkthrough` Mode B to render the screenshots-and-steps section. Hand-writing it loses the dashboard links the user relies on for review.
@@ -105,11 +110,20 @@ This is how the user can tell, at a glance, what phase the cycle is in without p
 
 ## Completion contract
 
-When stage 7 finishes, the final message to the user contains at minimum:
+The cycle produces two user-facing terminal messages over its lifetime:
+
+**Stage 7 hand-off message** (printed when stage 7 finishes its PR creation):
 
 - PR URL(s)
 - E2E status (passing / `[E2E FAILING]`)
 - Link to the run dashboard for each test case (via the walkthrough skill output)
+- Stage 8 status: either `Watching <N> PR(s) via /loop ...` (dispatched) or `No PRs to watch — stage 8 not dispatched.` (empty manifest)
 - Path to `result.md` for full details
 
-No other content. The user already read the walkthrough in the PR body — do not re-summarize it here.
+**Stage 8 terminating message** (printed when every PR is merged or closed and the loop exits):
+
+- Per-PR final state (merged at `<sha>` / closed without merge)
+- Count of items addressed, replied, and escalated per PR
+- Path to the updated `result.md`
+
+No other content in either message. The user already read the walkthrough in the PR body and the per-tick log in `followup.log` — do not re-summarize them here.

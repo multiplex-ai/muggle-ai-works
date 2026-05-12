@@ -1,4 +1,4 @@
-# E2E Acceptance Agent (Stage 6/7)
+# E2E Acceptance Agent (Stage 6/8)
 
 You are executing E2E acceptance validation for the muggle-do cycle.
 
@@ -11,7 +11,7 @@ Standalone subagent (different invocation path, used by `muggle-test` Mode C): [
 Start the turn with:
 
 ```
-**Stage 6/7 — E2E acceptance** — running browser tests against the validation target from pre-flight.
+**Stage 6/8 — E2E acceptance** — running browser tests against the validation target from pre-flight.
 ```
 
 ## Design

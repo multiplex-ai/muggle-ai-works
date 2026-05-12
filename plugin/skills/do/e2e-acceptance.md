@@ -44,12 +44,11 @@ Use `localUrl`, `projectId`, and `worktreePath` from `state.md`. Missing any →
 
 ### Step 0.5: Pre-flight verification probes
 
-Before launching Electron, run these live checks and fail loudly if any fails:
+Before launching Electron:
 
-1. **Dev-server readiness** — run the two-stage probe per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) (port-200 + compile log). Halt on any failure it surfaces.
-2. **Backend health** — if a backend URL is recorded and the probe returns 5xx or unreachable, halt; test results would be meaningless.
-3. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate (pre-flight missed it).
-4. **Tenant match** — if test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the recorded tenant. Mismatch → halt with "existing secrets target tenant X, local dev targets tenant Y — update pre-flight to collect new credentials."
+1. **Dev-server + backend readiness** — per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) (port + compile log + backend health). Halt on any failure.
+2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
+3. **Tenant match** — if test credentials were marked `existing`, confirm the Auth0 tenant in the repo's env matches the recorded tenant. Mismatch → halt.
 
 ### Step 1: Authentication already verified
 

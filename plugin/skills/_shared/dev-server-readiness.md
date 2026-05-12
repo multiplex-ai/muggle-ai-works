@@ -1,60 +1,47 @@
-# Dev Server Readiness — Two-Stage Probe
+# Dev Server Readiness
 
-Single source of truth for "the dev server is actually ready to receive test traffic." Other skills reference this doc instead of reinventing readiness checks.
+Single source of truth for dev-server detection, readiness, and backend-health checks.
 
-## When to use
+## Port detection — is a dev server already running?
 
-Any skill that starts a frontend dev server (CRA / `react-scripts`, Vite, Next.js, raw webpack) and then dispatches tests against it. The skill must wait for **both** the port to answer **and** the bundle to be compiled before any subagent runs.
+Common dev ports: `3000 3001 3999 4200 5173 8080`.
 
-## Why HTTP 200 is not enough
+```bash
+lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'
+```
 
-A 200 from the dev server's root URL means the HTTP server is up. It does **not** mean the app is ready:
+Confirm any hit with `curl -s -o /dev/null -w "%{http_code}" http://localhost:<port>/` — expect 2xx.
 
-- **CRA** returns 200 while still showing the in-browser **compiling overlay**. Tests against this state see the overlay instead of the app and report misleading "element not found" failures.
-- **Webpack error overlays** also return 200. The HTTP response is fine; the page shows a red compile-error block. Replays running against this don't fail with useful errors — they fail because the app never rendered.
-- **Vite and Next.js** start their HTTP layer before bundling finishes; the first 200 may serve a transitional page.
+## Backend health
 
-Conclusion: port-up is a necessary condition, not a sufficient one.
+If the repo's env file declares `<APP>_BACKEND_BASE_URL`, probe its health endpoint. 5xx or unreachable → halt; the dashboard renders error state and test results are meaningless.
 
-## Two-stage readiness
+## Two-stage readiness — after starting a dev server
 
-**Stage 1 — Port check.** Poll the root URL until 200:
+Port-up is necessary but not sufficient: CRA returns 200 while the compiling overlay is showing; Vite and Next.js start the HTTP layer before bundling finishes. Wait for **both** the port to answer and the bundle to be compiled before dispatching tests.
 
-- Use `curl -sf --max-time 3` so a single hanging request doesn't stall the loop.
-- Retry every 3 seconds.
-- Cap total wait at 5 minutes; longer than that usually means a compile error, not a slow start.
+**Stage 1 — Port check.** Poll the root URL until 200 with `curl -sf --max-time 3`, retry every 3 s, cap at 5 min.
 
-**Stage 2 — Log check.** Tail the dev-server's captured stdout for a framework-specific "ready" line:
+**Stage 2 — Log check.** Tail the dev-server's captured stdout for a framework-specific ready line:
 
 | Framework | Pattern |
 |---|---|
-| CRA / `react-scripts` | `Compiled successfully` (also `webpack compiled successfully`) |
+| CRA / `react-scripts` | `Compiled successfully` (or `webpack compiled successfully`) |
 | Vite | `ready in <N> ms` |
 | Next.js | `ready - started server on` / `Ready in` |
 | Webpack 5 raw | `compiled successfully` (case-insensitive) |
 
-A combined regex that covers all four: `Compiled successfully|ready in|Ready in|ready - started server`.
+Combined regex: `Compiled successfully|ready in|Ready in|ready - started server`.
+
+Before declaring ready, check the log for `Failed to compile`, `Module not found`, `Error:` — if any appears, surface the last 20 lines of the log and halt. Don't dispatch tests against a broken bundle.
+
+For long-lived servers (e.g. `muggle-test-feature-local`), re-tail the log before each test cycle and check for compile errors appearing **after** the most recent ready-pattern hit.
 
 ## Reading the log
 
-For Stage 2 to be possible, the start command must capture stdout to a file:
+Start command must capture stdout: `npm start > /tmp/dev-server-<port>.log 2>&1 &` (POSIX) or the PowerShell equivalent.
 
-- Background the start with `npm start > /tmp/dev-server-<port>.log 2>&1 &` (POSIX) or the PowerShell equivalent that redirects to a file.
-- After Stage 1 passes, `grep -E "<ready-pattern>" <log>` to confirm.
-- **Before** confirming success, also check for **error patterns** earlier in the log — `Failed to compile`, `Module not found`, `Error:`. If any of those appear, surface the last 20 lines of the log and stop. Don't dispatch tests against a broken bundle; the failures will be wrongly attributed to the test, not the build.
-
-## Webpack error overlay detection (long-lived servers)
-
-For dev servers that stick around across multiple test cycles (rare in a PR loop, common in `muggle-test-feature-local`), the bundle can break **after** an earlier "Compiled successfully":
-
-- A live file edit (e.g., test setup that touches `.env`) can trigger a fresh compile that fails.
-- The HTTP response is still 200; the page shows the error overlay.
-
-For long-lived servers, **re-tail the log before each test cycle** and check for `Failed to compile|Module not found` appearing **after** the most recent ready-pattern hit. If found, refuse to dispatch and surface the error.
-
-## Helper snippet
-
-POSIX bash; adapt for PowerShell as needed:
+## Helper snippet (POSIX bash)
 
 ```bash
 wait_for_dev_server() {
@@ -63,30 +50,14 @@ wait_for_dev_server() {
   local ready_pattern="${3:-Compiled successfully|ready in|Ready in|ready - started server}"
   local deadline=$(( $(date +%s) + 300 ))
 
-  # Stage 1 — port check
   until curl -sf "$url" -o /dev/null --max-time 3 2>/dev/null; do
-    [ "$(date +%s)" -gt "$deadline" ] && {
-      echo "Timed out waiting for $url"
-      tail -20 "$log"
-      return 1
-    }
+    [ "$(date +%s)" -gt "$deadline" ] && { tail -20 "$log"; return 1; }
     sleep 3
   done
 
-  # Stage 2 — log check
-  if ! grep -qE "$ready_pattern" "$log" 2>/dev/null; then
-    echo "Port is up but no ready signal in log. Last 20 lines:"
-    tail -20 "$log"
-    return 1
-  fi
-
-  # Sanity — no later compile error
-  if grep -qE "Failed to compile|Module not found" "$log" 2>/dev/null; then
-    echo "Compile error detected in log. Last 20 lines:"
-    tail -20 "$log"
-    return 1
-  fi
+  grep -qE "$ready_pattern" "$log" 2>/dev/null || { tail -20 "$log"; return 1; }
+  grep -qE "Failed to compile|Module not found" "$log" 2>/dev/null && { tail -20 "$log"; return 1; }
 }
 ```
 
-Call sites: invoke after the start command is backgrounded, before any subagent or replay dispatch. A non-zero return is a `BLOCKED` verdict for the run (see `failure-mode-handling.md` section F) — don't try to "soft-continue."
+A non-zero return is a `BLOCKED` verdict (see `failure-mode-handling.md` section F).

@@ -1,6 +1,6 @@
 # Worktrees for Development
 
-General guidance for using git worktrees during development. The decision to fire is owned by the [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md) gate; this doc is the "how" once that gate says yes.
+Reference notes for skills and agents that work with git worktrees.
 
 ## Pattern
 
@@ -13,10 +13,6 @@ General guidance for using git worktrees during development. The decision to fir
 git worktree add <repo>-worktrees/<slug> -b <branch>
 ```
 
-## Set up the dev server
-
-Env file, `npm install`, port, readiness — owned by [`../muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md).
-
 ## Tear down
 
-After the PR merges — see [`post-merge-cleanup.md`](post-merge-cleanup.md).
+After the work merges — see [`post-merge-cleanup.md`](post-merge-cleanup.md).

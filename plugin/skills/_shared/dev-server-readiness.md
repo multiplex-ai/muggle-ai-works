@@ -1,24 +1,26 @@
 # Dev Server Readiness
 
-Single source of truth for dev-server detection, readiness, and backend-health checks.
+**Goal:** Help any skill or agent (a) detect whether a local dev server is already running, and (b) start one and confirm it's ready to receive queries before issuing them.
+
+**Scope:** Generic guidance for any web dev server (CRA, Vite, Next.js, Webpack, etc.). Nothing in this doc is repo-, framework-version-, port-, or skill-specific — callers layer those details on top.
 
 ## Port detection — is a dev server already running?
 
-Common dev ports: `3000 3001 3999 4200 5173 8080`.
+Common dev ports: `3000 3001 4200 5173 8080`. Callers may add repo-specific ports.
 
 ```bash
-lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'
+lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'
 ```
 
 Confirm any hit with `curl -s -o /dev/null -w "%{http_code}" http://localhost:<port>/` — expect 2xx.
 
-## Backend health
+## Backend health (when the dev server depends on one)
 
-If the repo's env file declares `<APP>_BACKEND_BASE_URL`, probe its health endpoint. 5xx or unreachable → halt; the dashboard renders error state and test results are meaningless.
+If the app declares a backend URL in its env file, probe the backend's health endpoint before treating the dev server as usable. 5xx or unreachable → halt; the frontend may render but its data layer is dead, so any query against it is meaningless.
 
 ## Two-stage readiness — after starting a dev server
 
-Port-up is necessary but not sufficient: CRA returns 200 while the compiling overlay is showing; Vite and Next.js start the HTTP layer before bundling finishes. Wait for **both** the port to answer and the bundle to be compiled before dispatching tests.
+Port-up is necessary but not sufficient: CRA returns 200 while the compiling overlay is showing; Vite and Next.js start the HTTP layer before bundling finishes. Wait for **both** the port to answer and the bundle to be compiled before issuing queries.
 
 **Stage 1 — Port check.** Poll the root URL until 200 with `curl -sf --max-time 3`, retry every 3 s, cap at 5 min.
 
@@ -33,9 +35,9 @@ Port-up is necessary but not sufficient: CRA returns 200 while the compiling ove
 
 Combined regex: `Compiled successfully|ready in|Ready in|ready - started server`.
 
-Before declaring ready, check the log for `Failed to compile`, `Module not found`, `Error:` — if any appears, surface the last 20 lines of the log and halt. Don't dispatch tests against a broken bundle.
+Before declaring ready, check the log for `Failed to compile`, `Module not found`, `Error:` — if any appears, surface the last 20 lines of the log and halt. Don't issue queries against a broken bundle.
 
-For long-lived servers (e.g. `muggle-test-feature-local`), re-tail the log before each test cycle and check for compile errors appearing **after** the most recent ready-pattern hit.
+For long-lived servers, re-tail the log before each cycle and check for compile errors appearing **after** the most recent ready-pattern hit.
 
 ## Reading the log
 
@@ -60,4 +62,4 @@ wait_for_dev_server() {
 }
 ```
 
-A non-zero return is a `BLOCKED` verdict (see `failure-mode-handling.md` section F).
+A non-zero return means the server failed to come up — callers decide how to surface (skill-specific verdict / blocked state).

@@ -68,14 +68,12 @@ Signs the user wants this: mentions "localhost", "local", "my machine", "dev ser
 
 Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides a non-localhost URL.
 
-### Mode C: PR-loop (regression sweep across every open PR)
-> Iterate every open PR on the repo, E2E-test each one in isolation, post per-PR findings, and aggregate a final report.
+### Mode C: Open-PR sweep (regression-test every open PR on the repo)
+> Iterate every open PR on the repo regardless of authorship, E2E-test each one in isolation, post per-PR findings, and aggregate a final report.
 >
 > Trigger phrases: "test all open PRs", "regression-test every open PR", "muggle-test on all the active PRs", pre-merge audit, scheduled cron.
 
-Mode C is **not** about testing the current branch. It's an orchestration loop that builds a per-PR worktree, starts a dev server in it, dispatches the `acceptance-tester` subagent, and tears down — once per PR, sequentially, because all PRs share a single dev-server port.
-
-Skip Mode C's full procedure (below) when the user just wants to test their current changes (use Mode A or B).
+This is a repo-wide sweep across **every** open PR regardless of author — not "test my branch", not "test my stack". For testing a single branch or a stack of your own PRs, use Mode A (local) or Mode B (preview/staging) on each branch instead.
 
 ### Confirming (gated by `defaultExecutionMode`)
 
@@ -448,7 +446,7 @@ Use `AskUserQuestion`:
 
 This is a suggestion, not automatic invocation. Skip silently if every test passed cleanly.
 
-## Mode C — PR-loop Procedure
+## Mode C — Open-PR Sweep Procedure
 
 When the user wants to E2E-test every open PR on a repo (regression sweep, pre-merge audit, scheduled cron), run this procedure end-to-end instead of Steps 1–10 above.
 

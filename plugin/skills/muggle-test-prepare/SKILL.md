@@ -139,13 +139,7 @@ If the user picks **option 1**: proceed through Steps 4-7 as normal.
 
 ### Step 4: Check What's Already Running
 
-Before offering to start anything, check what's already listening on common dev ports:
-
-```bash
-lsof -iTCP -sTCP:LISTEN -nP 2>/dev/null | grep -E ':(3000|3001|3002|4200|5173|5174|8080|8081|8000|8888|4000|9000)'
-```
-
-Cross-reference against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
+Run port detection per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md). Cross-reference hits against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."
 

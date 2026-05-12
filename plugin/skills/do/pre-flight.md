@@ -55,9 +55,9 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
-11. **Worktree?** — `autoUseWorktree` (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
-12. **Rebase onto `origin/<default>`?** — `autoRebase`, only if `behind > 0` (see [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
-13. **Run E2E acceptance at the end?** — `autoE2ETest`, only if step 10 resolved to `ask` (see [`../muggle-preferences/preference-gates/autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md)).
+11. **Worktree for this change?** — `autoUseWorktree`. Options: create a sibling worktree, or work in the current checkout. See [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md).
+12. **Rebase onto `origin/<default>` first?** — `autoRebase`, only if `behind > 0`. Options: rebase before stage 6, or run as-is. See [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md).
+13. **Run E2E at the end of every cycle?** — `autoE2ETest`, only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle. See [`../muggle-preferences/preference-gates/autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md).
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

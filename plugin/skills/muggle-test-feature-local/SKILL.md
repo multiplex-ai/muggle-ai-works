@@ -223,20 +223,9 @@ After reporting results, gather the required input and hand off to the shared **
 
 Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide.
 
-#### 10b: Detect the PR, then apply the `postPRVisualWalkthrough` gate
+#### 10b: Post the walkthrough (or create the PR first)
 
-Run `gh pr view --json number,title,url 2>/dev/null` first (mandatory). Then gate `postPRVisualWalkthrough` (per `preference-gates/README.md` + gate file):
-- **Case A (PR found)** — `always` → proceed to 10c; `never`/skip → stop.
-- **Case B (no PR)** — saved value applies:
-  - `always` → silently create the PR (push branch + `gh pr create`) then proceed to 10c. Print silent footer (`Creating PR for {branch} and posting walkthrough` + the standard `Skipped the prompt` line).
-  - `never` → silently skip; print `Skipping PR walkthrough — no open PR for this branch` plus the standard footer.
-  - `ask` → run Picker 1; on "Create a PR and post" follow with Picker 2 to save, then create + proceed to 10c. On "Skip" do not save.
-
-#### 10c: Invoke the shared skill in Mode A
-
-Invoke the `muggle:muggle-pr-visual-walkthrough` skill via the `Skill` tool. With the `E2eReport` in context, the skill renders the markdown block via the CLI, posts `body` as a comment to the PR, posts the overflow `comment` only if the CLI emitted one, and confirms the PR URL to the user.
-
-Always use **Mode A** (post to existing PR) from this skill. Never hand-write the walkthrough markdown or call `gh pr comment` directly — delegate to `muggle:muggle-pr-visual-walkthrough`.
+Run the shared procedure per [`../_shared/walkthrough-or-create-pr.md`](../_shared/walkthrough-or-create-pr.md). It detects the PR, fires the `postPRVisualWalkthrough` gate (which covers both Case A and Case B), and invokes `muggle-pr-visual-walkthrough` in Mode A. On the skip path, end the workflow without posting.
 
 ## Non-negotiables
 

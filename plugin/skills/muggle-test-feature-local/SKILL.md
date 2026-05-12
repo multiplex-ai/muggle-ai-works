@@ -50,7 +50,7 @@ Gates run per `preference-gates/README.md`.
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
-| `autoCreatePR` | 10 | Auto-create the PR when posting the walkthrough has no PR to target |
+| `autoCreatePR` | 10 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
 | `autoCleanup` | post-merge | Run cleanup after the PR for this work is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Workflow

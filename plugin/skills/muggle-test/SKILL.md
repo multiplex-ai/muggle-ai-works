@@ -48,7 +48,7 @@ Gates run per `preference-gates/README.md`.
 | `autoPublishLocalResults` | 7A | Upload local results to Muggle Test cloud after run |
 | `showElectronBrowser` | 7A | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
-| `autoCreatePR` | 9 | Auto-create the PR when posting the walkthrough has no PR to target |
+| `autoCreatePR` | 9 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
 
 ## Step 1: Confirm Scope of Work (Always First)
 

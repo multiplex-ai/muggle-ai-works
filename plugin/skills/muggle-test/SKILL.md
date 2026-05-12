@@ -68,15 +68,6 @@ Signs the user wants this: mentions "localhost", "local", "my machine", "dev ser
 
 Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides a non-localhost URL.
 
-### Mode C: PR-loop (regression sweep across every open PR)
-> Iterate every open PR on the repo, E2E-test each one in isolation, post per-PR findings, and aggregate a final report.
->
-> Trigger phrases: "test all open PRs", "regression-test every open PR", "muggle-test on all the active PRs", pre-merge audit, scheduled cron.
-
-Mode C is **not** about testing the current branch. It's an orchestration loop that builds a per-PR worktree, starts a dev server in it, dispatches the `acceptance-tester` subagent, and tears down — once per PR, sequentially, because all PRs share a single dev-server port.
-
-Skip Mode C's full procedure (below) when the user just wants to test their current changes (use Mode A or B).
-
 ### Confirming (gated by `defaultExecutionMode`)
 
 Gate `defaultExecutionMode` (per `preference-gates/README.md`). Uses `local`/`remote`/`ask`.
@@ -447,104 +438,6 @@ Use `AskUserQuestion`:
 - **No — skip**
 
 This is a suggestion, not automatic invocation. Skip silently if every test passed cleanly.
-
-## Mode C — PR-loop Procedure
-
-When the user wants to E2E-test every open PR on a repo (regression sweep, pre-merge audit, scheduled cron), run this procedure end-to-end instead of Steps 1–10 above. The per-PR worktrees are sequential because a single dev-server port forces one-at-a-time execution.
-
-### When to invoke
-
-The orchestrator (or the user directly) asks for an across-the-board E2E sweep:
-- "test all open PRs"
-- "regression-test every open PR"
-- "muggle-test on all the active PRs"
-- pre-merge audit / scheduled cron triggers
-
-For single-branch "test my changes" requests, use Modes A or B — not this loop.
-
-### Pre-loop setup
-
-1. **List PRs**: `gh pr list --repo <slug> --state open --json number,title,headRefName,author,isDraft --limit 100`. Filter out Dependabot entries (`author.is_bot && author.login == "app/dependabot"`) unless the user explicitly opts in via `AskUserQuestion`.
-2. **Verify auth**: call `muggle-remote-auth-status`. If expired or absent, re-login per Step 3 above before starting the loop. Long loops crossing token expiry should re-check between rounds.
-3. **Capture templates from main worktree**: read `.env.local` and `.muggle-ai/last-project.json` + `.muggle-ai/last-host.json` from the **main worktree** of the repo. These are gitignored — each per-PR worktree will receive copies (see `_shared/worktree-isolation.md` for the full cross-boundary file list).
-4. **Force-update PR refs**: for every PR number N to be tested, run `git fetch origin +refs/pull/<N>/head:pr-<N>`. The leading `+` forces the local ref to match origin so stale refs from prior rebase rounds get replaced.
-
-### Per-PR procedure (sequential — run order: PR number descending, newest first)
-
-Each PR completes fully before the next starts. Single dev-server port = no parallelism.
-
-1. **Create worktree**: `git worktree add ../<repo>-wt-pr<N> pr-<N>`.
-2. **Copy templates**: `cp .env.local <worktree>/.env.local && cp -r .muggle-ai <worktree>/.muggle-ai`. The `.env.local` carries `PORT=3999` plus secrets; the `.muggle-ai/` cache skips project + host re-prompting in the subagent. See `_shared/worktree-isolation.md`.
-3. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, post a comment to the PR via `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, mark verdict `SKIPPED` in the aggregate report, continue to next PR.
-4. **Install**: `cd <worktree> && npm install --prefer-offline --no-audit --no-fund`. Each worktree gets its **own real install** — never symlink `node_modules/` (webpack breaks with "Can't handle conflicting asset info for sourceFilename"). See `_shared/worktree-isolation.md`.
-5. **Kill port**: free port 3999 before starting — helper command in `_shared/worktree-isolation.md` (Windows: `Get-NetTCPConnection -LocalPort 3999 | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`; POSIX: `lsof -ti:3999 | xargs -r kill -9`).
-6. **Start dev server** in `<worktree>` (background). Wait for the **two-stage ready signal** — see `_shared/dev-server-readiness.md`. Port-200 alone is insufficient; CRA returns 200 while the compiling overlay is still up. Block dispatch until the log shows `Compiled successfully` (CRA) / `ready in` (Vite) / `ready - started server on` (Next.js).
-7. **Placeholder detection**: `git diff origin/master..HEAD --stat` in the worktree. If empty after rebase → post a `gh pr comment <N> --body "SKIPPED — placeholder branch, no code under test"`, mark verdict `SKIPPED`, continue without dispatching the agent.
-8. **Route + project classification** based on changed files:
-   - Files under `src/components/landing/**` → `devServerUrl = http://localhost:<port>/` + landing-page test project.
-   - Otherwise → `devServerUrl = http://localhost:<port>/<dashboard-route>` + dashboard test project.
-9. **Dispatch `acceptance-tester` subagent**. The input contract lives in `plugin/agents/acceptance-tester.md`. Populate:
-   - PR metadata (number, title, head ref, author)
-   - Files changed (`git diff origin/master..HEAD --name-only`)
-   - `devServerUrl` from step 8
-   - Project + use case selection from step 8
-   - `priorFindings`: comment URLs + prior verdicts from `gh pr view <N> --json comments` so the agent knows whether to verify-fix or expect-same-blocker.
-10. **Receive structured return** from the subagent. Append to the in-memory aggregate report.
-11. **Cleanup**:
-    - Port-kill (same as step 5).
-    - `rm -rf <worktree>`. On Windows, if rm reports "busy" because node holds handles, retry once and otherwise leave the directory for manual cleanup — `git worktree prune` succeeds either way.
-    - `git worktree prune`.
-
-### Loop hygiene
-
-- **Always rebase before dispatching** — catches latest master so a PR fails only on its own regressions, not on stale base.
-- **Always re-fetch PR refs with `+` between rounds** — stale local refs from previous rebases get replaced.
-- **Verify auth before loop start AND if a long-running loop crosses session expiry** — re-login mid-loop if `muggle-remote-auth-status` reports expired.
-- **Pass `priorFindings` into every subagent dispatch** — comment URLs + verdicts so the agent knows whether to verify a prior finding or expect the same infra blocker.
-
-### Verdict taxonomy
-
-Each PR ends with exactly one verdict from `_shared/failure-mode-handling.md` section F:
-
-- **PASS** — all dispatched tests passed.
-- **FAIL** — at least one test failed in a way attributable to PR changes (product regression).
-- **PARTIAL** — mixed: some tests passed, some failed for PR-attributable reasons.
-- **INCONCLUSIVE** — env or script staleness blocked verification (pre-existing scripts targeting old UI routes, missing local DB state, etc.). NOT a FAIL.
-- **BLOCKED** — infra blocker prevented any test from running (Auth0 dev tenant rejected `*.mailosaur.net` test emails, dev server failed to compile, etc.).
-- **SKIPPED** — no code under test (empty diff after rebase), rebase conflict, or user opted out.
-
-Known infra blockers from real runs (fast-fail BLOCKED after 1 attempt):
-- Auth0 dev tenant rejecting `*.mailosaur.net` test emails.
-- Local DB has zero completed runs (modal-dependent tests become INCONCLUSIVE).
-- Pre-existing scripts targeting old UI routes (INCONCLUSIVE — script staleness, not FAIL).
-
-### Final report
-
-After all PRs are processed, emit:
-
-1. **Summary table** — markdown:
-
-   ```
-   | PR # | Verdict      | Comment URL                                | Notes                          |
-   |------|--------------|--------------------------------------------|--------------------------------|
-   | #142 | PASS         | https://github.com/.../pull/142#issuec...  | All 4 tests green              |
-   | #138 | FAIL         | https://github.com/.../pull/138#issuec...  | Checkout regression on step 6  |
-   | #135 | BLOCKED      | https://github.com/.../pull/135#issuec...  | Auth0 rejected test email      |
-   | #131 | INCONCLUSIVE | https://github.com/.../pull/131#issuec...  | Pre-existing script stale      |
-   ```
-
-2. **Notable findings** — call out:
-   - Every new **FAIL** verdict with a one-line failure-mode summary.
-   - Every persistent **BLOCKED** infra issue (same blocker seen in N PRs → environment-level fix needed, not per-PR).
-   - Any **SKIPPED** PR with rebase conflicts (orchestrator may want to surface these to authors).
-
-### Cross-references
-
-- `_shared/worktree-isolation.md` — full worktree pattern + node_modules rule + cross-boundary file list + port-kill helpers.
-- `_shared/dev-server-readiness.md` — two-stage readiness probe (port-200 + compile log).
-- `_shared/branch-hygiene.md` sections 1A / 1B / 1C — per-PR iteration pattern.
-- `_shared/failure-mode-handling.md` section F — verdict taxonomy + infra blocker catalog.
-- `plugin/agents/acceptance-tester.md` — subagent input/output contract.
 
 ## Tool Reference
 

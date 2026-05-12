@@ -1,92 +1,231 @@
-# Dev Server Readiness — Two-Stage Probe
+# Dev Server Readiness
 
-Single source of truth for "the dev server is actually ready to receive test traffic." Other skills reference this doc instead of reinventing readiness checks.
+**Goal:** Help any skill or agent (a) detect whether a local development server is already running, and (b) start one and confirm it is ready to receive requests before issuing them.
 
-## When to use
+**Scope:** Generic guidance for any local development server. This document is OS-agnostic, programming-language-agnostic, and framework-agnostic. Nothing here is repo-, toolchain-, runtime-, port-, or skill-specific. Callers provide concrete details.
 
-Any skill that starts a frontend dev server (CRA / `react-scripts`, Vite, Next.js, raw webpack) and then dispatches tests against it. The skill must wait for **both** the port to answer **and** the bundle to be compiled before any subagent runs.
+**How to read this doc:** The core algorithm is platform-neutral. The OS-specific commands below are examples you can copy directly or adapt.
 
-## Why HTTP 200 is not enough
+## Port detection — is a dev server already running?
 
-A 200 from the dev server's root URL means the HTTP server is up. It does **not** mean the app is ready:
+Common dev ports: `3000 3001 4200 5173 8080`. Callers may add repo-specific ports.
 
-- **CRA** returns 200 while still showing the in-browser **compiling overlay**. Tests against this state see the overlay instead of the app and report misleading "element not found" failures.
-- **Webpack error overlays** also return 200. The HTTP response is fine; the page shows a red compile-error block. Replays running against this don't fail with useful errors — they fail because the app never rendered.
-- **Vite and Next.js** start their HTTP layer before bundling finishes; the first 200 may serve a transitional page.
+Use any local networking utility available on the current OS to check whether one of the expected ports is listening.
 
-Conclusion: port-up is a necessary condition, not a sufficient one.
+For each listening candidate, probe its base URL and verify it returns a successful status code (typically `2xx`).
 
-## Two-stage readiness
+### Examples by OS
 
-**Stage 1 — Port check.** Poll the root URL until 200:
+#### Linux / macOS (bash/zsh)
 
-- Use `curl -sf --max-time 3` so a single hanging request doesn't stall the loop.
-- Retry every 3 seconds.
-- Cap total wait at 5 minutes; longer than that usually means a compile error, not a slow start.
+```bash
+# Detect listeners on common dev ports
+lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)\b'
 
-**Stage 2 — Log check.** Tail the dev-server's captured stdout for a framework-specific "ready" line:
+# Probe one candidate URL (returns HTTP status code)
+curl -sS -o /dev/null -w "%{http_code}" "http://localhost:3000/"
+```
 
-| Framework | Pattern |
-|---|---|
-| CRA / `react-scripts` | `Compiled successfully` (also `webpack compiled successfully`) |
-| Vite | `ready in <N> ms` |
-| Next.js | `ready - started server on` / `Ready in` |
-| Webpack 5 raw | `compiled successfully` (case-insensitive) |
+#### Windows PowerShell
 
-A combined regex that covers all four: `Compiled successfully|ready in|Ready in|ready - started server`.
+```powershell
+# Detect listeners on common dev ports
+Get-NetTCPConnection -State Listen |
+  Where-Object { $_.LocalPort -in 3000,3001,4200,5173,8080 } |
+  Select-Object -Property LocalAddress, LocalPort, OwningProcess
+
+# Probe one candidate URL (shows status code)
+(Invoke-WebRequest -Uri "http://localhost:3000/" -Method Get -TimeoutSec 3).StatusCode
+```
+
+#### Windows CMD
+
+```bat
+:: Detect listeners on common dev ports
+netstat -ano | findstr /R /C:":3000 " /C:":3001 " /C:":4200 " /C:":5173 " /C:":8080 "
+```
+
+## Backend health (when the dev server depends on one)
+
+If the app declares a backend URL in its env file, probe the backend's health endpoint before treating the dev server as usable. 5xx or unreachable → halt; the frontend may render but its data layer is dead, so any query against it is meaningless.
+
+## Two-stage readiness — after starting a dev server
+
+Network reachability is necessary but not sufficient. Many dev servers bind to a port before build/startup work is complete. Wait for **both** network readiness and application readiness before issuing requests.
+
+**Stage 1 — Network check.** Poll the target URL until it responds successfully. Use a short request timeout, a fixed retry interval (for example, every 3 seconds), and a hard overall timeout (for example, 5 minutes).
+
+**Stage 2 — Startup completion check.** Inspect captured process output for a known "ready" signal defined by the caller.
+
+The caller should provide:
+- a ready pattern (for example, `ready`, `started`, `listening`, `compiled successfully`)
+- one or more failure patterns (for example, `failed`, `error`, `module not found`, `unable to`)
+- the number of trailing log lines to surface on failure
+
+Before declaring ready, check for failure patterns in logs. If present, surface the trailing log lines and halt. Do not issue requests against a broken startup.
+
+For long-lived servers, re-check logs before each execution cycle and fail if new errors appear after the latest ready signal.
 
 ## Reading the log
 
-For Stage 2 to be possible, the start command must capture stdout to a file:
+The server start command must capture process output to a retrievable location (file, buffer, or managed process stream). Implementation details are environment-specific and should be supplied by the caller.
 
-- Background the start with `npm start > /tmp/dev-server-<port>.log 2>&1 &` (POSIX) or the PowerShell equivalent that redirects to a file.
-- After Stage 1 passes, `grep -E "<ready-pattern>" <log>` to confirm.
-- **Before** confirming success, also check for **error patterns** earlier in the log — `Failed to compile`, `Module not found`, `Error:`. If any of those appear, surface the last 20 lines of the log and stop. Don't dispatch tests against a broken bundle; the failures will be wrongly attributed to the test, not the build.
+### Start command examples by OS
 
-## Webpack error overlay detection (long-lived servers)
-
-For dev servers that stick around across multiple test cycles (rare in a PR loop, common in `muggle-test-feature-local`), the bundle can break **after** an earlier "Compiled successfully":
-
-- A live file edit (e.g., test setup that touches `.env`) can trigger a fresh compile that fails.
-- The HTTP response is still 200; the page shows the error overlay.
-
-For long-lived servers, **re-tail the log before each test cycle** and check for `Failed to compile|Module not found` appearing **after** the most recent ready-pattern hit. If found, refuse to dispatch and surface the error.
-
-## Helper snippet
-
-POSIX bash; adapt for PowerShell as needed:
+#### Linux / macOS (bash/zsh)
 
 ```bash
-wait_for_dev_server() {
-  local url="$1"
-  local log="$2"
-  local ready_pattern="${3:-Compiled successfully|ready in|Ready in|ready - started server}"
-  local deadline=$(( $(date +%s) + 300 ))
-
-  # Stage 1 — port check
-  until curl -sf "$url" -o /dev/null --max-time 3 2>/dev/null; do
-    [ "$(date +%s)" -gt "$deadline" ] && {
-      echo "Timed out waiting for $url"
-      tail -20 "$log"
-      return 1
-    }
-    sleep 3
-  done
-
-  # Stage 2 — log check
-  if ! grep -qE "$ready_pattern" "$log" 2>/dev/null; then
-    echo "Port is up but no ready signal in log. Last 20 lines:"
-    tail -20 "$log"
-    return 1
-  fi
-
-  # Sanity — no later compile error
-  if grep -qE "Failed to compile|Module not found" "$log" 2>/dev/null; then
-    echo "Compile error detected in log. Last 20 lines:"
-    tail -20 "$log"
-    return 1
-  fi
-}
+# Start in background and capture logs
+npm start > "/tmp/dev-server-3000.log" 2>&1 &
 ```
 
-Call sites: invoke after the start command is backgrounded, before any subagent or replay dispatch. A non-zero return is a `BLOCKED` verdict for the run (see `failure-mode-handling.md` section F) — don't try to "soft-continue."
+#### Windows PowerShell
+
+```powershell
+# Start detached and capture both stdout/stderr
+Start-Process -FilePath "npm" -ArgumentList "start" `
+  -RedirectStandardOutput "$env:TEMP\dev-server-3000.log" `
+  -RedirectStandardError "$env:TEMP\dev-server-3000.log"
+```
+
+#### Windows CMD
+
+```bat
+:: Start in background and capture logs
+start "" cmd /c "npm start > "%TEMP%\dev-server-3000.log" 2>&1"
+```
+
+## Generic algorithm (pseudocode)
+
+```text
+FUNCTION wait_for_dev_server(input):
+  REQUIRE input.url
+  REQUIRE input.logSource
+  REQUIRE input.readyPattern
+  REQUIRE input.failurePatterns
+  REQUIRE input.requestTimeoutSeconds
+  REQUIRE input.retryIntervalSeconds
+  REQUIRE input.maxWaitSeconds
+  REQUIRE input.failureTailLineCount
+
+  deadline = now() + input.maxWaitSeconds
+
+  WHILE now() <= deadline:
+    responseOk = probe_url(
+      url = input.url,
+      timeoutSeconds = input.requestTimeoutSeconds
+    )
+    IF responseOk:
+      BREAK
+    sleep(input.retryIntervalSeconds)
+
+  IF now() > deadline:
+    RETURN failure_with_log_tail(input.logSource, input.failureTailLineCount)
+
+  logText = read_log(input.logSource)
+
+  IF contains_any(logText, input.failurePatterns):
+    RETURN failure_with_log_tail(input.logSource, input.failureTailLineCount)
+
+  IF NOT contains(logText, input.readyPattern):
+    RETURN failure_with_log_tail(input.logSource, input.failureTailLineCount)
+
+  RETURN success
+```
+
+A failure result means the server is not ready. Callers decide how to surface the blocked state.
+
+## Practical implementation notes (important)
+
+- Prefer polling both conditions until deadline (network responds **and** ready pattern appears), instead of checking logs only once.
+- Avoid stale-log false positives by recording a start marker (timestamp, byte offset, or unique token) and scanning only new log content.
+- When checking for failure after ready, evaluate failures that appear **after** the latest ready signal.
+- If your app redirects `/` (for example to auth), treat expected `3xx` as acceptable in Stage 1.
+
+## End-to-end examples by OS (drop-in scripts)
+
+### Linux / macOS (bash/zsh)
+
+```bash
+URL="http://localhost:3000/"
+LOG="/tmp/dev-server-3000.log"
+READY_PATTERN='Compiled successfully|ready in|Ready in|ready - started server|listening'
+FAIL_PATTERN='Failed to compile|Module not found|Error:|EADDRINUSE|ERR!'
+DEADLINE=$(( $(date +%s) + 300 ))
+
+npm start > "$LOG" 2>&1 &
+START_LINE=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+
+while [ "$(date +%s)" -le "$DEADLINE" ]; do
+  STATUS=$(curl -sS -o /dev/null -w "%{http_code}" "$URL" || echo 000)
+  NEW_LOG=$(tail -n +"$((START_LINE + 1))" "$LOG" 2>/dev/null)
+
+  if echo "$NEW_LOG" | grep -qE "$FAIL_PATTERN"; then
+    tail -20 "$LOG"
+    exit 1
+  fi
+
+  if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ] && echo "$NEW_LOG" | grep -qiE "$READY_PATTERN"; then
+    echo "Server ready"
+    exit 0
+  fi
+
+  sleep 3
+done
+
+tail -20 "$LOG"
+exit 1
+```
+
+### Windows PowerShell
+
+```powershell
+$url = "http://localhost:3000/"
+$log = Join-Path $env:TEMP "dev-server-3000.log"
+$readyPattern = "Compiled successfully|ready in|Ready in|ready - started server|listening"
+$failPattern = "Failed to compile|Module not found|Error:|EADDRINUSE|ERR!"
+$deadline = (Get-Date).AddMinutes(5)
+
+if (Test-Path $log) {
+  $startLine = (Get-Content $log | Measure-Object -Line).Lines
+} else {
+  $startLine = 0
+}
+
+Start-Process -FilePath "npm" -ArgumentList "start" `
+  -RedirectStandardOutput $log `
+  -RedirectStandardError $log
+
+while ((Get-Date) -le $deadline) {
+  $status = 0
+  try {
+    $response = Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 3 -MaximumRedirection 0 -ErrorAction Stop
+    $status = [int]$response.StatusCode
+  } catch {
+    if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+      $status = [int]$_.Exception.Response.StatusCode
+    } else {
+      $status = 0
+    }
+  }
+
+  $allLines = if (Test-Path $log) { Get-Content $log } else { @() }
+  $newLines = if ($allLines.Count -gt $startLine) { $allLines[$startLine..($allLines.Count - 1)] } else { @() }
+  $newLog = ($newLines -join "`n")
+
+  if ($newLog -match $failPattern) {
+    Get-Content $log -Tail 20
+    exit 1
+  }
+
+  if ($status -ge 200 -and $status -lt 400 -and $newLog -match $readyPattern) {
+    Write-Host "Server ready"
+    exit 0
+  }
+
+  Start-Sleep -Seconds 3
+}
+
+Get-Content $log -Tail 20
+exit 1
+```

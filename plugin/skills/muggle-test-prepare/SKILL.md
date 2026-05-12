@@ -139,13 +139,7 @@ If the user picks **option 1**: proceed through Steps 4-7 as normal.
 
 ### Step 4: Check What's Already Running
 
-Before offering to start anything, check what's already listening on common dev ports:
-
-```bash
-lsof -iTCP -sTCP:LISTEN -nP 2>/dev/null | grep -E ':(3000|3001|3002|4200|5173|5174|8080|8081|8000|8888|4000|9000)'
-```
-
-Cross-reference against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
+Run port detection and (when the app declares a backend URL) backend-health probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md). Cross-reference hits against the selected service directories. If a selected service appears to already be running (match by port or by the process's working directory), report it as ready:
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."
 
@@ -168,14 +162,14 @@ For services that are already running and the user wants to keep, add them to th
 **Option 1 — next available port:** probe `3999 + N` for `N = 1, 2, 3, ...` until `Test-NetConnection`/`lsof -i :<port>` returns nothing listening. Record the new port (and the env file edit, if `PORT=` is set in `.env.local` etc.) so downstream steps use it. The dev server may need a restart to pick up the new value.
 
 **Option 2 — force-kill (destructive):**
-- **Windows (PowerShell)**: `Get-NetTCPConnection -LocalPort <p> | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }`
-- **POSIX**: `lsof -ti:<p> | xargs -r kill -9`
+- **Windows PowerShell:** `Get-NetTCPConnection -LocalPort <port> -ErrorAction SilentlyContinue | ForEach-Object { try { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue } catch { } }`
+- **POSIX:** `lsof -ti:<port> 2>/dev/null | xargs -r kill -9`
 
 Re-verify the port is free before continuing.
 
 ### Step 4.5: Environment File Sanity
 
-Frameworks read various env files: `.env`, `.env.local`, `.env.development`, `.env.dev`, `.env.development.local`, `.env.test`, plus tool-specific ones. Inspect what this repo actually uses: scan `package.json` `scripts/*` for `.env*` literals and known port env-vars (`PORT=`, `VITE_PORT=`, etc.) supplied via env files; check framework config (`next.config.*`, `vite.config.*`) for which files load. **The file name is per-repo — don't hardcode `.env.local`.**
+The env file is **per-repo** — don't hardcode `.env.local`. Detect it: scan `package.json` `scripts/*` for `.env*` literals and known port vars (`PORT=`, `VITE_PORT=`); check framework config (`next.config.*`, `vite.config.*`).
 
 When a dependency on an env file exists:
 
@@ -246,7 +240,7 @@ When install is required or stale, propose via `AskUserQuestion`:
 - Option 1: "Yes — install now"
 - Option 2: "No — skip; I know it's fine"
 
-**Never symlink `node_modules/` from a sibling worktree** — per `_shared/worktree-isolation.md`, webpack breaks on font asset identity with "Can't handle conflicting asset info for sourceFilename". Each worktree needs its own real install.
+**Never symlink `node_modules/` from a sibling worktree.** webpack's `resolve.symlinks: true` default rewrites paths to the shared real location; asset-identity tracking fails with `Can't handle conflicting asset info for sourceFilename`. Run a real per-worktree install.
 
 For non-Node services (Go, Rust, Python), skip this probe — their build systems handle dependency caching differently.
 
@@ -261,27 +255,7 @@ echo $!
 
 Capture the PID. Write all service entries to `/tmp/muggle-test-prepare.json`.
 
-**Startup verification (two-stage)** — port-listening is **necessary but not sufficient**. CRA, Vite, and Next.js all bind the port before compilation finishes; a 200 response can come back while the compile-error overlay is still showing. Two-stage probe per `_shared/dev-server-readiness.md`:
-
-**Stage 1 — process + port**
-
-1. PID is alive: `kill -0 <pid> 2>/dev/null`
-2. Port is listening (if known): `lsof -iTCP:<port> -sTCP:LISTEN -nP 2>/dev/null`
-
-**Stage 2 — log ready signal** (only after Stage 1 passes)
-
-Tail `/tmp/muggle-prepare-<service-name>.log` for up to **60 seconds** looking for one of:
-
-| Stack | Ready signal |
-|:------|:-------------|
-| CRA / react-scripts | `Compiled successfully` or `webpack compiled` |
-| Vite | `ready in` |
-| Next.js | `ready - started server on` |
-| Other Node | first match of the patterns above, else fall back to port-only after timeout |
-
-If a `Failed to compile`, `Module not found`, or `Error:` line appears **before** a ready signal: **halt** — surface the last 20 log lines and report the service as failed-to-start. Do NOT claim ready and let downstream skills dispatch tests against a broken bundle.
-
-If no match within 60s and no error line either: surface the last 20 log lines and ask the user how to proceed (the service may be unusually slow, or the log format may be non-standard).
+**Startup verification** — first confirm the PID is alive (`kill -0 <pid> 2>/dev/null`), then run the two-stage readiness probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) against `/tmp/muggle-prepare-<service-name>.log`. Cap log-tail at 60s. Halt on whatever it surfaces; do not re-implement the ready-signal patterns here.
 
 If a service's PID dies immediately, read the last 20 lines of its log and show the user:
 

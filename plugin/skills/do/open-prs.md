@@ -1,13 +1,13 @@
-# PR Creation Agent (Stage 7/7)
+# PR Creation Agent (Stage 7/8)
 
-You are creating pull requests for each repository that has changes after a successful dev cycle run.
+You are creating pull requests for each repository that has changes after a successful dev cycle run. After every PR is created, you hand off to **stage 8 (PR follow-up)** by writing a session manifest and dispatching a detached `/loop` that babysits the PRs until merged or closed.
 
 ## Turn preamble
 
 Start the turn with:
 
 ```
-**Stage 7/7 — Open PR** — rendering the visual walkthrough and pushing the PR.
+**Stage 7/8 — Open PR** — rendering the visual walkthrough and pushing the PR.
 ```
 
 ## Non-negotiable: visual walkthrough is required
@@ -94,6 +94,62 @@ Back in this stage:
 - **Overflow case:** the CLI detects the full body would exceed its byte budget; `body` contains the summary, per-test rows, and a pointer line; `comment` contains the overflow details. Post both.
 - You do not make the fit-vs-overflow decision — the CLI does. Never post the comment when it is `null`.
 
+## Stage 8 handoff
+
+After every PR has been created (or skipped via `autoCreatePR`), build a manifest of the PRs that were actually opened this run and dispatch the follow-up loop. **The dispatch is the LAST thing this stage does** — once it fires, the original session is free.
+
+### Build the manifest
+
+Write `.muggle-do/sessions/<slug>/prs.json` with one entry per **opened** PR (skip entries for repos where `autoCreatePR` short-circuited or PR creation failed):
+
+```json
+[
+  {
+    "repo": "owner/repo",
+    "number": 142,
+    "url": "https://github.com/owner/repo/pull/142",
+    "head_sha": "<sha returned by gh pr create or git rev-parse HEAD>",
+    "state": "open"
+  }
+]
+```
+
+Then seed `.muggle-do/sessions/<slug>/last_seen.json` with a per-PR cursor keyed by `"<owner>/<repo>#<number>"`:
+
+```json
+{
+  "owner/repo#142": {
+    "commentId": 0,
+    "reviewId": 0,
+    "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+    "last_pushed_sha": null,
+    "idle_tick_count": 0,
+    "escalated_comment_ids": []
+  }
+}
+```
+
+The follow-up stage owns advancing these cursors — stage 7 only seeds them.
+
+### Dispatch the loop
+
+If `prs.json` has at least one entry, dispatch:
+
+```
+/loop 5m /muggle:muggle-do-pr-followup <slug>
+```
+
+Resolve `<slug>` from the session directory's basename. Stage 8 runs detached from this point — see [`pr-followup.md`](pr-followup.md) for the per-tick contract.
+
+If `prs.json` is empty (every repo skipped `autoCreatePR`, or all PR creations failed), **do not dispatch the loop** — there is nothing to babysit. Record the no-op reason in `result.md` and exit normally.
+
+### Self-check before exit
+
+- [ ] `prs.json` exists and lists every PR actually opened.
+- [ ] `last_seen.json` exists with one cursor entry per `prs.json` entry.
+- [ ] If `prs.json` is non-empty, the `/loop` was dispatched as the final action.
+- [ ] If `prs.json` is empty, the reason is recorded in `result.md`.
+
 ## Output
 
 **PRs Created:**
@@ -101,6 +157,10 @@ Back in this stage:
 
 **E2E acceptance overflow comments posted:** (only include repos where an overflow comment was actually posted)
 - (repo name): comment posted to PR #(number)
+
+**Stage 8 follow-up:**
+- If dispatched: `Watching <N> PR(s) via /loop 5m /muggle:muggle-do-pr-followup <slug>. Use \`/loop list\` to see, \`/loop stop\` to kill.`
+- If skipped: `No PRs to watch — stage 8 not dispatched.`
 
 **Errors:** (any repos where PR creation or comment posting failed, with the error message)
 

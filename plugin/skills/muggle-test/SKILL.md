@@ -450,7 +450,7 @@ This is a suggestion, not automatic invocation. Skip silently if every test pass
 
 ## Mode C — PR-loop Procedure
 
-When the user wants to E2E-test every open PR on a repo (regression sweep, pre-merge audit, scheduled cron), run this procedure end-to-end instead of Steps 1–10 above. The per-PR worktrees are sequential because a single dev-server port forces one-at-a-time execution.
+When the user wants to E2E-test every open PR on a repo (regression sweep, pre-merge audit, scheduled cron), run this procedure end-to-end instead of Steps 1–10 above.
 
 ### When to invoke
 
@@ -466,34 +466,29 @@ For single-branch "test my changes" requests, use Modes A or B — not this loop
 
 1. **List PRs**: `gh pr list --repo <slug> --state open --json number,title,headRefName,author,isDraft --limit 100`. Filter out Dependabot entries (`author.is_bot && author.login == "app/dependabot"`) unless the user explicitly opts in via `AskUserQuestion`.
 2. **Verify auth**: call `muggle-remote-auth-status`. If expired or absent, re-login per Step 3 above before starting the loop. Long loops crossing token expiry should re-check between rounds.
-3. **Capture templates from main worktree**: read `.env.local` and `.muggle-ai/last-project.json` + `.muggle-ai/last-host.json` from the **main worktree** of the repo. These are gitignored — each per-PR worktree will receive copies (see `_shared/worktree-isolation.md` for the full cross-boundary file list).
-4. **Force-update PR refs**: for every PR number N to be tested, run `git fetch origin +refs/pull/<N>/head:pr-<N>`. The leading `+` forces the local ref to match origin so stale refs from prior rebase rounds get replaced.
+3. **Force-update PR refs**: for every PR number N to be tested, run `git fetch origin +refs/pull/<N>/head:pr-<N>`. The leading `+` forces the local ref to match origin so stale refs from prior rebase rounds get replaced.
 
-### Per-PR procedure (sequential — run order: PR number descending, newest first)
+### Execution model
 
-Each PR completes fully before the next starts. Single dev-server port = no parallelism.
+Default is **sequential** — simplest to reason about, and Muggle Test's Electron browser serializes test execution anyway. Parallel worktrees are fine when each has its own dev-server port (per the repo's env file) and isolated downstream resources (test user, local DB). When in doubt, sequential.
+
+### Per-PR procedure (run order: PR number descending, newest first)
 
 1. **Create worktree**: `git worktree add ../<repo>-wt-pr<N> pr-<N>`.
-2. **Copy templates**: `cp .env.local <worktree>/.env.local && cp -r .muggle-ai <worktree>/.muggle-ai`. The `.env.local` carries `PORT=3999` plus secrets; the `.muggle-ai/` cache skips project + host re-prompting in the subagent. See `_shared/worktree-isolation.md`.
-3. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, post a comment to the PR via `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, mark verdict `SKIPPED` in the aggregate report, continue to next PR.
-4. **Install**: per-worktree `npm install`, never symlink `node_modules/` — see [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md).
-5. **Kill port** 3999 before starting — helper commands in [`_shared/worktree-isolation.md`](../_shared/worktree-isolation.md) "Port-kill" section.
-6. **Start dev server** in `<worktree>` (background). Block dispatch on the two-stage readiness probe per [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md).
-7. **Placeholder detection**: `git diff origin/master..HEAD --stat` in the worktree. If empty after rebase → post a `gh pr comment <N> --body "SKIPPED — placeholder branch, no code under test"`, mark verdict `SKIPPED`, continue without dispatching the agent.
-8. **Route + project classification** based on changed files:
-   - Files under `src/components/landing/**` → `devServerUrl = http://localhost:<port>/` + landing-page test project.
+2. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, post `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, mark verdict `SKIPPED` in the aggregate report, continue to next PR.
+3. **Placeholder detection**: `git diff origin/master..HEAD --stat` in the worktree. If empty after rebase → `gh pr comment <N> --body "SKIPPED — placeholder branch, no code under test"`, mark verdict `SKIPPED`, continue without dispatching the agent.
+4. **Prepare the worktree's dev environment** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) via the `Skill` tool against `<worktree>`. That skill owns env-file + `.muggle-ai/` copy from a sibling, per-worktree `npm install`, port-conflict handling, dev-server start, and two-stage readiness. Do not duplicate any of those steps inline.
+5. **Route + project classification** based on changed files (the dev-server URL+port came from step 4 — read from `/tmp/muggle-test-prepare.json`):
+   - Files under landing-page paths → `devServerUrl = http://localhost:<port>/` + landing-page test project.
    - Otherwise → `devServerUrl = http://localhost:<port>/<dashboard-route>` + dashboard test project.
-9. **Dispatch `acceptance-tester` subagent**. The input contract lives in `plugin/agents/acceptance-tester.md`. Populate:
+6. **Dispatch `acceptance-tester` subagent**. The input contract lives in `plugin/agents/acceptance-tester.md`. Populate:
    - PR metadata (number, title, head ref, author)
    - Files changed (`git diff origin/master..HEAD --name-only`)
-   - `devServerUrl` from step 8
-   - Project + use case selection from step 8
+   - `devServerUrl` from step 5
+   - Project + use case selection from step 5
    - `priorFindings`: comment URLs + prior verdicts from `gh pr view <N> --json comments` so the agent knows whether to verify-fix or expect-same-blocker.
-10. **Receive structured return** from the subagent. Append to the in-memory aggregate report.
-11. **Cleanup**:
-    - Port-kill (same as step 5).
-    - `rm -rf <worktree>`. On Windows, if rm reports "busy" because node holds handles, retry once and otherwise leave the directory for manual cleanup — `git worktree prune` succeeds either way.
-    - `git worktree prune`.
+7. **Receive structured return** from the subagent. Append to the in-memory aggregate report.
+8. **Cleanup**: re-invoke `muggle-test-prepare` cleanup (it owns the PID tracking and port-kill helper), then `rm -rf <worktree>` and `git worktree prune`. On Windows, if `rm` reports "busy" because node holds handles, retry once and otherwise leave the directory for manual cleanup — `git worktree prune` succeeds either way.
 
 ### Loop hygiene
 
@@ -540,10 +535,11 @@ After all PRs are processed, emit:
 
 ### Cross-references
 
-- `_shared/worktree-isolation.md` — worktree gate + setup mechanics (cross-boundary files, per-worktree `npm install`, port-kill, cleanup).
-- `_shared/dev-server-readiness.md` — two-stage readiness probe (port-200 + compile log).
-- `_shared/failure-mode-handling.md` section F — verdict taxonomy + infra blocker catalog.
-- `plugin/agents/acceptance-tester.md` — subagent input/output contract.
+- [`muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md) — owns env-file copy, per-worktree `npm install`, port handling, dev-server start, two-stage readiness, cleanup. Mode C calls into it per worktree.
+- [`_shared/use-worktrees.md`](../_shared/use-worktrees.md) — `autoUseWorktree` gate.
+- [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) — two-stage readiness probe.
+- [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F — verdict taxonomy + infra blocker catalog.
+- [`plugin/agents/acceptance-tester.md`](../../agents/acceptance-tester.md) — subagent input/output contract.
 
 ## Tool Reference
 

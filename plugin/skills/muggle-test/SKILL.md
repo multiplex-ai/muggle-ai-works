@@ -470,25 +470,18 @@ For single-branch "test my changes" requests, use Modes A or B — not this loop
 
 ### Execution model
 
-Default is **sequential** — simplest to reason about, and Muggle Test's Electron browser serializes test execution anyway. Parallel worktrees are fine when each has its own dev-server port (per the repo's env file) and isolated downstream resources (test user, local DB). When in doubt, sequential.
+Default sequential (Electron serializes anyway). Parallel OK when each worktree has its own port + isolated test user/DB.
 
 ### Per-PR procedure (run order: PR number descending, newest first)
 
 1. **Create worktree**: `git worktree add ../<repo>-wt-pr<N> pr-<N>`.
-2. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, post `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, mark verdict `SKIPPED` in the aggregate report, continue to next PR.
-3. **Placeholder detection**: `git diff origin/master..HEAD --stat` in the worktree. If empty after rebase → `gh pr comment <N> --body "SKIPPED — placeholder branch, no code under test"`, mark verdict `SKIPPED`, continue without dispatching the agent.
-4. **Prepare the worktree's dev environment** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) via the `Skill` tool against `<worktree>`. That skill owns env-file + `.muggle-ai/` copy from a sibling, per-worktree `npm install`, port-conflict handling, dev-server start, and two-stage readiness. Do not duplicate any of those steps inline.
-5. **Route + project classification** based on changed files (the dev-server URL+port came from step 4 — read from `/tmp/muggle-test-prepare.json`):
-   - Files under landing-page paths → `devServerUrl = http://localhost:<port>/` + landing-page test project.
-   - Otherwise → `devServerUrl = http://localhost:<port>/<dashboard-route>` + dashboard test project.
-6. **Dispatch `acceptance-tester` subagent**. The input contract lives in `plugin/agents/acceptance-tester.md`. Populate:
-   - PR metadata (number, title, head ref, author)
-   - Files changed (`git diff origin/master..HEAD --name-only`)
-   - `devServerUrl` from step 5
-   - Project + use case selection from step 5
-   - `priorFindings`: comment URLs + prior verdicts from `gh pr view <N> --json comments` so the agent knows whether to verify-fix or expect-same-blocker.
-7. **Receive structured return** from the subagent. Append to the in-memory aggregate report.
-8. **Cleanup**: re-invoke `muggle-test-prepare` cleanup (it owns the PID tracking and port-kill helper), then `rm -rf <worktree>` and `git worktree prune`. On Windows, if `rm` reports "busy" because node holds handles, retry once and otherwise leave the directory for manual cleanup — `git worktree prune` succeeds either way.
+2. **Rebase**: `git -C <worktree> rebase origin/master`. On conflict: abort, `gh pr comment <N> --body "rebase conflict — fix locally before retry"`, verdict `SKIPPED`, next PR.
+3. **Placeholder check**: `git diff origin/master..HEAD --stat`. If empty: `gh pr comment <N> --body "SKIPPED — placeholder branch"`, verdict `SKIPPED`, next PR.
+4. **Prepare worktree** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) against `<worktree>`. Read resulting port from `/tmp/muggle-test-prepare.json`.
+5. **Classify path** based on changed files: landing-page paths → `<port>/`; else → `<port>/<dashboard-route>`. Pick the matching test project.
+6. **Dispatch `acceptance-tester`** (contract: [`../../agents/acceptance-tester.md`](../../agents/acceptance-tester.md)). Pass PR metadata, changed files, `devServerUrl`, project, and `priorFindings` (comment URLs + prior verdicts from `gh pr view <N> --json comments`).
+7. **Receive structured return**; append to aggregate report.
+8. **Cleanup** — `muggle-test-prepare` cleanup, then `git worktree remove --force <worktree>` + `git worktree prune`.
 
 ### Loop hygiene
 
@@ -535,11 +528,11 @@ After all PRs are processed, emit:
 
 ### Cross-references
 
-- [`muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md) — owns env-file copy, per-worktree `npm install`, port handling, dev-server start, two-stage readiness, cleanup. Mode C calls into it per worktree.
-- [`_shared/use-worktrees.md`](../_shared/use-worktrees.md) — `autoUseWorktree` gate.
-- [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) — two-stage readiness probe.
-- [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F — verdict taxonomy + infra blocker catalog.
-- [`plugin/agents/acceptance-tester.md`](../../agents/acceptance-tester.md) — subagent input/output contract.
+- [`muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md) — worktree/dev-server prep
+- [`_shared/use-worktrees.md`](../_shared/use-worktrees.md) — `autoUseWorktree` gate
+- [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) — readiness probe
+- [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F — verdict taxonomy
+- [`plugin/agents/acceptance-tester.md`](../../agents/acceptance-tester.md) — subagent contract
 
 ## Tool Reference
 

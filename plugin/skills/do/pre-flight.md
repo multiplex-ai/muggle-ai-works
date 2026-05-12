@@ -26,7 +26,7 @@ Before asking anything, gather every fact you can resolve without the user:
 
 1. **Candidate repo(s).** Match keywords in the task description against configured repo names. If one repo is an obvious match, propose it as the default; if two or three are plausible, list them.
 2. **Current branch and default branch** for each candidate repo. Run `git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short` and `git -C <repo> branch --show-current`. If the current branch is the default, the pre-flight must collect a new branch name.
-3. **Running dev server.** Scan common dev ports — `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'` — and hit `/` with `curl -s -o /dev/null -w "%{http_code}"` to confirm 2xx. Reconcile against the repo's env file (per-repo: `.env`, `.env.local`, `.env.development`, etc. — inspect `package.json` and framework config). If `PORT=` differs from the listening port, record a `PORT mismatch` warning in `state.md`. If the env file is missing in cwd but exists in a sibling worktree, record a `missing-env` recommendation — stage 6 (via `muggle-test-prepare`) handles the copy.
+3. **Running dev server.** Scan common dev ports — `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'` — and confirm 2xx with `curl`. Env-file/port reconciliation is owned by [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) at Stage 6.
 4. **Running backend.** If the repo's `.env.local` (or equivalent) declares a backend URL (e.g. `REACT_APP_BACKEND_BASE_URL=http://localhost:5050`), probe the health endpoint; note up/down.
 5. **Muggle Test MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
@@ -55,9 +55,9 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
-11. **Worktree?** — fire `autoUseWorktree` per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md). When resolved as `always`/`never`, no question — record in `state.md`. When `ask`/absent, include Picker 1 (+ Picker 2) from [`autoUseWorktree.md`](../muggle-preferences/preference-gates/autoUseWorktree.md) in this consolidated turn. When the gate resolves to `always`, stage 6 calls into [`../muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md) — which owns env-file copy, per-worktree `npm install`, port handling, and dev-server start.
-12. **Rebase onto `origin/<default>`?** — fire `autoRebase` per [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) only if `behind > 0`. Same picker rules as Q11; record in `state.md`. The E2E stage re-checks before launching the dev server.
-13. **Run E2E acceptance at the end?** — only if `autoE2ETest` resolved to `ask` in step 10. Per [`autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md): "Always run" → `always`, "Decide each cycle" → leave as `ask`. There is no `never` — installing Muggle Test commits to running E2E. Persist via Picker 2 per the standard procedure.
+11. **Worktree?** — `autoUseWorktree` (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
+12. **Rebase onto `origin/<default>`?** — `autoRebase`, only if `behind > 0` (see [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
+13. **Run E2E acceptance at the end?** — `autoE2ETest`, only if step 10 resolved to `ask` (see [`../muggle-preferences/preference-gates/autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md)).
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

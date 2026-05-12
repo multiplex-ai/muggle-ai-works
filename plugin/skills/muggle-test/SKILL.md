@@ -413,9 +413,12 @@ After reporting results, ask the user if they want to attach a **visual walkthro
 
 Read `plugin/skills/muggle-pr-visual-walkthrough/e2e-report-assembly.md` for the full assembly guide. All runs from Step 7A must be included (passed and failed).
 
-### 9b: Post the walkthrough (or create the PR first)
+### 9b: Post the walkthrough
 
-Run the shared procedure per [`../_shared/walkthrough-or-create-pr.md`](../_shared/walkthrough-or-create-pr.md). It detects the PR, fires the `postPRVisualWalkthrough` gate (which covers both Case A and Case B), and invokes `muggle-pr-visual-walkthrough` in Mode A. On the skip path, continue to Step 10 without posting.
+1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 10.
+2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
+3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → Step 10.
+4. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
 
 ## Step 10: Offer feedback on failures
 

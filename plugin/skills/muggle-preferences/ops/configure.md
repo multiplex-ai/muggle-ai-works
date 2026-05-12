@@ -33,8 +33,6 @@ For each option: label = key name, description = first paragraph of `preference-
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).
 - `multiSelect: false`, `header: "Scope"` — final scope question. Options: `Global (all repos)` (~/.muggle-ai/), `This project only` (.muggle-ai/ in repo).
 
-`autoE2ETest` is intentionally excluded — its default is already `always` and its only override is `ask`, so the "Which should auto-proceed (set to always)?" multi-select pattern doesn't fit. Users who want `ask` instead set it directly via `/muggle-preferences autoE2ETest`.
-
 `AskUserQuestion` accepts up to 4 questions per call — split into two calls if needed (categories first, scope second).
 
 ## Step 4 — apply selections

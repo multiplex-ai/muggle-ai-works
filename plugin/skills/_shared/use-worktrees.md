@@ -1,5 +1,22 @@
-# `autoUseWorktree` gate
+# Worktrees for Development
 
-**Fire only when** the cwd is not already a worktree (`git rev-parse --is-inside-work-tree`) AND the work is more than a trivial edit. Otherwise skip.
+General guidance for using git worktrees during development. The decision to fire is owned by the [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md) gate; this doc is the "how" once that gate says yes.
 
-On `always`: create the worktree (`git worktree add <repo>-worktrees/<slug> -b <branch>`). Worktree setup (env file, `npm install`, port, readiness) → [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md).
+## Pattern
+
+- **One worktree per branch.** Don't reuse a long-lived checkout across branches — dev servers tie to a single directory and pick up stale bundles on `git checkout`.
+- **Parallel is OK** when each worktree has its own dev-server port and isolated test user / DB. Default to sequential when in doubt.
+
+## Create
+
+```bash
+git worktree add <repo>-worktrees/<slug> -b <branch>
+```
+
+## Set up the dev server
+
+Env file, `npm install`, port, readiness — owned by [`../muggle-test-prepare/SKILL.md`](../muggle-test-prepare/SKILL.md).
+
+## Tear down
+
+After the PR merges — see [`post-merge-cleanup.md`](post-merge-cleanup.md).

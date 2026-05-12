@@ -26,7 +26,7 @@ Before asking anything, gather every fact you can resolve without the user:
 
 1. **Candidate repo(s).** Match keywords in the task description against configured repo names. If one repo is an obvious match, propose it as the default; if two or three are plausible, list them.
 2. **Current branch and default branch** for each candidate repo. Run `git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short` and `git -C <repo> branch --show-current`. If the current branch is the default, the pre-flight must collect a new branch name.
-3. **Running dev server.** Scan common dev ports — `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|3999|4200|5173|8080)'` — and confirm 2xx with `curl`. Env-file/port reconciliation is owned by [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) at Stage 6.
+3. **Running dev server.** Port detection per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md). Env-file/port reconciliation is owned by [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) at Stage 6.
 4. **Running backend.** If the repo's `.env.local` (or equivalent) declares a backend URL (e.g. `REACT_APP_BACKEND_BASE_URL=http://localhost:5050`), probe the health endpoint; note up/down.
 5. **Muggle Test MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
@@ -55,9 +55,9 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 8. **Test-user credentials** — only if validation is Local E2E AND the Auth0 tenant in the repo differs from the tenant the managed secrets were created under. Options: "Reuse existing secrets (may fail if tenant mismatch — will surface failure)" / "Create new secrets for this tenant (provide email + password)" / "Switch to staging replay".
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
-11. **Worktree for this change?** — `autoUseWorktree`. Options: create a sibling worktree, or work in the current checkout. See [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md).
-12. **Rebase onto `origin/<default>` first?** — `autoRebase`, only if `behind > 0`. Options: rebase before stage 6, or run as-is. See [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md).
-13. **Run E2E at the end of every cycle?** — `autoE2ETest`, only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle. See [`../muggle-preferences/preference-gates/autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md).
+11. **Worktree for this change?** — gate: [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md). Options: create a sibling worktree, or work in the current checkout.
+12. **Rebase onto `origin/<default>` first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. Options: rebase before stage 6, or run as-is.
+13. **Run E2E at the end of every cycle?** — gate: [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md), only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

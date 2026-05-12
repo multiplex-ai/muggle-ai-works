@@ -192,7 +192,7 @@ When a dependency on an env file exists:
 
 Skip silently when no env file is referenced. The point is to catch the common worktree-bootstrap miss, not to mandate any specific file.
 
-**Also copy `.muggle-ai/` from a sibling worktree if present:** `cp -r <sibling>/.muggle-ai ./.muggle-ai`. Don't symlink — concurrent runs must not share the cache.
+**Also copy `.muggle-ai/` from a sibling worktree if present** (it caches `last-project.json` / `last-host.json` — without it every run re-prompts for project + host): `cp -r <sibling>/.muggle-ai ./.muggle-ai`. Don't symlink — concurrent runs must not share the cache.
 
 ### Step 5: Determine Start Commands
 

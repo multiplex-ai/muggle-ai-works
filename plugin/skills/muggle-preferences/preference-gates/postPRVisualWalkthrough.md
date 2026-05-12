@@ -1,12 +1,10 @@
 # `postPRVisualWalkthrough`
 
-Post the visual walkthrough comment to the PR.
+Post the walkthrough comment to the PR, or skip. Substitute `{prNumber}`.
 
-Substitute `{prNumber}`, `{prTitle}`.
-
-**Picker 1** — header `Post to PR`, question `"Post the visual walkthrough to PR #{prNumber} ({prTitle})?"`
-- `Post to #{prNumber}` — `Reviewers see clickable per-test screenshots and dashboard links.` → `always`
-- `Skip` — `Keep it off the PR — you can post later from the dashboard.` → `never`
+**Picker 1** — header `Post to PR`, question `"Post the visual walkthrough to PR #{prNumber}?"`
+- `Post to #{prNumber}` — `Comment with screenshots is added to the PR.` → `always`
+- `Skip` — `Walkthrough is not posted.` → `never`
 
 **Silent action**
 - `always` → `Posting walkthrough to PR #{prNumber}`

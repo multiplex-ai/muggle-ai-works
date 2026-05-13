@@ -12,7 +12,7 @@ Open a pull request for each repo that has changes. If an E2E walkthrough report
 
 - Per-repo: name, path, branch.
 - Requirements: goal, acceptance criteria.
-- **Optional** E2E acceptance report from stage 6 — only present when validation ran. Shape is documented in `e2e-acceptance.md`.
+- **Optional** E2E acceptance report from stage 6 — only present when validation ran. Produced by [`e2e-acceptance.md`](e2e-acceptance.md); schema is canonical in [`muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) (Zod-validated by the CLI).
 
 ## Per repo
 

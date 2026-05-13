@@ -97,7 +97,7 @@ If every PR has zero actionable items this tick:
 
 ### Step 6: Classify and route
 
-**Classify** the picked item per [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) `## Classify`. The classification produces one of five action shapes. Apply the adaptive reply text from the same helpers file.
+**Classify** the picked item per [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) `## Classify`. The classification produces one of five action shapes.
 
 **Route** each action shape to muggle-do's pipeline:
 
@@ -106,6 +106,14 @@ If every PR has zero actionable items this tick:
 - **question** → reply inline via the reply-routing helper. No code change, no push.
 - **CI failure** → read the failing job log via `gh run view`, fix in the worktree, commit, push. Commit subject references the failing check by name (e.g. `fix(ci): typecheck — narrow type of foo`).
 - **ambiguous** → escalate per [Step 7: Escalate](#step-7-escalate) below.
+
+#### Reply text (adaptive)
+
+- **directive — in-place**: `Done in <sha> — <one-line>`. One line.
+- **directive — deep-cycle**: same shape, posted only after the full re-build cycle lands. `Done in <sha> after rebuild — <one-line>`.
+- **question**: answer inline. Reply length matches the question's complexity — don't write three paragraphs to answer a yes/no. If the answer reveals a bug, escalate instead of silently following up with a fix.
+- **CI failure**: no reply. The fix commit is the response; reference the failing check in the commit subject.
+- **ambiguous**: no bot reply. The escalation goes to the user, who replies themselves.
 
 ### Step 6a: Re-build dispatch
 

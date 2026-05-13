@@ -33,6 +33,14 @@ Stage 1 talks to the user once. Stages 2–7 run silently. Stage 8 runs detached
 
 **Each stage's file is the single source of truth for that stage** — definition, contract, inputs/outputs, preference gates, output format. Read each stage file directly for its rules. This file is only the orchestration spine.
 
+## Preferences
+
+| Preference | Stage | Decision it gates |
+|------------|-------|-------------------|
+| `autoE2ETest` | 6 (E2E acceptance) | Run E2E every cycle (default `always`), or fold the question into pre-flight |
+
+Other gates that fire during this cycle (`autoUseWorktree`, `autoRebase`, `autoCreatePR`, `autoCleanup`) are owned by the per-stage files; see each stage for its contract.
+
 ## Input routing
 
 Treat `$ARGUMENTS` as the user command:

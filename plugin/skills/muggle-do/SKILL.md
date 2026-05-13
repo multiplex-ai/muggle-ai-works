@@ -75,7 +75,7 @@ If any of these happen, the pre-flight was incomplete — treat it as a skill bu
 
 Every run writes to `.muggle-do/sessions/<slug>/`:
 
-- `state.md` — one-screen live status: current stage (N/8), last update timestamp, pre-flight answers verbatim, any blockers. While stage 8 is running, also tracks the tick counter and per-PR idle-tick counts.
+- `state.md` — one-screen live status: current stage (N), last update timestamp, pre-flight answers verbatim, any blockers. While stage 8 is running, also tracks the tick counter and per-PR idle-tick counts.
 - `iterations/<NNN>.md` — append-only log of stage transitions for iteration NNN: what ran, what was decided, what artifacts were produced.
 - `requirements.md` — frozen output of stage 2.
 - `result.md` — initial summary written by stage 7 (PR URLs, E2E outcome). If stage 8 was dispatched, it overwrites `result.md` on its terminating tick with the final post-merge picture (per-PR final state, count of items addressed and escalated, final commit SHA).
@@ -83,7 +83,7 @@ Every run writes to `.muggle-do/sessions/<slug>/`:
 
 **On every stage transition, you MUST:**
 
-1. Append a dated entry to the active `iterations/<NNN>.md`: `### Stage N/8 — <name> (<timestamp>)` followed by the stage's output.
+1. Append a dated entry to the active `iterations/<NNN>.md`: `### Stage N — <name> (<timestamp>)` followed by the stage's output.
 2. Rewrite `state.md` to reflect the new current stage and any relevant counters.
 
 If these files don't exist, create them — missing session files means the user lost visibility into the cycle, which is the exact failure mode this skill exists to prevent.
@@ -93,7 +93,7 @@ If these files don't exist, create them — missing session files means the user
 Each stage turn MUST begin with one line in this form before any other output:
 
 ```
-**Stage N/8 — <stage name>** — <one-line intent>
+**Stage N — <stage name>** — <one-line intent>
 ```
 
 This is how the user can tell, at a glance, what phase the cycle is in without parsing a long response.

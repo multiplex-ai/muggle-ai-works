@@ -1,4 +1,4 @@
-# PR follow-up agent (Stage 8/8)
+# PR follow-up agent (Stage 8)
 
 You are babysitting one or more open pull requests opened by stage 7. Each invocation of this stage is **one polling tick** dispatched by `/loop 5m /muggle:muggle-do-pr-followup <slug>`. The tick is short, idempotent, and addresses **at most one item per PR**.
 
@@ -9,7 +9,7 @@ The loop ends when every PR in the session is merged or closed.
 Start the turn with:
 
 ```
-**Stage 8/8 — PR follow-up** — polling <N> PR(s), tick #<K>.
+**Stage 8 — PR follow-up** — polling <N> PR(s), tick #<K>.
 ```
 
 Resolve `<N>` from `prs.json` (non-terminal entries only) and `<K>` from the tick counter in `state.md`.

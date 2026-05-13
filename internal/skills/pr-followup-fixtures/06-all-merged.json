@@ -1,0 +1,40 @@
+{
+  "name": "06-all-merged",
+  "description": "Every PR in the manifest is now merged. Stage 8 writes the final result.md, emits the final tick-summary telemetry, and DOES NOT schedule another /loop tick. The loop ends naturally.",
+
+  "input": {
+    "session_slug": "ship-it",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 147, "url": "https://github.com/acme/widget/pull/147", "head_sha": "cc33440", "state": "open" },
+      { "repo": "acme/widget", "number": 148, "url": "https://github.com/acme/widget/pull/148", "head_sha": "dd44550", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#147": { "commentId": 9400, "reviewId": 7300, "checkRunCompletedAt": "2026-05-12T13:00:00Z", "last_pushed_sha": "cc33440", "idle_tick_count": 4, "escalated_comment_ids": [] },
+      "acme/widget#148": { "commentId": 9420, "reviewId": 7310, "checkRunCompletedAt": "2026-05-12T13:05:00Z", "last_pushed_sha": "dd44550", "idle_tick_count": 4, "escalated_comment_ids": [] }
+    },
+    "gh_responses": {
+      "gh pr view 147 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "MERGED", "mergedAt": "2026-05-12T14:00:00Z", "closedAt": "2026-05-12T14:00:00Z", "headRefOid": "cc33440"
+      },
+      "gh pr view 148 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "MERGED", "mergedAt": "2026-05-12T14:02:00Z", "closedAt": "2026-05-12T14:02:00Z", "headRefOid": "dd44550"
+      }
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8 — PR follow-up** — polling 0 PR(s), tick #N.",
+    "items_seen": 0,
+    "items_picked": [],
+    "telemetry_events": [
+      { "event": "tick", "pr_count": 2, "prs_terminal": 2, "items_seen": 0, "items_addressed": 0, "items_escalated": 0, "pushed": false }
+    ],
+    "state_writes": {
+      "prs.json":    "both entries marked state: 'merged'",
+      "result.md":   "overwritten with final summary per pr-followup.md Step 2; one section per PR (final state, sha, item counts)",
+      "followup.log": "one terminating line"
+    },
+    "loop_continues": false,
+    "terminating_message": "Single user-facing terminal message per muggle-do/SKILL.md completion contract (stage 8 terminating message)."
+  }
+}

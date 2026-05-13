@@ -1,0 +1,64 @@
+{
+  "name": "07-in-flight-push",
+  "description": "Tick N+1, immediately after Stage 8 pushed a fix on tick N. CI is mid-run on the new HEAD. A failing check whose headSha equals last_pushed_sha is skipped by the head_sha guard (decision 11) — addressing it would double-handle a failure that's already being recomputed. The tick has nothing to do, so it idles.",
+
+  "input": {
+    "session_slug": "fix-validation",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 145, "url": "https://github.com/acme/widget/pull/145", "head_sha": "aa11221", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#145": {
+        "commentId": 0, "reviewId": 0,
+        "checkRunCompletedAt": "2026-05-12T12:30:00Z",
+        "last_pushed_sha": "aa11221",
+        "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 145 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "aa11221"
+      },
+      "gh pr view 145 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/145/comments": [],
+      "gh api repos/acme/widget/pulls/145/reviews": [],
+      "gh pr checks 145 --repo acme/widget": [
+        {
+          "name": "typecheck",
+          "state": "IN_PROGRESS",
+          "completedAt": null,
+          "detailsUrl": "https://github.com/acme/widget/actions/runs/4002",
+          "workflow": "ci.yml",
+          "headSha": "aa11221"
+        },
+        {
+          "name": "lint",
+          "state": "FAILURE",
+          "completedAt": "2026-05-12T12:35:00Z",
+          "detailsUrl": "https://github.com/acme/widget/actions/runs/4003",
+          "workflow": "ci.yml",
+          "headSha": "aa11221"
+        }
+      ]
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8 — PR follow-up** — polling 1 PR(s), tick #2.",
+    "items_seen": 0,
+    "items_picked": [],
+    "telemetry_events": [
+      { "event": "tick", "pr_count": 1, "prs_terminal": 0, "items_seen": 0, "items_addressed": 0, "items_escalated": 0, "pushed": false }
+    ],
+    "state_writes": {
+      "last_seen.json": "idle_tick_count: 0 → 1; cursors unchanged",
+      "followup.log":   "one heartbeat line (per decision 12, individual entry on every idle tick)"
+    },
+    "loop_continues": true,
+    "note": "The lint FAILURE is correctly skipped: its headSha matches last_pushed_sha. typecheck is IN_PROGRESS so also skipped. Once CI completes against a NEW head (after a different push) or against aa11221 with a state change visible past the guard, the loop will pick it up."
+  }
+}

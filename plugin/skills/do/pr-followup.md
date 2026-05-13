@@ -1,4 +1,4 @@
-# PR follow-up agent (Stage 8/8)
+# PR follow-up agent (Stage 8)
 
 You are babysitting one or more open pull requests opened by stage 7. Each invocation of this stage is **one polling tick** dispatched by `/loop 5m /muggle:muggle-do-pr-followup <slug>`. The tick is short, idempotent, and addresses **at most one item per PR**.
 
@@ -9,7 +9,7 @@ The loop ends when every PR in the session is merged or closed.
 Start the turn with:
 
 ```
-**Stage 8/8 — PR follow-up** — polling <N> PR(s), tick #<K>.
+**Stage 8 — PR follow-up** — polling <N> PR(s), tick #<K>.
 ```
 
 Resolve `<N>` from `prs.json` (non-terminal entries only) and `<K>` from the tick counter in `state.md`.
@@ -103,16 +103,33 @@ For each picked item, classify it:
 
 | Class | Signals | Action |
 | :---- | :------ | :----- |
-| **directive** | Imperative verb on a concrete target: "rename X to Y", "extract this", "add a null check", "remove this branch", "use `const` here", "this should be `async`", "delete this comment". Includes review-body summaries that read as a list of changes. | Fix → commit → push → reply `Done in <sha> — <one-line>`. |
+| **directive — in-place** | Imperative verb on a concrete, mechanical target: "rename X to Y", "extract this", "add a null check", "remove this branch", "use `const` here", "this should be `async`", "delete this comment", "fix this typo". The change is localized — one file, a handful of lines. | Fix → commit → push → reply `Done in <sha> — <one-line>`. |
+| **directive — re-build** | Imperative on a non-trivial implementation target: "rewrite this module", "this approach is wrong, use X pattern instead", "extract these three things into a shared library", "the architecture doesn't match the spec — redo it". The change is substantive — multi-file, requires re-reasoning about the requirements. | **Cycle back to Stage 3 (Build).** Dispatch the build stage with the comment as an amendment to `requirements.md`, then run forward through impact-analysis → unit-tests → E2E → push. No reply until the cycle completes; then `Done in <sha> after rebuild — <one-line>`. See [Step 6a: Re-build dispatch](#step-6a-re-build-dispatch) below. |
 | **question** | Ends with `?` and is not a rhetorical disguise. "Why this approach?", "Is this called from X?", "Does this need to handle Z?". | Reply inline with the answer. No code change. No push. |
 | **CI failure** | Source is a failing check, not a comment. | Read the failing job log, fix, commit, push. No reply. |
 | **ambiguous** (default) | Proposes an alternative without instructing ("I think we should use Z instead", "Have you considered Y?"), conflicts with a deliberate choice in the PR description or design doc, or is a multi-part comment mixing question and change request. | **Escalate.** See [Step 7: Escalate](#step-7-escalate). |
 
 When the comment matches neither **directive** nor **question** cleanly, default to **ambiguous**. Do not guess. The cost of escalating a directive that could have been auto-handled is small; the cost of pushing a wrong change because we guessed is large.
 
+Distinguishing **in-place** from **re-build** directives: if the change can be made in under ~20 lines across a single file by following the comment literally, it's in-place. If it requires re-reasoning about *what* to build (not just *how*), it's re-build — even if the final diff is small. When in doubt, prefer re-build: cycling through the dev pipeline gives the change a unit-test and E2E pass before pushing, while in-place skips both.
+
+### Step 6a: Re-build dispatch
+
+When a directive classifies as **re-build**:
+
+1. Append the comment body to `requirements.md` under a new `## Amendment <ts>` section. Note the source comment id and reviewer login.
+2. Invoke stage 3 (`build.md`) with the amended `requirements.md` as input. The build stage takes the existing branch (no fresh worktree) and applies the change.
+3. After build completes, run forward through impact-analysis (4), unit-tests (5), E2E acceptance (6) in turn. Each stage reads its inputs from session state as in a fresh cycle.
+4. Stage 7 (open-prs) is a **no-op for re-build dispatch** since the PR already exists; the new commit is pushed directly to the existing branch.
+5. On push success, reply to the original comment via the reply-routing helper: `Done in <sha> after rebuild — <one-line>`.
+6. Resume polling from this tick's `last_seen.json` cursors.
+
+If any stage in the re-build cycle fails (build can't implement, unit tests fail, E2E fails after 3 retries), escalate to the user with the specific blocker — do not push a half-finished implementation.
+
 #### Decision rule: reply text (adaptive, decision 6)
 
-- **directive**: short, one-line. `Done in <sha> — renamed \`fooBar\` to \`foo_bar\` per request.` Use the [reply-routing helper](#reply-routing) to hit the correct endpoint.
+- **directive — in-place**: short, one-line. `Done in <sha> — renamed \`fooBar\` to \`foo_bar\` per request.` Use the [reply-routing helper](#reply-routing) to hit the correct endpoint.
+- **directive — re-build**: same one-line shape, but reply only after the full re-build cycle (build → impact → unit → E2E → push) lands. `Done in <sha> after rebuild — <one-line>`.
 - **question**: answer inline. Pull surrounding-code context if needed. Reply length matches the question's complexity — don't write three paragraphs to answer a yes/no.
 - **CI failure**: no comment to reply to. The fix commit is the response. The commit message should reference the failing check by name (e.g. `fix(ci): typecheck — narrow type of foo`).
 - **ambiguous**: no reply written by the bot. The escalation goes to the user, who replies to the comment themselves.

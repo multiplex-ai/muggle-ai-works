@@ -1,114 +1,86 @@
-# PR Creation Agent (Stage 7/7)
+# PR Creation Agent (Stage 7 — Open PR)
 
-You are creating pull requests for each repository that has changes after a successful dev cycle run.
+Open a pull request for each repo that has changes. If an E2E walkthrough report is available from the previous stage, attach it. Honor preference gates. Hand off to stage 8 once done.
 
 ## Turn preamble
 
-Start the turn with:
-
 ```
-**Stage 7/7 — Open PR** — rendering the visual walkthrough and pushing the PR.
+**Stage 7 — Open PR** — pushing the branch and opening the PR.
 ```
 
-## Non-negotiable: visual walkthrough is required
+## Inputs
 
-**You MUST invoke `muggle-pr-visual-walkthrough` (Mode B) to render the E2E section of the PR body.** Hand-writing the PR body with a text summary and `gh pr create` is a stage failure — reviewers rely on the dashboard links and per-step screenshots the walkthrough produces.
+- Per-repo: name, path, branch.
+- Requirements: goal, acceptance criteria.
+- **Optional** E2E acceptance report from stage 6 — only present when validation ran. Produced by [`e2e-acceptance.md`](e2e-acceptance.md); schema is canonical in [`muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) (Zod-validated by the CLI).
 
-If the E2E stage was skipped (validation was `unit-only` or `skip`), you may omit the walkthrough section — but mark the PR title with `[UNVERIFIED]` or `[UNIT-ONLY]` accordingly, and record the reason in the PR body under `## Validation`.
+## Per repo
 
-Before calling `gh pr create`, self-check:
+0. **`autoCreatePR` gate** — apply per [`../muggle-preferences/preference-gates/autoCreatePR.md`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.
 
-- [ ] `muggle-pr-visual-walkthrough` was invoked (or the skip reason is recorded).
-- [ ] The `body` returned by the skill is embedded verbatim in the PR body.
-- [ ] If `comment` is non-null, it will be posted as a follow-up after the PR is created.
+1. **Push:** `git push -u origin <branch>` in the repo directory.
 
-If you cannot check all three, **halt** — do not create the PR. Fix the upstream stage first.
+2. **Title** (under 70 chars):
+   - E2E report exists and has failures → `[E2E FAILING] <goal>`
+   - No E2E report at all (validation was `unit-only` or `skip`) → `[UNVERIFIED] <goal>` or `[UNIT-ONLY] <goal>` to match the validation strategy
+   - Otherwise → `<goal>`
 
-## Input
+3. **Body** — assemble in order:
+   - `## Goal` — from requirements.
+   - `## Acceptance Criteria` — bulleted; omit section if empty.
+   - `## Changes` — summary of what changed in this repo.
+   - `## Validation` — one line: link to E2E report, or `unit-only`, or `skip — <reason>`.
+   - **If an E2E report exists,** invoke [`muggle-pr-visual-walkthrough`](../muggle-pr-visual-walkthrough/SKILL.md) Mode B to render the walkthrough block. Embed the returned `body` verbatim (it brings its own `## E2E Acceptance Results` heading). If no report, skip this block entirely.
 
-You receive:
-- Per-repo: repo name, path, branch name
-- Requirements: goal, acceptance criteria
-- E2E acceptance report: passed/failed test cases, each with:
-  - `testCaseId`, `testScriptId`, `runId`, `projectId`
-  - `viewUrl`: link to view run on muggle-ai.com
-  - `steps`: array of `{ stepIndex, action, screenshotUrl }`
-  - `failureStepIndex` and `error` (if failed)
-  - `artifactsDir` (for local debugging)
-  - `description` and `useCaseName` (optional but recommended) — test case one-liner and parent use case title; drive the grouped overview and the per-test collapsible headers in the rendered walkthrough. Prefer values already in the `e2e-acceptance.md` stage's conversation context; only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` for anything you don't already have.
+4. **Create:** `gh pr create --title "..." --body "..." --head <branch>`. Capture the PR URL and number.
 
-## Your Job
-
-For each repo with changes:
-
-0. **Apply the `autoCreatePR` gate** per [`../muggle-preferences/preference-gates/README.md`](../muggle-preferences/preference-gates/README.md) + [`autoCreatePR.md`](../muggle-preferences/preference-gates/autoCreatePR.md). On the skip path, record the reason in `result.md` and move to the next repo.
-
-1. **Push the branch** to origin: `git push -u origin <branch-name>` in the repo directory.
-2. **Build the PR title:**
-   - If E2E acceptance tests have failures: `[E2E FAILING] <goal>`
-   - Otherwise: `<goal>`
-   - Keep under 70 characters
-3. **Render the E2E acceptance block** by invoking the shared `muggle-pr-visual-walkthrough` skill in **Mode B** (render-only for embedding). See "Rendering the E2E acceptance block via the shared skill" below. You receive `{body, comment}` where `body` is the E2E markdown block and `comment` is a non-null overflow comment only when the content exceeds the CLI's byte budget.
-4. **Build the PR body** by concatenating, in order:
-   - `## Goal` — the requirements goal
-   - `## Acceptance Criteria` — bulleted list (omit section if empty)
-   - `## Changes` — summary of what changed in this repo
-   - The `body` field from the skill output (already contains its own `## E2E Acceptance Results` header — do not add another)
-5. **Create the PR** using `gh pr create --title "..." --body "..." --head <branch>` in the repo directory.
-6. **Capture the PR URL** and extract the PR number.
-7. **Post the overflow `comment` only if it is non-null.** In the common case, `comment` is `null` and nothing is posted. Never post speculatively.
-
+5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once:
    ```bash
    jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <PR#> --body-file -
    ```
+   Never post when `comment` is `null`.
 
-## Rendering the E2E acceptance block via the shared skill
+## Stage 8 handoff
 
-**Do not hand-write the `## E2E Acceptance Results` markdown, and do not call `muggle build-pr-section` directly from this stage.** The rendering workflow is owned by the shared **`muggle-pr-visual-walkthrough`** skill (see `plugin/skills/muggle-pr-visual-walkthrough/SKILL.md`), which wraps the CLI and enforces the `E2eReport` input contract with a Zod schema.
+After every repo is processed, build the manifest and dispatch the follow-up loop. **The dispatch is the LAST action this stage takes** — once it fires, the original session is free.
 
-### Input — the `E2eReport` JSON
+Write `.muggle-do/sessions/<slug>/prs.json` with one entry per **opened** PR (skip repos where `autoCreatePR` short-circuited or PR creation failed):
 
-The `e2e-acceptance.md` stage already produces an `E2eReport` with the exact shape the skill expects (`projectId` + `tests[]` with per-test `name`, `testCaseId`, `testScriptId`, `runId`, `viewUrl`, `status`, and `steps[]` of `{stepIndex, action, screenshotUrl}`; failed tests additionally have `failureStepIndex`, `error`, and optionally `artifactsDir`; every test may additionally carry `description` and `useCaseName` — optional but recommended — which drive the grouped overview and per-test collapsible headers in the rendered walkthrough). Pass it through unchanged — do not reshape it. The full schema is documented in the shared skill.
+```json
+[{ "repo": "owner/repo", "number": 142, "url": "...", "head_sha": "...", "state": "open" }]
+```
 
-### Invocation — Mode B (render-only)
+Seed `.muggle-do/sessions/<slug>/last_seen.json` keyed by `"<owner>/<repo>#<n>"` with the empty-cursor shape (full shape in [`pr-followup.md`](pr-followup.md)). Stage 7 only seeds; stage 8 owns advancing the cursors.
 
-Invoke `muggle-pr-visual-walkthrough` via the `Skill` tool with the `E2eReport` already in context. The skill will:
+If `prs.json` is non-empty, dispatch as the final action:
+```
+/loop 5m /muggle:muggle-do-pr-followup <slug>
+```
+Resolve `<slug>` from the session directory's basename.
 
-1. Validate the `E2eReport` and call `muggle build-pr-section` (piping the JSON to stdin).
-2. Parse the CLI's `{body, comment}` stdout.
-3. **Return `{body, comment}` to this stage's conversation** without posting anything — because Mode B is render-only. `body` is the E2E markdown block; `comment` is a non-null overflow follow-up comment only when content exceeds the byte budget, otherwise `null`.
+If `prs.json` is empty (all repos skipped, or all PR creations failed), **do not dispatch** — record the reason in `result.md` and exit.
 
-Mode A (where the skill itself finds an existing PR and posts a `gh pr comment`) is **not used by `muggle-do`** — it's for interactive callers like `muggle-test` that are mid-development with a PR already open. `muggle-do` always creates new PRs, so it always uses Mode B.
+## Self-check before exit
 
-### After rendering
-
-Back in this stage:
-
-- Embed `body` in the `gh pr create --body` body (see step 4 above).
-- Post the overflow `comment` as a follow-up **only when it is non-null** (see step 7 above).
-- If the CLI exited non-zero, the skill surfaces the stderr error — do not swallow it, surface it to the user.
-
-### Notes on fit vs. overflow
-
-- **Common case (fit):** the full evidence (summary, per-test rows, collapsible failure details) lives in the PR description, `comment` is `null`, no follow-up comment is posted.
-- **Overflow case:** the CLI detects the full body would exceed its byte budget; `body` contains the summary, per-test rows, and a pointer line; `comment` contains the overflow details. Post both.
-- You do not make the fit-vs-overflow decision — the CLI does. Never post the comment when it is `null`.
+- [ ] Every non-skipped repo got `gh pr create` to succeed.
+- [ ] When an E2E report existed, the walkthrough block was rendered via Mode B (not hand-written).
+- [ ] Overflow `comment` was posted only when non-null.
+- [ ] `prs.json` and `last_seen.json` reflect the PRs actually opened.
+- [ ] If `prs.json` is non-empty, the `/loop` dispatch was the last action.
 
 ## Output
 
-**PRs Created:**
-- (repo name): (PR URL)
+**PRs Created:** repo → URL
+**Skipped:** repo → reason (when `autoCreatePR` short-circuited)
+**Overflow comments posted:** repo → PR #
+**Stage 8:** `Watching <N> PR(s) via /loop 5m /muggle:muggle-do-pr-followup <slug>` | `No PRs to watch — stage 8 not dispatched`
+**Errors:** repo → message
 
-**E2E acceptance overflow comments posted:** (only include repos where an overflow comment was actually posted)
-- (repo name): comment posted to PR #(number)
+## Post-merge cleanup
 
-**Errors:** (any repos where PR creation or comment posting failed, with the error message)
+Gated by `autoCleanup`. Fires in a follow-up turn after merge — never from this stage. See [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md).
 
-## Post-merge cleanup (gated by `autoCleanup`)
-
-Cleanup fires in a follow-up turn after merge — never from this stage. See [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md).
-
-After printing PR URLs, append one short reminder tied to the gate's current value:
+Append one short reminder tied to the gate value:
 
 - `always` → `Once merged, I'll run the cleanup sequence automatically.`
 - `never` → omit.

@@ -1,4 +1,4 @@
-# Impact Analysis Agent (Stage 3)
+# Impact Analysis Agent (Stage 4)
 
 You are analyzing git repositories to determine which ones have actual code changes that need to go through the dev cycle pipeline.
 
@@ -7,7 +7,7 @@ You are analyzing git repositories to determine which ones have actual code chan
 Start the turn with:
 
 ```
-**Stage 3 — Impact analysis** — diffing each affected repo against its default branch.
+**Stage 4 — Impact analysis** — diffing each affected repo against its default branch.
 ```
 
 ## Input

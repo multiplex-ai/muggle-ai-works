@@ -1,8 +1,8 @@
 # PR follow-up helpers
 
-Operational detail for [`pr-followup.md`](pr-followup.md). The main file describes the per-tick contract; this file fills in the procedures it calls out by name (reviewer allow-list, reply routing, comment classification).
+Generic operational guidance for running a PR-comment follow-up loop on GitHub: reviewer allow-list resolution, reply routing across the different comment endpoints, and a borderline-tested rule for classifying reviewer comments. Shared because the same procedures apply to any caller that runs a stage-8-shaped loop — `muggle-do` is the first, but not the last.
 
-Keep both files in lockstep — when the contract changes, update both.
+The per-tick contract that consumes these procedures lives in [`../do/pr-followup.md`](../do/pr-followup.md). Keep both files in lockstep — when the contract changes, update both.
 
 ## Resolving the reviewer allow-list
 
@@ -101,7 +101,7 @@ fix(ci): lint — remove unused import
 
 ## Classify
 
-The decision table in `pr-followup.md` is the rule. This section is worked examples — read them when classifying a borderline case.
+The decision table in [`../do/pr-followup.md`](../do/pr-followup.md) is the rule. This section is worked examples — read them when classifying a borderline case.
 
 ### Directive (comply silently)
 
@@ -153,7 +153,7 @@ Default. When the comment doesn't cleanly fit directive or question, escalate.
 | "this is wrong" | Asserts a problem but doesn't propose a fix |
 | "we discussed this offline — please address" | References context the loop doesn't have |
 
-For each, escalate per `pr-followup.md` Step 7. Don't guess.
+For each, escalate per [`../do/pr-followup.md`](../do/pr-followup.md) Step 7. Don't guess.
 
 ### Borderline rule
 

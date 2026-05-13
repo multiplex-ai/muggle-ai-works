@@ -1,8 +1,8 @@
 # PR follow-up helpers
 
-Generic operational guidance for running a PR-comment follow-up loop on GitHub: reviewer allow-list resolution, reply routing across the different comment endpoints, and a borderline-tested rule for classifying reviewer comments. Shared because the same procedures apply to any caller that runs a stage-8-shaped loop — `muggle-do` is the first, but not the last.
+Generic operational guidance for running a PR-comment follow-up loop on GitHub: reviewer allow-list resolution, reply routing across the different comment endpoints, and a classification rule for reviewer comments with worked examples and a borderline test. Caller-agnostic — any loop that picks one comment per tick and decides what to do with it can drive off this doc.
 
-The per-tick contract that consumes these procedures lives in [`../do/pr-followup.md`](../do/pr-followup.md). Keep both files in lockstep — when the contract changes, update both.
+The classification produces an **action shape** (in-place change, deep-cycle through the caller's implementation pipeline, reply only, escalate, etc.) — the caller maps each shape to its specific routing (which stage to dispatch, which terminal-message template to use, which reply endpoint to hit).
 
 ## Resolving the reviewer allow-list
 
@@ -101,11 +101,29 @@ fix(ci): lint — remove unused import
 
 ## Classify
 
-The decision table in [`../do/pr-followup.md`](../do/pr-followup.md) is the rule. This section is worked examples — read them when classifying a borderline case.
+Each picked comment falls into one of five classes. The class determines the **action shape** the caller should apply.
 
-### Directive (comply silently)
+| Class | Signals | Action shape |
+| :---- | :------ | :----------- |
+| **directive — in-place** | Imperative verb on a concrete, mechanical target: rename, extract, add a null check, use `const`, fix a typo. The change is localized — one file, a handful of lines. | Apply the change directly; commit; push; reply with the new commit reference. |
+| **directive — deep-cycle** | Imperative on a non-trivial implementation target: "rewrite this module", "the approach is wrong, use X pattern instead", "extract these three things into a shared library", "the architecture doesn't match the spec — redo it". Substantive, multi-file, requires re-reasoning about the requirements. | Re-route through the caller's full implementation cycle (build → tests → push). Reply only after the cycle completes; the reply text notes the rebuild. |
+| **question** | Ends with `?` and is asking for information, not requesting a change. | Reply inline with the answer; no code change; no push. If the answer reveals a bug, escalate — don't silently follow up with a fix. |
+| **CI failure** | Source is a failing check, not a comment. | Read the failing job log, fix, commit, push. No reply — the fix commit is the response. The commit subject should reference the failing check by name. |
+| **ambiguous** (default) | Proposes an alternative without instructing ("I think we should use Z instead", "Have you considered Y?"), conflicts with a deliberate choice in the PR description or design doc, or mixes question and change request in one comment. | Escalate to the user once with both possible interpretations; pause the PR (write the comment id to the cursor's escalated set) until the user resolves. |
 
-Imperative verb on a concrete target. Comply without asking.
+When the comment matches neither **directive** nor **question** cleanly, default to **ambiguous**. Do not guess. The cost of escalating a directive that could have been auto-handled is small; the cost of pushing a wrong change because we guessed is large.
+
+**Distinguishing in-place from deep-cycle directives:** if the change can be made in under ~20 lines across a single file by following the comment literally, it's in-place. If it requires re-reasoning about *what* to build (not just *how*), it's deep-cycle — even if the final diff is small. When in doubt, prefer deep-cycle: cycling through the full pipeline gives the change unit-test and E2E coverage before pushing.
+
+**Adaptive reply text** by class:
+
+- **directive — in-place**: short, one-line. `Done in <sha> — renamed \`fooBar\` to \`foo_bar\` per request.`
+- **directive — deep-cycle**: same one-line shape, but reply only after the full cycle lands. `Done in <sha> after rebuild — <one-line>`.
+- **question**: answer inline. Reply length matches the question's complexity — don't write three paragraphs to answer yes/no.
+- **CI failure**: no comment to reply to; the fix commit is the response.
+- **ambiguous**: no reply from the bot — the escalation goes to the user, who replies themselves.
+
+### Worked examples — Directive
 
 | Comment body | Why directive |
 | :----------- | :------------ |
@@ -122,9 +140,9 @@ Imperative verb on a concrete target. Comply without asking.
 
 A **CHANGES_REQUESTED review body** that reads as a bulleted list of the above is also a directive — handle each bullet as a separate item over successive ticks.
 
-### Question (reply only)
+If the comment instructs a non-trivial restructure ("rewrite this module", "the architecture is wrong, redo it"), it's still a directive — but **deep-cycle**, not in-place. Same comply-without-asking principle, different action shape.
 
-Ends with `?` and is asking for information, not requesting a change.
+### Worked examples — Question
 
 | Comment body | Why question |
 | :----------- | :------------ |
@@ -136,9 +154,7 @@ Ends with `?` and is asking for information, not requesting a change.
 
 Answer inline. If the answer reveals a bug, **escalate** — don't silently follow up with a fix.
 
-### Ambiguous (escalate)
-
-Default. When the comment doesn't cleanly fit directive or question, escalate.
+### Worked examples — Ambiguous
 
 | Comment body | Why ambiguous |
 | :----------- | :------------ |
@@ -153,7 +169,7 @@ Default. When the comment doesn't cleanly fit directive or question, escalate.
 | "this is wrong" | Asserts a problem but doesn't propose a fix |
 | "we discussed this offline — please address" | References context the loop doesn't have |
 
-For each, escalate per [`../do/pr-followup.md`](../do/pr-followup.md) Step 7. Don't guess.
+For each, escalate per the caller's escalation procedure (write the comment id to the cursor's escalated set, emit one terminal message with both interpretations, pause the PR until the user resolves). Don't guess.
 
 ### Borderline rule
 

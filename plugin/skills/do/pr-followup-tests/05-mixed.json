@@ -54,7 +54,7 @@
   },
 
   "expected": {
-    "preamble": "**Stage 8/8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "preamble": "**Stage 8 — PR follow-up** — polling 1 PR(s), tick #1.",
     "items_seen": 3,
     "items_picked": [
       {

@@ -23,7 +23,7 @@
   },
 
   "expected": {
-    "preamble": "**Stage 8/8 — PR follow-up** — polling 0 PR(s), tick #N.",
+    "preamble": "**Stage 8 — PR follow-up** — polling 0 PR(s), tick #N.",
     "items_seen": 0,
     "items_picked": [],
     "telemetry_events": [

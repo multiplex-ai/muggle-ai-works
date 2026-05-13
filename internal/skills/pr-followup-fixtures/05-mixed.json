@@ -1,0 +1,81 @@
+{
+  "name": "05-mixed",
+  "description": "Three new items on one PR: a directive at 13:00, a question at 13:05, a failing CI check at 13:10. Stage 8 picks the OLDEST (the directive) and addresses only that one this tick. The other two wait for the next tick, where the same ordering rule applies.",
+
+  "input": {
+    "session_slug": "feature-toggle",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 146, "url": "https://github.com/acme/widget/pull/146", "head_sha": "bb22330", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#146": {
+        "commentId": 0, "reviewId": 0,
+        "checkRunCompletedAt": "1970-01-01T00:00:00Z",
+        "last_pushed_sha": null, "idle_tick_count": 0,
+        "escalated_comment_ids": []
+      }
+    },
+    "gh_responses": {
+      "gh pr view 146 --repo acme/widget --json state,mergedAt,closedAt,headRefOid": {
+        "state": "OPEN", "mergedAt": null, "closedAt": null, "headRefOid": "bb22330"
+      },
+      "gh pr view 146 --repo acme/widget --json reviewRequests,author": {
+        "reviewRequests": [{ "login": "alice" }, { "login": "bob" }],
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/146/comments": [
+        {
+          "id": 9300, "user": { "login": "alice" },
+          "body": "use `const` here, not `let`",
+          "path": "src/toggle.ts", "line": 12,
+          "pull_request_review_id": 7200,
+          "created_at": "2026-05-12T13:00:00Z"
+        },
+        {
+          "id": 9301, "user": { "login": "bob" },
+          "body": "why this approach?",
+          "path": "src/toggle.ts", "line": 30,
+          "pull_request_review_id": 7201,
+          "created_at": "2026-05-12T13:05:00Z"
+        }
+      ],
+      "gh api repos/acme/widget/pulls/146/reviews": [],
+      "gh pr checks 146 --repo acme/widget": [
+        {
+          "name": "lint",
+          "state": "FAILURE",
+          "completedAt": "2026-05-12T13:10:00Z",
+          "detailsUrl": "https://github.com/acme/widget/actions/runs/4010",
+          "workflow": "ci.yml",
+          "headSha": "bb22330"
+        }
+      ]
+    }
+  },
+
+  "expected": {
+    "preamble": "**Stage 8 — PR follow-up** — polling 1 PR(s), tick #1.",
+    "items_seen": 3,
+    "items_picked": [
+      {
+        "pr_key": "acme/widget#146",
+        "type": "line_comment",
+        "classification": "directive",
+        "outcome": "fixed_and_pushed",
+        "reply_endpoint": "POST /repos/acme/widget/pulls/146/comments/9300/replies",
+        "reply_body_contains": ["Done in", "const"],
+        "commit_subject": "refactor: use const for toggle initializer"
+      }
+    ],
+    "telemetry_events": [
+      { "event": "item", "item_type": "directive", "outcome": "fixed_and_pushed" },
+      { "event": "tick", "items_seen": 3, "items_addressed": 1, "items_escalated": 0, "pushed": true }
+    ],
+    "state_writes": {
+      "last_seen.json": "commentId advanced to 9300; reviewId, checkRunCompletedAt UNCHANGED (items not addressed yet); last_pushed_sha set to new HEAD",
+      "followup.log":   "one per-item line"
+    },
+    "loop_continues": true,
+    "next_tick_note": "On tick #2, the question at 9301 is picked (replied). On tick #3, the CI failure is picked — UNLESS its headSha equals last_pushed_sha, in which case the head_sha guard skips it (see fixture 07)."
+  }
+}

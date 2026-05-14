@@ -1,6 +1,6 @@
 # Stage 8 Validation Run
 
-End-to-end test of the `/muggle-do` stage-8 follow-up loop on a real GitHub PR. Throwaway PR; the file's only purpose is to be a vessel for reviewer comments.
+End-to-end test of the `/muggle-do` stage-8 follow-up loop on a real GitHub PR. Sandbox PR; the file's only purpose is to be a vessel for reviewer comments.
 
 ## Procedure
 

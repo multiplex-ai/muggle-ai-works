@@ -4,12 +4,10 @@ End-to-end test of the `/muggle-do` stage-8 follow-up loop on a real GitHub PR. 
 
 ## Procedure
 
-1. This PR is opened.
-2. The reviewer leaves three comments on lines of this file: one **directive** (clear, mechanical change), one **question** (asks for info, no implied change), one **ambiguous** (proposes an alternative without instructing).
-3. The follow-up loop is dispatched: `/loop 5m /muggle:muggle-do-pr-followup stage-8-validation`.
-4. Each polling tick classifies the oldest unaddressed comment per the rule in `_shared/pr-followup-helpers.md`, applies the muggle-do-specific routing in `do/pr-followup.md`, advances cursors, and exits.
-5. The directive results in a push + reply. The question results in a reply only. The ambiguous comment results in an escalation terminal message and pauses this PR until the user resolves.
-6. Restart safety is exercised by killing the loop after the first action and restarting from the same state.
+1. Open this PR; leave three comments (directive, question, ambiguous).
+2. Dispatch the loop: `/loop 1m /muggle:muggle-do-pr-followup stage-8-validation`.
+3. Each tick classifies one comment per the helpers rule and routes per `do/pr-followup.md`. Directive → push + reply. Question → reply only. Ambiguous → escalate.
+4. Kill and restart the loop mid-run to confirm restart safety against `last_seen.json`.
 
 ## Session
 

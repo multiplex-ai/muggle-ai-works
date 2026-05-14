@@ -27,7 +27,7 @@ For maintenance, use the dedicated skills:
 | 5 | Unit tests | [../do/unit-tests.md](../do/unit-tests.md) | No |
 | 6 | E2E acceptance | [../do/e2e-acceptance.md](../do/e2e-acceptance.md) | No |
 | 7 | Open PR | [../do/open-prs.md](../do/open-prs.md) | No |
-| 8 | PR follow-up | [../do/pr-followup.md](../do/pr-followup.md) | **Yes — only on ambiguous reviews** |
+| 8 | PR follow-up | [../muggle-pr-followup/SKILL.md](../muggle-pr-followup/SKILL.md) (generic) — invoked with muggle-do's cycle declaration | **Yes — only on ambiguous reviews** |
 
 Stage 1 talks to the user once. Stages 2–7 run silently. Stage 7 dispatches **one Stage-8 follow-up loop per PR** it opens (not one per session); each loop polls its own PR independently for new submitted reviews. When a review lands, the loop cycles back through Stage 3 (Build) → 4 → 5 → 6 → fresh visual walkthrough → push to the existing branch, then resumes polling for the next round. Each loop may escalate once on an ambiguous review.
 

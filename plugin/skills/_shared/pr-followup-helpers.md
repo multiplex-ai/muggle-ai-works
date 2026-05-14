@@ -101,21 +101,19 @@ fix(ci): lint — remove unused import
 
 ## Classify
 
-The unit of work is a **submitted review**, not an individual line comment. Reviewers leave several comments as one review pass; the loop addresses the whole review as one cycle. Classify the review as a unit.
+Classify the **review as a unit**, not individual comments.
 
-| Class | Signals | Action shape |
-| :---- | :------ | :----------- |
-| **actionable** | The review body + its comments collectively give enough direction to amend the requirements. At least one comment names a concrete change ("rename X", "extract Y", "use `const`", "this should be async", "fix the typo on line 42") OR asks an answerable question that the loop can address by an edit-and-test pass ("does this handle the empty-array case?" — usually means: if no, add the handling). Soft-phrased "could X be simpler?" / "have you considered Y?" / "this feels heavy" count as actionable when there's a concrete X or Y to act on. | Treat the review as amended requirements. Re-route through the caller's full implementation cycle (build → unit tests → E2E → walkthrough → push). Reply with one summary referencing the new SHA. |
-| **ambiguous** (default when actionable isn't clearly true) | Comments collectively give no actionable direction — vibes-only ("👀", "hmm", "this is wrong" with no target), contradictory comments (one comment says "use X" another says "but not X"), references context the loop doesn't have ("we discussed this offline"), or asks questions that depend on knowledge the loop can't access ("won't this break the prod migration we did last week?"). | Escalate to the user once with the two best interpretations; pause the PR until the user resolves. |
+| Class | Signal | Action |
+| :---- | :----- | :----- |
+| **actionable** | Review names at least one concrete change or asks an answerable question. Soft phrasing counts when there's a concrete referent. | Treat as amended requirements; run the caller's implementation cycle; reply with one summary referencing the new SHA. |
+| **ambiguous** | No actionable signal — pure vibes, contradictory, or depends on knowledge the loop can't access. | Escalate once with two interpretations; pause the PR. |
 
-Default toward **actionable**. The cost of one wrong cycle is bounded (CI catches it, the reviewer corrects on the next round). The cost of an unnecessary escalation is a round-trip with the user when they're already away — defeats the fire-and-review promise.
+Default to **actionable**. CI catches wrong attempts; reviewers correct on the next round. Escalation is a round-trip with an absent user — reserve it.
 
-**When in doubt:** pick the best interpretation, run the cycle, and let the reply summary make the interpretation explicit. The reviewer corrects in the next round if needed.
+Reply summary shape:
 
-**Reply summary shape:**
-
-- **actionable**: `Addressed review <review_id> in <sha> — Stage 3–6 ran clean (or: with <N> failures, see walkthrough). Fresh walkthrough above.` Per-comment inline replies optional.
-- **ambiguous**: no bot reply; the escalation message goes to the user terminal.
+- **actionable**: `Addressed review <review_id> in <sha> — cycle ran clean (or: with <N> failures, see walkthrough).`
+- **ambiguous**: no bot reply.
 
 ### Worked examples — Actionable reviews
 

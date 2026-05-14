@@ -1,213 +1,179 @@
 # PR follow-up agent (Stage 8)
 
-You are babysitting one or more open pull requests opened by stage 7. Each invocation of this stage is **one polling tick** dispatched by `/loop 5m /muggle:muggle-do-pr-followup <slug>`. The tick is short, idempotent, and addresses **at most one item per PR**.
+You are babysitting **one** open pull request opened by stage 7. Each invocation of this stage is **one polling tick** dispatched by `/loop 1m /muggle:muggle-do-pr-followup <slug> <pr-number>`. The tick is short and idempotent.
 
-The loop ends when every PR in the session is merged or closed.
+The loop ends when this PR is merged or closed.
 
 ## Turn preamble
 
-Start the turn with:
-
 ```
-**Stage 8 — PR follow-up** — polling <N> PR(s), tick #<K>.
+**Stage 8 — PR follow-up** — polling <repo>#<pr-number>, tick #<K>.
 ```
 
-Resolve `<N>` from `prs.json` (non-terminal entries only) and `<K>` from the tick counter in `state.md`.
+Resolve `<K>` from `idle_tick_count + cycles_completed` in this PR's state slot.
 
 ## Stage-8 exception to the no-mid-cycle-questions rule
 
-Stages 2–7 never ask the user mid-cycle. **Stage 8 may escalate** when a reviewer comment is ambiguous (see the classify rule in [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md)). This is deliberate — the user has already walked away by the time stage 8 starts, and forcing a guess on an ambiguous design comment is worse than pausing.
+Stages 2–7 never ask the user mid-cycle. **Stage 8 may escalate** when a submitted review is ambiguous (see [Classify](#step-6-classify-the-review) below). The user has already walked away by the time stage 8 starts, and forcing a guess on an ambiguous review risks pushing wrong work.
 
-Escalation is the **only** user-facing path in stage 8. Anything else — directives, questions, CI failures, retries — runs silently.
+Escalation is the **only** user-facing path in stage 8. Otherwise the cycle runs silently end to end.
 
 ## Inputs
 
 Read these from `.muggle-do/sessions/<slug>/`:
 
-- `state.md` — current tick counter, session metadata, the pre-flight answers (for context when classifying comments).
-- `prs.json` — list of `{repo, number, url, head_sha, state}`. Entries with `state: "merged"` or `state: "closed"` are skipped.
-- `last_seen.json` — per-PR cursor: `{commentId, reviewId, checkRunCompletedAt, last_pushed_sha, idle_tick_count, escalated_comment_ids[]}`.
+- `state.md` — session metadata + pre-flight answers (for context when classifying reviews).
+- `prs.json` — list of `{repo, number, url, head_sha, state, escalated?, cycling?}`. This loop touches only the entry whose `number` matches the dispatched PR number.
+- `last_seen.json` — keyed by `"<owner>/<repo>#<n>"`. For this PR: `{reviewId, last_pushed_sha, idle_tick_count, cycles_completed, escalated_review_ids[]}`.
 
-If any of these don't exist, the tick is a no-op — log an error to `followup.log` and exit.
+If any of these don't exist or the PR isn't in `prs.json`, the tick is a no-op — log an error to `followup.log` and exit.
 
 ## Per-tick contract
 
-Do these steps in order. **Do not batch — at most one actionable item per PR.**
-
-### Step 1: Refresh PR states
-
-For each PR in `prs.json` not already terminal:
+### Step 1: Refresh this PR's state
 
 ```bash
 gh pr view <number> --repo <repo> --json state,mergedAt,closedAt,headRefOid
 ```
 
-If `state` is `MERGED` or `CLOSED`, mark the entry terminal in `prs.json`. Update `head_sha` if it changed.
+If `state` is `MERGED` or `CLOSED`, mark this entry terminal in `prs.json`. Update `head_sha` if it changed.
 
 ### Step 2: Termination check
 
-If every entry in `prs.json` is now terminal:
-
-1. Write `result.md` with one section per PR (URL, final state, count of items addressed, count escalated, final commit SHA).
-2. **Do not schedule the next tick.** End the turn with no `ScheduleWakeup`-equivalent — `/loop` ends naturally.
-3. Emit the final tick-summary telemetry event (see [Telemetry](#telemetry)) with `prs_terminal == pr_count`.
+If this PR is terminal: write a per-PR section into `result.md` (URL, final state, `cycles_completed`, count escalated, final SHA), emit final telemetry, **do not schedule another tick**. Other PRs in the session have their own loops; they terminate independently.
 
 ### Step 3: Resolve the reviewer allow-list (every tick)
-
-For each non-terminal PR, compute the set of GitHub logins allowed to drive changes:
 
 ```bash
 gh pr view <number> --repo <repo> --json reviewRequests,author
 ```
 
-Add requested reviewers. Add CODEOWNERS by parsing `.github/CODEOWNERS` (or `CODEOWNERS` / `docs/CODEOWNERS`) from the PR's head branch. Remove the PR author and any bot accounts (logins ending in `[bot]`, plus the standard list: `dependabot`, `github-actions`, `renovate`).
+Add requested reviewers. Add CODEOWNERS by parsing `.github/CODEOWNERS` (or `CODEOWNERS` / `docs/CODEOWNERS`) from the PR's head branch. Remove the PR author and any bot accounts (logins ending in `[bot]`, plus the standard list: `dependabot`, `github-actions`, `renovate`, `mergify`).
 
-This is per-tick by design (decision 9): reviewers added or removed after the PR opened take effect on the next poll.
+### Step 4: Pull new submitted reviews
 
-### Step 4: Pull new actionable items
-
-For each non-terminal PR, fetch items newer than the cursor in `last_seen.json`:
-
-- **Line-level review comments**:
-  ```bash
-  gh api repos/<owner>/<repo>/pulls/<number>/comments --paginate
-  ```
-  Filter to comments with `id > last_seen.commentId` AND `user.login` in the allow-list AND not already in `escalated_comment_ids` (avoid re-escalating).
-
-- **CHANGES_REQUESTED review bodies** (only when the review has a non-empty body and no associated line comments):
-  ```bash
-  gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate
-  ```
-  Filter to reviews with `id > last_seen.reviewId` AND `state == "CHANGES_REQUESTED"` AND `user.login` in the allow-list AND `body` is non-empty.
-
-- **Failing CI checks** (apply the `head_sha` guard, decision 11):
-  ```bash
-  gh pr checks <number> --repo <repo> --json name,state,completedAt,detailsUrl,workflow
-  ```
-  Filter to checks where `state == "FAILURE"` AND `completedAt > last_seen.checkRunCompletedAt`. **Skip any check whose target SHA equals `last_pushed_sha`** — CI is still digesting our last push, addressing it again would double-handle.
-
-### Step 5: Pick one item per PR
-
-If a PR has zero actionable items, increment `idle_tick_count` for that PR. Otherwise sort the PR's items by timestamp ascending and take the **oldest one**. Reset `idle_tick_count` to 0 for that PR.
-
-If every PR has zero actionable items this tick:
-- Append a one-line heartbeat to `followup.log`: `<ts> tick #<K> idle (PRs: #A, #B, ...)`.
-- If `idle_tick_count >= 12` for any PR, also rewrite `state.md` with `idle since <ts>, last poll <ts>` for that PR (decision 12).
-- Emit tick-summary telemetry, exit the turn (next tick fires in 5 min via `/loop`).
-
-### Step 6: Classify and route
-
-**Classify** the picked item per [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) `## Classify`. The classification produces one of five action shapes.
-
-**Route** each action shape to muggle-do's pipeline:
-
-- **directive — in-place** → make the edit in the worktree, commit, push, reply via the [reply-routing helper](../_shared/pr-followup-helpers.md#reply-routing).
-- **directive — deep-cycle** → cycle back to Stage 3 (Build). See [Step 6a: Re-build dispatch](#step-6a-re-build-dispatch) below.
-- **question** → reply inline via the reply-routing helper. No code change, no push.
-- **CI failure** → read the failing job log via `gh run view`, fix in the worktree, commit, push. Commit subject references the failing check by name (e.g. `fix(ci): typecheck — narrow type of foo`).
-- **ambiguous** → escalate per [Step 7: Escalate](#step-7-escalate) below.
-
-#### Reply text (adaptive)
-
-- **directive — in-place**: `Done in <sha> — <one-line>`. One line.
-- **directive — deep-cycle**: same shape, posted only after the full re-build cycle lands. `Done in <sha> after rebuild — <one-line>`.
-- **question**: answer inline. Reply length matches the question's complexity — don't write three paragraphs to answer a yes/no. If the answer reveals a bug, escalate instead of silently following up with a fix.
-- **CI failure**: no reply. The fix commit is the response; reference the failing check in the commit subject.
-- **ambiguous**: no bot reply. The escalation goes to the user, who replies themselves.
-
-### Step 6a: Re-build dispatch
-
-When a directive classifies as **deep-cycle**:
-
-1. Append the comment body to `requirements.md` under a new `## Amendment <ts>` section. Note the source comment id and reviewer login.
-2. Invoke stage 3 (`build.md`) with the amended `requirements.md` as input. The build stage takes the existing branch (no fresh worktree) and applies the change.
-3. After build completes, run forward through impact-analysis (4), unit-tests (5), E2E acceptance (6) in turn. Each stage reads its inputs from session state as in a fresh cycle.
-4. Stage 7 (open-prs) is a **no-op for re-build dispatch** since the PR already exists; the new commit is pushed directly to the existing branch.
-5. On push success, reply to the original comment via the reply-routing helper: `Done in <sha> after rebuild — <one-line>`.
-6. Resume polling from this tick's `last_seen.json` cursors.
-
-If any stage in the re-build cycle fails (build can't implement, unit tests fail, E2E fails after 3 retries), escalate to the user with the specific blocker — do not push a half-finished implementation.
-
-### Step 7: Escalate
-
-When the picked item is **ambiguous**:
-
-1. Add the comment id to `last_seen.escalated_comment_ids` so it isn't re-picked next tick.
-2. Append an entry to `followup.log` describing the comment and why it was classified ambiguous.
-3. Pause this PR's loop by writing `escalated: true` against the PR's entry in `prs.json`. Subsequent ticks skip this PR until the user clears the escalation.
-4. End the turn with a **single terminal message** to the user:
-
-```
-**Stage 8 escalation — <repo>#<number>**
-
-<reviewer-login> left an ambiguous comment on <file>:<line>:
-
-> <quoted comment body>
-
-Classifying it as a directive would mean: <one-line interpretation>
-Classifying it as a question would mean: <one-line alternative>
-
-Reply to that GitHub comment yourself, or tell me which way to go. I'll resume polling once the comment is either resolved or has a follow-up from you.
+```bash
+gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate
 ```
 
-The user clears the escalation by either resolving the GitHub thread (the next tick sees it resolved and removes it from `escalated_comment_ids`) or by replying in this terminal session with a directive that the next tick will pick up.
+Filter to reviews where:
 
-### Step 8: Update cursors and push
+- `submitted_at` is non-null (skip drafts — `PENDING` reviews are still being composed).
+- `id > last_seen.reviewId`.
+- `user.login` is in the allow-list.
+- `id` is not in `escalated_review_ids` (avoid re-escalating).
+- `state` is `CHANGES_REQUESTED` or `COMMENTED`, OR `APPROVED` with at least one line comment or a non-empty body. A pure-approval with no notes is not a follow-up trigger.
 
-After addressing a non-escalated item:
+The unit of work is the **submitted review**. Individual line comments belonging to a review are fetched alongside via `gh api repos/<owner>/<repo>/pulls/<n>/comments` filtered by `pull_request_review_id` matching the picked review.
 
-- Advance `last_seen.commentId` / `last_seen.reviewId` / `last_seen.checkRunCompletedAt` past the addressed item.
-- If a push happened, set `last_seen.last_pushed_sha` to the new HEAD SHA. This arms the `head_sha` guard for the next tick (decision 11).
-- Emit per-item telemetry (see [Telemetry](#telemetry)).
+### Step 5: Pick the oldest new review
+
+If no new review past the cursor: increment `idle_tick_count`, append a heartbeat line to `followup.log`, exit. Next tick fires in 1 min via `/loop`.
+
+If one or more: take the oldest by `submitted_at`. Fetch its associated line comments. Reset `idle_tick_count` to 0.
+
+**At most one review per tick.** If two reviews land between ticks, the second waits for the next tick — a second cycle isn't dispatched until the first finishes.
+
+### Step 6: Classify the review
+
+Apply the classify rule in [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md). The rule applies to the **review as a unit** — the review body plus all its comments collectively. Two outcomes:
+
+- **Actionable** — the review's content gives enough direction to amend the requirements. Default for any review where at least one comment names a concrete change or asks an answerable question. Continue to Step 7.
+- **Ambiguous** — the review gives no actionable direction (vibes-only, contradictory, references context the loop doesn't have). Continue to Step 8.
+
+### Step 7: Dispatch the full dev cycle
+
+When the review is actionable:
+
+1. **Pause polling** for this PR (set `cycling: true` on this PR's entry in `prs.json`).
+2. **Amend `requirements.md`** in the session dir with a new `## Amendment — review <review_id> by <login> (<timestamp>)` section that pastes the review body and each comment (with `<file>:<line>` context). The amendment is appended; the original goal/AC stay above for reference.
+3. **Dispatch the dev cycle** starting at Stage 3 (Build) with the amended `requirements.md`. Build operates on the existing branch (no fresh worktree). Run forward through Stage 4 (Impact analysis), Stage 5 (Unit tests), Stage 6 (E2E acceptance). Re-post the visual walkthrough via `muggle-pr-visual-walkthrough` Mode A to this PR (replaces the previous walkthrough comment or appends fresh — the skill decides).
+4. **Push** the new commit(s) to the existing branch. Set `last_seen.last_pushed_sha` to the new HEAD.
+5. **Reply** with one summary comment via `gh pr comment <n>`:
+   ```
+   Addressed review <review_id> in <sha> — Stage 3 → 6 ran clean (or: with <N> failures, see walkthrough). Fresh walkthrough above.
+   ```
+   Per-comment line replies are optional; the single summary keeps noise low.
+6. **Resume polling**: clear `cycling: true`, increment `cycles_completed`, advance `last_seen.reviewId` past this review.
+7. Emit per-cycle telemetry.
+
+If any dev-cycle stage fails (build can't implement; tests fail after 3 retries; E2E fails after 3 retries), escalate via the same path as Step 8 with the specific blocker — do not push a half-finished cycle.
+
+### Step 8: Escalate
+
+When the review is ambiguous:
+
+1. Add the review id to `last_seen.escalated_review_ids` so it isn't re-picked next tick.
+2. Append a `followup.log` entry describing the review and the reason it was classified ambiguous.
+3. Pause this PR's loop by writing `escalated: true` against this PR's entry in `prs.json`.
+4. End the turn with a **single terminal message**:
+
+```
+**Stage 8 escalation — <repo>#<number> — review <review_id>**
+
+<reviewer-login> submitted a review I can't act on coherently:
+
+> <quoted review body, or "(no body)" if empty>
+
+Comments:
+- <file>:<line> — <quoted comment body>
+- <file>:<line> — <quoted comment body>
+
+Best two interpretations:
+1. <one-line interpretation A>
+2. <one-line interpretation B>
+
+Reply on the review yourself, leave a follow-up comment, or tell me which way to go. I'll resume polling once you respond.
+```
+
+The user clears the escalation by replying on GitHub (next tick sees a new submitted review past the cursor) or by giving a directive in this terminal session.
 
 ### Step 9: Emit tick-summary telemetry and exit
 
-Emit one `muggle-local-telemetry-skill-emit` event per tick (see [Telemetry](#telemetry)). Exit the turn. Next tick fires in 5 min via `/loop`.
+Emit one tick event per `muggle-local-telemetry-skill-emit`. Exit the turn. Next tick fires in 1 min.
 
 ## Reply routing
 
-GitHub's PR comment APIs are not uniform. Route by parent type:
+Replies addressed to a whole review:
 
-- **Reply to a line-level review comment** (most common): `POST /repos/{owner}/{repo}/pulls/{n}/comments/{comment_id}/replies` with `{"body": "..."}`. The reply lands in the same review thread.
-- **Reply to a CHANGES_REQUESTED review body** (no inline comment to reply to): post a fresh top-level PR comment via `gh pr comment <number> --body "..."` referencing the review. There is no "reply to review body" endpoint.
-- **Failing CI**: no reply. The fix commit is the response.
+- **Summary reply** (default for an addressed review): `gh pr comment <number> --body "..."`. Reference the review id and the new SHA. There is no "reply to a review as a whole" endpoint; a top-level PR comment is the convention.
+- **Reply to a specific line comment within a review** (optional): `POST /repos/{owner}/{repo}/pulls/{n}/comments/{comment_id}/replies`. Use when one comment in the review specifically asked a question that benefits from inline context.
 
-Never post the same reply twice — the cursor in `last_seen.json` is the only re-entry guard.
+Never post the same summary twice — the `last_seen.reviewId` cursor is the only re-entry guard.
 
 ## Telemetry
 
-Two telemetry shapes per tick (decision 14):
+Two telemetry shapes per tick:
 
-**Per-item** (one event per addressed/escalated item):
+**Per-cycle** (one event per actionable review handled):
 
 ```json
 {
   "skill": "muggle-do-pr-followup",
-  "event": "item",
+  "event": "cycle",
   "session_slug": "<slug>",
   "repo": "<repo>",
   "pr_number": <n>,
-  "item_type": "directive|question|ci_failure|ambiguous",
-  "outcome": "fixed_and_pushed|replied|escalated",
-  "comment_id": <id-or-null>,
-  "head_sha": "<sha-or-null>"
+  "review_id": <id>,
+  "outcome": "pushed|escalated|build_failed|tests_failed|e2e_failed",
+  "comment_count": <count>,
+  "head_sha_before": "<sha>",
+  "head_sha_after": "<sha-or-null>"
 }
 ```
 
-**Per-tick summary** (always one, even on idle ticks):
+**Per-tick summary** (always one, even idle):
 
 ```json
 {
   "skill": "muggle-do-pr-followup",
   "event": "tick",
   "session_slug": "<slug>",
-  "tick": <K>,
-  "pr_count": <total>,
-  "prs_terminal": <count>,
-  "items_seen": <count>,
-  "items_addressed": <count>,
-  "items_escalated": <count>,
-  "pushed": true|false,
+  "repo": "<repo>",
+  "pr_number": <n>,
+  "reviews_seen": <count>,
+  "review_picked": true|false,
+  "cycle_dispatched": true|false,
   "tick_duration_ms": <ms>
 }
 ```
@@ -216,21 +182,17 @@ Two telemetry shapes per tick (decision 14):
 
 This stage produces no console output beyond:
 - The turn preamble (always).
-- An escalation terminal message (only when an item is classified ambiguous).
-- The final `result.md` summary (only on the terminating tick — written to disk, not printed).
+- An escalation terminal message (only when a review is classified ambiguous).
+- The final `result.md` summary section for this PR (only on the terminating tick — written to disk, not printed).
 
 Everything else lives in `followup.log` and `last_seen.json`.
 
 ## Self-check before ending the turn
 
-Before exiting, confirm:
-
-- [ ] `last_seen.json` was advanced for every item handled.
-- [ ] `prs.json` reflects current PR states (terminal entries marked).
-- [ ] `followup.log` has at minimum a heartbeat or per-item line for this tick.
-- [ ] Telemetry events were emitted (per-item + per-tick).
-- [ ] If pushed, `last_pushed_sha` is set.
-- [ ] If escalated, `escalated_comment_ids` contains the comment id.
-- [ ] If terminal, the loop is NOT continued (do not schedule another tick).
-
-If any are missing, fix before exit — a dropped cursor causes double-handling next tick.
+- [ ] `last_seen.json` was advanced for any review handled.
+- [ ] `prs.json` reflects current PR state (terminal marked; `escalated`/`cycling` flags consistent).
+- [ ] `followup.log` has at minimum a heartbeat or per-review line for this tick.
+- [ ] Telemetry events were emitted (per-cycle when applicable + per-tick).
+- [ ] If pushed, `last_pushed_sha` is set and `cycles_completed` is incremented.
+- [ ] If escalated, `escalated_review_ids` contains the review id.
+- [ ] If terminal, the loop is NOT continued.

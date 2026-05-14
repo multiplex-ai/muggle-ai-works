@@ -1,6 +1,6 @@
 ---
 name: muggle-do-pr-followup
-description: One polling tick of /muggle-do stage 8 — addresses reviewer comments and CI failures on PRs opened by an earlier /muggle-do session. Dispatched by `/loop 5m /muggle:muggle-do-pr-followup <slug>` after stage 7; also re-runnable by hand on any session slug.
+description: One polling tick of /muggle-do stage 8 for ONE PR — checks for new submitted reviews on the PR and dispatches the dev cycle when one lands. Dispatched once per PR by `/loop 1m /muggle:muggle-do-pr-followup <slug> <pr-number>` after stage 7; also re-runnable by hand for any session+PR pair.
 disable-model-invocation: true
 ---
 
@@ -10,28 +10,31 @@ disable-model-invocation: true
 
 This skill is the **dispatch entry** for stage 8 of /muggle-do. It is intentionally thin — the actual per-tick logic lives in [`../do/pr-followup.md`](../do/pr-followup.md), the single source of truth.
 
+One loop per PR: each PR opened by stage 7 gets its own `/loop` dispatching this skill. Multi-repo sessions opening N PRs result in N independent loops, each scoped to one PR's review thread.
+
 ## Input routing
 
-`$ARGUMENTS` is the **session slug** (the directory name under `.muggle-do/sessions/`).
+`$ARGUMENTS` is `<slug> <pr-number>` — the session directory's basename and the PR number this loop is watching.
 
-- Empty / `help` / `?` → list available session slugs from `.muggle-do/sessions/` that have a non-empty `prs.json` with at least one non-terminal entry, then exit. Do not start a poll.
-- Otherwise → resolve `.muggle-do/sessions/<slug>/`. If the directory or its `prs.json` is missing, log the error to `followup.log` (creating it if needed) and exit. Do **not** ask the user.
+- Empty / `help` / `?` → list available `(slug, pr-number)` pairs from `.muggle-do/sessions/*/prs.json` whose state is non-terminal, then exit. Do not start a poll.
+- One argument → ambiguous (pre-revision callers passed only the slug); list the PRs under that slug and exit. Do not guess.
+- Two arguments → resolve `.muggle-do/sessions/<slug>/` and the entry in `prs.json` whose `number == <pr-number>`. If either the directory, `prs.json`, or the PR entry is missing, log the error to `followup.log` (creating it if needed) and exit. Do **not** ask the user.
 
 ## Run one tick
 
-With a valid session slug, follow [`../do/pr-followup.md`](../do/pr-followup.md) exactly. That file owns:
+With a valid `(slug, pr-number)`, follow [`../do/pr-followup.md`](../do/pr-followup.md) exactly. That file owns:
 
 - The turn preamble.
 - The 9-step per-tick contract.
-- The classify rule (directive / question / CI failure / ambiguous → escalate).
+- The classify rule (actionable / ambiguous, applied to the review as a unit).
 - Reply routing.
-- Telemetry shape.
+- Telemetry shapes.
 - The self-check before exit.
 
-This skill file adds nothing beyond the slug resolution above.
+This skill file adds nothing beyond the argument parsing above.
 
 ## Why a separate entry exists
 
-- `/loop 5m /muggle:muggle-do-pr-followup <slug>` (dispatched by stage 7 of /muggle-do) needs a slash-addressable target.
-- Manual re-attach: if `/loop` was killed and the user wants to resume, they can run `/muggle:muggle-do-pr-followup <slug>` once to drive a single tick, or re-dispatch the `/loop` themselves.
-- Isolated debugging: a single tick is reproducible against a real session dir.
+- `/loop 1m /muggle:muggle-do-pr-followup <slug> <pr-number>` (dispatched by stage 7) needs a slash-addressable target.
+- Manual re-attach: if a `/loop` for a PR was killed and the user wants to resume, they can re-dispatch the loop themselves, or run `/muggle:muggle-do-pr-followup <slug> <pr-number>` once to drive a single tick.
+- Isolated debugging: a single tick is reproducible against a real session dir + PR number.

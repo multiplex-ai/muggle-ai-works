@@ -101,82 +101,52 @@ fix(ci): lint — remove unused import
 
 ## Classify
 
-Each picked comment falls into one of five classes. The class determines the **action shape** the caller should apply.
+The unit of work is a **submitted review**, not an individual line comment. Reviewers leave several comments as one review pass; the loop addresses the whole review as one cycle. Classify the review as a unit.
 
 | Class | Signals | Action shape |
 | :---- | :------ | :----------- |
-| **directive — in-place** | Imperative verb on a concrete, mechanical target: rename, extract, add a null check, use `const`, fix a typo. The change is localized — one file, a handful of lines. | Apply the change directly; commit; push; reply with the new commit reference. |
-| **directive — deep-cycle** | Imperative on a non-trivial implementation target: "rewrite this module", "the approach is wrong, use X pattern instead", "extract these three things into a shared library", "the architecture doesn't match the spec — redo it". Substantive, multi-file, requires re-reasoning about the requirements. | Re-route through the caller's full implementation cycle (build → tests → push). Reply only after the cycle completes; the reply text notes the rebuild. |
-| **question** | Ends with `?` and is asking for information, not requesting a change. | Reply inline with the answer; no code change; no push. If the answer reveals a bug, escalate — don't silently follow up with a fix. |
-| **CI failure** | Source is a failing check, not a comment. | Read the failing job log, fix, commit, push. No reply — the fix commit is the response. The commit subject should reference the failing check by name. |
-| **ambiguous** (default) | Proposes an alternative without instructing ("I think we should use Z instead", "Have you considered Y?"), conflicts with a deliberate choice in the PR description or design doc, or mixes question and change request in one comment. | Escalate to the user once with both possible interpretations; pause the PR (write the comment id to the cursor's escalated set) until the user resolves. |
+| **actionable** | The review body + its comments collectively give enough direction to amend the requirements. At least one comment names a concrete change ("rename X", "extract Y", "use `const`", "this should be async", "fix the typo on line 42") OR asks an answerable question that the loop can address by an edit-and-test pass ("does this handle the empty-array case?" — usually means: if no, add the handling). Soft-phrased "could X be simpler?" / "have you considered Y?" / "this feels heavy" count as actionable when there's a concrete X or Y to act on. | Treat the review as amended requirements. Re-route through the caller's full implementation cycle (build → unit tests → E2E → walkthrough → push). Reply with one summary referencing the new SHA. |
+| **ambiguous** (default when actionable isn't clearly true) | Comments collectively give no actionable direction — vibes-only ("👀", "hmm", "this is wrong" with no target), contradictory comments (one comment says "use X" another says "but not X"), references context the loop doesn't have ("we discussed this offline"), or asks questions that depend on knowledge the loop can't access ("won't this break the prod migration we did last week?"). | Escalate to the user once with the two best interpretations; pause the PR until the user resolves. |
 
-When the comment matches neither **directive** nor **question** cleanly, default to **ambiguous**. Do not guess. The cost of escalating a directive that could have been auto-handled is small; the cost of pushing a wrong change because we guessed is large.
+Default toward **actionable**. The cost of one wrong cycle is bounded (CI catches it, the reviewer corrects on the next round). The cost of an unnecessary escalation is a round-trip with the user when they're already away — defeats the fire-and-review promise.
 
-**Distinguishing in-place from deep-cycle directives:** if the change can be made in under ~20 lines across a single file by following the comment literally, it's in-place. If it requires re-reasoning about *what* to build (not just *how*), it's deep-cycle — even if the final diff is small. When in doubt, prefer deep-cycle: cycling through the full pipeline gives the change unit-test and E2E coverage before pushing.
+**When in doubt:** pick the best interpretation, run the cycle, and let the reply summary make the interpretation explicit. The reviewer corrects in the next round if needed.
 
-**Adaptive reply text** by class:
+**Reply summary shape:**
 
-- **directive — in-place**: short, one-line. `Done in <sha> — renamed \`fooBar\` to \`foo_bar\` per request.`
-- **directive — deep-cycle**: same one-line shape, but reply only after the full cycle lands. `Done in <sha> after rebuild — <one-line>`.
-- **question**: answer inline. Reply length matches the question's complexity — don't write three paragraphs to answer yes/no.
-- **CI failure**: no comment to reply to; the fix commit is the response.
-- **ambiguous**: no reply from the bot — the escalation goes to the user, who replies themselves.
+- **actionable**: `Addressed review <review_id> in <sha> — Stage 3–6 ran clean (or: with <N> failures, see walkthrough). Fresh walkthrough above.` Per-comment inline replies optional.
+- **ambiguous**: no bot reply; the escalation message goes to the user terminal.
 
-### Worked examples — Directive
+### Worked examples — Actionable reviews
 
-| Comment body | Why directive |
-| :----------- | :------------ |
-| "rename `fooBar` to `foo_bar`" | Concrete rename, no ambiguity |
-| "extract this into a helper" | Action verb on a specific block |
-| "add a null check before the access" | Specific change at a specific site |
-| "remove this branch — unreachable" | Delete instruction with justification |
-| "use `const` here, not `let`" | Token-level change |
-| "this should be `async`" | Concrete modifier change |
-| "delete the commented-out code on line 42" | Specific deletion target |
-| "missing semicolon" | Mechanical fix |
-| "typo: `recieve` → `receive`" | Mechanical fix |
-| "the import on line 3 is unused" | Implicit delete, unambiguous target |
+| Review (summarized) | Why actionable |
+| :------------------ | :------------- |
+| 3 comments: "rename `fooBar` to `foo_bar`", "use `const` here", "fix this typo" | Three concrete edits |
+| 1 comment: "could the procedure be simpler?" | Soft-phrased but the intent is clear — simplify; pick the best interpretation, run the cycle, reply with what was changed |
+| Review body: "Mostly looks good. Two things: extract the validation into a helper, and add a null check before the lookup." Plus 0 line comments. | Two concrete directives in the body |
+| 4 comments: "why this approach?", "is this called from X?", "does this need to handle empty array?", "what's the perf here?" | All questions but each is answerable; cycle dispatches an "answer + maybe-fix" pass and the reply summary captures each answer |
+| 1 comment: "rewrite this module — the architecture doesn't match the spec" | Substantive rebuild, but the direction is clear: redo the module per the spec |
+| 1 comment: "I'd lean toward the bar.ts pattern" | Concrete referent (bar.ts) — apply that pattern |
 
-A **CHANGES_REQUESTED review body** that reads as a bulleted list of the above is also a directive — handle each bullet as a separate item over successive ticks.
+The single review goes through one full cycle regardless of comment count.
 
-If the comment instructs a non-trivial restructure ("rewrite this module", "the architecture is wrong, redo it"), it's still a directive — but **deep-cycle**, not in-place. Same comply-without-asking principle, different action shape.
+### Worked examples — Ambiguous reviews
 
-### Worked examples — Question
+| Review (summarized) | Why ambiguous |
+| :------------------ | :------------ |
+| 1 comment: "👀" / "hmm" / ":thinking:" | No signal at all |
+| 1 comment: "this is wrong" with no target or direction | Asserts a problem but doesn't propose a fix |
+| 2 comments: "use X" + "but actually don't use X" | Self-contradicting — can't reconcile without the reviewer |
+| 1 comment: "we discussed this offline — please address" | References context the loop doesn't have |
+| 1 comment: "won't this break the prod migration we did last week?" | Implicit change request gated on knowledge the loop can't access |
+| Mixed: 2 concrete directives + 1 comment "but also, rethink the whole approach" | The "rethink the whole approach" subverts the other two; escalate to confirm scope |
 
-| Comment body | Why question |
-| :----------- | :------------ |
-| "why this approach?" | Asks for rationale |
-| "is this called from anywhere else?" | Asks for a fact |
-| "does this need to handle the empty-array case?" | Asks for confirmation; if the answer is "yes", it becomes a follow-up directive on a subsequent tick |
-| "what's the perf characteristic here?" | Asks for analysis |
-| "how does this interact with the cache invalidation?" | Asks for explanation |
-
-Answer inline. If the answer reveals a bug, **escalate** — don't silently follow up with a fix.
-
-### Worked examples — Ambiguous
-
-| Comment body | Why ambiguous |
-| :----------- | :------------ |
-| "I think we should use a generator here instead" | Proposes an alternative without instructing |
-| "have you considered `Promise.all`?" | Rhetorical alternative — directive or question? |
-| "this feels like it should be its own module" | Subjective design comment, no concrete action |
-| "couldn't this be simpler?" | Pushes for change without specifying what |
-| "I'd lean toward the other pattern we used in `bar.ts`" | Conflicts with deliberate choice, needs human call |
-| "rename to `foo_bar`. also, why is this needed at all?" | Mixes directive + question — split or escalate |
-| "won't this break X?" | Implicit change request *if* the answer is yes |
-| "👀" / "hmm" / ":thinking:" | No directive, no question, no signal |
-| "this is wrong" | Asserts a problem but doesn't propose a fix |
-| "we discussed this offline — please address" | References context the loop doesn't have |
-
-For each, escalate per the caller's escalation procedure (write the comment id to the cursor's escalated set, emit one terminal message with both interpretations, pause the PR until the user resolves). Don't guess.
+Escalate per the caller's escalation procedure (write the review id to the cursor's escalated set, emit one terminal message with both interpretations, pause the PR until the user resolves).
 
 ### Borderline rule
 
-If you can paraphrase the comment as **"do X"** with X being a concrete, verifiable change — it's a directive.
+If you can paraphrase the review's intent as **"do X"** with X being a concrete change (one or several) — it's actionable. Pick the best interpretation and dispatch the cycle.
 
-If you can paraphrase it as **"tell me Y"** with Y being a question that doesn't imply a change — it's a question.
+If you can paraphrase it only as **"the reviewer is dissatisfied but I can't tell with what"** — it's ambiguous.
 
-Anything else: ambiguous.
-
-Asking yourself "is this what they meant?" three times before classifying as directive is a sign you should escalate instead.
+When the review mixes both ("3 concrete directives + 1 dissatisfaction"), the safer move is usually to action the concrete directives and ask about the dissatisfaction in the reply summary. Pure ambiguity means *nothing* in the review is actionable.

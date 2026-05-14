@@ -32,7 +32,8 @@ If intent is ambiguous, use `AskUserQuestion` once with options **Submit / List 
 
 ## Non-negotiables (all ops)
 
-- Use `AskUserQuestion` for every selection (project, test case, run, target type, confirm). Never ask the user to "reply with a number" in plain text.
+- Use `AskUserQuestion` for every selection (project, test case, run, target type, which step(s), confirm). Step selection must be a clickable picker built from the rendered steps (see [`ops/submit.md`](ops/submit.md) §3b) — never ask the user to type a number.
+- Always render the run's steps and summary (§2) **before** collecting feedback — users can only point at what they can see.
 - Convert step numbers between 1-based (rendered to user) and 0-based (wire format) at the boundary. Never expose 0-based indices to the user.
 - One MCP submit/delete call per feedback piece — never batch into a single call.
 - Surface the `feedbackAnalysisWorkflowRuntimeId` returned by submit so the user knows regeneration is running. Do not poll it from this skill.

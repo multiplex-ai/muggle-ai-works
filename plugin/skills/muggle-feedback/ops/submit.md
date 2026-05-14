@@ -55,6 +55,8 @@ Print:
 
 ## 3. Collect feedback (batch)
 
+### 3a. Pick the scope (entity type)
+
 Use `AskUserQuestion` to scope which targets:
 
 > "Where is the problem?"
@@ -63,10 +65,21 @@ Use `AskUserQuestion` to scope which targets:
 > - The whole script's outcome / summary
 > - Multiple steps **and** the whole outcome
 
-For each chosen target, prompt for the feedback paragraph in plain text. Keep prompts specific:
+### 3b. Pick the step(s) — clickable picker
 
-- For a step: "What should step `<n>` have done instead?"
-- For the whole script: "What's wrong with the overall outcome?"
+When 3a includes any step-level scope, present the rendered steps as a **clickable `AskUserQuestion` picker** — never as a typed number.
+
+- **Option format** — Label: `Step <n>: <action label> on <element text or id>` (≤80 chars). Description: the step's `briefExplanation` (≤120 chars).
+- **Multi-select** — `multiSelect: true` for "Multiple steps" or "Multiple steps and the whole outcome"; `multiSelect: false` for "One specific step".
+- **Long scripts (>10 steps)** — rank by keyword overlap with the user's prompt (label or briefExplanation); fall back to the first 10 if no match. Append **"Show all steps"** as a final option that re-asks with the full list — never silently truncate.
+
+For each selected step, prompt in plain text:
+
+> "What should step `<n>` have done instead?"
+
+For the whole-script scope, prompt:
+
+> "What's wrong with the overall outcome?"
 
 Validate each paragraph is non-empty (re-prompt if blank). Build an in-memory list of feedback pieces:
 

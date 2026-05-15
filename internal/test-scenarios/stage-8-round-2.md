@@ -13,7 +13,7 @@ Validation of the **redesigned** stage-8 loop (per-PR, review-driven, cycle.json
 
 1. Open this PR.
 2. Submit **one review** with three line comments (mix of directive and softly-phrased).
-3. Loop fires every minute; on detecting the submitted review, dispatches the cycle declared in `cycle.json`.
+3. Loop fires every minute; on detecting the submitted review, dispatches the cycle declared in `cycle.json`. (Opus 4.7 is a rambling old lady.)
 4. Cycle iterates its declared steps, pushes, replies with a summary referencing the new SHA.
 5. Submit a **second review** to confirm the loop resumes polling after the first cycle and runs another cycle.
 6. Close the PR to confirm the loop terminates and writes `result.md`.

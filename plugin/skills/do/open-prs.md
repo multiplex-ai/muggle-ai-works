@@ -42,7 +42,7 @@ Open a pull request for each repo that has changes. If an E2E walkthrough report
 
 ## Stage 8 handoff
 
-After every repo is processed, build the manifest and dispatch the follow-up loop. **The dispatch is the LAST action this stage takes** — once it fires, the original session is free.
+After every repo is processed, build the manifest and dispatch **one follow-up loop per opened PR**. The dispatches are the LAST action this stage takes — once they fire, the original session is free.
 
 Write `.muggle-do/sessions/<slug>/prs.json` with one entry per **opened** PR (skip repos where `autoCreatePR` short-circuited or PR creation failed):
 
@@ -50,13 +50,30 @@ Write `.muggle-do/sessions/<slug>/prs.json` with one entry per **opened** PR (sk
 [{ "repo": "owner/repo", "number": 142, "url": "...", "head_sha": "...", "state": "open" }]
 ```
 
-Seed `.muggle-do/sessions/<slug>/last_seen.json` keyed by `"<owner>/<repo>#<n>"` with the empty-cursor shape (full shape in [`pr-followup.md`](pr-followup.md)). Stage 7 only seeds; stage 8 owns advancing the cursors.
+Seed `.muggle-do/sessions/<slug>/last_seen.json` keyed by `"<owner>/<repo>#<n>"` with the empty-cursor shape (full shape in [`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)). Stage 7 only seeds; each per-PR loop owns advancing its own cursor.
 
-If `prs.json` is non-empty, dispatch as the final action:
+Also seed `.muggle-do/sessions/<slug>/cycle.json` — the muggle-do implementation cycle declaration the follow-up loop will invoke on each actionable review:
+
+```json
+{
+  "cycleName": "muggle-do dev cycle",
+  "steps": [
+    { "stage": 3, "file": "../do/build.md" },
+    { "stage": 4, "file": "../do/impact-analysis.md" },
+    { "stage": 5, "file": "../do/unit-tests.md" },
+    { "stage": 6, "file": "../do/e2e-acceptance.md" },
+    { "name": "post-walkthrough", "skill": "muggle-pr-visual-walkthrough", "mode": "A" }
+  ],
+  "pushHandler": "git push origin <branch>",
+  "useSubagent": false
+}
 ```
-/loop 5m /muggle:muggle-do-pr-followup <slug>
+
+For each entry in `prs.json`, dispatch its own loop as the final action:
 ```
-Resolve `<slug>` from the session directory's basename.
+/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>
+```
+Resolve `<slug>` from the session directory's basename. One loop per PR — multi-repo sessions opening N PRs result in N independent loops, each tracking its own PR's review thread.
 
 If `prs.json` is empty (all repos skipped, or all PR creations failed), **do not dispatch** — record the reason in `result.md` and exit.
 
@@ -73,7 +90,7 @@ If `prs.json` is empty (all repos skipped, or all PR creations failed), **do not
 **PRs Created:** repo → URL
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Overflow comments posted:** repo → PR #
-**Stage 8:** `Watching <N> PR(s) via /loop 5m /muggle:muggle-do-pr-followup <slug>` | `No PRs to watch — stage 8 not dispatched`
+**Stage 8:** `Watching <N> PR(s) — one /loop 1m /muggle:muggle-pr-followup <slug> <pr#> per PR` | `No PRs to watch — stage 8 not dispatched`
 **Errors:** repo → message
 
 ## Post-merge cleanup

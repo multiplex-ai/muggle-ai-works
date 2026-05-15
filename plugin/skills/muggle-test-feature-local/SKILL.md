@@ -215,6 +215,19 @@ If the user picks `muggle-feedback` from any bucket's options, invoke the `muggl
 
 Skip silently when the run passed cleanly — failure-mode events are by definition about failures.
 
+### 9b. Remind the user to guide the agent (every Electron invocation)
+
+Fires after **every** Electron run, pass or fail. A run can technically pass while still containing steps the user would correct — a misclick, wrong element, or a summary that doesn't match intent. This is the user's chance to flag it before regeneration picks up elsewhere.
+
+**Skip if 9a already routed the user into `muggle-feedback` for this run.** Otherwise ask via `AskUserQuestion`:
+
+> "Did the agent miss or do anything wrong on this run? Your feedback regenerates the affected scripts."
+
+- **Yes — give feedback** → invoke `muggle-feedback` via the `Skill` tool, passing the just-finished `runId` so the submit flow opens on this run's steps and summary.
+- **No — looks good** → continue to Step 10.
+
+Non-blocking — one click to dismiss. Do not re-ask for the same `runId` within a session.
+
 ### 10. Offer to post a visual walkthrough to the PR
 
 After reporting results:
@@ -231,6 +244,7 @@ After reporting results:
 - **Never prompt for Electron launch approval** before execution — invoking this skill is the approval. Just run.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
+- **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong.
 - Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
 - Use `AskUserQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.

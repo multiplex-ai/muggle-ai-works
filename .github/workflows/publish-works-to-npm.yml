@@ -103,7 +103,38 @@ jobs:
           RELEASE_BUILD_ID: run-${{ github.run_number }}-${{ github.run_attempt }}
           RELEASE_COMMIT_SHA: ${{ github.sha }}
           RELEASE_TIME: ${{ github.event.repository.updated_at }}
+          # Inlined into dist/ at build time by tsup `define`. Sourced from the
+          # repo secret. Without this, client telemetry from the published
+          # package is a silent no-op on every end-user machine.
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
         run: pnpm run build
+
+      - name: Verify telemetry connection string was inlined
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          // tsup `define` can place the substituted literal into any chunk
+          // reachable from the entrypoints, so scan all JS files under dist/.
+          function walk(dir) {
+            const out = [];
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) out.push(...walk(full));
+              else if (entry.isFile() && entry.name.endsWith(".js")) out.push(full);
+            }
+            return out;
+          }
+          const files = walk("dist");
+          const hit = files.some((f) => fs.readFileSync(f, "utf-8").includes("IngestionEndpoint="));
+          if (!hit) {
+            throw new Error(
+              "AppInsights connection string was not inlined into dist/. " +
+              "Set the APPLICATIONINSIGHTS_CONNECTION_STRING repository secret " +
+              "and re-run. Without it, the published package emits no client telemetry."
+            );
+          }
+          NODE
 
       - name: Extract version from tag
         if: startsWith(github.ref, 'refs/tags/')

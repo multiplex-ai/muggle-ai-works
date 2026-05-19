@@ -86,10 +86,7 @@ When the review is actionable:
 2. **Amend `requirements.md`** in the session dir with a new `## Amendment — review <review_id> by <login> (<timestamp>)` section pasting the review body and each comment (with `<file>:<line>` context).
 3. **Invoke the implementation cycle** declared in the caller's `cycle.json`. Iterate the `steps[]` in order. Each step is either a markdown file to follow, a skill to invoke, or a shell command (per the `cycle.json` schema in SKILL.md). When a step fails, the cycle returns `failed: <step-name>`; the loop escalates per Step 8 with the failure as the reason.
 4. **Push** via `cycle.json`'s `pushHandler`. Set `last_seen.last_pushed_sha` to the new HEAD.
-5. **Reply** with one summary via `gh pr comment <n>`:
-   ```
-   Addressed review <review_id> in <sha> — cycle ran clean (or: with <N> failures, see walkthrough).
-   ```
+5. **Reply** per [helpers § Reply routing](../_shared/pr-followup-helpers.md#reply-routing) and [§ Classify](../_shared/pr-followup-helpers.md#classify) (reply shape). For each line comment in the review, derive `<attribution>` from `git diff <last_pushed_sha>..HEAD -- <comment.path>` near `comment.line` ±5 (fall back to `addressed indirectly — see walkthrough` if empty). `<status>` = `ran clean` or `had <N> failures, see walkthrough`. If the review is body-only (no line comments), post the top-level fallback shape; if both body and line comments, threaded replies cover it — no top-level.
 6. **Resume polling**: clear `cycling: true`, increment `cycles_completed`, advance `last_seen.reviewId` past this review.
 7. Emit per-cycle telemetry.
 
@@ -133,9 +130,10 @@ Emit one tick event per `muggle-local-telemetry-skill-emit`. Exit the turn.
 
 ## Reply routing
 
-- **Summary reply on a review**: `gh pr comment <number> --body "..."` referencing the review id and the new SHA. There's no "reply to a review" endpoint.
-- **Reply to a specific line comment** (optional): `POST /repos/{owner}/{repo}/pulls/{n}/comments/{comment_id}/replies`.
-- **Never post the same summary twice** — `last_seen.reviewId` is the only re-entry guard.
+- **Threaded reply per line comment** (default): `POST /repos/{owner}/{repo}/pulls/{n}/comments/{comment_id}/replies`. Use for every line comment in the review so each thread can be resolved in GitHub's UI.
+- **Top-level summary on a body-only review** (fallback): `gh pr comment <number> --body "..."` referencing the review id and the new SHA. Used only when the review has body content and zero line comments — GitHub has no "reply to a review body" endpoint.
+- **Never post the same reply twice** — `last_seen.reviewId` is the only re-entry guard.
+- **Never post a top-level summary alongside threaded replies** — duplication pollutes the Conversation tab.
 
 ## Telemetry
 
@@ -187,5 +185,6 @@ This stage produces no console output beyond:
 - [ ] `followup.log` has at minimum a heartbeat or per-review line for this tick.
 - [ ] Telemetry events emitted (per-cycle when applicable + per-tick).
 - [ ] If pushed, `last_pushed_sha` is set and `cycles_completed` incremented.
+- [ ] If actionable, one threaded reply posted per line comment (or one top-level reply for body-only reviews) — never both, never zero.
 - [ ] If escalated, `escalated_review_ids` contains the review id.
 - [ ] If terminal, the loop is NOT continued.

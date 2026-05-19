@@ -101,18 +101,19 @@ fix(ci): lint — remove unused import
 
 ## Classify
 
-Classify the **review as a unit**, not individual comments.
+Classify the **review as a unit** — but reply per line comment (threaded), not per review.
 
 | Class | Signal | Action |
 | :---- | :----- | :----- |
-| **actionable** | Review names at least one concrete change or asks an answerable question. Soft phrasing counts when there's a concrete referent. | Treat as amended requirements; run the caller's implementation cycle; reply with one summary referencing the new SHA. |
+| **actionable** | Review names at least one concrete change or asks an answerable question. Soft phrasing counts when there's a concrete referent. | Treat as amended requirements; run **one** implementation cycle for the whole review; reply **threaded per line comment** referencing the new SHA (top-level only when the review is body-only). |
 | **ambiguous** | No actionable signal — pure vibes, contradictory, or depends on knowledge the loop can't access. | Escalate once with two interpretations; pause the PR. |
 
 Default to **actionable**. CI catches wrong attempts; reviewers correct on the next round. Escalation is a round-trip with an absent user — reserve it.
 
-Reply summary shape:
+Reply shape (all replies for one review reference the same SHA):
 
-- **actionable**: `Addressed review <review_id> in <sha> — cycle ran clean (or: with <N> failures, see walkthrough).`
+- **threaded** (default): `Done in <sha> — <attribution>. (Review #<review_id>, cycle <status>.)`
+- **top-level** (fallback, body-only reviews): `Re: review #<review_id> — addressed in <sha>, cycle <status>.`
 - **ambiguous**: no bot reply.
 
 ### Worked examples — Actionable reviews

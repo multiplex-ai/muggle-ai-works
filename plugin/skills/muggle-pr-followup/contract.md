@@ -86,24 +86,7 @@ When the review is actionable:
 2. **Amend `requirements.md`** in the session dir with a new `## Amendment — review <review_id> by <login> (<timestamp>)` section pasting the review body and each comment (with `<file>:<line>` context).
 3. **Invoke the implementation cycle** declared in the caller's `cycle.json`. Iterate the `steps[]` in order. Each step is either a markdown file to follow, a skill to invoke, or a shell command (per the `cycle.json` schema in SKILL.md). When a step fails, the cycle returns `failed: <step-name>`; the loop escalates per Step 8 with the failure as the reason.
 4. **Push** via `cycle.json`'s `pushHandler`. Set `last_seen.last_pushed_sha` to the new HEAD.
-5. **Reply per line comment, threaded** — one cycle handles the whole review, but each comment thread needs its own reply so the reviewer can resolve it in GitHub's UI.
-
-   For **each line comment in the review** (fetched in Step 5 via the `pull_request_review_id` filter), derive a one-line attribution from `git diff <last_pushed_sha>..HEAD -- <comment.path>` near `comment.line` (±5 lines), then POST a threaded reply (see [reply routing in pr-followup-helpers.md](../_shared/pr-followup-helpers.md#reply-routing)) with body:
-
-   ```
-   Done in <sha> — <attribution>. (Review #<review_id>, cycle <status>.)
-   ```
-
-   - **Attribution**: e.g. `renamed \`fooBar\` → \`foo_bar\` in src/foo.ts`. If the diff at that file:line is empty (cycle didn't touch it directly), fall back to `addressed indirectly — see walkthrough`.
-   - **Cycle status**: `ran clean` or `had <N> failures, see walkthrough`.
-
-   **If the review has body content but zero line comments** (e.g. `CHANGES_REQUESTED` with just a summary), post one top-level PR comment instead:
-
-   ```
-   Re: review #<review_id> — addressed in <sha>, cycle <status>.
-   ```
-
-   **If both** body content and line comments: the per-comment threaded replies already cover it — skip the top-level (avoid duplication).
+5. **Reply** per [helpers § Reply routing](../_shared/pr-followup-helpers.md#reply-routing) and [§ Classify](../_shared/pr-followup-helpers.md#classify) (reply shape). For each line comment in the review, derive `<attribution>` from `git diff <last_pushed_sha>..HEAD -- <comment.path>` near `comment.line` ±5 (fall back to `addressed indirectly — see walkthrough` if empty). `<status>` = `ran clean` or `had <N> failures, see walkthrough`. If the review is body-only (no line comments), post the top-level fallback shape; if both body and line comments, threaded replies cover it — no top-level.
 6. **Resume polling**: clear `cycling: true`, increment `cycles_completed`, advance `last_seen.reviewId` past this review.
 7. Emit per-cycle telemetry.
 
@@ -202,5 +185,6 @@ This stage produces no console output beyond:
 - [ ] `followup.log` has at minimum a heartbeat or per-review line for this tick.
 - [ ] Telemetry events emitted (per-cycle when applicable + per-tick).
 - [ ] If pushed, `last_pushed_sha` is set and `cycles_completed` incremented.
+- [ ] If actionable, one threaded reply posted per line comment (or one top-level reply for body-only reviews) — never both, never zero.
 - [ ] If escalated, `escalated_review_ids` contains the review id.
 - [ ] If terminal, the loop is NOT continued.

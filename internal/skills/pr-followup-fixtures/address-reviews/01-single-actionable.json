@@ -1,0 +1,92 @@
+{
+  "name": "01-single-actionable",
+  "description": "/muggle-do invoked with one actionable review. Classifies it as actionable, runs the cycle (build → unit tests → ONE E2E → push), posts inline replies on the two line comments, runs resolve-reminder posting one top-level comment, respawns the watcher.",
+
+  "input": {
+    "args": "address reviews 4295962900 on https://github.com/acme/widget/pull/142 slug=acme-widget-pr142",
+    "session_slug": "acme-widget-pr142",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 142, "url": "https://github.com/acme/widget/pull/142", "head_sha": "abc1230", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#142": {
+        "reviewId": 4295962800,
+        "last_pushed_sha": "abc1230",
+        "idle_tick_count": 0,
+        "cycles_completed": 1,
+        "escalated_review_ids": [],
+        "pushed_shas": ["abc1230"]
+      }
+    },
+    "gh_responses": {
+      "gh api repos/acme/widget/pulls/142/reviews (filtered to id=4295962900)": [
+        {
+          "id": 4295962900,
+          "submitted_at": "2026-05-19T11:00:00Z",
+          "state": "CHANGES_REQUESTED",
+          "user": { "login": "alice" },
+          "body": "Two nits, both clear."
+        }
+      ],
+      "gh api repos/acme/widget/pulls/142/comments (filtered to review 4295962900)": [
+        { "id": 9001, "body": "rename `fooBar` to `foo_bar`", "path": "src/foo.ts", "line": 42, "pull_request_review_id": 4295962900, "user": { "login": "alice" } },
+        { "id": 9002, "body": "use `const` here", "path": "src/foo.ts", "line": 57, "pull_request_review_id": 4295962900, "user": { "login": "alice" } }
+      ],
+      "gh pr view 142 (post-push)": { "state": "OPEN", "headRefOid": "def4560" },
+      "gh api .../reviewThreads (unresolved)": [
+        { "id": "T_1", "isResolved": false, "comments": [{ "databaseId": 9001, "author": { "login": "alice" }, "body": "rename...", "createdAt": "..." }] },
+        { "id": "T_2", "isResolved": false, "comments": [{ "databaseId": 9002, "author": { "login": "alice" }, "body": "use const...", "createdAt": "..." }] }
+      ]
+    },
+    "loop_user": "stan4git"
+  },
+
+  "expected": {
+    "preamble": "**/muggle-do address-reviews** — handling 1 review(s) on acme/widget#142.",
+    "outcome": "pushed",
+    "stages_run": [
+      "build (apply changes for comments 9001 and 9002 — rename + const)",
+      "unit-tests (create or update tests touching the changed lines)",
+      "e2e-acceptance (ONE pass)",
+      "open-prs in address-reviews mode (push def4560, refresh title/desc if needed, post walkthrough)",
+      "per-comment-replies (one threaded reply on comment 9001, one on comment 9002)",
+      "resolve-reminder (top-level comment listing threads T_1 and T_2)"
+    ],
+    "state_writes": {
+      "last_seen.json": "reviewId advanced to 4295962900; last_pushed_sha set to def4560; cycles_completed 1→2; pushed_shas appended with def4560"
+    },
+    "side_effects": [
+      "POST /repos/acme/widget/pulls/142/comments/9001/replies body='Addressed in def4560: renamed fooBar to foo_bar.'",
+      "POST /repos/acme/widget/pulls/142/comments/9002/replies body='Addressed in def4560: switched the binding from let to const.'",
+      "gh pr comment 142 body='I addressed these threads in def4560 — mark them resolved when satisfied:\\n- #T_1\\n- #T_2'",
+      "/loop 1m /muggle:muggle-pr-followup acme-widget-pr142 142"
+    ],
+    "telemetry_events": [
+      {
+        "skill": "muggle-do",
+        "event": "cycle",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "review_ids_in": [4295962900],
+        "review_ids_actionable": [4295962900],
+        "review_ids_ambiguous": [],
+        "head_sha_before": "abc1230",
+        "head_sha_after": "def4560",
+        "outcome": "pushed"
+      },
+      {
+        "skill": "muggle-do",
+        "event": "resolve-reminder",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "addressed_by_loop": 2,
+        "addressed_by_human": 0,
+        "not_addressed": 0,
+        "comment_posted": true
+      }
+    ],
+    "respawned": true
+  }
+}

@@ -41,11 +41,11 @@ Per repo:
 
 If a requirement is fundamentally unimplementable as written, halt and escalate with the specific blocker — do not ship a half-finished implementation.
 
-## Re-entry from stage 8
+## Re-entry from the address-reviews flow
 
-Stage 8 (PR follow-up) may dispatch back to this stage when a reviewer comment requires real implementation work rather than an in-place doc edit. When re-entered:
+The address-reviews orchestrator ([`address-reviews.md`](address-reviews.md)) invokes this stage when reviewers submit comments that require code/design changes. When re-entered:
 
-- The dispatch from stage 8 carries the comment(s) that triggered the re-build as additional context; treat them as amendments to the goal/AC for this iteration.
+- The orchestrator passes the actionable reviews' bodies + line comments as the requirements amendment for this iteration. Treat them as additions to the goal/AC.
 - Continue on the existing branch — do not re-create the worktree.
-- Cycle forward through impact analysis → unit tests → E2E → open PR (which is a no-op since the PR already exists; just push).
-- Stage 8 resumes polling after the push lands.
+- After this stage, the orchestrator runs unit-tests → ONE E2E pass → create-or-update PR (push to the existing branch; refresh title/desc if state changed) → per-comment inline replies → resolve-reminder → respawn the watcher.
+- If the requested work cannot be implemented without rethinking design (e.g. a load-bearing invariant must change), return `failed: design-adjustment` and let the orchestrator escalate via the design-adjustment terminal message. Do not partially implement.

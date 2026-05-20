@@ -1,0 +1,63 @@
+{
+  "name": "01-idle",
+  "description": "No new submitted reviews past the cursor. Watcher increments idle_tick_count, appends a heartbeat to followup.log, and exits without dispatching /muggle-do.",
+
+  "input": {
+    "session_slug": "acme-widget-pr142",
+    "args": "acme-widget-pr142 142",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 142, "url": "https://github.com/acme/widget/pull/142", "head_sha": "abc1230", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#142": {
+        "reviewId": 4295962800,
+        "last_pushed_sha": "abc1230",
+        "idle_tick_count": 5,
+        "cycles_completed": 1,
+        "escalated_review_ids": [],
+        "pushed_shas": ["abc1230"]
+      }
+    },
+    "gh_responses": {
+      "gh pr view 142 --repo acme/widget --json url,number,headRefOid,headRefName,baseRefName,state,mergedAt,closedAt,body,title,author": {
+        "url": "https://github.com/acme/widget/pull/142",
+        "number": 142,
+        "headRefOid": "abc1230",
+        "headRefName": "feat/foo",
+        "baseRefName": "master",
+        "state": "OPEN",
+        "mergedAt": null,
+        "closedAt": null,
+        "body": "## Goal\n\nDo the thing.\n",
+        "title": "Do the thing",
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/142/reviews --paginate": []
+    }
+  },
+
+  "expected": {
+    "preamble": "**muggle-pr-followup tick** — polling acme/widget#142.",
+    "outcome": "idle",
+    "state_writes": {
+      "last_seen.json": "idle_tick_count incremented from 5 to 6; nothing else changed",
+      "followup.log":   "one new line ending in 'reviews_seen=0 idle'"
+    },
+    "telemetry_events": [
+      {
+        "skill": "muggle-pr-followup",
+        "event": "tick",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "reviews_seen": 0,
+        "dispatched_review_ids": [],
+        "terminal": false,
+        "idle": true
+      }
+    ],
+    "side_effects": [],
+    "respawned": false,
+    "notes": "Watcher exits cleanly. /loop fires the next tick in 1 min. The watcher never invokes /muggle-do on an idle tick."
+  }
+}

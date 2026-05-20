@@ -1,0 +1,105 @@
+{
+  "name": "02-mixed-batch",
+  "description": "/muggle-do invoked with two reviews — one actionable, one ambiguous. Classifies; processes the actionable (push, replies, resolve-reminder); escalates the ambiguous with one terminal message; advances cursor past BOTH; respawns the watcher.",
+
+  "input": {
+    "args": "address reviews 4295962900 4295962950 on https://github.com/acme/widget/pull/142 slug=acme-widget-pr142",
+    "session_slug": "acme-widget-pr142",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 142, "url": "https://github.com/acme/widget/pull/142", "head_sha": "abc1230", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#142": {
+        "reviewId": 4295962800,
+        "last_pushed_sha": "abc1230",
+        "idle_tick_count": 0,
+        "cycles_completed": 1,
+        "escalated_review_ids": [],
+        "pushed_shas": ["abc1230"]
+      }
+    },
+    "gh_responses": {
+      "gh api .../reviews (filtered to ids 4295962900 and 4295962950)": [
+        {
+          "id": 4295962900,
+          "submitted_at": "2026-05-19T11:00:00Z",
+          "state": "CHANGES_REQUESTED",
+          "user": { "login": "alice" },
+          "body": "One concrete thing."
+        },
+        {
+          "id": 4295962950,
+          "submitted_at": "2026-05-19T11:15:00Z",
+          "state": "COMMENTED",
+          "user": { "login": "bob" },
+          "body": "👀 not sure about this"
+        }
+      ],
+      "gh api .../comments (filtered to review 4295962900)": [
+        { "id": 9001, "body": "extract this into a helper", "path": "src/foo.ts", "line": 42, "pull_request_review_id": 4295962900, "user": { "login": "alice" } }
+      ],
+      "gh api .../comments (filtered to review 4295962950)": [],
+      "gh pr view 142 (post-push)": { "state": "OPEN", "headRefOid": "def4560" }
+    },
+    "loop_user": "stan4git"
+  },
+
+  "expected": {
+    "preamble": "**/muggle-do address-reviews** — handling 2 review(s) on acme/widget#142.",
+    "outcome": "mixed",
+    "classification": {
+      "4295962900": "actionable",
+      "4295962950": "ambiguous (only an emoji, no concrete signal)"
+    },
+    "stages_run": [
+      "(for actionable) build + unit-tests + ONE E2E + open-prs (push def4560) + per-comment-replies (one on comment 9001) + resolve-reminder",
+      "(for ambiguous) emit one terminal escalation message listing review 4295962950 with body '👀 not sure about this'; add 4295962950 to escalated_review_ids"
+    ],
+    "state_writes": {
+      "last_seen.json": "reviewId advanced to 4295962950 (max of input); last_pushed_sha set to def4560; cycles_completed 1→2; pushed_shas appended with def4560; escalated_review_ids now contains 4295962950"
+    },
+    "side_effects": [
+      "POST /repos/acme/widget/pulls/142/comments/9001/replies body='Addressed in def4560: extracted into helper.'",
+      "gh pr comment 142 body='I addressed these threads in def4560 — mark them resolved when satisfied:\\n- #T_1'",
+      "terminal-message: 'Review-followup escalation — acme/widget#142'  (lists review 4295962950)",
+      "/loop 1m /muggle:muggle-pr-followup acme-widget-pr142 142"
+    ],
+    "telemetry_events": [
+      {
+        "skill": "muggle-do",
+        "event": "cycle",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "review_ids_in": [4295962900, 4295962950],
+        "review_ids_actionable": [4295962900],
+        "review_ids_ambiguous": [4295962950],
+        "head_sha_before": "abc1230",
+        "head_sha_after": "def4560",
+        "outcome": "mixed"
+      },
+      {
+        "skill": "muggle-do",
+        "event": "escalation",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "kind": "ambiguous-review",
+        "review_ids": [4295962950]
+      },
+      {
+        "skill": "muggle-do",
+        "event": "resolve-reminder",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "addressed_by_loop": 1,
+        "addressed_by_human": 0,
+        "not_addressed": 0,
+        "comment_posted": true
+      }
+    ],
+    "respawned": true,
+    "notes": "The actionable and ambiguous paths run in the SAME /muggle-do invocation. The user sees ONE terminal escalation message (covering all ambiguous reviews in the batch — here just one) AND the reviewer sees the push + replies + resolve-reminder on GitHub. The watcher is respawned regardless — the user clarifies the ambiguous review by submitting a new review on GitHub, which the next watcher tick picks up."
+  }
+}

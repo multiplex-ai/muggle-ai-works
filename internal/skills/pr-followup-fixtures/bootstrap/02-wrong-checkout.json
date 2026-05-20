@@ -1,0 +1,47 @@
+{
+  "name": "02-wrong-checkout",
+  "description": "Bootstrap on a PR but the cwd is the wrong repo (or the wrong branch). Bootstrap aborts with a clear remediation snippet — no state files written, no watcher dispatched.",
+
+  "input": {
+    "args": "https://github.com/acme/widget/pull/142",
+    "cwd_state": {
+      "is_git_repo": true,
+      "toplevel": "/home/stan/repos/other-project",
+      "origin_url": "git@github.com:acme/other-project.git",
+      "current_branch": "master"
+    },
+    "existing_session_slot": null,
+    "gh_responses": {
+      "gh pr view 142 --repo acme/widget --json url,number,headRefOid,headRefName,baseRefName,state,mergedAt,closedAt,body,title,author": {
+        "url": "https://github.com/acme/widget/pull/142",
+        "number": 142,
+        "headRefOid": "abc1230",
+        "headRefName": "feat/foo",
+        "baseRefName": "master",
+        "state": "OPEN",
+        "mergedAt": null,
+        "closedAt": null,
+        "body": "## Goal\n\nDo the thing.\n",
+        "title": "Do the thing",
+        "author": { "login": "stan4git" }
+      }
+    }
+  },
+
+  "expected": {
+    "preamble": "**muggle-pr-followup bootstrap** — seeding state for acme/widget#142.",
+    "outcome": "aborted-wrong-checkout",
+    "state_writes": {},
+    "user_facing_message": [
+      "Bootstrap needs the PR's branch checked out locally.",
+      "Current cwd:    /home/stan/repos/other-project",
+      "Current branch: master",
+      "Expected:       a clone of acme/widget on branch feat/foo.",
+      "From that clone, run: gh pr checkout 142"
+    ],
+    "telemetry_events": [],
+    "side_effects": [],
+    "respawned": false,
+    "notes": "Bootstrap aborts BEFORE Step 6 (cursor resolve). No state files. No /loop. No telemetry event — bootstrap didn't succeed."
+  }
+}

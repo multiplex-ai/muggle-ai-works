@@ -1,8 +1,4 @@
-/**
- * Tests for rewriteActionScriptUrls — the local-replay URL substitution
- * that points cloud-recorded action scripts at a local dev URL. See
- * `mcp/local/services/replay-url-rewrite.ts` and issue #163.
- */
+/** Tests for `rewriteActionScriptUrls` (local-replay URL swap, issue #163). */
 
 import { describe, expect, it } from "vitest";
 

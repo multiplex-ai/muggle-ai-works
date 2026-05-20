@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global AbortController */
 /**
  * Postinstall script for @muggleai/works.
  * Downloads the Electron app binary for local testing.
@@ -30,6 +31,8 @@ const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
 const LOG_FILE_NAME = "postinstall.log";
+const FETCH_TIMEOUT_MS = 90_000;
+const STREAM_TIMEOUT_MS = 5 * 60_000;
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
 const CURSOR_SKILLS_DIRECTORY_NAME = ".cursor";
 const CURSOR_SKILLS_SUBDIRECTORY_NAME = "skills";
@@ -625,9 +628,22 @@ async function downloadElectronApp() {
         // Create directories
         mkdirSync(versionDir, { recursive: true });
 
-        // Download using fetch
+        // Download using fetch. Both fetch and pipeline get hard timeouts so a
+        // hung CDN/proxy can never pin this process — see issue #167.
         log("Fetching...");
-        const response = await fetch(downloadUrl);
+        const fetchController = new AbortController();
+        const fetchTimer = setTimeout(() => fetchController.abort(), FETCH_TIMEOUT_MS);
+        let response;
+        try {
+            response = await fetch(downloadUrl, { signal: fetchController.signal });
+        } catch (error) {
+            if (error && error.name === "AbortError") {
+                throw new Error(`Fetch timed out after ${FETCH_TIMEOUT_MS}ms — ${downloadUrl}`, { cause: error });
+            }
+            throw error;
+        } finally {
+            clearTimeout(fetchTimer);
+        }
         if (!response.ok) {
             const errorBody = await response.text().catch(() => "");
             throw new Error(
@@ -642,7 +658,18 @@ async function downloadElectronApp() {
 
         const tempFile = join(versionDir, binaryName);
         const fileStream = createWriteStream(tempFile);
-        await pipeline(response.body, fileStream);
+        const streamController = new AbortController();
+        const streamTimer = setTimeout(() => streamController.abort(), STREAM_TIMEOUT_MS);
+        try {
+            await pipeline(response.body, fileStream, { signal: streamController.signal });
+        } catch (error) {
+            if (error && error.name === "AbortError") {
+                throw new Error(`Download stream stalled — aborted after ${STREAM_TIMEOUT_MS}ms`, { cause: error });
+            }
+            throw error;
+        } finally {
+            clearTimeout(streamTimer);
+        }
 
         log("Download complete, verifying checksum...");
 
@@ -895,10 +922,14 @@ function syncClaudePluginCache() {
     }
 }
 
-// Run postinstall
+// Run postinstall. The explicit `process.exit` guarantees the script doesn't
+// linger when something below (a hung socket, an EPERM rmSync retry on
+// Windows) keeps the event loop alive — see issue #167.
 initLogFile();
 removeVersionOverrideFile();
 syncCursorSkills();
 syncClaudePluginCache();
 upsertCursorMcpConfig();
-downloadElectronApp().catch(logError);
+downloadElectronApp()
+    .catch(logError)
+    .finally(() => process.exit(0));

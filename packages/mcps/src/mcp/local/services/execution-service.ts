@@ -23,6 +23,7 @@ import {
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -971,38 +972,6 @@ export async function executeReplay(params: {
   }
 }
 
-/**
- * Rewrite URLs in action script to use local URL.
- *
- * @param params - Rewrite parameters.
- * @param params.actionScript - Original action script steps.
- * @param params.originalUrl - Original cloud URL to replace.
- * @param params.localUrl - Local URL to use.
- * @returns Action script with rewritten URLs.
- */
-function rewriteActionScriptUrls(params: {
-  actionScript: unknown[];
-  originalUrl?: string;
-  localUrl: string;
-}): unknown[] {
-  const { actionScript, originalUrl, localUrl } = params;
-
-  if (!originalUrl) {
-    return actionScript;
-  }
-
-  // Deep clone and replace URLs
-  const serialized = JSON.stringify(actionScript);
-  const rewritten = serialized.replace(new RegExp(escapeRegex(originalUrl), "g"), localUrl);
-  return JSON.parse(rewritten) as unknown[];
-}
-
-/**
- * Escape special regex characters in a string.
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 /**
  * Cancel an active execution.

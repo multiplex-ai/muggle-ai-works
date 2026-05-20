@@ -124,8 +124,3 @@ Emitted after the resolve-reminder stage posts the top-level PR comment. Fires z
 
 - `comment_posted`: false when there were zero addressed-by-loop threads (no comment to post); telemetry still emits so dashboards see the scan happened.
 
-## Identity rules
-
-- One `session_slug` per `(repo, pr_number)` pair throughout the PR's life.
-- `head_sha_before` is the PR's head SHA as seen at the start of the invocation; `head_sha_after` is the SHA after the push (same as before if no push happened).
-- Counts (`addressed_by_loop`, etc.) reflect the state at the time of emission, not historical accumulation.

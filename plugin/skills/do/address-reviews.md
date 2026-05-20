@@ -130,18 +130,8 @@ When `build.md` returns `failed: design-adjustment`:
 
 Do **not** push, do **not** post replies, do **not** run resolve-reminder. The cycle ended on a design conflict; the work was not applied.
 
-## Self-check before ending the turn
+## Invariants
 
-- [ ] Every input review id was either processed (actionable) or escalated (ambiguous).
-- [ ] When actionables ran: one push, N inline replies, one resolve-reminder run (which may or may not have posted a comment).
-- [ ] When ambiguous existed: one terminal escalation message printed; ids in `escalated_review_ids`.
-- [ ] `last_seen.json` updated: cursor advanced, `pushed_shas[]` extended, counters incremented.
-- [ ] One `cycle` telemetry event emitted (plus any escalation/resolve-reminder events).
-- [ ] Watcher respawned **only if** PR is still open and not merged/closed.
-- [ ] No `cycle.json` or `requirements.md` was read or written in the session slot.
-
-## What this stage does NOT do
-
-- Run pre-flight (Stage 1) or requirements gathering (Stage 2). The reviews are the requirements.
-- Create a PR. The PR exists — `open-prs.md` runs in address-reviews mode.
-- Iterate the actionable reviews one-at-a-time. The whole batch produces one cycle, one push.
+- One `/muggle-do` invocation = at most one push and one resolve-reminder, regardless of how many reviews are in the batch.
+- Every input review id ends up in either the cursor (handled) or `escalated_review_ids` (skipped) — never both, never neither.
+- The watcher is respawned exactly when the PR is still open at the end of the cycle.

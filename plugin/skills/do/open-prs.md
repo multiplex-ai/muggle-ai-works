@@ -95,23 +95,10 @@ If `prs.json` is empty (all repos skipped, or all PR creations failed), **do not
 
 This mode does **not** dispatch a watcher itself. After Step 6 above, return control to `/muggle-do`, which runs the next stages of its address-reviews flow (per-comment inline replies → resolve-reminder → respawn watcher). The respawn is `/muggle-do`'s responsibility, not this stage's.
 
-## Self-check before exit
+## Invariants
 
-Forward mode:
-
-- [ ] Every non-skipped repo got `gh pr create` to succeed.
-- [ ] When an E2E report existed, the walkthrough block was rendered via Mode B (not hand-written).
-- [ ] Overflow `comment` was posted only when non-null.
-- [ ] `prs.json` and `last_seen.json` reflect the PRs actually opened (no `cycle.json`, no `requirements.md`).
-- [ ] If `prs.json` is non-empty, the `/loop` dispatch was the last action.
-
-Address-reviews mode:
-
-- [ ] Push succeeded and the new SHA was appended to `last_seen.pushed_shas`.
-- [ ] Title/body refresh only ran when state changed.
-- [ ] Walkthrough Mode A produced a fresh comment when an E2E report was present.
-- [ ] No `gh pr create` ran (the PR already exists).
-- [ ] No `/loop` dispatch ran (`/muggle-do` owns the respawn after subsequent stages).
+- Forward mode: PR creation per non-skipped repo; walkthrough block from Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); `/loop` dispatch is the last action.
+- Address-reviews mode: push; new SHA appended to `pushed_shas`; title/body refreshed only on state change; walkthrough comment via Mode A; no `gh pr create`, no `/loop` dispatch.
 
 ## Output
 

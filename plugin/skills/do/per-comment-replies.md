@@ -55,15 +55,7 @@ Posted via the "Top-level PR comment" recipe ([`../_shared/github-cli-recipes.md
 - `gh api` returns an error for an individual reply → log to `followup.log`, continue with the remaining comments. Do not abort the whole step over one failure; the push has already happened and other replies still need posting.
 - All replies fail → surface the most-recent `gh` error to the user, but do not abort the overall `/muggle-do` invocation. The resolve-reminder stage still runs; the watcher still respawns. The next cycle on this PR will produce more replies and the missing ones can be picked up by the human reviewer.
 
-## Self-check
+## Invariants
 
-- [ ] One reply posted per line comment in each actionable review.
-- [ ] Each reply body contains the new SHA's 7-char prefix (so the resolve-reminder stage can classify).
-- [ ] Reviews with no line comments got a single top-level reference comment.
-- [ ] No "summary reply" was posted (no per-review aggregated summary in any thread).
-
-## What this step does NOT do
-
-- Post per-review summary replies. (Each **comment** gets its own reply; not each review.)
-- Resolve threads on behalf of the reviewer.
-- Run the resolve-reminder. That stage is separate, in [`resolve-reminder.md`](resolve-reminder.md), and runs after this step.
+- One reply per line comment. No per-review summary reply anywhere.
+- Every reply body contains the new SHA's 7-char prefix — the resolve-reminder stage greps for it.

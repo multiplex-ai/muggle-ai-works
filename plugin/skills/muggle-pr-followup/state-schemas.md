@@ -99,11 +99,6 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 - <ISO-8601> PR <merged|closed> — watcher terminal
 ```
 
-## Files no longer present
+## Not in the slot
 
-The following files lived in the slot under the prior (cycle-declared) shape but are **gone** in the watcher-handoff shape:
-
-- `cycle.json` — the watcher no longer iterates a declared cycle. `/muggle-do` is the cycle.
-- `requirements.md` — `/muggle-do` reads reviews off GitHub each invocation. The forward pipeline still uses its own `requirements.md` during stage 2, but that file is not replicated into the follow-up slot.
-
-The caller (`open-prs.md` and bootstrap) must not seed these files. The watcher and `/muggle-do` must not read them.
+`cycle.json` and `requirements.md` are not seeded or read. `/muggle-do` reads reviews off GitHub each invocation.

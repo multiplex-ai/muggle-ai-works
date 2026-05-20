@@ -68,42 +68,6 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
 5. Exit. **Do not schedule another tick.** `/muggle-do` will respawn the watcher at the end of its cycle.
 
-### Step 6 — Self-check before ending the turn
-
-- [ ] `prs.json` reflects the current PR state (head_sha refreshed; terminal marked if applicable).
-- [ ] `last_seen.json` reflects the new counter values.
-- [ ] `followup.log` has exactly one new line for this tick.
-- [ ] Exactly one `tick` telemetry event was emitted.
-- [ ] If dispatching, the `/muggle-do` invocation was the last tool call.
-- [ ] If terminal, `result.md` exists.
-
-## What the watcher must never do
-
-These are explicit non-responsibilities. The earlier (cycle-declared) shape did all of them; the dumb-pipe shape does none.
-
-- Classify a review as actionable or ambiguous.
-- Read or write `cycle.json` or `requirements.md` (those files no longer exist in the slot).
-- Iterate cycle steps. Run build/test/E2E commands. Post any PR comment, reply, or walkthrough.
-- Maintain `pushed_shas[]` or `cycles_completed` — both belong to `/muggle-do`.
-- Escalate. Even on cycle failures `/muggle-do` reports, the watcher is not the escalation site.
-- Re-dispatch `/muggle-do` from the same tick that already dispatched it.
-
-When the watcher's behavior seems wrong, the fix is almost always in `/muggle-do`. The watcher's logic is small enough to audit visually.
-
 ## Output
 
-This stage produces no console output beyond:
-
-- The turn preamble (always).
-- The `/muggle-do` dispatch (only when Step 5 fires).
-
-No escalations, no summary, no PR-side activity. The watcher is invisible to the reviewer.
-
-## Reply / classification / escalation: pointers
-
-For the rules the watcher used to apply (and the new caller of those rules now applies):
-
-- **Classify rule:** [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md). Called by `/muggle-do`, not the watcher.
-- **Reviewer allow-list:** same file. Called by `/muggle-do` when reading reviews; the watcher fetches by `id` only and does not allow-list filter.
-- **Reply routing (per-comment inline replies):** same file. Owned by `/muggle-do`.
-- **Escalation message templates:** [`output-templates.md`](output-templates.md). Posted by `/muggle-do`.
+No console output beyond the turn preamble and (if Step 5 fires) the `/muggle-do` dispatch. The watcher is invisible to the reviewer.

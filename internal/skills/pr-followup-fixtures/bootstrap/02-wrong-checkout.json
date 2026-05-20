@@ -42,6 +42,6 @@
     "telemetry_events": [],
     "side_effects": [],
     "respawned": false,
-    "notes": "Bootstrap aborts BEFORE writing any state file. The cursor is never resolved (Step 6 doesn't run). No /loop dispatch. No telemetry event — bootstrap didn't succeed. The user fixes their cwd and re-runs."
+    "notes": "Bootstrap aborts BEFORE Step 6 (cursor resolve). No state files. No /loop. No telemetry event — bootstrap didn't succeed."
   }
 }

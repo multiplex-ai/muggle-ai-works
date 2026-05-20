@@ -85,16 +85,8 @@ Use the bootstrap success-summary template from [`output-templates.md`](output-t
 
 Emit one `bootstrap` event per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#bootstrap--one-per-successful-bootstrap). `caller = "user"` for direct invocation. Fire-and-forget per [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md).
 
-## Failure modes
+## Invariants
 
-Every abort produces **one** terminal message containing the fix, then exits the turn. Bootstrap does not retry, does not partially seed, does not leave half-written state files. State writes happen only in Step 7 — if any prior step aborts, the slot was never created.
-
-If Step 7 fails mid-write (e.g. disk error after writing `prs.json` but before `last_seen.json`), surface the OS error and tell the user to `rm -rf <path>` and re-run. Do not dispatch the watcher in this case.
-
-## Self-check before ending the turn
-
-- [ ] All three state files exist in the slot.
-- [ ] The loop user is cached in `state.md`.
-- [ ] The success summary was printed.
-- [ ] The `/loop` dispatch was the last tool call.
-- [ ] One `bootstrap` telemetry event was emitted.
+- All state writes happen in Step 7 — earlier aborts leave nothing on disk.
+- If Step 7 fails mid-write, surface the OS error and tell the user to `rm -rf <slot>` and re-run; do not dispatch the watcher.
+- Bootstrap never retries.

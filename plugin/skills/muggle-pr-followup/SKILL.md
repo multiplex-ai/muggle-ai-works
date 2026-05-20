@@ -35,7 +35,3 @@ Bootstrap accepts two optional trailing flags:
 ## Folder TOC
 
 See [`CLAUDE.md`](CLAUDE.md) for the one-line index of every file in this folder.
-
-## Why a separate skill (and not inside `/muggle-do`)
-
-`/loop` dispatches via slash command; slash commands resolve to top-level skills under `plugin/skills/`. A per-tick loop driven by `/loop` therefore has to live as a top-level skill. Folding it into `/muggle-do` would break `/loop`-dispatch. The dumb-pipe shape keeps the watcher minimal so the separation has low surface area.

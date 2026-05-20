@@ -63,15 +63,8 @@ This stage is best-effort. Any failure is logged to `followup.log` and silently 
 
 The one exception: do not silently swallow a `gh pr comment` failure if Step 4 ran. The comment is a user-visible artifact; if it fails, surface the underlying `gh` error to the user so they know the reminder didn't post.
 
-## Self-check
+## Invariants
 
-- [ ] If actionables ran in this `/muggle-do` invocation, Step 1 was attempted.
-- [ ] Exactly one `resolve-reminder` telemetry event emitted, regardless of whether a comment was posted.
-- [ ] When a comment is posted, its body matches the template (one short SHA + bulleted thread ids).
-
-## What this stage does NOT do
-
-- Resolve threads on the user's behalf. GitHub does not expose a "mark thread resolved" mutation via the gh CLI in a way that respects the user's intent — we only suggest.
-- Re-post resolve reminders for past pushes. Each cycle's reminder covers only that cycle's push.
-- Run during the forward pipeline. The forward pipeline's `open-prs.md` creates a fresh PR with no existing threads; there is nothing to remind about.
-- Inspect telemetry counts to decide whether to post. The only gate is "is the reminder list non-empty in Step 3?".
+- Telemetry fires once per invocation, even when no comment is posted.
+- The reminder only covers threads addressed by the **most recent** push — older SHAs were covered by prior cycles' reminders.
+- This stage suggests; it does not resolve threads on the reviewer's behalf.

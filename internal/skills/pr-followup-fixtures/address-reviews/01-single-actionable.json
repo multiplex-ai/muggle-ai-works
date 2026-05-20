@@ -87,7 +87,6 @@
         "comment_posted": true
       }
     ],
-    "respawned": true,
-    "notes": "ONE push and ONE E2E pass for the WHOLE batch (here, two comments). Two inline replies (one per comment), one top-level resolve-reminder. The watcher is respawned at the very end."
+    "respawned": true
   }
 }

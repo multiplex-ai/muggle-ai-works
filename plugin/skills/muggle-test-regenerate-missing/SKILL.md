@@ -180,15 +180,15 @@ Bulk regen does not run replays, so the section B (replay) router does not apply
 
 ### Step 8 — Open the Dashboard
 
-Open the Muggle AI dashboard so the user can watch progress visually:
+Open the Muggle AI dashboard so the user can watch progress visually. Point them at the **scripts** page (where DRAFT → GENERATING → ACTIVE transitions are visible), not `/runs` (which is for replay batches and shows nothing for a regen):
 
 ```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
+open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts"
 ```
 
 Tell them:
 
-> "I've opened the project's runs page. Generation jobs typically take a few minutes each — they'll appear here as they progress. Your test cases will move into `ACTIVE` status as scripts complete."
+> "I've opened the project's scripts page. Generation jobs typically take a few minutes each — your test cases will move from `DRAFT` through `GENERATING` to `ACTIVE` as scripts complete."
 
 ### Step 9 (optional) — Poll Status
 

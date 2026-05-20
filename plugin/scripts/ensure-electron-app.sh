@@ -3,10 +3,35 @@
 set -euo pipefail
 
 # Ensure the Electron browser test runner is installed/up to date (silent, best-effort).
-if command -v muggle >/dev/null 2>&1; then
-  muggle setup >/dev/null 2>&1 || true
-else
-  npx -y @muggleai/works setup >/dev/null 2>&1 || true
+#
+# Bounded + cached: this script runs from a SessionStart hook on every Claude
+# session, so a hung `muggle setup` (e.g. one blocked by host security policy
+# on Windows) must not leak a ~100 MB orphan per session start. We cap the
+# attempt with `timeout` and skip the call entirely if we already checked
+# within the last day.
+ensure_marker_dir="${HOME}/.cache/muggle"
+ensure_marker="${ensure_marker_dir}/electron-app-checked"
+ensure_ttl=$((24 * 60 * 60))
+
+ensure_now=$(date +%s)
+ensure_last=0
+if [ -f "${ensure_marker}" ]; then
+    ensure_last=$(stat -f %m "${ensure_marker}" 2>/dev/null || stat -c %Y "${ensure_marker}" 2>/dev/null || echo 0)
+fi
+
+if [ $((ensure_now - ensure_last)) -ge "${ensure_ttl}" ]; then
+    if command -v timeout >/dev/null 2>&1; then
+        ensure_timeout="timeout -k 5 60"
+    else
+        ensure_timeout=""
+    fi
+    if command -v muggle >/dev/null 2>&1; then
+        ${ensure_timeout} muggle setup >/dev/null 2>&1 || true
+    else
+        ${ensure_timeout} npx -y @muggleai/works setup >/dev/null 2>&1 || true
+    fi
+    mkdir -p "${ensure_marker_dir}" 2>/dev/null || true
+    touch "${ensure_marker}" 2>/dev/null || true
 fi
 
 # --- Context injection ---

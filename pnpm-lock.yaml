@@ -11,12 +11,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.29.0(zod@4.4.3)
-      '@muggleai/mcp':
-        specifier: file:packages/mcps
-        version: link:packages/mcps
-      '@muggleai/workflows':
-        specifier: file:packages/workflows
-        version: link:packages/workflows
       applicationinsights:
         specifier: ^3.14.0
         version: 3.14.0
@@ -48,9 +42,15 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.3.0)
+      '@muggleai/mcp':
+        specifier: file:packages/mcps
+        version: link:packages/mcps
       '@muggleai/telemetry':
         specifier: 0.3.2
         version: 0.3.2
+      '@muggleai/workflows':
+        specifier: file:packages/workflows
+        version: link:packages/workflows
       '@types/node':
         specifier: ^25.5.2
         version: 25.6.2

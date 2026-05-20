@@ -16,13 +16,13 @@ This stage does not print a turn preamble — it runs inside `/muggle-do`'s addr
 
 - The current PR (URL, owner, repo, number) from the session's `prs.json`.
 - `last_seen.pushed_shas[]` from `last_seen.json` — the list of every SHA `/muggle-do` has pushed for this PR.
-- The loop user's GitHub login (cached in `state.md` under `Loop user:` — re-resolve via the "Identifying the loop user" recipe if missing).
+- The loop user's GitHub login (cached in `state.md` under `Loop user:` — re-resolve per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md) if missing).
 
 ## Procedure
 
 ### Step 1 — Fetch unresolved comment threads
 
-Use the "Unresolved comment threads on a PR" recipe from [`../_shared/github-cli-recipes.md`](../_shared/github-cli-recipes.md). Filter client-side to `isResolved == false`. Each thread carries its line comments with `author.login`, `body`, and `databaseId`.
+Per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). Filter client-side to `isResolved == false`. Each thread carries its line comments with `author.login`, `body`, and `databaseId`.
 
 If the API call fails, log the error to `followup.log` and skip the stage. Do not surface a user-facing error — the resolve reminder is a nice-to-have, not load-bearing. The reply summaries on the threads themselves still happen.
 
@@ -30,7 +30,7 @@ If the API call fails, log the error to `followup.log` and skip the stage. Do no
 
 For each unresolved thread, walk its comments in chronological order. Classify by the **first match** that applies:
 
-- **Addressed by the loop** — at least one comment authored by the loop user **and** that comment's body cites a SHA prefix in `last_seen.pushed_shas[]`. Bodies use the form *"Addressed in `<short-sha>`: ..."* per [`../muggle-pr-followup/output-templates.md`](../muggle-pr-followup/output-templates.md#cycle-summary-inline-reply-per-comment), so a substring match on any `pushed_shas[i][:7]` works.
+- **Addressed by the loop** — at least one comment authored by the loop user **and** that comment's body cites a SHA prefix in `last_seen.pushed_shas[]`. Bodies use the form *"Addressed in `<short-sha>`: ..."* per [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md), so a substring match on any `pushed_shas[i][:7]` works.
 - **Addressed by a human** — at least one comment authored by a non-loop-user identity created after the original comment's timestamp, and no addressed-by-loop signal.
 - **Not addressed** — neither of the above.
 
@@ -44,13 +44,13 @@ Note: the watcher does not maintain a "addressed-this-cycle" set; this stage der
 
 ### Step 4 — Post the top-level reminder comment
 
-If the resolve-reminder list is non-empty, post **one** top-level PR comment using the template from [`../muggle-pr-followup/output-templates.md`](../muggle-pr-followup/output-templates.md#resolve-reminder-top-level-pr-comment) via the "Top-level PR comment" recipe.
+If the resolve-reminder list is non-empty, post **one** top-level PR comment using the template in [`../muggle-pr-followup/output-templates/resolve-reminder.md`](../muggle-pr-followup/output-templates/resolve-reminder.md) per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md).
 
 If the list is empty (the push didn't end up addressing any threads — e.g. the actionable work was on lines that had no comment threads), post **nothing**. Still emit telemetry so the stage's run is observable.
 
 ### Step 5 — Emit telemetry
 
-Emit one `resolve-reminder` event per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#resolve-reminder--one-per-resolve-reminder-stage-run). Include:
+Emit one event per [`../_shared/telemetry-events/muggle-do-resolve-reminder.md`](../_shared/telemetry-events/muggle-do-resolve-reminder.md). Include:
 
 - `addressed_by_loop` — count of threads added to the reminder list in Step 3.
 - `addressed_by_human` — count from Step 2's other category.

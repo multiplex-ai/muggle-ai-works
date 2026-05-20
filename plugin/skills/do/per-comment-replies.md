@@ -7,7 +7,7 @@ This is **not** a top-level "summary reply on the review." Each comment thread g
 ## Inputs
 
 - `actionable_reviews` — the list of reviews classified actionable in `address-reviews.md` Step 2.
-- `new_sha` — the SHA `open-prs.md` just pushed.
+- `new_sha` — the SHA `open-prs/update.md` just pushed.
 - The PR's owner, repo, number.
 
 ## Procedure
@@ -32,7 +32,7 @@ gh api --method POST \
   -f body="<reply-body>"
 ```
 
-Reply body uses the *Cycle summary inline reply (per comment)* template from [`../muggle-pr-followup/output-templates.md`](../muggle-pr-followup/output-templates.md#cycle-summary-inline-reply-per-comment):
+Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md):
 
 ```
 Addressed in <short-sha>: <one-line summary of the change made for THIS comment>.
@@ -48,7 +48,7 @@ If an actionable review has a non-empty `body` and **zero** line comments, GitHu
 Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
 ```
 
-Posted via the "Top-level PR comment" recipe ([`../_shared/github-cli-recipes.md`](../_shared/github-cli-recipes.md#top-level-pr-comment-for-resolve-reminder)). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — those are covered by Step 2.
+Posted per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.
 
 ## Failure modes
 

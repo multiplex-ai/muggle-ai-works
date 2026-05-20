@@ -8,18 +8,18 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (one-shot non-interactive seed + watcher dispatch).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
-- [`output-templates.md`](output-templates.md) — user-facing summary, abort, and error message templates.
+- [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
 
 ## Cross-folder dependencies
 
 Shared with other skills, under `../_shared/`:
 
-- [`pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) — allow-list, reply routing, classify rule. Called by `/muggle-do`, not by this folder.
+- [`pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) — TOC of allow-list / reply-routing / classify; per-section files in `_shared/pr-followup-helpers/`. Called by `/muggle-do`, not by this folder.
 - [`telemetry-emit.md`](../_shared/telemetry-emit.md) — how to emit a telemetry event.
-- [`telemetry-events.md`](../_shared/telemetry-events.md) — canonical event shapes.
-- [`github-cli-recipes.md`](../_shared/github-cli-recipes.md) — reusable `gh` / `git` snippets.
+- [`telemetry-events.md`](../_shared/telemetry-events.md) — TOC of canonical event shapes; per-event files in `_shared/telemetry-events/`.
+- [`github-cli-recipes.md`](../_shared/github-cli-recipes.md) — TOC of reusable `gh` / `git` snippets; per-recipe files in `_shared/github-cli-recipes/`.
 
 Caller-specific, under `../do/`:
 
-- [`open-prs.md`](../do/open-prs.md) — stage 7 of `/muggle-do`'s forward pipeline. Creates the PR and dispatches the first watcher.
+- [`open-prs.md`](../do/open-prs.md) — TOC for the create-or-update PR stage; per-mode files in `do/open-prs/`.
 - [`resolve-reminder.md`](../do/resolve-reminder.md) — `/muggle-do`'s post-replies stage that posts the resolve-reminder top-level comment.

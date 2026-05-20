@@ -27,7 +27,7 @@ If either file is missing or the PR is not in `prs.json`, the tick is a no-op. L
 
 ### Step 1 — Refresh PR state
 
-Use the "PR metadata snapshot" recipe from [`../_shared/github-cli-recipes.md`](../_shared/github-cli-recipes.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response.
+Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response.
 
 ### Step 2 — Termination check
 
@@ -35,18 +35,18 @@ If `state` is `MERGED` or `CLOSED`:
 
 1. Mark the entry terminal in `prs.json`.
 2. Write `result.md` per [`state-schemas.md`](state-schemas.md#resultmd).
-3. Append a terminal line to `followup.log` per [`output-templates.md`](output-templates.md#terminal-tick).
-4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#tick--one-per-watcher-iteration).
+3. Append a terminal line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
+4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events/pr-followup-tick.md`](../_shared/telemetry-events/pr-followup-tick.md).
 5. Exit. **Do not schedule another tick.** The `/loop` framework stops invoking this skill once it sees no follow-up dispatch.
 
 ### Step 3 — Fetch new submitted reviews
 
-Use the "Submitted reviews past a cursor" recipe. Apply the filters listed there. Important: **also exclude review ids that appear in `last_seen.escalated_review_ids`** — those have already been escalated and the watcher must not re-dispatch them.
+Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md). **Also exclude review ids that appear in `last_seen.escalated_review_ids`** — those have already been escalated and the watcher must not re-dispatch them.
 
 ### Step 4 — If zero new reviews → idle
 
 1. Increment `last_seen.idle_tick_count`.
-2. Append an idle line to `followup.log` per [`output-templates.md`](output-templates.md#idle-tick-logged-only-not-printed).
+2. Append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 3. Emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`.
 4. Exit. The next tick fires in 1 min via `/loop`.
 
@@ -64,7 +64,7 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    ```
    /muggle-do address reviews <id1> <id2> ... on <pr-url> slug=<slug>
    ```
-3. Append a dispatching line to `followup.log` per [`output-templates.md`](output-templates.md#dispatching-tick-logged-only-not-printed).
+3. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
 5. Exit. **Do not schedule another tick.** `/muggle-do` will respawn the watcher at the end of its cycle.
 

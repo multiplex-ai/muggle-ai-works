@@ -22,19 +22,17 @@ Bootstrap is **non-interactive**: it runs straight through, prompts the user for
 
 ### Step 1 — Parse the URL
 
-Extract `<owner>`, `<repo>`, `<pr-number>`. On malformed input, exit with the malformed-URL abort from [`output-templates.md`](output-templates.md).
+Extract `<owner>`, `<repo>`, `<pr-number>`. On malformed input, exit with the malformed-URL abort from [`output-templates/bootstrap.md`](output-templates/bootstrap.md).
 
 ### Step 2 — Fetch PR metadata
 
-Use the "PR metadata snapshot" recipe from [`../_shared/github-cli-recipes.md`](../_shared/github-cli-recipes.md).
+Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md).
 
-If `state` is `MERGED` or `CLOSED`, exit with the terminal-PR abort. There is nothing for a watcher to poll.
-
-If the `gh` call itself fails (PR not found, auth missing), surface the underlying error verbatim and exit.
+If `state` is `MERGED` or `CLOSED`, exit with the terminal-PR abort. If the `gh` call fails (not found, auth missing), surface the underlying error verbatim and exit.
 
 ### Step 3 — Verify the working tree
 
-Use the "Verify working tree matches the PR's repo" + "Verify the PR's branch is checked out" recipes. Both must pass. On any failure, exit with the wrong-working-tree abort. The message names what we see and what we expected — bootstrap does not know where the user keeps their clones, so it does not print an absolute remediation path.
+Per [`../_shared/github-cli-recipes/verify-working-tree.md`](../_shared/github-cli-recipes/verify-working-tree.md). On any check failure, exit with the wrong-working-tree abort.
 
 ### Step 4 — Resolve the slug
 
@@ -49,13 +47,11 @@ If `.muggle-do/sessions/<slug>/` exists:
 
 ### Step 6 — Resolve the initial cursor
 
-Query the highest existing submitted review id on the PR. Use the "Submitted reviews past a cursor" recipe with a cursor of 0, then take `max(id)`. If no submitted reviews exist, the cursor is 0.
-
-The watcher will only act on reviews with `id > cursor`, so this pins it forward-only at the bootstrap moment.
+Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) with cursor 0, then take `max(id)`. If none, the cursor is 0. The watcher only acts on `id > cursor`, so this pins forward-only.
 
 ### Step 7 — Seed state files
 
-Identify the loop user once via the "Identifying the loop user" recipe; cache for `state.md`.
+Identify the loop user once per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md); cache in `state.md`.
 
 Write under `.muggle-do/sessions/<slug>/`:
 
@@ -79,11 +75,11 @@ The last action of this turn:
 
 ### Step 9 — Print the success summary
 
-Use the bootstrap success-summary template from [`output-templates.md`](output-templates.md#success-summary-printed-just-before-dispatch). Print it **before** the `/loop` dispatch so it's visible in the turn's text output.
+Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** the `/loop` dispatch so it's visible.
 
 ### Step 10 — Emit telemetry
 
-Emit one `bootstrap` event per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#bootstrap--one-per-successful-bootstrap). `caller = "user"` for direct invocation. Fire-and-forget per [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md).
+Emit one event per [`../_shared/telemetry-events/pr-followup-bootstrap.md`](../_shared/telemetry-events/pr-followup-bootstrap.md). `caller = "user"` for direct invocation. Fire-and-forget per [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md).
 
 ## Invariants
 

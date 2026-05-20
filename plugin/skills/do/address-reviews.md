@@ -31,14 +31,14 @@ Read from `.muggle-do/sessions/<slug>/`:
 
 For each review id in the input:
 
-- Use the "Submitted reviews past a cursor" recipe (cursor 0; filter to the specific id).
-- Fetch its line comments via the "Line comments for a specific review" recipe.
+- Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) (cursor 0; filter to the specific id).
+- Fetch its line comments per [`../_shared/github-cli-recipes/line-comments-for-review.md`](../_shared/github-cli-recipes/line-comments-for-review.md).
 
 Group into one combined batch.
 
 ### Step 2 — Classify each review
 
-Apply the classify rule in [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md). Two outcomes per review:
+Apply the classify rule in [`../_shared/pr-followup-helpers/classify.md`](../_shared/pr-followup-helpers/classify.md). Two outcomes per review:
 
 - **Actionable** — at least one concrete change request, or an answerable question with a target.
 - **Ambiguous** — no actionable signal.
@@ -51,7 +51,7 @@ For each id in `ambiguous_review_ids`:
 
 1. Append it to `last_seen.escalated_review_ids` so the watcher won't re-dispatch it.
 
-Emit **one** terminal escalation message (not one per ambiguous review) using the *Ambiguous escalation* template from [`../muggle-pr-followup/output-templates.md`](../muggle-pr-followup/output-templates.md#ambiguous-escalation). The message lists every ambiguous review and its comments inline. Emit the `escalation` telemetry event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#escalation--one-per-terminal-escalation-message).
+Emit **one** terminal escalation message (not one per ambiguous review) per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (ambiguous template). The message lists every ambiguous review and its comments inline. Emit an event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
 
 The user clarifies on GitHub by submitting a new review. The next watcher tick picks it up.
 
@@ -79,7 +79,7 @@ Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related t
 
 #### 4e. Create or update the PR
 
-Invoke [`open-prs.md`](open-prs.md) in **address-reviews mode** (pass the PR URL + slug + existing PR number). open-prs.md pushes, refreshes title/description if state changed, posts a fresh walkthrough comment, and appends the new SHA to `last_seen.pushed_shas[]`. Capture the new `head_sha`.
+Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + existing PR number). It pushes, refreshes title/description on state change, posts a fresh walkthrough comment, and appends the new SHA to `last_seen.pushed_shas[]`. Capture the new `head_sha`.
 
 #### 4f. Post per-comment inline replies
 
@@ -92,12 +92,12 @@ Invoke [`resolve-reminder.md`](resolve-reminder.md). Scans unresolved threads, c
 ### Step 5 — Update session state
 
 - `last_seen.cycles_completed` += 1
-- `last_seen.last_pushed_sha` = the new head SHA (open-prs.md already wrote this; verify)
+- `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)
 - `last_seen.reviewId` = max(input review ids ∪ last_seen.reviewId)
 
 ### Step 6 — Respawn the watcher
 
-Refresh PR state via the "PR metadata snapshot" recipe. If the PR is now merged or closed:
+Refresh PR state per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). If the PR is now merged or closed:
 
 1. Write `result.md` per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#resultmd).
 2. Do **not** respawn the watcher.
@@ -110,7 +110,7 @@ Otherwise, dispatch the next watcher as the last action of this turn:
 
 ### Step 7 — Telemetry
 
-Emit one `cycle` event per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#cycle--one-per-address-reviews-invocation). `outcome` is one of:
+Emit one event per [`../_shared/telemetry-events/muggle-do-cycle.md`](../_shared/telemetry-events/muggle-do-cycle.md). `outcome` is one of:
 
 - `"pushed"` — actionables ran and at least one push succeeded.
 - `"escalated"` — only ambiguous; no push.
@@ -124,7 +124,7 @@ Emit additional events as Steps fired them (escalation event in Step 3; resolve-
 When `build.md` returns `failed: design-adjustment`:
 
 1. Append the affected review ids to `last_seen.escalated_review_ids`.
-2. Emit one terminal message using the *Design-adjustment escalation* template from [`../muggle-pr-followup/output-templates.md`](../muggle-pr-followup/output-templates.md#design-adjustment-escalation).
+2. Emit one terminal message per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (design-adjustment template).
 3. Emit the `escalation` telemetry event with `kind: "design-adjustment"`.
 4. Skip to Step 6 (respawn watcher). The watcher continues polling — the user can override the design conflict by submitting a new review.
 

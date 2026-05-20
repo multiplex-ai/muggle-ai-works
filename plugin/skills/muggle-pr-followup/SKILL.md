@@ -25,7 +25,7 @@ The skill recognizes two modes by inspecting `$ARGUMENTS` and falling back to on
 | `<slug> <pr-number>` | session dir missing | **error:** "no session at `<path>`; pass a PR URL to start one" |
 | `<pr-number>` alone | exactly one existing session contains it | **tick** for that PR |
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
-| empty / `help` / `?` | — | **help:** list active loops per [`output-templates.md`](output-templates.md#help-output) |
+| empty / `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 
 Bootstrap accepts two optional trailing flags:
 

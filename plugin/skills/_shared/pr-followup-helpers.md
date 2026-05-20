@@ -1,12 +1,12 @@
 # PR follow-up helpers
 
-Generic operational guidance for running a PR-comment follow-up loop on GitHub: reviewer allow-list resolution, reply routing across the different comment endpoints, and a classification rule for reviewer comments with worked examples and a borderline test. Caller-agnostic — any loop that picks one comment per tick and decides what to do with it can drive off this doc.
+Generic operational guidance for PR-review follow-up: reviewer allow-list resolution, reply routing across the different comment endpoints, and a classification rule for reviewer comments with worked examples and a borderline test. Caller-agnostic — the watcher fetches reviews, the caller (today: `/muggle-do` in address-reviews mode) reads this file to classify them and decide what to do.
 
-The classification produces an **action shape** (in-place change, deep-cycle through the caller's implementation pipeline, reply only, escalate, etc.) — the caller maps each shape to its specific routing (which stage to dispatch, which terminal-message template to use, which reply endpoint to hit).
+The classification produces a binary label per review — **actionable** (run one cycle for the batch) or **ambiguous** (escalate with a terminal message). The caller maps each label to its specific routing (which stages to run, which reply endpoint, which terminal-message template).
 
 ## Resolving the reviewer allow-list
 
-Stage 8 only acts on comments authored by users in the **allow-list** = (requested reviewers ∪ CODEOWNERS) − bots − PR author. Re-resolve every tick (decision 9 in the design doc).
+The address-reviews flow only acts on reviews submitted by users in the **allow-list** = (requested reviewers ∪ CODEOWNERS) − bots − PR author. Re-resolve every invocation — never cache across cycles.
 
 ### Step 1: requested reviewers
 

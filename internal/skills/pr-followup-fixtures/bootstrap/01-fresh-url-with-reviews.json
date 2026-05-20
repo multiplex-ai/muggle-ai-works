@@ -1,0 +1,67 @@
+{
+  "name": "01-fresh-url-with-reviews",
+  "description": "Bootstrap on a PR that already has two submitted reviews from prior manual back-and-forth. Cursor pins to the highest existing review id so the watcher won't replay history. Seeds prs.json + last_seen.json + state.md, then dispatches the first watcher.",
+
+  "input": {
+    "args": "https://github.com/acme/widget/pull/142",
+    "cwd_state": {
+      "is_git_repo": true,
+      "toplevel": "/home/stan/repos/widget",
+      "origin_url": "git@github.com:acme/widget.git",
+      "current_branch": "feat/foo"
+    },
+    "existing_session_slot": null,
+    "gh_responses": {
+      "gh pr view 142 --repo acme/widget --json url,number,headRefOid,headRefName,baseRefName,state,mergedAt,closedAt,body,title,author": {
+        "url": "https://github.com/acme/widget/pull/142",
+        "number": 142,
+        "headRefOid": "abc1230",
+        "headRefName": "feat/foo",
+        "baseRefName": "master",
+        "state": "OPEN",
+        "mergedAt": null,
+        "closedAt": null,
+        "body": "## Goal\n\nDo the thing.\n\n## Acceptance Criteria\n\n- Thing is done.\n",
+        "title": "Do the thing",
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/142/reviews --paginate": [
+        { "id": 4295962800, "submitted_at": "2026-05-18T09:00:00Z", "state": "COMMENTED", "user": { "login": "alice" } },
+        { "id": 4295962850, "submitted_at": "2026-05-19T10:00:00Z", "state": "CHANGES_REQUESTED", "user": { "login": "alice" } }
+      ],
+      "gh api user --jq '.login'": "stan4git"
+    }
+  },
+
+  "expected": {
+    "preamble": "**muggle-pr-followup bootstrap** — seeding state for acme/widget#142.",
+    "outcome": "bootstrapped",
+    "state_writes": {
+      ".muggle-do/sessions/acme-widget-pr142/prs.json": "single entry: {repo:acme/widget, number:142, url:..., head_sha:abc1230, state:open}",
+      ".muggle-do/sessions/acme-widget-pr142/last_seen.json": "key 'acme/widget#142' with reviewId:4295962850 (the max of submitted reviews), last_pushed_sha:null, idle_tick_count:0, cycles_completed:0, escalated_review_ids:[], pushed_shas:[]",
+      ".muggle-do/sessions/acme-widget-pr142/state.md": "PR url, slug, loop_user: stan4git, Bootstrapped from URL: yes"
+    },
+    "files_NOT_written": [
+      ".muggle-do/sessions/acme-widget-pr142/cycle.json",
+      ".muggle-do/sessions/acme-widget-pr142/requirements.md"
+    ],
+    "telemetry_events": [
+      {
+        "skill": "muggle-pr-followup",
+        "event": "bootstrap",
+        "caller": "user",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "cursor_review_id": 4295962850,
+        "resume": false
+      }
+    ],
+    "side_effects": [
+      "Print bootstrap success summary (Cursor: review #4295962850, forward-only)",
+      "/loop 1m /muggle:muggle-pr-followup acme-widget-pr142 142"
+    ],
+    "respawned": false,
+    "notes": "Cursor pins forward-only — the historical reviews 4295962800 and 4295962850 are NOT processed. Only reviews with id > 4295962850 will trigger work. To replay an existing review, the user dismisses + re-submits on GitHub."
+  }
+}

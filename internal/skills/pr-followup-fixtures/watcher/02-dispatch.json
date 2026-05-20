@@ -1,0 +1,68 @@
+{
+  "name": "02-dispatch",
+  "description": "Two new submitted reviews past the cursor (one of them with id in the escalated set must be excluded). Watcher dispatches /muggle-do with the non-escalated review id and exits. No classification, no reply.",
+
+  "input": {
+    "session_slug": "acme-widget-pr142",
+    "args": "acme-widget-pr142 142",
+    "prs_json": [
+      { "repo": "acme/widget", "number": 142, "url": "https://github.com/acme/widget/pull/142", "head_sha": "abc1230", "state": "open" }
+    ],
+    "last_seen_json": {
+      "acme/widget#142": {
+        "reviewId": 4295962800,
+        "last_pushed_sha": "abc1230",
+        "idle_tick_count": 0,
+        "cycles_completed": 1,
+        "escalated_review_ids": [4295962850],
+        "pushed_shas": ["abc1230"]
+      }
+    },
+    "gh_responses": {
+      "gh pr view 142 --repo acme/widget --json url,number,headRefOid,headRefName,baseRefName,state,mergedAt,closedAt,body,title,author": {
+        "url": "https://github.com/acme/widget/pull/142",
+        "number": 142,
+        "headRefOid": "abc1230",
+        "headRefName": "feat/foo",
+        "baseRefName": "master",
+        "state": "OPEN",
+        "mergedAt": null,
+        "closedAt": null,
+        "body": "## Goal\n\nDo the thing.\n",
+        "title": "Do the thing",
+        "author": { "login": "stan4git" }
+      },
+      "gh api repos/acme/widget/pulls/142/reviews --paginate": [
+        { "id": 4295962850, "submitted_at": "2026-05-19T10:00:00Z", "state": "COMMENTED", "user": { "login": "alice" } },
+        { "id": 4295962900, "submitted_at": "2026-05-19T11:00:00Z", "state": "CHANGES_REQUESTED", "user": { "login": "alice" }, "body": "Two nits." }
+      ]
+    }
+  },
+
+  "expected": {
+    "preamble": "**muggle-pr-followup tick** — polling acme/widget#142.",
+    "outcome": "dispatched",
+    "state_writes": {
+      "last_seen.json": "idle_tick_count reset to 0; reviewId, escalated_review_ids, pushed_shas unchanged (the watcher does not touch those — /muggle-do does)",
+      "followup.log":   "one new line ending in 'reviews_seen=1 dispatched=4295962900'"
+    },
+    "telemetry_events": [
+      {
+        "skill": "muggle-pr-followup",
+        "event": "tick",
+        "session_slug": "acme-widget-pr142",
+        "repo": "acme/widget",
+        "pr_number": 142,
+        "reviews_seen": 1,
+        "dispatched_review_ids": [4295962900],
+        "terminal": false,
+        "idle": false
+      }
+    ],
+    "side_effects": [
+      "/muggle-do address reviews 4295962900 on https://github.com/acme/widget/pull/142 slug=acme-widget-pr142"
+    ],
+    "respawned": false,
+    "notes": "reviews_seen=1 (not 2) because the watcher filtered the escalated id out before counting. The dispatch is the last action; the watcher does NOT continue past it. /muggle-do owns respawning the watcher at the end of its cycle."
+  }
+}

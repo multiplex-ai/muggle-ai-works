@@ -1,190 +1,109 @@
-# PR follow-up per-tick contract
+# Watcher Per-Tick Contract
 
-Caller-agnostic per-tick contract for the [muggle-pr-followup](SKILL.md) skill. One tick = one polling iteration scoped to one PR.
+The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews, dispatches `/muggle-do` if there are any, and exits. It does not classify, amend requirements, post replies, run cycles, or escalate.
+
+Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain doc `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md`.
 
 ## Turn preamble
 
 ```
-**PR follow-up** — polling <repo>#<pr-number>, tick #<K>.
+**muggle-pr-followup tick** — polling <repo>#<pr-number>.
 ```
 
-Resolve `<K>` from `idle_tick_count + cycles_completed` in this PR's state slot.
+## Input
 
-## When this contract may break the caller's "no questions" rule
+`$ARGUMENTS = <slug> <pr-number>` (or `<pr-number>` alone — slug inferred from on-disk state per [`SKILL.md`](SKILL.md#routing)).
 
-Most callers' forward pipelines never ask the user mid-cycle. This loop, however, may emit a single escalation message when a submitted review is ambiguous (see [classify](#step-6-classify-the-review) below). By the time the loop is polling, the user has walked away from the forward pipeline; forcing a guess on an ambiguous review is worse than pausing.
+## Inputs from disk
 
-Escalation is the **only** user-facing path. Otherwise the cycle runs silently end to end.
+Read these from `.muggle-do/sessions/<slug>/`:
 
-## Inputs
+- `prs.json` — see [`state-schemas.md`](state-schemas.md#prsjson). The watcher touches the single entry whose `number` matches the dispatched PR number.
+- `last_seen.json` — see [`state-schemas.md`](state-schemas.md#last_seenjson). Keyed by `"<owner>/<repo>#<n>"`.
 
-Read these from `.muggle-<caller>/sessions/<slug>/` (the caller's session dir):
+If either file is missing or the PR is not in `prs.json`, the tick is a no-op. Log an error line in `followup.log` and exit. The watcher must not be invoked in this state — if it happens, the slot is corrupt.
 
-- `state.md` — session metadata (for context when classifying reviews).
-- `prs.json` — list of `{repo, number, url, head_sha, state, escalated?, cycling?}`. This loop touches only the entry whose `number` matches the dispatched PR number.
-- `last_seen.json` — keyed by `"<owner>/<repo>#<n>"`. For this PR: `{reviewId, last_pushed_sha, idle_tick_count, cycles_completed, escalated_review_ids[]}`.
-- `cycle.json` — caller's declared implementation cycle (see [SKILL.md](SKILL.md#caller-supplied-implementation-cycle)).
+## Procedure
 
-If any of these don't exist or the PR isn't in `prs.json`, the tick is a no-op — log an error to `followup.log` and exit.
+### Step 1 — Refresh PR state
 
-## Per-tick contract
+Use the "PR metadata snapshot" recipe from [`../_shared/github-cli-recipes.md`](../_shared/github-cli-recipes.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response.
 
-### Step 1: Refresh this PR's state
+### Step 2 — Termination check
 
-```bash
-gh pr view <number> --repo <repo> --json state,mergedAt,closedAt,headRefOid
-```
+If `state` is `MERGED` or `CLOSED`:
 
-If `state` is `MERGED` or `CLOSED`, mark this entry terminal in `prs.json`. Update `head_sha` if it changed.
+1. Mark the entry terminal in `prs.json`.
+2. Write `result.md` per [`state-schemas.md`](state-schemas.md#resultmd).
+3. Append a terminal line to `followup.log` per [`output-templates.md`](output-templates.md#terminal-tick).
+4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events.md`](../_shared/telemetry-events.md#tick--one-per-watcher-iteration).
+5. Exit. **Do not schedule another tick.** The `/loop` framework stops invoking this skill once it sees no follow-up dispatch.
 
-### Step 2: Termination check
+### Step 3 — Fetch new submitted reviews
 
-If this PR is terminal: write a per-PR section into `result.md` (URL, final state, `cycles_completed`, count escalated, final SHA), emit final telemetry, **do not schedule another tick**. Other PRs in the session have their own loops; they terminate independently.
+Use the "Submitted reviews past a cursor" recipe. Apply the filters listed there. Important: **also exclude review ids that appear in `last_seen.escalated_review_ids`** — those have already been escalated and the watcher must not re-dispatch them.
 
-### Step 3: Resolve the reviewer allow-list (every tick)
+### Step 4 — If zero new reviews → idle
 
-```bash
-gh pr view <number> --repo <repo> --json reviewRequests,author
-```
+1. Increment `last_seen.idle_tick_count`.
+2. Append an idle line to `followup.log` per [`output-templates.md`](output-templates.md#idle-tick-logged-only-not-printed).
+3. Emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`.
+4. Exit. The next tick fires in 1 min via `/loop`.
 
-Add requested reviewers. Add CODEOWNERS by parsing `.github/CODEOWNERS` (or `CODEOWNERS` / `docs/CODEOWNERS`) from the PR's head branch. Remove the PR author and any bot accounts (logins ending in `[bot]`, plus the standard list: `dependabot`, `github-actions`, `renovate`, `mergify`).
+### Step 5 — If one or more new reviews → dispatch
 
-### Step 4: Pull new submitted reviews
+The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher's job is to hand over the list of new review ids and exit.
 
-```bash
-gh api repos/<owner>/<repo>/pulls/<number>/reviews --paginate
-```
+1. Reset `last_seen.idle_tick_count` to 0.
+2. Dispatch `/muggle-do` with an *address-reviews* directive carrying:
+   - PR URL (from `prs.json[0].url`)
+   - Session slug (from the invocation arguments)
+   - Every new review id from Step 3, as a space-separated list
 
-Filter to reviews where:
+   Exact phrasing belongs to `/muggle-do`'s intent-routing. A reasonable shape is:
+   ```
+   /muggle-do address reviews <id1> <id2> ... on <pr-url> slug=<slug>
+   ```
+3. Append a dispatching line to `followup.log` per [`output-templates.md`](output-templates.md#dispatching-tick-logged-only-not-printed).
+4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
+5. Exit. **Do not schedule another tick.** `/muggle-do` will respawn the watcher at the end of its cycle.
 
-- `submitted_at` is non-null (skip drafts — `PENDING` reviews are still being composed).
-- `id > last_seen.reviewId`.
-- `user.login` is in the allow-list.
-- `id` is not in `escalated_review_ids`.
-- `state` is `CHANGES_REQUESTED` or `COMMENTED`, OR `APPROVED` with at least one line comment or a non-empty body.
+### Step 6 — Self-check before ending the turn
 
-### Step 5: Pick the oldest new review
+- [ ] `prs.json` reflects the current PR state (head_sha refreshed; terminal marked if applicable).
+- [ ] `last_seen.json` reflects the new counter values.
+- [ ] `followup.log` has exactly one new line for this tick.
+- [ ] Exactly one `tick` telemetry event was emitted.
+- [ ] If dispatching, the `/muggle-do` invocation was the last tool call.
+- [ ] If terminal, `result.md` exists.
 
-If no new review past the cursor: increment `idle_tick_count`, append a heartbeat line to `followup.log`, exit. Next tick fires in 1 min via `/loop`.
+## What the watcher must never do
 
-If one or more: take the oldest by `submitted_at`. Fetch its associated line comments (`gh api repos/<owner>/<repo>/pulls/<n>/comments` filtered by `pull_request_review_id`). Reset `idle_tick_count` to 0.
+These are explicit non-responsibilities. The earlier (cycle-declared) shape did all of them; the dumb-pipe shape does none.
 
-**At most one review per tick.** If two reviews land between ticks, the second waits.
+- Classify a review as actionable or ambiguous.
+- Read or write `cycle.json` or `requirements.md` (those files no longer exist in the slot).
+- Iterate cycle steps. Run build/test/E2E commands. Post any PR comment, reply, or walkthrough.
+- Maintain `pushed_shas[]` or `cycles_completed` — both belong to `/muggle-do`.
+- Escalate. Even on cycle failures `/muggle-do` reports, the watcher is not the escalation site.
+- Re-dispatch `/muggle-do` from the same tick that already dispatched it.
 
-### Step 6: Classify the review
-
-Apply the classify rule in [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md). The rule applies to the **review as a unit**. Two outcomes:
-
-- **Actionable** → continue to Step 7.
-- **Ambiguous** → continue to Step 8.
-
-### Step 7: Dispatch the implementation cycle
-
-When the review is actionable:
-
-1. **Pause polling** for this PR (set `cycling: true` on this PR's entry in `prs.json`).
-2. **Amend `requirements.md`** in the session dir with a new `## Amendment — review <review_id> by <login> (<timestamp>)` section pasting the review body and each comment (with `<file>:<line>` context).
-3. **Invoke the implementation cycle** declared in the caller's `cycle.json`. Iterate the `steps[]` in order. Each step is either a markdown file to follow, a skill to invoke, or a shell command (per the `cycle.json` schema in SKILL.md). When a step fails, the cycle returns `failed: <step-name>`; the loop escalates per Step 8 with the failure as the reason.
-4. **Push** via `cycle.json`'s `pushHandler`. Set `last_seen.last_pushed_sha` to the new HEAD.
-5. **Reply** per [helpers § Reply routing](../_shared/pr-followup-helpers.md#reply-routing) and [§ Classify](../_shared/pr-followup-helpers.md#classify) (reply shape). For each line comment in the review, derive `<attribution>` from `git diff <last_pushed_sha>..HEAD -- <comment.path>` near `comment.line` ±5 (fall back to `addressed indirectly — see walkthrough` if empty). `<status>` = `ran clean` or `had <N> failures, see walkthrough`. If the review is body-only (no line comments), post the top-level fallback shape; if both body and line comments, threaded replies cover it — no top-level.
-6. **Resume polling**: clear `cycling: true`, increment `cycles_completed`, advance `last_seen.reviewId` past this review.
-7. Emit per-cycle telemetry.
-
-If the cycle returns `failed: design-adjustment` (the cycle discovered the review can't be implemented without rethinking the design itself, not just the code), escalate per Step 8 with a `design-adjustment` reason — the terminal message asks the user to confirm the design intent before retrying.
-
-### Step 8: Escalate
-
-When the review is ambiguous, or the cycle failed:
-
-1. Add the review id to `last_seen.escalated_review_ids`.
-2. Append a `followup.log` entry describing the review and the reason.
-3. Pause this PR's loop by writing `escalated: true` against this PR's entry in `prs.json`.
-4. End the turn with a **single terminal message** to the user:
-
-```
-**PR follow-up escalation — <repo>#<number> — review <review_id>**
-
-<reviewer-login> submitted a review I can't act on coherently:
-
-> <quoted review body, or "(no body)" if empty>
-
-Comments:
-- <file>:<line> — <quoted comment body>
-
-[For ambiguous]
-Best two interpretations:
-1. <one-line interpretation A>
-2. <one-line interpretation B>
-
-[For cycle failure]
-The implementation cycle failed at <step-name>: <reason>.
-
-Reply on the review yourself, leave a follow-up comment, or tell me which way to go.
-```
-
-The user clears the escalation by replying on GitHub (next tick sees a new submitted review past the cursor) or by giving a directive in this terminal session.
-
-### Step 9: Emit tick-summary telemetry and exit
-
-Emit one tick event per `muggle-local-telemetry-skill-emit`. Exit the turn.
-
-## Reply routing
-
-- **Threaded reply per line comment** (default): `POST /repos/{owner}/{repo}/pulls/{n}/comments/{comment_id}/replies`. Use for every line comment in the review so each thread can be resolved in GitHub's UI.
-- **Top-level summary on a body-only review** (fallback): `gh pr comment <number> --body "..."` referencing the review id and the new SHA. Used only when the review has body content and zero line comments — GitHub has no "reply to a review body" endpoint.
-- **Never post the same reply twice** — `last_seen.reviewId` is the only re-entry guard.
-- **Never post a top-level summary alongside threaded replies** — duplication pollutes the Conversation tab.
-
-## Telemetry
-
-**Per-cycle** (one event per actionable review handled):
-
-```json
-{
-  "skill": "muggle-pr-followup",
-  "event": "cycle",
-  "caller": "<caller>",
-  "session_slug": "<slug>",
-  "repo": "<repo>",
-  "pr_number": <n>,
-  "review_id": <id>,
-  "outcome": "pushed|escalated|failed:<step>",
-  "comment_count": <count>,
-  "head_sha_before": "<sha>",
-  "head_sha_after": "<sha-or-null>"
-}
-```
-
-**Per-tick summary** (always one, even idle):
-
-```json
-{
-  "skill": "muggle-pr-followup",
-  "event": "tick",
-  "session_slug": "<slug>",
-  "repo": "<repo>",
-  "pr_number": <n>,
-  "reviews_seen": <count>,
-  "review_picked": true|false,
-  "cycle_dispatched": true|false,
-  "tick_duration_ms": <ms>
-}
-```
+When the watcher's behavior seems wrong, the fix is almost always in `/muggle-do`. The watcher's logic is small enough to audit visually.
 
 ## Output
 
 This stage produces no console output beyond:
+
 - The turn preamble (always).
-- An escalation terminal message (only when escalating).
-- The final `result.md` summary section for this PR (only on the terminating tick — written to disk, not printed).
+- The `/muggle-do` dispatch (only when Step 5 fires).
 
-## Self-check before ending the turn
+No escalations, no summary, no PR-side activity. The watcher is invisible to the reviewer.
 
-- [ ] `last_seen.json` advanced for any review handled.
-- [ ] `prs.json` reflects current state (terminal marked; `escalated`/`cycling` flags consistent).
-- [ ] `followup.log` has at minimum a heartbeat or per-review line for this tick.
-- [ ] Telemetry events emitted (per-cycle when applicable + per-tick).
-- [ ] If pushed, `last_pushed_sha` is set and `cycles_completed` incremented.
-- [ ] If actionable, one threaded reply posted per line comment (or one top-level reply for body-only reviews) — never both, never zero.
-- [ ] If escalated, `escalated_review_ids` contains the review id.
-- [ ] If terminal, the loop is NOT continued.
+## Reply / classification / escalation: pointers
+
+For the rules the watcher used to apply (and the new caller of those rules now applies):
+
+- **Classify rule:** [`../_shared/pr-followup-helpers.md`](../_shared/pr-followup-helpers.md). Called by `/muggle-do`, not the watcher.
+- **Reviewer allow-list:** same file. Called by `/muggle-do` when reading reviews; the watcher fetches by `id` only and does not allow-list filter.
+- **Reply routing (per-comment inline replies):** same file. Owned by `/muggle-do`.
+- **Escalation message templates:** [`output-templates.md`](output-templates.md). Posted by `/muggle-do`.

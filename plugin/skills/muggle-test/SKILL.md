@@ -54,19 +54,19 @@ Gates run per `preference-gates/README.md`.
 
 Parse the user's query and explicitly confirm their expectation. There are exactly two modes:
 
-### Mode A: Local Test Generation
+### Mode A: Local Test Generation (default for PRs)
 > Test impacted use cases/test cases against **localhost** using the Electron browser.
 >
 > Execution tool: `muggle-local-execute-test-generation`
 
-Signs the user wants this: mentions "localhost", "local", "my machine", "dev server", "my changes locally", or just "test my changes" in a repo context.
+Signs the user wants this: mentions "localhost", "local", "my machine", "dev server", "my changes locally", or just "test my changes" in a repo context. **Also: passing a GitHub PR/issue/repo URL (`github.com/<org>/<repo>/pull/<n>`) defaults to Local mode** — PR review almost always means checking out the branch and validating against the dev server, not testing the PR's preview deployment.
 
 ### Mode B: Remote Test Generation
 > Ask Muggle Test's cloud to generate test scripts against a **preview/staging URL**.
 >
 > Execution tool: `muggle-remote-workflow-start-test-script-generation`
 
-Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides a non-localhost URL.
+Signs the user wants this: mentions "preview", "staging", "deployed", "preview URL", "test on preview", "test the deployment", or provides an actual **deployed** preview/staging URL (e.g. `*.vercel.app`, `staging.foo.com`, custom preview domains). GitHub PR URLs do **not** count — see Mode A.
 
 ### Confirming (gated by `defaultExecutionMode`)
 
@@ -87,15 +87,23 @@ Gate `autoDetectChanges` (per `preference-gates/README.md`):
 
 ### Analysis (when scan is enabled)
 
-Analyze the working directory to understand what changed.
+Analyze the changes to understand what's impacted. Two sources, picked by what the user passed:
 
+**Working directory** (default):
 1. Run `git status` and `git diff --stat` for an overview
 2. Run `git diff` (or `git diff --cached` if staged) to read actual diffs
-3. Identify impacted feature areas:
+
+**PR URL** (user passed `github.com/<org>/<repo>/pull/<n>`):
+1. `gh pr diff <n> --repo <org>/<repo> --name-only` for the changed file list
+2. `gh pr diff <n> --repo <org>/<repo>` for the actual diff
+3. The repo lives at a sibling path (e.g. `C:\Users\stan4\Github\<repo>`) — `cd` into it and verify the PR branch is checked out before running tests; if not, ask the user to check it out (or offer to do it).
+
+Either way:
+1. Identify impacted feature areas:
    - Changed UI components, pages, routes
    - Modified API endpoints or data flows
    - Updated form fields, validation, user interactions
-4. Produce a concise **change summary** — a list of impacted features
+2. Produce a concise **change summary** — a list of impacted features
 
 Present:
 > "Here's what changed: [list]. I'll scope E2E acceptance testing to these areas."

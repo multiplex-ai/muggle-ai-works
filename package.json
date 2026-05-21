@@ -1,110 +1,110 @@
 {
-    "name": "@muggleai/works",
-    "mcpName": "io.github.multiplex-ai/muggle",
-    "version": "4.12.0",
-    "description": "Ship quality products with AI-powered E2E acceptance testing that validates your web app like a real user — from Claude Code and Cursor to PR.",
-    "type": "module",
-    "main": "dist/index.js",
-    "bin": {
-        "muggle": "bin/muggle.js"
-    },
-    "files": [
-        "dist",
-        "plugin",
-        "bin/muggle.js",
-        "scripts/postinstall.mjs"
-    ],
-    "scripts": {
-        "clean": "rimraf dist",
-        "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
-        "build:plugin": "node scripts/build-plugin.mjs",
-        "sync:versions": "node scripts/sync-versions.mjs",
-        "build:release": "npm run build",
-        "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
-        "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
-        "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
-        "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
-        "build:workspace": "turbo run build",
-        "typecheck:workspace": "turbo run typecheck",
-        "lint:workspace": "turbo run lint",
-        "test:workspace": "turbo run test",
-        "dev:workspace": "turbo run dev",
-        "bootstrap": "npm install && npm run build",
-        "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
-        "prepare": "npm run build",
-        "postinstall": "node scripts/postinstall.mjs",
-        "start": "node dist/index.js",
-        "dev": "tsx watch src/index.ts",
-        "lint": "eslint . --fix",
-        "lint:check": "eslint .",
-        "typecheck": "tsc --noEmit",
-        "test": "vitest run",
-        "test:watch": "vitest"
-    },
-    "muggleConfig": {
-        "electronAppVersion": "1.0.90",
-        "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
-        "runtimeTargetDefault": "dev",
-        "checksums": {
-            "darwin-arm64": "13fc830ede44af479761302e3477c4f2516be142885445c8c5baf574041a7069",
-            "darwin-x64": "02007eb996d2fa2cf5be6546b6a1a01de769f1b12c7e3b2af1e93eb1b4deda0e",
-            "win32-x64": "5ea49f43ce6c432eac42dd10179873c78067ff1fc1328d8f664ce2c81da38f49",
-            "linux-x64": "f92c350bde46c95fb35ceab8c1c115352663a53d44d210ea98316fe1a92cf41e"
-        }
-    },
-    "dependencies": {
-        "@modelcontextprotocol/sdk": "^1.25.3",
-        "applicationinsights": "^3.14.0",
-        "axios": "^1.7.9",
-        "commander": "^14.0.3",
-        "open": "^11.0.0",
-        "ulid": "^3.0.2",
-        "uuid": "^14.0.0",
-        "winston": "^3.17.0",
-        "zod": "^4.3.6"
-    },
-    "devDependencies": {
-        "@anthropic-ai/claude-agent-sdk": "^0.2.133",
-        "@eslint/js": "^10.0.1",
-        "@muggleai/mcp": "file:packages/mcps",
-        "@muggleai/telemetry": "0.3.2",
-        "@muggleai/workflows": "file:packages/workflows",
-        "@types/node": "^25.5.2",
-        "@types/uuid": "^11.0.0",
-        "@typescript-eslint/eslint-plugin": "^8.34.0",
-        "@typescript-eslint/parser": "^8.34.0",
-        "eslint": "^10.2.0",
-        "eslint-plugin-unused-imports": "^4.2.0",
-        "rimraf": "^6.0.1",
-        "tsup": "^8.5.1",
-        "tsx": "^4.19.2",
-        "turbo": "^2.9.4",
-        "typescript": "^6.0.2",
-        "vitest": "^4.0.18"
-    },
-    "engines": {
-        "node": ">=22.0.0"
-    },
-    "keywords": [
-        "mcp",
-        "model-context-protocol",
-        "muggle-ai",
-        "e2e-testing",
-        "testing",
-        "automation",
-        "localhost",
-        "ai-coding",
-        "user-experience",
-        "cursor",
-        "claude-code",
-        "vibe-coding"
-    ],
-    "author": "Muggle AI",
-    "license": "MIT",
-    "packageManager": "pnpm@10.0.0",
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
-    },
-    "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
+  "name": "@muggleai/works",
+  "mcpName": "io.github.multiplex-ai/muggle",
+  "version": "4.12.1",
+  "description": "Ship quality products with AI-powered E2E acceptance testing that validates your web app like a real user — from Claude Code and Cursor to PR.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "muggle": "bin/muggle.js"
+  },
+  "files": [
+    "dist",
+    "plugin",
+    "bin/muggle.js",
+    "scripts/postinstall.mjs"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "sync:versions": "node scripts/sync-versions.mjs",
+    "build:release": "npm run build",
+    "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
+    "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
+    "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
+    "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
+    "build:workspace": "turbo run build",
+    "typecheck:workspace": "turbo run typecheck",
+    "lint:workspace": "turbo run lint",
+    "test:workspace": "turbo run test",
+    "dev:workspace": "turbo run dev",
+    "bootstrap": "npm install && npm run build",
+    "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
+    "prepare": "npm run build",
+    "postinstall": "node scripts/postinstall.mjs",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "muggleConfig": {
+    "electronAppVersion": "1.0.92",
+    "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
+    "runtimeTargetDefault": "dev",
+    "checksums": {
+      "darwin-arm64": "26fbcadb2e43a708fc424cf85c30dad99d9dff4b1013c6101de6f9c8233fc928",
+      "darwin-x64": "80fa0d2f00ce2f1209c5d9ba421d6c9fe39baba97aa1390a4d04616302fed693",
+      "linux-x64": "9898c5df678d19a2fcf07733caccd26b35953286b43d722f3bf7d8bafda21a51",
+      "win32-x64": "994c637547f12d1e9c57acba324946b54f1c36631fe314e6f8e1043e1c1afedf"
+    }
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "applicationinsights": "^3.14.0",
+    "axios": "^1.7.9",
+    "commander": "^14.0.3",
+    "open": "^11.0.0",
+    "ulid": "^3.0.2",
+    "uuid": "^14.0.0",
+    "winston": "^3.17.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.133",
+    "@eslint/js": "^10.0.1",
+    "@muggleai/mcp": "file:packages/mcps",
+    "@muggleai/telemetry": "0.3.2",
+    "@muggleai/workflows": "file:packages/workflows",
+    "@types/node": "^25.5.2",
+    "@types/uuid": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "eslint": "^10.2.0",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "turbo": "^2.9.4",
+    "typescript": "^6.0.2",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "muggle-ai",
+    "e2e-testing",
+    "testing",
+    "automation",
+    "localhost",
+    "ai-coding",
+    "user-experience",
+    "cursor",
+    "claude-code",
+    "vibe-coding"
+  ],
+  "author": "Muggle AI",
+  "license": "MIT",
+  "packageManager": "pnpm@10.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
+  },
+  "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
 }

@@ -41,6 +41,16 @@ All five checks then run against PR #173 with two reviews from `stan4git` (one a
 - [x] **Ambiguous escalation** — review #4340664811 (body "👀") classified ambiguous; id appended to `escalated_review_ids`; terminal message rendered per `output-templates/escalation.md`.
 - [x] **Mixed batch handling** — actionable + ambiguous processed in the same invocation: ONE push (`835047f`), ONE inline reply, ONE resolve-reminder comment, ONE terminal escalation message; cursor advanced past both ids (to `4340664811`); `cycles_completed` 0→1.
 
+### Live-PR follow-up exercise on PR #174 (this PR)
+
+Bootstrapped the watcher on PR #174 (one prior review from `stan4git` with a line comment on line 21). Two design issues surfaced from real-world use:
+
+1. **Forward-only cursor was too aggressive** — bootstrap pinned the cursor to `max(existing review id)`, which silently skipped the user's prior review (the one the user explicitly wanted addressed). Documented as a known UX edge for now: when bootstrap finds prior reviews, the user can lower the cursor by editing `last_seen.json` if they want those reviews processed. Future design pass could prompt at bootstrap time. *No code change in this PR.*
+
+2. **Self-loop on agent-posted inline replies** — GitHub auto-creates a synthetic review wrapper every time the agent posts `POST /comments/<id>/replies`. That synthetic review has the loop user as author, empty body, and contains only the reply. The watcher saw it as new and dispatched, which would have caused infinite cycles. **Fixed in this PR:** added a self-loop pre-check to `_shared/pr-followup-helpers/classify.md` and a `"self-loop-skip"` outcome to the `muggle-do:cycle` event. The rule: a review is a self-loop iff `body` is empty AND every line comment has `in_reply_to_id != null` — cursor advances silently, no work, no escalation.
+
+After applying the fixes, ran one full end-to-end cycle on PR #174: review `#4340618178` with one line comment ("are there needed?") was classified actionable, the change was applied + pushed (`eb4cd14`), the inline reply landed on the comment thread, the resolve-reminder posted at the top level ([issuecomment-4512997055](https://github.com/multiplex-ai/muggle-ai-works/pull/174#issuecomment-4512997055)), and the next tick correctly skipped the self-loop wrapper around the reply.
+
 ## Validation plan post-merge
 
 Run the post-merge checks against a dedicated validation PR on muggle-ai-works (per the round-2 precedent). One PR per architectural change, with deliberately small test payloads so each scenario is isolatable.

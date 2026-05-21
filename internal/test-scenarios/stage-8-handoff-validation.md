@@ -18,7 +18,7 @@ Static checks completed during this dev cycle:
 
 ### Validation run 1 (2026-05-21) — scoped, author-agnostic
 
-Run against PR #173 (closed). Plugin at `@muggleai/works` 4.12.0 (cached). The watcher and bootstrap procedures were exercised manually step-by-step against the cached 4.12.0 skill files — the skill itself is `disable-model-invocation`, so it's invoked via `/loop` only, not programmatic.
+Run against PR #173 (closed). Plugin: `@muggleai/works` 4.12.0.
 
 Author-agnostic checks (no second reviewer needed):
 

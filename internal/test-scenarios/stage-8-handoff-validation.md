@@ -2,7 +2,7 @@
 
 This file tracks how the watcher-handoff restructure gets validated. The architecture is a clean break from the cycle-declared shape that was round-2 validated on 2026-05-15 (PR #154) — that validation does NOT transfer.
 
-> **Validation run 1 (2026-05-21)** — scoped, author-agnostic checks only. Outcomes filled in below. Reviewer-dependent checks remain pending (require a non-author reviewer; deferred until a second test account is set up).
+> **Validation run 1 (2026-05-21)** — scoped, author-agnostic checks only. Reviewer-dependent checks remain pending (require a non-author reviewer; deferred until a second test account is set up).
 
 ## Pre-merge (verifiable on this PR)
 

@@ -2,6 +2,21 @@
 
 Classify the **review as a unit** — but reply per line comment (threaded), not per review.
 
+## Pre-check: self-loop filter
+
+GitHub auto-creates a synthetic review every time the agent posts `POST /comments/<id>/replies`. That review has the loop user as author, an empty body, and contains only the agent's own reply comments (`in_reply_to_id != null`). It carries no reviewer intent and must not trigger another cycle.
+
+A review is a **self-loop** iff:
+
+- `body` is empty, AND
+- every line comment under it has `in_reply_to_id != null`
+
+Self-loops bypass the actionable/ambiguous decision entirely. Action: advance the cursor silently. No push, no reply, no resolve-reminder, no escalation, no entry in `escalated_review_ids`. Telemetry: emit one `cycle` event with `outcome: "self-loop-skip"`.
+
+Only reviews that survive the self-loop check proceed to classify below.
+
+## Actionable vs ambiguous
+
 | Class | Signal | Action |
 | :---- | :----- | :----- |
 | **actionable** | Review names at least one concrete change or asks an answerable question. Soft phrasing counts when there's a concrete referent. | Treat as amended requirements; run **one** implementation cycle for the whole review; reply **threaded per line comment** referencing the new SHA (top-level only when the review is body-only). |

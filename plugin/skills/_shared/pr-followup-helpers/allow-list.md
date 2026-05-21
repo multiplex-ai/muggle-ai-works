@@ -1,6 +1,8 @@
 # Reviewer allow-list
 
-The address-reviews flow only acts on reviews submitted by users in the **allow-list** = (requested reviewers ∪ CODEOWNERS) − bots − PR author. Re-resolve every invocation — never cache across cycles.
+The address-reviews flow only acts on reviews submitted by users in the **allow-list** = (requested reviewers ∪ CODEOWNERS ∪ {PR author}) − bots. Re-resolve every invocation — never cache across cycles.
+
+The PR author is implicitly a valid reviewer: in single-account workflows, the human running the agent and the PR's author are the same identity, and the agent must honor their reviews. The agent itself never appears in the submitted-reviews list (it pushes commits and posts inline replies; it does not submit GitHub reviews), so there's no self-loop risk from including the author.
 
 ## Step 1: requested reviewers
 
@@ -14,7 +16,7 @@ gh pr view <number> --repo <owner>/<repo> --json reviewRequests,author
 gh api orgs/<org>/teams/<slug>/members --jq '.[].login'
 ```
 
-Record `prAuthor = author.login` for the exclusion step.
+Record `prAuthor = author.login` for the inclusion step.
 
 ## Step 2: CODEOWNERS
 
@@ -43,7 +45,7 @@ If no CODEOWNERS file exists in any location, the CODEOWNERS contribution is emp
 
 ## Step 3: filter
 
-Allow-list = (requested reviewers ∪ CODEOWNERS) − `{prAuthor}` − bot logins.
+Allow-list = (requested reviewers ∪ CODEOWNERS ∪ `{prAuthor}`) − bot logins.
 
 Bot logins:
 

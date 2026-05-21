@@ -31,4 +31,15 @@ export async function startStdioServer (server: Server): Promise<void> {
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
+
+  // Parent-death detection. Windows does NOT signal child processes when the
+  // parent dies, so SIGTERM/SIGINT alone leak this process when Claude exits
+  // abruptly (crash, sleep, killed bg job). Need to exit on parent-gone too.
+  watchForParentDeath(shutdown);
+}
+
+/** Exit when the MCP host closes our stdin (its end of the pipe). */
+function watchForParentDeath (shutdown: (reason: string) => void): void {
+  process.stdin.on("end", () => shutdown("stdin-end"));
+  process.stdin.on("close", () => shutdown("stdin-close"));
 }

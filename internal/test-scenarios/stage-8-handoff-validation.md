@@ -14,19 +14,30 @@ Static checks completed during this dev cycle:
 - [x] **Build.md re-entry section** — refactored to reference the address-reviews orchestrator instead of "stage 8 dispatches back".
 - [x] **pr-followup-helpers.md** — header rewritten to drop "deep-cycle through caller's implementation pipeline" lingo; allow-list section retargeted from "stage 8" to "the address-reviews flow".
 
-## Post-merge (requires the new shape to be active)
+## Post-merge
 
-The following can only be validated once this PR is merged and the plugin is re-installed:
+### Validation run 1 (2026-05-21) — scoped, author-agnostic
 
-- [ ] **Watcher dispatch shape** — Fire a watcher tick on a real PR with a new submitted review. Expect: the watcher invokes `/muggle-do` with the address-reviews directive carrying the review id, then exits. No classification, no reply, no PR-side activity from the watcher.
-- [ ] **Per-comment inline replies** — Submit a review with 3 line comments on a real PR. Expect 3 nested replies (one per comment thread), each citing the new SHA prefix. No top-level summary reply on the review.
-- [ ] **Resolve-reminder top-level comment** — Same review as above. Expect ONE top-level PR comment listing the 3 thread ids. Body cites the same SHA.
-- [ ] **Ambiguous escalation in `/muggle-do`** — Submit a deliberately ambiguous review (e.g. just "👀"). Expect a single terminal escalation message naming the review; expect the review id added to `escalated_review_ids`; expect the watcher to be respawned and to subsequently ignore that review id.
-- [ ] **Mixed batch handling** — Submit two reviews back-to-back (one actionable, one ambiguous) such that the watcher sees them in one tick. Expect ONE `/muggle-do` invocation, ONE push, replies for the actionable comments only, ONE resolve-reminder, ONE terminal escalation message for the ambiguous review.
-- [ ] **Bootstrap fresh URL** — Run `/muggle:muggle-pr-followup <pr-url>` on a PR that has prior reviews. Expect: state files seeded with `reviewId` pinned to `max(existing review ids)`, cursor forward-only, `/loop 1m ...` dispatched as the last action. No muggle-test prompt.
-- [ ] **Bootstrap wrong-checkout abort** — Run bootstrap from a working tree that's not the PR's repo. Expect: clean abort with the cd + `gh pr checkout` snippet; no state files written.
-- [ ] **Bootstrap conflict-with-resume** — Run bootstrap with `--resume` against an existing slot. Expect: only `prs.json[0].head_sha` refreshed; `last_seen.json` / `state.md` untouched.
-- [ ] **Watcher terminal on PR close/merge** — Close a PR mid-loop. Expect the next watcher tick to write `result.md` and exit terminally without scheduling another tick.
+Run against PR #173 (closed). Plugin at `@muggleai/works` 4.12.0 (cached). The watcher and bootstrap procedures were exercised manually step-by-step against the cached 4.12.0 skill files — the skill itself is `disable-model-invocation`, so it's invoked via `/loop` only, not programmatic.
+
+Author-agnostic checks (no second reviewer needed):
+
+- [x] **Bootstrap fresh URL** — On PR #173 (no prior reviews). Cursor pinned to `0`. State files `prs.json` + `last_seen.json` + `state.md` seeded per [`state-schemas.md`](../../plugin/skills/muggle-pr-followup/state-schemas.md). No `cycle.json`, no `requirements.md`. `loop_user` cached as `stan4git`.
+- [x] **Bootstrap wrong-checkout abort** — Verify-working-tree run from `muggle-ai-brain` checkout (wrong remote + wrong branch). Both checks fail; abort message renders per [`output-templates/bootstrap.md`](../../plugin/skills/muggle-pr-followup/output-templates/bootstrap.md); no slot written.
+- [x] **Bootstrap conflict (no resume)** — Re-bootstrap with slot present. Refuses with both remedies (delete or `--resume`). State files untouched (sha256 stable).
+- [x] **Bootstrap conflict (with `--resume`)** — Pushed a drift commit to change `headRefOid`. Re-bootstrap with `--resume` refreshed `prs.json[0].head_sha` to the new SHA; `last_seen.json` and `state.md` sha256 unchanged. Cursor + `pushed_shas[]` preserved.
+- [x] **Watcher first tick — idle** — One tick against PR #173 (open, no new reviews past cursor 0). `idle_tick_count` 0→1, heartbeat line appended to `followup.log` in the right shape, no `/muggle-do` dispatch.
+- [x] **Watcher terminal tick** — Closed PR #173 via `gh pr close`. Next tick: PR state refreshed to CLOSED, `prs.json[0].state` updated to `closed`, `result.md` written with the per-PR final state, terminal line appended to `followup.log`. No reschedule.
+
+### Reviewer-dependent checks (still pending)
+
+Defer until a non-`stan4git` reviewer account is available. The PR-author exclusion in the allow-list filters reviews from `stan4git` on `stan4git`'s own test PR.
+
+- [ ] **Watcher dispatch shape** — fire a watcher tick on a real PR with a new submitted review from a non-author. Expect the watcher invokes `/muggle-do` with the address-reviews directive carrying the review id, then exits. No classification, no reply, no PR-side activity from the watcher.
+- [ ] **Per-comment inline replies** — submit a review with 3 line comments. Expect 3 nested replies (one per comment thread), each citing the new SHA prefix. No top-level summary reply on the review.
+- [ ] **Resolve-reminder top-level comment** — same review as above. Expect ONE top-level PR comment listing the 3 thread ids. Body cites the same SHA.
+- [ ] **Ambiguous escalation in `/muggle-do`** — submit a deliberately ambiguous review (e.g. just "👀"). Expect a single terminal escalation message naming the review; expect the review id added to `escalated_review_ids`; expect the watcher to be respawned and to subsequently ignore that review id.
+- [ ] **Mixed batch handling** — submit two reviews back-to-back (one actionable, one ambiguous) such that the watcher sees them in one tick. Expect ONE `/muggle-do` invocation, ONE push, replies for the actionable comments only, ONE resolve-reminder, ONE terminal escalation message for the ambiguous review.
 
 ## Validation plan post-merge
 

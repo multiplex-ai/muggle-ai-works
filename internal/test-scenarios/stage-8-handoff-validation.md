@@ -29,15 +29,17 @@ Author-agnostic checks (no second reviewer needed):
 - [x] **Watcher first tick — idle** — One tick against PR #173 (open, no new reviews past cursor 0). `idle_tick_count` 0→1, heartbeat line appended to `followup.log` in the right shape, no `/muggle-do` dispatch.
 - [x] **Watcher terminal tick** — Closed PR #173 via `gh pr close`. Next tick: PR state refreshed to CLOSED, `prs.json[0].state` updated to `closed`, `result.md` written with the per-PR final state, terminal line appended to `followup.log`. No reschedule.
 
-### Reviewer-dependent checks (still pending)
+### Reviewer-dependent checks
 
-Defer until a non-`stan4git` reviewer account is available. The PR-author exclusion in the allow-list filters reviews from `stan4git` on `stan4git`'s own test PR.
+A design issue surfaced before this batch ran: the original allow-list rule excluded the PR author. In single-account workflows (the canonical case — the human running the agent IS the PR author) that filters out **every** review the user submits on agent-opened PRs. Fixed in this PR: allow-list now = `(requested reviewers ∪ CODEOWNERS ∪ {PR author}) − bots`. The agent itself never appears in the submitted-reviews list (it pushes commits and posts inline replies; it does not submit GitHub reviews via the `/reviews` endpoint), so including the author is safe.
 
-- [ ] **Watcher dispatch shape** — fire a watcher tick on a real PR with a new submitted review from a non-author. Expect the watcher invokes `/muggle-do` with the address-reviews directive carrying the review id, then exits. No classification, no reply, no PR-side activity from the watcher.
-- [ ] **Per-comment inline replies** — submit a review with 3 line comments. Expect 3 nested replies (one per comment thread), each citing the new SHA prefix. No top-level summary reply on the review.
-- [ ] **Resolve-reminder top-level comment** — same review as above. Expect ONE top-level PR comment listing the 3 thread ids. Body cites the same SHA.
-- [ ] **Ambiguous escalation in `/muggle-do`** — submit a deliberately ambiguous review (e.g. just "👀"). Expect a single terminal escalation message naming the review; expect the review id added to `escalated_review_ids`; expect the watcher to be respawned and to subsequently ignore that review id.
-- [ ] **Mixed batch handling** — submit two reviews back-to-back (one actionable, one ambiguous) such that the watcher sees them in one tick. Expect ONE `/muggle-do` invocation, ONE push, replies for the actionable comments only, ONE resolve-reminder, ONE terminal escalation message for the ambiguous review.
+All five checks then run against PR #173 with two reviews from `stan4git` (one actionable + one ambiguous):
+
+- [x] **Watcher dispatch shape** — both review ids dispatched in one directive: `/muggle-do address reviews 4340664661 4340664811 on <pr-url> slug=muggle-ai-works-pr173`. No classification, no reply at the watcher layer.
+- [x] **Per-comment inline reply** — reply posted to line comment #3284293348 via `/comments/<id>/replies`; body cites the new SHA prefix (`835047f`). No summary reply on the review itself.
+- [x] **Resolve-reminder top-level comment** — single top-level PR comment posted listing the one addressed-by-loop thread id, citing `835047f`. Visible at [PR #173 issuecomment-4512732912](https://github.com/multiplex-ai/muggle-ai-works/pull/173#issuecomment-4512732912).
+- [x] **Ambiguous escalation** — review #4340664811 (body "👀") classified ambiguous; id appended to `escalated_review_ids`; terminal message rendered per `output-templates/escalation.md`.
+- [x] **Mixed batch handling** — actionable + ambiguous processed in the same invocation: ONE push (`835047f`), ONE inline reply, ONE resolve-reminder comment, ONE terminal escalation message; cursor advanced past both ids (to `4340664811`); `cycles_completed` 0→1.
 
 ## Validation plan post-merge
 

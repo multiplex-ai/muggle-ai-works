@@ -41,3 +41,4 @@ Document outcomes back to this file (check the boxes; add notes for surprises).
 - `useSubagent` — the old design had this flag in `cycle.json`; the new design has no `cycle.json`, so the concept is moot.
 - `failed: design-adjustment` escalation — the build.md re-entry section now mentions it, but no test PR has exercised this code path yet.
 - Multi-PR-from-one-session — bootstrap is one PR per invocation; the forward pipeline can open N PRs simultaneously. The N-watcher concurrent case has been described in design docs but not exercised on a real session.
+<!-- run 1 head_sha drift test -->

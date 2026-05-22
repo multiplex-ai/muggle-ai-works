@@ -133,7 +133,7 @@ Use `AskUserQuestion`:
 - Option 1: "Check what's running, start what's missing for me"
 - Option 2: "I'll start them myself — just verify they're up when I'm done"
 
-If the user picks **option 2**: skip Steps 4-6. Wait for them to confirm they're ready, then go straight to Step 4 (Check What's Already Running) to verify everything is listening, and report readiness (Step 7).
+If the user picks **option 2**: skip Steps 4-6. Wait for them to confirm they're ready, then go straight to Step 4 (Check What's Already Running) to verify everything is listening, run Step 7 (comprehensive smoke test) against everything, and report readiness (Step 8). The user-started case is exactly where the smoke test matters most — the skill has no insight into how those services were started, so the only signal that they actually work is the HTTP + body-sniff check.
 
 If the user picks **option 1**: proceed through Steps 4-7 as normal.
 
@@ -143,7 +143,7 @@ Run port detection and (when the app declares a backend URL) backend-health prob
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."
 
-If **all** required services are already running, report readiness and skip straight to Step 7. No need to go through Steps 5-6.
+If **all** required services are already running, skip straight to Step 7 (comprehensive smoke test) — don't trust port-listening alone. No need to go through Steps 5-6.
 
 If some are running and some aren't, acknowledge the running ones and continue to Step 5 only for the missing services. Use `AskUserQuestion` for any already-running service the user might want restarted:
 - Option 1: "It's fine, keep it"
@@ -223,22 +223,23 @@ Use `AskUserQuestion`:
 
 If the user needs edits, collect corrections and re-present.
 
-### Step 5.5: Fresh-Worktree Install Probe
+### Step 5.5: Fresh Install (clean-start default)
 
-Before launching `npm run dev` (or equivalent) in a Node service, check whether `node_modules/` is present and current. Stale or missing `node_modules/` causes silent runtime failures that look like the service is broken when actually the install is just missing.
+Before launching `npm run dev` (or equivalent) in a Node service, ensure dependencies are current. Stale or missing `node_modules/` causes silent runtime failures that look like the service is broken when actually the install is just missing — exactly the kind of "broken UI" the Step 7 comprehensive check is meant to surface, but cheaper to prevent here.
 
 For each Node service the user selected:
 
-1. If `<service-dir>/node_modules/` is missing entirely → install is required.
-2. If `<service-dir>/package-lock.json` is newer than `<service-dir>/node_modules/.package-lock.json` → install is stale.
-3. Otherwise → install is current, no action needed.
+1. If `<service-dir>/node_modules/` is missing entirely → install required.
+2. If `<service-dir>/package-lock.json` is newer than `<service-dir>/node_modules/.package-lock.json` → install stale.
+3. Otherwise → install current, no action needed.
 
-When install is required or stale, propose via `AskUserQuestion`:
+When install is required or stale, **run it automatically** (notify, don't ask):
 
-> "`<service-name>` needs a fresh `npm install` before starting (node_modules is missing/stale). Run `npm install --prefer-offline --no-audit --no-fund` now?"
+```bash
+cd "<service-dir>" && npm install --prefer-offline --no-audit --no-fund
+```
 
-- Option 1: "Yes — install now"
-- Option 2: "No — skip; I know it's fine"
+Show the user a one-line notification before kicking off (`Installing dependencies for <service-name> (node_modules <missing|stale>)…`). The only opt-out is aborting the whole skill. This is part of the clean-start guarantee — the user invoked prepare to get a working environment, and a stale install is the most common reason that fails.
 
 **Never symlink `node_modules/` from a sibling worktree.** webpack's `resolve.symlinks: true` default rewrites paths to the shared real location; asset-identity tracking fails with `Can't handle conflicting asset info for sourceFilename`. Run a real per-worktree install.
 
@@ -267,18 +268,54 @@ Then ask how to proceed:
 
 **Port discovery** — if the port isn't known upfront, after the service starts, re-scan listening ports and try to identify which new port appeared. Record it in the tracking file if found. If not found within ~10 seconds, note the port as unknown — the service may take longer to boot.
 
-### Step 7: Report Readiness
+### Step 7: Comprehensive Smoke Test (mandatory, runs for every service)
 
-Whether you started the services or the user did, confirm that everything is listening:
+Port-listening is not enough. A stale dev server binds to its port but serves a build-error overlay; a backend started without env vars listens but returns 500 on every route; a frontend with missing deps compiles to a webpack error page. Step 7 catches all three by hitting each service's actual URL and inspecting the response.
+
+This step runs **for every service in the tracking file**, regardless of who started it (skill-managed *and* `external: true` services started by the user themselves). Skipping it because "the user said they started everything" is exactly how broken UI sneaks into test runs.
+
+For each service, run all three probes — all three must pass:
+
+1. **HTTP probe** — `GET <serviceUrl>` with 3 s timeout. Accept `2xx` or `3xx` (one redirect followed). Anything else fails this probe.
+2. **Body sniff** — inspect the response body for known broken-build markers (see [`_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) → "Body Sniff Patterns"). A 200 response can still be a Next.js error overlay or vite error block; the sniff catches that.
+3. **Log tail** (skill-managed services only) — scan the last 200 lines of `/tmp/muggle-prepare-<service-name>.log` for failure patterns *appearing after the latest ready signal*. Skip silently for `external: true` services where the skill doesn't own the log.
+
+Use the OS-agnostic primitives in `dev-server-readiness.md` for both the probe and the patterns. Do not re-implement here.
+
+#### 7a — Diagnose-and-Fix Loop (fires on any service that fails the three-probe check)
+
+When a service fails, show the user the concrete failure signal — HTTP status code, the body-sniff regex that matched (with a short surrounding snippet), or the log line — then `AskUserQuestion`:
+
+> "**<service-name>** isn't healthy: `<concrete signal>`. How do you want to proceed?"
+
+- Option 1: **Clean restart** (Recommended) — `kill <pid>`, re-run Step 5.5 (fresh install), restart per Step 6, then re-run Step 7 for this service
+- Option 2: **Restart only** — `kill <pid>` and restart per Step 6 with no reinstall; re-run Step 7
+- Option 3: **I'll fix it manually** — pause and wait for the user to signal ready; re-run Step 7 when they confirm
+- Option 4: **Skip this service** — append to `excluded_services` with `reason: "failed comprehensive smoke test: <signal>"` and continue with the rest
+
+Loop per service until it passes Step 7 or the user picks **Skip**. Cap at **3 iterations per service** — after 3 failures, force a manual-intervention pause regardless of the user's prior pick (the loop is likely chasing a real problem they need to look at directly).
+
+For `external: true` services (the user started them themselves), don't offer Options 1 or 2 — the skill doesn't own that process. Only Options 3 (manual fix) and 4 (skip) apply.
+
+### Step 8: Final Readiness Report
+
+Only after every required service has passed Step 7 (or been explicitly skipped). Render the table:
 
 ```
-Service              PID      Port     Status
-──────────────────────────────────────────────
-backend-api          12345    3001     Running
-auth-service         12346    8080     Running
-frontend             12347    3000     Running
-──────────────────────────────────────────────
-All 3 services verified. Ready for E2E testing.
+Service              PID      Port     Status         Smoke Test
+─────────────────────────────────────────────────────────────────
+backend-api          12345    3001     Running        ✓ (HTTP 200, no error markers)
+auth-service         12346    8080     Running        ✓ (HTTP 200, no error markers)
+frontend             12347    3000     Running        ✓ (HTTP 200, no error markers)
+─────────────────────────────────────────────────────────────────
+All 3 services verified by Step 7 comprehensive check. Ready for E2E testing.
+```
+
+If any service was skipped via Step 7a Option 4, surface it explicitly so the calling skill (and the user) know the gap:
+
+```
+Skipped (not healthy):
+  payment-gateway   — failed comprehensive smoke test: HTTP 500 on /
 ```
 
 If you launched the services, also show:
@@ -315,12 +352,11 @@ Stopped 3 services:
 
 ## Integration Contract (for other skills)
 
-When `muggle-test`, `muggle-do`, or `muggle-test-feature-local` want to check if services are ready:
+When `muggle-test`, `muggle-do`, or `muggle-test-feature-local` want to confirm services are ready:
 
-1. Check if `/tmp/muggle-test-prepare.json` exists
-2. Verify PIDs are alive with `kill -0`
-3. If all live → services are ready, proceed to test execution
-4. If missing or stale → invoke `muggle-test-prepare`
+1. **Always invoke `muggle-test-prepare`** before any workflow step that touches a local service. It's idempotent — if everything's already healthy it returns in seconds after the smoke test, and if something's broken it surfaces it before tests waste time running against broken UI.
+2. Treat a successful prepare return (tracking file exists, PIDs alive, Step 7 passed) as a fresh guarantee with a short shelf life — re-invoke if more than a few minutes pass before testing actually starts, or if anything in the local environment changed.
+3. Never bypass prepare on the assumption that "the user knows their stack is up." That assumption is the whole reason this skill exists.
 
 After a test run completes, the calling skill can invoke cleanup by re-invoking this skill with cleanup intent, or leave services running for the next run (the user chose lifecycle management, not clean-state resets).
 
@@ -334,4 +370,7 @@ After a test run completes, the calling skill can invoke cleanup by re-invoking 
 - **Never kill a process the user started independently** — services marked `external: true` survive cleanup.
 - **Never assume start commands** — always verify by checking project indicator files; always confirm with the user.
 - **Bail early on non-viable services** — don't attempt to start something the user said can't run locally.
-- **Idempotent** — if services are already tracked and alive, offer to keep them rather than double-starting.
+- **Idempotent** — if services are already tracked and alive, offer to keep them rather than double-starting. The Step 7 smoke test still runs against them.
+- **Port-listening is never enough** — Step 7 (HTTP + body sniff + log tail) is mandatory for every service before the final readiness report. A service that binds to a port but serves a broken-build page is the exact failure mode this skill exists to catch.
+- **Clean restart is the recommended fix** — when Step 7 fails, the diagnose-and-fix loop's first option is always Clean Restart (kill + fresh install + restart + re-verify). Lint/build/missing-deps issues are reliably fixed by nuke-and-reinstall, not by restart alone.
+- **Fresh install runs automatically** — Step 5.5 no longer asks. Stale or missing `node_modules/` triggers `npm install` with a notification; the only opt-out is aborting the whole skill.

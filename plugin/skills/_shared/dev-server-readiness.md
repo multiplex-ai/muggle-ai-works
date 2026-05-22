@@ -49,6 +49,60 @@ netstat -ano | findstr /R /C:":3000 " /C:":3001 " /C:":4200 " /C:":5173 " /C:":8
 
 If the app declares a backend URL in its env file, probe the backend's health endpoint before treating the dev server as usable. 5xx or unreachable → halt; the frontend may render but its data layer is dead, so any query against it is meaningless.
 
+## Body sniff patterns (catching broken-build pages that return 200)
+
+A dev server can return `200 OK` and still be serving a build-error overlay, a missing-dep stack trace, or a generic framework error page. Status code alone is not proof of health — the response body must also be free of known broken-build markers.
+
+After fetching the body, search it (case-insensitive) for any of these patterns. A match means the service is **not** healthy regardless of HTTP status.
+
+| Framework / source | Pattern (regex, case-insensitive) | What it means |
+|:------------------|:----------------------------------|:--------------|
+| Next.js | `__next_error__` | Next.js error overlay shell |
+| Next.js | `Failed to compile` | Webpack/Turbopack compile failure rendered into the response |
+| Next.js / Webpack | `webpack-internal://` | Webpack-internal stack frame leaked into response (dev error page) |
+| Vite | `vite-error-overlay` | Vite's error overlay custom element |
+| Vite | `Internal server error\|\[plugin:` | Vite dev-middleware error response |
+| Generic Node | `MODULE_NOT_FOUND\|Cannot find module` | Required module is missing |
+| Generic | `Cannot GET /\|Cannot POST /` | Express/raw-Node default 404; usually a misrouted dev server |
+| npm | `npm ERR!` | npm error spilled into response |
+| Generic | `Error: ENOENT\|EACCES\|EADDRINUSE` | Common Node filesystem/port errors rendered into response |
+| Stack trace | `at .*\(.*\.[jt]sx?:\d+:\d+\)` | Raw Node stack frame in HTML — never present on a healthy page |
+
+The skill consuming this list should treat the union of patterns as the "broken-build" set. Add framework-specific extras as you find them — the goal is to catch the exact "200 OK but the UI is broken" mode that port-listening checks miss.
+
+### Body sniff — OS-specific examples
+
+The check itself is platform-neutral; here are direct adaptations.
+
+#### Linux / macOS (bash/zsh)
+
+```bash
+BODY=$(curl -sS -L --max-redirs 1 --max-time 3 "$URL")
+PATTERN='__next_error__|Failed to compile|webpack-internal://|vite-error-overlay|Internal server error|MODULE_NOT_FOUND|Cannot find module|Cannot GET /|npm ERR!|Error: ENOENT|EACCES|EADDRINUSE|at .*\(.*\.[jt]sx?:[0-9]+:[0-9]+\)'
+
+if echo "$BODY" | grep -qiE "$PATTERN"; then
+  echo "BODY-SNIFF FAIL: broken-build marker detected"
+  echo "$BODY" | grep -iE "$PATTERN" | head -3
+  exit 1
+fi
+```
+
+#### Windows PowerShell
+
+```powershell
+$response = Invoke-WebRequest -Uri $url -Method Get -TimeoutSec 3 -MaximumRedirection 1 -ErrorAction Stop
+$body = $response.Content
+$pattern = '__next_error__|Failed to compile|webpack-internal://|vite-error-overlay|Internal server error|MODULE_NOT_FOUND|Cannot find module|Cannot GET /|npm ERR!|Error: ENOENT|EACCES|EADDRINUSE|at .*\(.*\.[jt]sx?:\d+:\d+\)'
+
+if ($body -imatch $pattern) {
+  Write-Host "BODY-SNIFF FAIL: broken-build marker detected"
+  [regex]::Matches($body, $pattern, 'IgnoreCase') | Select-Object -First 3 | ForEach-Object { $_.Value }
+  exit 1
+}
+```
+
+A frontend that compiled with type errors often still binds to its port, returns 200 on `/`, and ships an error overlay as HTML. Tests then run against that error overlay and produce nonsense failures. The body sniff is the cheapest way to short-circuit that whole class of confusion.
+
 ## Two-stage readiness — after starting a dev server
 
 Network reachability is necessary but not sufficient. Many dev servers bind to a port before build/startup work is complete. Wait for **both** network readiness and application readiness before issuing requests.

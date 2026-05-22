@@ -49,6 +49,45 @@ netstat -ano | findstr /R /C:":3000 " /C:":3001 " /C:":4200 " /C:":5173 " /C:":8
 
 If the app declares a backend URL in its env file, probe the backend's health endpoint before treating the dev server as usable. 5xx or unreachable → halt; the frontend may render but its data layer is dead, so any query against it is meaningless.
 
+## Body sniff patterns
+
+A `200 OK` can still be a build-error overlay or stack trace. Search the response body (case-insensitive) for broken-build markers — a match means unhealthy regardless of status.
+
+| Stack | Pattern (regex) |
+|:------|:----------------|
+| Next.js | `__next_error__\|Failed to compile\|webpack-internal://` |
+| Vite | `vite-error-overlay\|Internal server error\|\[plugin:` |
+| Node / Express | `MODULE_NOT_FOUND\|Cannot find module\|npm ERR!\|Cannot GET /\|Cannot POST /\|Error: ENOENT\|EACCES\|EADDRINUSE` |
+| Django | `TemplateSyntaxError\|ProgrammingError at /\|<h1>Server Error \(500\)</h1>` |
+| Flask | `Werkzeug Debugger\|werkzeug-debug` |
+| FastAPI / Python | `Traceback \(most recent call last\)\|ModuleNotFoundError\|ImportError` |
+| Rails | `Better Errors\|ActionController::RoutingError\|<title>Action Controller:` |
+| Spring Boot | `Whitelabel Error Page` |
+| Tomcat | `HTTP Status 500.*Apache Tomcat` |
+| Laravel / PHP | `Whoops\\\\|<b>Fatal error</b>\|Parse error:\|Stack trace:` |
+| JS stack frame | `at .*\(.*\.[jt]sx?:\d+:\d+\)` |
+| Java stack frame | `at \w+(\.\w+)+\(\w+\.java:\d+\)` |
+| Python stack frame | `File ".*", line \d+, in ` |
+| Ruby stack frame | `\.rb:\d+:in ` |
+
+The bash/PowerShell snippets below use the union of all patterns above. Trim per-stack when you know the target.
+
+#### bash/zsh
+
+```bash
+BODY=$(curl -sS -L --max-redirs 1 --max-time 3 "$URL")
+PATTERN='__next_error__|Failed to compile|webpack-internal://|vite-error-overlay|Internal server error|MODULE_NOT_FOUND|Cannot find module|Cannot GET /|npm ERR!|Error: ENOENT|EACCES|EADDRINUSE|TemplateSyntaxError|Werkzeug Debugger|Traceback \(most recent call last\)|ModuleNotFoundError|ImportError|Better Errors|ActionController::RoutingError|Whitelabel Error Page|Apache Tomcat|Whoops|<b>Fatal error</b>|Parse error:|Stack trace:|at .*\(.*\.[jt]sx?:[0-9]+:[0-9]+\)|at \w+(\.\w+)+\(\w+\.java:[0-9]+\)|File ".*", line [0-9]+, in |\.rb:[0-9]+:in '
+echo "$BODY" | grep -qiE "$PATTERN" && { echo "BODY-SNIFF FAIL"; echo "$BODY" | grep -iE "$PATTERN" | head -3; exit 1; }
+```
+
+#### PowerShell
+
+```powershell
+$body = (Invoke-WebRequest -Uri $url -TimeoutSec 3 -MaximumRedirection 1 -ErrorAction Stop).Content
+$pattern = '__next_error__|Failed to compile|webpack-internal://|vite-error-overlay|Internal server error|MODULE_NOT_FOUND|Cannot find module|Cannot GET /|npm ERR!|Error: ENOENT|EACCES|EADDRINUSE|TemplateSyntaxError|Werkzeug Debugger|Traceback \(most recent call last\)|ModuleNotFoundError|ImportError|Better Errors|ActionController::RoutingError|Whitelabel Error Page|Apache Tomcat|Whoops|<b>Fatal error</b>|Parse error:|Stack trace:|at .*\(.*\.[jt]sx?:\d+:\d+\)|at \w+(\.\w+)+\(\w+\.java:\d+\)|File ".*", line \d+, in |\.rb:\d+:in '
+if ($body -imatch $pattern) { Write-Host "BODY-SNIFF FAIL"; [regex]::Matches($body, $pattern, 'IgnoreCase') | Select-Object -First 3 | ForEach-Object { $_.Value }; exit 1 }
+```
+
 ## Two-stage readiness — after starting a dev server
 
 Network reachability is necessary but not sufficient. Many dev servers bind to a port before build/startup work is complete. Wait for **both** network readiness and application readiness before issuing requests.

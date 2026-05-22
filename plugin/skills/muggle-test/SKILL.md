@@ -96,7 +96,7 @@ Analyze the changes to understand what's impacted. Two sources, picked by what t
 **PR URL** (user passed `github.com/<org>/<repo>/pull/<n>`):
 1. `gh pr diff <n> --repo <org>/<repo> --name-only` for the changed file list
 2. `gh pr diff <n> --repo <org>/<repo>` for the actual diff
-3. The repo lives at a sibling path (e.g. `C:\Users\stan4\Github\<repo>`) — `cd` into it and verify the PR branch is checked out before running tests; if not, ask the user to check it out (or offer to do it).
+3. Materialize the PR branch in a dedicated worktree per [`_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md). Use that worktree path as the `cwd` for the rest of the run (including the `cwd` parameter on local execute tools).
 
 Either way:
 1. Identify impacted feature areas:
@@ -273,6 +273,7 @@ Execution itself **must** be sequential because there is only one local Electron
 1. Call `muggle-local-execute-test-generation`:
    - `testCase`: Full test case object from the parallel fetch above
    - `localUrl`: User's local URL from the pre-flight question
+   - `cwd`: Absolute path of the active working directory — the PR-branch worktree if one was created in Step 2, otherwise the user's repo root. Drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize.
    - `showUi`: from the `showElectronBrowser` resolution — omit (default visible) for `always`, pass `false` for `never`
    - `freshSession`: `true` if the test case requires a clean browser state (see above), omit otherwise
 2. Store the returned `runId` and tag the result `mode: "regen"`.
@@ -282,7 +283,7 @@ Execution itself **must** be sequential because there is only one local Electron
 2. Call `muggle-local-execute-replay`:
    - `testScript`: from `muggle-remote-test-script-get`
    - `actionScript`: from `muggle-remote-action-script-get`
-   - `localUrl`, `showUi`, `freshSession`: same resolution as regen
+   - `localUrl`, `cwd`, `showUi`, `freshSession`: same resolution as regen
 3. Store the returned `runId` and tag the result `mode: "replay"`.
 
 If a run fails, log it and continue to the next — do not abort the batch. Failures are routed through Step 7C's post-failure handler after the batch completes.
@@ -461,6 +462,7 @@ This is a suggestion, not automatic invocation. Skip silently if every test pass
 ## Guardrails
 
 - **Always confirm intent first** — never assume local vs remote without asking
+- **PR URLs always run in a dedicated worktree** — never switch the user's main checkout. Create or reuse `<repo>/.claude/worktrees/<sanitized-branch>` and pass that path as the `cwd` parameter to local execute tools. The cross-worktree single-flight lock relies on this to serialize concurrent runs from different branches.
 - **User MUST select project** — present clickable options via `AskUserQuestion`, wait for explicit choice, never auto-select
 - **Best-effort shortlist use cases** — use the change summary to narrow the list to the most relevant 1–5 use cases and pre-check them; never dump every use case in the project on the user. Always leave an escape hatch to reveal the full list.
 - **Best-effort shortlist test cases** — same idea: pre-check the test cases most relevant to the change summary; never enumerate every test case attached to a use case. Always leave an escape hatch to reveal the full list.

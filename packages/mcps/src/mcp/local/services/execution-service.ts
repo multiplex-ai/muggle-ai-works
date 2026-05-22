@@ -23,6 +23,7 @@ import {
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
@@ -600,6 +601,23 @@ async function executeElectronAppAsync(params: {
 export async function executeTestGeneration(params: {
   testCase: TestCaseDetails;
   localUrl: string;
+  cwd: string;
+  mutations?: string[];
+  timeoutMs?: number;
+  showUi?: boolean;
+  freshSession?: boolean;
+}): Promise<ILocalRunResult> {
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  try {
+    return await runTestGenerationLocked(params);
+  } finally {
+    await lockHandle.release();
+  }
+}
+
+async function runTestGenerationLocked(params: {
+  testCase: TestCaseDetails;
+  localUrl: string;
   mutations?: string[];
   timeoutMs?: number;
   showUi?: boolean;
@@ -820,6 +838,24 @@ export async function executeTestGeneration(params: {
  * @returns Run result.
  */
 export async function executeReplay(params: {
+  testScript: TestScriptDetails;
+  actionScript: unknown[];
+  localUrl: string;
+  cwd: string;
+  mutations?: string[];
+  timeoutMs?: number;
+  showUi?: boolean;
+  freshSession?: boolean;
+}): Promise<ILocalRunResult> {
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  try {
+    return await runReplayLocked(params);
+  } finally {
+    await lockHandle.release();
+  }
+}
+
+async function runReplayLocked(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
   localUrl: string;

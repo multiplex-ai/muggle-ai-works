@@ -71,9 +71,6 @@ function createChildLogger(correlationId: string) {
   };
 }
 
-// ========================================
-// Status Tools
-// ========================================
 
 const checkStatusTool: ILocalMcpTool = {
   name: "muggle-local-check-status",
@@ -137,9 +134,6 @@ const listSessionsTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Run Result Tools
-// ========================================
 
 const runResultListTool: ILocalMcpTool = {
   name: "muggle-local-run-result-list",
@@ -260,9 +254,6 @@ const runResultGetTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Test Script Tools (Read-only - scripts are generated during execution)
-// ========================================
 
 const testScriptListTool: ILocalMcpTool = {
   name: "muggle-local-test-script-list",
@@ -322,9 +313,6 @@ const testScriptGetTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Execution Tools
-// ========================================
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
@@ -342,6 +330,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
       const result = await executeTestGeneration({
         testCase: input.testCase,
         localUrl: input.localUrl,
+        cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
@@ -389,6 +378,7 @@ const executeReplayTool: ILocalMcpTool = {
         testScript: input.testScript,
         actionScript: input.actionScript,
         localUrl: input.localUrl,
+        cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
@@ -439,9 +429,6 @@ const cancelExecutionTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Publishing Tools
-// ========================================
 
 const publishTestScriptTool: ILocalMcpTool = {
   name: "muggle-local-publish-test-script",
@@ -600,9 +587,6 @@ const publishTestScriptTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Preferences Tools
-// ========================================
 
 const preferencesSetTool: ILocalMcpTool = {
   name: "muggle-local-preferences-set",
@@ -631,9 +615,6 @@ const preferencesSetTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Last-Project Cache Tools
-// ========================================
 
 const lastProjectGetTool: ILocalMcpTool = {
   name: "muggle-local-last-project-get",
@@ -724,9 +705,6 @@ const lastProjectClearTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Last-Host Cache Tools
-// ========================================
 
 const lastHostGetTool: ILocalMcpTool = {
   name: "muggle-local-last-host-get",
@@ -802,9 +780,6 @@ const lastHostClearTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// Telemetry Tool
-// ========================================
 
 // Skills call this in their first step so we can count skill invocations.
 // Always returns ok — never blocks the skill on telemetry failure.
@@ -854,9 +829,6 @@ const telemetryEventEmitTool: ILocalMcpTool = {
   },
 };
 
-// ========================================
-// All Tools Registry
-// ========================================
 
 /**
  * All registered local E2E execution tools.

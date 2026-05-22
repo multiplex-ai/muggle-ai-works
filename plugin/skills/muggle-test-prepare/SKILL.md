@@ -225,23 +225,24 @@ If the user needs edits, collect corrections and re-present.
 
 ### Step 5.5: Fresh Install (clean-start default)
 
-For each Node service:
+Detect the stack by indicator file, decide if install is missing/stale, run automatically (notify, don't ask). Only opt-out is aborting the skill.
 
-1. `node_modules/` missing → install required.
-2. `package-lock.json` newer than `node_modules/.package-lock.json` → install stale.
-3. Otherwise → skip.
+| Indicator | Stack | Stale check | Install command |
+|:----------|:------|:------------|:----------------|
+| `package.json` | Node | `node_modules/` missing OR `package-lock.json` newer than `node_modules/.package-lock.json` | `npm install --prefer-offline --no-audit --no-fund` |
+| `pyproject.toml` w/ `[tool.poetry]` | Poetry | `poetry.lock` newer than `.venv/pyvenv.cfg` (or `.venv/` missing) | `poetry install --no-interaction` |
+| `pyproject.toml` (PEP 621) + `uv.lock` | uv | `uv.lock` newer than `.venv/pyvenv.cfg` | `uv sync` |
+| `requirements.txt` | pip | `requirements.txt` newer than `.venv/pyvenv.cfg` (or `.venv/` missing) | `pip install -r requirements.txt` |
+| `Gemfile` | Bundler | `Gemfile.lock` newer than `vendor/bundle/` mtime | `bundle install` |
+| `composer.json` | Composer | `composer.lock` newer than `vendor/autoload.php` | `composer install --no-interaction` |
+| `pom.xml` | Maven | always (heavy — opt-in via `AskUserQuestion`) | `mvn -DskipTests install` |
+| `build.gradle*` | Gradle | always (heavy — opt-in via `AskUserQuestion`) | `gradle build -x test` |
+| `go.mod` | Go | skip — `go run`/`go build` handle deps |  |
+| `Cargo.toml` | Rust | skip — `cargo run`/`cargo build` handle deps |  |
 
-When required or stale, **run automatically** (notify, don't ask):
+Notify one-liner before kicking off: `Installing <service-name> (<stack>: <missing|stale>)…`.
 
-```bash
-cd "<service-dir>" && npm install --prefer-offline --no-audit --no-fund
-```
-
-One-line notify before kicking off: `Installing <service-name> (node_modules <missing|stale>)…`. Only opt-out is aborting the skill.
-
-**Never symlink `node_modules/` from a sibling worktree.** webpack's `resolve.symlinks: true` default rewrites paths to the shared real location; asset-identity tracking fails with `Can't handle conflicting asset info for sourceFilename`. Run a real per-worktree install.
-
-For non-Node services (Go, Rust, Python), skip this probe — their build systems handle dependency caching differently.
+**Never symlink `node_modules/` from a sibling worktree.** webpack's `resolve.symlinks: true` default rewrites paths to the shared real location; asset-identity tracking fails with `Can't handle conflicting asset info for sourceFilename`. Run a real per-worktree install. Same principle applies to Python `.venv/` and Ruby `vendor/bundle/` — never symlink.
 
 ### Step 6: Start Services
 

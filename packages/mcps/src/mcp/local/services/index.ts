@@ -22,3 +22,9 @@ export {
   executeTestGeneration,
   listActiveExecutions,
 } from "./execution-service.js";
+
+export {
+  acquireLocalExecutionLock,
+  readLocalExecutionLockState,
+} from "./local-execution-lock.js";
+export type { ILocalExecutionLockHandle } from "./local-execution-lock.js";

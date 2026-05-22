@@ -16,10 +16,6 @@ import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 
-// ========================================
-// Test Case Schema (from muggle-remote-test-case-get)
-// ========================================
-
 /**
  * Test case details schema.
  * These fields come from muggle-remote-test-case-get response.
@@ -47,10 +43,6 @@ export const TestCaseDetailsSchema = z.object({
 
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
 
-// ========================================
-// Test Script Schema (from muggle-remote-test-script-get)
-// ========================================
-
 /**
  * Test script details schema.
  * These fields come from muggle-remote-test-script-get response.
@@ -77,10 +69,6 @@ export const TestScriptDetailsSchema = z.object({
 
 export type TestScriptDetails = z.infer<typeof TestScriptDetailsSchema>;
 
-// ========================================
-// Execution Schemas
-// ========================================
-
 /**
  * Execute test generation input schema.
  * Accepts full test case details (from muggle-remote-test-case-get) plus local URL.
@@ -90,6 +78,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   testCase: TestCaseDetailsSchema.describe("Test case details obtained from muggle-remote-test-case-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
+  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. */
+  cwd: z.string().optional().describe("Absolute path of the caller's worktree. Used to key the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize. Defaults to the MCP server's cwd when omitted."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -113,6 +103,8 @@ export const ExecuteReplayInputSchema = z.object({
   actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
+  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. */
+  cwd: z.string().optional().describe("Absolute path of the caller's worktree. Used to key the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize. Defaults to the MCP server's cwd when omitted."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -134,9 +126,6 @@ export const CancelExecutionInputSchema = z.object({
 
 export type CancelExecutionInput = z.infer<typeof CancelExecutionInputSchema>;
 
-// ========================================
-// Run Result Schemas
-// ========================================
 
 /**
  * Run result list input schema.
@@ -157,9 +146,6 @@ export const RunResultGetInputSchema = z.object({
 
 export type RunResultGetInput = z.infer<typeof RunResultGetInputSchema>;
 
-// ========================================
-// Test Script Schemas
-// ========================================
 
 /**
  * Test script list input schema.
@@ -179,9 +165,6 @@ export const TestScriptGetInputSchema = z.object({
 
 export type TestScriptGetInput = z.infer<typeof TestScriptGetInputSchema>;
 
-// ========================================
-// Publishing Schemas
-// ========================================
 
 /**
  * Publish test script input schema.

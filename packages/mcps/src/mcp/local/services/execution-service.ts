@@ -23,15 +23,12 @@ import {
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
 const logger = getLogger();
-
-// ========================================
-// Types
-// ========================================
 
 /**
  * Internal execution process tracking.
@@ -81,16 +78,8 @@ export interface ILocalRunResult {
   errorMessage?: string;
 }
 
-// ========================================
-// Active Process Tracking
-// ========================================
-
 /** Map of active execution processes. */
 const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
-
-// ========================================
-// Auth Helpers
-// ========================================
 
 /**
  * Get the authenticated user ID.
@@ -199,10 +188,6 @@ function buildStudioAuthContent(): { accessToken: string; email: string; userId:
     userId: storedAuth.userId,
   };
 }
-
-// ========================================
-// Temp File Helpers
-// ========================================
 
 /**
  * Ensure temp directory exists.
@@ -600,10 +585,6 @@ async function executeElectronAppAsync(params: {
   });
 }
 
-// ========================================
-// Main Execution Functions
-// ========================================
-
 /**
  * Execute test script generation for a test case.
  *
@@ -617,6 +598,23 @@ async function executeElectronAppAsync(params: {
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
+  testCase: TestCaseDetails;
+  localUrl: string;
+  cwd: string;
+  mutations?: string[];
+  timeoutMs?: number;
+  showUi?: boolean;
+  freshSession?: boolean;
+}): Promise<ILocalRunResult> {
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  try {
+    return await runTestGenerationLocked(params);
+  } finally {
+    await lockHandle.release();
+  }
+}
+
+async function runTestGenerationLocked(params: {
   testCase: TestCaseDetails;
   localUrl: string;
   mutations?: string[];
@@ -821,6 +819,24 @@ export async function executeTestGeneration(params: {
  * @returns Run result.
  */
 export async function executeReplay(params: {
+  testScript: TestScriptDetails;
+  actionScript: unknown[];
+  localUrl: string;
+  cwd: string;
+  mutations?: string[];
+  timeoutMs?: number;
+  showUi?: boolean;
+  freshSession?: boolean;
+}): Promise<ILocalRunResult> {
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  try {
+    return await runReplayLocked(params);
+  } finally {
+    await lockHandle.release();
+  }
+}
+
+async function runReplayLocked(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
   localUrl: string;

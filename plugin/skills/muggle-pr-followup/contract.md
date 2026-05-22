@@ -37,7 +37,8 @@ If `state` is `MERGED` or `CLOSED`:
 2. Write `result.md` per [`state-schemas.md`](state-schemas.md#resultmd).
 3. Append a terminal line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events/pr-followup-tick.md`](../_shared/telemetry-events/pr-followup-tick.md).
-5. Exit. **Do not schedule another tick.** The `/loop` framework stops invoking this skill once it sees no follow-up dispatch.
+5. **Cancel the cron schedule that fires this watcher.** `/loop 1m ...` from bootstrap was registered via `CronCreate`; a fixed-interval cron keeps firing regardless of whether the skill re-dispatches. Call `CronList`, find any job whose command ends with `/muggle:muggle-pr-followup <slug> <pr-number>` (exact two-arg match), and `CronDelete` it. No-op if none matches — the tick may have been invoked manually rather than via `/loop`.
+6. Exit. The watcher has now unscheduled itself; no future ticks will fire for this PR.
 
 ### Step 3 — Fetch new submitted reviews
 
@@ -66,7 +67,7 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    ```
 3. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
-5. Exit. **Do not schedule another tick.** `/muggle-do` will respawn the watcher at the end of its cycle.
+5. Exit. The cron schedule from bootstrap keeps firing the watcher every minute, so the next tick still arrives even though this turn dispatched `/muggle-do`. The watcher only self-unschedules in Step 2 (terminal).
 
 ## Output
 

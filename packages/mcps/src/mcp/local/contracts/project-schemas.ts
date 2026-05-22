@@ -78,8 +78,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   testCase: TestCaseDetailsSchema.describe("Test case details obtained from muggle-remote-test-case-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. */
-  cwd: z.string().optional().describe("Absolute path of the caller's worktree. Used to key the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize. Defaults to the MCP server's cwd when omitted."),
+  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -103,8 +103,8 @@ export const ExecuteReplayInputSchema = z.object({
   actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. */
-  cwd: z.string().optional().describe("Absolute path of the caller's worktree. Used to key the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize. Defaults to the MCP server's cwd when omitted."),
+  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */

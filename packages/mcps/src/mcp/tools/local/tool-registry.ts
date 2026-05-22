@@ -330,7 +330,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
       const result = await executeTestGeneration({
         testCase: input.testCase,
         localUrl: input.localUrl,
-        cwd: input.cwd ?? process.cwd(),
+        cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
@@ -378,7 +378,7 @@ const executeReplayTool: ILocalMcpTool = {
         testScript: input.testScript,
         actionScript: input.actionScript,
         localUrl: input.localUrl,
-        cwd: input.cwd ?? process.cwd(),
+        cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,

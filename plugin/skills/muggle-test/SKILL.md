@@ -96,14 +96,7 @@ Analyze the changes to understand what's impacted. Two sources, picked by what t
 **PR URL** (user passed `github.com/<org>/<repo>/pull/<n>`):
 1. `gh pr diff <n> --repo <org>/<repo> --name-only` for the changed file list
 2. `gh pr diff <n> --repo <org>/<repo>` for the actual diff
-3. Locate the repo at the sibling path (e.g. `C:\Users\stan4\Github\<repo>`).
-4. **Materialize a dedicated worktree for the PR branch — never switch the user's main checkout.** Steps:
-   - Resolve the PR's head branch (`gh pr view <n> --repo <org>/<repo> --json headRefName -q .headRefName`).
-   - Sanitize the branch name for filesystem use (replace `/` and other path separators with `-`) and build the target path `<repo>/.claude/worktrees/<sanitized-branch>`.
-   - If the target path doesn't exist: `git -C <repo> fetch origin <branch>` then `git -C <repo> worktree add <target-path> <branch>`.
-   - If the target path exists: `git -C <target-path> fetch` then `git -C <target-path> reset --hard origin/<branch>` so the worktree picks up new pushes and drops any local cruft.
-   - Use this worktree path as the working directory for the remainder of the run. **Pass it explicitly as the `cwd` parameter to `muggle-local-execute-test-generation` and `muggle-local-execute-replay`** — this drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize correctly.
-   - Tell the user where the worktree lives so they can clean it up later with `git -C <repo> worktree remove <target-path>`.
+3. Materialize the PR branch in a dedicated worktree per [`_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md). Use that worktree path as the `cwd` for the rest of the run (including the `cwd` parameter on local execute tools).
 
 Either way:
 1. Identify impacted feature areas:

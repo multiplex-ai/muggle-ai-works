@@ -15,28 +15,21 @@ import * as path from "node:path";
 
 import { getDataDir } from "../../../shared/data-dir.js";
 import { getLogger } from "../../../shared/logger.js";
+import {
+  LOCK_FILE_NAME,
+  MODIFY_LOCK_RETRY_MS,
+  MODIFY_LOCK_STALE_MS,
+  MODIFY_LOCK_SUFFIX,
+  POLL_INTERVAL_MS,
+  WAIT_LOG_INTERVAL_MS,
+} from "./local-execution-lock-constants.js";
+import type {
+  ILocalExecutionLockHandle,
+  ILockState,
+  ITryAcquireOutcome,
+} from "./local-execution-lock-types.js";
 
-const LOCK_FILE_NAME = "local-execution.lock";
-const MODIFY_LOCK_SUFFIX = ".modify";
-const POLL_INTERVAL_MS = 2000;
-const WAIT_LOG_INTERVAL_MS = 10_000;
-const MODIFY_LOCK_RETRY_MS = 50;
-/** Stale modify-lock threshold. If the sidecar persists past this, assume crash. */
-const MODIFY_LOCK_STALE_MS = 5_000;
-
-interface ILockState {
-  /** Absolute cwd of the worktree that holds the lock. */
-  holderCwd: string;
-  /** Process IDs currently holding the lock. Multiple entries = same-cwd reentrant holders. */
-  holderPids: number[];
-  /** Acquisition timestamp (ms since epoch). For diagnostics only. */
-  acquiredAt: number;
-}
-
-export interface ILocalExecutionLockHandle {
-  /** Release the lock. Safe to call once per acquire. */
-  release: () => Promise<void>;
-}
+export type { ILocalExecutionLockHandle, ILockState } from "./local-execution-lock-types.js";
 
 function lockFilePath(): string {
   return path.join(getDataDir(), LOCK_FILE_NAME);
@@ -126,11 +119,6 @@ async function withModifyLock<T>(fn: () => Promise<T>): Promise<T> {
     await fileHandle.close().catch(() => undefined);
     await fs.unlink(modifyPath).catch(() => undefined);
   }
-}
-
-interface ITryAcquireOutcome {
-  acquired: boolean;
-  blockingState?: ILockState;
 }
 
 async function tryAcquireOnce(params: { normalizedCwd: string; pid: number }): Promise<ITryAcquireOutcome> {

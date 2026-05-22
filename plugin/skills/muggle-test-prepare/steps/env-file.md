@@ -1,4 +1,4 @@
-# Step 4.5: Environment File Sanity
+# Environment file sanity
 
 The env file is **per-repo** — don't hardcode `.env.local`. Detect by scanning `package.json` `scripts/*` for `.env*` literals and known port vars (`PORT=`, `VITE_PORT=`); check framework config (`next.config.*`, `vite.config.*`).
 

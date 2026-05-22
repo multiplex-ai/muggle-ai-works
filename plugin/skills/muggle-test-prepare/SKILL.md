@@ -43,7 +43,7 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 }
 ```
 
-`testing_scope` records what the user is testing (from [Step 1](./steps/step-1-what-are-you-testing.md)). `excluded_services` records services the user said can't run locally (from [Step 2](./steps/step-2-viability-check.md)).
+`testing_scope` records what the user is testing (from [scope](./steps/scope.md)). `excluded_services` records services the user said can't run locally (from [viability-check](./steps/viability-check.md)).
 
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
@@ -56,27 +56,27 @@ Prune dead PIDs silently.
 
 Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md).
 
-| Preference | Step | Decision it gates |
-|------------|------|-------------------|
-| `autoRebase` | [Step 0](./steps/step-0-rebase-check.md) | Rebase onto `origin/<default>` before starting dev servers |
+| Preference | Gates |
+|------------|-------|
+| `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<default>` before starting dev servers |
 
 ## Workflow
 
-Read each step's detail file when you reach it. Steps are run in order; the inline notes are summaries, not the full instructions.
+Run the stages in this order. Each row links to its detail file — read the file when you reach the stage; the summary here is not the full instruction.
 
-| Step | File | Summary |
-|:-----|:-----|:--------|
-| 0 | [step-0-rebase-check.md](./steps/step-0-rebase-check.md) | Rebase onto default branch (gated) |
-| 1 | [step-1-what-are-you-testing.md](./steps/step-1-what-are-you-testing.md) | Scope: frontend / backend / full stack |
-| 2 | [step-2-viability-check.md](./steps/step-2-viability-check.md) | Exclude services that can't run locally |
-| 3 | [step-3-identify-services.md](./steps/step-3-identify-services.md) | Pick required services + startup mode |
-| 4 | [step-4-check-running.md](./steps/step-4-check-running.md) | Detect what's already listening |
-| 4.5 | [step-4.5-env-file.md](./steps/step-4.5-env-file.md) | Env file present + correct |
-| 5 | [step-5-start-commands.md](./steps/step-5-start-commands.md) | Determine per-service start command |
-| 5.5 | [step-5.5-fresh-install.md](./steps/step-5.5-fresh-install.md) | Auto-install deps if missing/stale |
-| 6 | [step-6-start-services.md](./steps/step-6-start-services.md) | Launch + two-stage readiness |
-| 7 | [step-7-smoke-test.md](./steps/step-7-smoke-test.md) | HTTP + body sniff + log tail; clean-restart on fail |
-| 8 | [step-8-readiness-report.md](./steps/step-8-readiness-report.md) | Final ready table |
+| Stage | Summary |
+|:------|:--------|
+| [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
+| [scope](./steps/scope.md) | Frontend / backend / full stack |
+| [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
+| [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
+| [check-running](./steps/check-running.md) | Detect what's already listening |
+| [env-file](./steps/env-file.md) | Env file present + correct |
+| [start-commands](./steps/start-commands.md) | Determine per-service start command |
+| [fresh-install](./steps/fresh-install.md) | Auto-install deps if missing/stale |
+| [start-services](./steps/start-services.md) | Launch + two-stage readiness |
+| [smoke-test](./steps/smoke-test.md) | HTTP + body sniff + log tail; clean-restart on fail |
+| [readiness-report](./steps/readiness-report.md) | Final ready table |
 
 ## Cleanup
 
@@ -115,7 +115,7 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
 - **Never assume start commands** — verify via indicator file; confirm with user.
 - **Bail early on non-viable services** — don't start what can't run locally.
-- **Idempotent** — already-tracked alive services are kept; [Step 7](./steps/step-7-smoke-test.md) still runs against them.
-- **Port-listening is never enough** — Step 7 (HTTP + body sniff + log tail) is mandatory before the final report.
-- **Clean Restart is the recommended fix** — Option 1 in Step 7a; lint/build/missing-deps issues need nuke-and-reinstall.
-- **Fresh install is automatic** — [Step 5.5](./steps/step-5.5-fresh-install.md) notifies, doesn't ask.
+- **Idempotent** — already-tracked alive services are kept; [smoke-test](./steps/smoke-test.md) still runs against them.
+- **Port-listening is never enough** — smoke-test (HTTP + body sniff + log tail) is mandatory before the final report.
+- **Clean Restart is the recommended fix** — first option in the smoke-test diagnose-and-fix loop; lint/build/missing-deps issues need nuke-and-reinstall.
+- **Fresh install is automatic** — [fresh-install](./steps/fresh-install.md) notifies, doesn't ask.

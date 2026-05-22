@@ -1,4 +1,4 @@
-# Step 5.5: Fresh Install (clean-start default)
+# Fresh install (clean-start default)
 
 Detect stack by indicator file, decide if install is missing/stale, run automatically (notify, don't ask). Only opt-out is aborting the skill.
 

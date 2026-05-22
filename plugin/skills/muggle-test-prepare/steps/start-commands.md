@@ -1,4 +1,4 @@
-# Step 5: Determine Start Commands
+# Determine start commands
 
 For each required service not already running, figure out how to start it. Read **only** the indicator file that exists.
 

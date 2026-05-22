@@ -1,12 +1,12 @@
-# Step 4: Check What's Already Running
+# Check what's already running
 
 Run port detection and (when an app declares a backend URL) backend-health probe per [`../../_shared/dev-server-readiness.md`](../../_shared/dev-server-readiness.md). Cross-reference hits against selected service directories.
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."
 
-If **all** required services are running, skip straight to [Step 7](./step-7-smoke-test.md) — don't trust port-listening alone.
+If **all** required services are running, skip straight to [smoke-test](./smoke-test.md) — don't trust port-listening alone.
 
-If some are running, acknowledge and continue to [Step 5](./step-5-start-commands.md) only for the missing ones. For already-running services:
+If some are running, acknowledge and continue to [start-commands](./start-commands.md) only for the missing ones. For already-running services:
 - Option 1: "It's fine, keep it"
 - Option 2: "Restart it"
 

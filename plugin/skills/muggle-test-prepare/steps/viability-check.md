@@ -1,4 +1,4 @@
-# Step 2: Viability Check
+# Viability check
 
 Some services can't run on a developer's machine by design — production secrets, HSMs, specific certificates, cloud-only infra. Don't waste time trying to start them.
 

@@ -1,4 +1,4 @@
-# Step 7: Comprehensive Smoke Test
+# Comprehensive smoke test
 
 Runs for **every** service in the tracking file, including `external: true`. Port-listening is not proof a service works — a stale dev server binds and returns 200 with a webpack error overlay.
 
@@ -10,15 +10,15 @@ All three probes must pass:
 
 Use the primitives in `dev-server-readiness.md`. Don't re-implement.
 
-## 7a — Diagnose-and-Fix Loop
+## Diagnose-and-fix loop
 
 On failure, show the concrete signal (HTTP code, sniff hit, or log line) and `AskUserQuestion`:
 
 > "**<service-name>** isn't healthy: `<signal>`. How do you want to proceed?"
 
-- Option 1: **Clean restart** (Recommended) — kill + [Step 5.5](./step-5.5-fresh-install.md) + [Step 6](./step-6-start-services.md) + re-run Step 7
-- Option 2: **Restart only** — kill + Step 6 + re-run Step 7
-- Option 3: **I'll fix it manually** — pause; re-run Step 7 on user signal
+- Option 1: **Clean restart** (Recommended) — kill + [fresh-install](./fresh-install.md) + [start-services](./start-services.md) + re-run this step
+- Option 2: **Restart only** — kill + start-services + re-run this step
+- Option 3: **I'll fix it manually** — pause; re-run on user signal
 - Option 4: **Skip** — append to `excluded_services` with reason, continue
 
 Loop per service until pass or skip. Cap at **3 iterations** — then force a manual-intervention pause.

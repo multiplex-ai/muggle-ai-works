@@ -1,4 +1,4 @@
-# Step 6: Start Services
+# Start services
 
 For each service, launch in the background:
 

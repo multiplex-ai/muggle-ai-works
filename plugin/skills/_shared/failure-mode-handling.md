@@ -109,11 +109,19 @@ Triggered when `muggle-local-execute-replay` returns `status: "failed"` (or non-
 | **stale-script** | The test script no longer matches the live UI (selectors moved, label paths changed, page renamed). The product still works; the script is out of date. |
 | **product-defect** | The script and infra are fine; the user's app actually misbehaved (assertion failure on previously-passing step, unexpected error, wrong page after action). This is the failure mode acceptance testing exists to catch. |
 
+### Where to read signals
+
+Call `muggle-local-run-result-get` (local) or the remote equivalent and read **structured fields**, not `execute`'s response stdout tail (it's a truncated display excerpt and routinely cuts off mid-sentence). Order:
+
+1. `Status` + `Error` — the verdict and the one-line cause.
+2. `Artifacts` section, when present — opens `artifactsDir`. Read `results.md` (step-by-step + screenshot links) for the per-step verdict, then `action-script.json` for what the agent attempted.
+3. `stdout.log` / `stderr.log` only when the Artifacts section is absent or `results.md` doesn't exist (e.g. early Electron failure).
+
+Replay-mode failures usually have `artifactsDir` because the prior script ran. If a replay run is missing it, treat that itself as an `infra` signal — Electron didn't get far enough to record steps.
+
 ### Initial signal heuristics
 
-Derive signals from the run's per-step results, error messages, and step screenshots (`muggle-local-run-result-get`):
-
-- **infra** signals: `electron-crash`, `chromium-error`, `click-no-effect-on-clickable-element`, `timeout-on-trivial-wait`, `internal-error-in-mcp-output`.
+- **infra** signals: `electron-crash`, `chromium-error`, `click-no-effect-on-clickable-element`, `timeout-on-trivial-wait`, `internal-error-in-mcp-output`, `artifacts-dir-missing-on-replay`.
 - **stale-script** signals: `element-not-found`, `selector-timeout`, `label-path-mismatch`, `nav-target-404`, `aria-label-changed`.
 - **product-defect** signals: `assertion-failed-on-passing-step`, `unexpected-error-toast`, `wrong-page-after-action`, `network-500-from-app`, `form-validation-rejected-valid-input`.
 
@@ -189,9 +197,17 @@ Triggered when `muggle-local-execute-test-generation` (or the remote equivalent)
 | **agent-course** | The generation agent went down a wrong path (chose the wrong button, misread the goal, looped on a blocking modal). The product is fine and the test case is fine — the agent's *course* needs steering. |
 | **product-uxux** | The product itself blocks the test (broken page, missing element, server error). Agent can't proceed because the feature doesn't actually work. |
 
-### Initial signal heuristics
+### Where to read signals
 
-From `muggle-local-run-result-get` (summary, structured summary, last steps, error):
+Same rule as section B: read **structured fields** from `muggle-local-run-result-get`, not `execute`'s response stdout tail. **Failed local regen runs do not get `action-script.json` / `results.md` / per-step screenshots persisted** — only `stdout.log` + `stderr.log` are written to `<sessionsDir>/<runId>/`, and the run record's `Artifacts` section is absent. Don't go hunting elsewhere on disk for the per-step report; it doesn't exist for failed regen.
+
+Order:
+
+1. `Status` + `Error` — the verdict and one-line cause. `Error: Electron exited with code 26` typically means `goal_not_achievable`.
+2. `stdout.log` / `stderr.log` at `<sessionsDir>/<runId>/` — last 100 lines is usually enough; look for the final structured summary the generation agent emitted (it appears near the end as a JSON-ish block, not in the truncated execute tail).
+3. Remote regen — fetch the workflow run with `muggle-remote-wf-get-ts-gen-latest-run`; signals live in `summaryStep` and the per-step list there.
+
+### Initial signal heuristics
 
 - **transient**: `network-error`, `llm-rate-limit`, `single-tool-call-error`, run had partial progress then died.
 - **infra**: `electron-mcp-handler-crash`, `internal-validation-error`, `pipeline-stuck`, identical failure repeated more than twice.

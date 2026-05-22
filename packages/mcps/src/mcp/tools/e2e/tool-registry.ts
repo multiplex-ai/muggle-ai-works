@@ -15,16 +15,13 @@ import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/ty
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
+import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 
 /** Muggle Test API prefix. */
 const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
 
 /** Default workflow timeout. */
 const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
-
-// =============================================================================
-// Project Tools
-// =============================================================================
 
 const projectTools: IQaToolDefinition[] = [
   {
@@ -105,10 +102,6 @@ const projectTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// Use Case Tools
-// =============================================================================
 
 const useCaseTools: IQaToolDefinition[] = [
   {
@@ -272,10 +265,6 @@ const useCaseTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Test Case Tools
-// =============================================================================
-
 const testCaseTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-case-list",
@@ -401,10 +390,6 @@ const testCaseTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Bulk Preview Job Tools
-// =============================================================================
-
 const bulkPreviewTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-bulk-preview-job-get",
@@ -450,10 +435,6 @@ const bulkPreviewTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Test Script Tools
-// =============================================================================
-
 const testScriptTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-script-list",
@@ -490,10 +471,6 @@ const testScriptTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Action Script Tools
-// =============================================================================
-
 const actionScriptTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-action-script-get",
@@ -508,10 +485,6 @@ const actionScriptTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// Workflow Tools
-// =============================================================================
 
 const workflowTools: IQaToolDefinition[] = [
   {
@@ -827,10 +800,6 @@ const workflowTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Report Tools
-// =============================================================================
-
 const reportTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-test-results-summary-get",
@@ -858,7 +827,8 @@ const reportTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-test-runs-summary-get",
-    description: "Get a summary of test runs for a project.",
+    description:
+      "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { totals: { total, byStatus }, page, pageSize, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). `totals` covers the full project; `runs` is the page slice. Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-case-get / muggle-remote-wf-get-ts-replay-latest-run for full per-run detail.",
     inputSchema: schemas.ProjectTestRunsSummaryInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.ProjectTestRunsSummaryInputSchema>;
@@ -867,6 +837,7 @@ const reportTools: IQaToolDefinition[] = [
         path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/test-runs/summary`,
       };
     },
+    mapFromUpstream: mapTestRunsSummary,
   },
   {
     name: "muggle-remote-report-stats-summary-get",
@@ -938,10 +909,6 @@ const reportTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// Secret Tools
-// =============================================================================
 
 const secretTools: IQaToolDefinition[] = [
   {
@@ -1018,10 +985,6 @@ const secretTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// PRD File Tools
-// =============================================================================
 
 const prdFileTools: IQaToolDefinition[] = [
   {
@@ -1102,10 +1065,6 @@ const prdFileTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// Wallet Tools
-// =============================================================================
-
 const walletTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-wallet-topup",
@@ -1182,10 +1141,6 @@ const walletTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// Recommendation Tools (No upstream calls)
-// =============================================================================
 
 const recommendationTools: IQaToolDefinition[] = [
   {
@@ -1295,10 +1250,6 @@ const recommendationTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// API Key Tools
-// =============================================================================
 
 /** API key endpoint prefix. */
 const API_KEY_PREFIX = "/v1/protected/api-keys";
@@ -1446,10 +1397,6 @@ const apiKeyTools: IQaToolDefinition[] = [
   },
 ];
 
-// =============================================================================
-// User Feedback Tools
-// =============================================================================
-
 const userFeedbackTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-user-feedback-create",
@@ -1504,10 +1451,6 @@ const userFeedbackTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// Auth Tools (Device Code Flow)
-// =============================================================================
 
 const authTools: IQaToolDefinition[] = [
   {
@@ -1645,10 +1588,6 @@ const authTools: IQaToolDefinition[] = [
     },
   },
 ];
-
-// =============================================================================
-// All Tools Combined
-// =============================================================================
 
 /** All cloud E2E tool definitions (muggle-remote-* prefix). */
 export const allQaToolDefinitions: IQaToolDefinition[] = [

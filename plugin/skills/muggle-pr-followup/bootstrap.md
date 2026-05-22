@@ -12,11 +12,12 @@ Bootstrap is **non-interactive**: it runs straight through, prompts the user for
 
 ## Input
 
-`$ARGUMENTS = <pr-url> [--slug=<name>] [--resume]`
+`$ARGUMENTS = <pr-url> [--slug=<name>] [--resume] [--forward-only]`
 
 - `<pr-url>` matches `https?://github\.com/[^/]+/[^/]+/pull/\d+` — required.
 - `--slug=<name>` overrides the default `<repo>-pr<n>` slug.
 - `--resume` opts into refreshing an existing slot instead of refusing on conflict.
+- `--forward-only` pins the cursor past existing reviews (skip history). Default is cursor 0 — the watcher will pick up prior submitted reviews on its first tick.
 
 ## Procedure
 
@@ -47,7 +48,8 @@ If `.muggle-do/sessions/<slug>/` exists:
 
 ### Step 6 — Resolve the initial cursor
 
-Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) with cursor 0, then take `max(id)`. If none, the cursor is 0. The watcher only acts on `id > cursor`, so this pins forward-only.
+- **Default (no `--forward-only`):** cursor is `0`. The watcher will pick up every existing submitted review on its first tick. This matches the common case where the user opened the PR, left review comments they want addressed, and is now running bootstrap.
+- **With `--forward-only`:** fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md), then take `max(id)`. The watcher only acts on later submissions. Use when bootstrapping a PR with stale/already-handled prior reviews you don't want re-processed.
 
 ### Step 7 — Seed state files
 

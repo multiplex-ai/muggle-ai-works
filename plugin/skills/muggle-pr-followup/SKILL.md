@@ -27,10 +27,11 @@ The skill recognizes two modes by inspecting `$ARGUMENTS` and falling back to on
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
 | empty / `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 
-Bootstrap accepts two optional trailing flags:
+Bootstrap accepts three optional trailing flags:
 
 - `--slug=<name>` — override the default `<repo>-pr<n>` slug
 - `--resume` — opt in to reusing an existing session slot (default is refuse on conflict)
+- `--forward-only` — pin cursor past existing reviews (skip history). Default is cursor 0, which processes prior submitted reviews on the first tick.
 
 ## Folder TOC
 

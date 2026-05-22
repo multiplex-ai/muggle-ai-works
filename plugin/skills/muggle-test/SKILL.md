@@ -290,7 +290,9 @@ If a run fails, log it and continue to the next — do not abort the batch. Fail
 
 ### Collect results (in parallel)
 
-For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Extract: status, duration, step count, `artifactsDir`.
+For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Extract from the **structured response only** (not from `execute`'s stdout tail, which is a truncated display excerpt): `Status`, `Error`, `Duration`, and the `Artifacts` section (always present after a run completes — names `artifactsDir` and lists the files actually on disk).
+
+For passed runs, `results.md` inside `artifactsDir` is the step-by-step verdict — read it before summarizing. For failed runs, `stdout.log` + `stderr.log` are always present and `action-script.json` is present when generation reached the step-emission stage (typical for `goal_not_achievable`); use `Error` as the headline verdict and route through Step 7C.
 
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 

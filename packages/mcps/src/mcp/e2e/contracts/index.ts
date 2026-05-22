@@ -9,10 +9,6 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 export { MuggleEntityIdSchema };
 export * from "./local-run-schemas.js";
 
-// =============================================================================
-// Common Schemas
-// =============================================================================
-
 /**
  * Pagination input schema shared by list tools.
  *
@@ -97,10 +93,6 @@ export const TokenUsageFilterTypeSchema = z.enum([
   "actionScript",
 ]).describe("Token cost aggregation dimension");
 
-// =============================================================================
-// Project Schemas
-// =============================================================================
-
 export const ProjectCreateInputSchema = z.object({
   projectName: z.string().min(1).max(255).describe("Name of the project"),
   description: z.string().min(1).describe("Project description"),
@@ -123,10 +115,6 @@ export const ProjectUpdateInputSchema = z.object({
 });
 
 export const ProjectListInputSchema = PaginationInputSchema.extend({});
-
-// =============================================================================
-// PRD File Schemas
-// =============================================================================
 
 export const PrdFileUploadInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to associate the PRD file with"),
@@ -159,10 +147,6 @@ export const PrdFileProcessLatestRunInputSchema = z.object({
   workflowRuntimeId: IdSchema.describe("PRD processing workflow runtime ID (UUID)"),
 });
 
-// =============================================================================
-// Secret Schemas
-// =============================================================================
-
 export const SecretListInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to list secrets for"),
 });
@@ -189,10 +173,6 @@ export const SecretUpdateInputSchema = z.object({
 export const SecretDeleteInputSchema = z.object({
   secretId: IdSchema.describe("Secret ID (UUID) to delete"),
 });
-
-// =============================================================================
-// Use Case Schemas
-// =============================================================================
 
 export const UseCaseDiscoveryMemoryGetInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to get use case discovery memory for"),
@@ -270,10 +250,6 @@ export const UseCaseCreateInputSchema = z.object({
   category: z.string().optional().describe("Optional category"),
 });
 
-// =============================================================================
-// Bulk Preview Schemas
-// =============================================================================
-
 /** One prompt inside a bulk-preview submit request. */
 export const BulkPreviewPromptSchema = z.object({
   clientRef: z.string().max(128).optional().describe("Optional caller-supplied reference echoed back on results"),
@@ -325,10 +301,6 @@ export const BulkPreviewJobListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).optional().describe("Max jobs to return (default 20, max 100)"),
   cursor: z.string().optional().describe("Pagination cursor returned by a previous call"),
 });
-
-// =============================================================================
-// Test Case Schemas
-// =============================================================================
 
 export const TestCaseListInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to list test cases for"),
@@ -386,10 +358,6 @@ export const TestCaseUpdateInputSchema = z.object({
   automated: z.boolean().optional().describe("Whether this test case is automated"),
 });
 
-// =============================================================================
-// Test Script Schemas
-// =============================================================================
-
 export const TestScriptListInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to list test scripts for"),
   testCaseId: IdSchema.optional().describe("Optional test case ID (UUID) to filter scripts by"),
@@ -399,17 +367,9 @@ export const TestScriptGetInputSchema = z.object({
   testScriptId: IdSchema.describe("Test script ID (UUID) to retrieve"),
 });
 
-// =============================================================================
-// Action Script Schemas
-// =============================================================================
-
 export const ActionScriptGetInputSchema = z.object({
   actionScriptId: IdSchema.describe("Action script ID (UUID) to retrieve"),
 });
-
-// =============================================================================
-// Workflow Schemas
-// =============================================================================
 
 export const WorkflowStartWebsiteScanInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to scan"),
@@ -493,10 +453,6 @@ export const WorkflowCancelRuntimeInputSchema = z.object({
   workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID) to cancel"),
 });
 
-// =============================================================================
-// Report Schemas
-// =============================================================================
-
 export const ProjectTestResultsSummaryInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to get test results summary for"),
 });
@@ -507,6 +463,27 @@ export const ProjectTestScriptsSummaryInputSchema = z.object({
 
 export const ProjectTestRunsSummaryInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to get test runs summary for"),
+  page: z
+    .number()
+    .int()
+    .positive()
+    .default(1)
+    .describe("Page number, 1-based. Defaults to 1."),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .default(20)
+    .describe("Number of runs per page. Defaults to 20, max 100."),
+  sortBy: z
+    .enum(["lastRunAt", "status", "testCaseTitle"])
+    .default("lastRunAt")
+    .describe("Sort field for the runs slice. Defaults to lastRunAt."),
+  sortOrder: z
+    .enum(["asc", "desc"])
+    .default("desc")
+    .describe("Sort direction. Defaults to desc (most recent / Z→A first)."),
 });
 
 export const ReportStatsSummaryInputSchema = z.object({
@@ -535,10 +512,6 @@ export const ReportFinalGenerateInputSchema = z.object({
   exportFormat: z.enum(["pdf", "html", "markdown"]).describe("Export format for the report"),
 });
 
-// =============================================================================
-// Wallet Schemas
-// =============================================================================
-
 export const WalletTopUpInputSchema = z.object({
   packageId: TokenPackageIdSchema.describe("Token package ID to purchase"),
   checkoutSuccessCallback: z.string().url().describe("URL to redirect to when checkout succeeds"),
@@ -562,10 +535,6 @@ export const WalletAutoTopUpUpdateInputSchema = z.object({
   packageId: TokenPackageIdSchema.describe("Token package ID to purchase when auto top-up triggers"),
 });
 
-// =============================================================================
-// Recommendation Schemas
-// =============================================================================
-
 export const RecommendScheduleInputSchema = z.object({
   projectId: IdSchema.optional().describe("Project ID (UUID) for context"),
   testFrequency: z.enum(["daily", "weekly", "onDemand"]).optional().describe("Desired test frequency"),
@@ -577,10 +546,6 @@ export const RecommendCicdSetupInputSchema = z.object({
   repositoryProvider: z.enum(["github", "azureDevOps", "gitlab", "other"]).optional().describe("Git repository provider"),
   cadence: z.enum(["onPullRequest", "nightly", "onDemand"]).optional().describe("CI/CD trigger cadence"),
 });
-
-// =============================================================================
-// API Key Schemas
-// =============================================================================
 
 export const ApiKeyCreateInputSchema = z.object({
   name: z.string().optional().describe("Name for the API key (helps identify the key later)"),
@@ -596,10 +561,6 @@ export const ApiKeyGetInputSchema = z.object({
 export const ApiKeyRevokeInputSchema = z.object({
   apiKeyId: ApiKeyRecordIdSchema.describe("ID of the API key record to revoke"),
 });
-
-// =============================================================================
-// User Feedback Schemas
-// =============================================================================
 
 /**
  * Target type values mirror the server's UserFeedbackTargetTypeEnum:
@@ -644,10 +605,6 @@ export const UserFeedbackListInputSchema = z.object({
 export const UserFeedbackDeleteInputSchema = z.object({
   feedbackId: IdSchema.describe("User feedback ID (UUID) to soft-delete"),
 });
-
-// =============================================================================
-// Auth Schemas (Device Code Flow)
-// =============================================================================
 
 /**
  * Auth login input schema for device code flow.

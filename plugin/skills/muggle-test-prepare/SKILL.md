@@ -62,21 +62,21 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 ## Workflow
 
-Run the stages in this order. Each row links to its detail file — read the file when you reach the stage; the summary here is not the full instruction.
+Run the stages in this order. The sequence number is display-only — it lives only in this table for at-a-glance ordering; detail files and cross-references use slugs. Each row links to its detail file; read the file when you reach the stage.
 
-| Stage | Summary |
-|:------|:--------|
-| [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
-| [scope](./steps/scope.md) | Frontend / backend / full stack |
-| [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
-| [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
-| [check-running](./steps/check-running.md) | Detect what's already listening |
-| [env-file](./steps/env-file.md) | Env file present + correct |
-| [start-commands](./steps/start-commands.md) | Determine per-service start command |
-| [fresh-install](./steps/fresh-install.md) | Auto-install deps if missing/stale |
-| [start-services](./steps/start-services.md) | Launch + two-stage readiness |
-| [smoke-test](./steps/smoke-test.md) | HTTP + body sniff + log tail; clean-restart on fail |
-| [readiness-report](./steps/readiness-report.md) | Final ready table |
+| # | Stage | Summary |
+|:--|:------|:--------|
+| 1 | [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
+| 2 | [scope](./steps/scope.md) | Frontend / backend / full stack |
+| 3 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
+| 4 | [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
+| 5 | [check-running](./steps/check-running.md) | Detect what's already listening |
+| 6 | [env-file](./steps/env-file.md) | Env file present + correct |
+| 7 | [start-commands](./steps/start-commands.md) | Determine per-service start command |
+| 8 | [fresh-install](./steps/fresh-install.md) | Auto-install deps if missing/stale |
+| 9 | [start-services](./steps/start-services.md) | Launch + two-stage readiness |
+| 10 | [smoke-test](./steps/smoke-test.md) | HTTP + body sniff + log tail; clean-restart on fail |
+| 11 | [readiness-report](./steps/readiness-report.md) | Final ready table |
 
 ## Cleanup
 

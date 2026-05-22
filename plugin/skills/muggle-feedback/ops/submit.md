@@ -8,7 +8,7 @@ Pick the first applicable path. Stop at the first that yields an `actionScriptId
 
 ### 1a. Dashboard URL in user's prompt
 
-A Muggle dashboard URL looks like `https://app.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/...`. Scan the user's recent message for any `https://app.muggle-ai.com/...` URL.
+A Muggle dashboard URL looks like `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/...`. Scan the user's recent message for any `https://www.muggle-ai.com/...` URL.
 
 - Extract any UUID-shaped path segments. If `/projects/<uuid>` is present, capture as `projectId`. If `/test-scripts/<uuid>` is present, capture as `testScriptId`.
 - If a `testScriptId` was captured: call `muggle-remote-test-script-get` to get the script and read `actionScriptId` off it. Done — proceed to step 2.

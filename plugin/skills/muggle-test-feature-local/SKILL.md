@@ -198,8 +198,8 @@ If publish rejects with `has no generated actionScript steps to publish` (true z
 **Do not diagnose from `execute`'s response stdout tail.** That tail is a truncated excerpt for human display and routinely cuts off mid-sentence. The only ground truth is the run record.
 
 - `muggle-local-run-result-get` with the run id from execute.
-- **Read in this order:** `Status` → `Error` → **`Artifacts` section** (when present, it names `artifactsDir` and lists `action-script.json` / `results.md` / `screenshots/` / `stdout.log` / `stderr.log`). On a `passed` run, `results.md` is the step-by-step verdict with screenshot links — read it before summarizing.
-- **Failed local runs do not get `action-script.json` / `results.md` / per-step screenshots** — only `stdout.log` + `stderr.log` are written to `<sessionsDir>/<runId>/`. Don't go hunting elsewhere; the `Artifacts` section being absent **is** the signal that per-step data wasn't persisted, and the `Error` field is the verdict.
+- **Read in this order:** `Status` → `Error` → **`Artifacts` section** (always present after a run completes; names `artifactsDir` and lists the files actually on disk: `action-script.json`, `results.md`, `screenshots/`, `stdout.log`, `stderr.log`). On a `passed` run, `results.md` is the step-by-step verdict with screenshot links — read it before summarizing.
+- **On failure**, the `Artifacts` section is still present. `stdout.log` + `stderr.log` are always there. `action-script.json` is there when generation got far enough to emit it (typical for `goal_not_achievable` / mid-progress crashes — the file holds the agent's attempted steps + halt summary). `results.md` and per-step screenshots are absent on failure (electron-app only emits those on the successful completion path) — don't hunt elsewhere on disk for them.
 - Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and script view URL when publishing ran.
 
 ### 9a. Route failures through the failure-mode handler

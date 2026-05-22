@@ -29,9 +29,6 @@ import type { RunResultStatus } from "./run-result-storage-service.js";
 
 const logger = getLogger();
 
-// ========================================
-// Types
-// ========================================
 
 /**
  * Internal execution process tracking.
@@ -81,16 +78,8 @@ export interface ILocalRunResult {
   errorMessage?: string;
 }
 
-// ========================================
-// Active Process Tracking
-// ========================================
-
 /** Map of active execution processes. */
 const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
-
-// ========================================
-// Auth Helpers
-// ========================================
 
 /**
  * Get the authenticated user ID.
@@ -199,10 +188,6 @@ function buildStudioAuthContent(): { accessToken: string; email: string; userId:
     userId: storedAuth.userId,
   };
 }
-
-// ========================================
-// Temp File Helpers
-// ========================================
 
 /**
  * Ensure temp directory exists.
@@ -600,10 +585,6 @@ async function executeElectronAppAsync(params: {
   });
 }
 
-// ========================================
-// Main Execution Functions
-// ========================================
-
 /**
  * Execute test script generation for a test case.
  *
@@ -716,11 +697,29 @@ export async function executeTestGeneration(params: {
           `Electron exited with code ${executionResult.exitCode}.\n` +
           `STDOUT:\n${executionResult.stdout}\n` +
           `STDERR:\n${executionResult.stderr}`;
+
+        const sessionsDir = getStorageService().getSessionsDir();
+        const artifactsDir = path.join(sessionsDir, runId);
+        const generatedScriptPath = path.join(
+          path.dirname(inputFilePath),
+          `gen_${path.basename(inputFilePath)}`,
+        );
+        // goal_not_achievable and partial-progress failures often still leave a gen_*.json
+        // with the agent's attempted steps + halt summary. Persist it so reviewers can see
+        // what was tried. Silent on missing — early Electron crashes write no gen file.
+        try {
+          await fs.copyFile(generatedScriptPath, path.join(artifactsDir, "action-script.json"));
+          await fs.unlink(generatedScriptPath).catch(() => {});
+        } catch {
+          // No gen file produced before failure.
+        }
+
         storage.updateRunResult(runId, {
           status: "failed",
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          artifactsDir: artifactsDir,
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,
@@ -913,10 +912,12 @@ export async function executeReplay(params: {
           `Electron exited with code ${executionResult.exitCode}.\n` +
           `STDOUT:\n${executionResult.stdout}\n` +
           `STDERR:\n${executionResult.stderr}`;
+        const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
         storage.updateRunResult(runId, {
           status: "failed",
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
+          artifactsDir: artifactsDir,
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,

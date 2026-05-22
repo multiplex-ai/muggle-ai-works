@@ -2,7 +2,7 @@
 
 The address-reviews flow only acts on reviews submitted by users in the **allow-list** = (requested reviewers ∪ CODEOWNERS ∪ {PR author}) − bots. Re-resolve every invocation — never cache across cycles.
 
-The PR author is implicitly a valid reviewer: in single-account workflows, the human running the agent and the PR's author are the same identity, and the agent must honor their reviews. The agent itself never appears in the submitted-reviews list (it pushes commits and posts inline replies; it does not submit GitHub reviews), so there's no self-loop risk from including the author.
+The PR author is implicitly a valid reviewer: in single-account workflows, the human running the agent and the PR's author are the same identity, and the agent must honor their reviews. Self-loop is prevented at the watcher's filter layer rather than here: `POST /pulls/<n>/comments/<id>/replies` does create an implicit review under the loop user's identity, and the watcher drops it via the reply-wrapper clause in [`../github-cli-recipes/submitted-reviews.md`](../github-cli-recipes/submitted-reviews.md). Including the PR author in this allow-list is therefore safe.
 
 ## Step 1: requested reviewers
 

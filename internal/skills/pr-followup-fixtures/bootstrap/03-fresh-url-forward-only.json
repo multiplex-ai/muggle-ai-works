@@ -1,9 +1,9 @@
 {
-  "name": "01-fresh-url-with-reviews",
-  "description": "Bootstrap on a PR that already has two submitted reviews from prior manual back-and-forth. Default cursor is 0, so the watcher will pick up both existing reviews on its first tick. Seeds prs.json + last_seen.json + state.md, then dispatches the first watcher.",
+  "name": "03-fresh-url-forward-only",
+  "description": "Bootstrap with the --forward-only flag on a PR with prior reviews. Cursor pins to max(existing review id); the watcher skips history.",
 
   "input": {
-    "args": "https://github.com/acme/widget/pull/142",
+    "args": "https://github.com/acme/widget/pull/142 --forward-only",
     "cwd_state": {
       "is_git_repo": true,
       "toplevel": "/home/stan/repos/widget",
@@ -21,7 +21,7 @@
         "state": "OPEN",
         "mergedAt": null,
         "closedAt": null,
-        "body": "## Goal\n\nDo the thing.\n\n## Acceptance Criteria\n\n- Thing is done.\n",
+        "body": "## Goal\n\nDo the thing.\n",
         "title": "Do the thing",
         "author": { "login": "stan4git" }
       },
@@ -38,13 +38,9 @@
     "outcome": "bootstrapped",
     "state_writes": {
       ".muggle-do/sessions/acme-widget-pr142/prs.json": "single entry: {repo:acme/widget, number:142, url:..., head_sha:abc1230, state:open}",
-      ".muggle-do/sessions/acme-widget-pr142/last_seen.json": "key 'acme/widget#142' with reviewId:0 (default; first tick will dispatch both existing reviews), last_pushed_sha:null, idle_tick_count:0, cycles_completed:0, escalated_review_ids:[], pushed_shas:[]",
+      ".muggle-do/sessions/acme-widget-pr142/last_seen.json": "key 'acme/widget#142' with reviewId:4295962850 (max — --forward-only), last_pushed_sha:null, idle_tick_count:0, cycles_completed:0, escalated_review_ids:[], pushed_shas:[]",
       ".muggle-do/sessions/acme-widget-pr142/state.md": "PR url, slug, loop_user: stan4git, Bootstrapped from URL: yes"
     },
-    "files_NOT_written": [
-      ".muggle-do/sessions/acme-widget-pr142/cycle.json",
-      ".muggle-do/sessions/acme-widget-pr142/requirements.md"
-    ],
     "telemetry_events": [
       {
         "skill": "muggle-pr-followup",
@@ -53,15 +49,15 @@
         "session_slug": "acme-widget-pr142",
         "repo": "acme/widget",
         "pr_number": 142,
-        "cursor_review_id": 0,
+        "cursor_review_id": 4295962850,
         "resume": false
       }
     ],
     "side_effects": [
-      "Print bootstrap success summary (Cursor: 0 — will process 2 existing review(s) on first tick)",
+      "Print bootstrap success summary (Cursor: review #4295962850, forward-only)",
       "/loop 1m /muggle:muggle-pr-followup acme-widget-pr142 142"
     ],
     "respawned": false,
-    "notes": "Default cursor=0 — first tick will dispatch /muggle-do for both reviews 4295962800 and 4295962850. To skip prior history, pass --forward-only."
+    "notes": "--forward-only restores the previous default behavior (pin past existing reviews). Use when bootstrapping a PR with stale/already-handled prior reviews."
   }
 }

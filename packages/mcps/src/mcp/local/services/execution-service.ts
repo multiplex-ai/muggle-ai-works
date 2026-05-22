@@ -61,6 +61,8 @@ interface IElectronExecutionResult {
   stdout: string;
   /** Captured stderr. */
   stderr: string;
+  /** Electron's spawn cwd (path.dirname of the electron binary). Needed to locate user_data/runtime/ for artifact preservation. */
+  electronCwd: string;
 }
 
 /**
@@ -287,6 +289,115 @@ async function writeExecutionLogs(params: {
 }
 
 /**
+ * Preserve Electron runtime artifacts (per-step screenshots, action scripts)
+ * to the session artifacts dir so failed runs are debuggable.
+ *
+ * Strategy:
+ * 1. Read marker file at `<tempDir>/<runId>_runtime_dir.txt` (Electron writes
+ *    this on startup with the absolute runtime dir path) — reliable correlation.
+ * 2. Fallback: scan `<electronCwd>/user_data/runtime/` for the directory whose
+ *    mtime is closest to (and after) `spawnAtMs` — best-effort for older
+ *    Electron builds that don't yet write the marker.
+ * 3. Copy that dir to `<sessionsDir>/<runId>/electron-runtime/`.
+ *
+ * Best-effort — never throws. Failed preservation logs a warning and returns.
+ */
+async function preserveElectronRuntimeArtifacts(params: {
+  runId: string;
+  electronCwd: string;
+  spawnAtMs: number;
+}): Promise<void> {
+  try {
+    const tempDir = await ensureTempDir();
+    const markerPath = path.join(tempDir, `${params.runId}_runtime_dir.txt`);
+
+    let runtimeDir: string | null = null;
+    try {
+      const marker = await fs.readFile(markerPath, "utf-8");
+      const trimmed = marker.trim();
+      if (trimmed.length > 0) runtimeDir = trimmed;
+    } catch (markerReadError) {
+      if ((markerReadError as NodeJS.ErrnoException).code !== "ENOENT") {
+        logger.warn("Failed to read runtime-dir marker", {
+          runId: params.runId,
+          error: String(markerReadError),
+        });
+      }
+    }
+
+    if (runtimeDir === null) {
+      runtimeDir = await scanForRuntimeDirByMtime({
+        electronCwd: params.electronCwd,
+        spawnAtMs: params.spawnAtMs,
+      });
+    }
+
+    if (runtimeDir === null) {
+      logger.info("No Electron runtime dir found to preserve", { runId: params.runId });
+      return;
+    }
+
+    try {
+      await fs.access(runtimeDir);
+    } catch {
+      logger.warn("Electron runtime dir referenced but missing on disk", {
+        runId: params.runId,
+        runtimeDir: runtimeDir,
+      });
+      await fs.unlink(markerPath).catch(() => undefined);
+      return;
+    }
+
+    const storage = getStorageService();
+    const destDir = path.join(storage.getSessionsDir(), params.runId, "electron-runtime");
+    await fs.mkdir(destDir, { recursive: true });
+    await fs.cp(runtimeDir, destDir, { recursive: true });
+
+    logger.info("Preserved Electron runtime artifacts", {
+      runId: params.runId,
+      sourceDir: runtimeDir,
+      destDir: destDir,
+    });
+
+    await fs.unlink(markerPath).catch(() => undefined);
+  } catch (preserveError) {
+    logger.warn("Failed to preserve Electron runtime artifacts", {
+      runId: params.runId,
+      error: preserveError instanceof Error ? preserveError.message : String(preserveError),
+    });
+  }
+}
+
+/**
+ * Scan Electron's `user_data/runtime/` for the runtime dir most likely matching
+ * the current run, identified as the subdir whose mtime is at-or-after `spawnAtMs`
+ * with the latest mtime. Returns null if the runtime root doesn't exist or no
+ * candidate is found.
+ */
+async function scanForRuntimeDirByMtime(params: {
+  electronCwd: string;
+  spawnAtMs: number;
+}): Promise<string | null> {
+  const runtimeRoot = path.join(params.electronCwd, "user_data", "runtime");
+  try {
+    const entries = await fs.readdir(runtimeRoot, { withFileTypes: true });
+    let bestCandidate: { path: string; mtimeMs: number } | null = null;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const fullPath = path.join(runtimeRoot, entry.name);
+      const stat = await fs.stat(fullPath);
+      if (stat.mtimeMs < params.spawnAtMs) continue;
+      if (bestCandidate === null || stat.mtimeMs > bestCandidate.mtimeMs) {
+        bestCandidate = { path: fullPath, mtimeMs: stat.mtimeMs };
+      }
+    }
+    return bestCandidate?.path ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Resolve the electron-app binary path on every call.
  *
  * Re-resolves from the filesystem each invocation so a long-running MCP
@@ -492,10 +603,11 @@ async function executeElectronAppAsync(params: {
   const electronEnv = { ...process.env };
   delete electronEnv.ELECTRON_RUN_AS_NODE;
 
+  const electronCwd = path.dirname(electronAppPath);
   const child = spawn(electronAppPath, spawnArgs, {
     stdio: ["ignore", "pipe", "pipe"],
     env: electronEnv,
-    cwd: path.dirname(electronAppPath),
+    cwd: electronCwd,
   });
 
   const processInfo: IInternalExecutionProcess = {
@@ -580,6 +692,7 @@ async function executeElectronAppAsync(params: {
           exitCode: exitCode,
           stdout: processInfo.capturedStdout,
           stderr: processInfo.capturedStderr,
+          electronCwd: electronCwd,
         },
       });
     });
@@ -708,6 +821,15 @@ async function runTestGenerationLocked(params: {
         runId: runId,
         stdout: executionResult.stdout,
         stderr: executionResult.stderr,
+      });
+
+      // Preserve Electron per-step screenshots regardless of outcome — failed
+      // runs are where these matter most, but success runs also benefit so the
+      // dashboard can show the step-by-step playback.
+      await preserveElectronRuntimeArtifacts({
+        runId: runId,
+        electronCwd: executionResult.electronCwd,
+        spawnAtMs: startedAt,
       });
 
       if (executionResult.exitCode !== 0) {
@@ -941,6 +1063,14 @@ async function runReplayLocked(params: {
         runId: runId,
         stdout: executionResult.stdout,
         stderr: executionResult.stderr,
+      });
+
+      // Preserve Electron per-step screenshots regardless of outcome — failed
+      // replays are where these matter most for diagnosing what the agent saw.
+      await preserveElectronRuntimeArtifacts({
+        runId: runId,
+        electronCwd: executionResult.electronCwd,
+        spawnAtMs: startedAt,
       });
 
       if (executionResult.exitCode !== 0) {

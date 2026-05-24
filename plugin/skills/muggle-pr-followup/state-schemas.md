@@ -60,8 +60,20 @@ Free-form markdown. No required schema beyond a few well-known fields the caller
 **Created:** <ISO-8601>
 **Bootstrapped from URL:** <yes | no>
 
+## Pre-flight answers
+
+- Validation: <local-e2e | staging-replay | unit-only | skip>
+- Local URL: <url | N/A>
+- Backend status: <up | down | N/A>
+- Muggle Test project: <name> (<uuid>)
+- Test credentials: <existing | new | skip>
+- Auth status: <ok | re-authed | N/A>
+- Working tree: <path>
+
 ...free-form notes added by /muggle-do and bootstrap...
 ```
+
+The `## Pre-flight answers` block is the **E2E validation context** consumed by `do/e2e-acceptance.md` Step 0. Bootstrap seeds it (Step 6.5); the forward pipeline seeds the equivalent via pre-flight's output block. Canonical field list and meaning: [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md#persisted-fields).
 
 The watcher does **not** read or write `state.md`. Only bootstrap, `/muggle-do`, and the caller's stages touch it.
 

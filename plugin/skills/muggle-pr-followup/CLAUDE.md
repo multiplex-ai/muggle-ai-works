@@ -5,7 +5,7 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 ## Files in this folder
 
 - [`SKILL.md`](SKILL.md) — public entry. Smart-inference routing between bootstrap mode (URL input) and tick mode (slug + PR number). Read first.
-- [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (one-shot non-interactive seed + watcher dispatch).
+- [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (asks once for the E2E validation context, seeds state, dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
@@ -14,6 +14,7 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 
 Shared with other skills, under `../_shared/`:
 
+- [`e2e-validation-context.md`](../_shared/e2e-validation-context.md) — the E2E validation-context contract bootstrap seeds into `state.md` (Step 6.5) and `do/e2e-acceptance.md` consumes.
 - [`pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) — TOC of allow-list / reply-routing / classify; per-section files in `_shared/pr-followup-helpers/`. Called by `/muggle-do`, not by this folder.
 - [`telemetry-emit.md`](../_shared/telemetry-emit.md) — how to emit a telemetry event.
 - [`telemetry-events.md`](../_shared/telemetry-events.md) — TOC of canonical event shapes; per-event files in `_shared/telemetry-events/`.

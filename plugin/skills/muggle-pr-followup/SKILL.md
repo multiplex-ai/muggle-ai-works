@@ -1,6 +1,6 @@
 ---
 name: muggle-pr-followup
-description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR.
+description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR (asks once for the E2E validation context, then runs unattended).
 disable-model-invocation: true
 ---
 

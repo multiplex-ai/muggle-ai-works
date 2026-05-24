@@ -2,7 +2,7 @@
 
 The procedure for the **bootstrap mode** of `muggle-pr-followup` — invoked when a user dispatches the skill with a GitHub PR URL. Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing).
 
-Bootstrap is **non-interactive**: it runs straight through, prompts the user for nothing, and ends with the first watcher dispatched. The first review the watcher sees triggers `/muggle-do`, where working-tree validation surfaces (via the existing E2E stage / muggle-test).
+Bootstrap asks **one** questionnaire — the E2E validation context the autonomous loop will reuse — then runs straight through to the first watcher dispatch. The user is present at launch, so this is the one place to gather it: every later watcher tick is non-interactive and reads the persisted context from `state.md`. Without it, an address-reviews cycle on a URL-bootstrapped watcher has no `localUrl`/`projectId` and Stage 6 hard-halts instead of running E2E.
 
 ## Turn preamble
 
@@ -44,12 +44,18 @@ Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>
 If `.muggle-do/sessions/<slug>/` exists:
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
-- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2. Leave `last_seen.json`, `state.md`, and everything else untouched. Skip to Step 8 (no need to re-seed; no need to refetch the cursor).
+- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2. Leave `last_seen.json` and the cursor untouched. If `state.md` already carries the E2E validation context (a `## Pre-flight answers` block), skip to Step 8. If it predates this block (older session), run Step 6.5 to backfill the context, then skip to Step 8.
 
 ### Step 6 — Resolve the initial cursor
 
 - **Default (no `--forward-only`):** cursor is `0`. The watcher will pick up every existing submitted review on its first tick. This matches the common case where the user opened the PR, left review comments they want addressed, and is now running bootstrap.
 - **With `--forward-only`:** fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md), then take `max(id)`. The watcher only acts on later submissions. Use when bootstrapping a PR with stale/already-handled prior reviews you don't want re-processed.
+
+### Step 6.5 — Resolve E2E validation context
+
+The only interactive step. Run the gather defined in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): silent detection, then one `AskUserQuestion` for the validation subset (strategy, local URL, backend, project, credentials, re-auth). The working tree verified in Step 3 is the checkout the loop runs against — record it as `Working tree`.
+
+Capture the resolved fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
 
 ### Step 7 — Seed state files
 
@@ -61,7 +67,7 @@ Write under `.muggle-do/sessions/<slug>/`:
 
 **`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `reviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
 
-**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login.
+**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. Append the `## Pre-flight answers` block with the fields resolved in Step 6.5, per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md#persisted-fields).
 
 Do **not** write `cycle.json` or `requirements.md` — those files are no longer part of the session slot.
 
@@ -85,6 +91,7 @@ Emit one event per [`../_shared/telemetry-events/pr-followup-bootstrap.md`](../_
 
 ## Invariants
 
-- All state writes happen in Step 7 — earlier aborts leave nothing on disk.
+- Step 6.5 is the **only** user prompt. If the user cancels it, abort leaving nothing on disk.
+- All state writes happen in Step 7 — earlier aborts (including a cancelled Step 6.5) leave nothing on disk.
 - If Step 7 fails mid-write, surface the OS error and tell the user to `rm -rf <slot>` and re-run; do not dispatch the watcher.
 - Bootstrap never retries.

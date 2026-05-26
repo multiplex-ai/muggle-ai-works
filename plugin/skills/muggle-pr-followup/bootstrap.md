@@ -53,7 +53,7 @@ If `.muggle-do/sessions/<slug>/` exists:
 
 ### Step 6.5 — Resolve E2E validation context
 
-The only step that may prompt the user. Run the gather in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): reuse an existing context if one is found (gated by `autoReuseValidationContext`), else silent detection + one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
+The only step that may prompt the user. Run the gather in [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md): reuse an existing context if one is found (gated by `autoReuseValidationContext`), else silent detection + one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
 
 Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
 
@@ -67,7 +67,7 @@ Write under `.muggle-do/sessions/<slug>/`:
 
 **`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `reviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
 
-**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. Append the `## Pre-flight answers` block with the fields resolved in Step 6.5, per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md#persisted-fields).
+**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. Append the `## Pre-flight answers` block with the fields resolved in Step 6.5, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields).
 
 Do **not** write `cycle.json` or `requirements.md` — those files are no longer part of the session slot.
 

@@ -1,6 +1,10 @@
-# E2E Validation Context
+# Resolving the E2E Validation Context
 
-The context Stage 6 (E2E acceptance) needs to run unattended: validation strategy, local URL, backend status, Muggle Test project, test credentials, auth. A seeder resolves it once and writes it to `state.md` under a `## Pre-flight answers` block; the cycle reads it on every later run.
+**How-to procedure.** Followed by any seeder that prepares a session for unattended Stage 6 (E2E acceptance) runs.
+
+**Goal:** resolve — once, while the user is present — everything Stage 6 needs to run without further prompts (validation strategy, local URL, backend status, Muggle Test project, test credentials, auth), and persist it to `state.md` so every later non-interactive run reads it instead of asking.
+
+The sections below are the steps in order: reuse an existing context if one is on disk, else detect what's resolvable silently, ask the rest in one question, and write the result. The final [`## Persisted fields`](#persisted-fields) section doubles as the schema the cycle reads back.
 
 ## Reuse an existing context
 

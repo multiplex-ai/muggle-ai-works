@@ -37,7 +37,7 @@ Bootstrap accepts three optional trailing flags:
 
 | Preference | Gate |
 | :--------- | :--- |
-| `autoReuseValidationContext` | Bootstrap reuses an existing validation context instead of re-asking — fired in the Step 6.5 gather per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md) |
+| `autoReuseValidationContext` | Bootstrap reuses an existing validation context instead of re-asking — fired in the Step 6.5 gather per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) |
 
 ## Folder TOC
 

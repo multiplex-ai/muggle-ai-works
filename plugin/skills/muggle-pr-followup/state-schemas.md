@@ -73,7 +73,7 @@ Free-form markdown. No required schema beyond a few well-known fields the caller
 ...free-form notes added by /muggle-do and bootstrap...
 ```
 
-The `## Pre-flight answers` block is the **E2E validation context** consumed by `do/e2e-acceptance.md` Step 0 — seeded by bootstrap (Step 6.5) or by pre-flight's output block. Fields: [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md#persisted-fields).
+The `## Pre-flight answers` block is the **E2E validation context** consumed by `do/e2e-acceptance.md` Step 0 — seeded by bootstrap (Step 6.5) or by pre-flight's output block. Fields: [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields).
 
 The watcher does **not** read or write `state.md`. Only bootstrap, `/muggle-do`, and the caller's stages touch it.
 

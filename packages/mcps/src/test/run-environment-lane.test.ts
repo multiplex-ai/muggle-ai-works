@@ -1,9 +1,10 @@
 /**
- * Tests for threading the environment lane (`type`) through the cloud
- * generation and local-run upload contracts. A local run must reach the cloud
- * tagged `type: "local"` so versioned runSettings resolve the developer's
- * localhost credentials instead of the remote managed-profile pool. Omitting
- * `type` must keep the pre-lane wire shape (backend defaults missing → remote).
+ * Tests for threading the environment lane (`runEnvironmentType`) through the
+ * cloud generation and local-run upload contracts. A local run must reach the
+ * cloud tagged `runEnvironmentType: "local"` so versioned runSettings resolve
+ * the developer's localhost credentials instead of the remote managed-profile
+ * pool. Omitting it must keep the pre-lane wire shape (backend defaults missing
+ * → remote).
  */
 
 import { describe, expect, it, vi } from "vitest";
@@ -79,22 +80,22 @@ function baseUploadInput(): Record<string, unknown> {
 }
 
 describe("RunEnvironment lane contracts", () => {
-  it("LocalRunUploadInputSchema accepts type: local", () => {
+  it("LocalRunUploadInputSchema accepts runEnvironmentType: local", () => {
     const parsed = LocalRunUploadInputSchema.parse({
       ...baseUploadInput(),
-      type: RunEnvironment.Local,
+      runEnvironmentType: RunEnvironment.Local,
     });
-    expect(parsed.type).toBe(RunEnvironment.Local);
+    expect(parsed.runEnvironmentType).toBe(RunEnvironment.Local);
   });
 
-  it("LocalRunUploadInputSchema leaves type undefined when omitted", () => {
+  it("LocalRunUploadInputSchema leaves runEnvironmentType undefined when omitted", () => {
     const parsed = LocalRunUploadInputSchema.parse(baseUploadInput());
-    expect(parsed.type).toBeUndefined();
+    expect(parsed.runEnvironmentType).toBeUndefined();
   });
 
   it("LocalRunUploadInputSchema rejects an unknown lane", () => {
     expect(() =>
-      LocalRunUploadInputSchema.parse({ ...baseUploadInput(), type: "preview" }),
+      LocalRunUploadInputSchema.parse({ ...baseUploadInput(), runEnvironmentType: "preview" }),
     ).toThrow();
   });
 
@@ -116,16 +117,16 @@ describe("RunEnvironment lane contracts", () => {
 });
 
 describe("muggle-remote-local-run-upload lane forwarding", () => {
-  it("forwards type into the upload body when provided", () => {
+  it("forwards runEnvironmentType into the upload body when provided", () => {
     const tool = getQaToolByName("muggle-remote-local-run-upload")!;
-    const call = tool.mapToUpstream({ ...baseUploadInput(), type: RunEnvironment.Local });
-    expect((call.body as Record<string, unknown>).type).toBe(RunEnvironment.Local);
+    const call = tool.mapToUpstream({ ...baseUploadInput(), runEnvironmentType: RunEnvironment.Local });
+    expect((call.body as Record<string, unknown>).runEnvironmentType).toBe(RunEnvironment.Local);
   });
 
-  it("omits type from the upload body when not provided", () => {
+  it("omits runEnvironmentType from the upload body when not provided", () => {
     const tool = getQaToolByName("muggle-remote-local-run-upload")!;
     const call = tool.mapToUpstream(baseUploadInput());
-    expect(call.body as Record<string, unknown>).not.toHaveProperty("type");
+    expect(call.body as Record<string, unknown>).not.toHaveProperty("runEnvironmentType");
   });
 });
 

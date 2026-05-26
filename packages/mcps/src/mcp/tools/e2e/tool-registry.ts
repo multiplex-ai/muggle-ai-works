@@ -779,7 +779,7 @@ const workflowTools: IQaToolDefinition[] = [
           useCaseId: data.useCaseId,
           testCaseId: data.testCaseId,
           runType: data.runType,
-          ...(data.type && { type: data.type }),
+          ...(data.runEnvironmentType && { runEnvironmentType: data.runEnvironmentType }),
           productionUrl: data.productionUrl,
           localExecutionContext: {
             originalUrl: data.localExecutionContext.originalUrl,

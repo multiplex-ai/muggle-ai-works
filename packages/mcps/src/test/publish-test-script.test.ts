@@ -204,7 +204,7 @@ describe("muggle-local-publish-test-script — summaryStep forwarding", () => {
 
     expect(result.isError).toBe(false);
     const requestConfig = mockExecute.mock.calls[0][0] as { body: Record<string, unknown> };
-    expect(requestConfig.body.type).toBe("local");
+    expect(requestConfig.body.runEnvironmentType).toBe("local");
   });
 
   it("forwards undefined summaryStep when the test script does not have one", async () => {

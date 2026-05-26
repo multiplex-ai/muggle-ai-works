@@ -26,7 +26,7 @@ export const LocalRunUploadInputSchema = z.object({
   useCaseId: MuggleEntityIdSchema.describe("Use case ID (UUID) for the local run"),
   testCaseId: MuggleEntityIdSchema.describe("Test case ID (UUID) for the local run"),
   runType: z.enum(["generation", "replay"]).describe("Type of local run to upload"),
-  type: RunEnvironmentInputSchema,
+  runEnvironmentType: RunEnvironmentInputSchema,
   productionUrl: z.string().url().describe("Cloud production URL associated with the run"),
   localExecutionContext: LocalExecutionContextInputSchema.describe("Local execution metadata"),
   actionScript: z.array(z.unknown()).min(1).describe("Generated action script steps from local execution"),

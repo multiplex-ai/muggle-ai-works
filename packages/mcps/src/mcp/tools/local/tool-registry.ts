@@ -525,7 +525,7 @@ const publishTestScriptTool: ILocalMcpTool = {
             // A published run always originates from local Electron execution, so it
             // belongs to the local lane — the cloud must resolve the developer's
             // localhost credentials, not the remote managed-profile pool.
-            type: RunEnvironment.Local,
+            runEnvironmentType: RunEnvironment.Local,
             productionUrl: runResult.productionUrl,
             localExecutionContext: {
               originalUrl: runResult.localExecutionContext.originalUrl,

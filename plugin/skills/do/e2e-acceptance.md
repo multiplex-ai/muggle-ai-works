@@ -46,11 +46,11 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 ### Step 0: Consume the validation context (no user questions)
 
-Read `state.md`. The E2E validation context is seeded by **either** pre-flight (forward pipeline) **or** bootstrap (URL-bootstrapped watcher) per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md) — read it the same way regardless of seeder.
+Read `state.md`. The validation context is seeded by **either** pre-flight or bootstrap per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md) — read it the same way regardless of seeder.
 
-Resolve the validation mode (`local-e2e`, `staging-replay`, `unit-only`, `skip`) from the persisted `Validation` field; it picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13. In an address-reviews / watcher cycle there is no per-tick pre-flight, so the persisted `Validation` strategy **is** the standing decision — do not try to re-resolve `ask`.
+The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
 
-Use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → context-seeding bug; escalate with the session path and halt; do not ask the user.
+Use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → seeding bug; escalate with the session path and halt; do not ask the user.
 
 ### Step 0.5: Pre-flight verification probes
 

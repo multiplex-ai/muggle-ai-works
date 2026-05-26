@@ -75,7 +75,7 @@ Invoke [`unit-tests.md`](unit-tests.md). Cover the surface that just changed; re
 
 #### 4d. Run ONE E2E acceptance pass
 
-Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one pass per comment. The stage reads the persisted validation context (seeded by pre-flight for forward-spawned watchers, or by bootstrap Step 6.5 for URL-bootstrapped ones); the persisted `Validation` strategy is the standing decision for the loop — there is no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md).
+Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); the persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md).
 
 #### 4e. Create or update the PR
 

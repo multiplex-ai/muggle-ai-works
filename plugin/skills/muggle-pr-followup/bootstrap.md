@@ -2,7 +2,7 @@
 
 The procedure for the **bootstrap mode** of `muggle-pr-followup` — invoked when a user dispatches the skill with a GitHub PR URL. Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing).
 
-Bootstrap asks **one** questionnaire — the E2E validation context the autonomous loop will reuse — then runs straight through to the first watcher dispatch. The user is present at launch, so this is the one place to gather it: every later watcher tick is non-interactive and reads the persisted context from `state.md`. Without it, an address-reviews cycle on a URL-bootstrapped watcher has no `localUrl`/`projectId` and Stage 6 hard-halts instead of running E2E.
+Bootstrap asks **one** questionnaire — the E2E validation context the loop will reuse — then runs through to the first watcher dispatch. The user is present at launch, so this is the only place to gather it; every later tick reads it from `state.md`. Without it, a URL-bootstrapped watcher has no `localUrl`/`projectId` and Stage 6 hard-halts instead of running E2E.
 
 ## Turn preamble
 
@@ -44,7 +44,7 @@ Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>
 If `.muggle-do/sessions/<slug>/` exists:
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
-- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2. Leave `last_seen.json` and the cursor untouched. If `state.md` already carries the E2E validation context (a `## Pre-flight answers` block), skip to Step 8. If it predates this block (older session), run Step 6.5 to backfill the context, then skip to Step 8.
+- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` and the cursor untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.
 
 ### Step 6 — Resolve the initial cursor
 
@@ -53,9 +53,9 @@ If `.muggle-do/sessions/<slug>/` exists:
 
 ### Step 6.5 — Resolve E2E validation context
 
-The only interactive step. Run the gather defined in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): silent detection, then one `AskUserQuestion` for the validation subset (strategy, local URL, backend, project, credentials, re-auth). The working tree verified in Step 3 is the checkout the loop runs against — record it as `Working tree`.
+The only interactive step. Run the gather in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): silent detection, then one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
 
-Capture the resolved fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
+Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
 
 ### Step 7 — Seed state files
 

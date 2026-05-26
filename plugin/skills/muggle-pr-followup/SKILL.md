@@ -33,6 +33,12 @@ Bootstrap accepts three optional trailing flags:
 - `--resume` — opt in to reusing an existing session slot (default is refuse on conflict)
 - `--forward-only` — pin cursor past existing reviews (skip history). Default is cursor 0, which processes prior submitted reviews on the first tick.
 
+## Preferences
+
+| Preference | Gate |
+| :--------- | :--- |
+| `autoReuseValidationContext` | Bootstrap reuses an existing validation context instead of re-asking — fired in the Step 6.5 gather per [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md) |
+
 ## Folder TOC
 
 See [`CLAUDE.md`](CLAUDE.md) for the one-line index of every file in this folder.

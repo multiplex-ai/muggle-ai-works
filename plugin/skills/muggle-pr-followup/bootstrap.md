@@ -53,7 +53,7 @@ If `.muggle-do/sessions/<slug>/` exists:
 
 ### Step 6.5 — Resolve E2E validation context
 
-The only interactive step. Run the gather in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): silent detection, then one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
+The only step that may prompt the user. Run the gather in [`../_shared/e2e-validation-context.md`](../_shared/e2e-validation-context.md): reuse an existing context if one is found (gated by `autoReuseValidationContext`), else silent detection + one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
 
 Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
 

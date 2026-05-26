@@ -5,8 +5,10 @@
 import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+import { RunEnvironmentInputSchema } from "./run-environment.js";
 
 export { MuggleEntityIdSchema };
+export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
 
 /**
@@ -406,6 +408,7 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
   precondition: z.string().min(1).describe("Preconditions"),
   instructions: z.string().min(1).describe("Step-by-step instructions"),
   expectedResult: z.string().min(1).describe("Expected result"),
+  type: RunEnvironmentInputSchema,
   workflowParams: WorkflowParamsSchema,
 });
 

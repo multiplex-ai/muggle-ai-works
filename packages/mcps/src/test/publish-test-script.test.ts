@@ -193,6 +193,20 @@ describe("muggle-local-publish-test-script — summaryStep forwarding", () => {
     });
   });
 
+  it("tags the upload as the local lane so the cloud resolves local credentials", async () => {
+    seedHappyPath({ includeSummaryStep: true });
+
+    const tool = getTool("muggle-local-publish-test-script");
+    const result = await tool!.execute({
+      input: { runId: RUN_ID, cloudTestCaseId: CLOUD_TEST_CASE_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.isError).toBe(false);
+    const requestConfig = mockExecute.mock.calls[0][0] as { body: Record<string, unknown> };
+    expect(requestConfig.body.type).toBe("local");
+  });
+
   it("forwards undefined summaryStep when the test script does not have one", async () => {
     seedHappyPath({ includeSummaryStep: false });
 

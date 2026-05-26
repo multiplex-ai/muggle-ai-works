@@ -10,6 +10,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
+import { RunEnvironment } from "../../e2e/contracts/run-environment.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
@@ -521,6 +522,10 @@ const publishTestScriptTool: ILocalMcpTool = {
             useCaseId: runResult.useCaseId,
             testCaseId: input.cloudTestCaseId,
             runType: runResult.runType,
+            // A published run always originates from local Electron execution, so it
+            // belongs to the local lane — the cloud must resolve the developer's
+            // localhost credentials, not the remote managed-profile pool.
+            type: RunEnvironment.Local,
             productionUrl: runResult.productionUrl,
             localExecutionContext: {
               originalUrl: runResult.localExecutionContext.originalUrl,

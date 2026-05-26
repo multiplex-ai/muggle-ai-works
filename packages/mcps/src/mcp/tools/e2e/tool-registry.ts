@@ -597,6 +597,7 @@ const workflowTools: IQaToolDefinition[] = [
           precondition: data.precondition,
           instructions: data.instructions,
           expectedResult: data.expectedResult,
+          ...(data.type && { type: data.type }),
           ...(data.workflowParams && { workflowParams: data.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
@@ -778,6 +779,7 @@ const workflowTools: IQaToolDefinition[] = [
           useCaseId: data.useCaseId,
           testCaseId: data.testCaseId,
           runType: data.runType,
+          ...(data.type && { type: data.type }),
           productionUrl: data.productionUrl,
           localExecutionContext: {
             originalUrl: data.localExecutionContext.originalUrl,

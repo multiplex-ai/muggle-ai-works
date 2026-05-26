@@ -98,7 +98,7 @@ describe("RunEnvironment lane contracts", () => {
     ).toThrow();
   });
 
-  it("WorkflowStartTestScriptGenerationInputSchema accepts type: local", () => {
+  it("WorkflowStartTestScriptGenerationInputSchema accepts runEnvironmentType: local", () => {
     const parsed = WorkflowStartTestScriptGenerationInputSchema.parse({
       projectId: PROJECT_ID,
       useCaseId: USE_CASE_ID,
@@ -109,9 +109,9 @@ describe("RunEnvironment lane contracts", () => {
       precondition: "pre",
       instructions: "do it",
       expectedResult: "done",
-      type: RunEnvironment.Local,
+      runEnvironmentType: RunEnvironment.Local,
     });
-    expect(parsed.type).toBe(RunEnvironment.Local);
+    expect(parsed.runEnvironmentType).toBe(RunEnvironment.Local);
   });
 });
 
@@ -145,15 +145,15 @@ describe("muggle-remote-workflow-start-test-script-generation lane forwarding", 
     };
   }
 
-  it("forwards type: local into the workflow body", () => {
+  it("forwards runEnvironmentType: local into the workflow body", () => {
     const tool = getQaToolByName("muggle-remote-workflow-start-test-script-generation")!;
-    const call = tool.mapToUpstream(genInput({ type: RunEnvironment.Local }));
-    expect((call.body as Record<string, unknown>).type).toBe(RunEnvironment.Local);
+    const call = tool.mapToUpstream(genInput({ runEnvironmentType: RunEnvironment.Local }));
+    expect((call.body as Record<string, unknown>).runEnvironmentType).toBe(RunEnvironment.Local);
   });
 
-  it("omits type from the workflow body when not provided", () => {
+  it("omits runEnvironmentType from the workflow body when not provided", () => {
     const tool = getQaToolByName("muggle-remote-workflow-start-test-script-generation")!;
     const call = tool.mapToUpstream(genInput());
-    expect(call.body as Record<string, unknown>).not.toHaveProperty("type");
+    expect(call.body as Record<string, unknown>).not.toHaveProperty("runEnvironmentType");
   });
 });

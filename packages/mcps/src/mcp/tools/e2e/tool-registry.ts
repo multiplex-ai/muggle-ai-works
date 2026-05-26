@@ -597,7 +597,7 @@ const workflowTools: IQaToolDefinition[] = [
           precondition: data.precondition,
           instructions: data.instructions,
           expectedResult: data.expectedResult,
-          ...(data.type && { type: data.type }),
+          ...(data.runEnvironmentType && { runEnvironmentType: data.runEnvironmentType }),
           ...(data.workflowParams && { workflowParams: data.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),

@@ -408,7 +408,7 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
   precondition: z.string().min(1).describe("Preconditions"),
   instructions: z.string().min(1).describe("Step-by-step instructions"),
   expectedResult: z.string().min(1).describe("Expected result"),
-  type: RunEnvironmentInputSchema,
+  runEnvironmentType: RunEnvironmentInputSchema,
   workflowParams: WorkflowParamsSchema,
 });
 

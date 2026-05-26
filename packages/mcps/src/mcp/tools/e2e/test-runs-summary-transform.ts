@@ -4,6 +4,19 @@
  * keeps each row down to the fields an LLM actually reasons about so the
  * page slice doesn't carry duplicated useCase blocks and empty
  * studioAuthInfo nested objects across the wire.
+ *
+ * No input type lives here: the request shape is owned and validated by
+ * `ProjectTestRunsSummaryInputSchema` in `mcp/e2e/contracts`, and the tool
+ * handler in `tool-registry.ts` derives its parameter type from that schema
+ * via `z.infer`. Keeping a parallel TS interface here would create a second
+ * source of truth that could drift from the validator.
+ *
+ * No per-page aggregate (e.g. `byStatus`) is emitted: a status histogram
+ * computed over one page would describe only those entries and mislead the
+ * LLM about project-wide health (page 1 of 6 showing FAILED:18/PASSED:2
+ * reads like a 90% failure rate even when overall failures are 20 of ~116
+ * runs). If a project-wide histogram becomes an LLM requirement, the
+ * backend envelope should carry it.
  */
 
 import type { IUpstreamResponse } from "../../e2e/types.js";

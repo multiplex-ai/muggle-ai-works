@@ -1,6 +1,6 @@
 ---
 name: muggle-pr-followup
-description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR.
+description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR (asks once for the E2E validation context, then runs unattended).
 disable-model-invocation: true
 ---
 
@@ -32,6 +32,12 @@ Bootstrap accepts three optional trailing flags:
 - `--slug=<name>` — override the default `<repo>-pr<n>` slug
 - `--resume` — opt in to reusing an existing session slot (default is refuse on conflict)
 - `--forward-only` — pin cursor past existing reviews (skip history). Default is cursor 0, which processes prior submitted reviews on the first tick.
+
+## Preferences
+
+| Preference | Gate |
+| :--------- | :--- |
+| `autoReuseValidationContext` | Bootstrap reuses an existing validation context instead of re-asking — fired in the Step 6.5 gather per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) |
 
 ## Folder TOC
 

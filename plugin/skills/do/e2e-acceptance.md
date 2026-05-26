@@ -44,11 +44,13 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 ## Your Job
 
-### Step 0: Consume pre-flight (no user questions)
+### Step 0: Consume the validation context (no user questions)
 
-Read `state.md`. Resolve [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) first — `always` (default, including when unset) runs this stage. `ask` should already have been resolved by pre-flight Q13. Use the resolved validation mode (`local-e2e`, `staging-replay`, `unit-only`, `skip`) to pick execution vs early-exit behavior.
+Read `state.md`. The validation context is seeded by **either** pre-flight or bootstrap per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) — read it the same way regardless of seeder.
 
-Use `localUrl`, `projectId`, and `worktreePath` from `state.md`. Missing any → pre-flight bug; escalate with the session path and halt; do not ask the user.
+The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
+
+Use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → seeding bug; escalate with the session path and halt; do not ask the user.
 
 ### Step 0.5: Pre-flight verification probes
 

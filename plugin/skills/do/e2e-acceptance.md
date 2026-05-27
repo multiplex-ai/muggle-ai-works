@@ -46,11 +46,13 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 ### Step 0: Consume the validation context (no user questions)
 
-Read `state.md`. The validation context is seeded by **either** pre-flight or bootstrap per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) — read it the same way regardless of seeder.
+Read `state.md`.
 
-The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
+**No `## Pre-flight answers` block at all** → the session was seeded poll-only (e.g. by auto-track, [`../muggle-pr-followup/auto-track.md`](../muggle-pr-followup/auto-track.md)). Treat `Validation` as `skip`: emit a `SKIPPED` report with reason `no validation context seeded` and exit cleanly. The watcher owns no E2E context by design; "no context" is a clean skip, not a failure.
 
-Use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → seeding bug; escalate with the session path and halt; do not ask the user.
+Otherwise the block was seeded by pre-flight or bootstrap per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) — read it the same way regardless of seeder. The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
+
+For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → seeding bug; escalate with the session path and halt; do not ask the user.
 
 ### Step 0.5: Pre-flight verification probes
 

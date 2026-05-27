@@ -1,11 +1,11 @@
 # Resolve-Reminder Stage
 
-A `/muggle-do` stage that runs in **address-reviews mode only**, after per-comment inline replies have been posted. Scans every unresolved comment thread on the PR, classifies them, and posts ONE top-level PR comment listing the threads the loop addressed in this push.
+A `/muggle-do` stage that runs in **address-reviews mode only**, near the end of each review round. Scans every unresolved comment thread on the PR, classifies them by the loop signature, and posts ONE top-level PR comment listing the threads the loop has addressed that are still unresolved with no newer human reply.
 
-Runs zero or one times per `/muggle-do` invocation:
+Runs once per `/muggle-do` address-reviews invocation (one review round):
 
-- Runs when at least one actionable review was processed (i.e. the cycle actually pushed).
-- Does not run when the entire input batch was ambiguous (no push, nothing to remind about).
+- Runs every round, whether or not this round pushed — it nudges **all** still-unresolved loop-addressed threads, not only ones touched by this push.
+- Posts a comment only when at least one such thread exists; otherwise silent.
 - Does not run in the forward pipeline (a fresh PR has no review threads to remind about).
 
 ## Turn preamble (inline within `/muggle-do` cycle)
@@ -28,33 +28,31 @@ If the API call fails, log the error to `followup.log` and skip the stage. Do no
 
 ### Step 2 — Classify each thread
 
-For each unresolved thread, walk its comments in chronological order. Classify by the **first match** that applies:
+Per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md): walk each thread's comments in `createdAt` order and classify by the loop marker `<!-- muggle-do:bot -->` ([`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)), not by `author.login`:
 
-- **Addressed by the loop** — at least one comment authored by the loop user **and** that comment's body cites a SHA prefix in `last_seen.pushed_shas[]`. Bodies use the form *"Addressed in `<short-sha>`: ..."* per [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md), so a substring match on any `pushed_shas[i][:7]` works.
-- **Addressed by a human** — at least one comment authored by a non-loop-user identity created after the original comment's timestamp, and no addressed-by-loop signal.
-- **Not addressed** — neither of the above.
+- **Addressed, awaiting resolve** — the **newest** comment carries the marker. The loop replied and nothing newer is waiting. These feed the reminder.
+- **Unaddressed human comment** — the newest comment lacks the marker and post-dates the loop's last marked reply (or there is no loop reply yet). The address-reviews round handles these as work (Step 1 sweep), not the reminder.
+- **Not addressed** — indeterminate.
 
-The classification considers only the unresolved threads' comments. Do not cross-reference timeline events from outside the threads.
+Consider only the threads' own comments. Do not cross-reference timeline events from outside the threads.
 
 ### Step 3 — Build the resolve-reminder list
 
-Collect the thread `databaseId` of every thread classified as **addressed by the loop in this push** (i.e. citing a SHA in `pushed_shas[]` where that SHA was added by the current invocation; older SHAs were already covered by prior cycles' reminders).
-
-Note: the watcher does not maintain a "addressed-this-cycle" set; this stage derives it by comparing thread comments to the most-recent appended SHA. The simplest deterministic rule: include a thread iff at least one of its bot replies cites the **most recent** `pushed_shas[-1]`. Earlier SHAs were already addressed in past reminders.
+Collect the thread `databaseId` of every thread classified **addressed, awaiting resolve** in Step 2 — every still-unresolved thread whose newest comment is loop-marked, regardless of which push addressed it. A thread stays on the list across rounds until the reviewer resolves it or replies; a human reply moves it to **unaddressed human comment** (into the round's work set, Step 1), so it drops off the reminder automatically.
 
 ### Step 4 — Post the top-level reminder comment
 
-If the resolve-reminder list is non-empty, post **one** top-level PR comment using the template in [`../muggle-pr-followup/output-templates/resolve-reminder.md`](../muggle-pr-followup/output-templates/resolve-reminder.md) per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md).
+If the resolve-reminder list is non-empty, post **one** top-level PR comment using the template in [`../muggle-pr-followup/output-templates/resolve-reminder.md`](../muggle-pr-followup/output-templates/resolve-reminder.md) per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md). The comment carries the loop signature, so a later round's scan won't read it back as a human comment.
 
-If the list is empty (the push didn't end up addressing any threads — e.g. the actionable work was on lines that had no comment threads), post **nothing**. Still emit telemetry so the stage's run is observable.
+If the list is empty, post **nothing**. Still emit telemetry so the stage's run is observable.
 
 ### Step 5 — Emit telemetry
 
 Emit one event per [`../_shared/telemetry-events/muggle-do-resolve-reminder.md`](../_shared/telemetry-events/muggle-do-resolve-reminder.md). Include:
 
-- `addressed_by_loop` — count of threads added to the reminder list in Step 3.
-- `addressed_by_human` — count from Step 2's other category.
-- `not_addressed` — count from Step 2's "not addressed" category.
+- `addressed_by_loop` — count of threads on the reminder list (Step 3; newest comment loop-marked).
+- `addressed_by_human` — count of threads with an unaddressed human comment (newest comment unmarked; handled by the round's Step 1 sweep, not the reminder).
+- `not_addressed` — count from Step 2's indeterminate category.
 - `comment_posted` — true iff Step 4 actually posted a comment.
 
 ## Failure modes
@@ -66,5 +64,5 @@ The one exception: do not silently swallow a `gh pr comment` failure if Step 4 r
 ## Invariants
 
 - Telemetry fires once per invocation, even when no comment is posted.
-- The reminder only covers threads addressed by the **most recent** push — older SHAs were covered by prior cycles' reminders.
+- The reminder covers **every** still-unresolved thread whose newest comment is loop-marked — not just the most recent push. A thread leaves the reminder only when the reviewer resolves it or replies (a reply routes it to the round's work set).
 - This stage suggests; it does not resolve threads on the reviewer's behalf.

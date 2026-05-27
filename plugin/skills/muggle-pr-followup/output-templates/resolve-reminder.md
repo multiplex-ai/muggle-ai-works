@@ -1,12 +1,15 @@
 # Resolve-reminder top-level PR comment
 
-Posted via `gh pr comment` after the resolve-reminder stage scans threads. Only when at least one addressed-by-loop thread exists.
+Posted via `gh pr comment` once per review round, when at least one unresolved thread is addressed-by-loop with no newer human reply.
 
 ```
-I addressed these threads in <short-sha> — mark them resolved when satisfied:
+These threads are addressed and still open — mark them resolved if satisfied, or reply if more is needed:
 - #<thread-id-1>
 - #<thread-id-2>
 - ...
+
+<!-- muggle-do:bot -->
+🤖 _Automated reply from muggle-do._
 ```
 
-If `addressed_by_loop == 0`, no comment is posted (silent).
+If no such thread exists, no comment is posted (silent). The trailing signature block ([`loop-signature.md`](../../_shared/pr-followup-helpers/loop-signature.md)) keeps the loop from later mistaking its own reminder for a human comment.

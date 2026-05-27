@@ -1,11 +1,22 @@
 /**
- * Slim + aggregate + paginate the upstream test-runs/summary payload.
+ * Slim the per-row payload returned by the paginated test-runs/summary
+ * endpoint. The backend now handles sort + slice + envelope; this transform
+ * keeps each row down to the fields an LLM actually reasons about so the
+ * page slice doesn't carry duplicated useCase blocks and empty
+ * studioAuthInfo nested objects across the wire.
  *
- * Upstream returns the full object graph (use case, test case, workflow run,
- * test script) per test-case row — ~150 lines × N test cases, which blows
- * past LLM token budgets on any non-trivial project. This transform keeps
- * only the fields an LLM needs to reason about run state and paginates the
- * result MCP-side (upstream does not support page params on this endpoint).
+ * No input type lives here: the request shape is owned and validated by
+ * `ProjectTestRunsSummaryInputSchema` in `mcp/e2e/contracts`, and the tool
+ * handler in `tool-registry.ts` derives its parameter type from that schema
+ * via `z.infer`. Keeping a parallel TS interface here would create a second
+ * source of truth that could drift from the validator.
+ *
+ * No per-page aggregate (e.g. `byStatus`) is emitted: a status histogram
+ * computed over one page would describe only those entries and mislead the
+ * LLM about project-wide health (page 1 of 6 showing FAILED:18/PASSED:2
+ * reads like a 90% failure rate even when overall failures are 20 of ~116
+ * runs). If a project-wide histogram becomes an LLM requirement, the
+ * backend envelope should carry it.
  */
 
 import type { IUpstreamResponse } from "../../e2e/types.js";
@@ -19,6 +30,15 @@ interface IRawSummaryEntry {
   error?: string;
 }
 
+interface IRawEnvelope {
+  data?: IRawSummaryEntry[];
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  totalPages?: number;
+  hasMore?: boolean;
+}
+
 interface ISlimSummaryEntry {
   status: string;
   testCaseId?: string;
@@ -30,20 +50,10 @@ interface ISlimSummaryEntry {
   latestWorkflowRunId?: string;
 }
 
-export interface ITestRunsSummaryInput {
-  page: number;
-  pageSize: number;
-  sortBy: "lastRunAt" | "status" | "testCaseTitle";
-  sortOrder: "asc" | "desc";
-}
-
 export interface ITestRunsSummaryOutput {
-  totals: {
-    total: number;
-    byStatus: Record<string, number>;
-  };
   page: number;
   pageSize: number;
+  totalCount: number;
   totalPages: number;
   hasMore: boolean;
   runs: ISlimSummaryEntry[];
@@ -63,57 +73,17 @@ function slimEntry(raw: IRawSummaryEntry): ISlimSummaryEntry {
   return slim;
 }
 
-function aggregateByStatus(entries: readonly IRawSummaryEntry[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const entry of entries) {
-    const status = entry.status ?? UNKNOWN_STATUS;
-    counts[status] = (counts[status] ?? 0) + 1;
-  }
-  return counts;
-}
-
-function sortRuns(
-  runs: readonly ISlimSummaryEntry[],
-  sortBy: ITestRunsSummaryInput["sortBy"],
-  sortOrder: ITestRunsSummaryInput["sortOrder"],
-): ISlimSummaryEntry[] {
-  const sign = sortOrder === "asc" ? 1 : -1;
-  return [...runs].sort((a, b) => {
-    const av = a[sortBy];
-    const bv = b[sortBy];
-    // Missing values sink to the end under both asc and desc — a page of
-    // failures shouldn't get padded with rows that have no signal — so we
-    // apply this rule before the sortOrder sign flips anything.
-    if (av === undefined && bv === undefined) return 0;
-    if (av === undefined) return 1;
-    if (bv === undefined) return -1;
-    if (av < bv) return -1 * sign;
-    if (av > bv) return 1 * sign;
-    return 0;
-  });
-}
-
-export function mapTestRunsSummary(
-  response: IUpstreamResponse,
-  input?: unknown,
-): ITestRunsSummaryOutput {
-  const params = input as ITestRunsSummaryInput;
-  const raw = Array.isArray(response.data) ? (response.data as IRawSummaryEntry[]) : [];
-
-  const byStatus = aggregateByStatus(raw);
-  const sorted = sortRuns(raw.map(slimEntry), params.sortBy, params.sortOrder);
-
-  const total = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(total / params.pageSize));
-  const start = (params.page - 1) * params.pageSize;
-  const runs = sorted.slice(start, start + params.pageSize);
+export function mapTestRunsSummary(response: IUpstreamResponse): ITestRunsSummaryOutput {
+  const envelope = (response.data ?? {}) as IRawEnvelope;
+  const rawRuns = Array.isArray(envelope.data) ? envelope.data : [];
+  const runs = rawRuns.map(slimEntry);
 
   return {
-    totals: { total: total, byStatus: byStatus },
-    page: params.page,
-    pageSize: params.pageSize,
-    totalPages: totalPages,
-    hasMore: params.page < totalPages,
+    page: envelope.page ?? 1,
+    pageSize: envelope.pageSize ?? runs.length,
+    totalCount: envelope.totalCount ?? runs.length,
+    totalPages: envelope.totalPages ?? (runs.length === 0 ? 0 : 1),
+    hasMore: envelope.hasMore ?? false,
     runs: runs,
   };
 }

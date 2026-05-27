@@ -4,7 +4,8 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 
 ## Files in this folder
 
-- [`SKILL.md`](SKILL.md) — public entry. Smart-inference routing between bootstrap mode (URL input) and tick mode (slug + PR number). Read first.
+- [`SKILL.md`](SKILL.md) — public entry. Routing between bootstrap (URL input), tick (slug + PR number), and auto-track (no args). Read first.
+- [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (asks once for the E2E validation context, seeds state, dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
@@ -23,4 +24,4 @@ Shared with other skills, under `../_shared/`:
 Caller-specific, under `../do/`:
 
 - [`open-prs.md`](../do/open-prs.md) — TOC for the create-or-update PR stage; per-mode files in `do/open-prs/`.
-- [`resolve-reminder.md`](../do/resolve-reminder.md) — `/muggle-do`'s post-replies stage that posts the resolve-reminder top-level comment.
+- [`resolve-reminder.md`](../do/resolve-reminder.md) — `/muggle-do`'s per-round stage that nudges the reviewer to resolve addressed-but-still-open threads.

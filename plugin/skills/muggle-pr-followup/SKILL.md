@@ -1,6 +1,6 @@
 ---
 name: muggle-pr-followup
-description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR (asks once for the E2E validation context, then runs unattended).
+description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Run it with no args to auto-track every PR you pushed this session (poll-only watchers, any repo). Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR (asks once for the E2E validation context, then runs unattended).
 disable-model-invocation: true
 ---
 
@@ -16,7 +16,7 @@ A watcher that babysits one open PR's review thread. Polls for new submitted rev
 
 ## Routing
 
-The skill recognizes two modes by inspecting `$ARGUMENTS` and falling back to on-disk state. It never runs procedure inline — it identifies the mode and routes to the appropriate procedure file.
+The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-disk state. It never runs procedure inline — it identifies the mode and routes to the appropriate procedure file.
 
 | Input | On-disk check | Mode |
 | :---- | :------------ | :--- |
@@ -25,7 +25,8 @@ The skill recognizes two modes by inspecting `$ARGUMENTS` and falling back to on
 | `<slug> <pr-number>` | session dir missing | **error:** "no session at `<path>`; pass a PR URL to start one" |
 | `<pr-number>` alone | exactly one existing session contains it | **tick** for that PR |
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
-| empty / `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
+| empty | — | **auto-track** → [`auto-track.md`](auto-track.md) |
+| `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 
 Bootstrap accepts three optional trailing flags:
 

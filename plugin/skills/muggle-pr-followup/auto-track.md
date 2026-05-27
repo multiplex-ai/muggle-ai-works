@@ -18,18 +18,18 @@ Auto-track discovers the PRs you pushed or opened during this Claude Code sessio
 
 ### Step 1 — Discover candidate PRs from session context
 
-Review this conversation. A PR counts as **pushed this session** if, earlier in this session, any of the following happened:
+A PR counts as **pushed this session** if, earlier in this conversation, you:
 
-- you opened it (`gh pr create`), or
-- you pushed commits to a branch that has an open PR, or
-- it was established as the active PR you were working on (its URL appeared and you acted on it).
+- opened it (`gh pr create`), or
+- pushed commits to a branch that has an open PR, or
+- acted on it as the active PR (its URL appeared and you worked it).
 
-Collect each candidate's canonical URL (`https://github.com/<owner>/<repo>/pull/<n>`). Candidates may span multiple repos.
+Collect each candidate's canonical URL (`https://github.com/<owner>/<repo>/pull/<n>`); candidates may span repos.
 
 ### Step 2 — Decide confident vs. uncertain
 
-- **Confident** — context clearly identifies one or more PRs pushed this session. Use that set as the track list and go to Step 4. **Do not prompt.**
-- **Uncertain** — no PR is clearly attributable to this session, or you cannot tell which of several candidates the user means. Go to Step 3.
+- **Confident** — context clearly identifies one or more PRs pushed this session. Use that set; go to Step 4. **Do not prompt.**
+- **Uncertain** — nothing clearly attributable, or several candidates are plausible. Go to Step 3.
 
 ### Step 3 — Picker (uncertain only)
 
@@ -42,12 +42,12 @@ Build a candidate list from the Step 1 URLs, plus — if the current working dir
 
 For each PR URL in the track list, run the [`bootstrap.md`](bootstrap.md) procedure with these auto-track overrides:
 
-- **Skip Step 3 (verify working tree).** PRs may live in any repo, so the matching checkout need not be the current working tree. If you know which directory the PR was pushed from this session, record it as `Working tree: <path>` in `state.md`; otherwise omit it. `/muggle-do` resolves the working tree when it runs.
-- **Skip Step 6.5 (E2E validation context).** The watcher owns no E2E concern. Do **not** write a `## Pre-flight answers` block.
-- **Existing slot → skip silently** (never the slot-conflict abort). Add it to the *skipped* list.
+- **Skip Step 3 (verify working tree).** The PR's checkout need not be the current tree. If you know which directory it was pushed from, record `Working tree: <path>` in `state.md`; else omit it — `/muggle-do` resolves the tree when it runs.
+- **Skip Step 6.5 (E2E validation context).** The watcher owns no E2E concern; do **not** write a `## Pre-flight answers` block.
+- **Existing slot → skip silently** (never the slot-conflict abort); add it to the *skipped* list.
 - **`caller = "auto-track"`** in the bootstrap telemetry event.
 
-Everything else from bootstrap is unchanged: URL parse, metadata fetch + terminal-PR abort, slug + slot path, cursor 0 default (process prior reviews on the first tick), and the `prs.json` / `last_seen.json` / `state.md` writes — minus the pre-flight block.
+Everything else is unchanged: URL parse, metadata + terminal-PR abort, slug, cursor 0 (process prior reviews on the first tick), and the `prs.json`/`last_seen.json`/`state.md` writes minus the pre-flight block.
 
 ### Step 5 — Print the summary
 

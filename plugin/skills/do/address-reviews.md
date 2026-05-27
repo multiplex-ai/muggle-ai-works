@@ -27,14 +27,18 @@ Read from `.muggle-do/sessions/<slug>/`:
 
 ## Procedure
 
-### Step 1 — Read every listed review off GitHub
+### Step 1 — Assemble the work set
 
-For each review id in the input:
+Two sources, combined into one batch (dedupe by comment id):
+
+**(a) The dispatched reviews.** For each review id in the input:
 
 - Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) (cursor 0; filter to the specific id).
 - Fetch its line comments per [`../_shared/github-cli-recipes/line-comments-for-review.md`](../_shared/github-cli-recipes/line-comments-for-review.md).
 
-Group into one combined batch.
+**(b) Unaddressed comments on every unresolved thread.** Fetch unresolved threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). For each thread classified **unaddressed human comment** — newest comment lacks the loop marker `<!-- muggle-do:bot -->` and post-dates the loop's last marked reply — add that comment to the batch, even if it belongs to an older review the cursor already passed. This is how a human follow-up on a thread (which arrives as a marker-less reply; see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)) gets addressed. **Exclude** any comment whose review id is in `last_seen.escalated_review_ids` — those are paused awaiting the user, not re-work.
+
+Group (a) and (b) into one combined batch.
 
 ### Step 2 — Classify each review
 
@@ -57,7 +61,7 @@ The user clarifies on GitHub by submitting a new review. The next watcher tick p
 
 ### Step 4 — Handle actionables (if any)
 
-If `actionable_review_ids` is empty, skip Steps 4 and 5; proceed to Step 6 (cursor + respawn). Otherwise:
+If `actionable_review_ids` is empty, skip the rest of Step 4 and Step 5; proceed to Step 5.5 (resolve-reminder) then Step 6. Otherwise:
 
 #### 4a. Flatten the work
 
@@ -75,7 +79,7 @@ Invoke [`unit-tests.md`](unit-tests.md). Cover the surface that just changed; re
 
 #### 4d. Run ONE E2E acceptance pass
 
-Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); the persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md).
+Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); a poll-only session with no context (e.g. auto-track) is reported `SKIPPED`. The persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md).
 
 #### 4e. Create or update the PR
 
@@ -85,15 +89,17 @@ Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + exis
 
 Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews and the new SHA. One reply per comment, in its own thread, describing what was done for it.
 
-#### 4g. Run the resolve-reminder stage
-
-Invoke [`resolve-reminder.md`](resolve-reminder.md). Scans unresolved threads, classifies, and posts a top-level PR comment listing addressed-by-loop thread ids.
+(The resolve-reminder runs once per round in Step 5.5 below — not only after a push — so a round that pushed nothing still nudges addressed-but-unresolved threads.)
 
 ### Step 5 — Update session state
 
 - `last_seen.cycles_completed` += 1
 - `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)
 - `last_seen.reviewId` = max(input review ids ∪ last_seen.reviewId)
+
+### Step 5.5 — Resolve-reminder (runs every round)
+
+Invoke [`resolve-reminder.md`](resolve-reminder.md) once, regardless of whether this round pushed. It scans unresolved threads, finds those whose newest comment is loop-marked (addressed, awaiting resolve), and posts one top-level PR comment nudging the reviewer to resolve them — or stays silent if there are none. Threads with a newer human comment were already pulled into this round's work set in Step 1(b).
 
 ### Step 6 — Respawn the watcher
 

@@ -23,4 +23,4 @@ One per address-reviews invocation, regardless of outcome.
 - `"escalated"` — all reviews were ambiguous; no push.
 - `"mixed"` — both branches happened in the same invocation.
 - `"no-op"` — every input id was already in the escalated set; no work.
-- `"self-loop-skip"` — review was a synthetic wrapper around the agent's own reply (empty body + all line comments are replies). Cursor advanced silently; no work, no escalation.
+- `"self-loop-skip"` — review was a synthetic wrapper around the agent's own reply (every line comment is a reply carrying the loop marker `<!-- muggle-do:bot -->`). Cursor advanced silently; no work, no escalation.

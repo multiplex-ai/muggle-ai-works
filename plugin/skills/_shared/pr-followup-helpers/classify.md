@@ -4,12 +4,11 @@ Classify the **review as a unit** — but reply per line comment (threaded), not
 
 ## Pre-check: self-loop filter
 
-GitHub auto-creates a synthetic review every time the agent posts `POST /comments/<id>/replies`. That review has the loop user as author, an empty body, and contains only the agent's own reply comments (`in_reply_to_id != null`). It carries no reviewer intent and must not trigger another cycle.
+GitHub auto-creates a synthetic review every time the agent posts `POST /comments/<id>/replies`. In single-account workflows the loop posts under the PR author's own identity, so that synthetic review is indistinguishable from a human's thread reply by author or structure alone — both are reply-only wrappers. The **loop signature** is what separates them (see [`loop-signature.md`](loop-signature.md)).
 
-A review is a **self-loop** iff:
+A review is a **self-loop** iff **every** line comment under it is a reply (`in_reply_to_id != null`) **and** carries the loop marker `<!-- muggle-do:bot -->`.
 
-- `body` is empty, AND
-- every line comment under it has `in_reply_to_id != null`
+If any comment in a reply-only wrapper **lacks** the marker, it is a **human follow-up** on an existing thread — not a self-loop. It carries reviewer intent; treat it as actionable and address it in this round (the caller's unresolved-thread sweep picks up the thread context).
 
 Self-loops bypass the actionable/ambiguous decision entirely. Action: advance the cursor silently. No push, no reply, no resolve-reminder, no escalation, no entry in `escalated_review_ids`. Telemetry: emit one `cycle` event with `outcome: "self-loop-skip"`.
 

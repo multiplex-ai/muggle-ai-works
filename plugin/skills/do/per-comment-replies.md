@@ -36,9 +36,12 @@ Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-
 
 ```
 Addressed in <short-sha>: <one-line summary of the change made for THIS comment>.
+
+<!-- muggle-do:bot -->
+🤖 _Automated reply from muggle-do._
 ```
 
-`<short-sha>` is the first 7 chars of `new_sha`. The body must contain the literal `<short-sha>` substring — the resolve-reminder stage greps for it to classify threads as addressed-by-loop.
+`<short-sha>` is the first 7 chars of `new_sha`; the body must contain that substring so the resolve-reminder stage knows which push addressed the thread. The trailing signature block is mandatory — its `<!-- muggle-do:bot -->` marker is what identifies the reply as loop-authored (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)).
 
 ### Step 3 — Handle review-body-only comments
 
@@ -46,6 +49,9 @@ If an actionable review has a non-empty `body` and **zero** line comments, GitHu
 
 ```
 Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
+
+<!-- muggle-do:bot -->
+🤖 _Automated reply from muggle-do._
 ```
 
 Posted per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.
@@ -58,4 +64,4 @@ Posted per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/git
 ## Invariants
 
 - One reply per line comment. No per-review summary reply anywhere.
-- Every reply body contains the new SHA's 7-char prefix — the resolve-reminder stage greps for it.
+- Every reply body contains the new SHA's 7-char prefix (which push addressed it) and ends with the loop signature block — the `<!-- muggle-do:bot -->` marker, not the author login, is what identifies loop-authored comments.

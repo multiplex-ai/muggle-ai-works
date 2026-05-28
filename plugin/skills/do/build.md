@@ -20,7 +20,8 @@ For each affected repo:
 1. **Re-read `requirements.md`.** Treat goal + AC as frozen. If something is unclear at this stage, that's a pre-flight bug — escalate, do not improvise.
 2. **Apply the change** in the repo's worktree. Edit existing files first; create new files only when the requirements demand it. Match the surrounding code's style, naming, and file layout.
 3. **Don't add what wasn't asked for.** No speculative abstractions, no extra logging, no "while I'm here" refactors. Three similar lines is better than a premature abstraction.
-4. **Commit** with a conventional-commit subject:
+4. **Cover new logic with tests.** If you added or changed non-trivial logic (a hook, reducer, parser, state machine, branching util), write its unit tests now — Stage 5 only *runs* the suite, it never authors tests. Untested new logic is a Definition-of-Done failure, not a Stage-5 gap.
+5. **Commit** with a conventional-commit subject:
    - `feat(<scope>): <short>` for new behavior
    - `fix(<scope>): <short>` for bug fixes
    - `refactor(<scope>): <short>` for reshape

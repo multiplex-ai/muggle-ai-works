@@ -12,11 +12,11 @@ Each entry: the genuine routing miss from the baseline, the description change, 
 
 ## muggle-test
 
-**Baseline miss:** "validate my changes before I open the PR" routed to `verification-before-completion` ×5 — a superpowers process skill owns "before creating PRs."
+**Baseline miss:** "validate my changes before I open the PR" routed to `verification-before-completion` ×5 — a superpowers process skill owns "before creating PRs." A second pass also surfaced "did my latest commits break any user flows?" → `none` (a question-phrased query answered conversationally).
 
-**Change:** the automated optimizer's full rewrite failed (split across superpowers skills, and it regressed "regression test my work"). Hand-authored instead: kept the original's broad change-driven coverage and added an explicit clause that the pre-PR/merge acceptance gate ("validate my changes before I open the PR") means *run the acceptance suite, not just a completion checklist*, plus a `muggle-test-feature-local` boundary pointer.
+**Change:** the automated optimizer's full rewrite failed (split across superpowers skills, and it regressed "regression test my work"). Hand-authored instead: kept the original's broad change-driven coverage and added (1) an explicit clause that the pre-PR/merge acceptance gate ("validate my changes before I open the PR") means *run the acceptance suite, not just a completion checklist*, plus a `muggle-test-feature-local` boundary pointer, and (2) the question-form `"did my recent commits/changes break anything or any user flows?"`.
 
-**Re-run (9/9, 5×):** contested query → `muggle-test` 5/5; "regression test my work" still passes; `muggle-test-feature-local` and `muggle-pr-visual-walkthrough` siblings unaffected; "run the full test suite with npm test" → none.
+**Re-run (6/6, 5×):** both contested queries → `muggle-test` 5/5; "regression test my work" still passes; `muggle-test-feature-local` unaffected; "run the full test suite with npm test" → none; flaky-CI debug → `systematic-debugging` (no muggle skill).
 
 ## muggle-test-prepare
 

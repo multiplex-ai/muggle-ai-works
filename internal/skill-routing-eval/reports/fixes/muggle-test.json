@@ -1,11 +1,25 @@
 {
   "model": "default",
   "runs_per_query": 5,
-  "total": 9,
-  "passed": 9,
+  "total": 6,
+  "passed": 6,
   "failed": 0,
   "accuracy": 1.0,
   "results": [
+    {
+      "query": "did my latest commits break any user flows?",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": ""
+    },
     {
       "query": "validate my changes before I open the PR",
       "expected_skill": "muggle-test",
@@ -21,34 +35,6 @@
       "note": ""
     },
     {
-      "query": "test my changes against the staging url https://pr-482.preview.muggle.dev",
-      "expected_skill": "muggle-test",
-      "fired": [
-        "muggle-test",
-        "muggle-test",
-        "muggle-test",
-        "muggle-test",
-        "muggle-test"
-      ],
-      "majority": "muggle-test",
-      "pass": true,
-      "note": ""
-    },
-    {
-      "query": "did my latest commits break any user flows?",
-      "expected_skill": "muggle-test",
-      "fired": [
-        "muggle-test",
-        "none",
-        "none",
-        "muggle-test",
-        "muggle-test"
-      ],
-      "majority": "muggle-test",
-      "pass": true,
-      "note": ""
-    },
-    {
       "query": "regression test my work from today",
       "expected_skill": "muggle-test",
       "fired": [
@@ -56,7 +42,7 @@
         "muggle-test",
         "muggle-test",
         "muggle-test",
-        "none"
+        "muggle-test"
       ],
       "majority": "muggle-test",
       "pass": true,
@@ -77,48 +63,6 @@
       "note": ""
     },
     {
-      "query": "verify the new signup form actually works in a real browser",
-      "expected_skill": "muggle-test-feature-local",
-      "fired": [
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local"
-      ],
-      "majority": "muggle-test-feature-local",
-      "pass": true,
-      "note": ""
-    },
-    {
-      "query": "run an e2e test of the password reset feature locally",
-      "expected_skill": "muggle-test-feature-local",
-      "fired": [
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local",
-        "muggle-test-feature-local"
-      ],
-      "majority": "muggle-test-feature-local",
-      "pass": true,
-      "note": ""
-    },
-    {
-      "query": "post the e2e test results to the PR with screenshots",
-      "expected_skill": "muggle-pr-visual-walkthrough",
-      "fired": [
-        "TIMEOUT",
-        "muggle-pr-visual-walkthrough",
-        "muggle-pr-visual-walkthrough",
-        "muggle-pr-visual-walkthrough",
-        "muggle-pr-visual-walkthrough"
-      ],
-      "majority": "muggle-pr-visual-walkthrough",
-      "pass": true,
-      "note": ""
-    },
-    {
       "query": "run the full test suite with npm test",
       "expected_skill": "none",
       "fired": [
@@ -129,6 +73,20 @@
         "none"
       ],
       "majority": "none",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "the test in CI is flaky, help me debug why it intermittently fails",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
       "pass": true,
       "note": ""
     }

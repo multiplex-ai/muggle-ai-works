@@ -17,3 +17,11 @@ Each entry: the genuine routing miss from the baseline, the description change, 
 **Change:** the automated optimizer's full rewrite failed (split across superpowers skills, and it regressed "regression test my work"). Hand-authored instead: kept the original's broad change-driven coverage and added an explicit clause that the pre-PR/merge acceptance gate ("validate my changes before I open the PR") means *run the acceptance suite, not just a completion checklist*, plus a `muggle-test-feature-local` boundary pointer.
 
 **Re-run (9/9, 5×):** contested query → `muggle-test` 5/5; "regression test my work" still passes; `muggle-test-feature-local` and `muggle-pr-visual-walkthrough` siblings unaffected; "run the full test suite with npm test" → none.
+
+## muggle-test-prepare
+
+**Baseline miss:** "check if localhost:3000 and the api on 8080 are listening before testing" routed to `none` ×3 (fired only 2/5 on re-check) — the port-check phrasing read as a question Claude answers directly.
+
+**Change (optimizer, accepted):** lead with environment readiness and explicitly claim confirming that *specific ports or localhost URLs are listening/up before testing*, with the exact example, and a "not running the tests themselves" boundary.
+
+**Re-run (8/8):** failing query → `muggle-test-prepare` 3/3; all 4 other prepare positives pass; `muggle-test` ("validate before PR", "test on staging") and `muggle-test-feature-local` ("checkout on localhost") siblings unaffected.

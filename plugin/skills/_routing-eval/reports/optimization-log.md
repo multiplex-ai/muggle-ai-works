@@ -55,3 +55,7 @@ Bulk-fill scripts for project test cases that lack one. Distinct from muggle-tes
 ## muggle-pr-visual-walkthrough — verified 5/5
 
 Post existing E2E results/screenshots to a PR. Distinct from muggle-test, which runs the tests.
+
+## muggle-preferences — verified 4/4
+
+View/set/reset Muggle config. Distinct from configuring unrelated tooling (prettier, eslint, git).

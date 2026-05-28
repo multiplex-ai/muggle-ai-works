@@ -127,6 +127,12 @@ Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/
 
 Remind them: local URL is only the execution target, not tied to cloud project config.
 
+### 4a. Satisfy the test case chain (prerequisite parents)
+
+Before deciding the target's script, resolve its prerequisite chain from the backend test-plan graph and ensure every ancestor already has a ready script — generating any that don't, **test-generation only**, root-first. Follow [`_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md).
+
+`muggle-remote-test-case-ancestors-get` returns the chain; an `orphan` test case has no prerequisites — skip straight to Step 5. Do **not** infer parents from `precondition` text; the graph is authoritative.
+
 ### 5. Existing scripts vs new generation
 
 `muggle-remote-test-script-list` with `testCaseId`.
@@ -247,6 +253,7 @@ After reporting results:
 - No silent auth skip.
 - **Never prompt for Electron launch approval** before execution — invoking this skill is the approval. Just run.
 - **Never diagnose a failed run from `execute`'s response stdout tail.** Always call `muggle-local-run-result-get` first; classify only from its structured fields and (when present) the artifacts it names. The execute tail is an excerpt and routinely truncates the failure cause.
+- Satisfy the prerequisite chain (Step 4a) before generating or replaying the target. Read it from `muggle-remote-test-case-ancestors-get` — never infer parents from `precondition` text. Generate any not-ready ancestor test-generation-only, root-first.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong.

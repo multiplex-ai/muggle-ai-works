@@ -16,11 +16,13 @@ Mark kept services as `external: true` in the tracking file so cleanup leaves th
 
 When the user wants a port held by a process they did **not** select (typically a stale dev server from a sibling worktree):
 
-> "Port 3999 is held by PID 87421 (you didn't select this process). How do you want to proceed?"
+The held process is likely something the user is still using — a current test or dev server they value more than this prepare run. Don't auto-decide; leave the kill-vs-pause call to them.
 
-- Option 1: "Use the next available port" (recommended — non-destructive)
-- Option 2: "Force-kill PID 87421 and claim port 3999"
-- Option 3: "Abort"
+> "Port 3999 is held by PID 87421 (you didn't select this process — it may be a test or dev server you're still using). How do you want to proceed?"
+
+- Option 1: "Use the next available port" (recommended — non-destructive, leaves the existing process running)
+- Option 2: "Force-kill PID 87421 and claim port 3999" (kill-switch — only if you don't need that process)
+- Option 3: "Pause — leave it running, I'll finish up and re-run prepare later"
 
 **Option 1**: probe `3999 + N` for `N = 1, 2, …` until nothing listens. Record the new port and any env file edit (`PORT=` in `.env.local` etc.). Dev server may need restart to pick up.
 

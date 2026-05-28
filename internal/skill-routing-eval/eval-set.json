@@ -1,98 +1,392 @@
 [
-  {"query": "muggle", "expected_skill": "muggle", "note": "bare invocation -> menu"},
-  {"query": "what can muggle do for me? show me the options", "expected_skill": "muggle", "note": "menu request"},
-  {"query": "muggle help — what commands are available?", "expected_skill": "muggle", "note": "menu/help"},
-  {"query": "hey muggle, what are my options here", "expected_skill": "muggle", "note": "casual menu"},
-
-  {"query": "can you run the e2e acceptance tests on my recent code changes before I push?", "expected_skill": "muggle-test", "note": "change-driven, before push"},
-  {"query": "i just finished refactoring the dashboard API, make sure I didn't break anything", "expected_skill": "muggle-test", "note": "did my changes break anything"},
-  {"query": "regression test my work from today", "expected_skill": "muggle-test", "note": "my work -> change-driven"},
-  {"query": "acceptance test what I've been working on and post the summary to the PR", "expected_skill": "muggle-test", "note": "run+publish, anchored on my work -> test (not walkthrough)"},
-  {"query": "test my changes against the staging url https://pr-482.preview.muggle.dev", "expected_skill": "muggle-test", "note": "test on staging/preview"},
-  {"query": "validate my changes before I open the PR", "expected_skill": "muggle-test", "note": "validate changes"},
-  {"query": "did my latest commits break any user flows?", "expected_skill": "muggle-test", "note": "change-driven phrasing"},
-
-  {"query": "test the checkout flow on localhost:3000 and screenshot each step", "expected_skill": "muggle-test-feature-local", "note": "named flow on localhost"},
-  {"query": "verify the new signup form actually works in a real browser", "expected_skill": "muggle-test-feature-local", "note": "feature verify, real browser"},
-  {"query": "i added a multi-step onboarding wizard, click through it on my dev server and confirm it works", "expected_skill": "muggle-test-feature-local", "note": "specific feature, dev server"},
-  {"query": "run an e2e test of the password reset feature locally", "expected_skill": "muggle-test-feature-local", "note": "single feature, local"},
-  {"query": "make sure the login page works — spin up a browser and try it", "expected_skill": "muggle-test-feature-local", "note": "verify works (test, not do-task)"},
-  {"query": "test that the cart updates when I change quantity, on my local build", "expected_skill": "muggle-test-feature-local", "note": "specific behavior, local"},
-
-  {"query": "log into our admin panel at admin.acme.test and create a new user named Bob", "expected_skill": "muggle-do-task", "note": "perform action, not verify"},
-  {"query": "go to twitter and post 'shipping muggle v4 today'", "expected_skill": "muggle-do-task", "note": "perform a post"},
-  {"query": "fill out the contact form on https://acme.com/contact with my details and submit it", "expected_skill": "muggle-do-task", "note": "fill+submit action"},
-  {"query": "open the app and add three items to the cart for me", "expected_skill": "muggle-do-task", "note": "do the thing"},
-  {"query": "navigate to the settings page and toggle dark mode on", "expected_skill": "muggle-do-task", "note": "perform UI action"},
-
-  {"query": "import my existing playwright specs from tests/e2e into muggle so we can track them", "expected_skill": "muggle-test-import", "note": "import playwright"},
-  {"query": "migrate our cypress tests in cypress/e2e over to muggle", "expected_skill": "muggle-test-import", "note": "migrate cypress"},
-  {"query": "i have a PRD in docs/checkout-prd.md — turn it into muggle test cases", "expected_skill": "muggle-test-import", "note": "PRD -> test cases"},
-  {"query": "load these gherkin .feature files into our muggle project", "expected_skill": "muggle-test-import", "note": "gherkin import"},
-  {"query": "we wrote a test plan in Notion, can you bring it into muggle as test cases", "expected_skill": "muggle-test-import", "note": "notion doc import"},
-  {"query": "track my specs/auth.spec.ts file in muggle", "expected_skill": "muggle-test-import", "note": "spec file + muggle"},
-
-  {"query": "a bunch of our test cases don't have scripts, regenerate the missing ones", "expected_skill": "muggle-test-regenerate-missing", "note": "regen missing"},
-  {"query": "fill in the gaps — generate scripts for every test case in the project that's missing one", "expected_skill": "muggle-test-regenerate-missing", "note": "project-wide catch-up"},
-  {"query": "rebuild the scripts for all my DRAFT test cases", "expected_skill": "muggle-test-regenerate-missing", "note": "DRAFT cases"},
-  {"query": "bulk regenerate the test cases that have no active script", "expected_skill": "muggle-test-regenerate-missing", "note": "bulk regen"},
-  {"query": "half my muggle test cases are stuck without scripts, kick off generation for all of them", "expected_skill": "muggle-test-regenerate-missing", "note": "no-script cases"},
-
-  {"query": "are all my dev servers running before we test?", "expected_skill": "muggle-test-prepare", "note": "service readiness"},
-  {"query": "get my local environment ready for e2e — start whatever services aren't up", "expected_skill": "muggle-test-prepare", "note": "prepare env"},
-  {"query": "spin up the frontend and backend so I can run muggle tests", "expected_skill": "muggle-test-prepare", "note": "start services"},
-  {"query": "check if localhost:3000 and the api on 8080 are listening before testing", "expected_skill": "muggle-test-prepare", "note": "port check"},
-  {"query": "make sure my sibling services are up so the tests don't fail", "expected_skill": "muggle-test-prepare", "note": "sibling services"},
-
-  {"query": "post the e2e test results to the PR with screenshots", "expected_skill": "muggle-pr-visual-walkthrough", "note": "publish existing results"},
-  {"query": "attach the visual walkthrough of the test run to PR #214", "expected_skill": "muggle-pr-visual-walkthrough", "note": "attach walkthrough"},
-  {"query": "share the pass/fail summary and step screenshots on the PR for reviewers", "expected_skill": "muggle-pr-visual-walkthrough", "note": "share screenshots on PR"},
-  {"query": "add the muggle e2e walkthrough to the pull request", "expected_skill": "muggle-pr-visual-walkthrough", "note": "walkthrough to PR"},
-  {"query": "put the acceptance test screenshots on the PR so reviewers can see the flows work", "expected_skill": "muggle-pr-visual-walkthrough", "note": "screenshots to PR"},
-
-  {"query": "that test run was wrong — step 4 clicked the wrong button", "expected_skill": "muggle-feedback", "note": "step-level feedback"},
-  {"query": "give feedback on the last run, the script logged in with the wrong account", "expected_skill": "muggle-feedback", "note": "run feedback"},
-  {"query": "the summary muggle generated is inaccurate, flag it", "expected_skill": "muggle-feedback", "note": "summary wrong"},
-  {"query": "here's the dashboard link https://app.muggle.dev/runs/abc123 — the script is broken at the submit step", "expected_skill": "muggle-feedback", "note": "dashboard URL + critique"},
-  {"query": "show me the muggle feedback I submitted earlier", "expected_skill": "muggle-feedback", "note": "view feedback"},
-
-  {"query": "show my muggle settings", "expected_skill": "muggle-preferences", "note": "view prefs"},
-  {"query": "set muggle autoLogin to always", "expected_skill": "muggle-preferences", "note": "set pref"},
-  {"query": "change my muggle preferences — I want it to default to remote runs", "expected_skill": "muggle-preferences", "note": "change pref"},
-  {"query": "reset all my muggle preferences to defaults", "expected_skill": "muggle-preferences", "note": "reset prefs"},
-
-  {"query": "is muggle healthy? check the install", "expected_skill": "muggle-status", "note": "health check"},
-  {"query": "muggle status", "expected_skill": "muggle-status", "note": "explicit status"},
-  {"query": "check if my muggle auth is still valid and the MCP is connected", "expected_skill": "muggle-status", "note": "auth/mcp health"},
-  {"query": "muggle keeps not responding, is everything set up correctly?", "expected_skill": "muggle-status", "note": "diagnose-first lean"},
-
-  {"query": "muggle repair", "expected_skill": "muggle-repair", "note": "explicit repair"},
-  {"query": "my muggle MCP won't load, fix the setup", "expected_skill": "muggle-repair", "note": "fix intent"},
-  {"query": "fix my broken muggle installation", "expected_skill": "muggle-repair", "note": "fix broken install"},
-  {"query": "reinstall and repair the muggle tooling, it's busted", "expected_skill": "muggle-repair", "note": "repair tooling"},
-
-  {"query": "muggle upgrade", "expected_skill": "muggle-upgrade", "note": "explicit upgrade"},
-  {"query": "update muggle to the latest version", "expected_skill": "muggle-upgrade", "note": "update latest"},
-  {"query": "is there a newer muggle? get it", "expected_skill": "muggle-upgrade", "note": "get newer"},
-
-  {"query": "cut a new @muggleai/works release", "expected_skill": "muggle-works-npm-release", "note": "release works"},
-  {"query": "publish a patch release of works to npm", "expected_skill": "muggle-works-npm-release", "note": "publish works"},
-  {"query": "ship works v4.14.0", "expected_skill": "muggle-works-npm-release", "note": "ship version"},
-  {"query": "release the @muggleai/works package", "expected_skill": "muggle-works-npm-release", "note": "release package"},
-
-  {"query": "what's the capital of France?", "expected_skill": "none", "note": "unrelated"},
-  {"query": "write a unit test for the formatCurrency function with jest", "expected_skill": "none", "note": "unit test, not E2E"},
-  {"query": "the test in CI is flaky, help me debug why it intermittently fails", "expected_skill": "none", "note": "debug flaky test"},
-  {"query": "review this PR for me: https://github.com/acme/web/pull/77", "expected_skill": "none", "note": "code review, not muggle"},
-  {"query": "import lodash and use debounce in this component", "expected_skill": "none", "note": "import library near-miss"},
-  {"query": "upgrade my npm dependencies to the latest minor versions", "expected_skill": "none", "note": "deps upgrade near-miss"},
-  {"query": "set up a prettier config for the repo", "expected_skill": "none", "note": "config near-miss (not muggle prefs)"},
-  {"query": "check the health of my kubernetes pods in prod", "expected_skill": "none", "note": "infra health near-miss"},
-  {"query": "fix the broken webpack build", "expected_skill": "none", "note": "repair near-miss (app build)"},
-  {"query": "write release notes for our product launch", "expected_skill": "none", "note": "release near-miss (notes)"},
-  {"query": "prepare the slides for tomorrow's demo", "expected_skill": "none", "note": "prepare near-miss"},
-  {"query": "post a comment on the PR saying LGTM", "expected_skill": "none", "note": "PR near-miss (just a comment)"},
-  {"query": "can you give me feedback on my resume draft in resume.pdf", "expected_skill": "none", "note": "feedback near-miss (not a muggle run)"},
-  {"query": "run the full test suite with npm test", "expected_skill": "none", "note": "test near-miss (npm/unit)"},
-  {"query": "log my workout for today: 5k run and squats", "expected_skill": "none", "note": "do-task/log near-miss, no website"}
+  {
+    "query": "muggle",
+    "expected_skill": "muggle",
+    "note": "bare invocation -> menu"
+  },
+  {
+    "query": "what can muggle do for me? show me the options",
+    "expected_skill": "muggle",
+    "note": "menu request"
+  },
+  {
+    "query": "muggle help \u2014 what commands are available?",
+    "expected_skill": "muggle",
+    "note": "menu/help"
+  },
+  {
+    "query": "hey muggle, what are my options here",
+    "expected_skill": "muggle",
+    "note": "casual menu"
+  },
+  {
+    "query": "can you run the e2e acceptance tests on my recent code changes before I push?",
+    "expected_skill": "muggle-test",
+    "note": "change-driven, before push"
+  },
+  {
+    "query": "i just finished refactoring the dashboard API, make sure I didn't break anything",
+    "expected_skill": "muggle-test",
+    "note": "did my changes break anything"
+  },
+  {
+    "query": "regression test my work from today",
+    "expected_skill": "muggle-test",
+    "note": "my work -> change-driven"
+  },
+  {
+    "query": "acceptance test what I've been working on and post the summary to the PR",
+    "expected_skill": "muggle-test",
+    "note": "run+publish, anchored on my work -> test (not walkthrough)"
+  },
+  {
+    "query": "test my changes against the staging url https://pr-482.preview.muggle.dev",
+    "expected_skill": "muggle-test",
+    "note": "test on staging/preview"
+  },
+  {
+    "query": "validate my changes before I open the PR",
+    "expected_skill": "muggle-test",
+    "note": "validate changes"
+  },
+  {
+    "query": "did my latest commits break any user flows?",
+    "expected_skill": "muggle-test",
+    "note": "change-driven phrasing"
+  },
+  {
+    "query": "test the checkout flow on localhost:3000 and screenshot each step",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "named flow on localhost"
+  },
+  {
+    "query": "verify the new signup form actually works in a real browser",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "feature verify, real browser"
+  },
+  {
+    "query": "i added a multi-step onboarding wizard, click through it on my dev server and confirm it works",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "specific feature, dev server"
+  },
+  {
+    "query": "run an e2e test of the password reset feature locally",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "single feature, local"
+  },
+  {
+    "query": "make sure the login page works \u2014 spin up a browser and try it",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "verify works (test, not do-task)"
+  },
+  {
+    "query": "test that the cart updates when I change quantity, on my local build",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "specific behavior, local"
+  },
+  {
+    "query": "log into our admin panel at admin.acme.test and create a new user named Bob",
+    "expected_skill": "muggle-do-task",
+    "note": "perform action, not verify"
+  },
+  {
+    "query": "go to twitter and post 'shipping muggle v4 today'",
+    "expected_skill": "muggle-do-task",
+    "note": "perform a post"
+  },
+  {
+    "query": "fill out the contact form on https://acme.com/contact with my details and submit it",
+    "expected_skill": "muggle-do-task",
+    "note": "fill+submit action"
+  },
+  {
+    "query": "open the app and add three items to the cart for me",
+    "expected_skill": "muggle-do-task",
+    "note": "do the thing"
+  },
+  {
+    "query": "navigate to the settings page and toggle dark mode on",
+    "expected_skill": "muggle-do-task",
+    "note": "perform UI action"
+  },
+  {
+    "query": "import my existing playwright specs from tests/e2e into muggle so we can track them",
+    "expected_skill": "muggle-test-import",
+    "note": "import playwright"
+  },
+  {
+    "query": "migrate our cypress tests in cypress/e2e over to muggle",
+    "expected_skill": "muggle-test-import",
+    "note": "migrate cypress"
+  },
+  {
+    "query": "i have a PRD in docs/checkout-prd.md \u2014 turn it into muggle test cases",
+    "expected_skill": "muggle-test-import",
+    "note": "PRD -> test cases"
+  },
+  {
+    "query": "load these gherkin .feature files into our muggle project",
+    "expected_skill": "muggle-test-import",
+    "note": "gherkin import"
+  },
+  {
+    "query": "we wrote a test plan in Notion, can you bring it into muggle as test cases",
+    "expected_skill": "muggle-test-import",
+    "note": "notion doc import"
+  },
+  {
+    "query": "track my specs/auth.spec.ts file in muggle",
+    "expected_skill": "muggle-test-import",
+    "note": "spec file + muggle"
+  },
+  {
+    "query": "a bunch of our test cases don't have scripts, regenerate the missing ones",
+    "expected_skill": "muggle-test-regenerate-missing",
+    "note": "regen missing"
+  },
+  {
+    "query": "fill in the gaps \u2014 generate scripts for every test case in the project that's missing one",
+    "expected_skill": "muggle-test-regenerate-missing",
+    "note": "project-wide catch-up"
+  },
+  {
+    "query": "rebuild the scripts for all my DRAFT test cases",
+    "expected_skill": "muggle-test-regenerate-missing",
+    "note": "DRAFT cases"
+  },
+  {
+    "query": "bulk regenerate the test cases that have no active script",
+    "expected_skill": "muggle-test-regenerate-missing",
+    "note": "bulk regen"
+  },
+  {
+    "query": "half my muggle test cases are stuck without scripts, kick off generation for all of them",
+    "expected_skill": "muggle-test-regenerate-missing",
+    "note": "no-script cases"
+  },
+  {
+    "query": "are all my dev servers running before we test?",
+    "expected_skill": "muggle-test-prepare",
+    "note": "service readiness"
+  },
+  {
+    "query": "get my local environment ready for e2e \u2014 start whatever services aren't up",
+    "expected_skill": "muggle-test-prepare",
+    "note": "prepare env"
+  },
+  {
+    "query": "spin up the frontend and backend so I can run muggle tests",
+    "expected_skill": "muggle-test-prepare",
+    "note": "start services"
+  },
+  {
+    "query": "check if localhost:3000 and the api on 8080 are listening before testing",
+    "expected_skill": "muggle-test-prepare",
+    "note": "port check"
+  },
+  {
+    "query": "make sure my sibling services are up so the tests don't fail",
+    "expected_skill": "muggle-test-prepare",
+    "note": "sibling services"
+  },
+  {
+    "query": "post the e2e test results to the PR with screenshots",
+    "expected_skill": "muggle-pr-visual-walkthrough",
+    "note": "publish existing results"
+  },
+  {
+    "query": "attach the visual walkthrough of the test run to PR #214",
+    "expected_skill": "muggle-pr-visual-walkthrough",
+    "note": "attach walkthrough"
+  },
+  {
+    "query": "share the pass/fail summary and step screenshots on the PR for reviewers",
+    "expected_skill": "muggle-pr-visual-walkthrough",
+    "note": "share screenshots on PR"
+  },
+  {
+    "query": "add the muggle e2e walkthrough to the pull request",
+    "expected_skill": "muggle-pr-visual-walkthrough",
+    "note": "walkthrough to PR"
+  },
+  {
+    "query": "put the acceptance test screenshots on the PR so reviewers can see the flows work",
+    "expected_skill": "muggle-pr-visual-walkthrough",
+    "note": "screenshots to PR"
+  },
+  {
+    "query": "that test run was wrong \u2014 step 4 clicked the wrong button",
+    "expected_skill": "muggle-feedback",
+    "note": "step-level feedback"
+  },
+  {
+    "query": "give feedback on the last run, the script logged in with the wrong account",
+    "expected_skill": "muggle-feedback",
+    "note": "run feedback"
+  },
+  {
+    "query": "the summary muggle generated is inaccurate, flag it",
+    "expected_skill": "muggle-feedback",
+    "note": "summary wrong"
+  },
+  {
+    "query": "here's the dashboard link https://app.muggle.dev/runs/abc123 \u2014 the script is broken at the submit step",
+    "expected_skill": "muggle-feedback",
+    "note": "dashboard URL + critique"
+  },
+  {
+    "query": "show me the muggle feedback I submitted earlier",
+    "expected_skill": "muggle-feedback",
+    "note": "view feedback"
+  },
+  {
+    "query": "show my muggle settings",
+    "expected_skill": "muggle-preferences",
+    "note": "view prefs"
+  },
+  {
+    "query": "set muggle autoLogin to always",
+    "expected_skill": "muggle-preferences",
+    "note": "set pref"
+  },
+  {
+    "query": "change my muggle preferences \u2014 I want it to default to remote runs",
+    "expected_skill": "muggle-preferences",
+    "note": "change pref"
+  },
+  {
+    "query": "reset all my muggle preferences to defaults",
+    "expected_skill": "muggle-preferences",
+    "note": "reset prefs"
+  },
+  {
+    "query": "is muggle healthy? check the install",
+    "expected_skill": "muggle-status",
+    "note": "health check"
+  },
+  {
+    "query": "muggle status",
+    "expected_skill": "muggle-status",
+    "note": "explicit status"
+  },
+  {
+    "query": "check if my muggle auth is still valid and the MCP is connected",
+    "expected_skill": "muggle-status",
+    "note": "auth/mcp health"
+  },
+  {
+    "query": "muggle keeps not responding, is everything set up correctly?",
+    "expected_skill": "muggle-status",
+    "note": "diagnose-first lean"
+  },
+  {
+    "query": "muggle repair",
+    "expected_skill": "muggle-repair",
+    "note": "explicit repair"
+  },
+  {
+    "query": "my muggle MCP won't load, fix the setup",
+    "expected_skill": "muggle-repair",
+    "note": "fix intent"
+  },
+  {
+    "query": "fix my broken muggle installation",
+    "expected_skill": "muggle-repair",
+    "note": "fix broken install"
+  },
+  {
+    "query": "reinstall and repair the muggle tooling, it's busted",
+    "expected_skill": "muggle-repair",
+    "note": "repair tooling"
+  },
+  {
+    "query": "muggle upgrade",
+    "expected_skill": "muggle-upgrade",
+    "note": "explicit upgrade"
+  },
+  {
+    "query": "update muggle to the latest version",
+    "expected_skill": "muggle-upgrade",
+    "note": "update latest"
+  },
+  {
+    "query": "is there a newer muggle? get it",
+    "expected_skill": "muggle-upgrade",
+    "note": "get newer"
+  },
+  {
+    "query": "what's the capital of France?",
+    "expected_skill": "none",
+    "note": "unrelated"
+  },
+  {
+    "query": "write a unit test for the formatCurrency function with jest",
+    "expected_skill": "none",
+    "note": "unit test, not E2E"
+  },
+  {
+    "query": "the test in CI is flaky, help me debug why it intermittently fails",
+    "expected_skill": "none",
+    "note": "debug flaky test"
+  },
+  {
+    "query": "review this PR for me: https://github.com/acme/web/pull/77",
+    "expected_skill": "none",
+    "note": "code review, not muggle"
+  },
+  {
+    "query": "import lodash and use debounce in this component",
+    "expected_skill": "none",
+    "note": "import library near-miss"
+  },
+  {
+    "query": "upgrade my npm dependencies to the latest minor versions",
+    "expected_skill": "none",
+    "note": "deps upgrade near-miss"
+  },
+  {
+    "query": "set up a prettier config for the repo",
+    "expected_skill": "none",
+    "note": "config near-miss (not muggle prefs)"
+  },
+  {
+    "query": "check the health of my kubernetes pods in prod",
+    "expected_skill": "none",
+    "note": "infra health near-miss"
+  },
+  {
+    "query": "fix the broken webpack build",
+    "expected_skill": "none",
+    "note": "repair near-miss (app build)"
+  },
+  {
+    "query": "write release notes for our product launch",
+    "expected_skill": "none",
+    "note": "release near-miss (notes)"
+  },
+  {
+    "query": "prepare the slides for tomorrow's demo",
+    "expected_skill": "none",
+    "note": "prepare near-miss"
+  },
+  {
+    "query": "post a comment on the PR saying LGTM",
+    "expected_skill": "none",
+    "note": "PR near-miss (just a comment)"
+  },
+  {
+    "query": "can you give me feedback on my resume draft in resume.pdf",
+    "expected_skill": "none",
+    "note": "feedback near-miss (not a muggle run)"
+  },
+  {
+    "query": "run the full test suite with npm test",
+    "expected_skill": "none",
+    "note": "test near-miss (npm/unit)"
+  },
+  {
+    "query": "log my workout for today: 5k run and squats",
+    "expected_skill": "none",
+    "note": "do-task/log near-miss, no website"
+  }
 ]

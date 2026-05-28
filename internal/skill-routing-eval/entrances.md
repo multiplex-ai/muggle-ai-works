@@ -58,11 +58,16 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 
 ## muggle-upgrade
 **Engage when:** the user wants to **update Muggle to the latest version** — "muggle upgrade", "update muggle", "get the latest muggle".
-**Boundary vs `none`:** upgrading the user's npm deps / other tooling is not this. **Boundary vs `muggle-works-npm-release`:** consuming a new version ≠ publishing one.
+**Boundary vs `none`:** upgrading the user's npm deps / other tooling is not this.
 
-## muggle-works-npm-release
-**Engage when:** the user wants to **cut/publish a `@muggleai/works` npm release** — "release works", "cut a new works version", "publish @muggleai/works", "ship a patch release of works". Maintainer action on this repo.
-**Boundary vs `muggle-upgrade`:** publish (producer) vs update (consumer). **Boundary vs `none`:** releasing some *other* package is not this.
+## Explicit-invocation skills (command-only, out of auto-trigger scope)
+
+Some skills are invoked only when the user explicitly types their command — they carry `disable-model-invocation` and must never auto-trigger from natural language, so they sit outside the auto-trigger eval. Documented here so the surface is complete:
+
+- **muggle-pr-followup** — a per-PR review-thread watcher. The user runs it explicitly: `/muggle:muggle-pr-followup <pr-url>` to bootstrap a watcher on a PR, or `/loop 1m /muggle:muggle-pr-followup <slug> <n>` to poll. It polls one PR for new submitted reviews and hands them to `/muggle-do`; it does not classify or reply itself.
+- **muggle-do** — the autonomous implement-to-PR executor (`muggle do` / the `address-reviews` directive).
+
+`muggle-works-npm-release` (cutting a `@muggleai/works` npm release) is maintainer-only, not a customer-facing routing target — excluded from this eval and a candidate to relocate out of the published plugin surface into `internal/`.
 
 ## none (negative class)
 Queries that share vocabulary with the above but must **not** route to any muggle skill: unit tests (jest/vitest), debugging a flaky CI test, reviewing a PR, importing a code library, upgrading app dependencies, configuring unrelated tools, checking infra/k8s health, fixing the app build, writing product release notes. These guard against keyword over-triggering.

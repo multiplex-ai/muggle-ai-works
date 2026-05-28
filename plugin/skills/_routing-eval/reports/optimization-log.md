@@ -25,3 +25,13 @@ Each entry: the genuine routing miss from the baseline, the description change, 
 **Change (optimizer, accepted):** lead with environment readiness and explicitly claim confirming that *specific ports or localhost URLs are listening/up before testing*, with the exact example, and a "not running the tests themselves" boundary.
 
 **Re-run (8/8):** failing query → `muggle-test-prepare` 3/3; all 4 other prepare positives pass; `muggle-test` ("validate before PR", "test on staging") and `muggle-test-feature-local` ("checkout on localhost") siblings unaffected.
+
+---
+
+# Verified-clean entrances (no change needed)
+
+These 11 skills routed at 100% recall with zero false triggers in the baseline. Their entrances are confirmed correct; the description is left unchanged because editing a passing description can only risk regression. One PR each documents the verification.
+
+## muggle — verified 4/4
+
+Router/menu. Fires on bare `muggle` or "what can muggle do"; any specific intent routes straight past it to the matching skill.

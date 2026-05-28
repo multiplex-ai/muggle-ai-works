@@ -299,6 +299,19 @@ const testCaseTools: IQaToolDefinition[] = [
     },
   },
   {
+    name: "muggle-remote-test-case-ancestors-get",
+    description:
+      "Resolve a test case's prerequisite chain from the project's test-plan graph. Returns { testCaseId, ancestors, orphan } where `ancestors` is an array of test case IDs ordered immediate-parent → root (empty when the case is a graph root). `orphan: true` means the case has no graph node, so it has no prerequisites. Call this before generating or replaying a script to ensure every prerequisite test case already has a ready script.",
+    inputSchema: schemas.TestCaseAncestorsGetInputSchema,
+    mapToUpstream: (input) => {
+      const data = input as z.infer<typeof schemas.TestCaseAncestorsGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/test-plan-graph/test-cases/${data.testCaseId}/ancestors`,
+      };
+    },
+  },
+  {
     name: "muggle-remote-test-case-list-by-use-case",
     description: "List test cases for a specific use case.",
     inputSchema: schemas.TestCaseListByUseCaseInputSchema,

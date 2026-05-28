@@ -312,6 +312,10 @@ export const TestCaseGetInputSchema = z.object({
   testCaseId: IdSchema.describe("Test case ID (UUID) to retrieve"),
 });
 
+export const TestCaseAncestorsGetInputSchema = z.object({
+  testCaseId: IdSchema.describe("Test case ID (UUID) to resolve the test-plan-graph ancestor chain for"),
+});
+
 export const TestCaseListByUseCaseInputSchema = z.object({
   useCaseId: IdSchema.describe("Use case ID (UUID) to list test cases for"),
 });

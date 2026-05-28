@@ -67,3 +67,7 @@ Health-check/diagnose the Muggle install. Distinct from muggle-repair, which fix
 ## muggle-repair — verified 4/4
 
 Fix a broken Muggle install. Distinct from muggle-status (diagnose) and from fixing the user's own app build.
+
+## muggle-upgrade — verified 3/3
+
+Update Muggle to latest. Distinct from upgrading app deps and from muggle-works-npm-release (publish).

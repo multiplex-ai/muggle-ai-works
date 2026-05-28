@@ -45,6 +45,8 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 
 `testing_scope` records what the user is testing (from [scope](./steps/scope.md)). `excluded_services` records services the user said can't run locally (from [viability-check](./steps/viability-check.md)).
 
+This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge.
+
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
 - Option 2: "Tear down and start fresh"
@@ -59,6 +61,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 | Preference | Gates |
 |------------|-------|
 | `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<default>` before starting dev servers |
+| `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover |
 
 ## Workflow
 
@@ -66,6 +69,7 @@ Run the stages in this order. The sequence number is display-only — it lives o
 
 | # | Stage | Summary |
 |:--|:------|:--------|
+| 0 | [reuse-plan](./steps/reuse-plan.md) | Reuse saved prepare plan (gated); short-circuits to check-running on reuse |
 | 1 | [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
 | 2 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | 3 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |

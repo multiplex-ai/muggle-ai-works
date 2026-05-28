@@ -1,7 +1,6 @@
 ---
 name: muggle-pr-followup
-description: Watcher loop for PR review follow-ups. Polls one PR for new submitted reviews and dispatches `/muggle-do` (address-reviews mode) when there are any. A dumb pipe — no classification, no cycle execution, no replies. Run it with no args to auto-track every PR you pushed this session (poll-only watchers, any repo). Use `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling, or `/muggle:muggle-pr-followup <pr-url>` to bootstrap a fresh watcher on an existing PR (asks once for the E2E validation context, then runs unattended).
-disable-model-invocation: true
+description: Use this skill to watch one open pull request's review thread and follow up automatically — it polls the PR for newly submitted reviews and, when any land, hands them to `/muggle-do` to address. Engage whenever the user wants ongoing PR review follow-up: "watch my PR for review comments and address them", "keep an eye on PR #123 and respond to reviews as they come in", "follow up on my PR's reviews", "babysit this PR's review thread". Run with no args to auto-track every PR you pushed this session (any repo); pass a PR URL to bootstrap a watcher on a specific PR; or `/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>` for ongoing polling. It is a dumb pipe — it only polls and dispatches; classification, edits, replies, and E2E live in `/muggle-do`. Not for posting test results to a PR (use muggle-pr-visual-walkthrough) or for a one-off implementation with no review-watching (use muggle-do).
 ---
 
 # muggle-pr-followup

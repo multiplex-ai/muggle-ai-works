@@ -63,3 +63,7 @@ View/set/reset Muggle config. Distinct from configuring unrelated tooling (prett
 ## muggle-status — verified 4/4
 
 Health-check/diagnose the Muggle install. Distinct from muggle-repair, which fixes; "is it broken?" leans status.
+
+## muggle-repair — verified 4/4
+
+Fix a broken Muggle install. Distinct from muggle-status (diagnose) and from fixing the user's own app build.

@@ -43,3 +43,7 @@ Perform an action on a website (post, fill, submit, click a flow). Distinct from
 ## muggle-test-feature-local — verified 6/6
 
 Real-browser E2E test of one named feature/flow on localhost. Distinct from muggle-test, which is change-driven over the whole diff before push/PR.
+
+## muggle-test-import — verified 6/6
+
+Bring existing tests/PRDs/specs INTO Muggle. Distinct from muggle-test-regenerate-missing (existing project cases) and from importing a code library.

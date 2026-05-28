@@ -1,5 +1,7 @@
 # Identify required services & startup mode
 
+> Skipped when [reuse-plan](./reuse-plan.md) short-circuits — a reused plan supplies the service list and startup mode.
+
 List folder names in the **parent directory** of the current working directory:
 
 ```bash

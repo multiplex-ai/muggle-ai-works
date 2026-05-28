@@ -51,3 +51,7 @@ Bring existing tests/PRDs/specs INTO Muggle. Distinct from muggle-test-regenerat
 ## muggle-test-regenerate-missing — verified 5/5
 
 Bulk-fill scripts for project test cases that lack one. Distinct from muggle-test-import, which pulls from an external source.
+
+## muggle-pr-visual-walkthrough — verified 5/5
+
+Post existing E2E results/screenshots to a PR. Distinct from muggle-test, which runs the tests.

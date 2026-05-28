@@ -39,3 +39,7 @@ Router/menu. Fires on bare `muggle` or "what can muggle do"; any specific intent
 ## muggle-do-task — verified 5/5
 
 Perform an action on a website (post, fill, submit, click a flow). Distinct from muggle-test-feature-local (verify a flow works) and muggle-test (test code changes).
+
+## muggle-test-feature-local — verified 6/6
+
+Real-browser E2E test of one named feature/flow on localhost. Distinct from muggle-test, which is change-driven over the whole diff before push/PR.

@@ -35,3 +35,7 @@ These 11 skills routed at 100% recall with zero false triggers in the baseline. 
 ## muggle — verified 4/4
 
 Router/menu. Fires on bare `muggle` or "what can muggle do"; any specific intent routes straight past it to the matching skill.
+
+## muggle-do-task — verified 5/5
+
+Perform an action on a website (post, fill, submit, click a flow). Distinct from muggle-test-feature-local (verify a flow works) and muggle-test (test code changes).

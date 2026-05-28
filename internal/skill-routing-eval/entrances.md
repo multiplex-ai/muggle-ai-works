@@ -2,7 +2,7 @@
 
 The "entrance" of a skill is the surface where it becomes relevant and should be recommended: the user intents, phrasings, and contexts that route to it — and the sibling skills it must *not* steal from. This is the contract the router eval (`eval-set.json` + `router_eval.py`) measures each skill's `description` against.
 
-Scope: the 14 skills that auto-trigger from natural language. The `m*` short aliases and `disable-model-invocation` skills (`muggle-do`, `muggle-pr-followup`) fire only on explicit `/command` typing and are out of scope — their descriptions never compete for natural-language routing.
+Scope: the 14 skills that auto-trigger from natural language (now including `muggle-pr-followup`, which was made model-invocable). The `m*` short aliases and the remaining `disable-model-invocation` skill (`muggle-do`) fire only on explicit `/command` typing and are out of scope. `muggle-works-npm-release` is maintainer-only (relocated to `internal/`) and excluded.
 
 The hardest routing lives at the boundaries between siblings; each entrance below names the neighbor it is most often confused with and the discriminator.
 
@@ -60,14 +60,15 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 **Engage when:** the user wants to **update Muggle to the latest version** — "muggle upgrade", "update muggle", "get the latest muggle".
 **Boundary vs `none`:** upgrading the user's npm deps / other tooling is not this.
 
+## muggle-pr-followup
+**Engage when:** the user wants **ongoing follow-up on a PR's review thread** — "watch my PR for review comments and address them", "keep an eye on PR #123 and respond to reviews as they come in", "follow up on my PR's reviews", "babysit this PR's review thread". It polls the PR for newly submitted reviews and hands them to `muggle-do`. Also: no args → auto-track every PR pushed this session; a PR URL → bootstrap a watcher on that PR.
+**Boundary vs `muggle-do`:** the watcher only polls + dispatches; the classify/edit/reply/E2E work is `muggle-do`. **Boundary vs `muggle-pr-visual-walkthrough`:** watching a PR for incoming reviews ≠ posting test results to a PR. **Boundary vs `none`:** a one-off "review this PR" or "merge my PR" is not a standing watcher.
+
 ## Explicit-invocation skills (command-only, out of auto-trigger scope)
 
-Some skills are invoked only when the user explicitly types their command — they carry `disable-model-invocation` and must never auto-trigger from natural language, so they sit outside the auto-trigger eval. Documented here so the surface is complete:
+`muggle-do` — the autonomous implement-to-PR executor (`muggle do` / the `address-reviews` directive) — carries `disable-model-invocation` and fires only when explicitly invoked, so it stays out of the auto-trigger eval.
 
-- **muggle-pr-followup** — a per-PR review-thread watcher. The user runs it explicitly: `/muggle:muggle-pr-followup <pr-url>` to bootstrap a watcher on a PR, or `/loop 1m /muggle:muggle-pr-followup <slug> <n>` to poll. It polls one PR for new submitted reviews and hands them to `/muggle-do`; it does not classify or reply itself.
-- **muggle-do** — the autonomous implement-to-PR executor (`muggle do` / the `address-reviews` directive).
-
-`muggle-works-npm-release` (cutting a `@muggleai/works` npm release) is maintainer-only, not a customer-facing routing target — excluded from this eval and a candidate to relocate out of the published plugin surface into `internal/`.
+`muggle-works-npm-release` (cutting a `@muggleai/works` npm release) is maintainer-only, relocated to `internal/` (PR #217) — not a customer-facing routing target.
 
 ## none (negative class)
 Queries that share vocabulary with the above but must **not** route to any muggle skill: unit tests (jest/vitest), debugging a flaky CI test, reviewing a PR, importing a code library, upgrading app dependencies, configuring unrelated tools, checking infra/k8s health, fixing the app build, writing product release notes. These guard against keyword over-triggering.

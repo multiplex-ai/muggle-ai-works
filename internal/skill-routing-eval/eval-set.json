@@ -365,6 +365,126 @@
     "note": "HARD near-boundary: 'failed at upload step' on a remote run, but the wrongness is the generated script and intent is to flag + regenerate"
   },
   {
+    "query": "watch PR #218 and address any review comments that come in",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "keep an eye on my PR https://github.com/multiplex-ai/muggle-ai-works/pull/342 and respond to new reviews",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "babysit the review thread on my open PR and handle feedback as reviewers leave it",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "follow up on my PR's reviews \u2014 when someone reviews, address their comments and push",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "i just pushed a PR, can you keep polling it and deal with review comments as they land",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "set up a watcher on PR 512 so review feedback gets addressed automatically",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "track all the PRs I opened this session and follow up on their reviews",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "watch every PR I pushed today for new review submissions",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "monitor my pull request for reviewer comments and auto-address them",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "start following up on https://github.com/acme/web/pull/77 \u2014 bootstrap a review watcher",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "poll my PR every minute and when a review is submitted, address it",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "keep watching the PR review thread and respond to each round of feedback until it's clean",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "auto-handle review comments on my open PRs as they come in",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "i'm stepping away \u2014 watch my PR and address reviews while I'm gone",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "can you babysit pr #99 and push fixes whenever the reviewer leaves comments",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "set up review follow-up on the PR I just opened",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "watch the PR and dispatch fixes when new reviews show up",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "keep tabs on my pull request and resolve reviewer feedback automatically",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "follow up on review threads for the branch I just pushed",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "watch PR https://github.com/multiplex-ai/muggle-ai-works/pull/196 for new submitted reviews",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "start a watcher that addresses my PR's reviews as reviewers submit them",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "i opened a PR \u2014 watch it and respond to review comments automatically, I don't want to keep checking",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "keep monitoring my PR and address review feedback round after round until reviewers are satisfied",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
+    "query": "track my session PRs and address incoming review comments for me",
+    "expected_skill": "muggle-pr-followup",
+    "note": "ongoing PR review follow-up watcher"
+  },
+  {
     "query": "The E2E run just finished green \u2014 post the visual walkthrough to PR #482 so the reviewers can see the screenshots.",
     "expected_skill": "muggle-pr-visual-walkthrough",
     "note": "Core: run already done, publish walkthrough with screenshots to PR."
@@ -1818,5 +1938,20 @@
     "query": "draft an email to the client letting them know the launch slipped to Friday",
     "expected_skill": "none",
     "note": "traps muggle-do-task (\"draft\"/action); writing an email, not performing an action on a website"
+  },
+  {
+    "query": "merge my PR into main once the checks pass",
+    "expected_skill": "none",
+    "note": "pr-followup near-miss: merge automation, not a review watcher"
+  },
+  {
+    "query": "give me a summary of the review comments left on PR #50",
+    "expected_skill": "none",
+    "note": "pr-followup near-miss: summarize only, not watch+address"
+  },
+  {
+    "query": "ping the team on slack to review my PR",
+    "expected_skill": "none",
+    "note": "pr-followup near-miss: nudge reviewers, not a watcher"
   }
 ]

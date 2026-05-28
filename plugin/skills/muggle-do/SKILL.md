@@ -25,6 +25,31 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 
 Stage 7 dispatches one watcher per opened PR as its last action.
 
+## Execution protocol (non-negotiable)
+
+The pipeline table lists **pointers, not summaries**. Open each stage's file and execute from it — running a stage off its one-line row here is how tests, E2E, and session state get silently skipped. If you have not read a stage's file this run, you have not run that stage.
+
+**Bootstrap before any code, in order:**
+1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
+2. Create `.muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
+3. `TodoWrite` one item per stage 1–8 — these stages are the checklist; never swap in your own decomposition.
+
+**Per stage:** read the file → execute it → append a marker to `iterations/<NNN>.md` citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
+
+### "Autonomous" / "without my intervention" collapses exactly one thing
+Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, or the watcher hand-off. Run the whole pipeline silently — never a shortcut.
+
+### Definition of Done — gate before Stage 7
+Do not create or update a PR until each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver):
+- `requirements.md` written (forward runs)
+- Build clean — typecheck + lint on changed files
+- New/changed logic carries unit tests (authored in Stage 3; Stage 5 only runs the suite)
+- Unit suite run, PASS recorded
+- E2E verdict recorded with `runId` per `autoE2ETest` — or `[E2E FAILING]` / `SKIPPED` + reason
+- UI changes verified in a real browser with evidence (screenshot path or muggle `runId`); `curl` + `grep` is not verification
+
+Opening a PR with an unchecked, unwaived line is a cycle failure.
+
 ## Address-reviews flow
 
 When invoked with the directive (PR URL + slug + review ids), routes to [`../do/address-reviews.md`](../do/address-reviews.md). Shares stages 3–6 + walkthrough with the forward pipeline; skips pre-flight, requirements, and PR creation. See the orchestrator for the cycle's exact step order, classification rules, and respawn logic.

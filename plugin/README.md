@@ -33,7 +33,7 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-repair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | Update Electron browser test runner and MCP server to latest version. |
 
-Each skill above also ships a short alias to save typing — `m` (router), `mtest`, `mdo`, `mpr`, `mprefs`, `mstatus`, `mrepair`, `mupgrade`, `mfeedback`, `mimport`, `mtestlocal`, `mtestprep`, `mregen`, `mrelease`. Type `/m` (Claude Code) or `m` (Cursor) to open the menu, or jump straight to one (e.g. `/mtest`).
+Each skill above also ships a short alias to save typing — `m` (router), `mtest`, `mdo`, `mpr`, `mprefs`, `mstatus`, `mrepair`, `mupgrade`, `mfeedback`, `mimport`, `mtestlocal`, `mtestprep`, `mregen`. Type `/m` (Claude Code) or `m` (Cursor) to open the menu, or jump straight to one (e.g. `/mtest`).
 
 ## MCP Tools
 

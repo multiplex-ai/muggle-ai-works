@@ -71,3 +71,7 @@ Fix a broken Muggle install. Distinct from muggle-status (diagnose) and from fix
 ## muggle-upgrade — verified 3/3
 
 Update Muggle to latest. Distinct from upgrading app deps and from muggle-works-npm-release (publish).
+
+## muggle-works-npm-release — verified 4/4
+
+Cut/publish a @muggleai/works npm release. Distinct from muggle-upgrade (consume) and from releasing some other package.

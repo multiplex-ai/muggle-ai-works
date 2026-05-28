@@ -16,7 +16,7 @@ A loaded plan is a JSON object with `version`, `updated`, `testing_scope`, `excl
 
 Per [`muggle-preferences/preference-gates/README.md`](../../muggle-preferences/preference-gates/README.md). Read the current value from the `Muggle Test Preferences` session-context line; absent → `ask`.
 
-- `always` → silently take the **reuse path** (below). Print the silent footer.
+- `always` → silently take the **reuse path** (below). Print the silent footer (substitute `{services}` with the comma-separated names from the loaded plan).
 - `never` → take the **rediscover path**: exit this step; continue at [rebase-check](./rebase-check.md).
 - `ask` → print the loaded plan as a table:
 

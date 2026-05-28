@@ -53,4 +53,4 @@ Then print, once:
   (Disable with `/muggle-preferences reusePreparePlan`.)
 ```
 
-If this run short-circuited via [reuse-plan](./reuse-plan.md), don't rewrite — but **do** refresh `updated` and any `command`/`port` that changed during validation. Skip the announcement on the refresh path.
+If this run short-circuited via [reuse-plan](./reuse-plan.md), don't rewrite — but **do** refresh `updated` and any `command` that was re-derived during validation. Skip the announcement on the refresh path.

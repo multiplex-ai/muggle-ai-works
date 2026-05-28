@@ -6,7 +6,7 @@ Run port detection and (when an app declares a backend URL) backend-health probe
 
 If **all** required services are running, skip straight to [smoke-test](./smoke-test.md) — don't trust port-listening alone.
 
-If some are running, acknowledge and continue to [start-commands](./start-commands.md) only for the missing ones. For already-running services:
+If some are running, acknowledge and continue to [start-commands](./start-commands.md) only for the missing ones. **Exception:** when this stage is entered via the [reuse-plan](./reuse-plan.md) short-circuit, the missing entries already have their `command` populated in `/tmp/muggle-test-prepare.json` from the reused plan — skip `start-commands` and go straight to [env-file](./env-file.md). For already-running services:
 - Option 1: "It's fine, keep it"
 - Option 2: "Restart it"
 

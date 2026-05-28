@@ -47,3 +47,7 @@ Real-browser E2E test of one named feature/flow on localhost. Distinct from mugg
 ## muggle-test-import — verified 6/6
 
 Bring existing tests/PRDs/specs INTO Muggle. Distinct from muggle-test-regenerate-missing (existing project cases) and from importing a code library.
+
+## muggle-test-regenerate-missing — verified 5/5
+
+Bulk-fill scripts for project test cases that lack one. Distinct from muggle-test-import, which pulls from an external source.

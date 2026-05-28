@@ -59,3 +59,7 @@ Post existing E2E results/screenshots to a PR. Distinct from muggle-test, which 
 ## muggle-preferences — verified 4/4
 
 View/set/reset Muggle config. Distinct from configuring unrelated tooling (prettier, eslint, git).
+
+## muggle-status — verified 4/4
+
+Health-check/diagnose the Muggle install. Distinct from muggle-repair, which fixes; "is it broken?" leans status.

@@ -12,6 +12,7 @@
         "mimport",
         "mtestlocal",
         "mtestprep",
-        "mregen"
+        "mregen",
+        "mprfollowup"
     ]
 }

@@ -1,0 +1,418 @@
+{
+  "model": "default",
+  "runs_per_query": 3,
+  "total": 34,
+  "passed": 34,
+  "failed": 0,
+  "accuracy": 1.0,
+  "results": [
+    {
+      "query": "muggle status",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Explicit canonical trigger \u2014 bare status command."
+    },
+    {
+      "query": "Can you run muggle status for me real quick?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Explicit status request, casual phrasing."
+    },
+    {
+      "query": "Is my Muggle install healthy right now?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Direct health-check intent."
+    },
+    {
+      "query": "Check whether the Muggle MCP is connected properly.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "MCP connection health check."
+    },
+    {
+      "query": "Is my muggle auth still valid or did my login expire?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Auth/login validity check."
+    },
+    {
+      "query": "I want to make sure muggle is set up correctly before I start testing.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "\"Is it set up right\" verification intent."
+    },
+    {
+      "query": "Give me a full health report on my Muggle Test setup.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Health report = diagnose/report, status."
+    },
+    {
+      "query": "Are the muggle MCP tools actually loading? Want to confirm they're live.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "MCP health, confirm not fix."
+    },
+    {
+      "query": "Did my Muggle session token expire? Check my auth please.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Auth validity diagnose."
+    },
+    {
+      "query": "Verify that everything in my muggle environment is wired up right.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Setup correctness check."
+    },
+    {
+      "query": "Can you confirm Muggle is talking to the backend okay?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Connectivity/health confirmation."
+    },
+    {
+      "query": "What's the current state of my muggle installation \u2014 all green?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Status report phrasing."
+    },
+    {
+      "query": "I just installed muggle. Can you check it's configured properly?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Post-install setup verification."
+    },
+    {
+      "query": "Run a quick diagnostic on muggle and tell me if anything looks off.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Diagnose-only intent, report findings."
+    },
+    {
+      "query": "Is the muggle MCP server reachable from here? Just checking.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "none",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "MCP reachability check, diagnose."
+    },
+    {
+      "query": "muggle's been acting up today \u2014 can you take a look and tell me what's wrong?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: ambiguous \"acting up\" + diagnose intent, leans status (diagnose before fix)."
+    },
+    {
+      "query": "Muggle isn't responding when I try to run tests. Is something broken with it?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: \"is something broken?\" is diagnose, not \"fix it\" \u2192 status."
+    },
+    {
+      "query": "The MCP keeps timing out \u2014 can you figure out if it's a muggle health issue?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: investigate cause vs repair; intent is diagnose \u2192 status."
+    },
+    {
+      "query": "I think my muggle login might be busted. Can you check before I do anything?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: suspects breakage but asks to CHECK first \u2192 status."
+    },
+    {
+      "query": "Muggle commands are failing silently. Is it me or is the install unhealthy?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: \"is the install unhealthy?\" diagnose framing \u2192 status."
+    },
+    {
+      "query": "Something feels off with muggle \u2014 diagnose it for me, don't fix anything yet.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "HARD near-boundary: explicit diagnose-only, defer fixing \u2192 status."
+    },
+    {
+      "query": "Before I report a bug, can you tell me if my muggle auth and MCP are healthy?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Health check of auth + MCP, report intent."
+    },
+    {
+      "query": "Why does muggle keep saying it can't connect? Check its status for me.",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Connectivity symptom + explicit status check."
+    },
+    {
+      "query": "Quick sanity check \u2014 is muggle good to go or is there a problem with the setup?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "Sanity/health check, diagnose whether setup is okay."
+    },
+    {
+      "query": "muggle repair",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "Canonical explicit invocation of the repair skill."
+    },
+    {
+      "query": "Run muggle repair, my setup is hosed.",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "Explicit 'muggle repair' plus broken-setup framing."
+    },
+    {
+      "query": "My muggle install is completely busted, can you fix it?",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "Plain 'busted, fix it' broken-install repair intent."
+    },
+    {
+      "query": "The muggle MCP server won't load in Claude \u2014 please repair the install.",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "MCP won't load -> explicit repair request."
+    },
+    {
+      "query": "run npm test and tell me which jest specs are failing in src/utils/date.test.ts",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "traps muggle-test (\"test\"); this is running the project's Jest unit suite, not change-driven E2E acceptance testing"
+    },
+    {
+      "query": "this vitest test is flaky on CI \u2014 sometimes passes, sometimes times out. can you figure out why?",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": true,
+      "note": "traps muggle-test / muggle-status (\"flaky CI test\"); needs systematic-debugging of a unit test, not a muggle run"
+    },
+    {
+      "query": "write a unit test for the calculateTax() function using jest",
+      "expected_skill": "none",
+      "fired": [
+        "test-driven-development",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "traps muggle-test (\"test\"); authoring a code-level unit test, no browser/E2E/muggle involvement"
+    },
+    {
+      "query": "our k6 load test shows p95 latency spiking to 4s above 500 RPS, help me read the results",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "systematic-debugging",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "traps muggle-test (\"load test\"); performance/load testing analysis, not E2E acceptance"
+    },
+    {
+      "query": "can you review my manual QA notes from yesterday's smoke run and turn them into a checklist?",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "traps muggle-test (\"QA\"/\"run\"); editing a doc, not running any muggle test"
+    },
+    {
+      "query": "the github actions test job went red on main, dig into the logs and find the break",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": true,
+      "note": "traps muggle-test / muggle-status (\"test\", \"red\", \"CI\"); debugging a failing CI pipeline, not a muggle E2E run"
+    }
+  ]
+}

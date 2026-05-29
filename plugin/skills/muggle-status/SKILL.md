@@ -1,6 +1,6 @@
 ---
 name: muggle-status
-description: Check health of the Muggle AI installation. Use when user types muggle status, asks for Muggle Test health, MCP health, or auth validity.
+description: Use this skill to check the health of the user's Muggle AI installation and diagnose why it's misbehaving — MCP server connectivity, tool loading, login/auth validity, and overall setup. Engage on an explicit "muggle status", but also on any diagnostic question about Muggle itself: "is muggle working / healthy / set up right?", "why does muggle keep failing / timing out / saying it can't connect?", "are the muggle MCP tools actually loading?", "is my muggle login/auth still valid?", "muggle's been acting up — take a look / what's wrong?", "muggle commands fail silently — is the install unhealthy?". This is diagnosis and reporting: prefer it over answering from memory whenever the user is unsure Muggle itself is functioning. Boundary: checking/diagnosing is muggle-status; actually fixing a broken install is muggle-repair (a clear "fix it" goes there). Not for the health of the user's own app, CI, or infrastructure.
 ---
 
 # Muggle Test Status

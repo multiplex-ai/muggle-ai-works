@@ -12,7 +12,6 @@
         "mimport",
         "mtestlocal",
         "mtestprep",
-        "mregen",
-        "mrelease"
+        "mregen"
     ]
 }

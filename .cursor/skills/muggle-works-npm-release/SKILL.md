@@ -1,16 +1,15 @@
 ---
 name: muggle-works-npm-release
 description: >-
-  Cut @muggleai/works release: AskQuestion (major/minor/patch), sync master, stop if
+  Cut @muggleai/works release: AskUserQuestion (major/minor/patch), sync master, stop if
   nothing ships, semver baseline + Electron from GitHub, confirm plan, bump
   package.json + sync:versions, full local verify, chore(release) PR, merge via gh,
   dispatch publish-works-to-npm.yml—no local npm publish.
 ---
 
-Canonical source of truth: **`plugin/skills/muggle-works-npm-release/SKILL.md`**.
-Keep this `.cursor` copy aligned for local Cursor discovery.
+# Muggle Test Works — npm release (single playbook)
 
-# Muggle Works — npm release (single playbook)
+> Maintainer-only. Lives under `internal/` and is not shipped in the published plugin.
 
 Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish-works-to-npm.yml`** (“Publish Works to npm”). **Never** run local **`npm publish`** (OIDC trusted publishing in CI).
 
@@ -20,7 +19,7 @@ Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish
 
 **Stop until the user answers.**
 
-**Prefer `AskQuestion`** with exactly these three options: **major**, **minor**, **patch** (fix). If the environment has no structured question tool, ask the same in plain text:
+**Prefer `AskUserQuestion`** with exactly these three options: **major**, **minor**, **patch** (fix). If the environment has no structured question tool, ask the same in plain text:
 
 > Is this release a **major**, **minor**, or **patch** (fix)?
 
@@ -188,7 +187,7 @@ Give the user the **Actions run URL**. If npm lags, wait ~60s and retry.
 ## Rules
 
 - **No local `npm publish`.**
-- **Phase 1:** use **`AskQuestion`** for major / minor / patch when available (see Phase 1).
+- **Phase 1:** use **`AskUserQuestion`** for major / minor / patch when available (see Phase 1).
 - Phases 1–3: keep chat concise; Phase 4–5 can be terse status lines.
 - If the user cancels after Phase 3, **do not** merge or dispatch CI.
 - **Tag vs npm:** **`v*`** tags are for the **npm** package; **`electron-app-v*`** is separate — **`electronAppVersion`** can move independently of **`version`**.

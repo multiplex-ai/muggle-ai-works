@@ -123,7 +123,7 @@ Call local execution MCP tools directly (for example `muggle-local-execute-test-
 
 ---
 
-## How does it work?
+## Architecture
 
 muggle-ai-works separates test management from test execution. All entity management (projects, use cases, test cases) lives in the cloud via `muggle-remote-*` tools. Local execution (`muggle-local-*`) is stateless — it receives what it needs and runs the test.
 
@@ -556,7 +556,7 @@ CI/CD and publishing
 | `verify-end-user-upgrade.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
 | `publish-works-to-npm.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
 
-**Publishing `@muggleai/works`:** use the maintainer-only skill **`internal/skills/muggle-works-npm-release/SKILL.md`** (bump + `pnpm run sync:versions`, local verify, `chore(release)` PR, merge, then `workflow_dispatch` with an explicit `version`). Do not rely on tagging alone while `package.json` / marketplace manifests on `master` are still old — CI can publish a version that does not match the checked-in manifests. Tag `v*` push remains a valid workflow trigger when it matches the merged release commit.
+**Publishing `@muggleai/works`:** use the maintainer-only skill **`.claude/skills/muggle-works-npm-release/SKILL.md`** — a repo-local project skill (invoke `/muggle-works-npm-release` in Claude Code, or `/mrelease`, while working in this repo; mirrored to `.cursor/skills/` for Cursor). It is intentionally not in the published plugin (`plugin/skills/`) since it is maintainer-only. It does the bump + `pnpm run sync:versions`, local verify, `chore(release)` PR, merge, then `workflow_dispatch` with an explicit `version`. Do not rely on tagging alone while `package.json` / marketplace manifests on `master` are still old — CI can publish a version that does not match the checked-in manifests. Tag `v*` push remains a valid workflow trigger when it matches the merged release commit.
 
 Release tag strategy
 

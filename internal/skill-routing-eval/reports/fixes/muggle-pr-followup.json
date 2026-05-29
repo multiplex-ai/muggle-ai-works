@@ -1,0 +1,358 @@
+{
+  "model": "default",
+  "runs_per_query": 3,
+  "total": 29,
+  "passed": 11,
+  "failed": 18,
+  "accuracy": 0.3793,
+  "results": [
+    {
+      "query": "watch PR #218 and address any review comments that come in",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "keep an eye on my PR https://github.com/multiplex-ai/muggle-ai-works/pull/342 and respond to new reviews",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "babysit the review thread on my open PR and handle feedback as reviewers leave it",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "follow up on my PR's reviews \u2014 when someone reviews, address their comments and push",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "receiving-code-review",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "i just pushed a PR, can you keep polling it and deal with review comments as they land",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "set up a watcher on PR 512 so review feedback gets addressed automatically",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "muggle-pr-followup",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "track all the PRs I opened this session and follow up on their reviews",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "muggle-pr-followup",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "watch every PR I pushed today for new review submissions",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "monitor my pull request for reviewer comments and auto-address them",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "muggle-pr-followup"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "start following up on https://github.com/acme/web/pull/77 \u2014 bootstrap a review watcher",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "muggle-pr-followup",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "poll my PR every minute and when a review is submitted, address it",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "keep watching the PR review thread and respond to each round of feedback until it's clean",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "receiving-code-review",
+        "receiving-code-review",
+        "receiving-code-review"
+      ],
+      "majority": "receiving-code-review",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "auto-handle review comments on my open PRs as they come in",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "i'm stepping away \u2014 watch my PR and address reviews while I'm gone",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "can you babysit pr #99 and push fixes whenever the reviewer leaves comments",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "set up review follow-up on the PR I just opened",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "muggle-pr-followup",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "watch the PR and dispatch fixes when new reviews show up",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "keep tabs on my pull request and resolve reviewer feedback automatically",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "follow up on review threads for the branch I just pushed",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "muggle-pr-followup",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "watch PR https://github.com/multiplex-ai/muggle-ai-works/pull/196 for new submitted reviews",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "none",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "start a watcher that addresses my PR's reviews as reviewers submit them",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "muggle-pr-followup"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "i opened a PR \u2014 watch it and respond to review comments automatically, I don't want to keep checking",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "keep monitoring my PR and address review feedback round after round until reviewers are satisfied",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "receiving-code-review",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": false,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "track my session PRs and address incoming review comments for me",
+      "expected_skill": "muggle-pr-followup",
+      "fired": [
+        "muggle-pr-followup",
+        "muggle-pr-followup",
+        "muggle-pr-followup"
+      ],
+      "majority": "muggle-pr-followup",
+      "pass": true,
+      "note": "ongoing PR review follow-up watcher"
+    },
+    {
+      "query": "check the deploy status every 5 minutes and tell me when it's done",
+      "expected_skill": "none",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": true,
+      "note": "generic loop, not PR reviews"
+    },
+    {
+      "query": "run my database backup script every hour",
+      "expected_skill": "none",
+      "fired": [
+        "schedule",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "generic recurring task"
+    },
+    {
+      "query": "poll the CI pipeline every 2 minutes until it goes green",
+      "expected_skill": "none",
+      "fired": [
+        "loop",
+        "none",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": true,
+      "note": "generic loop on CI"
+    },
+    {
+      "query": "keep refreshing the metrics dashboard every 30 seconds",
+      "expected_skill": "none",
+      "fired": [
+        "loop",
+        "loop",
+        "loop"
+      ],
+      "majority": "loop",
+      "pass": true,
+      "note": "generic loop"
+    },
+    {
+      "query": "review this PR for me: https://github.com/acme/web/pull/77",
+      "expected_skill": "none",
+      "fired": [
+        "review",
+        "review",
+        "none"
+      ],
+      "majority": "review",
+      "pass": true,
+      "note": "one-off code review, not a watcher"
+    }
+  ]
+}

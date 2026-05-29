@@ -63,6 +63,7 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 ## muggle-pr-followup
 **Engage when:** the user wants **ongoing follow-up on a PR's review thread** — "watch my PR for review comments and address them", "keep an eye on PR #123 and respond to reviews as they come in", "follow up on my PR's reviews", "babysit this PR's review thread". It polls the PR for newly submitted reviews and hands them to `muggle-do`. Also: no args → auto-track every PR pushed this session; a PR URL → bootstrap a watcher on that PR.
 **Boundary vs `muggle-do`:** the watcher only polls + dispatches; the classify/edit/reply/E2E work is `muggle-do`. **Boundary vs `muggle-pr-visual-walkthrough`:** watching a PR for incoming reviews ≠ posting test results to a PR. **Boundary vs `none`:** a one-off "review this PR" or "merge my PR" is not a standing watcher.
+**Known limitation (accepted):** this skill competes with the platform's built-in `loop` skill, whose own examples ("poll for status", "keep running /babysit-prs") claim the "watch/poll/monitor a PR" phrasings. In the expanded eval it routed 6/24 — `loop` wins most of those head-to-head, and description tuning across two rewrites couldn't beat it (0→6→5). This is accepted: `loop` is a reasonable first hop that can itself run this skill, and explicit `/muggle:muggle-pr-followup` always works. Routing here is best-effort, not guaranteed.
 
 ## Explicit-invocation skills (command-only, out of auto-trigger scope)
 

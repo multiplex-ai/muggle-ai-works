@@ -41,7 +41,9 @@ Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>
 
 ### Step 5 — Idempotency check
 
-If `~/.muggle-ai/muggle-do/sessions/<slug>/` exists:
+**Legacy-slot migration.** Pre-move sessions lived at the repo-relative `.muggle-do/sessions/<slug>/` ([`state-schemas.md`](state-schemas.md#legacy-location)). If the new home-dir slot is absent but `<working-tree>/.muggle-do/sessions/<slug>/` exists (working tree from Step 3), move it to the new location first — this carries an in-flight watcher's cursor, `escalated_review_ids`, and `pushed_shas` across the upgrade. Bootstrap is the only stage that performs this: it is the one entry point that knows the old repo-relative path (the cwd), and it is the natural re-entry point after a plugin upgrade. A slot that fails to migrate loses nothing durable — GitHub holds the reviews, so a fresh bootstrap (cursor `0`) re-processes them.
+
+If `~/.muggle-ai/muggle-do/sessions/<slug>/` exists (including a slot just migrated above):
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
 - With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` and the cursor untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.

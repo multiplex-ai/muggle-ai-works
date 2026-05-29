@@ -4,6 +4,10 @@ Canonical shapes for the JSON files in a PR-follow-up session slot. The slot pat
 
 All files are atomic writes — the caller rewrites the whole file each time, never mutates in place. Use a temp file + rename if the platform supports it.
 
+## Legacy location
+
+Before the move to the user's home, slots lived at the repo-relative `.muggle-do/sessions/<slug>/` (one per working tree, still gitignored). Bootstrap's Step 5 migrates a legacy slot to the home-dir location on the next run for that PR; nothing else reads the old path. The state is ephemeral and reconstructible from GitHub, so an un-migrated slot costs only a re-bootstrap, not data.
+
 ## `prs.json`
 
 A list of one entry. (Historical: the file is an array for forward-compat with the original session-wide model. Today, each PR has its own session slot, so the array always has exactly one entry.)

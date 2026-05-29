@@ -28,7 +28,8 @@ For each option: label = key name, description = first paragraph of `preference-
 - `multiSelect: true`, `header: "Auth & session"` — `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`
 - `multiSelect: true`, `header: "Test setup"` — `autoSelectLocalHost`, `autoDetectChanges`, `autoReuseValidationContext`
 - `multiSelect: true`, `header: "Test run"` — `showElectronBrowser`, `openTestResultsAfterRun`, `autoPublishLocalResults`
-- `multiSelect: true`, `header: "Suggestions & PR"` — `suggestRelatedUseCases`, `suggestRelatedTestCases`, `postPRVisualWalkthrough`, `autoCreatePR`
+- `multiSelect: true`, `header: "Suggestions"` — `suggestRelatedUseCases`, `suggestRelatedTestCases`
+- `multiSelect: true`, `header: "PR"` — `postPRVisualWalkthrough`, `autoCreatePR`, `autoWatchPR`
 - `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`
 - `multiSelect: false`, `header: "E2E acceptance"` — `autoE2ETest`. Options: `Always run Stage 6 at the end` (`always` — default), `Ask each cycle` (`ask`). No `never` option.
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).

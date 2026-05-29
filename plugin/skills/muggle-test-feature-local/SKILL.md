@@ -51,6 +51,7 @@ Gates run per `preference-gates/README.md`.
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |
 | `autoCreatePR` | 10 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
+| `autoWatchPR` | 10.5 (if a PR exists) | Start a `muggle-pr-followup` watcher on the PR after the run |
 | `autoCleanup` | post-merge | Run cleanup after the PR for this work is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)) |
 
 ## Workflow
@@ -242,11 +243,23 @@ Non-blocking — one click to dismiss. Do not re-ask for the same `runId` within
 
 After reporting results:
 
-1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → end.
+1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → 10.5.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
-3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → end.
+3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → 10.5.
 4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md).
 5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
+
+### 10.5. Offer to watch the PR for review follow-ups
+
+Once a PR exists for this work, offer to keep watching its review thread.
+
+1. Identify the PR — reuse the `gh pr view --json number,title,url` result from section 10 if available, else run it now. No PR (none exists, none created) → end.
+2. Fire [`autoWatchPR`](../muggle-preferences/preference-gates/autoWatchPR.md) with `{pr}` = `<owner>/<repo>#<number>`. On skip → end.
+3. On proceed: start the watcher reusing this run's context so it never re-prompts —
+   - Seed the `muggle-pr-followup` session slot and dispatch its loop per the stage-8 seeding in [`../do/open-prs/forward.md`](../do/open-prs/forward.md) (default slug `<repo>-pr<number>`).
+   - Additionally write `state.md`'s `## Pre-flight answers` block from the context resolved this run — validation strategy, local URL, project, credentials, auth, working tree — per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields). Strategy = `local-e2e` for this local E2E run.
+
+The `/mprfollowup` shortcut starts the same watcher manually at any time.
 
 ## Non-negotiables
 

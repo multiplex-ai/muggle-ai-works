@@ -49,6 +49,7 @@ Gates run per `preference-gates/README.md`.
 | `showElectronBrowser` | 7A | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 | `autoCreatePR` | 9 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
+| `autoWatchPR` | 9.5 (if a PR exists) | Start a `muggle-pr-followup` watcher on the PR after the run |
 
 ## Step 1: Confirm Scope of Work (Always First)
 
@@ -413,11 +414,23 @@ Tell the user:
 
 After reporting results:
 
-1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 10.
+1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 9.5.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
-3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → Step 10.
+3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → Step 9.5.
 4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md). Include all runs from Step 7A (passed and failed).
 5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
+
+## Step 9.5: Offer to watch the PR for review follow-ups
+
+Once a PR exists for this work, offer to keep watching its review thread.
+
+1. Identify the PR — reuse the `gh pr view --json number,title,url` result from Step 9 if available, else run it now. No PR (none exists, none created) → Step 10.
+2. Fire [`autoWatchPR`](../muggle-preferences/preference-gates/autoWatchPR.md) with `{pr}` = `<owner>/<repo>#<number>`. On skip → Step 10.
+3. On proceed: start the watcher reusing this run's context so it never re-prompts —
+   - Seed the `muggle-pr-followup` session slot and dispatch its loop per the stage-8 seeding in [`../do/open-prs/forward.md`](../do/open-prs/forward.md) (default slug `<repo>-pr<number>`).
+   - Additionally write `state.md`'s `## Pre-flight answers` block from the context resolved this run — validation strategy, local URL, project, credentials, auth, working tree — per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields). Strategy = `local-e2e` (local run), `staging-replay` (remote), or `unit-only`/`skip` if no E2E ran.
+
+The `/mprfollowup` shortcut starts the same watcher manually at any time.
 
 ## Step 10: Offer feedback on failures
 

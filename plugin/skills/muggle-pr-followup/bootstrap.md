@@ -37,11 +37,11 @@ Per [`../_shared/github-cli-recipes/verify-working-tree.md`](../_shared/github-c
 
 ### Step 4 — Resolve the slug
 
-Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>`. Session dir is `.muggle-do/sessions/<slug>/` relative to the caller's working tree.
+Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>`. Session dir is `~/.muggle-ai/muggle-do/sessions/<slug>/` (under the user's home, shared across repos; the slug's repo-pr<n> prefix keeps it unique).
 
 ### Step 5 — Idempotency check
 
-If `.muggle-do/sessions/<slug>/` exists:
+If `~/.muggle-ai/muggle-do/sessions/<slug>/` exists:
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
 - With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` and the cursor untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.
@@ -61,7 +61,7 @@ Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick
 
 Identify the loop user once per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md); cache in `state.md`.
 
-Write under `.muggle-do/sessions/<slug>/`:
+Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 

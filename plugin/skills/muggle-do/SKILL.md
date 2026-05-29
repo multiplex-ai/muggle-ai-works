@@ -31,7 +31,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 
 **Bootstrap before any code, in order:**
 1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
-2. Create `.muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
+2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
 3. `TodoWrite` one item per stage 1–8 — these stages are the checklist; never swap in your own decomposition.
 
 **Per stage:** read the file → execute it → append a marker to `iterations/<NNN>.md` citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
@@ -75,7 +75,7 @@ When in doubt between #3 and #4, ask one question.
 
 ## Session model
 
-`.muggle-do/sessions/<slug>/`. Schemas: [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md).
+`~/.muggle-ai/muggle-do/sessions/<slug>/`. Schemas: [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md).
 
 | File | Owner |
 | :--- | :---- |

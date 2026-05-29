@@ -8,7 +8,7 @@ The sections below are the steps in order: reuse an existing context if one is o
 
 ## Reuse an existing context
 
-If a `## Pre-flight answers` block already exists for this working tree — the current session slot, or the most recent sibling session under `.muggle-do/sessions/*` — fire the [`autoReuseValidationContext`](../muggle-preferences/preference-gates/autoReuseValidationContext.md) gate before gathering anything:
+If a `## Pre-flight answers` block already exists for this working tree — the current session slot, or the most recent sibling session under `~/.muggle-ai/muggle-do/sessions/*` — fire the [`autoReuseValidationContext`](../muggle-preferences/preference-gates/autoReuseValidationContext.md) gate before gathering anything:
 
 - `always` → copy the existing block into this session; skip the questionnaire.
 - `never` → ignore it; run the full gather below.

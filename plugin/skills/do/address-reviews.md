@@ -19,7 +19,7 @@ Exact phrasing comes from the watcher's dispatch (see [`../muggle-pr-followup/co
 
 ## Inputs from disk
 
-Read from `.muggle-do/sessions/<slug>/`:
+Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 - `prs.json` — to locate the PR's local checkout path (the `repo` field maps to a configured local repo) and capture `head_sha_before`.
 - `last_seen.json` — for `pushed_shas[]` (used by the resolve-reminder stage) and to update the cursor.

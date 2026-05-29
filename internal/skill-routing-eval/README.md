@@ -18,16 +18,23 @@ This is faithful in a way isolated single-skill triggering tests are not: it cat
 
 ## Run it
 
-```bash
-python internal/skill-routing-eval/router_eval.py \
-  --eval-set internal/skill-routing-eval/eval-set.json \
-  --repo-root "$(pwd)" \
-  --runs 3 --workers 5 --timeout 180 \
-  --out internal/skill-routing-eval/reports/<name>.json
+One command — chunks per skill, guards against MCP disconnects, aggregates, and writes the report:
 
-python internal/skill-routing-eval/analyze.py report \
-  --in internal/skill-routing-eval/reports/<name>.json \
-  --out internal/skill-routing-eval/reports/<name>.md
+```bash
+python internal/skill-routing-eval/run.py --all          # full set
+python internal/skill-routing-eval/run.py --skill muggle-status   # one skill
+python internal/skill-routing-eval/run.py --all --sync-cache      # see below
+```
+
+Output lands in `reports/run/` (`combined.json` + `combined.md`, plus per-skill `chunk_*.json`). `run.py` runs each skill's queries as a separate `claude -p` batch so an MCP disconnect can only spoil one chunk, not the whole sweep; a positive chunk that comes back all-`none` (the disconnect signature) is re-run once and flagged if it stays empty. Keep `--workers` low (default 3) — high concurrency is what trips the disconnect.
+
+**`--sync-cache`:** the harness routes via the *installed* muggle plugin, not the working tree. When you've edited a `SKILL.md` description but not reinstalled, `claude -p` sees both the cached copy and the bare-name working-tree skill and results are unreliable. `--sync-cache` copies `plugin/skills/*/SKILL.md` over the installed cache first (auto-detected from `~/.claude/plugins/installed_plugins.json`) so the eval tests your edits. Always pass it when validating a description change.
+
+### Lower-level (single set, no chunking)
+
+```bash
+python internal/skill-routing-eval/router_eval.py --eval-set <set.json> --repo-root "$(pwd)" --runs 3 --workers 5 --timeout 180 --out <report.json>
+python internal/skill-routing-eval/analyze.py report --in <report.json> --out <report.md>
 ```
 
 ## Optimization loop (per skill)

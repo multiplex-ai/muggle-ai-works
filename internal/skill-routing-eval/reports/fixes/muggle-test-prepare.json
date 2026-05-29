@@ -1,0 +1,106 @@
+{
+  "model": "default",
+  "runs_per_query": 3,
+  "total": 8,
+  "passed": 8,
+  "failed": 0,
+  "accuracy": 1.0,
+  "results": [
+    {
+      "query": "check if localhost:3000 and the api on 8080 are listening before testing",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "are all my dev servers running before we test?",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "spin up the frontend and backend so I can run muggle tests",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "make sure my sibling services are up so the tests don't fail",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "get my local environment ready for e2e \u2014 start whatever services aren't up",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "validate my changes before I open the PR",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "test my changes against the staging url https://pr-482.preview.muggle.dev",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "test the checkout flow on localhost:3000 and screenshot each step",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": ""
+    }
+  ]
+}

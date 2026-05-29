@@ -1,0 +1,994 @@
+{
+  "model": "default",
+  "runs_per_query": 3,
+  "total": 82,
+  "passed": 74,
+  "failed": 8,
+  "accuracy": 0.9024,
+  "results": [
+    {
+      "query": "muggle",
+      "expected_skill": "muggle",
+      "fired": [
+        "muggle",
+        "muggle",
+        "muggle"
+      ],
+      "majority": "muggle",
+      "pass": true,
+      "note": "bare invocation -> menu"
+    },
+    {
+      "query": "what can muggle do for me? show me the options",
+      "expected_skill": "muggle",
+      "fired": [
+        "muggle",
+        "muggle",
+        "muggle"
+      ],
+      "majority": "muggle",
+      "pass": true,
+      "note": "menu request"
+    },
+    {
+      "query": "muggle help \u2014 what commands are available?",
+      "expected_skill": "muggle",
+      "fired": [
+        "muggle",
+        "muggle",
+        "muggle"
+      ],
+      "majority": "muggle",
+      "pass": true,
+      "note": "menu/help"
+    },
+    {
+      "query": "hey muggle, what are my options here",
+      "expected_skill": "muggle",
+      "fired": [
+        "muggle",
+        "muggle",
+        "muggle"
+      ],
+      "majority": "muggle",
+      "pass": true,
+      "note": "casual menu"
+    },
+    {
+      "query": "can you run the e2e acceptance tests on my recent code changes before I push?",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "change-driven, before push"
+    },
+    {
+      "query": "i just finished refactoring the dashboard API, make sure I didn't break anything",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "did my changes break anything"
+    },
+    {
+      "query": "regression test my work from today",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "my work -> change-driven"
+    },
+    {
+      "query": "acceptance test what I've been working on and post the summary to the PR",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "run+publish, anchored on my work -> test (not walkthrough)"
+    },
+    {
+      "query": "test my changes against the staging url https://pr-482.preview.muggle.dev",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "test on staging/preview"
+    },
+    {
+      "query": "validate my changes before I open the PR",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "none",
+        "TIMEOUT",
+        "verification-before-completion"
+      ],
+      "majority": "none",
+      "pass": false,
+      "note": "validate changes"
+    },
+    {
+      "query": "did my latest commits break any user flows?",
+      "expected_skill": "muggle-test",
+      "fired": [
+        "muggle-test",
+        "muggle-test",
+        "muggle-test"
+      ],
+      "majority": "muggle-test",
+      "pass": true,
+      "note": "change-driven phrasing"
+    },
+    {
+      "query": "test the checkout flow on localhost:3000 and screenshot each step",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "named flow on localhost"
+    },
+    {
+      "query": "verify the new signup form actually works in a real browser",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "feature verify, real browser"
+    },
+    {
+      "query": "i added a multi-step onboarding wizard, click through it on my dev server and confirm it works",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "specific feature, dev server"
+    },
+    {
+      "query": "run an e2e test of the password reset feature locally",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "single feature, local"
+    },
+    {
+      "query": "make sure the login page works \u2014 spin up a browser and try it",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "verify works (test, not do-task)"
+    },
+    {
+      "query": "test that the cart updates when I change quantity, on my local build",
+      "expected_skill": "muggle-test-feature-local",
+      "fired": [
+        "muggle-test-feature-local",
+        "muggle-test-feature-local",
+        "muggle-test-feature-local"
+      ],
+      "majority": "muggle-test-feature-local",
+      "pass": true,
+      "note": "specific behavior, local"
+    },
+    {
+      "query": "log into our admin panel at admin.acme.test and create a new user named Bob",
+      "expected_skill": "muggle-do-task",
+      "fired": [
+        "muggle-do-task",
+        "muggle-do-task",
+        "muggle-do-task"
+      ],
+      "majority": "muggle-do-task",
+      "pass": true,
+      "note": "perform action, not verify"
+    },
+    {
+      "query": "go to twitter and post 'shipping muggle v4 today'",
+      "expected_skill": "muggle-do-task",
+      "fired": [
+        "muggle-do-task",
+        "muggle-do-task",
+        "muggle-do-task"
+      ],
+      "majority": "muggle-do-task",
+      "pass": true,
+      "note": "perform a post"
+    },
+    {
+      "query": "fill out the contact form on https://acme.com/contact with my details and submit it",
+      "expected_skill": "muggle-do-task",
+      "fired": [
+        "muggle-do-task",
+        "muggle-do-task",
+        "muggle-do-task"
+      ],
+      "majority": "muggle-do-task",
+      "pass": true,
+      "note": "fill+submit action"
+    },
+    {
+      "query": "open the app and add three items to the cart for me",
+      "expected_skill": "muggle-do-task",
+      "fired": [
+        "muggle-do-task",
+        "muggle-do-task",
+        "muggle-do-task"
+      ],
+      "majority": "muggle-do-task",
+      "pass": true,
+      "note": "do the thing"
+    },
+    {
+      "query": "navigate to the settings page and toggle dark mode on",
+      "expected_skill": "muggle-do-task",
+      "fired": [
+        "muggle-do-task",
+        "muggle-do-task",
+        "muggle-do-task"
+      ],
+      "majority": "muggle-do-task",
+      "pass": true,
+      "note": "perform UI action"
+    },
+    {
+      "query": "import my existing playwright specs from tests/e2e into muggle so we can track them",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "import playwright"
+    },
+    {
+      "query": "migrate our cypress tests in cypress/e2e over to muggle",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "migrate cypress"
+    },
+    {
+      "query": "i have a PRD in docs/checkout-prd.md \u2014 turn it into muggle test cases",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "PRD -> test cases"
+    },
+    {
+      "query": "load these gherkin .feature files into our muggle project",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "gherkin import"
+    },
+    {
+      "query": "we wrote a test plan in Notion, can you bring it into muggle as test cases",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "notion doc import"
+    },
+    {
+      "query": "track my specs/auth.spec.ts file in muggle",
+      "expected_skill": "muggle-test-import",
+      "fired": [
+        "muggle-test-import",
+        "muggle-test-import",
+        "muggle-test-import"
+      ],
+      "majority": "muggle-test-import",
+      "pass": true,
+      "note": "spec file + muggle"
+    },
+    {
+      "query": "a bunch of our test cases don't have scripts, regenerate the missing ones",
+      "expected_skill": "muggle-test-regenerate-missing",
+      "fired": [
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing"
+      ],
+      "majority": "muggle-test-regenerate-missing",
+      "pass": true,
+      "note": "regen missing"
+    },
+    {
+      "query": "fill in the gaps \u2014 generate scripts for every test case in the project that's missing one",
+      "expected_skill": "muggle-test-regenerate-missing",
+      "fired": [
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing"
+      ],
+      "majority": "muggle-test-regenerate-missing",
+      "pass": true,
+      "note": "project-wide catch-up"
+    },
+    {
+      "query": "rebuild the scripts for all my DRAFT test cases",
+      "expected_skill": "muggle-test-regenerate-missing",
+      "fired": [
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing"
+      ],
+      "majority": "muggle-test-regenerate-missing",
+      "pass": true,
+      "note": "DRAFT cases"
+    },
+    {
+      "query": "bulk regenerate the test cases that have no active script",
+      "expected_skill": "muggle-test-regenerate-missing",
+      "fired": [
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing"
+      ],
+      "majority": "muggle-test-regenerate-missing",
+      "pass": true,
+      "note": "bulk regen"
+    },
+    {
+      "query": "half my muggle test cases are stuck without scripts, kick off generation for all of them",
+      "expected_skill": "muggle-test-regenerate-missing",
+      "fired": [
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing",
+        "muggle-test-regenerate-missing"
+      ],
+      "majority": "muggle-test-regenerate-missing",
+      "pass": true,
+      "note": "no-script cases"
+    },
+    {
+      "query": "are all my dev servers running before we test?",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": "service readiness"
+    },
+    {
+      "query": "get my local environment ready for e2e \u2014 start whatever services aren't up",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": "prepare env"
+    },
+    {
+      "query": "spin up the frontend and backend so I can run muggle tests",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": "start services"
+    },
+    {
+      "query": "check if localhost:3000 and the api on 8080 are listening before testing",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": false,
+      "note": "port check"
+    },
+    {
+      "query": "make sure my sibling services are up so the tests don't fail",
+      "expected_skill": "muggle-test-prepare",
+      "fired": [
+        "muggle-test-prepare",
+        "muggle-test-prepare",
+        "muggle-test-prepare"
+      ],
+      "majority": "muggle-test-prepare",
+      "pass": true,
+      "note": "sibling services"
+    },
+    {
+      "query": "post the e2e test results to the PR with screenshots",
+      "expected_skill": "muggle-pr-visual-walkthrough",
+      "fired": [
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough"
+      ],
+      "majority": "muggle-pr-visual-walkthrough",
+      "pass": true,
+      "note": "publish existing results"
+    },
+    {
+      "query": "attach the visual walkthrough of the test run to PR #214",
+      "expected_skill": "muggle-pr-visual-walkthrough",
+      "fired": [
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough"
+      ],
+      "majority": "muggle-pr-visual-walkthrough",
+      "pass": true,
+      "note": "attach walkthrough"
+    },
+    {
+      "query": "share the pass/fail summary and step screenshots on the PR for reviewers",
+      "expected_skill": "muggle-pr-visual-walkthrough",
+      "fired": [
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough"
+      ],
+      "majority": "muggle-pr-visual-walkthrough",
+      "pass": true,
+      "note": "share screenshots on PR"
+    },
+    {
+      "query": "add the muggle e2e walkthrough to the pull request",
+      "expected_skill": "muggle-pr-visual-walkthrough",
+      "fired": [
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough"
+      ],
+      "majority": "muggle-pr-visual-walkthrough",
+      "pass": true,
+      "note": "walkthrough to PR"
+    },
+    {
+      "query": "put the acceptance test screenshots on the PR so reviewers can see the flows work",
+      "expected_skill": "muggle-pr-visual-walkthrough",
+      "fired": [
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough",
+        "muggle-pr-visual-walkthrough"
+      ],
+      "majority": "muggle-pr-visual-walkthrough",
+      "pass": true,
+      "note": "screenshots to PR"
+    },
+    {
+      "query": "that test run was wrong \u2014 step 4 clicked the wrong button",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": "step-level feedback"
+    },
+    {
+      "query": "give feedback on the last run, the script logged in with the wrong account",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": "run feedback"
+    },
+    {
+      "query": "the summary muggle generated is inaccurate, flag it",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": "summary wrong"
+    },
+    {
+      "query": "here's the dashboard link https://app.muggle.dev/runs/abc123 \u2014 the script is broken at the submit step",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "none",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": false,
+      "note": "dashboard URL + critique"
+    },
+    {
+      "query": "show me the muggle feedback I submitted earlier",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": "view feedback"
+    },
+    {
+      "query": "show my muggle settings",
+      "expected_skill": "muggle-preferences",
+      "fired": [
+        "muggle-preferences",
+        "muggle-preferences",
+        "muggle-preferences"
+      ],
+      "majority": "muggle-preferences",
+      "pass": true,
+      "note": "view prefs"
+    },
+    {
+      "query": "set muggle autoLogin to always",
+      "expected_skill": "muggle-preferences",
+      "fired": [
+        "muggle-preferences",
+        "muggle-preferences",
+        "muggle-preferences"
+      ],
+      "majority": "muggle-preferences",
+      "pass": true,
+      "note": "set pref"
+    },
+    {
+      "query": "change my muggle preferences \u2014 I want it to default to remote runs",
+      "expected_skill": "muggle-preferences",
+      "fired": [
+        "muggle-preferences",
+        "muggle-preferences",
+        "muggle-preferences"
+      ],
+      "majority": "muggle-preferences",
+      "pass": true,
+      "note": "change pref"
+    },
+    {
+      "query": "reset all my muggle preferences to defaults",
+      "expected_skill": "muggle-preferences",
+      "fired": [
+        "muggle-preferences",
+        "muggle-preferences",
+        "muggle-preferences"
+      ],
+      "majority": "muggle-preferences",
+      "pass": true,
+      "note": "reset prefs"
+    },
+    {
+      "query": "is muggle healthy? check the install",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "health check"
+    },
+    {
+      "query": "muggle status",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "explicit status"
+    },
+    {
+      "query": "check if my muggle auth is still valid and the MCP is connected",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "auth/mcp health"
+    },
+    {
+      "query": "muggle keeps not responding, is everything set up correctly?",
+      "expected_skill": "muggle-status",
+      "fired": [
+        "muggle-status",
+        "muggle-status",
+        "muggle-status"
+      ],
+      "majority": "muggle-status",
+      "pass": true,
+      "note": "diagnose-first lean"
+    },
+    {
+      "query": "muggle repair",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "explicit repair"
+    },
+    {
+      "query": "my muggle MCP won't load, fix the setup",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "fix intent"
+    },
+    {
+      "query": "fix my broken muggle installation",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "fix broken install"
+    },
+    {
+      "query": "reinstall and repair the muggle tooling, it's busted",
+      "expected_skill": "muggle-repair",
+      "fired": [
+        "muggle-repair",
+        "muggle-repair",
+        "muggle-repair"
+      ],
+      "majority": "muggle-repair",
+      "pass": true,
+      "note": "repair tooling"
+    },
+    {
+      "query": "muggle upgrade",
+      "expected_skill": "muggle-upgrade",
+      "fired": [
+        "muggle-upgrade",
+        "muggle-upgrade",
+        "muggle-upgrade"
+      ],
+      "majority": "muggle-upgrade",
+      "pass": true,
+      "note": "explicit upgrade"
+    },
+    {
+      "query": "update muggle to the latest version",
+      "expected_skill": "muggle-upgrade",
+      "fired": [
+        "muggle-upgrade",
+        "muggle-upgrade",
+        "muggle-upgrade"
+      ],
+      "majority": "muggle-upgrade",
+      "pass": true,
+      "note": "update latest"
+    },
+    {
+      "query": "is there a newer muggle? get it",
+      "expected_skill": "muggle-upgrade",
+      "fired": [
+        "muggle-upgrade",
+        "muggle-upgrade",
+        "muggle-upgrade"
+      ],
+      "majority": "muggle-upgrade",
+      "pass": true,
+      "note": "get newer"
+    },
+    {
+      "query": "cut a new @muggleai/works release",
+      "expected_skill": "muggle-works-npm-release",
+      "fired": [
+        "muggle-works-npm-release",
+        "muggle-works-npm-release",
+        "muggle-works-npm-release"
+      ],
+      "majority": "muggle-works-npm-release",
+      "pass": true,
+      "note": "release works"
+    },
+    {
+      "query": "publish a patch release of works to npm",
+      "expected_skill": "muggle-works-npm-release",
+      "fired": [
+        "muggle-works-npm-release",
+        "muggle-works-npm-release",
+        "muggle-works-npm-release"
+      ],
+      "majority": "muggle-works-npm-release",
+      "pass": true,
+      "note": "publish works"
+    },
+    {
+      "query": "ship works v4.14.0",
+      "expected_skill": "muggle-works-npm-release",
+      "fired": [
+        "muggle-works-npm-release",
+        "muggle-works-npm-release",
+        "muggle-works-npm-release"
+      ],
+      "majority": "muggle-works-npm-release",
+      "pass": true,
+      "note": "ship version"
+    },
+    {
+      "query": "release the @muggleai/works package",
+      "expected_skill": "muggle-works-npm-release",
+      "fired": [
+        "muggle-works-npm-release",
+        "muggle-works-npm-release",
+        "muggle-works-npm-release"
+      ],
+      "majority": "muggle-works-npm-release",
+      "pass": true,
+      "note": "release package"
+    },
+    {
+      "query": "what's the capital of France?",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "unrelated"
+    },
+    {
+      "query": "write a unit test for the formatCurrency function with jest",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "test-driven-development",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "unit test, not E2E"
+    },
+    {
+      "query": "the test in CI is flaky, help me debug why it intermittently fails",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": false,
+      "note": "debug flaky test"
+    },
+    {
+      "query": "review this PR for me: https://github.com/acme/web/pull/77",
+      "expected_skill": "none",
+      "fired": [
+        "review",
+        "code-review",
+        "review"
+      ],
+      "majority": "review",
+      "pass": false,
+      "note": "code review, not muggle"
+    },
+    {
+      "query": "import lodash and use debounce in this component",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "import library near-miss"
+    },
+    {
+      "query": "upgrade my npm dependencies to the latest minor versions",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "deps upgrade near-miss"
+    },
+    {
+      "query": "set up a prettier config for the repo",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "config near-miss (not muggle prefs)"
+    },
+    {
+      "query": "check the health of my kubernetes pods in prod",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "infra health near-miss"
+    },
+    {
+      "query": "fix the broken webpack build",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": false,
+      "note": "repair near-miss (app build)"
+    },
+    {
+      "query": "write release notes for our product launch",
+      "expected_skill": "none",
+      "fired": [
+        "brainstorming",
+        "brainstorming",
+        "none"
+      ],
+      "majority": "brainstorming",
+      "pass": false,
+      "note": "release near-miss (notes)"
+    },
+    {
+      "query": "prepare the slides for tomorrow's demo",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "brainstorming",
+        "brainstorming"
+      ],
+      "majority": "brainstorming",
+      "pass": false,
+      "note": "prepare near-miss"
+    },
+    {
+      "query": "post a comment on the PR saying LGTM",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "PR near-miss (just a comment)"
+    },
+    {
+      "query": "can you give me feedback on my resume draft in resume.pdf",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "feedback near-miss (not a muggle run)"
+    },
+    {
+      "query": "run the full test suite with npm test",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "test near-miss (npm/unit)"
+    },
+    {
+      "query": "log my workout for today: 5k run and squats",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": "do-task/log near-miss, no website"
+    }
+  ]
+}

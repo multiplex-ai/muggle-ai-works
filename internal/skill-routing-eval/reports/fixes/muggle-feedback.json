@@ -1,0 +1,106 @@
+{
+  "model": "default",
+  "runs_per_query": 3,
+  "total": 8,
+  "passed": 8,
+  "failed": 0,
+  "accuracy": 1.0,
+  "results": [
+    {
+      "query": "here's the dashboard link https://app.muggle.dev/runs/abc123 \u2014 the script is broken at the submit step",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "that test run was wrong \u2014 step 4 clicked the wrong button",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "give feedback on the last run, the script logged in with the wrong account",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "the summary muggle generated is inaccurate, flag it",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "show me the muggle feedback I submitted earlier",
+      "expected_skill": "muggle-feedback",
+      "fired": [
+        "muggle-feedback",
+        "muggle-feedback",
+        "muggle-feedback"
+      ],
+      "majority": "muggle-feedback",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "can you give me feedback on my resume draft in resume.pdf",
+      "expected_skill": "none",
+      "fired": [
+        "none",
+        "none",
+        "none"
+      ],
+      "majority": "none",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "fix the broken webpack build",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": true,
+      "note": ""
+    },
+    {
+      "query": "the test in CI is flaky, help me debug why it intermittently fails",
+      "expected_skill": "none",
+      "fired": [
+        "systematic-debugging",
+        "systematic-debugging",
+        "systematic-debugging"
+      ],
+      "majority": "systematic-debugging",
+      "pass": true,
+      "note": ""
+    }
+  ]
+}

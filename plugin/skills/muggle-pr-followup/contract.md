@@ -16,7 +16,7 @@ Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The arch
 
 ## Inputs from disk
 
-Read these from `.muggle-do/sessions/<slug>/`:
+Read these from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 - `prs.json` — see [`state-schemas.md`](state-schemas.md#prsjson). The watcher touches the single entry whose `number` matches the dispatched PR number.
 - `last_seen.json` — see [`state-schemas.md`](state-schemas.md#last_seenjson). Keyed by `"<owner>/<repo>#<n>"`.

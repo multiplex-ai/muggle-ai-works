@@ -13,7 +13,7 @@ Does **not** create a PR, seed session state, or dispatch a watcher (`/muggle-do
 ## Inputs
 
 - Per-repo: path, branch (head ref name).
-- The existing PR URL + number from `.muggle-do/sessions/<slug>/prs.json`.
+- The existing PR URL + number from `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json`.
 - **Optional** E2E acceptance report from stage 6. Produced by [`../e2e-acceptance.md`](../e2e-acceptance.md); schema in [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md).
 
 ## Procedure

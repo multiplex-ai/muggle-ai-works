@@ -40,13 +40,13 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 After every repo is processed, build the watcher manifest and dispatch one watcher loop per opened PR. The dispatches are the LAST action this stage takes.
 
-Write `.muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
+Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
 
 ```json
 [{ "repo": "owner/repo", "number": 142, "url": "...", "head_sha": "...", "state": "open" }]
 ```
 
-Seed `.muggle-do/sessions/<slug>/last_seen.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#last_seenjson) — empty cursor shape with `pushed_shas: []`. Forward mode never has prior reviews to skip, so `reviewId: 0`.
+Seed `~/.muggle-ai/muggle-do/sessions/<slug>/last_seen.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#last_seenjson) — empty cursor shape with `pushed_shas: []`. Forward mode never has prior reviews to skip, so `reviewId: 0`.
 
 **Do not** seed `cycle.json` or `requirements.md`. The watcher is a dumb pipe; `/muggle-do` reads reviews off GitHub.
 

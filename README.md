@@ -201,7 +201,7 @@ OPEN_PRS      → PR #42 opened
 DONE          → 1 iteration, all green
 ```
 
-- Session-based with crash recovery (`.muggle-do/sessions/`)
+- Session-based with crash recovery (`~/.muggle-ai/muggle-do/sessions/`)
 - Auto-triage: analyzes failures and loops back to fix (max 3 iterations)
 - Multi-repo support via `muggle-repos.json`
 - PRs include E2E acceptance results and screenshots in the description

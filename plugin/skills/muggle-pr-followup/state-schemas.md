@@ -1,8 +1,12 @@
 # Session State Schemas
 
-Canonical shapes for the JSON files in a PR-follow-up session slot. The slot path is `.muggle-do/sessions/<slug>/` (the caller's session dir; `muggle-do` is the current and only caller).
+Canonical shapes for the JSON files in a PR-follow-up session slot. The slot path is `~/.muggle-ai/muggle-do/sessions/<slug>/` (under the user's home, shared across repos; `muggle-do` is the current and only caller).
 
 All files are atomic writes — the caller rewrites the whole file each time, never mutates in place. Use a temp file + rename if the platform supports it.
+
+## Legacy location
+
+Before the move to the user's home, slots lived at the repo-relative `.muggle-do/sessions/<slug>/` (one per working tree, still gitignored). Bootstrap's Step 5 migrates a legacy slot to the home-dir location on the next run for that PR; nothing else reads the old path. The state is ephemeral and reconstructible from GitHub, so an un-migrated slot costs only a re-bootstrap, not data.
 
 ## `prs.json`
 

@@ -37,13 +37,13 @@
     "preamble": "**muggle-pr-followup bootstrap** — seeding state for acme/widget#142.",
     "outcome": "bootstrapped",
     "state_writes": {
-      ".muggle-do/sessions/acme-widget-pr142/prs.json": "single entry: {repo:acme/widget, number:142, url:..., head_sha:abc1230, state:open}",
-      ".muggle-do/sessions/acme-widget-pr142/last_seen.json": "key 'acme/widget#142' with reviewId:0 (default; first tick will dispatch both existing reviews), last_pushed_sha:null, idle_tick_count:0, cycles_completed:0, escalated_review_ids:[], pushed_shas:[]",
-      ".muggle-do/sessions/acme-widget-pr142/state.md": "PR url, slug, loop_user: stan4git, Bootstrapped from URL: yes"
+      "~/.muggle-ai/muggle-do/sessions/acme-widget-pr142/prs.json": "single entry: {repo:acme/widget, number:142, url:..., head_sha:abc1230, state:open}",
+      "~/.muggle-ai/muggle-do/sessions/acme-widget-pr142/last_seen.json": "key 'acme/widget#142' with reviewId:0 (default; first tick will dispatch both existing reviews), last_pushed_sha:null, idle_tick_count:0, cycles_completed:0, escalated_review_ids:[], pushed_shas:[]",
+      "~/.muggle-ai/muggle-do/sessions/acme-widget-pr142/state.md": "PR url, slug, loop_user: stan4git, Bootstrapped from URL: yes"
     },
     "files_NOT_written": [
-      ".muggle-do/sessions/acme-widget-pr142/cycle.json",
-      ".muggle-do/sessions/acme-widget-pr142/requirements.md"
+      "~/.muggle-ai/muggle-do/sessions/acme-widget-pr142/cycle.json",
+      "~/.muggle-ai/muggle-do/sessions/acme-widget-pr142/requirements.md"
     ],
     "telemetry_events": [
       {

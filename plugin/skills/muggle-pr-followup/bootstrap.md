@@ -37,11 +37,13 @@ Per [`../_shared/github-cli-recipes/verify-working-tree.md`](../_shared/github-c
 
 ### Step 4 — Resolve the slug
 
-Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>`. Session dir is `.muggle-do/sessions/<slug>/` relative to the caller's working tree.
+Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>`. Session dir is `~/.muggle-ai/muggle-do/sessions/<slug>/` (under the user's home, shared across repos; the slug's repo-pr<n> prefix keeps it unique).
 
 ### Step 5 — Idempotency check
 
-If `.muggle-do/sessions/<slug>/` exists:
+**Legacy-slot migration.** Pre-move sessions lived at the repo-relative `.muggle-do/sessions/<slug>/` ([`state-schemas.md`](state-schemas.md#legacy-location)). If the new home-dir slot is absent but `<working-tree>/.muggle-do/sessions/<slug>/` exists (working tree from Step 3), move it to the new location first — this carries an in-flight watcher's cursor, `escalated_review_ids`, and `pushed_shas` across the upgrade. Bootstrap is the only stage that performs this: it is the one entry point that knows the old repo-relative path (the cwd), and it is the natural re-entry point after a plugin upgrade. A slot that fails to migrate loses nothing durable — GitHub holds the reviews, so a fresh bootstrap (cursor `0`) re-processes them.
+
+If `~/.muggle-ai/muggle-do/sessions/<slug>/` exists (including a slot just migrated above):
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
 - With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` and the cursor untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.
@@ -61,7 +63,7 @@ Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick
 
 Identify the loop user once per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md); cache in `state.md`.
 
-Write under `.muggle-do/sessions/<slug>/`:
+Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 

@@ -1,6 +1,6 @@
 # Post-Merge Cleanup Stage
 
-Invoked by `/muggle-do` when the watcher's terminal tick hands off cleanup after a PR merges. Tears down the merged change's worktree, branch, and local artifacts. Gated by `autoCleanup`; never runs while the PR is open.
+Invoked by `/muggle-do` when the watcher forwards a PR's terminal (`merged`) state. This stage only resolves the session's workspace and **delegates** teardown to the shared procedure — it does not restate the teardown steps. Never runs while the PR is open.
 
 ## Input
 
@@ -8,10 +8,7 @@ Invoked by `/muggle-do` when the watcher's terminal tick hands off cleanup after
 
 ## Procedure
 
-1. Read the session slot `~/.muggle-ai/muggle-do/sessions/<slug>/`:
-   - `prs.json` — the PR's `repo`, `number`, and observed `state`.
-   - `state.md` — `worktreePath` (present only if a worktree was used) and the target branch (`headRefName`).
+1. Read `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR `repo`, `number`, observed `state`) and `state.md` (`worktreePath` if a worktree was used, and the target branch `headRefName`).
 2. Confirm `prs.json` shows the PR `merged`. If it is still open or was closed unmerged, do nothing and exit — this stage is post-merge only.
-3. Run [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md), substituting `{worktreePath}` and `{branch}`. It honors the `autoCleanup` gate (`always` runs the full sequence, `ask` confirms first, `never` skips).
-4. **Worktree-aware safety.** When no `worktreePath` was recorded — a bootstrap or auto-track session running in the user's own checkout — skip the worktree-remove and local `git branch -d` steps: the user is on that branch in their live checkout, and deleting it would disrupt their workspace. Limit cleanup to the remote-branch delete and artifact prune.
-5. Append a cleanup line to the session's `followup.log`.
+3. Run [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md) with `{worktreePath}` and `{branch}`. That file owns the teardown sequence **and its safety rules** — including skipping worktree-remove and local branch deletion when no worktree was used. This stage adds no teardown logic of its own.
+4. Append a cleanup line to the session's `followup.log`.

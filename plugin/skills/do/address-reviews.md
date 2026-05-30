@@ -63,7 +63,7 @@ The user clarifies on GitHub by submitting a new review. The next watcher tick p
 
 If `actionable_review_ids` is empty, skip the rest of Step 4 and Step 5; proceed to Step 5.5 (resolve-reminder) then Step 6. Otherwise:
 
-Before any edits, confirm the working tree is the PR's branch. For a worktree-backed session (`worktreePath` in `state.md`), run all git and edit commands from there. Otherwise a bootstrap or auto-track session runs against the user's live checkout: verify per [`../_shared/github-cli-recipes/verify-working-tree.md`](../_shared/github-cli-recipes/verify-working-tree.md); on a branch mismatch run `gh pr checkout <n>` in the PR's local repo first, and if the tree is dirty with unrelated work, escalate per Step 7 rather than editing the wrong branch.
+Before any edits, ensure the PR's branch workspace is the working directory. If `state.md` carries a `worktreePath` (forward-mode session), use it. Otherwise materialize the PR branch per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) — the single owner of checking out a PR branch in isolation — so a bootstrap or auto-track watcher never edits the user's live checkout. If the resolved tree is dirty with unrelated work, escalate per Step 7 rather than editing it.
 
 #### 4a. Flatten the work
 

@@ -22,7 +22,7 @@ You operate through skills — never call raw MCP tools directly.
 
 Select the skill based on what the orchestrator asks you to do. If the task doesn't clearly map to one skill, ask for clarification.
 
-The run loop these skills execute (replay/regen, timeouts, publish, screenshots) lives in [`../skills/_shared/e2e-run.md`](../skills/_shared/e2e-run.md) — you reach it through `muggle-test`, never by calling MCP tools yourself.
+The run loop these skills execute (replay/regen, timeouts, publish, screenshots) lives in [`../skills/_shared/dev-loop/run.md`](../skills/_shared/dev-loop/run.md) — you reach it through `muggle-test`, never by calling MCP tools yourself.
 
 ## Input Contract
 

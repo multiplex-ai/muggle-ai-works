@@ -143,7 +143,7 @@ Before deciding the target's script, resolve its prerequisite chain from the bac
 
 ### 6. Load data for the chosen path
 
-Run the shared loop in [`../_shared/e2e-run.md`](../_shared/e2e-run.md): [`freshSession`](../_shared/e2e-run.md#fresh-session), [replay vs regen](../_shared/e2e-run.md#the-loop), [`actionScript` as-is](../_shared/e2e-run.md#action-script), [`timeoutMs`](../_shared/e2e-run.md#timeouts), and [failure interpretation](../_shared/e2e-run.md#failure-interpretation).
+Run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [`freshSession`](../_shared/dev-loop/fresh-session.md), [replay vs regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`timeoutMs`](../_shared/dev-loop/timeouts.md), and [failure interpretation](../_shared/dev-loop/failures.md).
 
 Caller glue: `mode` is the path chosen in §5; `localUrl` from §4; `cwd` = the repo root, or the prepared worktree when one is in use.
 
@@ -160,7 +160,7 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 
 Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-step actions for the PR walkthrough — without them reviewers see only a generic "failed" link. The `status` field in the upload payload tells the backend whether to promote the run's action script as the test case's canonical replay script (passed → promote; failed → record only).
 
-- Publish per [`../_shared/e2e-run.md#publish`](../_shared/e2e-run.md#publish) — includes the zero-step `muggle-remote-local-run-upload` fallback.
+- Publish per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — includes the zero-step `muggle-remote-local-run-upload` fallback.
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - `never` → print the URL only.
@@ -168,7 +168,7 @@ Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-ste
 
 ### 9. Report
 
-Read the run record per [`../_shared/e2e-run.md#run-result`](../_shared/e2e-run.md#run-result) and [failure interpretation](../_shared/e2e-run.md#failure-interpretation) — never diagnose from `execute`'s stdout tail.
+Read the run record per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md) and [failure interpretation](../_shared/dev-loop/failures.md) — never diagnose from `execute`'s stdout tail.
 
 - Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and script view URL when publishing ran.
 
@@ -233,7 +233,7 @@ The `/mprfollowup` shortcut starts the same watcher manually at any time.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong.
-- Replay/timeout discipline per [`../_shared/e2e-run.md`](../_shared/e2e-run.md) — never hand-build `actionScript`; always pass `timeoutMs`.
+- Replay/timeout discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`; always pass `timeoutMs`.
 - Use `AskUserQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
 - PR posting is always optional and always delegated to the `muggle:muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

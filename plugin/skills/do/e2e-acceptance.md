@@ -98,7 +98,7 @@ Based on the changed files and the requirements goal, determine which test cases
 
 ### Step 4: Run the loop, publish, gather screenshots
 
-For each relevant test case, run the shared loop in [`../_shared/e2e-run.md`](../_shared/e2e-run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/e2e-run.md#the-loop), [execute with `timeoutMs`](../_shared/e2e-run.md#timeouts), [fetch the result](../_shared/e2e-run.md#run-result) and [interpret failures](../_shared/e2e-run.md#failure-interpretation), [publish](../_shared/e2e-run.md#publish), and gather [per-step screenshots](../_shared/e2e-run.md#screenshots).
+For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), [publish](../_shared/dev-loop/publish.md), and gather [per-step screenshots](../_shared/dev-loop/publish.md).
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
@@ -156,7 +156,7 @@ For each test case:
 ## Non-negotiables
 
 - No silent auth skip; always verify with `muggle-remote-auth-status` first.
-- Replay/timeout/result discipline per [`../_shared/e2e-run.md`](../_shared/e2e-run.md) — never hand-build `actionScript`, always pass `timeoutMs`, read structured run-result fields.
+- Replay/timeout/result discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`, always pass `timeoutMs`, read structured run-result fields.
 - No hiding failures: surface errors, exit codes, and artifact paths.
 - In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips).
 - Always publish after execution to ensure screenshots are cloud-accessible for PR comments.

@@ -257,7 +257,7 @@ Before execution, fetch full test case details for all selected test cases by is
 
 ### Run the loop
 
-Execute each selected test case via the shared loop in [`../_shared/e2e-run.md`](../_shared/e2e-run.md): [sequential replay/regen](../_shared/e2e-run.md#the-loop), [`actionScript` as-is](../_shared/e2e-run.md#action-script), [`freshSession`](../_shared/e2e-run.md#fresh-session), and [`timeoutMs`](../_shared/e2e-run.md#timeouts).
+Execute each selected test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).
 
 Caller glue:
 - `mode` per test case comes from Step 6f; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
@@ -266,7 +266,7 @@ Caller glue:
 
 ### Collect results
 
-Fetch every `runId` per [`../_shared/e2e-run.md#run-result`](../_shared/e2e-run.md#run-result), reading structured fields and [interpreting failures](../_shared/e2e-run.md#failure-interpretation) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures and route through Step 7C.
+Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md), reading structured fields and [interpreting failures](../_shared/dev-loop/failures.md) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures and route through Step 7C.
 
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 
@@ -277,7 +277,7 @@ Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
 
 ### Publish logic (when publishing is enabled)
 
-Publish every completed run per [`../_shared/e2e-run.md#publish`](../_shared/e2e-run.md#publish) — parallel `muggle-local-publish-test-script` with the zero-step `muggle-remote-local-run-upload` fallback. Store every `viewUrl`, `testScriptId`, `actionScriptId` — used in the next steps.
+Publish every completed run per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — parallel `muggle-local-publish-test-script` with the zero-step `muggle-remote-local-run-upload` fallback. Store every `viewUrl`, `testScriptId`, `actionScriptId` — used in the next steps.
 
 ### Report summary
 

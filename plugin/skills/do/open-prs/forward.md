@@ -71,7 +71,7 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 
 ## Post-merge cleanup
 
-Gated by `autoCleanup`. Fires in a follow-up turn after merge — never from this stage. See [`../../_shared/post-merge-cleanup.md`](../../_shared/post-merge-cleanup.md).
+Gated by `autoCleanup`. Triggered when the watcher's terminal tick observes the merge and dispatches `/muggle-do`'s cleanup directive ([`../cleanup.md`](../cleanup.md)) — never from this stage. See [`../../_shared/post-merge-cleanup.md`](../../_shared/post-merge-cleanup.md).
 
 Append one short reminder tied to the gate value:
 

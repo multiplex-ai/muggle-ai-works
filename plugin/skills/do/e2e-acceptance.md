@@ -58,7 +58,7 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 Before launching the local runner:
 
-1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md`). Halt on failure. In autonomous mode a service down mid-cycle is a pre-flight bug, not a prompt.
+1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md`). Halt on failure.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
 

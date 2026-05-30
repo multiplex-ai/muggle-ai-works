@@ -1,5 +1,6 @@
 ---
 name: muggle-preferences
+disable-model-invocation: true
 description: >-
   View, set, or reset Muggle AI preferences that control testing behavior.
   Use when user asks to see preferences, change a setting, configure Muggle Test

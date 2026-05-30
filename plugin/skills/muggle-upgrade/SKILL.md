@@ -1,5 +1,6 @@
 ---
 name: muggle-upgrade
+disable-model-invocation: true
 description: Update Muggle AI to latest version. Use when user types muggle upgrade or asks to update Muggle Test tools.
 ---
 

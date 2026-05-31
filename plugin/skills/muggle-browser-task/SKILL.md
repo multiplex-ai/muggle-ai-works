@@ -1,5 +1,5 @@
 ---
-name: muggle-do-task
+name: muggle-browser-task
 description: Run a browser automation task on a website using natural language. Finds or creates the Muggle Test project, use case, test case, and script, then executes locally via the electron app. Use when the user wants to perform an action on a website (post, fill a form, click through a flow) rather than implement a code change.
 ---
 

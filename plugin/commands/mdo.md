@@ -1,7 +1,7 @@
 ---
-description: Run a browser automation task on a website in natural language (alias for /muggle-do-task)
-argument-hint: [task description and target site]
+description: Muggle AI autonomous workflow entry point (alias for /muggle-do)
+argument-hint: [what to build, or a directive]
 allowed-tools: [Skill]
 ---
 
-Invoke the `muggle-do-task` skill via the Skill tool. Forward `$ARGUMENTS` as the skill's `args`.
+Invoke the `muggle-do` skill via the Skill tool. Forward `$ARGUMENTS` as the skill's `args`.

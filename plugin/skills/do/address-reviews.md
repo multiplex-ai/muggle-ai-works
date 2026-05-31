@@ -27,6 +27,10 @@ Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 ## Procedure
 
+### Step 0 — Track the default branch
+
+Before assembling work, rebase onto the latest default branch so the cycle addresses reviews against current master, not a stale base. Run [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) — gated by [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. Conflict handling follows [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md): the default `never` aborts and escalates (`kind: "rebase-conflict"`); `always` resolves behind the verify-or-rollback gate. If the rebase escalates, stop the cycle — do not push.
+
 ### Step 1 — Assemble the work set
 
 Two sources, combined into one batch (dedupe by comment id):

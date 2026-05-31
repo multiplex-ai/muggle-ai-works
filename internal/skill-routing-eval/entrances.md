@@ -18,11 +18,11 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 ## muggle-test-feature-local
 **Engage when:** the user wants a real-browser E2E test of a **specific feature or user flow on localhost / a dev server** — "test the checkout flow on localhost:3000", "verify the new signup form works", "click through the onboarding and check it works". Feature-anchored, local.
 **Boundary vs `muggle-test`:** see above — named flow/localhost vs whole-diff/before-push. Also fires for generic "test/validate this UI behavior" even without the word *muggle* or *E2E*.
-**Boundary vs `muggle-do-task`:** verifying a flow *works* → feature-local; *performing* a real action (actually post the tweet, actually submit the form) → do-task.
+**Boundary vs `muggle-browser-task`:** verifying a flow *works* → feature-local; *performing* a real action (actually post the tweet, actually submit the form) → browser-task.
 
-## muggle-do-task
+## muggle-browser-task
 **Engage when:** the user wants to **perform an action on a website** via natural language — "log into X and post this", "fill out this form on the site", "click through this flow and submit" — not implement code, not assert correctness.
-**Boundary vs `muggle-test-feature-local`:** do-task *does the thing*; feature-local *tests that the thing works*. Intent to accomplish a task ≠ intent to validate.
+**Boundary vs `muggle-test-feature-local`:** browser-task *does the thing*; feature-local *tests that the thing works*. Intent to accomplish a task ≠ intent to validate.
 
 ## muggle-test-import
 **Engage when:** the user wants to bring **existing tests or test artifacts INTO Muggle** — Playwright/Cypress specs, Gherkin `.feature` files, a PRD, a test-plan doc, Notion export. "import my playwright tests", "migrate from cypress", "turn this PRD into muggle test cases", "track my specs in muggle".

@@ -4,7 +4,7 @@
 
 ## When this applies
 
-A skill receives a GitHub PR URL of the form `github.com/<org>/<repo>/pull/<n>` and needs the PR's branch checked out to test against it locally.
+A skill receives a GitHub PR URL of the form `github.com/<org>/<repo>/pull/<n>` and needs the PR's branch checked out to test against it locally. For worktree principles (one-per-branch, port/data isolation, teardown) see [`use-worktrees.md`](use-worktrees.md) — this file owns only the materialize-an-existing-PR-branch operation.
 
 ## Steps
 

@@ -61,7 +61,7 @@ Inspect `$ARGUMENTS` in this order:
 1. **Address-reviews** — input contains a `github.com/.../pull/<n>` URL **and** one or more integers ≥ 100000000 (review id shape) → [`../do/address-reviews.md`](../do/address-reviews.md). Programmatic; never ask.
 2. **Post-merge cleanup**: input contains `cleanup` and a `slug=<slug>` token (no PR URL, no review ids). Routes to [`../do/cleanup.md`](../do/cleanup.md), dispatched by the watcher's terminal tick after a merge. Programmatic; never ask.
 3. **Empty / `help` / `menu` / `?`** → menu + session selector.
-4. **Task automation** (perform an action on a website) → `muggle:muggle-do-task`.
+4. **Task automation** (perform an action on a website) → `muggle:muggle-browser-task`.
 5. **Otherwise** → forward pipeline at Stage 1.
 
 When in doubt between #4 and #5, ask one question.

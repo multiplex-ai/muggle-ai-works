@@ -58,7 +58,7 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 Before launching the local runner:
 
-1. **Dev-server + backend readiness** — per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) (port + compile log + backend health). Halt on any failure.
+1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md`). Halt on failure.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
 
@@ -96,71 +96,11 @@ Based on the changed files and the requirements goal, determine which test cases
 - Test cases that cover areas potentially affected by the changes
 - When in doubt, include the test case (better to over-test than miss a regression)
 
-### Step 4: Execute Tests Locally
+### Step 4: Run the dev loop, publish, gather screenshots
 
-For each relevant test case:
+For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), [publish](../_shared/dev-loop/publish.md), and gather [per-step screenshots](../_shared/dev-loop/publish.md).
 
-1. Call `muggle-remote-test-script-list` filtered by `testCaseId` to check for an existing script.
-
-2. **If a script exists** (replay path):
-   - `muggle-remote-test-script-get` with `testScriptId` → note `actionScriptId`
-   - `muggle-remote-action-script-get` with that id → full `actionScript`
-   - **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
-   - `muggle-local-execute-replay` with:
-     - `testScript`: the full script object
-     - `actionScript`: the full action script object (from `muggle-remote-action-script-get`)
-     - `localUrl`: the resolved local URL
-     - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
-
-3. **If no script exists** (generation path):
-   - `muggle-remote-test-case-get` with `testCaseId` to fetch the full test case object.
-   - `muggle-local-execute-test-generation` with:
-     - `testCase`: the full test case object
-     - `localUrl`: the resolved local URL
-     - `timeoutMs`: `600000` (10 min) or `900000` (15 min) for complex flows
-
-4. When execution completes, call `muggle-local-run-result-get` with the `runId` returned by the execute call.
-
-5. **Retain per test case:** `testCaseId`, `testScriptId` (if present), `runId`, `status` (passed/failed), `artifactsDir`.
-
-### Local Execution Timeout (`timeoutMs`)
-
-The MCP client often uses a **default wait of 300000 ms (5 minutes)**. **Exploratory script generation** (identity login, multi-step app flows, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
-
-- **Always pass `timeoutMs`** — `600000` (10 min) or `900000` (15 min) — unless the test case is known to be simple.
-- If the tool reports **`Electron execution timed out after 300000ms`** but Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry**.
-
-### Interpreting Failures
-
-- **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see `timeoutMs` above.
-- **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`). Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash.
-- **Fix for precondition failures:** Choose a project/account that already has the needed state, or narrow the test goal so generation does not try to create resources from scratch unless intentional.
-
-### Step 5: Publish Test Scripts
-
-After each test execution completes (whether pass or fail):
-
-1. Call `muggle-local-publish-test-script` with:
-   - `runId`: the run ID from execution
-   - `cloudTestCaseId`: the test case ID
-
-2. **Retain from publish response:**
-   - `testScriptId`: the cloud test script ID
-   - `viewUrl`: the URL to view the run on muggle-ai.com
-
-This ensures all screenshots are uploaded to the cloud and accessible via URLs for PR comments.
-
-### Step 6: Fetch Screenshot URLs
-
-For each published test script:
-
-1. Call `muggle-remote-test-script-get` with the `testScriptId` from publish.
-
-2. Extract from the response:
-   - `steps[].operation.screenshotUrl`: cloud URL for each step's screenshot
-   - `steps[].operation.action`: the action description for each step
-
-3. **Retain per test case:** array of `{ stepIndex, action, screenshotUrl }`.
+Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
 ### Step 7: Collect Results
 
@@ -216,8 +156,7 @@ For each test case:
 ## Non-negotiables
 
 - No silent auth skip; always verify with `muggle-remote-auth-status` first.
-- Replay: never hand-build or simplify `actionScript` — only use full response from `muggle-remote-action-script-get`.
-- Always pass `timeoutMs` for execution calls; do not rely on default 5-minute timeout.
+- Replay/timeout/result discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`, always pass `timeoutMs`, read structured run-result fields.
 - No hiding failures: surface errors, exit codes, and artifact paths.
 - In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips).
 - Always publish after execution to ensure screenshots are cloud-accessible for PR comments.

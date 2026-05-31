@@ -121,127 +121,127 @@
   },
   {
     "query": "Log into my LinkedIn (handle @sarah.kowalczyk) and post this update: \"Thrilled to announce I've joined Acme Robotics as Head of Platform. Building the future of warehouse automation \u2014 DMs open.\" Add the hashtags #robotics #hiring and hit post.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Core post-content action \u2014 log in then publish; clear accomplish-the-task intent, no verification."
   },
   {
     "query": "go to https://app.notion.so and create a new page in the \"Q3 Planning\" workspace titled \"Sprint 14 retro\", paste in the three bullets i'll give you, then share it with marcus@northwind.io as a commenter",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Navigate + create + populate + share \u2014 multi-step content action on a real-sounding site."
   },
   {
     "query": "fill out the contact form on https://bluewave-consulting.com/contact \u2014 name Priya Anand, email priya@gmail.com, company Lumen Health, message \"Interested in your HIPAA compliance package, please send pricing\" \u2014 and submit it",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Classic fill-and-submit a form with named fields; pure action."
   },
   {
     "query": "Can u log into our Shopify admin (store: thistledown-candles.myshopify.com) and add a new product? Title \"Smoked Cedar 8oz\", price $24.50, SKU SC-008, set inventory to 40, and publish it to the online store.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Login + add item + configure + publish; casual register with typo."
   },
   {
     "query": "Open the AWS console, go to IAM, and create a new user named ci-deploy-bot with programmatic access only, attach the AmazonS3FullAccess policy, then download the access keys.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Navigate console + create resource + toggle settings + complete flow; admin web action."
   },
   {
     "query": "send a message to the #general channel in our Slack (muggle-eng workspace): \"Heads up \u2014 deploy freeze starts at 5pm PT today, get your PRs merged before then \ud83d\ude80\"",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Send a message action in a chat app; accomplish intent only."
   },
   {
     "query": "I need you to log into Stripe dashboard and refund the last charge for customer cus_PQ9x2 \u2014 it was $149.00, reason \"duplicate\". Just process the refund please.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Login + navigate + perform a transactional action; explicit 'process' verb."
   },
   {
     "query": "Go to my WordPress admin at https://travelwithjo.com/wp-admin, draft a new blog post titled \"5 Hidden Caf\u00e9s in Lisbon\", set the category to Travel, add the featured image i uploaded, and schedule it for next Tuesday 9am.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Multi-step content creation + scheduling + settings toggle on a CMS."
   },
   {
     "query": "toggle dark mode on in my GitHub settings and also switch my default branch naming to 'main' under repository defaults, then save",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Navigate + toggle settings + save; settings-action intent."
   },
   {
     "query": "add 3 items to my cart on amazon \u2014 the Anker 737 power bank, a pack of AA Eneloops, and the Logitech MX Master 3S in graphite \u2014 then go to checkout but stop before paying so i can review",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Add items + navigate checkout flow; explicit task to perform, stops short of payment."
   },
   {
     "query": "pls reply to the latest review on our Google Business Profile (Bella Vista Trattoria) \u2014 the 2-star one from \"Derek M\" \u2014 with: \"Hi Derek, so sorry to hear about the wait time on Saturday. We've added staff since then \u2014 please give us another try and ask for Tony, dinner's on us.\" and submit it",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Navigate + compose + submit a reply; real backstory, casual."
   },
   {
     "query": "Log into Mailchimp (account: pinecrest-yoga) and add these 4 emails to the \"Newsletter\" audience as subscribed contacts, then tag them all \"spring-promo\".",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Login + add records + apply settings/tags; bulk data-entry action."
   },
   {
     "query": "open jira, create a new bug ticket in the PAY project: summary \"Apple Pay button missing on mobile checkout\", priority High, assign to me, label mobile-regression, and submit",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Create + configure + submit an issue; ticketing action."
   },
   {
     "query": "Update my profile on the company intranet at https://intra.globex.local/profile \u2014 change my title to \"Senior Staff Engineer\", set my pronouns to she/her, upload the new headshot, and click Save Changes.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Navigate + edit profile fields + upload + save; settings-update action."
   },
   {
     "query": "RSVP yes to the \"Founders Dinner\" event on our Luma page (lu.ma/founders-dinner-jun) using email contacts@muggle-ai.com, add a +1 named Alex Rivera, and submit the registration",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Fill registration + submit on an events site; complete-the-flow intent."
   },
   {
     "query": "go through the new-customer onboarding wizard on https://app.fathom-analytics.test, accept the cookie banner, enter site name \"muggle-ai.com\", pick the Free plan, skip the team-invite step, and finish setup",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Click through a multi-step flow and complete it \u2014 the goal is to finish onboarding, not assert each screen renders. Borderline-flow phrasing but accomplish intent."
   },
   {
     "query": "i set up the new password-reset page on localhost:3000 \u2014 can you actually run it end to end? enter dave@test.io, click send reset link, open the link from the mailhog inbox, set the new password to Hunter2!Hunter2!, and get me logged in. i just need to land on the dashboard with a working session, not a report.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD vs muggle-test-feature-local: 'run it end to end' on localhost sounds like a test, but the user explicitly wants the action accomplished (logged in, working session) and says 'not a report' \u2014 stays do-task."
   },
   {
     "query": "walk through the checkout on our staging store and place a real order for me \u2014 add the Midnight Hoodie size L, apply promo code LAUNCH20, fill shipping as 14 Birch Ln, Austin TX 78701, and complete the purchase with the saved test card. i need the order to actually go through.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD vs feature-local: 'walk through the checkout' is test-flavored, but the user wants a real order placed ('actually go through') \u2014 accomplishment, not validation."
   },
   {
     "query": "can you exercise the signup form on the deployed beta (beta.canopy.io) \u2014 fill name Jordan Lee, work email jordan@canopy.io, company Canopy, click Create Account \u2014 i want a real account provisioned so the sales team can demo on it tomorrow",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD: 'exercise the signup form' reads like testing, but goal is a provisioned demo account \u2014 do-task."
   },
   {
     "query": "go through the booking flow on opentable for Nobu Malibu, party of 4, this Friday 7:30pm under the name Kowalczyk, and lock in the reservation \u2014 make sure it's actually booked, don't just check that the calendar loads",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD: 'go through the booking flow' + 'make sure it's actually booked' \u2014 the 'make sure' phrasing flirts with verification, but the action (a real reservation) is the point; explicitly NOT checking the page loads."
   },
   {
     "query": "I need a real entry submitted to the conference CFP at https://cfp.jsconf.test \u2014 title \"Routing 14 skills with one eval\", abstract i'll paste, speaker contacts@muggle-ai.com, track Tooling \u2014 push it through to submitted, not draft. This is a genuine submission, not a dry run.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD: 'push it through' could read as testing the submit path, but the user wants a genuine CFP entry submitted ('not a dry run') \u2014 do-task."
   },
   {
     "query": "run the full add-to-cart-and-checkout path on our prod site for the gift-card SKU GC-50, pay with the corporate Amex, and email me the receipt \u2014 i actually need to buy this gift card today, treat it as a normal purchase not a test",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "HARD: 'run the full path' is test vocabulary, but it's a literal purchase on prod ('treat it as a normal purchase not a test') \u2014 strongest accomplish signal."
   },
   {
     "query": "Log into our HubSpot portal and create a deal in the \"Enterprise\" pipeline: name \"Globex - Platform License\", amount $48,000, stage Proposal Sent, close date end of next month, associate it with the Globex company record, and save.",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "CRM login + create + configure + save; multi-field data-entry action."
   },
   {
     "query": "head to my router admin at 192.168.1.1, log in, go to wireless settings, change the 5GHz SSID to \"Kowalczyk-5G\", set the password to a strong one, enable WPA3, and apply the changes",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Login + navigate settings + toggle + apply; device-config web action via UI."
   },
   {
     "query": "post a new listing on Facebook Marketplace for me: \"IKEA KALLAX 4x2 shelf, white, great condition, $40, pickup in Capitol Hill\", category Furniture, add the 3 photos from my desktop, and publish it",
-    "expected_skill": "muggle-do-task",
+    "expected_skill": "muggle-browser-task",
     "note": "Compose + populate + add media + publish a listing; content-posting action."
   },
   {
@@ -1192,7 +1192,7 @@
   {
     "query": "I want to confirm the export-to-CSV button on the reports page actually works on http://localhost:8080 \u2014 click it and verify a file downloads with the right rows.",
     "expected_skill": "muggle-test-feature-local",
-    "note": "HARD vs muggle-do-task: intent is to VERIFY the export works (a test), not merely perform the export."
+    "note": "HARD vs muggle-browser-task: intent is to VERIFY the export works (a test), not merely perform the export."
   },
   {
     "query": "Test the 'forgot username' lookup flow on localhost:3000 and make sure entering my email surfaces the right account hint.",
@@ -1202,7 +1202,7 @@
   {
     "query": "Log into the demo account on the dev server and verify the whole posting flow works \u2014 compose, attach an image, publish, and confirm the post appears in the feed.",
     "expected_skill": "muggle-test-feature-local",
-    "note": "HARD vs muggle-do-task: superficially 'log in and post', but the stated goal is to VERIFY the posting flow works end to end."
+    "note": "HARD vs muggle-browser-task: superficially 'log in and post', but the stated goal is to VERIFY the posting flow works end to end."
   },
   {
     "query": "Verify the infinite scroll on the product listing page works on localhost:5173 \u2014 scroll down and confirm more items load without duplicates.",
@@ -1212,7 +1212,7 @@
   {
     "query": "Can you confirm the address autocomplete in the checkout form works on localhost:3000 \u2014 start typing a street and verify suggestions appear and one can be selected?",
     "expected_skill": "muggle-test-feature-local",
-    "note": "HARD vs muggle-do-task: filling the form is the vehicle, but the intent is to VERIFY autocomplete works."
+    "note": "HARD vs muggle-browser-task: filling the form is the vehicle, but the intent is to VERIFY autocomplete works."
   },
   {
     "query": "Test the role-based access on the admin settings page on http://localhost:4000 \u2014 log in as a regular user and confirm the admin tab is hidden.",
@@ -1222,7 +1222,7 @@
   {
     "query": "Verify the new drag-and-drop reorder on the dashboard works on the dev server \u2014 drag a card to a new position and confirm the order saves after refresh.",
     "expected_skill": "muggle-test-feature-local",
-    "note": "HARD vs muggle-do-task: dragging is the action, but intent is to VERIFY the reorder feature works and persists."
+    "note": "HARD vs muggle-browser-task: dragging is the action, but intent is to VERIFY the reorder feature works and persists."
   },
   {
     "query": "Import my Playwright tests into Muggle. They live in tests/e2e and there's a whole login + checkout suite I want tracked.",
@@ -1932,12 +1932,12 @@
   {
     "query": "log today's workout: 5k run in 24 minutes and three sets of pushups",
     "expected_skill": "none",
-    "note": "traps muggle-do-task (\"log\"/\"run\"); recording a workout, no website action"
+    "note": "traps muggle-browser-task (\"log\"/\"run\"); recording a workout, no website action"
   },
   {
     "query": "draft an email to the client letting them know the launch slipped to Friday",
     "expected_skill": "none",
-    "note": "traps muggle-do-task (\"draft\"/action); writing an email, not performing an action on a website"
+    "note": "traps muggle-browser-task (\"draft\"/action); writing an email, not performing an action on a website"
   },
   {
     "query": "merge my PR into main once the checks pass",

@@ -143,41 +143,9 @@ Before deciding the target's script, resolve its prerequisite chain from the bac
 
 ### 6. Load data for the chosen path
 
-**Determine `freshSession`**
+Run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [`freshSession`](../_shared/dev-loop/fresh-session.md), [replay vs regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`timeoutMs`](../_shared/dev-loop/timeouts.md), and [failure interpretation](../_shared/dev-loop/failures.md).
 
-Before calling either execution tool, inspect the test case content (title, goal, instructions, preconditions) for signals that the test requires a **clean browser state** — no prior cookies, localStorage, or logged-in session. Pass `freshSession: true` when the test case involves any of:
-
-- **Registration / sign-up** — creating a new account
-- **Login / authentication** — verifying the login flow itself (not a test that merely *uses* login as a prerequisite)
-- **Cookie consent / GDPR banners** — verifying first-visit consent prompts
-- **Onboarding flows** — first-time user experiences that only appear on a fresh session
-
-If none of the above apply, omit `freshSession` (defaults to `false`, preserving any existing session state).
-
-**Generate**
-
-1. `muggle-remote-test-case-get`
-2. `muggle-local-execute-test-generation` with that test case + `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`freshSession`** — see above; **`timeoutMs`** — see below)
-
-**Replay**
-
-1. `muggle-remote-test-script-get` — note `actionScriptId`
-2. `muggle-remote-action-script-get` with that id — full `actionScript`
-   **Use the API response as-is.** Do not edit, shorten, or rebuild `actionScript`; replay needs full `label` paths for element lookup.
-3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl` (optional: `showUi: false` for headless — defaults to visible; **`freshSession`** — see above; **`timeoutMs`** — see below)
-
-### Local execution timeout (`timeoutMs`)
-
-The MCP client often uses a **default wait of 300000 ms (5 minutes)** for `muggle-local-execute-test-generation` and `muggle-local-execute-replay`. **Exploratory script generation** (Auth0 login, dashboards, multi-step wizards, many LLM iterations) routinely **runs longer than 5 minutes** while Electron is still healthy.
-
-- **Always pass `timeoutMs`** for flows that may be long — for example **`600000` (10 min)** or **`900000` (15 min)** — unless the user explicitly wants a short cap.
-- If the tool reports **`Electron execution timed out after 300000ms`** (or similar) **but** Electron logs show the run still progressing (steps, screenshots, LLM calls), treat it as **orchestration timeout**, not an Electron app defect: **increase `timeoutMs` and retry**.
-- **Test case design:** Preconditions like "a test run has already completed" on an **empty account** can force many steps (sign-up, new project, crawl). Prefer an account/project that **already has** the needed state, or narrow the test goal so generation does not try to create a full project from scratch unless that is intentional.
-
-### Interpreting `failed` / non-zero Electron exit
-
-- **`Electron execution timed out after 300000ms`:** Orchestration wait too short — see **`timeoutMs`** above.
-- **Exit code 26** (and messages like **LLM failed to generate / replay action script**): Often corresponds to a completed exploration whose **outcome was goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. verifying "view script after a successful run" when **no run or script exists yet** in the UI. Use `muggle-local-run-result-get` and read the **summary / structured summary**; do not assume an Electron crash. **Fix:** choose a **project that already has** completed runs and scripts, or **change the test case** so preconditions match what localhost can satisfy (e.g. include steps to create and run a test first, or assert only empty-state UI when no runs exist).
+Caller glue: `mode` is the path chosen in §5; `localUrl` from §4; `cwd` = the repo root, or the prepared worktree when one is in use.
 
 ### 7. Execute (no approval prompt; `showUi` gated by `showElectronBrowser`)
 
@@ -192,21 +160,16 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice with
 
 Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-step actions for the PR walkthrough — without them reviewers see only a generic "failed" link. The `status` field in the upload payload tells the backend whether to promote the run's action script as the test case's canonical replay script (passed → promote; failed → record only).
 
-- `muggle-local-publish-test-script`
+- Publish per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — includes the zero-step `muggle-remote-local-run-upload` fallback.
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - `never` → print the URL only.
   - `ask` → run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
-If publish rejects with `has no generated actionScript steps to publish` (true zero-step runs — Electron never produced an action), fall back to `muggle-remote-local-run-upload` directly with whatever data exists (`summaryStep`, `errorMessage`, empty `actionScript`). This still gets the failure summary and any goal-not-achievable verdict onto the dashboard so reviewers can see why the run failed. Capture the returned `actionScriptId` and `viewUrl` from this fallback path the same way you would from publish.
-
 ### 9. Report
 
-**Do not diagnose from `execute`'s response stdout tail.** That tail is a truncated excerpt for human display and routinely cuts off mid-sentence. The only ground truth is the run record.
+Read the run record per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md) and [failure interpretation](../_shared/dev-loop/failures.md) — never diagnose from `execute`'s stdout tail.
 
-- `muggle-local-run-result-get` with the run id from execute.
-- **Read in this order:** `Status` → `Error` → **`Artifacts` section** (always present after a run completes; names `artifactsDir` and lists the files actually on disk: `action-script.json`, `results.md`, `screenshots/`, `stdout.log`, `stderr.log`). On a `passed` run, `results.md` is the step-by-step verdict with screenshot links — read it before summarizing.
-- **On failure**, the `Artifacts` section is still present. `stdout.log` + `stderr.log` are always there. `action-script.json` is there when generation got far enough to emit it (typical for `goal_not_achievable` / mid-progress crashes — the file holds the agent's attempted steps + halt summary). `results.md` and per-step screenshots are absent on failure (electron-app only emits those on the successful completion path) — don't hunt elsewhere on disk for them.
 - Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and script view URL when publishing ran.
 
 ### 9a. Route failures through the failure-mode handler
@@ -270,7 +233,7 @@ The `/mprfollowup` shortcut starts the same watcher manually at any time.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
 - **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong.
-- Replay: never hand-built or simplified `actionScript` — only from `muggle-remote-action-script-get`.
+- Replay/timeout discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`; always pass `timeoutMs`.
 - Use `AskUserQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.
 - PR posting is always optional and always delegated to the `muggle:muggle-pr-visual-walkthrough` skill — never inline the walkthrough markdown or call `gh pr comment` directly from this skill.

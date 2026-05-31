@@ -1,6 +1,6 @@
 # Watcher Per-Tick Contract
 
-The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews, dispatches `/muggle-do` if there are any, and exits. It does not classify, amend requirements, post replies, run cycles, or escalate.
+The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews and CI checks, dispatches `/muggle-do` if there's review feedback or fixable red CI, and exits. It does not classify, fix, amend requirements, post replies, run cycles, or escalate.
 
 Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain doc `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md`.
 
@@ -44,14 +44,7 @@ If `state` is `MERGED` or `CLOSED`:
 
 Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md). **Also exclude review ids that appear in `last_seen.escalated_review_ids`** — those have already been escalated and the watcher must not re-dispatch them.
 
-### Step 4 — If zero new reviews → idle
-
-1. Increment `last_seen.idle_tick_count`.
-2. Append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
-3. Emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`.
-4. Exit. The next tick fires in 1 min via `/loop`.
-
-### Step 5 — If one or more new reviews → dispatch
+### Step 4 — If one or more new reviews → dispatch (reviews preempt CI)
 
 The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher's job is to hand over the list of new review ids and exit.
 
@@ -67,7 +60,27 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    ```
 3. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
-5. Exit. The cron schedule from bootstrap keeps firing the watcher every minute, so the next tick still arrives even though this turn dispatched `/muggle-do`. The watcher only self-unschedules in Step 2 (terminal).
+5. Exit. **Reviews preempt CI** — when reviews land, this tick dispatches address-reviews and never polls CI. The cron keeps firing; the next tick still arrives. The watcher only self-unschedules in Step 2 (terminal).
+
+### Step 5 — No new reviews → poll CI for the head SHA
+
+Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cli-recipes/pr-checks.md`](../_shared/github-cli-recipes/pr-checks.md), then:
+
+- **Any check still pending** (`bucket == "pending"`) → idle (wait for checks to settle).
+- **All checks green / skipped, or no checks** → idle (green path).
+- **One or more checks red** (`bucket == "fail"`), **and** `ci_fix_attempts[head_sha] < 3`, **and** `head_sha` ∉ `ci_escalated_shas` → dispatch and exit:
+  1. Reset `last_seen.idle_tick_count` to 0.
+  2. Dispatch `/muggle-do` with a *fix-ci* directive carrying the PR URL, slug, and the red check names (no review ids):
+     ```
+     /muggle-do fix ci <check-1> <check-2> ... on <pr-url> slug=<slug>
+     ```
+  3. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
+  4. Exit. The next tick re-checks CI on the new head SHA — CI itself is the verify loop.
+- **One or more red, but `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas`** → idle. The fix budget is spent; `/muggle-do`'s fix-ci stage already recorded the escalation. The watcher does not re-dispatch.
+
+### Step 6 — Idle
+
+Any idle branch (Steps 4–5 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
 ## Output
 

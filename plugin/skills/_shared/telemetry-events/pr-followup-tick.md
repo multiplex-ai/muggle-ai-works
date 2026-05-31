@@ -11,6 +11,8 @@ One per watcher iteration (idle or not).
   "pr_number": <int>,
   "reviews_seen": <int>,
   "dispatched_review_ids": [<int>, ...],
+  "checks_red": <int>,
+  "dispatched_ci_fix": true | false,
   "terminal": true | false,
   "idle": true | false,
   "tick_duration_ms": <int>
@@ -19,5 +21,7 @@ One per watcher iteration (idle or not).
 
 - `reviews_seen`: count of new submitted reviews past the cursor, **after** filtering by the escalated set.
 - `dispatched_review_ids`: review ids handed to `/muggle-do`. Empty when idle.
+- `checks_red`: count of failing checks on the head SHA. `0` when reviews were dispatched (reviews preempt the CI poll) or CI was green/pending.
+- `dispatched_ci_fix`: true when this tick dispatched `/muggle-do` with a fix-ci directive.
 - `terminal`: true when this tick observed the PR merged or closed and wrote `result.md`.
 - `idle`: true when no reviews were dispatched this tick.

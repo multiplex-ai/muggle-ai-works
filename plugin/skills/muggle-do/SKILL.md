@@ -59,11 +59,12 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 Inspect `$ARGUMENTS` in this order:
 
 1. **Address-reviews** — input contains a `github.com/.../pull/<n>` URL **and** one or more integers ≥ 100000000 (review id shape) → [`../do/address-reviews.md`](../do/address-reviews.md). Programmatic; never ask.
-2. **Empty / `help` / `menu` / `?`** → menu + session selector.
-3. **Task automation** (perform an action on a website) → `muggle:muggle-do-task`.
-4. **Otherwise** → forward pipeline at Stage 1.
+2. **Fix-CI** — input contains a `github.com/.../pull/<n>` URL **and** a `fix ci` / `fix-ci` directive with failing check names (no review ids) → [`../do/fix-ci.md`](../do/fix-ci.md). Programmatic; never ask. Dispatched by the watcher when CI is red.
+3. **Empty / `help` / `menu` / `?`** → menu + session selector.
+4. **Task automation** (perform an action on a website) → `muggle:muggle-do-task`.
+5. **Otherwise** → forward pipeline at Stage 1.
 
-When in doubt between #3 and #4, ask one question.
+When in doubt between #4 and #5, ask one question.
 
 ## Preferences
 

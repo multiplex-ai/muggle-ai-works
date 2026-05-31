@@ -10,6 +10,7 @@ Skills assume a working `gh auth status`. Auth errors surface verbatim from `gh`
 | :----- | :------- |
 | [`pr-metadata`](github-cli-recipes/pr-metadata.md) | Snapshot PR state, head SHA, branch — watcher + bootstrap. |
 | [`submitted-reviews`](github-cli-recipes/submitted-reviews.md) | Fetch reviews past a cursor — watcher's poll. |
+| [`pr-checks`](github-cli-recipes/pr-checks.md) | Check-run rollup for the head SHA — watcher's CI poll. |
 | [`line-comments-for-review`](github-cli-recipes/line-comments-for-review.md) | Pull a review's line comments — `/muggle-do` per-comment routing. |
 | [`unresolved-threads`](github-cli-recipes/unresolved-threads.md) | GraphQL fetch of unresolved comment threads — resolve-reminder. |
 | [`reply-line-comment`](github-cli-recipes/reply-line-comment.md) | POST a threaded reply on a line comment. |

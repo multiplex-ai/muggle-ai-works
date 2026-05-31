@@ -12,9 +12,12 @@ One per address-reviews invocation, regardless of outcome.
   "review_ids_in": [<int>, ...],
   "review_ids_actionable": [<int>, ...],
   "review_ids_ambiguous": [<int>, ...],
+  "ci_checks_in": ["<check-name>", ...],
+  "ci_checks_fixed": ["<check-name>", ...],
+  "ci_checks_escalated": ["<check-name>", ...],
   "head_sha_before": "<sha-or-null>",
   "head_sha_after": "<sha-or-null>",
-  "outcome": "pushed" | "escalated" | "mixed" | "no-op" | "self-loop-skip"
+  "outcome": "pushed" | "escalated" | "mixed" | "no-op" | "self-loop-skip" | "ci-fixed" | "ci-escalated"
 }
 ```
 
@@ -24,3 +27,7 @@ One per address-reviews invocation, regardless of outcome.
 - `"mixed"` — both branches happened in the same invocation.
 - `"no-op"` — every input id was already in the escalated set; no work.
 - `"self-loop-skip"` — review was a synthetic wrapper around the agent's own reply (every line comment is a reply carrying the loop marker `<!-- muggle-do:bot -->`). Cursor advanced silently; no work, no escalation.
+- `"ci-fixed"` — a watcher-dispatched fix-ci cycle pushed a fix for one or more red checks.
+- `"ci-escalated"` — fix-ci exhausted its 3 attempts for the SHA or the failing checks were out of scope; the SHA was added to `ci_escalated_shas`. No further auto-fix on it.
+
+For fix-ci cycles (`ci-fixed` / `ci-escalated`) the `review_ids_*` arrays are empty and the `ci_checks_*` arrays carry the data: `ci_checks_in` (red checks dispatched), `ci_checks_fixed` (made green and pushed), `ci_checks_escalated` (out-of-scope or unresolved).

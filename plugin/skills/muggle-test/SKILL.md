@@ -235,6 +235,10 @@ If the user picks "Override one or more", let them flip the mode for any test ca
 
 ## Step 7A: Execute — Local Mode
 
+### Local environment readiness
+
+Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) — the readiness/service-start owner (idempotent; halt on what it surfaces). The URL gate below only *selects* the target; prepare is what guarantees something is listening and compiled.
+
 ### Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
 
 Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):

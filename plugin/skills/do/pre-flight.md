@@ -26,8 +26,8 @@ Before asking anything, gather every fact you can resolve without the user:
 
 1. **Candidate repo(s).** Match keywords in the task description against configured repo names. If one repo is an obvious match, propose it as the default; if two or three are plausible, list them.
 2. **Current branch and default branch** for each candidate repo. Run `git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short` and `git -C <repo> branch --show-current`. If the current branch is the default, the pre-flight must collect a new branch name.
-3. **Running dev server.** Detect listening ports and reconcile env-file URL/port using [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md).
-4. **Running backend.** Probe backend health per [`../_shared/dev-server-readiness.md`](../_shared/dev-server-readiness.md) ("Backend health"). Note up/down.
+3. **Local environment readiness.** Invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) — the owner of dev-server/backend detection and service start (idempotent; it probes via `dev-server-readiness.md` internally). Use what it reports as the dev-server/URL pre-flight signal.
+4. **Backend health.** Covered by the same `muggle-test-prepare` invocation above (it probes backend health); note up/down.
 5. **Muggle Test MCP auth.** Call `muggle-remote-auth-status`. If expired, you will ask to re-auth in the questionnaire.
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
 7. **Existing test-user secrets.** For each candidate Muggle Test project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.

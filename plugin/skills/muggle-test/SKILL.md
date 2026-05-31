@@ -475,7 +475,7 @@ This is a suggestion, not automatic invocation. Skip silently if every test pass
 ## Guardrails
 
 - **Always confirm intent first** — never assume local vs remote without asking
-- **PR URLs always run in a dedicated worktree** — never switch the user's main checkout. Create or reuse `<repo>/.claude/worktrees/<sanitized-branch>` and pass that path as the `cwd` parameter to local execute tools. The cross-worktree single-flight lock relies on this to serialize concurrent runs from different branches.
+- **PR URLs always run in a dedicated worktree** — never switch the user's main checkout. Materialize per [`_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) and pass that path as `cwd` to local execute tools; the cross-worktree single-flight lock relies on it to serialize concurrent runs from different branches.
 - **User MUST select project** — present clickable options via `AskUserQuestion`, wait for explicit choice, never auto-select
 - **Best-effort shortlist use cases** — use the change summary to narrow the list to the most relevant 1–5 use cases and pre-check them; never dump every use case in the project on the user. Always leave an escape hatch to reveal the full list.
 - **Best-effort shortlist test cases** — same idea: pre-check the test cases most relevant to the change summary; never enumerate every test case attached to a use case. Always leave an escape hatch to reveal the full list.

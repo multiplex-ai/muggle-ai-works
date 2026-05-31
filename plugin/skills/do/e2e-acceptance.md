@@ -96,7 +96,7 @@ Based on the changed files and the requirements goal, determine which test cases
 - Test cases that cover areas potentially affected by the changes
 - When in doubt, include the test case (better to over-test than miss a regression)
 
-### Step 4: Run the loop, publish, gather screenshots
+### Step 4: Run the dev loop, publish, gather screenshots
 
 For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), [publish](../_shared/dev-loop/publish.md), and gather [per-step screenshots](../_shared/dev-loop/publish.md).
 

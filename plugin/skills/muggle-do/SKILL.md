@@ -60,7 +60,7 @@ Inspect `$ARGUMENTS` in this order:
 
 1. **Address-reviews** — input contains a `github.com/.../pull/<n>` URL **and** one or more integers ≥ 100000000 (review id shape) → [`../do/address-reviews.md`](../do/address-reviews.md). Programmatic; never ask.
 2. **Empty / `help` / `menu` / `?`** → menu + session selector.
-3. **Task automation** (perform an action on a website) → `muggle:muggle-do-task`.
+3. **Task automation** (perform an action on a website) → `muggle:muggle-browser-task`.
 4. **Otherwise** → forward pipeline at Stage 1.
 
 When in doubt between #3 and #4, ask one question.

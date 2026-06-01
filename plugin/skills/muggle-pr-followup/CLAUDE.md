@@ -8,6 +8,8 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 - [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (asks once for the E2E validation context, seeds state, dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
+- [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.
+- [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed; runs at the top of auto-track and on demand.
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
 
@@ -21,7 +23,4 @@ Shared with other skills, under `../_shared/`:
 - [`telemetry-events.md`](../_shared/telemetry-events.md) — TOC of canonical event shapes; per-event files in `_shared/telemetry-events/`.
 - [`github-cli-recipes.md`](../_shared/github-cli-recipes.md) — TOC of reusable `gh` / `git` snippets; per-recipe files in `_shared/github-cli-recipes/`.
 
-Caller-specific, under `../do/`:
-
-- [`open-prs.md`](../do/open-prs.md) — TOC for the create-or-update PR stage; per-mode files in `do/open-prs/`.
-- [`resolve-reminder.md`](../do/resolve-reminder.md) — `/muggle-do`'s per-round stage that nudges the reviewer to resolve addressed-but-still-open threads.
+Callers (e.g. `/muggle-do`) reference this folder, not the reverse — see [`../CLAUDE.md`](../CLAUDE.md) for the one-way-dependency rule.

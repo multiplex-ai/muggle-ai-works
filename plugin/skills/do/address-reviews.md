@@ -67,6 +67,8 @@ The user clarifies on GitHub by submitting a new review. The next watcher tick p
 
 If `actionable_review_ids` is empty, skip the rest of Step 4 and Step 5; proceed to Step 5.5 (resolve-reminder) then Step 6. Otherwise:
 
+Before any edits, ensure the PR's branch workspace is the working directory. If `state.md` carries a `worktreePath` (forward-mode session), use it. Otherwise materialize the PR branch per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) — the single owner of checking out a PR branch in isolation — so a bootstrap or auto-track watcher never edits the user's live checkout. If the resolved tree is dirty with unrelated work, escalate per Step 7 rather than editing it.
+
 #### 4a. Flatten the work
 
 The actionable reviews together carry a flat list of change items, one per line comment plus any directive in the review body. Each item is design, code logic, or test in nature; the cycle does **not** treat each item as a separate cycle iteration — it plans them together and runs the work **once** for the whole batch.

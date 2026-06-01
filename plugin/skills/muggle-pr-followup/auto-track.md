@@ -16,6 +16,10 @@ Auto-track discovers the PRs you pushed or opened during this Claude Code sessio
 
 ## Procedure
 
+### Step 0 — Reconcile existing slots
+
+Run [`reconcile.md`](reconcile.md) first. A no-arg invocation is the natural moment to finalize any slot whose PR merged or closed while its watcher was down — an expired `/loop` cron or an ended session leaves termination un-run (see reconcile's rationale). Then continue discovering new PRs below.
+
 ### Step 1 — Discover candidate PRs from session context
 
 A PR counts as **pushed this session** if, earlier in this conversation, you:

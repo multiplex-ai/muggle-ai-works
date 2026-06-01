@@ -31,21 +31,7 @@ Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recip
 
 ### Step 2 — Termination check
 
-If `state` is `MERGED` or `CLOSED`:
-
-1. Mark the entry terminal in `prs.json`.
-2. Write `result.md` per [`state-schemas.md`](state-schemas.md#resultmd).
-3. Append a terminal line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
-4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events/pr-followup-tick.md`](../_shared/telemetry-events/pr-followup-tick.md).
-5. **Cancel the cron schedule that fires this watcher.** `/loop 1m ...` from bootstrap was registered via `CronCreate`; a fixed-interval cron keeps firing regardless of whether the skill re-dispatches. Call `CronList`, find any job whose command ends with `/muggle:muggle-pr-followup <slug> <pr-number>` (exact two-arg match), and `CronDelete` it. No-op if none matches — the tick may have been invoked manually rather than via `/loop`.
-6. **If `state` is `MERGED`, hand off post-merge cleanup.** Dispatch `/muggle-do` with a cleanup directive carrying the slug, as the last action of this turn:
-
-   ```
-   /muggle-do post-merge cleanup slug=<slug>
-   ```
-
-   `/muggle-do` owns the session's worktree/branch knowledge and honors the `autoCleanup` gate; the watcher never runs cleanup itself. Skip when `state` is `CLOSED` (unmerged: leave the branch and any worktree intact).
-7. Exit. The watcher has now unscheduled itself; no future ticks will fire for this PR.
+If `state` is `MERGED` or `CLOSED`, finalize the slot per [`finalize.md`](finalize.md) (mark terminal, write `result.md`, log + telemetry, unschedule this watcher's cron, and hand off post-merge cleanup on `MERGED`) and exit. The watcher has unscheduled itself; no future ticks fire for this PR.
 
 ### Step 3 — Fetch new submitted reviews
 

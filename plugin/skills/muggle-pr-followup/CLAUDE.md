@@ -8,6 +8,8 @@ This folder holds the watcher loop for PR review follow-ups. The watcher is a **
 - [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (asks once for the E2E validation context, seeds state, dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
+- [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.
+- [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed; runs at the top of auto-track and on demand.
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
 

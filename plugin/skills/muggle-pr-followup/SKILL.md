@@ -26,6 +26,9 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
 | empty | — | **auto-track** → [`auto-track.md`](auto-track.md) |
 | `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
+| `reconcile` / `sweep` (optional `<slug>`) | — | **reconcile** → [`reconcile.md`](reconcile.md) |
+
+Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session). Reconcile never re-arms a watcher.
 
 Bootstrap accepts three optional trailing flags:
 

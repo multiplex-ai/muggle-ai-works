@@ -56,16 +56,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 ## Input routing
 
-Inspect `$ARGUMENTS` in this order:
-
-1. **Address-reviews** — input contains a `github.com/.../pull/<n>` URL **and** one or more integers ≥ 100000000 (review id shape) → [`../do/address-reviews.md`](../do/address-reviews.md). Programmatic; never ask.
-2. **Fix-CI** — input contains a `github.com/.../pull/<n>` URL **and** a `fix ci` / `fix-ci` directive with failing check names (no review ids) → [`../do/fix-ci.md`](../do/fix-ci.md). Programmatic; never ask. Dispatched by the watcher when CI is red.
-3. **Post-merge cleanup**: input contains `cleanup` and a `slug=<slug>` token (no PR URL, no review ids). Routes to [`../do/cleanup.md`](../do/cleanup.md), dispatched by the watcher's terminal tick after a merge. Programmatic; never ask.
-4. **Empty / `help` / `menu` / `?`** → menu + session selector.
-5. **Task automation** (perform an action on a website) → `muggle:muggle-browser-task`.
-6. **Otherwise** → forward pipeline at Stage 1.
-
-When in doubt between #5 and #6, ask one question.
+`/muggle-do` serves one interactive mode (the forward pipeline, from a fresh task) and three programmatic modes the watcher dispatches (address-reviews, fix-ci, post-merge cleanup). Resolve `$ARGUMENTS` to a mode per [`../do/input-routing.md`](../do/input-routing.md) before doing anything else.
 
 ## Preferences
 

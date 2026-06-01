@@ -39,7 +39,9 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "idle_tick_count": <int>,
     "cycles_completed": <int>,
     "escalated_review_ids": [<int>, ...],
-    "pushed_shas": ["<sha>", ...]
+    "pushed_shas": ["<sha>", ...],
+    "ci_fix_attempts": { "<sha>": <int> },
+    "ci_escalated_shas": ["<sha>", ...]
   }
 }
 ```
@@ -50,6 +52,8 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `cycles_completed`: incremented each time `/muggle-do` completes an address-reviews invocation (regardless of actionable/ambiguous/mixed).
 - `escalated_review_ids`: review ids classified as ambiguous by `/muggle-do`. The watcher excludes these from future review fetches so the same ambiguous review is never re-dispatched.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
+- `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA.
+- `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
 
 ## `state.md`
 

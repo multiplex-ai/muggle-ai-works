@@ -20,7 +20,7 @@ For each candidate, fetch the PR per [`../_shared/github-cli-recipes/pr-metadata
 
 ### Step 3 — Finalize the terminal ones
 
-For each candidate whose live `state` is `MERGED` or `CLOSED`, run [`finalize.md`](finalize.md). Slots still `open` are left untouched — reconcile finalizes, it does not re-arm a watcher (re-arming an open PR is [`auto-track.md`](auto-track.md)'s job).
+For each candidate whose live `state` is `MERGED` or `CLOSED`, run [`finalize.md`](finalize.md). `finalize.md` dispatches nothing, so a backfilled merge gets no post-merge cleanup — its branch is typically long gone, and the `autoCleanup` gate governs if the user runs cleanup later. Slots still `open` are left untouched — reconcile finalizes, it does not re-arm a watcher (re-arming an open PR is [`auto-track.md`](auto-track.md)'s job).
 
 ### Step 4 — Report
 

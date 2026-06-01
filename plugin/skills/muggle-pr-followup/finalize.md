@@ -1,6 +1,8 @@
 # Finalize a Terminal PR
 
-The shared termination sequence for a follow-up slot whose PR is `MERGED` or `CLOSED`. Called by [`contract.md`](contract.md) Step 2 (a tick observed the transition) and [`reconcile.md`](reconcile.md) (a sweep found a slot whose polling lapsed before the transition). One slot, run once.
+The shared, **pure** termination sequence for a follow-up slot whose PR is `MERGED` or `CLOSED`. Called by [`contract.md`](contract.md) Step 2 (a tick observed the transition) and [`reconcile.md`](reconcile.md) (a sweep found a slot whose polling lapsed before the transition). One slot, run once.
+
+This step only finalizes — marks the slot terminal, writes the record, unschedules the cron. It **dispatches nothing**. Post-merge cleanup is a separate, caller-owned concern: the tick ([`contract.md`](contract.md)) hands it off; a reconcile backfill skips it.
 
 ## Inputs
 
@@ -25,13 +27,3 @@ Append the terminal line per [`output-templates/watcher-log.md`](output-template
 ### Step 4 — Unschedule the cron
 
 Call `CronList`, find any job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` (exact two-arg match), and `CronDelete` it. No-op when none matches — a manually-run tick, or a cron that already expired. Recurring `/loop` crons auto-expire after 7 days; that lapse is the gap [`reconcile.md`](reconcile.md) exists to catch.
-
-### Step 5 — Post-merge cleanup (`MERGED` only)
-
-Dispatch `/muggle-do` with the cleanup directive as a closing action of the turn — the tick emits exactly one, a reconcile sweep emits one per merged slot:
-
-```
-/muggle-do post-merge cleanup slug=<slug>
-```
-
-`/muggle-do` owns the worktree/branch knowledge and honors the `autoCleanup` gate. Skip on `CLOSED` — unmerged, so leave the branch and any worktree intact.

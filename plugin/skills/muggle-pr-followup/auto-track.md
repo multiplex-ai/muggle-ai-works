@@ -2,7 +2,7 @@
 
 The procedure for the **auto-track mode** of `muggle-pr-followup` — invoked when the skill is dispatched with **no arguments**. Routing is in [`SKILL.md`](SKILL.md#routing).
 
-Auto-track discovers the PRs you pushed or opened during this Claude Code session — across **any repo** — and starts one **poll-only watcher** per PR. The watcher only watches: it seeds nothing about E2E. Running and posting E2E is `/muggle-do`'s job; a watcher with no validation context yields a `SKIPPED` E2E verdict when `/muggle-do` runs — see [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.
+Auto-track discovers the PRs you pushed or opened during this Claude Code session — across **any repo** — and starts one **poll-only watcher** per PR. The watcher only watches: it seeds nothing about E2E. Running and posting E2E is `/muggle-do`'s job; a watcher with no validation context yields a `SKIPPED` E2E verdict when `/muggle-do` runs.
 
 ## Turn preamble
 

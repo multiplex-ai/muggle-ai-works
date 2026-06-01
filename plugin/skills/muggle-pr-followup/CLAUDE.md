@@ -23,7 +23,4 @@ Shared with other skills, under `../_shared/`:
 - [`telemetry-events.md`](../_shared/telemetry-events.md) — TOC of canonical event shapes; per-event files in `_shared/telemetry-events/`.
 - [`github-cli-recipes.md`](../_shared/github-cli-recipes.md) — TOC of reusable `gh` / `git` snippets; per-recipe files in `_shared/github-cli-recipes/`.
 
-Caller-specific, under `../do/`:
-
-- [`open-prs.md`](../do/open-prs.md) — TOC for the create-or-update PR stage; per-mode files in `do/open-prs/`.
-- [`resolve-reminder.md`](../do/resolve-reminder.md) — `/muggle-do`'s per-round stage that nudges the reviewer to resolve addressed-but-still-open threads.
+Callers (e.g. `/muggle-do`) reference this folder, not the reverse — see [`../CLAUDE.md`](../CLAUDE.md) for the one-way-dependency rule.

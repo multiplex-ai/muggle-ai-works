@@ -1,6 +1,6 @@
 # Failure-Mode Handling — Shared Reference
 
-> Source of truth for **(a)** the pre-execution replay-vs-regen choice and **(b)** the post-execution failure router used by `muggle-test`, `muggle-test-feature-local`, `muggle-do-task`, and `muggle-test-regenerate-missing`. Skills MUST link here rather than restate the rules.
+> Source of truth for **(a)** the pre-execution replay-vs-regen choice and **(b)** the post-execution failure router used by `muggle-test`, `muggle-test-feature-local`, `muggle-browser-task`, and `muggle-test-regenerate-missing`. Skills MUST link here rather than restate the rules.
 
 ## The contract
 
@@ -55,7 +55,7 @@ Subagents return the verdict as part of a structured block, not free-form prose.
 
 ## A. Pre-execution: replay vs regen (used by `muggle-test`)
 
-Run during change analysis, **per impacted test case**. Picks the initial execution mode before Step 7. Other skills with a single user-picked target (`muggle-test-feature-local`, `muggle-do-task`) skip this section — the user already chose.
+Run during change analysis, **per impacted test case**. Picks the initial execution mode before Step 7. Other skills with a single user-picked target (`muggle-test-feature-local`, `muggle-browser-task`) skip this section — the user already chose.
 
 ### Inputs
 

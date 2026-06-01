@@ -5,6 +5,6 @@ Gated by [`autoCleanup`](../muggle-preferences/preference-gates/autoCleanup.md).
 On `always`, the four steps below run as one pre-authorized sequence (no per-step prompts). Stop on the first failure; do not force.
 
 1. `git worktree remove {worktreePath}` — only if a worktree was used.
-2. `git branch -d {branch}` then `git push origin --delete {branch}`.
+2. `git branch -d {branch}` — **skip when no worktree was used**: the branch is the user's current live checkout (a bootstrap/auto-track watcher), and the checked-out branch must never be deleted. Then `git push origin --delete {branch}`.
 3. Clear `.muggle-ai/` session folders for this branch's runs and stale `/tmp/muggle-prepare-*.log` files. Cloud results stay.
 4. Invoke `commit-commands:clean_gone` via the `Skill` tool.

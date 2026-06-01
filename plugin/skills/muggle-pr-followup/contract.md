@@ -38,7 +38,14 @@ If `state` is `MERGED` or `CLOSED`:
 3. Append a terminal line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 4. Emit a `tick` event with `terminal: true` per [`../_shared/telemetry-events/pr-followup-tick.md`](../_shared/telemetry-events/pr-followup-tick.md).
 5. **Cancel the cron schedule that fires this watcher.** `/loop 1m ...` from bootstrap was registered via `CronCreate`; a fixed-interval cron keeps firing regardless of whether the skill re-dispatches. Call `CronList`, find any job whose command ends with `/muggle:muggle-pr-followup <slug> <pr-number>` (exact two-arg match), and `CronDelete` it. No-op if none matches — the tick may have been invoked manually rather than via `/loop`.
-6. Exit. The watcher has now unscheduled itself; no future ticks will fire for this PR.
+6. **If `state` is `MERGED`, hand off post-merge cleanup.** Dispatch `/muggle-do` with a cleanup directive carrying the slug, as the last action of this turn:
+
+   ```
+   /muggle-do post-merge cleanup slug=<slug>
+   ```
+
+   `/muggle-do` owns the session's worktree/branch knowledge and honors the `autoCleanup` gate; the watcher never runs cleanup itself. Skip when `state` is `CLOSED` (unmerged: leave the branch and any worktree intact).
+7. Exit. The watcher has now unscheduled itself; no future ticks will fire for this PR.
 
 ### Step 3 — Fetch new submitted reviews
 

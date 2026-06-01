@@ -27,6 +27,10 @@ Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 ## Procedure
 
+### Step 0 — Track the default branch
+
+Before assembling work, rebase onto the latest default branch so the cycle addresses reviews against current master, not a stale base. Run [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) — gated by [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. Conflict handling follows [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md): the default `never` aborts and escalates (`kind: "rebase-conflict"`); `always` resolves behind the verify-or-rollback gate. If the rebase escalates, stop the cycle — do not push.
+
 ### Step 1 — Assemble the work set
 
 Two sources, combined into one batch (dedupe by comment id):
@@ -62,6 +66,8 @@ The user clarifies on GitHub by submitting a new review. The next watcher tick p
 ### Step 4 — Handle actionables (if any)
 
 If `actionable_review_ids` is empty, skip the rest of Step 4 and Step 5; proceed to Step 5.5 (resolve-reminder) then Step 6. Otherwise:
+
+Before any edits, ensure the PR's branch workspace is the working directory. If `state.md` carries a `worktreePath` (forward-mode session), use it. Otherwise materialize the PR branch per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) — the single owner of checking out a PR branch in isolation — so a bootstrap or auto-track watcher never edits the user's live checkout. If the resolved tree is dirty with unrelated work, escalate per Step 7 rather than editing it.
 
 #### 4a. Flatten the work
 

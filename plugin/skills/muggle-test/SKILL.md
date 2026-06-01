@@ -259,45 +259,18 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; app
 
 Before execution, fetch full test case details for all selected test cases by issuing **all** `muggle-remote-test-case-get` calls in parallel (single message, multiple tool calls).
 
-### Determine `freshSession` per test case
+### Run the dev loop
 
-Before executing each test case, inspect its content (title, goal, instructions, preconditions) for signals that it requires a **clean browser state** — no prior cookies, localStorage, or logged-in session. Set `freshSession: true` when the test case involves any of:
+Execute each selected test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).
 
-- **Registration / sign-up** — creating a new account
-- **Login / authentication** — verifying the login flow itself (not a test that merely *uses* login as a prerequisite)
-- **Cookie consent / GDPR banners** — verifying first-visit consent prompts
-- **Onboarding flows** — first-time user experiences that only appear on a fresh session
+Caller glue:
+- `mode` per test case comes from Step 6f; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
+- `cwd` = the PR-branch worktree from Step 2 if one was created, else the user's repo root — it drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize.
+- On a failed run, continue the batch and route it through Step 7C after completion.
 
-If none of the above apply, omit `freshSession` (defaults to `false`, preserving any existing session state). Evaluate this per test case — in a batch, some may need it and others may not.
+### Collect results
 
-### Run sequentially (Electron constraint)
-
-Execution itself **must** be sequential because there is only one local Electron browser. For each test case, in the order chosen, branch on the mode picked in Step 6f:
-
-**Regen-mode test case:**
-1. Call `muggle-local-execute-test-generation`:
-   - `testCase`: Full test case object from the parallel fetch above
-   - `localUrl`: User's local URL from the pre-flight question
-   - `cwd`: Absolute path of the active working directory — the PR-branch worktree if one was created in Step 2, otherwise the user's repo root. Drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize.
-   - `showUi`: from the `showElectronBrowser` resolution — omit (default visible) for `always`, pass `false` for `never`
-   - `freshSession`: `true` if the test case requires a clean browser state (see above), omit otherwise
-2. Store the returned `runId` and tag the result `mode: "regen"`.
-
-**Replay-mode test case:**
-1. Fetch the action script: `muggle-remote-test-script-get` (latest replayable script id) → `muggle-remote-action-script-get` (full `actionScript` — use as-is, never edit). For batches, fan these calls out in parallel before the sequential execution loop begins.
-2. Call `muggle-local-execute-replay`:
-   - `testScript`: from `muggle-remote-test-script-get`
-   - `actionScript`: from `muggle-remote-action-script-get`
-   - `localUrl`, `cwd`, `showUi`, `freshSession`: same resolution as regen
-3. Store the returned `runId` and tag the result `mode: "replay"`.
-
-If a run fails, log it and continue to the next — do not abort the batch. Failures are routed through Step 7C's post-failure handler after the batch completes.
-
-### Collect results (in parallel)
-
-For every `runId`, issue all `muggle-local-run-result-get` calls in parallel. Extract from the **structured response only** (not from `execute`'s stdout tail, which is a truncated display excerpt): `Status`, `Error`, `Duration`, and the `Artifacts` section (always present after a run completes — names `artifactsDir` and lists the files actually on disk).
-
-For passed runs, `results.md` inside `artifactsDir` is the step-by-step verdict — read it before summarizing. For failed runs, `stdout.log` + `stderr.log` are always present and `action-script.json` is present when generation reached the step-emission stage (typical for `goal_not_achievable`); use `Error` as the headline verdict and route through Step 7C.
+Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md), reading structured fields and [interpreting failures](../_shared/dev-loop/failures.md) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures and route through Step 7C.
 
 ### Publish each run to cloud (gated by `autoPublishLocalResults`)
 
@@ -308,15 +281,7 @@ Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
 
 ### Publish logic (when publishing is enabled)
 
-For every completed run, issue all `muggle-local-publish-test-script` calls in parallel (single message, multiple tool calls):
-- `runId`: The local run ID
-- `cloudTestCaseId`: The cloud test case ID
-
-This returns:
-- `viewUrl`: Direct link to view this test run on the Muggle AI dashboard
-- `testScriptId`, `actionScriptId`, `workflowRuntimeId`
-
-Store every `viewUrl` — these are used in the next steps.
+Publish every completed run per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — parallel `muggle-local-publish-test-script` with the zero-step `muggle-remote-local-run-upload` fallback. Store every `viewUrl`, `testScriptId`, `actionScriptId` — used in the next steps.
 
 ### Report summary
 

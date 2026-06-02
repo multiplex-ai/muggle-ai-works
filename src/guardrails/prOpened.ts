@@ -1,4 +1,4 @@
-import type { HookInput } from "./types";
+import type { HookInput } from "./types.js";
 
 const PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
 const CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;

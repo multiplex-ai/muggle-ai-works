@@ -1,8 +1,8 @@
 import { readFileSync } from "fs";
-import { readState, markPrHandled } from "./sessionState";
-import { detectPrOpened } from "./prOpened";
-import { envelope, type Host } from "./emit";
-import type { HookInput } from "./types";
+import { readState, markPrHandled } from "./sessionState.js";
+import { detectPrOpened } from "./prOpened.js";
+import { envelope, type Host } from "./emit.js";
+import type { HookInput } from "./types.js";
 
 function readStdin(): HookInput {
   try {

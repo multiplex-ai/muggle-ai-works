@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { GuardrailState } from "./types";
+import type { GuardrailState } from "./types.js";
 
 const baseDir = (override?: string): string =>
   override ?? join(homedir(), ".muggle-ai", "guardrails");

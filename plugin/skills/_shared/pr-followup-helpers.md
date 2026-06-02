@@ -12,3 +12,4 @@ Each section is its own file — load only what the current step needs.
 | [`reply-routing`](pr-followup-helpers/reply-routing.md) | Pick the right reply endpoint per comment type (line, body-only, CI failure). |
 | [`classify`](pr-followup-helpers/classify.md) | Per-review binary label: actionable vs ambiguous, with worked examples + borderline rule. |
 | [`loop-signature`](pr-followup-helpers/loop-signature.md) | The signature every loop-posted comment carries, and how to detect loop vs human comments by it. |
+| [`echo-skip`](pr-followup-helpers/echo-skip.md) | Skip reviews that are the loop's own replies (every comment loop-marked), so the watcher never re-triggers on itself. |

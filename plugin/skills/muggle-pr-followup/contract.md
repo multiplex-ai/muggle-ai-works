@@ -46,7 +46,10 @@ If `state` is `MERGED` or `CLOSED`:
 
 ### Step 3 — Fetch new submitted reviews
 
-Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md). **Also exclude review ids that appear in `last_seen.escalated_review_ids`** — those have already been escalated and the watcher must not re-dispatch them.
+Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md). Exclude two kinds of review id:
+
+- ids in `last_seen.escalated_review_ids` — already escalated; the watcher must not re-dispatch them.
+- **echo reviews** per [`../_shared/pr-followup-helpers/echo-skip.md`](../_shared/pr-followup-helpers/echo-skip.md) — a review whose every comment carries the loop marker is the loop's own reply, surfaced by GitHub as a new review. Advance `last_seen.reviewId` past it and skip; never dispatch, or the watcher replies to itself forever.
 
 ### Step 4 — If one or more new reviews → dispatch (reviews preempt CI)
 

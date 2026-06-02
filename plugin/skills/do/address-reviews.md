@@ -114,7 +114,7 @@ Refresh PR state per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared
 1. Write `result.md` per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#resultmd).
 2. Do **not** respawn the watcher.
 
-Otherwise, dispatch the next watcher as the last action of this turn:
+Otherwise, dispatch the next watcher as the last action of this turn. The watcher cancelled its own cron when it dispatched this cycle ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md) Step 4), so this restart is the single live watcher — never a duplicate:
 
 ```
 /loop 1m /muggle:muggle-pr-followup <slug> <n>

@@ -78,3 +78,5 @@ Append one short reminder tied to the gate value:
 - `always` → `Once merged, I'll run the cleanup sequence automatically.`
 - `never` → omit.
 - `ask` / absent → `Once merged, I'll check with you about cleanup.`
+
+Regardless of the gate, also append: `Once it's merged or closed, I'll move to the next plan item — or ask where to go next if there's no plan.`

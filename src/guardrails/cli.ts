@@ -3,6 +3,7 @@ import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
 import { shouldRunE2E } from "./shouldRunE2E.js";
+import { detectBuildIntent } from "./detectBuildIntent.js";
 import { envelope, type Host } from "./emit.js";
 import type { HookInput } from "./types.js";
 
@@ -60,9 +61,24 @@ function e2eGate(): string {
   return envelope("Stop", ctx, host);
 }
 
+function buildRouter(): string {
+  if (!detectBuildIntent(input.prompt ?? "")) return "{}";
+  const state = readState(sessionId);
+  if (state.buildIntentRouted) return "{}";
+  state.buildIntentRouted = true;
+  writeState(state);
+  const ctx =
+    `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, ` +
+    `route it through /muggle-do — which runs requirements → build (delegated to superpowers' ` +
+    `design→plan→review) → impact → unit tests → E2E → PR → watcher. ` +
+    `If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
+  return envelope("UserPromptSubmit", ctx, host);
+}
+
 const handlers: Record<string, () => string> = {
   "pr-opened": prOpened,
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
+  "build-router": buildRouter,
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

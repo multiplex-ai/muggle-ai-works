@@ -29,6 +29,10 @@ For each affected repo:
 
    The body explains *why* when the why is non-obvious. The diff already says *what*.
 
+## Delegation
+
+For a non-trivial change — multiple files, real design surface, or anything you would otherwise brainstorm before coding — run the implementation through superpowers' design → plan → subagent-driven build, then return to this stage's Output. That is a runtime hand-off (an action), not a doc dependency; do not encode superpowers' internals here. Routing a build request into this pipeline (the `autoRouteBuildToMuggleDo` front-door guardrail) exists to combine superpowers' design rigor with this pipeline's impact analysis, E2E, PR, and watcher — neither delivers both alone.
+
 ## Output
 
 Per repo:

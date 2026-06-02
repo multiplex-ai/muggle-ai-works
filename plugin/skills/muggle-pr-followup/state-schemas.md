@@ -41,7 +41,9 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "escalated_review_ids": [<int>, ...],
     "pushed_shas": ["<sha>", ...],
     "ci_fix_attempts": { "<sha>": <int> },
-    "ci_escalated_shas": ["<sha>", ...]
+    "ci_escalated_shas": ["<sha>", ...],
+    "conflict_resolve_attempts": { "<sha>": <int> },
+    "conflict_escalated_shas": ["<sha>", ...]
   }
 }
 ```
@@ -54,6 +56,8 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
 - `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
+- `conflict_resolve_attempts`: per-SHA count of resolve-conflicts cycles `/muggle-do` has run. The watcher stops dispatching resolve-conflicts for a SHA once its count reaches 2. Keyed by head SHA.
+- `conflict_escalated_shas`: head SHAs whose merge conflict resolve-conflicts gave up on (attempts exhausted, or `autoResolveConflicts=never`). The watcher excludes these from conflict dispatch so an unresolvable SHA is never re-attempted.
 
 ## `state.md`
 

@@ -1,6 +1,6 @@
 # Watcher Per-Tick Contract
 
-The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews and CI checks, dispatches `/muggle-do` if there's review feedback or fixable red CI, and exits. It does not classify, fix, amend requirements, post replies, run cycles, or escalate.
+The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews, CI checks, and merge-conflict state, dispatches `/muggle-do` if there's review feedback, fixable red CI, or an unmergeable branch, and exits. It does not classify, fix, resolve, amend requirements, post replies, run cycles, or escalate.
 
 Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain doc `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md`.
 
@@ -25,9 +25,13 @@ If either file is missing or the PR is not in `prs.json`, the tick is a no-op. L
 
 ## Procedure
 
+### Step 0 — Stale-fire guard
+
+If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was finalized by a prior tick and this is a stale (queued) fire — per-minute cron fires enqueued while the session was busy still drain after the cron is cancelled. Defensively cancel any lingering cron for this slug (`CronList` → the job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` → `CronDelete`; no-op if none), append a `stale-tick` line to `followup.log`, and exit. Do not re-fetch or re-finalize.
+
 ### Step 1 — Refresh PR state
 
-Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response.
+Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` / `mergeStateStatus` from the same call for Step 5.
 
 ### Step 2 — Termination check
 
@@ -70,7 +74,22 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 5. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
 6. Exit. **Reviews preempt CI** — when reviews land, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
-### Step 5 — No new reviews → poll CI for the head SHA
+### Step 5 — No new reviews → check mergeability
+
+Read `mergeable` / `mergeStateStatus` from the Step 1 metadata. If `mergeable == CONFLICTING` (or `mergeStateStatus == DIRTY`), **and** `conflict_resolve_attempts[head_sha] < 2`, **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
+
+  1. Reset `last_seen.idle_tick_count` to 0.
+  2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s resolve-conflicts respawns it when the cycle is done.
+  3. Dispatch `/muggle-do` with a *resolve-conflicts* directive (PR URL + slug; no review ids, no check names):
+     ```
+     /muggle-do resolve conflicts on <pr-url> slug=<slug>
+     ```
+  4. Append a dispatching line to `followup.log`; emit a `tick` event with `conflicting: true`, `dispatched_resolve_conflicts: true`.
+  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks mergeability on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+
+`mergeable == MERGEABLE` / `UNKNOWN` (GitHub still computing — treat as not-conflicting this tick), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
+
+### Step 6 — No new reviews, mergeable → poll CI for the head SHA
 
 Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cli-recipes/pr-checks.md`](../_shared/github-cli-recipes/pr-checks.md), then:
 
@@ -87,9 +106,9 @@ Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cl
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
 - **One or more red, but `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas`** → idle. The fix budget is spent; `/muggle-do`'s fix-ci stage already recorded the escalation. The watcher does not re-dispatch.
 
-### Step 6 — Idle
+### Step 7 — Idle
 
-Any idle branch (Steps 4–5 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`, `conflicting: <bool>`, `dispatched_resolve_conflicts: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
 ## Output
 

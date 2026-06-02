@@ -55,7 +55,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 ## Input routing
 
-`/muggle-do` serves one interactive mode (the forward pipeline, from a fresh task) and three programmatic modes the watcher dispatches (address-reviews, fix-ci, post-merge cleanup). Resolve `$ARGUMENTS` to a mode per [`../do/input-routing.md`](../do/input-routing.md) before doing anything else.
+`/muggle-do` serves one interactive mode (the forward pipeline, from a fresh task) and four programmatic modes the watcher dispatches (address-reviews, fix-ci, resolve-conflicts, post-merge cleanup). Resolve `$ARGUMENTS` to a mode per [`../do/input-routing.md`](../do/input-routing.md) before doing anything else.
 
 ## Preferences
 

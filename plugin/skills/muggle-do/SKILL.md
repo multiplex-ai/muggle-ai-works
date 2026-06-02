@@ -1,7 +1,6 @@
 ---
 name: muggle-do
 description: Unified Muggle AI workflow entry point. Use when user types muggle do or asks for autonomous implementation to PR. Also handles the `address-reviews` directive (dispatched by the muggle-pr-followup watcher when new submitted reviews land on a PR).
-disable-model-invocation: true
 ---
 
 # Muggle Test Do

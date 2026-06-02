@@ -38,6 +38,30 @@ ${input2.tool_response?.output ?? ""}`;
   return m ? m[0] : null;
 }
 
+// src/guardrails/testsGreen.ts
+var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
+var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
+var E2E_RUN = /\bmuggle\b[^\n]*\b(execute|test)\b/i;
+function isTestCommand(cmd) {
+  return TEST_CMD.test(cmd);
+}
+function testsPassed(input2) {
+  const out = `${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.stderr ?? ""}`;
+  if (!out.trim()) return false;
+  return !FAIL.test(out);
+}
+function isE2ERun(input2) {
+  const cmd = input2.tool_input?.command ?? "";
+  const tool = input2.tool_name ?? "";
+  return E2E_RUN.test(cmd) || /muggle.*(execute|test-generation|replay)/i.test(tool);
+}
+
+// src/guardrails/shouldRunE2E.ts
+function shouldRunE2E(state) {
+  return state.unitTestsGreen === true && state.e2eRun !== true;
+}
+
 // src/guardrails/emit.ts
 function envelope(eventName, context, host2) {
   if (!context) return "{}";
@@ -68,5 +92,32 @@ function prOpened() {
 Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
-var handlers = { "pr-opened": prOpened };
+function recordTests() {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  let changed = false;
+  if (isTestCommand(cmd) && testsPassed(input)) {
+    state.unitTestsGreen = true;
+    changed = true;
+  }
+  if (isE2ERun(input)) {
+    state.e2eRun = true;
+    changed = true;
+  }
+  if (changed) writeState(state);
+  return "{}";
+}
+function e2eGate() {
+  const state = readState(sessionId);
+  if (!shouldRunE2E(state)) return "{}";
+  state.e2eRun = true;
+  writeState(state);
+  const ctx = `Unit tests passed this session and no E2E acceptance run has happened yet. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test before finishing. If autoE2ETest=never, skip.`;
+  return envelope("Stop", ctx, host);
+}
+var handlers = {
+  "pr-opened": prOpened,
+  "record-tests": recordTests,
+  "e2e-gate": e2eGate
+};
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

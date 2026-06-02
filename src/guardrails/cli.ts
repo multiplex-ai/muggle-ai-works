@@ -1,6 +1,8 @@
 import { readFileSync } from "fs";
-import { readState, markPrHandled } from "./sessionState.js";
+import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
+import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
+import { shouldRunE2E } from "./shouldRunE2E.js";
 import { envelope, type Host } from "./emit.js";
 import type { HookInput } from "./types.js";
 
@@ -30,5 +32,37 @@ function prOpened(): string {
   return envelope("PostToolUse", ctx, host);
 }
 
-const handlers: Record<string, () => string> = { "pr-opened": prOpened };
+function recordTests(): string {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  let changed = false;
+  if (isTestCommand(cmd) && testsPassed(input)) {
+    state.unitTestsGreen = true;
+    changed = true;
+  }
+  if (isE2ERun(input)) {
+    state.e2eRun = true;
+    changed = true;
+  }
+  if (changed) writeState(state);
+  return "{}";
+}
+
+function e2eGate(): string {
+  const state = readState(sessionId);
+  if (!shouldRunE2E(state)) return "{}";
+  state.e2eRun = true;
+  writeState(state);
+  const ctx =
+    `Unit tests passed this session and no E2E acceptance run has happened yet. ` +
+    `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test ` +
+    `before finishing. If autoE2ETest=never, skip.`;
+  return envelope("Stop", ctx, host);
+}
+
+const handlers: Record<string, () => string> = {
+  "pr-opened": prOpened,
+  "record-tests": recordTests,
+  "e2e-gate": e2eGate,
+};
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

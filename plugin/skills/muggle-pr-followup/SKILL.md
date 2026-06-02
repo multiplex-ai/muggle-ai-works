@@ -7,7 +7,7 @@ description: Use this skill when the user wants a pull request's incoming review
 
 > Telemetry first step: see [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-pr-followup"`.
 
-A watcher that babysits one open PR's review thread and CI. Polls for new submitted reviews and check-run state; when review feedback lands or CI goes red, hands the work to `/muggle-do` and exits. On merge, it hands off post-merge cleanup to `/muggle-do` the same way. `/muggle-do` is the executor — it classifies the reviews or fixes the failing checks, pushes, replies per comment, and respawns the watcher.
+A watcher that babysits one open PR's review thread and CI. Polls for new submitted reviews and check-run state; when review feedback lands or CI goes red, hands the work to `/muggle-do` and exits. On merge or close, it hands the terminal wrap-up to `/muggle-do` the same way — teardown when merged, then a next-step suggestion. `/muggle-do` is the executor — it classifies the reviews or fixes the failing checks, pushes, replies per comment, and respawns the watcher.
 
 **The watcher is a dumb pipe.** It does not classify reviews, iterate cycles, post replies, or escalate. All of that lives in `/muggle-do`. See [stage-8 design](../../../../muggle-ai-brain/architecture/2026-05-08-muggle-do-pr-comment-loop-design.md) for the rationale.
 

@@ -34,13 +34,13 @@ Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recip
 If `state` is `MERGED` or `CLOSED`:
 
 1. Finalize the slot per [`finalize.md`](finalize.md) — mark terminal, write `result.md`, log + telemetry, unschedule this watcher's cron.
-2. **If `MERGED`**, hand off post-merge cleanup as the last action of the turn (skip on `CLOSED` — unmerged, leave the branch and any worktree intact):
+2. Hand off the terminal wrap-up as the last action of the turn — for both `MERGED` and `CLOSED`:
 
    ```
-   /muggle-do post-merge cleanup slug=<slug>
+   /muggle-do post-merge cleanup slug=<slug> state=<merged|closed>
    ```
 
-   `/muggle-do` owns the worktree/branch knowledge and honors the `autoCleanup` gate. This is a runtime dispatch, not a doc dependency on `/muggle-do` — see the one-way rule in [`../CLAUDE.md`](../CLAUDE.md).
+   `/muggle-do` owns the worktree/branch knowledge: it runs teardown only on `merged` (honoring the `autoCleanup` gate — `closed` is unmerged, so the branch and any worktree stay intact), then suggests the next step. This is a runtime dispatch, not a doc dependency on `/muggle-do` — see the one-way rule in [`../CLAUDE.md`](../CLAUDE.md).
 3. Exit. The watcher has unscheduled itself; no future ticks fire for this PR.
 
 

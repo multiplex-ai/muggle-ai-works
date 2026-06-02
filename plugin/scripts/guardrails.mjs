@@ -62,6 +62,16 @@ function shouldRunE2E(state) {
   return state.unitTestsGreen === true && state.e2eRun !== true;
 }
 
+// src/guardrails/detectBuildIntent.ts
+var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
+var QUESTION = /^\s*(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)\b/i;
+function detectBuildIntent(prompt) {
+  const p = (prompt ?? "").trim();
+  if (!p || p.startsWith("/")) return false;
+  if (QUESTION.test(p)) return false;
+  return BUILD.test(p);
+}
+
 // src/guardrails/emit.ts
 function envelope(eventName, context, host2) {
   if (!context) return "{}";
@@ -115,9 +125,19 @@ function e2eGate() {
   const ctx = `Unit tests passed this session and no E2E acceptance run has happened yet. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test before finishing. If autoE2ETest=never, skip.`;
   return envelope("Stop", ctx, host);
 }
+function buildRouter() {
+  if (!detectBuildIntent(input.prompt ?? "")) return "{}";
+  const state = readState(sessionId);
+  if (state.buildIntentRouted) return "{}";
+  state.buildIntentRouted = true;
+  writeState(state);
+  const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through /muggle-do \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
+  return envelope("UserPromptSubmit", ctx, host);
+}
 var handlers = {
   "pr-opened": prOpened,
   "record-tests": recordTests,
-  "e2e-gate": e2eGate
+  "e2e-gate": e2eGate,
+  "build-router": buildRouter
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

@@ -39,6 +39,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\"",
+            "async": false
+          }
+        ]
+      }
     ]
   }
 }

@@ -23,3 +23,4 @@ Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json
 | :--------- | :------ | :-------- | :--------- | :----------- |
 | `PostToolUse` (Bash) | `guardrail-pr-opened.sh` | a `gh pr create`/`gh pr ready` just succeeded | `autoWatchPR` | start a `muggle-pr-followup` watcher on the new PR |
 | `Stop` | `guardrail-e2e-gate.sh` | unit tests passed this session and no E2E ran yet (recorded by `guardrail-record-tests.sh`) | `autoE2ETest` | run change-driven E2E via `muggle-test` before finishing |
+| `UserPromptSubmit` | `guardrail-build-router.sh` | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |

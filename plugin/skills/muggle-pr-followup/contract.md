@@ -56,7 +56,8 @@ Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli
 The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher's job is to hand over the list of new review ids and exit.
 
 1. Reset `last_seen.idle_tick_count` to 0.
-2. Dispatch `/muggle-do` with an *address-reviews* directive carrying:
+2. **Stop this watcher (single-thread).** Cancel its cron so no tick fires while the dev cycle runs: `CronList`, find the job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` (exact two-arg match), `CronDelete` it. `/muggle-do` respawns the watcher when the cycle finishes — exactly one cron ever, and no tick overlaps a running cycle.
+3. Dispatch `/muggle-do` with an *address-reviews* directive carrying:
    - PR URL (from `prs.json[0].url`)
    - Session slug (from the invocation arguments)
    - Every new review id from Step 3, as a space-separated list
@@ -65,9 +66,9 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    ```
    /muggle-do address reviews <id1> <id2> ... on <pr-url> slug=<slug>
    ```
-3. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
-4. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
-5. Exit. **Reviews preempt CI** — when reviews land, this tick dispatches address-reviews and never polls CI. The cron keeps firing; the next tick still arrives. The watcher only self-unschedules in Step 2 (terminal).
+4. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
+5. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
+6. Exit. **Reviews preempt CI** — when reviews land, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
 ### Step 5 — No new reviews → poll CI for the head SHA
 
@@ -77,12 +78,13 @@ Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cl
 - **All checks green / skipped, or no checks** → idle (green path).
 - **One or more checks red** (`bucket == "fail"`), **and** `ci_fix_attempts[head_sha] < 3`, **and** `head_sha` ∉ `ci_escalated_shas` → dispatch and exit:
   1. Reset `last_seen.idle_tick_count` to 0.
-  2. Dispatch `/muggle-do` with a *fix-ci* directive carrying the PR URL, slug, and the red check names (no review ids):
+  2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s fix-ci respawns it when the cycle is done.
+  3. Dispatch `/muggle-do` with a *fix-ci* directive carrying the PR URL, slug, and the red check names (no review ids):
      ```
      /muggle-do fix ci <check-1> <check-2> ... on <pr-url> slug=<slug>
      ```
-  3. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
-  4. Exit. The next tick re-checks CI on the new head SHA — CI itself is the verify loop.
+  4. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
+  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
 - **One or more red, but `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas`** → idle. The fix budget is spent; `/muggle-do`'s fix-ci stage already recorded the escalation. The watcher does not re-dispatch.
 
 ### Step 6 — Idle

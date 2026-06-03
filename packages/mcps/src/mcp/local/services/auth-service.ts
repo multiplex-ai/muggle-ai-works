@@ -133,11 +133,20 @@ export class AuthService {
     let browserUrl = data.verification_uri_complete;
 
     if (options?.forceNewSession) {
+      // A stale local token would otherwise mask the account switch; pollDeviceCode()
+      // rewrites it with the new identity once authorization completes.
+      this.logout();
+
+      // The device flow has no prompt=select_account, so unless the Auth0 browser
+      // session is cleared first the verification page silently reuses the live SSO
+      // session. returnTo MUST be in the app's Auth0 Allowed Logout URLs — otherwise
+      // Auth0 renders a generic error page and the session is left intact, so the
+      // caller must finish login in a fresh/incognito browser instead.
       const logoutUrl = new URL(`https://${domain}/v2/logout`);
       logoutUrl.searchParams.set("client_id", clientId);
       logoutUrl.searchParams.set("returnTo", data.verification_uri_complete);
       browserUrl = logoutUrl.toString();
-      logger.info("Force new session: opening logout-redirect URL", {
+      logger.info("Force new session: cleared local token, opening logout-redirect URL", {
         logoutUrl: browserUrl,
       });
     }
@@ -624,8 +633,8 @@ export class AuthService {
     const expiresAt = new Date(storedAuth.expiresAt);
     const isStrictlyExpired = now >= expiresAt;
 
-    // If not strictly expired, return the token
-    // (we'll still try to refresh in the buffer zone, but won't fail if refresh fails)
+    // In the buffer zone we still attempt a proactive refresh, but a failure there
+    // is non-fatal — the unexpired token is returned as-is.
     if (!isStrictlyExpired && !this.isAccessTokenExpired()) {
       return storedAuth.accessToken;
     }

@@ -113,13 +113,15 @@ If no changes detected (clean tree), tell the user and ask what they want to tes
 
 ## Step 3: Authenticate
 
-1. Call `muggle-remote-auth-status`
-2. If **authenticated and not expired** → gate `autoLogin` (per `preference-gates/README.md`):
-   - `always` → reuse saved session.
+1. Call `muggle-remote-auth-status`. Three states: **valid** (`authenticated: true`), **expired** (`authenticated: false` + `isExpired: true`, `email` still present), **absent** (`authenticated: false`, no `email`).
+2. **Valid OR expired** (any stored identity) → gate `autoLogin` (per `preference-gates/README.md`). An expired token is NOT a reason to silently re-login the same account — surface the switch choice:
+   - `always` → reuse if valid; if expired, re-login the **same** account (`muggle-remote-auth-login`, then `muggle-remote-auth-poll`).
    - `never` → `muggle-remote-auth-login` with `forceNewSession: true`, then `muggle-remote-auth-poll`.
    - `ask` → run Picker 1 from `preference-gates/autoLogin.md` via `AskUserQuestion`; map the answer back to one of the actions above.
-3. If **not authenticated or expired** → call `muggle-remote-auth-login`
-4. If login pending → call `muggle-remote-auth-poll`
+3. **Absent** (no stored identity) → `muggle-remote-auth-login` directly, then `muggle-remote-auth-poll`.
+4. If login pending → call `muggle-remote-auth-poll`.
+
+**Account-switch caveat (`never` / "Switch account").** The device flow has no `prompt=select_account`; switching relies on `forceNewSession` first clearing the Auth0 session via `/v2/logout?returnTo=<device-activation URL>`. That redirect only works if the activation URL is in the app's Auth0 *Allowed Logout URLs* — otherwise the browser shows an Auth0 error page and the session is silently reused. If that happens, tell the user to complete login in a **fresh incognito window** (no live SSO session) so Auth0 presents an account login.
 
 If auth fails repeatedly, suggest: `muggle logout && muggle login` from terminal.
 

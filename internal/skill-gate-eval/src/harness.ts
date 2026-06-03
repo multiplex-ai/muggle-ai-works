@@ -60,6 +60,19 @@ function buildSystemPrompt(opts: RunOptions): string {
     "SKILL.md",
   );
   const skillBody = fs.readFileSync(skillMdPath, "utf8");
+  // The Read tool is denied in this harness, so a skill that says "run
+  // Picker 1 from preference-gates/<gate>.md" can't open that file the way it
+  // would in production. Inline the gate-under-test's contract so the model
+  // has its Picker 1 question verbatim — mirroring production's Read access.
+  const gatePath = path.join(
+    opts.skillsDir,
+    "muggle-preferences",
+    "preference-gates",
+    `${opts.scenarioFile.gate}.md`,
+  );
+  const gateBody = fs.existsSync(gatePath)
+    ? fs.readFileSync(gatePath, "utf8")
+    : "";
   const prefs = Object.entries(opts.scenario.preferences)
     .map(([k, v]) => `${k}=${v}`)
     .join(" ");
@@ -71,6 +84,14 @@ function buildSystemPrompt(opts: RunOptions): string {
     "# Synthesized SessionStart context (test harness)",
     `Muggle Test Preferences: ${prefs}`,
     extraContext,
+    "",
+    "---",
+    `# Preference gate contract — preference-gates/${opts.scenarioFile.gate}.md`,
+    "The Read tool is unavailable here; the gate file the skill references is",
+    "inlined below. When this gate resolves to `ask`, fire its Picker 1 via",
+    "AskUserQuestion using the question text verbatim.",
+    "",
+    gateBody,
     "",
     "---",
     "# ENVIRONMENT NOTE",

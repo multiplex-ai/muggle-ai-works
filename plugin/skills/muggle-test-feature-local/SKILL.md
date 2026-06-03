@@ -147,14 +147,16 @@ Run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md
 
 Caller glue: `mode` is the path chosen in §5; `localUrl` from §4; `cwd` = the repo root, or the prepared worktree when one is in use.
 
-### 7. Execute (no approval prompt; `showUi` gated by `showElectronBrowser`)
+### 7. Execute (`showUi` gated by `showElectronBrowser`)
 
-Call `muggle-local-execute-test-generation` or `muggle-local-execute-replay` directly. **Do not** ask the user to re-approve the Electron launch — the user choosing this skill in the first place is the approval.
+Resolve the `showElectronBrowser` gate **first**, then call `muggle-local-execute-test-generation` or `muggle-local-execute-replay`. **Do not** ask the user to re-approve the Electron launch itself — choosing this skill is the approval. That run-approval suppression does **not** extend to the gate below: when `showElectronBrowser=ask` you must still fire its picker.
 
-Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse choice within a session.
-- `always` → omit `showUi`.
+Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse the choice within a session.
+- `always` → omit `showUi` (the browser shows by default).
 - `never` → pass `showUi: false`.
-- `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
+- `ask` → you **must** call `AskUserQuestion` (Picker 1 from `preference-gates/showElectronBrowser.md`) **before** the execute call, then map the answer to the `always`/`never` action above. Do not decide for the user.
+
+`showUi` is only ever omitted or `false` — never pass `showUi: true`.
 
 ### 8. Upload run to cloud (every completed run; open `viewUrl` gated by `openTestResultsAfterRun`)
 

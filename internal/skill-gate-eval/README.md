@@ -30,13 +30,14 @@ Layer 2 is run **manually** until the suite is stable. From the
 muggle-ai-works repo root:
 
 ```bash
-ANTHROPIC_API_KEY=... \
-  MUGGLE_BRAIN_DIR=../muggle-ai-brain \
+MUGGLE_BRAIN_DIR=../muggle-ai-brain \
   pnpm tsx internal/skill-gate-eval/src/run.ts \
     --gate showElectronBrowser \
     --skill muggle-test-feature-local \
     --runs 10
 ```
+
+**Auth:** the harness drives `@anthropic-ai/claude-agent-sdk`'s `query()`, which uses your **Claude Code login session** by default — no API key needed when you're logged in. Set `ANTHROPIC_API_KEY` (prefix the command) only where there's no login session, e.g. headless CI.
 
 The harness loads
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/showElectronBrowser/scenarios.json`,

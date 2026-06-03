@@ -109,7 +109,7 @@ if [ -f "$prefs_global_file" ]; then
         postPRVisualWalkthrough:'ask', autoCreatePR:'ask',
         checkForUpdates:'ask', verboseOutput:'ask',
         autoUseWorktree:'ask', autoRebase:'ask', autoCleanup:'ask',
-        autoE2ETest:'always'
+        autoE2ETest:'always', autoRouteBuildToMuggleDo:'ask'
       };
       const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
       const pPath = require('path').join(cwd, '.muggle-ai', 'preferences.json');

@@ -43,3 +43,6 @@ coverage/
 
 # muggle-do / pr-followup session state (runtime, never committed)
 .muggle-do/
+
+# Claude Code per-user local settings (settings.json is shared; .local is machine-specific)
+.claude/settings.local.json

@@ -1,6 +1,6 @@
 ---
 name: muggle-feedback
-description: Use when the user wants to flag that a generated Muggle Test action script — or one specific step in it — did the wrong thing, and have it captured so Muggle can analyze and regenerate affected scripts. Covers any report that a script or step is wrong, broken, or misbehaving (clicked the wrong element, bad summary, "step N didn't work", "broken at the submit step"), whether the user just ran a test locally or remotely or pastes a Muggle dashboard run/script URL and points at what failed. Also use to view, list, or delete previously submitted feedback. Triggers on '/muggle-feedback', 'give feedback on this run', 'the test was wrong', 'flag this run', 'show/list/delete my feedback'. Auto-detects run context from a recent local run, a remote run, or a dashboard URL in the prompt.
+description: "Use when the user wants to flag that a generated Muggle Test action script — or one specific step in it — did the wrong thing, so Muggle can analyze and regenerate affected scripts. Covers any report that a script or step is wrong, broken, or misbehaving (clicked the wrong element, step N did not work, broken at the submit step), whether from a recent local/remote run or a pasted Muggle dashboard run/script URL. Also lists, views, or deletes previously submitted feedback. Triggers on /muggle-feedback, give feedback on this run, the test was wrong, flag this run."
 ---
 
 # Muggle Test Feedback

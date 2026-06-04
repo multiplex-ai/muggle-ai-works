@@ -1,6 +1,6 @@
 ---
 name: muggle-test
-description: "Run change-driven E2E acceptance testing using Muggle AI — detect the user's recent code changes (local diff or a PR), map them to affected user flows, then run real-browser acceptance tests on localhost or a deployed preview/staging URL, publish results to the dashboard, and post a screenshot summary to the PR. Use this whenever the user wants to test, validate, check, or regression-test their own changes or work — 'test my changes', 'validate my changes', 'regression test my work', 'make sure I didn't break anything', 'did my recent commits/changes break anything or any user flows?', 'test before I push' — and especially as the acceptance-test gate before opening a pull request or merging (e.g. 'validate my changes before I open the PR' means run the acceptance suite, not just a completion checklist). The defining signal is change-driven validation of in-progress work tied to a commit, push, PR, or merge. For testing one specific named feature/flow use muggle-test-feature-local; this is not importing existing tests, configuring preferences, or replaying a single named script."
+description: "Change-driven E2E acceptance testing with Muggle AI: detect the user's recent code changes (local diff or a PR), map them to affected user flows, run real-browser tests on localhost or a preview/staging URL, publish results, and post a screenshot summary to the PR. Use whenever the user wants to test, validate, or regression-test their own in-progress changes or work — \"make sure I didn't break anything\", \"did my recent commits break any user flows?\", \"test before I push\" — especially as the acceptance gate before opening or merging a PR. The defining signal is change-driven validation tied to a commit, push, PR, or merge. For one specific named feature/flow use muggle-test-feature-local; not for importing existing tests, configuring preferences, or replaying a single named script."
 ---
 
 # Muggle Test — Change-Driven E2E Acceptance Router
@@ -415,53 +415,15 @@ Use `AskUserQuestion`:
 
 This is a suggestion, not automatic invocation. Skip silently if every test passed cleanly.
 
-## Tool Reference
+## Non-negotiables
 
-| Phase | Tool | Mode |
-|:------|:-----|:-----|
-| Auth | `muggle-remote-auth-status` | Both |
-| Auth | `muggle-remote-auth-login` | Both |
-| Auth | `muggle-remote-auth-poll` | Both |
-| Project | `muggle-remote-project-list` | Both |
-| Project | `muggle-remote-project-create` | Both |
-| Use Case | `muggle-remote-use-case-list` | Both |
-| Use Case | `muggle-remote-use-case-create-from-prompts` | Both |
-| Test Case | `muggle-remote-test-case-list-by-use-case` | Both |
-| Test Case | `muggle-remote-test-case-generate-from-prompt` | Both |
-| Test Case | `muggle-remote-test-case-create` | Both |
-| Test Case | `muggle-remote-test-case-get` | Both |
-| Execute (regen) | `muggle-local-execute-test-generation` | Local |
-| Execute (replay) | `muggle-local-execute-replay` | Local |
-| Replay action script fetch | `muggle-remote-test-script-get`, `muggle-remote-action-script-get` | Local replay |
-| Execute (regen) | `muggle-remote-workflow-start-test-script-generation` | Remote |
-| Execute (replay) | `muggle-remote-workflow-start-test-script-replay` | Remote |
-| Failure-mode telemetry | `muggle-local-telemetry-event-emit` | Both |
-| Results | `muggle-local-run-result-get` | Local |
-| Results | `muggle-remote-wf-get-ts-gen-latest-run`, `muggle-remote-wf-get-ts-replay-latest-run` | Remote |
-| Publish | `muggle-local-publish-test-script` | Local |
-| Per-step screenshots (for walkthrough) | `muggle-remote-test-script-get` | Both |
-| Browser | `open` (shell command) | Both |
-| PR walkthrough | `muggle-pr-visual-walkthrough` (shared skill) | Both |
+Each rule below is covered in-step above; these are the ones this skill most often violates, kept here as reinforcement:
 
-## Guardrails
+- **Test-case shape** — never skip the generate→review cycle, never consolidate the generator's micro-tests, one atomic behavior per test case. Creating test cases directly or merging the generator's output is the single most frequent mistake.
+- **Confirm intent before acting** — local vs remote; never guess the localhost/preview URL.
+- **PR URLs run in a dedicated worktree** — never switch the user's main checkout; pass that worktree as `cwd`.
+- **Every selection uses `AskUserQuestion`** — never ask the user to type a number; the user picks the project (never auto-select).
+- **Parallelize independent cloud jobs**; the only sequential loop is local Electron execution (one browser).
+- **Publish before opening the browser**, and delegate PR posting to `muggle-pr-visual-walkthrough` — never inline the walkthrough or call `gh pr comment` here.
 
-- **Always confirm intent first** — never assume local vs remote without asking
-- **PR URLs always run in a dedicated worktree** — never switch the user's main checkout. Materialize per [`_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) and pass that path as `cwd` to local execute tools; the cross-worktree single-flight lock relies on it to serialize concurrent runs from different branches.
-- **User MUST select project** — present clickable options via `AskUserQuestion`, wait for explicit choice, never auto-select
-- **Best-effort shortlist use cases** — use the change summary to narrow the list to the most relevant 1–5 use cases and pre-check them; never dump every use case in the project on the user. Always leave an escape hatch to reveal the full list.
-- **Best-effort shortlist test cases** — same idea: pre-check the test cases most relevant to the change summary; never enumerate every test case attached to a use case. Always leave an escape hatch to reveal the full list.
-- **Use `AskUserQuestion` for every selection** — never ask the user to type a number; always present clickable options
-- **Auto-detect localhost URL when possible**; only fall back to free-text when nothing is listening on a common port
-- **Parallelize independent cloud jobs** — when creating N use cases, generating/creating N test cases, fetching N test case details, starting N remote workflows, polling N workflow runtimes, publishing N local runs, or fetching N per-step test scripts, issue all N calls in a single message so they fan out in parallel. The only tolerated sequential loop is local Electron execution (one browser, one test at a time). For use case creation specifically, use the native batch form of `muggle-remote-use-case-create-from-prompts` (all descriptions in one `instructions` array) instead of parallel calls.
-- **One atomic behavior per test case** — every test case verifies exactly one user-observable behavior. Never bundle signup/login/navigation/bootstrap/teardown into a test case body. Ordering and dependencies are Muggle Test's service responsibility, not the skill's.
-- **Never consolidate the generator's output** — if `muggle-remote-test-case-generate-from-prompt` returns N micro-tests, accept all N; never merge them into fewer test cases, even if "the plan" says 4 UC / 4 TC.
-- **Never skip the generate→review cycle** — always present generated test cases to the user before calling `muggle-remote-test-case-create`, even when you're confident. "I'll skip the review and create directly" is always wrong.
-- **Never silently drop test cases** — log failures and continue, then report them
-- **Never guess the URL** — always ask the user for localhost or preview URL
-- **Always publish before opening browser** — the dashboard needs the published data to show results
-- **Delegate PR posting to `muggle-pr-visual-walkthrough`** — never inline the walkthrough markdown or call `gh pr comment` directly from this skill; ask the user and hand off
-- **Can be invoked at any state** — if the user already has a project or use cases set up, skip to the relevant step rather than re-doing everything
-
-## Agent Dispatch
-
-When used in a multi-agent team (e.g., muggle-ai-teams), this skill is available through the **acceptance-tester** agent at `plugin/agents/acceptance-tester.md`. Orchestrators can dispatch it via `Agent()` instead of invoking this skill directly. The agent wraps this skill and four others (muggle-test-import, muggle-preferences, muggle-repair, muggle-status) and returns structured test results with blocking issues and suggested fixes for coding agents to act on.
+Phase→tool map and multi-agent (acceptance-tester) dispatch: [`reference.md`](reference.md).

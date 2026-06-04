@@ -1,6 +1,6 @@
 ---
 name: muggle-test-prepare
-description: "Use this skill to get a user's local environment ready before running E2E acceptance tests — verifying that the dev servers, APIs, and sibling services they need are actually up and responding, and offering to start whatever is missing (with approval at each step). Trigger whenever the user wants to confirm that specific ports or localhost URLs are listening/up before testing (e.g. 'check if localhost:3000 and the api on 8080 are listening', 'are my services up?'), make sure required services are running, spin up or prepare their local dev stack, or verify their setup — and whenever another muggle skill (muggle-test, muggle-do, muggle-test-feature-local) needs services running but they're not listening on the expected ports. This is environment readiness and service startup, not running the tests themselves."
+description: "Get a user's local environment ready before running E2E acceptance tests — verify the dev servers, APIs, and sibling services they need are up and responding, and offer to start whatever is missing (with approval per step). Trigger when the user wants to confirm specific ports or localhost URLs are listening before testing (check if localhost:3000 and the api on 8080 are up, are my services running), spin up their local dev stack, or verify their setup — and whenever another muggle skill (muggle-test, muggle-do, muggle-test-feature-local) needs services running but they're not. This is environment readiness and service startup, not running the tests."
 ---
 
 # Muggle Test Prepare

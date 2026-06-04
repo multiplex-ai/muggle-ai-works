@@ -1,0 +1,28 @@
+{
+  "extraKnownMarketplaces": {
+    "muggle-works": {
+      "autoUpdate": true,
+      "source": {
+        "source": "github",
+        "repo": "multiplex-ai/muggle-ai-works"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "muggleai@muggle-works": true
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/ensure-muggle-plugin.sh\"",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

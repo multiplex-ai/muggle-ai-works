@@ -6,7 +6,7 @@ For `/muggle:muggle-pr-followup help` or `?` (no args runs **auto-track** instea
 muggle-pr-followup — watcher loop for PR review follow-ups
 
 Active loops:
-  <slug> → <owner>/<repo>#<n> (cursor @ review #<id>, <N> cycles)
+  <slug> → <owner>/<repo>#<n> (<N> cycles)
   ...
   (or "no active loops")
 

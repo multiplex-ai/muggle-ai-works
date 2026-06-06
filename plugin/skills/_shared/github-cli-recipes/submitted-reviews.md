@@ -1,16 +1,24 @@
-# Submitted reviews past a cursor
+# Submitted reviews
 
-For the watcher's poll and the address-reviews fetch.
+Two consumers (this recipe links to neither — it is a shared primitive):
+
+- the watcher's **body-only-review** check — a submitted review carrying a summary body but **no** line comments. Line-comment threads are dispatched from live thread state, not here.
+- the address-reviews fetch of a **specific** review id.
 
 ```bash
 gh api repos/<owner>/<repo>/pulls/<n>/reviews --paginate
 ```
 
-Filter client-side:
+Common filter:
 
 - `submitted_at != null` (skip PENDING drafts)
-- `id > last_seen.reviewId`
-- `id` not in `last_seen.escalated_review_ids`
 - `user.login` in the resolved allow-list
 - `state` in `{CHANGES_REQUESTED, COMMENTED}`, OR `APPROVED` with a non-empty body or at least one line comment
-- **Not a loop echo.** `POST /pulls/<n>/comments/<id>/replies` creates an implicit review whose comments all have `in_reply_to_id` set. Fetch each candidate review's comments via `gh api repos/<owner>/<repo>/pulls/<n>/reviews/<id>/comments` and drop the review **only if every comment is a reply (`in_reply_to_id != null`) and carries the loop marker `<!-- muggle-do:bot -->`** (see [`../pr-followup-helpers/loop-signature.md`](../pr-followup-helpers/loop-signature.md)). A reply-only wrapper with any comment **lacking** the marker is a human follow-up — keep it; the round addresses it. Matching the marker, not structure, is what skips the loop's own replies (posted under the author's identity in single-account workflows) without dropping genuine follow-ups.
+
+The **watcher's body-only check** adds:
+
+- the review has **no line comments** — `gh api repos/<owner>/<repo>/pulls/<n>/reviews/<id>/comments` returns `[]`. A review with line comments is dispatched from thread state, not here.
+- `id > last_seen.lastBodyReviewId`
+- `id` not in `last_seen.escalated_review_ids`
+
+A reply posted by the loop surfaces as an implicit review, but it always carries the reply as a line comment, so it can never be body-only — the body-only filter excludes it structurally, no marker check needed. Thread-level echo protection is intrinsic to the marker rule in [`unresolved-threads.md`](unresolved-threads.md).

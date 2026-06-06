@@ -1,8 +1,8 @@
 # Watcher Per-Tick Contract
 
-The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for new submitted reviews, CI checks, and merge-conflict state, dispatches `/muggle-do` if there's review feedback, fixable red CI, or an unmergeable branch, and exits. It does not classify, fix, resolve, amend requirements, post replies, run cycles, or escalate.
+The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for actionable review threads, CI checks, and merge-conflict state, dispatches `/muggle-do` if there's unaddressed review feedback, fixable red CI, or an unmergeable branch, and exits. It does not classify, fix, resolve, amend requirements, post replies, run cycles, or escalate.
 
-Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain doc `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md`.
+Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain docs `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md` (the overall loop) and `architecture/2026-06-06-pr-followup-thread-state-baseline-design.md` (the thread-state dispatch trigger).
 
 ## Turn preamble
 
@@ -48,33 +48,36 @@ If `state` is `MERGED` or `CLOSED`:
 3. Exit. The watcher has unscheduled itself; no future ticks fire for this PR.
 
 
-### Step 3 — Fetch new submitted reviews
+### Step 3 — Compute the actionable set from live thread state
 
-Per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md). Exclude two kinds of review id:
+The watcher's dispatch trigger is **derived from current GitHub state**, not a stored review-id cursor — see the [thread-state baseline design](../../../../muggle-ai-brain/architecture/2026-06-06-pr-followup-thread-state-baseline-design.md). Two sources, unioned:
 
-- ids in `last_seen.escalated_review_ids` — already escalated; the watcher must not re-dispatch them.
-- **echo reviews** per [`../_shared/pr-followup-helpers/echo-skip.md`](../_shared/pr-followup-helpers/echo-skip.md) — a review whose every comment carries the loop marker is the loop's own reply, surfaced by GitHub as a new review. Advance `last_seen.reviewId` past it and skip; never dispatch, or the watcher replies to itself forever.
+**(a) Actionable threads.** Fetch unresolved review threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). A thread is **actionable** when `isResolved == false` **and** `isOutdated == false` **and** its newest comment lacks the loop marker `<!-- muggle-do:bot -->` — classify by the marker, never `author.login` (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)). The marker rule makes echo intrinsic: once the loop has replied, the thread's newest comment is the loop's own, so the thread is no longer actionable — no cursor to advance, no self-recursion (see [`../_shared/pr-followup-helpers/echo-skip.md`](../_shared/pr-followup-helpers/echo-skip.md)).
 
-### Step 4 — If one or more new reviews → dispatch (reviews preempt CI)
+**(b) Actionable body-only reviews.** A body-only review — a submitted `CHANGES_REQUESTED`/`COMMENTED` review with no line comments — has no thread to derive state from, so it keeps a narrow watermark. Fetch submitted reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md); a body-only review is actionable when `id > last_seen.lastBodyReviewId` **and** `id ∉ last_seen.escalated_review_ids`.
 
-The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher's job is to hand over the list of new review ids and exit.
+Collect the **owning review ids** for dispatch: for each actionable thread, the owning review of its newest comment (`pullRequestReview.databaseId` from the query); plus every actionable body-only review id. The dedup'd union is the dispatch list.
+
+### Step 4 — If the actionable set is non-empty → dispatch (reviews preempt CI)
+
+The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher hands over the owning review ids and exits — `/muggle-do`'s address-reviews re-derives the unresolved threads itself (its authority), so the watcher only needs to decide *that* there is work, not enumerate it exhaustively.
 
 1. Reset `last_seen.idle_tick_count` to 0.
 2. **Stop this watcher (single-thread).** Cancel its cron so no tick fires while the dev cycle runs: `CronList`, find the job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` (exact two-arg match), `CronDelete` it. `/muggle-do` respawns the watcher when the cycle finishes — exactly one cron ever, and no tick overlaps a running cycle.
 3. Dispatch `/muggle-do` with an *address-reviews* directive carrying:
    - PR URL (from `prs.json[0].url`)
    - Session slug (from the invocation arguments)
-   - Every new review id from Step 3, as a space-separated list
+   - The owning review ids from Step 3, as a space-separated list
 
    Exact phrasing belongs to `/muggle-do`'s intent-routing. A reasonable shape is:
    ```
    /muggle-do address reviews <id1> <id2> ... on <pr-url> slug=<slug>
    ```
 4. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
-5. Emit a `tick` event with `reviews_seen: <count>`, `dispatched_review_ids: [<id>, ...]`.
-6. Exit. **Reviews preempt CI** — when reviews land, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
+5. Emit a `tick` event with `actionable_threads: <count>`, `dispatched_review_ids: [<id>, ...]`.
+6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
-### Step 5 — No new reviews → check mergeability
+### Step 5 — No actionable feedback → check mergeability
 
 Read `mergeable` / `mergeStateStatus` from the Step 1 metadata. If `mergeable == CONFLICTING` (or `mergeStateStatus == DIRTY`), **and** `conflict_resolve_attempts[head_sha] < 2`, **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
 
@@ -89,7 +92,7 @@ Read `mergeable` / `mergeStateStatus` from the Step 1 metadata. If `mergeable ==
 
 `mergeable == MERGEABLE` / `UNKNOWN` (GitHub still computing — treat as not-conflicting this tick), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
 
-### Step 6 — No new reviews, mergeable → poll CI for the head SHA
+### Step 6 — No actionable feedback, mergeable → poll CI for the head SHA
 
 Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cli-recipes/pr-checks.md`](../_shared/github-cli-recipes/pr-checks.md), then:
 
@@ -108,7 +111,7 @@ Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cl
 
 ### Step 7 — Idle
 
-Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `reviews_seen: 0`, `dispatched_review_ids: []`, `conflicting: <bool>`, `dispatched_resolve_conflicts: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `actionable_threads: 0`, `dispatched_review_ids: []`, `conflicting: <bool>`, `dispatched_resolve_conflicts: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
 ## Output
 

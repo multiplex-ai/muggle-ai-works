@@ -5,7 +5,7 @@
 ```
 Bootstrapped PR follow-up for <owner>/<repo>#<n>
   Slug:           <slug>
-  Cursor:         0 (will process <N> existing review(s) on first tick) | review #<id> (forward-only) | empty (no prior reviews)
+  Baseline:       thread-state (unresolved threads picked up live); lastBodyReviewId=0 | =<id> (forward-only)
   Working tree:   <toplevel>
   Dispatching:    /loop 1m /muggle:muggle-pr-followup <slug> <n>
 ```

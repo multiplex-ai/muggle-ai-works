@@ -5,13 +5,13 @@ The watcher does **not** print to the user during normal operation. It only appe
 ## Idle tick
 
 ```
-<ISO-8601> tick pr=<n> reviews_seen=0 idle
+<ISO-8601> tick pr=<n> threads=0 idle
 ```
 
 ## Dispatching tick
 
 ```
-<ISO-8601> tick pr=<n> reviews_seen=<count> dispatched=<id1>,<id2>,...
+<ISO-8601> tick pr=<n> threads=<count> dispatched=<id1>,<id2>,...
 ```
 
 ## Terminal tick

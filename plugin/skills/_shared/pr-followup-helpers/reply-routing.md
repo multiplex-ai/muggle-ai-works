@@ -37,4 +37,4 @@ fix(ci): lint — remove unused import
 
 - Never post a top-level comment in reply to a line-level comment. It loses thread context.
 - Never `gh pr review --comment` for replies — that endpoint is for *new* reviews.
-- Never reply twice to the same comment. The cursor in `last_seen.json` is the only re-entry guard; advance it after every reply.
+- Never reply twice to the same comment. The loop marker on each posted reply is the re-entry guard — a thread whose newest comment is loop-marked is no longer actionable, so the next round won't re-reply.

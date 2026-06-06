@@ -17,7 +17,7 @@ Bootstrap asks **one** questionnaire — the E2E validation context the loop wil
 - `<pr-url>` matches `https?://github\.com/[^/]+/[^/]+/pull/\d+` — required.
 - `--slug=<name>` overrides the default `<repo>-pr<n>` slug.
 - `--resume` opts into refreshing an existing slot instead of refusing on conflict.
-- `--forward-only` pins the cursor past existing reviews (skip history). Default is cursor 0 — the watcher will pick up prior submitted reviews on its first tick.
+- `--forward-only` pins `lastBodyReviewId` past existing **body-only** reviews (skip history on those). It does **not** affect line-comment threads — those are always picked up from live thread state. Default is `0`.
 
 ## Procedure
 
@@ -46,12 +46,14 @@ Default: `<repo>-pr<n>` (e.g. `muggle-ai-works-pr154`). Override: `--slug=<name>
 If `~/.muggle-ai/muggle-do/sessions/<slug>/` exists (including a slot just migrated above):
 
 - Without `--resume` → exit with the slot-conflict abort. Both remedies (delete + re-run, or pass `--resume`) are spelled out in the message.
-- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` and the cursor untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.
+- With `--resume` → refresh `prs.json[0].head_sha` to the current `headRefOid` from Step 2; leave `last_seen.json` untouched. If `state.md` already has a `## Pre-flight answers` block, skip to Step 8; if not (older session), run Step 6.5 to backfill it, then skip to Step 8.
 
-### Step 6 — Resolve the initial cursor
+### Step 6 — Resolve the body-only watermark
 
-- **Default (no `--forward-only`):** cursor is `0`. The watcher will pick up every existing submitted review on its first tick. This matches the common case where the user opened the PR, left review comments they want addressed, and is now running bootstrap.
-- **With `--forward-only`:** fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md), then take `max(id)`. The watcher only acts on later submissions. Use when bootstrapping a PR with stale/already-handled prior reviews you don't want re-processed.
+Line-comment threads need no seeding — the watcher derives them from live thread state on every tick, so existing unresolved threads are picked up on the first tick regardless of this step. This step only sets `lastBodyReviewId`, the narrow watermark for body-only reviews (a submitted review with no line comments).
+
+- **Default (no `--forward-only`):** `lastBodyReviewId = 0`. The watcher picks up every existing body-only review on its first tick. Matches the common case — the user opened the PR, left feedback they want addressed, and is now bootstrapping.
+- **With `--forward-only`:** fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md), then take `max(id)`. Body-only reviews at or below that id are treated as already-handled. This no longer hides existing line-comment threads — those are always picked up from thread state.
 
 ### Step 6.5 — Resolve E2E validation context
 
@@ -67,7 +69,7 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 
-**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `reviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
+**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
 
 **`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. Append the `## Pre-flight answers` block with the fields resolved in Step 6.5, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields).
 

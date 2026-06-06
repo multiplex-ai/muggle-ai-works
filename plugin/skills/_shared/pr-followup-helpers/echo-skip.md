@@ -1,16 +1,10 @@
-# Reply-echo skip
+# Echo protection (intrinsic under thread-state)
 
-When `/muggle-do` posts a threaded reply to a review comment, GitHub surfaces that reply as a **new submitted review** under the same account. Left unchecked, the next watcher tick reads that review as fresh feedback and dispatches another cycle — which posts another reply, which becomes another review. The loop never converges.
+When `/muggle-do` posts a threaded reply to a review comment, GitHub surfaces that reply as a **new submitted review** under the same account, and the reply becomes the newest comment in its thread. The watcher must never read that as fresh feedback, or it replies to itself forever.
 
-## Rule
+Under the thread-state dispatch trigger this is **intrinsic** — there is no "advance past the echo" step to get wrong:
 
-A submitted review is an **echo** when **every** comment in it carries the loop marker `<!-- muggle-do:bot -->` (see [`loop-signature.md`](loop-signature.md)). An echo is the loop's own reply wearing a review's clothing, never human intent.
+- **Line-comment threads.** A thread is actionable only when its newest comment lacks the loop marker `<!-- muggle-do:bot -->` (see [`loop-signature.md`](loop-signature.md)). After the loop replies, the newest comment is the loop's own and carries the marker, so the thread drops out of the actionable set on its own.
+- **Body-only reviews.** A loop reply always carries a line comment, so it is never body-only; the body-only check (no line comments, `id > lastBodyReviewId` — see [`../github-cli-recipes/submitted-reviews.md`](../github-cli-recipes/submitted-reviews.md)) excludes echoes structurally.
 
-On an echo review, the watcher must:
-
-1. Advance `last_seen.reviewId` past the echo's id (so it is not seen again), and
-2. **Skip it** — never dispatch `/muggle-do` for it.
-
-## Detection
-
-Classify by the marker, never by `author.login` — under a shared account the loop posts as the PR author, so the login cannot tell echo from human. Fetch the review's comments; if the set is non-empty and every comment body contains `<!-- muggle-do:bot -->`, it is an echo. A review with at least one marker-less comment is human feedback and must be processed normally.
+Classify by the marker, never by `author.login` — under a shared account the loop posts as the PR author, so the login cannot tell echo from human.

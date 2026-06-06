@@ -34,7 +34,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 ```json
 {
   "<owner>/<repo>#<n>": {
-    "reviewId": <int>,
+    "lastBodyReviewId": <int>,
     "last_pushed_sha": "<sha-or-null>",
     "idle_tick_count": <int>,
     "cycles_completed": <int>,
@@ -48,11 +48,11 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 }
 ```
 
-- `reviewId`: the cursor. The watcher fetches reviews with `id > reviewId`. Bootstrap pins this to the highest existing submitted review id (or `0` if none).
+- `lastBodyReviewId`: narrow watermark for **body-only** reviews (a submitted review carrying no line comments). The watcher dispatches a body-only review only when `id > lastBodyReviewId`. Line-comment threads do **not** use it — they are dispatched from live thread state (unresolved + not outdated + newest comment unmarked by the loop), so there is no cursor that can pin past them. Bootstrap sets it to the highest existing submitted review id with `--forward-only`, else `0`.
 - `last_pushed_sha`: most recent SHA `/muggle-do` pushed in this PR's life; `null` until the first push.
-- `idle_tick_count`: incremented each tick that sees zero new reviews. Reset to 0 on any tick that dispatches `/muggle-do`. Diagnostic only — does not gate behavior.
+- `idle_tick_count`: incremented each tick whose actionable set is empty. Reset to 0 on any tick that dispatches `/muggle-do`. Diagnostic only — does not gate behavior.
 - `cycles_completed`: incremented each time `/muggle-do` completes an address-reviews invocation (regardless of actionable/ambiguous/mixed).
-- `escalated_review_ids`: review ids classified as ambiguous by `/muggle-do`. The watcher excludes these from future review fetches so the same ambiguous review is never re-dispatched.
+- `escalated_review_ids`: review ids classified as ambiguous by `/muggle-do`. The watcher excludes these from the actionable set (both body-only reviews and the threads they own) so the same ambiguous review is never re-dispatched.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
 - `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
@@ -94,8 +94,8 @@ The watcher does **not** read or write `state.md`. Only bootstrap, `/muggle-do`,
 Append-only line-per-tick log. One line per watcher tick, plus one line per `/muggle-do` invocation. Format is loose, but each line starts with an ISO-8601 timestamp:
 
 ```
-2026-05-20T12:34:56Z tick pr=154 reviews_seen=0 idle
-2026-05-20T12:35:56Z tick pr=154 reviews_seen=1 dispatched=4295962800
+2026-05-20T12:34:56Z tick pr=154 threads=0 idle
+2026-05-20T12:35:56Z tick pr=154 threads=1 dispatched=4295962800
 2026-05-20T12:36:14Z muggle-do cycle review_ids=[4295962800] outcome=pushed head_sha=abc1234
 ```
 
@@ -116,7 +116,7 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 
 ## Timeline
 
-- <ISO-8601> bootstrap (cursor pinned at <reviewId>)
+- <ISO-8601> bootstrap (lastBodyReviewId <id>; line-comment threads state-derived)
 - <ISO-8601> review <id> from <login> — actionable, pushed <sha>
 - <ISO-8601> review <id> from <login> — ambiguous, escalated
 - ...

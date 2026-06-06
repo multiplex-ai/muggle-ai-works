@@ -13,16 +13,16 @@ The entry procedure for `/muggle-do`'s **address-reviews** mode — invoked by t
 `$ARGUMENTS` carries:
 - PR URL: `<owner>/<repo>#<n>` derivable from the URL.
 - Session slug: `<slug>`.
-- List of review ids: one or more integers.
+- Owning review ids: one or more integers (the reviews whose actionable threads or body-only feedback the watcher flagged).
 
-Exact phrasing comes from the watcher's dispatch (see [`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md#step-5-if-one-or-more-new-reviews-dispatch)). Parse all three out of the directive text.
+Exact phrasing comes from the watcher's dispatch (see [`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)). Parse all three out of the directive text.
 
 ## Inputs from disk
 
 Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 - `prs.json` — to locate the PR's local checkout path (the `repo` field maps to a configured local repo) and capture `head_sha_before`.
-- `last_seen.json` — for `pushed_shas[]` (used by the resolve-reminder stage) and to update the cursor.
+- `last_seen.json` — for `pushed_shas[]` (used by the resolve-reminder stage) and to update `lastBodyReviewId`.
 - `state.md` — for the cached `loop_user` login (used by resolve-reminder thread classification).
 
 ## Procedure
@@ -37,10 +37,10 @@ Two sources, combined into one batch (dedupe by comment id):
 
 **(a) The dispatched reviews.** For each review id in the input:
 
-- Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) (cursor 0; filter to the specific id).
+- Fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md) (no watermark; filter to the specific id).
 - Fetch its line comments per [`../_shared/github-cli-recipes/line-comments-for-review.md`](../_shared/github-cli-recipes/line-comments-for-review.md).
 
-**(b) Unaddressed comments on every unresolved thread.** Fetch unresolved threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). For each thread classified **unaddressed human comment** — newest comment lacks the loop marker `<!-- muggle-do:bot -->` ([`loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)) and post-dates the loop's last marked reply — add it to the batch, even if its review predates the cursor. This is how a human thread follow-up (a marker-less reply) gets addressed. **Exclude** comments whose review id is in `last_seen.escalated_review_ids` — paused awaiting the user, not re-work.
+**(b) Unaddressed comments on every unresolved thread.** Fetch unresolved threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). For each thread classified **unaddressed human comment** — newest comment lacks the loop marker `<!-- muggle-do:bot -->` ([`loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)) and post-dates the loop's last marked reply — add it to the batch — unresolved thread state, not any review-id watermark, is the authority here. This is how a human thread follow-up (a marker-less reply) gets addressed. **Exclude** comments whose review id is in `last_seen.escalated_review_ids` — paused awaiting the user, not re-work.
 
 Group (a) and (b) into one combined batch.
 
@@ -101,7 +101,7 @@ Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable re
 
 - `last_seen.cycles_completed` += 1
 - `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)
-- `last_seen.reviewId` = max(input review ids ∪ last_seen.reviewId)
+- `last_seen.lastBodyReviewId` = max(body-only input review ids ∪ last_seen.lastBodyReviewId) — line-comment threads need no watermark; they fall out of the actionable set once the per-comment reply carries the loop marker.
 
 ### Step 5.5 — Resolve-reminder (runs every round)
 
@@ -145,5 +145,5 @@ Do **not** push, do **not** post replies, do **not** run resolve-reminder. The c
 ## Invariants
 
 - One `/muggle-do` invocation = at most one push and one resolve-reminder, regardless of how many reviews are in the batch.
-- Every input review id ends up in either the cursor (handled) or `escalated_review_ids` (skipped) — never both, never neither.
+- Every input review id ends up either handled (its thread answered with a loop-marked reply, or — for a body-only review — folded into `lastBodyReviewId`) or in `escalated_review_ids` (skipped) — never both, never neither.
 - The watcher is respawned exactly when the PR is still open at the end of the cycle.

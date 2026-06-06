@@ -10,7 +10,7 @@ A review is a **self-loop** iff **every** line comment under it is a reply (`in_
 
 If any comment in a reply-only wrapper **lacks** the marker, it is a **human follow-up** on an existing thread — not a self-loop. It carries reviewer intent; treat it as actionable and address it in this round (the caller's unresolved-thread sweep picks up the thread context).
 
-Self-loops bypass the actionable/ambiguous decision entirely. Action: advance the cursor silently. No push, no reply, no resolve-reminder, no escalation, no entry in `escalated_review_ids`. Telemetry: emit one `cycle` event with `outcome: "self-loop-skip"`.
+Self-loops bypass the actionable/ambiguous decision entirely. Action: skip silently — a body-only echo folds its id into `lastBodyReviewId`; a line-comment echo already drops out of the actionable set via the marker. No push, no reply, no resolve-reminder, no escalation, no entry in `escalated_review_ids`. Telemetry: emit one `cycle` event with `outcome: "self-loop-skip"`.
 
 Only reviews that survive the self-loop check proceed to classify below.
 
@@ -51,7 +51,7 @@ Reply shape (all replies for one review reference the same SHA):
 | 1 comment: "won't this break the prod migration we did last week?" | Implicit change request gated on knowledge the loop can't access |
 | Mixed: 2 concrete directives + 1 "rethink the whole approach" | The "rethink" subverts the others; escalate to confirm scope |
 
-Escalate per the caller's procedure (add the review id to the cursor's escalated set, emit one terminal message, pause the PR).
+Escalate per the caller's procedure (add the review id to `escalated_review_ids`, emit one terminal message, pause the PR).
 
 ## Borderline rule
 

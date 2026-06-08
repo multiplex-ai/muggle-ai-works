@@ -1,5 +1,18 @@
 # Check what's already running
 
+## Resolve the target host first
+
+The dev-server URL the tests will hit is a **recorded value, not a guess** — resolve it before probing anything.
+
+1. Read the cached host with `muggle-local-last-host-get`. It reads `<cwd>/.muggle-ai/last-host.json`; a worktree usually has **no cache of its own**, so when the worktree returns nothing, pass the **main** working-tree root as `cwd` — `git rev-parse --git-common-dir`, then its parent directory.
+2. Apply the [`autoSelectLocalHost`](../../muggle-preferences/preference-gates/autoSelectLocalHost.md) gate (read its value from the `Muggle Test Preferences` session-context line; absent → `ask`):
+   - `always` **and** a cache exists → use it silently: `Using saved local URL {lastHost}`.
+   - otherwise (`ask` / `never`, or no cache) → **confirm before using any host.** Run the gate's Picker 1 with `{lastHost}` (cached URL, omitted when absent) and `{suggestedHost}` (a port you actually detect listening). Never auto-pick, and never fall back to a framework default like `:3000`; if nothing is cached or detected, ask the user to type the URL.
+
+The resolved host fixes the **expected** dev-server port for the detection below — probe that port; don't infer the target from whichever port happens to be listening.
+
+## Detect listening services
+
 Run port detection and (when an app declares a backend URL) backend-health probe per [`../../_shared/dev-server-readiness.md`](../../_shared/dev-server-readiness.md). Cross-reference hits against selected service directories.
 
 > "**backend-api** is already listening on port 3001 (PID 54321) — looks good."

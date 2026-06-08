@@ -62,6 +62,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 |------------|-------|
 | `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<default>` before starting dev servers |
 | `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover |
+| `autoSelectLocalHost` | [check-running](./steps/check-running.md) — reuse the recorded dev-server URL silently, or confirm it each run |
 
 ## Workflow
 
@@ -111,6 +112,8 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 
 ## Guardrails
 
+- **Never invent or default a host/port** — the dev-server URL is a recorded value, not a guess. Resolve it from `<repo>/.muggle-ai/last-host.json` (the [`autoSelectLocalHost`](../muggle-preferences/preference-gates/autoSelectLocalHost.md) cache) before probing ports; a framework default like `:3000` is never a fallback. See [check-running](./steps/check-running.md).
+- **No silent auto-selection without a gate** — when no preference authorizes a silent choice (host, restart, kill), confirm with the user. A gate set to `always` is the only license to skip the question; absent that, ask.
 - **Verify first, offer to start second** — check what's already running before proposing to start anything.
 - **The user may prefer to start services themselves** — always offer that option.
 - **Never start a process the user didn't approve.**

@@ -13,7 +13,6 @@ import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { RunEnvironment } from "../../e2e/contracts/run-environment.js";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
-import { findFailingStepScreenshot } from "./run-result-artifacts.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
@@ -214,10 +213,6 @@ const runResultGetTool: ILocalMcpTool = {
 
       const actionScriptPath = path.join(result.artifactsDir, "action-script.json");
       const resultsMdPath = path.join(result.artifactsDir, "results.md");
-      // The electron-app writes per-step frames to the runtime `screenshot/`
-      // dir, preserved here under electron-runtime/. `screenshots/` is the
-      // legacy/fallback location.
-      const runtimeScreenshotDir = path.join(result.artifactsDir, "electron-runtime", "screenshot");
       const screenshotsDir = path.join(result.artifactsDir, "screenshots");
       const stdoutLogPath = path.join(result.artifactsDir, "stdout.log");
       const stderrLogPath = path.join(result.artifactsDir, "stderr.log");
@@ -229,25 +224,9 @@ const runResultGetTool: ILocalMcpTool = {
       if (fs.existsSync(resultsMdPath)) {
         artifactItems.push("- `results.md` — step-by-step report with screenshot links");
       }
-      const screenshotDir = fs.existsSync(runtimeScreenshotDir)
-        ? runtimeScreenshotDir
-        : fs.existsSync(screenshotsDir)
-          ? screenshotsDir
-          : undefined;
-      if (screenshotDir) {
-        const screenshots = fs.readdirSync(screenshotDir).filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f));
-        if (screenshots.length > 0) {
-          const relDir = path.relative(result.artifactsDir, screenshotDir);
-          artifactItems.push(`- \`${relDir}/\` — ${screenshots.length} screenshot(s)`);
-          if (result.status === "failed") {
-            const failing = findFailingStepScreenshot(screenshots);
-            if (failing) {
-              artifactItems.push(
-                `- **Failing-step screenshot:** \`${path.join(screenshotDir, failing.file)}\` (step ${failing.stepNum})`,
-              );
-            }
-          }
-        }
+      if (fs.existsSync(screenshotsDir)) {
+        const screenshots = fs.readdirSync(screenshotsDir).filter((f) => /\.(png|jpg|jpeg|webp)$/i.test(f));
+        artifactItems.push(`- \`screenshots/\` — ${screenshots.length} image(s)`);
       }
       if (fs.existsSync(stdoutLogPath)) {
         artifactItems.push("- `stdout.log` — electron-app stdout output");

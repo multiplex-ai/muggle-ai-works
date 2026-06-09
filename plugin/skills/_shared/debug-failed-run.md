@@ -20,7 +20,7 @@ The guarantee binds **interactive** callers. An autonomous caller with no user t
 Read **structured run fields**, never the `execute` stdout tail (see [`dev-loop/failures.md`](./dev-loop/failures.md)). Assemble:
 
 - **Attempted steps + reasoning** — local: the attempted steps + `summaryStep` halt reason from `action-script.json` in `artifactsDir`; remote: the per-step list + `summaryStep` from `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run`.
-- **Visual evidence** — the Electron app saves a frame for every step, including the one that fails, so a failed run already has screenshots; read them from the run's step data. Each step carries an on-disk `screenshotLocalPath`, and once the run is published — failed runs are published too, see [`dev-loop/publish.md`](./dev-loop/publish.md) — a per-step cloud `screenshotUrl`. Remote runs expose the same per-step `screenshotUrl`. Fall back to steps + reasoning + the `stdout.log` / `stderr.log` tail only if a path is genuinely absent (e.g. the failure hit the screenshot capture itself).
+- **Visual evidence** — a failed run already preserves the full step-by-step on disk: every per-step frame under `<artifactsDir>/electron-runtime/screenshot/` (with per-step label data under `.../dataset/`), alongside the step script at `<artifactsDir>/action-script.json`. `run-result-get` returns `artifactsDir` — read the whole set there; don't trust a step's `screenshotLocalPath`, which points at the original runtime dir. Once published — failed runs are published too, see [`dev-loop/publish.md`](./dev-loop/publish.md) — the same frames are cloud-hosted per step as `screenshotUrl`, the form remote runs expose directly.
 - **Verdict** — `Status` + `Error`.
 
 ## Step 2 — Diagnose

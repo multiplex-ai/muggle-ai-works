@@ -31,7 +31,7 @@ If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was fi
 
 ### Step 1 — Refresh PR state
 
-Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` / `mergeStateStatus` from the same call for Step 5.
+Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` (conflict signal) for Step 5, and run the recipe's `compare` call to capture `behind_by` (out-of-date signal) for Step 5.
 
 ### Step 2 — Termination check
 
@@ -79,10 +79,12 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 
 ### Step 5 — No actionable feedback → keep the branch rebased on its base
 
-A merge-ready branch is **current with its base** — neither conflicting nor behind. Read `mergeable` / `mergeStateStatus` from the Step 1 metadata; the branch needs a rebase when either:
+A merge-ready branch is **current with its base** — neither conflicting nor behind. From the Step 1 metadata, the branch needs a rebase when either:
 
-- `mergeable == CONFLICTING` or `mergeStateStatus == DIRTY` — conflicts with the base, **or**
-- `mergeStateStatus == BEHIND` — out of date with the base, no conflict. An unrebased branch never becomes merge-ready on its own, and is merge-blocked wherever the base requires up-to-date branches.
+- `mergeable == CONFLICTING` (corroborated by `mergeStateStatus == DIRTY`) — conflicts with the base, **or**
+- `behind_by > 0` — out of date with the base. Read this from the `compare` call (commit ancestry), **never** from `mergeStateStatus == BEHIND`: GitHub masks `BEHIND` behind `DIRTY`/`BLOCKED` and only surfaces it under "require branches up to date" protection, so a stale PR that is also awaiting review or has a red required check reports `BLOCKED` — and its staleness would go unseen. See [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md#behind-by-out-of-date-detection).
+
+This trigger is **independent of approval and CI state**: an out-of-date branch is rebased whether or not it has been reviewed, approved, or has green checks. The watcher acts on staleness directly — it never waits for an approval to surface it.
 
 If a rebase is due **and** `conflict_resolve_attempts[head_sha] < 2` **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
 
@@ -96,7 +98,7 @@ If a rebase is due **and** `conflict_resolve_attempts[head_sha] < 2` **and** `he
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `rebase_needed: true`, `dispatched_rebase: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
-Branch current with its base (`CLEAN` / `BLOCKED` / `UNSTABLE` / `HAS_HOOKS`), `mergeable == UNKNOWN` (GitHub still computing — treat as current this tick), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
+Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
 
 ### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
 

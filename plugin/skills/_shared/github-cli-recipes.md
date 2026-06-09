@@ -8,7 +8,7 @@ Skills assume a working `gh auth status`. Auth errors surface verbatim from `gh`
 
 | Recipe | Use case |
 | :----- | :------- |
-| [`pr-metadata`](github-cli-recipes/pr-metadata.md) | Snapshot PR state, head SHA, branch — watcher + bootstrap. |
+| [`pr-metadata`](github-cli-recipes/pr-metadata.md) | Snapshot PR state, head SHA, branch, conflict + `behind_by` out-of-date detection — watcher + bootstrap. |
 | [`submitted-reviews`](github-cli-recipes/submitted-reviews.md) | Fetch a review by id / watcher's body-only-review check. |
 | [`pr-checks`](github-cli-recipes/pr-checks.md) | Check-run rollup for the head SHA — watcher's CI poll. |
 | [`line-comments-for-review`](github-cli-recipes/line-comments-for-review.md) | Pull a review's line comments — `/muggle-do` per-comment routing. |

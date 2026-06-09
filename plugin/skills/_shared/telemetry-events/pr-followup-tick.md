@@ -23,7 +23,7 @@ One per watcher iteration (idle or not).
 
 - `actionable_threads`: count of actionable items this tick — unresolved, non-outdated threads whose newest comment is unmarked, plus body-only reviews past `lastBodyReviewId` — **after** filtering by the escalated set.
 - `dispatched_review_ids`: owning review ids handed to `/muggle-do`. Empty when idle.
-- `rebase_needed`: true when the branch is behind (`BEHIND`) or conflicting (`DIRTY`/`CONFLICTING`) with its base. `false` when reviews were dispatched (reviews preempt the mergeability check).
+- `rebase_needed`: true when the branch is behind its base (`behind_by > 0`) or conflicting (`mergeable == CONFLICTING`). `false` when reviews were dispatched (reviews preempt the mergeability check).
 - `dispatched_rebase`: true when this tick dispatched `/muggle-do` with a rebase directive.
 - `checks_red`: count of failing checks on the head SHA. `0` when reviews or a rebase were dispatched (both preempt the CI poll) or CI was green/pending.
 - `dispatched_ci_fix`: true when this tick dispatched `/muggle-do` with a fix-ci directive.

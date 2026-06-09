@@ -123,17 +123,17 @@ function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs
 }
 
 /**
- * Read the studio's `gen_<input>.json` result file written next to the input
- * script. Returns undefined when no result file exists (e.g. an older studio
- * build that doesn't emit one) — callers narrow defensively.
+ * Read the studio's `cloudrefs_<input>.json` sidecar written next to the input
+ * script after it publishes the run. Returns undefined when absent (e.g. an
+ * older studio build that doesn't publish) — callers narrow defensively.
  */
-async function readStudioResultFile(inputFilePath: string): Promise<unknown> {
-  const resultPath = path.join(
+async function readCloudRefsFile(inputFilePath: string): Promise<unknown> {
+  const cloudRefsPath = path.join(
     path.dirname(inputFilePath),
-    `gen_${path.basename(inputFilePath)}`,
+    `cloudrefs_${path.basename(inputFilePath)}`,
   );
   try {
-    return JSON.parse(await fs.readFile(resultPath, "utf-8"));
+    return JSON.parse(await fs.readFile(cloudRefsPath, "utf-8"));
   } catch {
     return undefined;
   }
@@ -785,7 +785,7 @@ async function runTestGenerationLocked(params: {
           // No gen file produced before failure.
         }
 
-        const failedStudioCloudRefs = extractStudioCloudRefs(failedStudioResult);
+        const failedStudioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
         storage.updateRunResult(runId, {
           status: "failed",
           testScriptId: localTestScript.id,
@@ -835,7 +835,7 @@ async function runTestGenerationLocked(params: {
         runId: runId,
         generatedScriptPath: generatedScriptPath,
       });
-      const studioCloudRefs = extractStudioCloudRefs(generatedScript);
+      const studioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
@@ -1035,7 +1035,7 @@ async function runReplayLocked(params: {
       }
 
       const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
-      const replayStudioResult = await readStudioResultFile(inputFilePath);
+      const replayStudioResult = await readCloudRefsFile(inputFilePath);
       const replayStudioCloudRefs = extractStudioCloudRefs(replayStudioResult);
       storage.updateRunResult(runId, {
         status: "passed",

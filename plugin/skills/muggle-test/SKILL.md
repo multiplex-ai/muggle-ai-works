@@ -42,11 +42,11 @@ Gates run per `preference-gates/README.md`.
 |------------|------|-------------------|
 | `autoLogin` | 3 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 4 | Reuse last-used Muggle Test project for this repo |
-| `autoSelectLocalHost` | 7A | Reuse last-used local dev server URL for this repo |
+| `autoSelectLocalHost` | execute-local | Reuse last-used local dev server URL for this repo |
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
-| `autoPublishLocalResults` | 7A | Upload local results to Muggle Test cloud after run |
-| `showElectronBrowser` | 7A | Show the Electron browser window during local test execution (vs. run headless) |
+| `autoPublishLocalResults` | execute-local | Upload local results to Muggle Test cloud after run |
+| `showElectronBrowser` | execute-local | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 | `autoCreatePR` | 9 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
 | `autoWatchPR` | 9.5 (if a PR exists) | Start a `muggle-pr-followup` watcher on the PR after the run |
@@ -235,139 +235,37 @@ Then show the per-case decision in one `AskUserQuestion`:
 
 If the user picks "Override one or more", let them flip the mode for any test case via a second multi-select `AskUserQuestion`. Emit a follow-up `pre-execution-classification` event with `userAction` set whenever the user overrides.
 
-## Step 7A: Execute — Local Mode
+## Step 7: Execute
 
-### Local environment readiness
+### Fetch test case details (both modes)
 
-Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) — the readiness/service-start owner (idempotent; halt on what it surfaces). The URL gate below only *selects* the target; prepare is what guarantees something is listening and compiled.
+Hydrate every selected test case **once**, before dispatch: issue **all** `muggle-remote-test-case-get` calls in parallel (single message, multiple tool calls). Both paths consume the result — never re-fetch inside a path.
 
-### Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
+### Dispatch by mode
 
-Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):
-- **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
-- **Auto-detect a suggested URL**: `lsof -iTCP -sTCP:LISTEN -nP | grep -E ':(3000|3001|4200|5173|8080)'`. Pass as `{suggestedHost}`.
-- **Save the cache**: call `muggle-local-last-host-set` after the user picks (the gate file requires this on every pick).
+Run the path matching the mode confirmed in Step 1. Each path owns its own process and returns a **uniform runs list** — `[{ testCaseId, mode, runId | runtimeId, status, viewUrl? }]` — that Steps 7C–10 consume mode-agnostically.
 
-Gate `autoSelectLocalHost` per `preference-gates/README.md` + `preference-gates/autoSelectLocalHost.md`.
-
-### Pre-flight visibility (gated by `showElectronBrowser`)
-
-Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; apply same `showUi` to every test case.
-- `always` → omit `showUi` (defaults visible).
-- `never` → pass `showUi: false`.
-- `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
-
-### Fetch test case details (in parallel)
-
-Before execution, fetch full test case details for all selected test cases by issuing **all** `muggle-remote-test-case-get` calls in parallel (single message, multiple tool calls).
-
-### Run the dev loop
-
-Execute each selected test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).
-
-Caller glue:
-- `mode` per test case comes from Step 6f; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
-- `cwd` = the PR-branch worktree from Step 2 if one was created, else the user's repo root — it drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize.
-- On a failed run, continue the batch and route it through Step 7C after completion.
-
-### Collect results
-
-Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md), reading structured fields and [interpreting failures](../_shared/dev-loop/failures.md) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures and route through Step 7C.
-
-### Publish each run to cloud (gated by `autoPublishLocalResults`)
-
-Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
-- `always` → proceed to publish logic below.
-- `never` → skip to report summary; tell user Steps 8/9 and per-step screenshots are unavailable without publishing.
-- `ask` → run Picker 1 from `preference-gates/autoPublishLocalResults.md` via `AskUserQuestion`; map the answer back to one of the actions above.
-
-### Publish logic (when publishing is enabled)
-
-Publish every completed run per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — parallel `muggle-local-publish-test-script` with the zero-step `muggle-remote-local-run-upload` fallback. Store every `viewUrl`, `testScriptId`, `actionScriptId` — used in the next steps.
-
-### Report summary
-
-```
-Test Case                  Status    Duration   Steps   View Steps on Muggle AI
-─────────────────────────────────────────────────────────────────────────
-Login with valid creds     PASSED    12.3s      8       https://www.muggle-ai.com/...
-Login with invalid creds   PASSED    9.1s       6       https://www.muggle-ai.com/...
-Checkout flow              FAILED    15.7s      12      https://www.muggle-ai.com/...
-─────────────────────────────────────────────────────────────────────────
-Total: 3 tests | 2 passed | 1 failed | 37.1s
-```
-
-For failures, don't hand-write a verdict in the summary — route each through the debug path (Step 7C).
-
-## Step 7B: Execute — Remote Mode
-
-### Ask for target URL
-
-> "What's the preview/staging URL to test against?"
-
-### Fetch test case details (in parallel)
-
-Issue all `muggle-remote-test-case-get` calls in parallel (single message, multiple tool calls) to hydrate the test case bodies.
-
-### Trigger remote workflows (in parallel)
-
-Branch each test case on the mode chosen in Step 6f, then issue **all** workflow-start calls in parallel — never loop them sequentially. Mix regen and replay starts in the same parallel batch.
-
-**Regen-mode test case** — `muggle-remote-workflow-start-test-script-generation`:
-
-- `projectId`: The project ID
-- `useCaseId`: The use case ID
-- `testCaseId`: The test case ID
-- `name`: `"muggle-test: {test case title}"`
-- `url`: The preview/staging URL
-- `goal`: From the test case
-- `precondition`: From the test case (use `"None"` if empty)
-- `instructions`: From the test case
-- `expectedResult`: From the test case
-
-**Replay-mode test case** — `muggle-remote-workflow-start-test-script-replay` against the latest replayable script for that test case (resolve via `muggle-remote-test-script-list` if not already in hand from Step 6f). Tag results with `mode: "replay"` so Step 7C can route failures correctly.
-
-Store each returned workflow runtime ID along with its mode tag.
-
-### Monitor and report (in parallel)
-
-Issue all `muggle-remote-wf-get-ts-gen-latest-run` calls in parallel, one per runtime ID.
-
-```
-Test Case                  Workflow Status   Runtime ID
-────────────────────────────────────────────────────────
-Login with valid creds     RUNNING           rt-abc123
-Login with invalid creds   COMPLETED         rt-def456
-Checkout flow              QUEUED            rt-ghi789
-```
+- **Mode A (Local)** → [`execute-local.md`](execute-local.md). Inputs: the hydrated test cases, per-case `mode` from Step 6f, and `cwd` (the PR-branch worktree from Step 2 if one exists, else the repo root).
+- **Mode B (Remote)** → [`execute-remote.md`](execute-remote.md). Inputs: the hydrated test cases, per-case `mode` from Step 6f, `projectId` / `useCaseId`.
 
 ## Step 7C: Route every failed run through the debug path
 
-For every run with `status: "failed"` (or any non-passing terminal state) from 7A or 7B, route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md). This is **mandatory** — a failure is never reported without it. The debug path gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always an option and "skip" is never the default.
+For every run with `status: "failed"` (or any non-passing terminal state) returned by Step 7 (either path), route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md). This is **mandatory** — a failure is never reported without it. The debug path gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always an option and "skip" is never the default.
 
-Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the `mode` that failed, `testCaseId`, `projectId`, and the execution handle (local: the dev loop from "Run the dev loop"; remote: 7B's workflow-start) so a rerun re-enters the same path. Process failures one at a time so the user isn't drowning in pickers.
+Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the `mode` that failed, `testCaseId`, `projectId`, and the execution handle (local: [`execute-local.md`](execute-local.md); remote: [`execute-remote.md`](execute-remote.md)) so a rerun re-enters the same path. Process failures one at a time so the user isn't drowning in pickers.
 
 ## Step 8: Open Results in Browser
 
-After execution and publishing are complete, open the Muggle AI dashboard so the user can visually inspect results and screenshots.
+After execution (and publishing, for local runs), open the Muggle AI dashboard so the user can inspect results and screenshots. Key off the uniform runs list:
 
-### Mode A (Local) — open each published viewUrl
-
-For each published run's `viewUrl`:
-```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
-```
-
-If there are many runs (>3), open just the project-level runs page instead of individual tabs:
-```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
-```
-
-### Mode B (Remote) — open the project runs page
-
-```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
-```
+- **Runs carry published `viewUrl`s and there are ≤3** — open each:
+  ```bash
+  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
+  ```
+- **Otherwise** (remote runs, unpublished local runs, or more than 3 local runs) — open the project runs page:
+  ```bash
+  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
+  ```
 
 Tell the user:
 > "I've opened the Muggle AI dashboard in your browser — you can see the test results, step-by-step screenshots, and action scripts there."
@@ -379,7 +277,7 @@ After reporting results:
 1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 9.5.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
 3. If no PR: fire [`autoCreatePR`](../muggle-preferences/preference-gates/autoCreatePR.md). On skip → Step 9.5.
-4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md). Include all runs from Step 7A (passed and failed).
+4. Assemble the `E2eReport` — see [`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md). Include all runs from Step 7 (passed and failed).
 5. Invoke [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the `E2eReport`.
 
 ## Step 9.5: Offer to watch the PR for review follow-ups

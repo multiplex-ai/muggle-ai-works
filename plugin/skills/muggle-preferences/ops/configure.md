@@ -27,7 +27,7 @@ For each option: label = key name, description = first paragraph of `preference-
 
 - `multiSelect: true`, `header: "Auth & session"` — `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`
 - `multiSelect: true`, `header: "Test setup"` — `autoSelectLocalHost`, `autoDetectChanges`, `autoReuseValidationContext`
-- `multiSelect: true`, `header: "Test run"` — `showElectronBrowser`, `openTestResultsAfterRun`, `autoPublishLocalResults`
+- `multiSelect: true`, `header: "Test run"` — `showElectronBrowser`, `openTestResultsAfterRun`
 - `multiSelect: true`, `header: "Suggestions"` — `suggestRelatedUseCases`, `suggestRelatedTestCases`
 - `multiSelect: true`, `header: "PR"` — `postPRVisualWalkthrough`, `autoCreatePR`, `autoWatchPR`
 - `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`
@@ -43,7 +43,7 @@ For each toggled key (multi-select questions): `muggle-local-preferences-set` wi
 
 ## Step 5 — `never` follow-up
 
-Ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on autoPublishLocalResults", or say "no".`. For named keys, call `muggle-local-preferences-set` with `value: "never"`, same scope.
+Ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on showElectronBrowser", or say "no".`. For named keys, call `muggle-local-preferences-set` with `value: "never"`, same scope.
 
 ## Step 6 — confirm
 

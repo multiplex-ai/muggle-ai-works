@@ -12,7 +12,7 @@ description: Run a real-browser end-to-end (E2E) acceptance test against localho
 | Scope | MCP tools |
 | :---- | :-------- |
 | Cloud (projects, cases, scripts, auth) | `muggle-remote-*` |
-| Local (Electron run, publish, results) | `muggle-local-*` |
+| Local (Electron run, results — the studio publishes during the run) | `muggle-local-*` |
 | Create new entities (preview / create) | `muggle-remote-project-create`, `muggle-remote-use-case-prompt-preview`, `muggle-remote-use-case-create-from-prompts`, `muggle-remote-test-case-generate-from-prompt`, `muggle-remote-test-case-create` |
 
 The local URL only changes where the browser opens; it does not change the remote project or test definitions.
@@ -158,11 +158,11 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse the choice 
 
 `showUi` is only ever omitted or `false` — never pass `showUi: true`.
 
-### 8. Upload run to cloud (every completed run; open `viewUrl` gated by `openTestResultsAfterRun`)
+### 8. Open the run on the dashboard (`viewUrl` gated by `openTestResultsAfterRun`)
 
-Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-step actions for the PR walkthrough — without them reviewers see only a generic "failed" link. The `status` field in the upload payload tells the backend whether to promote the run's action script as the test case's canonical replay script (passed → promote; failed → record only).
+The studio publishes every completed run — pass or fail — to the cloud during execution, so the run result already carries the cloud refs. Failed runs are published too, so reviewers get the per-step screenshots, not just a generic "failed" link.
 
-- Publish per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — includes the zero-step `muggle-remote-local-run-upload` fallback.
+- Read the cloud refs per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md): `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId` from `muggle-local-run-result-get`.
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - `never` → print the URL only.
@@ -172,7 +172,7 @@ Upload pass-or-fail. Failed runs still need cloud-hosted screenshots and per-ste
 
 Read the run record per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md) and [failure interpretation](../_shared/dev-loop/failures.md) — never diagnose from `execute`'s stdout tail.
 
-- Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and script view URL when publishing ran.
+- Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and the `viewUrl` from the run result.
 
 ### 9a. Route a failed run through the debug path
 

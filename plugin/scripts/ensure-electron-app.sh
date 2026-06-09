@@ -104,7 +104,7 @@ if [ -f "$prefs_global_file" ]; then
       const defaults = {
         autoLogin:'ask', autoSelectProject:'ask', autoSelectLocalHost:'ask',
         showElectronBrowser:'ask', openTestResultsAfterRun:'ask',
-        defaultExecutionMode:'ask', autoPublishLocalResults:'ask',
+        defaultExecutionMode:'ask',
         suggestRelatedUseCases:'ask', suggestRelatedTestCases:'ask', autoDetectChanges:'ask',
         postPRVisualWalkthrough:'ask', autoCreatePR:'ask',
         checkForUpdates:'ask', verboseOutput:'ask',

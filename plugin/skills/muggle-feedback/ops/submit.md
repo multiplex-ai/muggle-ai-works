@@ -20,15 +20,15 @@ A Muggle dashboard URL looks like `https://www.muggle-ai.com/muggleTestV0/dashbo
 If this skill was invoked by another skill (`muggle-test`, `muggle-test-feature-local`) the caller MUST pass the just-finished `runId` as context. If you have a `runId`:
 
 1. `muggle-local-run-result-get` with the `runId`.
-2. The result includes the test case context. If the run was already published (`muggle-local-publish-test-script` was called), the resulting `testScriptId` gives you the cloud `actionScriptId` via `muggle-remote-test-script-get`.
-3. **If the run was NOT published**, upload it first via `muggle-remote-local-run-upload` (passing the `runId`'s test case context and `actionScript` payload). Use the returned cloud `actionScriptId`.
+2. The result includes the test case context. The studio publishes every local run during execution, so the run result carries the cloud `cloudActionScriptId` — use it directly as the `actionScriptId`.
+3. **Legacy fallback** — if `cloudActionScriptId` is absent (a run from an older Electron build that didn't publish), upload it first via `muggle-remote-local-run-upload` (passing the `runId`'s test case context and `actionScript` payload). Use the returned cloud `actionScriptId`.
 
 If no `runId` was passed but the user is plausibly continuing from a recent test:
 
 1. `muggle-local-list-sessions` and pick sessions completed in the last 10 minutes for the current project.
 2. If exactly one fresh session exists, offer it as the default via `AskUserQuestion` ("Feedback on the run from <X> minutes ago?" with **Yes / Pick a different run**).
 3. If multiple, present the top 3 via `AskUserQuestion` (most recent first).
-4. Once picked, follow the publish-or-upload path above.
+4. Once picked, resolve `cloudActionScriptId` from the run result (legacy upload fallback above).
 
 If neither chained nor recent fits, fall through to 1c.
 
@@ -127,4 +127,4 @@ If any pieces failed, list them under a `Failed:` header with the error.
 - Always render the script (step 2) before collecting feedback.
 - One create call per feedback piece — never concatenate paragraphs across targets.
 - Convert step numbers from 1-based (UI) to 0-based (wire) at submit time.
-- If the user came from a non-uploaded local run, do the upload silently before submit; do not ask for permission for the upload itself.
+- If a legacy local run carries no `cloudActionScriptId`, do the upload silently before submit; do not ask for permission for the upload itself.

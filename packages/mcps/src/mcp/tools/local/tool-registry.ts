@@ -3,15 +3,12 @@
  * Manages the minimal set of local execution tools.
  *
  * All entity management (projects, use cases, test cases, secrets) happens via muggle-remote-* cloud tools.
- * Local tools only handle: status, execution, results, and publishing.
+ * Local tools only handle status, execution, and results — the studio publishes runs to the cloud during execution.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { getPromptServiceClient } from "../../e2e/upstream-client.js";
-import { RunEnvironment } from "../../e2e/contracts/run-environment.js";
-import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getLogger } from "../../../shared/logger.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
@@ -25,7 +22,6 @@ import {
   RunResultGetInputSchema,
   TestScriptListInputSchema,
   TestScriptGetInputSchema,
-  PublishTestScriptInputSchema,
   PreferencesSetInputSchema,
   LastProjectGetInputSchema,
   LastProjectSetInputSchema,
@@ -194,6 +190,10 @@ const runResultGetTool: ILocalMcpTool = {
       `**Cloud Test Case:** ${result.cloudTestCaseId}`,
       `**Duration:** ${result.executionTimeMs ?? 0}ms`,
       result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
+      // The studio publishes the run during execution; these are its returned cloud refs.
+      result.viewUrl ? `**View URL:** ${result.viewUrl}` : "",
+      result.cloudTestScriptId ? `**Cloud Test Script ID:** ${result.cloudTestScriptId}` : "",
+      result.cloudActionScriptId ? `**Cloud Action Script ID:** ${result.cloudActionScriptId}` : "",
     ];
 
     let testScriptSteps: number | undefined;
@@ -427,168 +427,6 @@ const cancelExecutionTool: ILocalMcpTool = {
     }
 
     return { content: `No active execution found with ID: ${input.runId}`, isError: true };
-  },
-};
-
-
-const publishTestScriptTool: ILocalMcpTool = {
-  name: "muggle-local-publish-test-script",
-  description: "Publish a locally generated test script to the cloud. Uses the run ID from muggle_execute_test_generation to find the script and uploads it to the specified cloud test case. Returns a viewUrl that can be opened in the user's browser to view the published test script on the dashboard.",
-  inputSchema: PublishTestScriptInputSchema,
-  execute: async (ctx) => {
-    const logger = createChildLogger(ctx.correlationId);
-    logger.info("Executing muggle-local-publish-test-script");
-
-    const input = PublishTestScriptInputSchema.parse(ctx.input);
-    const storage = getRunResultStorageService();
-
-    // Get the run result to find the test script
-    const runResult = storage.getRunResult(input.runId);
-    if (!runResult) {
-      return { content: `Run result not found: ${input.runId}`, isError: true };
-    }
-
-    if (!runResult.testScriptId) {
-      return { content: `Run result ${input.runId} does not have an associated test script`, isError: true };
-    }
-
-    const testScript = storage.getTestScript(runResult.testScriptId);
-    if (!testScript) {
-      return { content: `Test script not found: ${runResult.testScriptId}`, isError: true };
-    }
-
-    if (runResult.runType !== "generation") {
-      return {
-        content: `Only generation runs can be published. Run ${input.runId} is '${runResult.runType}'.`,
-        isError: true,
-      };
-    }
-    if (runResult.status !== "passed" && runResult.status !== "failed") {
-      return {
-        content: `Run ${input.runId} must be in passed/failed state before publishing. Current status: ${runResult.status}.`,
-        isError: true,
-      };
-    }
-    if (!Array.isArray(testScript.actionScript) || testScript.actionScript.length === 0) {
-      return {
-        content: `Test script ${testScript.id} has no generated actionScript steps to publish.`,
-        isError: true,
-      };
-    }
-    if (!runResult.projectId) {
-      return { content: `Run result ${input.runId} is missing projectId.`, isError: true };
-    }
-    if (!runResult.useCaseId) {
-      return { content: `Run result ${input.runId} is missing useCaseId.`, isError: true };
-    }
-    if (!runResult.productionUrl) {
-      return { content: `Run result ${input.runId} is missing productionUrl.`, isError: true };
-    }
-    if (!runResult.executionTimeMs && runResult.executionTimeMs !== 0) {
-      return { content: `Run result ${input.runId} is missing executionTimeMs.`, isError: true };
-    }
-    if (!runResult.localExecutionContext) {
-      return { content: `Run result ${input.runId} is missing localExecutionContext.`, isError: true };
-    }
-    if (!runResult.localExecutionContext.localExecutionCompletedAt) {
-      return {
-        content: `Run result ${input.runId} is missing localExecutionCompletedAt in localExecutionContext.`,
-        isError: true,
-      };
-    }
-
-    const authStatus = getAuthService().getAuthStatus();
-    if (!authStatus.userId) {
-      return { content: "Authenticated user ID is missing. Please login again.", isError: true };
-    }
-
-    try {
-      const credentials = await getCallerCredentialsAsync();
-      const client = getPromptServiceClient();
-      const uploadedAt = Date.now();
-
-      const response = await client.execute<{
-        workflowRuntimeId: string;
-        workflowRunId: string;
-        testScriptId: string;
-        actionScriptId: string;
-        viewUrl: string;
-      }>(
-        {
-          method: "POST",
-          path: "/v1/protected/muggle-test/local-run/upload",
-          body: {
-            projectId: runResult.projectId,
-            useCaseId: runResult.useCaseId,
-            testCaseId: input.cloudTestCaseId,
-            runType: runResult.runType,
-            // A published run always originates from local Electron execution, so it
-            // belongs to the local lane — the cloud must resolve the developer's
-            // localhost credentials, not the remote managed-profile pool.
-            runEnvironmentType: RunEnvironment.Local,
-            productionUrl: runResult.productionUrl,
-            localExecutionContext: {
-              originalUrl: runResult.localExecutionContext.originalUrl,
-              productionUrl: runResult.localExecutionContext.productionUrl,
-              runByUserId: authStatus.userId,
-              machineHostname: runResult.localExecutionContext.machineHostname,
-              osInfo: runResult.localExecutionContext.osInfo,
-              electronAppVersion: runResult.localExecutionContext.electronAppVersion,
-              mcpServerVersion: runResult.localExecutionContext.mcpServerVersion,
-              localExecutionCompletedAt: runResult.localExecutionContext.localExecutionCompletedAt,
-              uploadedAt: uploadedAt,
-            },
-            actionScript: testScript.actionScript,
-            summaryStep: testScript.summaryStep,
-            status: runResult.status === "passed" ? "passed" : "failed",
-            executionTimeMs: runResult.executionTimeMs,
-            errorMessage: runResult.errorMessage,
-          },
-        },
-        credentials,
-        ctx.correlationId,
-      );
-
-      storage.updateTestScript(testScript.id, {
-        status: "published",
-        cloudActionScriptId: response.data.actionScriptId,
-      });
-
-      storage.updateRunResult(runResult.id, {
-        localExecutionContext: {
-          ...runResult.localExecutionContext,
-          runByUserId: authStatus.userId,
-        },
-      });
-
-      return {
-        content: [
-          "## Test Script Published",
-          "",
-          `**Run ID:** ${input.runId}`,
-          `**Local Test Script ID:** ${testScript.id}`,
-          `**Cloud Test Case ID:** ${input.cloudTestCaseId}`,
-          `**Cloud Test Script ID:** ${response.data.testScriptId}`,
-          `**Cloud Action Script ID:** ${response.data.actionScriptId}`,
-          `**Workflow Runtime ID:** ${response.data.workflowRuntimeId}`,
-          `**Workflow Run ID:** ${response.data.workflowRunId}`,
-          `**View URL:** ${response.data.viewUrl}`,
-        ].join("\n"),
-        isError: false,
-        data: response.data,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error("Failed to publish local test script to cloud", {
-        runId: input.runId,
-        cloudTestCaseId: input.cloudTestCaseId,
-        error: errorMessage,
-      });
-      return {
-        content: `Failed to publish test script: ${errorMessage}`,
-        isError: true,
-      };
-    }
   },
 };
 
@@ -853,8 +691,6 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   executeTestGenerationTool,
   executeReplayTool,
   cancelExecutionTool,
-  // Publishing tools
-  publishTestScriptTool,
   // Preferences tools
   preferencesSetTool,
   // Last-project cache tools (per-repo "last used Muggle Test project")

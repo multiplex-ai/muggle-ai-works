@@ -18,8 +18,6 @@ export enum PreferenceKey {
   OpenTestResultsAfterRun = "openTestResultsAfterRun",
   /** Default to local or remote test execution. */
   DefaultExecutionMode = "defaultExecutionMode",
-  /** Upload local test results to Muggle Test cloud for team visibility. */
-  AutoPublishLocalResults = "autoPublishLocalResults",
   /** Suggest related use cases after creating or running one. */
   SuggestRelatedUseCases = "suggestRelatedUseCases",
   /** Suggest related test cases after creating or running one. */

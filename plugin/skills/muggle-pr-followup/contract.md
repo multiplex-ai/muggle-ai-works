@@ -1,6 +1,6 @@
 # Watcher Per-Tick Contract
 
-The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for actionable review threads, CI checks, and merge-conflict state, dispatches `/muggle-do` if there's unaddressed review feedback, fixable red CI, or an unmergeable branch, and exits. It does not classify, fix, resolve, amend requirements, post replies, run cycles, or escalate.
+The procedure for the **tick mode** of `muggle-pr-followup` — one polling iteration scoped to one PR. The watcher is a dumb pipe: it polls for actionable review threads, CI checks, and the branch's standing against its base, dispatches `/muggle-do` if there's unaddressed review feedback, fixable red CI, or a branch that's behind or conflicting with its base, and exits. It does not classify, fix, resolve, rebase, amend requirements, post replies, run cycles, or escalate.
 
 Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The architectural rationale lives in the brain docs `architecture/2026-05-08-muggle-do-pr-comment-loop-design.md` (the overall loop) and `architecture/2026-06-06-pr-followup-thread-state-baseline-design.md` (the thread-state dispatch trigger).
 
@@ -77,22 +77,28 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 5. Emit a `tick` event with `actionable_threads: <count>`, `dispatched_review_ids: [<id>, ...]`.
 6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
-### Step 5 — No actionable feedback → check mergeability
+### Step 5 — No actionable feedback → keep the branch rebased on its base
 
-Read `mergeable` / `mergeStateStatus` from the Step 1 metadata. If `mergeable == CONFLICTING` (or `mergeStateStatus == DIRTY`), **and** `conflict_resolve_attempts[head_sha] < 2`, **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
+A merge-ready branch is **current with its base** — neither conflicting nor behind. Read `mergeable` / `mergeStateStatus` from the Step 1 metadata; the branch needs a rebase when either:
+
+- `mergeable == CONFLICTING` or `mergeStateStatus == DIRTY` — conflicts with the base, **or**
+- `mergeStateStatus == BEHIND` — out of date with the base, no conflict. An unrebased branch never becomes merge-ready on its own, and is merge-blocked wherever the base requires up-to-date branches.
+
+If a rebase is due **and** `conflict_resolve_attempts[head_sha] < 2` **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
 
   1. Reset `last_seen.idle_tick_count` to 0.
-  2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s resolve-conflicts respawns it when the cycle is done.
-  3. Dispatch `/muggle-do` with a *resolve-conflicts* directive (PR URL + slug; no review ids, no check names):
+  2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s rebase respawns it when the cycle is done.
+  3. Dispatch `/muggle-do` with a *rebase* directive (PR URL + slug; no review ids, no check names):
      ```
-     /muggle-do resolve conflicts on <pr-url> slug=<slug>
+     /muggle-do rebase on <pr-url> slug=<slug>
      ```
-  4. Append a dispatching line to `followup.log`; emit a `tick` event with `conflicting: true`, `dispatched_resolve_conflicts: true`.
-  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks mergeability on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+     The executor rebases onto the base: a behind-only branch replays cleanly and force-pushes; a conflicting branch resolves behind the `autoResolveConflicts` gate. Both paths are `/muggle-do`'s — the watcher only decides *that* a rebase is due, never how.
+  4. Append a dispatching line to `followup.log`; emit a `tick` event with `rebase_needed: true`, `dispatched_rebase: true`.
+  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
-`mergeable == MERGEABLE` / `UNKNOWN` (GitHub still computing — treat as not-conflicting this tick), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
+Branch current with its base (`CLEAN` / `BLOCKED` / `UNSTABLE` / `HAS_HOOKS`), `mergeable == UNKNOWN` (GitHub still computing — treat as current this tick), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
 
-### Step 6 — No actionable feedback, mergeable → poll CI for the head SHA
+### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
 
 Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cli-recipes/pr-checks.md`](../_shared/github-cli-recipes/pr-checks.md), then:
 
@@ -111,7 +117,7 @@ Fetch the check-run rollup for `prs.json[0].head_sha` per [`../_shared/github-cl
 
 ### Step 7 — Idle
 
-Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `actionable_threads: 0`, `dispatched_review_ids: []`, `conflicting: <bool>`, `dispatched_resolve_conflicts: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
 ## Output
 

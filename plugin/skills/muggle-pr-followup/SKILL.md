@@ -7,7 +7,7 @@ description: "Use when the user wants a pull request's incoming review feedback 
 
 > Telemetry first step: see [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-pr-followup"`.
 
-A watcher that babysits one open PR's review thread, CI, and merge-conflict state. Polls for new submitted reviews, check-run state, and mergeability; when review feedback lands, CI goes red, or the branch conflicts with its base, hands the work to `/muggle-do` and exits. On merge or close, it hands the terminal wrap-up to `/muggle-do` the same way — teardown when merged, then a next-step suggestion. `/muggle-do` is the executor — it classifies the reviews, fixes the failing checks, or rebases-and-resolves the conflict, pushes, replies per comment, and respawns the watcher.
+A watcher that babysits one open PR toward **merge-ready** — review threads addressed, CI green, and the branch rebased on its base. Polls for actionable feedback, check-run state, and the branch's standing against its base; when feedback lands, CI goes red, or the branch falls behind or conflicts with its base, hands the work to `/muggle-do` and exits. On merge or close, it hands the terminal wrap-up to `/muggle-do` the same way — teardown when merged, then a next-step suggestion. `/muggle-do` is the executor — it classifies the reviews, fixes the failing checks, or rebases onto the base (resolving any conflicts), pushes, replies per comment, and respawns the watcher.
 
 **The watcher is a dumb pipe.** It does not classify reviews, iterate cycles, post replies, or escalate. All of that lives in `/muggle-do`. See [stage-8 design](../../../../muggle-ai-brain/architecture/2026-05-08-muggle-do-pr-comment-loop-design.md) for the rationale.
 

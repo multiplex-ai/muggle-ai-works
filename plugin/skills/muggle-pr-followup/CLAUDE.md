@@ -1,6 +1,6 @@
 # muggle-pr-followup — folder TOC
 
-This folder holds the watcher loop for PR review follow-ups. The watcher is a **dumb pipe**: it polls for new submitted reviews and CI checks and dispatches `/muggle-do` when there's review feedback or fixable red CI. Cycle execution, classification, replies, and escalation all live in `/muggle-do`'s address-reviews mode — see [stage-8 design](../../../../muggle-ai-brain/architecture/2026-05-08-muggle-do-pr-comment-loop-design.md) for the architectural rationale.
+This folder holds the watcher loop that drives one PR toward merge-ready. The watcher is a **dumb pipe**: it polls for actionable review threads, CI checks, and the branch's standing against its base, and dispatches `/muggle-do` when there's review feedback, fixable red CI, or a branch behind or conflicting with its base. Cycle execution, classification, replies, rebases, and escalation all live in `/muggle-do` — see [stage-8 design](../../../../muggle-ai-brain/architecture/2026-05-08-muggle-do-pr-comment-loop-design.md) for the architectural rationale.
 
 ## Files in this folder
 

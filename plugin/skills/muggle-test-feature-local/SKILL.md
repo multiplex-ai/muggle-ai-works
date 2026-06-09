@@ -174,22 +174,13 @@ Read the run record per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/
 
 - Include in the report: status, duration, pass/fail summary, per-step summary (passed runs), artifact paths, errors if failed, and script view URL when publishing ran.
 
-### 9a. Route failures through the failure-mode handler
+### 9a. Route a failed run through the debug path
 
-If the run's status is `failed` or any non-passing terminal state, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md):
+If the run's status is `failed` or any non-passing terminal state, route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) — **mandatory**; a failure is never reported without it. It gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always offered and "skip" is never the default.
 
-- **Replay-mode run failed** (the user picked an existing script in Step 5) → section B (buckets: `infra` / `stale-script` / `product-defect`).
-- **Regen-mode run failed** (the user picked "Generate new script" or no script existed) → section C (buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
+Pass it: the `runId`, the `mode` that failed (replay if the user picked an existing script in Step 5, else regen), `testCaseId`, `projectId`, and the local execution handle so a rerun re-enters the same path.
 
-Steps:
-1. Read the run via `muggle-local-run-result-get` and extract signals per the heuristics in the shared doc.
-2. Emit `replay-failure-classified` or `regen-failure-classified` via `muggle-local-telemetry-event-emit` **before** asking the user.
-3. Present the recommended action via `AskUserQuestion` with the alternatives the shared doc lists for that bucket.
-4. After the user picks, emit the matching `*-resolved` event with `userAction`.
-
-If the user picks `muggle-feedback` from any bucket's options, invoke the `muggle-feedback` skill via the `Skill` tool, passing the just-finished `runId` so the submit flow opens with this run preloaded.
-
-Skip silently when the run passed cleanly — failure-mode events are by definition about failures.
+Skip only when the run passed cleanly — the debug path is by definition about failures.
 
 ### 9b. Remind the user to guide the agent (every Electron invocation)
 

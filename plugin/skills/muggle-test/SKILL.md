@@ -297,7 +297,7 @@ Checkout flow              FAILED    15.7s      12      https://www.muggle-ai.co
 Total: 3 tests | 2 passed | 1 failed | 37.1s
 ```
 
-For failures: show which step failed, the local screenshot path, and a suggestion.
+For failures, don't hand-write a verdict in the summary — route each through the debug path (Step 7C).
 
 ## Step 7B: Execute — Remote Mode
 
@@ -341,20 +341,11 @@ Login with invalid creds   COMPLETED         rt-def456
 Checkout flow              QUEUED            rt-ghi789
 ```
 
-## Step 7C: Route failures through the failure-mode handler
+## Step 7C: Route every failed run through the debug path
 
-For every run with `status: "failed"` (or any non-passing terminal state) from 7A or 7B, follow [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md):
+For every run with `status: "failed"` (or any non-passing terminal state) from 7A or 7B, route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md). This is **mandatory** — a failure is never reported without it. The debug path gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always an option and "skip" is never the default.
 
-- **Replay-mode failures** — section B (buckets: `infra` / `stale-script` / `product-defect`).
-- **Regen-mode failures** — section C (buckets: `transient` / `infra` / `agent-course` / `product-uxux`).
-
-For each failed run:
-1. Read the run with `muggle-local-run-result-get` (local) or `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run` (remote) and extract signals per the heuristics in the shared doc.
-2. Emit `replay-failure-classified` or `regen-failure-classified` via `muggle-local-telemetry-event-emit` **before** asking the user.
-3. Present the recommended action via `AskUserQuestion` along with the alternatives the shared doc lists for that bucket.
-4. After the user picks, emit the matching `*-resolved` event with `userAction` set to what they chose.
-
-Process failures one at a time so the user isn't drowning in pickers — but emit telemetry per failure regardless.
+Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the `mode` that failed, `testCaseId`, `projectId`, and the execution handle (local: the dev loop from "Run the dev loop"; remote: 7B's workflow-start) so a rerun re-enters the same path. Process failures one at a time so the user isn't drowning in pickers.
 
 ## Step 8: Open Results in Browser
 
@@ -403,23 +394,22 @@ Once a PR exists for this work, offer to keep watching its review thread.
 
 The `/mprfollowup` shortcut starts the same watcher manually at any time.
 
-## Step 10: Offer feedback on failures
+## Step 10: Offer feedback on a clean pass
 
-After the report is complete, if **any** test in the run had a `failed` or unexpected status (or the user verbally flags something looked off), suggest the feedback skill:
+Failures already got a guaranteed feedback-&-rerun offer in Step 7C's debug path — don't re-ask for them here.
 
-> "Looks like `<N>` test(s) didn't go as expected. Want to leave feedback on what should've happened? It triggers regeneration on the affected scripts."
-
-Use `AskUserQuestion`:
-- **Yes — give feedback** → invoke the `muggle-feedback` skill via the `Skill` tool. Pass the failed run's `runId` (local) or `testScriptId` (remote) as anchor context so the submit flow opens with the correct script already loaded.
+This step is only for a run that **passed** but the user flags as off (a misclick, wrong element, a summary that doesn't match intent). When that happens, use `AskUserQuestion`:
+- **Yes — give feedback** → invoke the `muggle-feedback` skill via the `Skill` tool, passing the run's `runId` (local) or `testScriptId` (remote) as anchor context so the submit flow opens with the correct script already loaded.
 - **No — skip**
 
-This is a suggestion, not automatic invocation. Skip silently if every test passed cleanly.
+Skip silently if nothing looked off.
 
 ## Non-negotiables
 
 Each rule below is covered in-step above; these are the ones this skill most often violates, kept here as reinforcement:
 
 - **Test-case shape** — never skip the generate→review cycle, never consolidate the generator's micro-tests, one atomic behavior per test case. Creating test cases directly or merging the generator's output is the single most frequent mistake.
+- **Every failure routes through the debug path** — no failed run is summarized-and-dropped. Step 7C → [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) is mandatory, "give feedback & rerun" is always offered, and "skip" is never the default.
 - **Confirm intent before acting** — local vs remote; never guess the localhost/preview URL.
 - **PR URLs run in a dedicated worktree** — never switch the user's main checkout; pass that worktree as `cwd`.
 - **Every selection uses `AskUserQuestion`** — never ask the user to type a number; the user picks the project (never auto-select).

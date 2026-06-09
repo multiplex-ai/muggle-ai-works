@@ -145,6 +145,8 @@ For each test case:
 
 **Overall:** PASS | FAIL | PARTIAL | INCONCLUSIVE | BLOCKED | SKIPPED — see [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F for the canonical taxonomy.
 
+Failed runs use the same evidence + diagnosis assembly as the interactive debug path ([`../_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) Steps 1–2) — write that evidence into the **Failed** block above. This stage is autonomous, so it skips Step 3's interactive offer.
+
 ## Hard constraints
 
 - **Do NOT shut down the dev server.** The caller manages dev-server lifecycle.

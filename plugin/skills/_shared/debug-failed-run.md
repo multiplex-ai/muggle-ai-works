@@ -20,10 +20,8 @@ The guarantee binds **interactive** callers. An autonomous caller with no user t
 Read **structured run fields**, never the `execute` stdout tail (see [`dev-loop/failures.md`](./dev-loop/failures.md)). Assemble:
 
 - **Attempted steps + reasoning** — local: the attempted steps + `summaryStep` halt reason from `action-script.json` in `artifactsDir`; remote: the per-step list + `summaryStep` from `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run`.
-- **Visual evidence** — remote: the run's per-step screenshots (the data the dashboard renders). Local: the failing-step screenshot when present in `artifactsDir`; when absent, say so plainly and fall back to steps + reasoning + the `stdout.log` / `stderr.log` tail.
+- **Visual evidence** — the Electron app saves a frame for every step, including the one that fails, so a failed run already has screenshots; read them from the run's step data. Each step carries an on-disk `screenshotLocalPath`, and once the run is published — failed runs are published too, see [`dev-loop/publish.md`](./dev-loop/publish.md) — a per-step cloud `screenshotUrl`. Remote runs expose the same per-step `screenshotUrl`. Fall back to steps + reasoning + the `stdout.log` / `stderr.log` tail only if a path is genuinely absent (e.g. the failure hit the screenshot capture itself).
 - **Verdict** — `Status` + `Error`.
-
-> Local failing-step screenshots are emitted by the Electron app at the failing action. Older runtimes don't emit one — degrade gracefully, never block on a missing screenshot.
 
 ## Step 2 — Diagnose
 
@@ -31,7 +29,7 @@ Classify into the failure bucket per [`failure-mode-handling.md`](./failure-mode
 
 ## Step 3 — Present the debug card, then the guaranteed offer
 
-Show the **debug card** first: attempted steps + reasoning, the screenshot (or, when none was captured, a one-line statement saying so), and the one-line diagnosis.
+Show the **debug card** first: attempted steps + reasoning, the failing step's screenshot (or a one-line note if a path is genuinely absent), and the one-line diagnosis.
 
 Then present one `AskUserQuestion` whose options are:
 
@@ -41,6 +39,8 @@ Then present one `AskUserQuestion` whose options are:
 4. **Skip — just report** — last, never the default.
 
 The bucket's recommended action and its alternatives live in `failure-mode-handling.md` §B/§C — read them there, don't restate them.
+
+**Feedback anchor by lane.** Feedback attaches to a cloud action-script id. `muggle-feedback` owns resolving it: for a **local** run it publishes/uploads first when the run isn't already published; for a **remote** run it uses the existing script. Pass `runId` (local) or `testScriptId` (remote) and let it resolve the anchor — don't resolve or upload here.
 
 ## Step 4 — Rerun (always regen)
 

@@ -32,7 +32,7 @@ Skip `autoCreatePR` (it gates creation, not update). The PR's title is left inta
 
 4. **Refresh body when validation outcome changed** — only when the `## Validation` section's content differs from what's in the body. Use the `--body-file` form in [`../../_shared/github-cli-recipes/pr-edit.md`](../../_shared/github-cli-recipes/pr-edit.md). Preserve `## Goal` and `## Acceptance Criteria` verbatim.
 
-5. **Visual walkthrough comment** — if an E2E report exists, invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A. Always a fresh comment per cycle; do not edit prior walkthrough comments.
+5. **Visual walkthrough comment** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md) (PR number from `prs.json`); on skip, record `skipped (gate)` and continue. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A — a fresh comment per cycle; do not edit prior walkthrough comments.
 
 6. **Overflow comment** — same rule as forward mode: post when the walkthrough skill returns non-null `comment`, via [`../../_shared/github-cli-recipes/top-level-comment.md`](../../_shared/github-cli-recipes/top-level-comment.md).
 
@@ -50,5 +50,5 @@ Return control to `/muggle-do`'s address-reviews orchestrator. The orchestrator 
 **PR updated:** URL (new SHA: `<short-sha>`)
 **Title refreshed:** yes | no
 **Body refreshed:** yes | no
-**Walkthrough comment:** posted | skipped (no report)
+**Walkthrough comment:** posted | skipped (no report) | skipped (gate)
 **Overflow comment:** posted | skipped

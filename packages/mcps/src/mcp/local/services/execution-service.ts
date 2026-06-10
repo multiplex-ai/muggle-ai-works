@@ -23,8 +23,11 @@ import {
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
+import {
+  buildGenerationActionScript,
+  buildReplayActionScript,
+} from "./action-script-builders.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
-import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -434,138 +437,6 @@ function getElectronAppPathOrThrow(): string {
   errorLines.push("Or set ELECTRON_APP_PATH to the path of the MuggleAI executable.");
 
   throw new Error(errorLines.join("\n"));
-}
-
-/**
- * Get a required string from an object field.
- */
-function getRequiredStringField(params: {
-  source: Record<string, unknown>;
-  fieldName: string;
-  sourceLabel: string;
-}): string {
-  const value = params.source[params.fieldName];
-  if (typeof value !== "string" || value.trim() === "") {
-    throw new Error(
-      `Missing required field '${params.fieldName}' in ${params.sourceLabel}. ` +
-        "Please pass the full object from the corresponding muggle-remote-* get tool.",
-    );
-  }
-  return value;
-}
-
-/**
- * Build a local action script for test generation (explore mode).
- */
-function buildGenerationActionScript(params: {
-  testCase: TestCaseDetails;
-  localUrl: string;
-  runId: string;
-  localTestScriptId: string;
-  ownerUserId: string;
-}): Record<string, unknown> {
-  const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
-  const projectId = getRequiredStringField({
-    source: testCaseRecord,
-    fieldName: "projectId",
-    sourceLabel: "testCase",
-  });
-  const useCaseId = getRequiredStringField({
-    source: testCaseRecord,
-    fieldName: "useCaseId",
-    sourceLabel: "testCase",
-  });
-
-  return {
-    actionScriptId: params.localTestScriptId,
-    actionScriptName: `Local Generation ${params.testCase.title}`,
-    actionType: "UserDefined",
-    actionParams: {
-      type: "Test Script Generation Workflow",
-      name: `Local Generation ${params.testCase.title}`,
-      ownerId: params.ownerUserId,
-      projectId: projectId,
-      useCaseId: useCaseId,
-      testCaseId: params.testCase.id,
-      testScriptId: params.localTestScriptId,
-      actionScriptId: params.localTestScriptId,
-      workflowRunId: params.runId,
-      url: params.localUrl,
-      sharedTestMemoryId: "",
-    },
-    goal: params.testCase.goal,
-    url: params.localUrl,
-    description: params.testCase.title,
-    precondition: params.testCase.precondition ?? "",
-    instructions: params.testCase.instructions ?? "",
-    expectedResult: params.testCase.expectedResult,
-    steps: [],
-    ownerId: params.ownerUserId,
-    createdAt: Date.now(),
-    isRemoteScript: false,
-    status: "active",
-  };
-}
-
-/**
- * Build a local action script for test replay (engine mode).
- * @param params.testScript - Test script metadata (from muggle-remote-test-script-get).
- * @param params.actionScript - Action script steps (from muggle-remote-action-script-get).
- * @param params.localUrl - Local URL to test against.
- * @param params.runId - Run ID for this execution.
- * @param params.ownerUserId - Owner user ID.
- */
-function buildReplayActionScript(params: {
-  testScript: TestScriptDetails;
-  actionScript: unknown[];
-  localUrl: string;
-  runId: string;
-  ownerUserId: string;
-}): Record<string, unknown> {
-  const testScriptRecord = params.testScript as unknown as Record<string, unknown>;
-  const projectId = getRequiredStringField({
-    source: testScriptRecord,
-    fieldName: "projectId",
-    sourceLabel: "testScript",
-  });
-  const useCaseId = getRequiredStringField({
-    source: testScriptRecord,
-    fieldName: "useCaseId",
-    sourceLabel: "testScript",
-  });
-
-  const rewrittenActionScript = rewriteActionScriptUrls({
-    actionScript: params.actionScript,
-    originalUrl: params.testScript.url,
-    localUrl: params.localUrl,
-  });
-
-  return {
-    actionScriptId: params.testScript.actionScriptId,
-    actionScriptName: params.testScript.name,
-    actionType: "UserDefined",
-    actionParams: {
-      type: "Test Script Replay Workflow",
-      name: params.testScript.name,
-      ownerId: params.ownerUserId,
-      projectId: projectId,
-      useCaseId: useCaseId,
-      testCaseId: params.testScript.testCaseId,
-      testScriptId: params.testScript.id,
-      workflowRunId: params.runId,
-      sharedTestMemoryId: "",
-    },
-    goal: params.testScript.name,
-    url: params.localUrl,
-    description: params.testScript.name,
-    precondition: "",
-    expectedResult: "Replay completes without critical failures.",
-    steps: rewrittenActionScript,
-    ownerId: params.ownerUserId,
-    createdAt: Date.now(),
-    isRemoteScript: true,
-    status: "active",
-  };
 }
 
 /**

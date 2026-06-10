@@ -70,6 +70,7 @@ export function buildGenerationActionScript(params: {
       // projectId but NOT equal to it). The MCP has no client-side source for
       // it, so leave it empty here; STM-on-local needs a backend resolver.
       sharedTestMemoryId: "",
+      runEnvironmentType: "local",
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -139,6 +140,7 @@ export function buildReplayActionScript(params: {
       // projectId but NOT equal to it). The MCP has no client-side source for
       // it, so leave it empty here; STM-on-local needs a backend resolver.
       sharedTestMemoryId: "",
+      runEnvironmentType: "local",
     },
     goal: params.testScript.name,
     url: params.localUrl,

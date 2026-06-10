@@ -52,6 +52,10 @@ describe("buildGenerationActionScript", () => {
     expect(actionParams(script).executionSource).toBe("local");
   });
 
+  it("tags the run with the local environment lane", () => {
+    expect(actionParams(script).runEnvironmentType).toBe("local");
+  });
+
   it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {
     expect(actionParams(script).sharedTestMemoryId).toBe("");
   });
@@ -68,6 +72,10 @@ describe("buildReplayActionScript", () => {
 
   it("tags the run as locally executed", () => {
     expect(actionParams(script).executionSource).toBe("local");
+  });
+
+  it("tags the run with the local environment lane", () => {
+    expect(actionParams(script).runEnvironmentType).toBe("local");
   });
 
   it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {

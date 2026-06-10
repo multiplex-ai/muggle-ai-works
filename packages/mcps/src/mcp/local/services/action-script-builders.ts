@@ -66,9 +66,10 @@ export function buildGenerationActionScript(params: {
       // ActionScript/TestScript write — the /local-run/upload path is the
       // single writer for local runs (avoids duplicate Firestore docs).
       executionSource: "local",
-      // A non-empty id lets the studio persist run summaries + feedback to the
-      // project's SharedTestMemory; an empty id makes the memory writer skip.
-      sharedTestMemoryId: projectId,
+      // Resolved server-side (a UUID get-or-created per project, 1-1 with
+      // projectId but NOT equal to it). The MCP has no client-side source for
+      // it, so leave it empty here; STM-on-local needs a backend resolver.
+      sharedTestMemoryId: "",
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -134,9 +135,10 @@ export function buildReplayActionScript(params: {
       // ActionScript write — replay's cloud record is owned by the upload path
       // (avoids duplicate Firestore docs).
       executionSource: "local",
-      // A non-empty id lets the studio persist run summaries + feedback to the
-      // project's SharedTestMemory; an empty id makes the memory writer skip.
-      sharedTestMemoryId: projectId,
+      // Resolved server-side (a UUID get-or-created per project, 1-1 with
+      // projectId but NOT equal to it). The MCP has no client-side source for
+      // it, so leave it empty here; STM-on-local needs a backend resolver.
+      sharedTestMemoryId: "",
     },
     goal: params.testScript.name,
     url: params.localUrl,

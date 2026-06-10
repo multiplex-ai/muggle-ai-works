@@ -52,8 +52,8 @@ describe("buildGenerationActionScript", () => {
     expect(actionParams(script).executionSource).toBe("local");
   });
 
-  it("sets sharedTestMemoryId to the project id (not empty)", () => {
-    expect(actionParams(script).sharedTestMemoryId).toBe(PROJECT_ID);
+  it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {
+    expect(actionParams(script).sharedTestMemoryId).toBe("");
   });
 });
 
@@ -70,7 +70,7 @@ describe("buildReplayActionScript", () => {
     expect(actionParams(script).executionSource).toBe("local");
   });
 
-  it("sets sharedTestMemoryId to the project id (not empty)", () => {
-    expect(actionParams(script).sharedTestMemoryId).toBe(PROJECT_ID);
+  it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {
+    expect(actionParams(script).sharedTestMemoryId).toBe("");
   });
 });

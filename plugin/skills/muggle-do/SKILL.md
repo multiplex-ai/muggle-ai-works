@@ -1,6 +1,6 @@
 ---
 name: muggle-do
-description: Unified Muggle AI workflow entry point. Use when user types muggle do or asks for autonomous implementation to PR. Also handles the `address-reviews` directive (dispatched by the muggle-pr-followup watcher when new submitted reviews land on a PR).
+description: Take a feature request, spec, design, bug, or ticket and carry it autonomously to an opened pull request — write the code, test it, raise the PR. Use whenever the user wants something built, implemented, added, or fixed with a PR opened, raised, or put up at the end — "implement rate limiting and raise a PR", "build the CSV export and put up a PR", "take this Jira ticket and run with it, ping me when the PR is up", "fix this bug and open a pr", or "muggle do …". Also handles the internal `address-reviews` directive the muggle-pr-followup watcher dispatches when new reviews land. Not for testing or validating existing changes (use muggle-test), nor watching a PR's incoming reviews (use muggle-pr-followup).
 ---
 
 # Muggle Test Do

@@ -53,4 +53,4 @@ Write to `state.md` under a `## Pre-flight answers` block:
 - `Auth status: <ok | re-authed | N/A>`
 - `Working tree: <path>` — the verified checkout the cycle runs against
 
-Missing any required field is a seeding bug: escalate with the session path and halt. Never silently skip E2E.
+Once the strategy is `local-e2e`, missing any of its required fields (`Local URL`, `Muggle Test project`) is a seeding bug — escalate with the session path and halt; don't silently downgrade a chosen `local-e2e` to a skip. But `unit-only` and `skip` are valid first-class strategies for a PR with no testable surface — they need none of those fields, and a session seeded with no block at all is itself a clean skip.

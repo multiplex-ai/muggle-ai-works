@@ -2,7 +2,7 @@
 
 The procedure for the **bootstrap mode** of `muggle-pr-followup` — invoked when a user dispatches the skill with a GitHub PR URL. Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing).
 
-Bootstrap asks **one** questionnaire — the E2E validation context the loop will reuse — then runs through to the first watcher dispatch. The user is present at launch, so this is the only place to gather it; every later tick reads it from `state.md`. Without it, a URL-bootstrapped watcher has no `localUrl`/`projectId` and Stage 6 hard-halts instead of running E2E.
+Bootstrap seeds watcher state and dispatches the first tick. The watcher itself is generic: it follows one PR's reviews, CI, and merge state whether or not E2E applies. Validation context is **optional** and gathered here only because this is the one moment the user is present — so later unattended ticks can run E2E without prompting. When the PR has a testable surface, bootstrap resolves that context once and every later tick reads it from `state.md`. When there's no testable surface, or the user declines, bootstrap seeds the watcher **poll-only** (no validation context), exactly like [`auto-track`](auto-track.md) — a watcher with no context yields a clean `SKIPPED` E2E verdict when `/muggle-do` runs, not a failure.
 
 ## Turn preamble
 
@@ -55,11 +55,13 @@ Line-comment threads need no seeding — the watcher derives them from live thre
 - **Default (no `--forward-only`):** `lastBodyReviewId = 0`. The watcher picks up every existing body-only review on its first tick. Matches the common case — the user opened the PR, left feedback they want addressed, and is now bootstrapping.
 - **With `--forward-only`:** fetch reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md), then take `max(id)`. Body-only reviews at or below that id are treated as already-handled. This no longer hides existing line-comment threads — those are always picked up from thread state.
 
-### Step 6.5 — Resolve E2E validation context
+### Step 6.5 — Resolve the validation context (skip when there's nothing to E2E)
 
-The only step that may prompt the user. Run the gather in [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md): reuse an existing context if one is found (gated by `autoReuseValidationContext`), else silent detection + one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth). Record Step 3's verified working tree as `Working tree`.
+The only step that may prompt the user, and only when the PR has a testable surface. Run silent detection from [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) first. If it finds **no dev server / no testable surface** — a docs, config, skill, or library change, or a non-web repo — seed the watcher **poll-only**: no prompt, no `## Pre-flight answers` block, continue to Step 7 (same as [`auto-track`](auto-track.md)).
 
-Capture the fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
+Otherwise resolve the context per that file: reuse an existing one (gated by `autoReuseValidationContext`), else one `AskUserQuestion` (strategy, local URL, backend, project, credentials, re-auth) with detected values as defaults; record Step 3's verified working tree as `Working tree`. The user may pick `skip`/`unit-only` or decline the prompt outright — either way, seed poll-only and continue. Never abort the watcher over validation.
+
+Capture any resolved fields for Step 7. Do **not** run E2E now — the first watcher tick that dispatches `/muggle-do` does that.
 
 ### Step 7 — Seed state files
 
@@ -71,7 +73,7 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
 
-**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. Append the `## Pre-flight answers` block with the fields resolved in Step 6.5, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields).
+**`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. If Step 6.5 resolved a validation context, append the `## Pre-flight answers` block with its fields, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields). If it seeded poll-only, write **no** such block — a missing block is a clean E2E skip.
 
 Do **not** write `cycle.json` or `requirements.md` — those files are no longer part of the session slot.
 
@@ -95,7 +97,7 @@ Emit one event per [`../_shared/telemetry-events/pr-followup-bootstrap.md`](../_
 
 ## Invariants
 
-- Step 6.5 is the **only** user prompt. If the user cancels it, abort leaving nothing on disk.
-- All state writes happen in Step 7 — earlier aborts (including a cancelled Step 6.5) leave nothing on disk.
+- Step 6.5 is the **only** user prompt, and only when a testable surface exists. Cancelling or declining it is **not** an abort — fall back to a poll-only watcher (no `## Pre-flight answers` block) and continue to Step 7.
+- All state writes happen in Step 7. Only the earlier aborts (malformed URL, terminal PR, wrong working tree, slot conflict) leave nothing on disk.
 - If Step 7 fails mid-write, surface the OS error and tell the user to `rm -rf <slot>` and re-run; do not dispatch the watcher.
 - Bootstrap never retries.

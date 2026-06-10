@@ -30,7 +30,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - `## Acceptance Criteria` — bulleted; omit if empty.
    - `## Changes` — summary of what changed in this repo.
    - `## Validation` — one line: link to E2E report, `unit-only`, or `skip — <reason>`.
-   - **If an E2E report exists,** invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B to render the walkthrough block. Embed the returned `body` verbatim. If no report, skip this block entirely.
+   - **Walkthrough block** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, omit this block. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B and embed the returned `body` verbatim. No report → skip the block.
 
 4. **Create:** `gh pr create --title "..." --body "..." --head <branch>`. Capture the PR URL and number.
 

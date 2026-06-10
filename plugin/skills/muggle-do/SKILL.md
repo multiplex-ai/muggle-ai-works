@@ -65,7 +65,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 | `autoResolveConflicts` | On rebase conflict — resolve autonomously behind a verify-or-rollback gate (opt-in), or abort + escalate (default `never`) |
 | `autoRouteBuildToMuggleDo` | Front-door guardrail — route build/implement/fix requests through this pipeline (build delegated to superpowers); fired by the UserPromptSubmit guardrail, default `ask` |
 
-`autoUseWorktree`, `autoRebase`, `autoResolveConflicts`, `autoCreatePR`, `autoCleanup` fire from per-stage files.
+`autoUseWorktree`, `autoRebase`, `autoResolveConflicts`, `autoCreatePR`, `autoCleanup`, `postPRVisualWalkthrough` fire from per-stage files.
 
 ## Session model
 

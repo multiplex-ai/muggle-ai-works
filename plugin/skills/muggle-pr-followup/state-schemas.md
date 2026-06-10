@@ -16,6 +16,7 @@ A list of one entry. (Historical: the file is an array for forward-compat with t
 [
   {
     "repo": "<owner>/<repo>",
+    "provider": "github" | "gitlab",
     "number": <int>,
     "url": "https://github.com/<owner>/<repo>/pull/<number>",
     "head_sha": "<40-char-hex-sha>",
@@ -24,6 +25,8 @@ A list of one entry. (Historical: the file is an array for forward-compat with t
 ]
 ```
 
+- `provider` selects the recipe set (`gh` vs `glab`). Absent ⇒ `github` — existing slots predate the field and stay GitHub.
+- Under GitLab, `number` holds the MR `iid` (per-project, not the global MR id); `head_sha` is unchanged. GitLab's `opened` normalizes to `open`; `merged` and `closed` already align.
 - `state` is the **observed** state from the last `gh pr view`. The watcher refreshes it each tick.
 - Terminal states (`merged`, `closed`) are sticky — once set, the watcher writes `result.md` and exits without rescheduling.
 
@@ -48,7 +51,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 }
 ```
 
-- `lastBodyReviewId`: narrow watermark for **body-only** reviews (a submitted review carrying no line comments). The watcher dispatches a body-only review only when `id > lastBodyReviewId`. Line-comment threads do **not** use it — they are dispatched from live thread state (unresolved + not outdated + newest comment unmarked by the loop), so there is no cursor that can pin past them. Bootstrap sets it to the highest existing submitted review id with `--forward-only`, else `0`.
+- `lastBodyReviewId`: narrow watermark for **body-only** reviews (a submitted review carrying no line comments). The watcher dispatches a body-only review only when `id > lastBodyReviewId`. Line-comment threads do **not** use it — they are dispatched from live thread state (unresolved + not outdated + newest comment unmarked by the loop), so there is no cursor that can pin past them. Bootstrap sets it to the highest existing submitted review id with `--forward-only`, else `0`. The cursor keeps its name under GitLab, where it holds the highest note / discussion id.
 - `last_pushed_sha`: most recent SHA `/muggle-do` pushed in this PR's life; `null` until the first push.
 - `idle_tick_count`: incremented each tick whose actionable set is empty. Reset to 0 on any tick that dispatches `/muggle-do`. Diagnostic only — does not gate behavior.
 - `cycles_completed`: incremented each time `/muggle-do` completes an address-reviews invocation (regardless of actionable/ambiguous/mixed).

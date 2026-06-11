@@ -20,6 +20,8 @@ Does **not** create a PR, seed session state, or dispatch a watcher (`/muggle-do
 
 Skip `autoCreatePR` (it gates creation, not update). The PR's title is left intact unless state changed in Step 3.
 
+Resolve the provider once per [`../../_shared/detect-vcs.md`](../../_shared/detect-vcs.md). Wherever Steps 3–4 below edit title/description: `github` uses `gh pr edit` per [`../../_shared/github-cli-recipes/pr-edit.md`](../../_shared/github-cli-recipes/pr-edit.md); `gitlab` uses `glab mr update --title --description` per [`../../_shared/gitlab-cli-recipes/mr-edit.md`](../../_shared/gitlab-cli-recipes/mr-edit.md).
+
 1. **Push:** per [`../../_shared/github-cli-recipes/push-to-branch.md`](../../_shared/github-cli-recipes/push-to-branch.md). Capture the new SHA.
 
 2. **Append new SHA** to `last_seen.json[<key>].pushed_shas` (the resolve-reminder stage uses this to recognize threads addressed by the loop). Set `last_seen.last_pushed_sha` to the new SHA too.

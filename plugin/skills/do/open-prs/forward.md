@@ -1,6 +1,6 @@
 # Open PR — forward mode
 
-Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Creates the PR via `gh pr create`, seeds session state, dispatches the first watcher.
+Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 4 — then seeds session state and dispatches the first watcher.
 
 ## Turn preamble
 
@@ -32,9 +32,11 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - `## Validation` — one line: link to E2E report, `unit-only`, or `skip — <reason>`.
    - **Walkthrough block** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, omit this block. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B and embed the returned `body` verbatim. No report → skip the block.
 
-4. **Create:** `gh pr create --title "..." --body "..." --head <branch>`. Capture the PR URL and number.
+4. **Create:** resolve the provider per [`../../_shared/detect-vcs.md`](../../_shared/detect-vcs.md).
+   - `github` → `gh pr create --title "..." --body "..." --head <branch>`. Capture the PR URL and number.
+   - `gitlab` → open the change via [`../../_shared/gitlab-cli-recipes/mr-create.md`](../../_shared/gitlab-cli-recipes/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
 
-5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once per [`../../_shared/github-cli-recipes/top-level-comment.md`](../../_shared/github-cli-recipes/top-level-comment.md). Never post when `comment` is `null`.
+5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 4 — `github` per [`../../_shared/github-cli-recipes/top-level-comment.md`](../../_shared/github-cli-recipes/top-level-comment.md), `gitlab` per [`../../_shared/gitlab-cli-recipes/mr-note.md`](../../_shared/gitlab-cli-recipes/mr-note.md). Never post when `comment` is `null`.
 
 ## Stage 8 handoff
 

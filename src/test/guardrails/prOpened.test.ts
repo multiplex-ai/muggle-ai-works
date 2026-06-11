@@ -42,6 +42,36 @@ describe("detectPrOpened", () => {
     ).toBe("https://github.com/o/r/pull/19");
   });
 
+  it("extracts the MR url from a successful glab mr create", () => {
+    expect(
+      detectPrOpened({
+        tool_name: "Bash",
+        tool_input: { command: "glab mr create --title x --description y" },
+        tool_response: { stdout: "https://gitlab.com/group/subgroup/proj/-/merge_requests/42\n" },
+      }),
+    ).toBe("https://gitlab.com/group/subgroup/proj/-/merge_requests/42");
+  });
+
+  it("extracts the MR url from a self-hosted GitLab host", () => {
+    expect(
+      detectPrOpened({
+        tool_name: "Bash",
+        tool_input: { command: "glab mr create --fill" },
+        tool_response: { stdout: "https://gitlab.example.com/team/app/-/merge_requests/7\n" },
+      }),
+    ).toBe("https://gitlab.example.com/team/app/-/merge_requests/7");
+  });
+
+  it("ignores non-MR-create glab calls", () => {
+    expect(
+      detectPrOpened({
+        tool_name: "Bash",
+        tool_input: { command: "glab mr view 42" },
+        tool_response: { stdout: "https://gitlab.com/o/r/-/merge_requests/42" },
+      }),
+    ).toBeNull();
+  });
+
   it("ignores non-Bash tools", () => {
     expect(
       detectPrOpened({

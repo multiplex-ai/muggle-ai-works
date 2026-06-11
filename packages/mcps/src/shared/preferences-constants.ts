@@ -26,7 +26,6 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.ShowElectronBrowser]: PreferenceValue.Ask,
   [PreferenceKey.OpenTestResultsAfterRun]: PreferenceValue.Ask,
   [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Ask,
-  [PreferenceKey.AutoPublishLocalResults]: PreferenceValue.Ask,
   [PreferenceKey.SuggestRelatedUseCases]: PreferenceValue.Ask,
   [PreferenceKey.SuggestRelatedTestCases]: PreferenceValue.Ask,
   [PreferenceKey.AutoDetectChanges]: PreferenceValue.Ask,
@@ -69,7 +68,6 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.ShowElectronBrowser]: ALWAYS_ASK_NEVER,
   [PreferenceKey.OpenTestResultsAfterRun]: ALWAYS_ASK_NEVER,
   [PreferenceKey.DefaultExecutionMode]: LOCAL_REMOTE_ASK,
-  [PreferenceKey.AutoPublishLocalResults]: ALWAYS_ASK_NEVER,
   [PreferenceKey.SuggestRelatedUseCases]: ALWAYS_ASK_NEVER,
   [PreferenceKey.SuggestRelatedTestCases]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoDetectChanges]: ALWAYS_ASK_NEVER,
@@ -102,9 +100,6 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.DefaultExecutionMode]: {
     description: "When a skill supports both local and remote test execution, which to default to",
-  },
-  [PreferenceKey.AutoPublishLocalResults]: {
-    description: "After a local E2E test run completes, upload results to Muggle Test cloud for team visibility",
   },
   [PreferenceKey.SuggestRelatedUseCases]: {
     description: "After creating or running a use case, suggest related use cases to add",

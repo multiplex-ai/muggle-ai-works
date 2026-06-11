@@ -1,6 +1,6 @@
 # Muggle Test — Local Execution Path (Mode A)
 
-> The Local execution process for the `muggle-test` router: run the selected test cases against localhost via the Electron browser, collect results, and publish. Returns a uniform runs list to the router. Per-test-case mechanics are shared with [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md).
+> The Local execution process for the `muggle-test` router: run the selected test cases against localhost via the Electron browser and collect results. The studio publishes each run to the cloud during execution, so the run result already carries the cloud refs. Returns a uniform runs list to the router. Per-test-case mechanics are shared with [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md).
 
 ## Inputs (the router passes these in)
 
@@ -39,18 +39,7 @@ Caller glue:
 
 ## Collect results
 
-Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md), reading structured fields and [interpreting failures](../_shared/dev-loop/failures.md) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures.
-
-## Publish each run to cloud (gated by `autoPublishLocalResults`)
-
-Gate `autoPublishLocalResults` (per `preference-gates/README.md`):
-- `always` → proceed to publish logic below.
-- `never` → skip publishing; tell the user the dashboard/PR steps and per-step screenshots are unavailable without publishing.
-- `ask` → run Picker 1 from `preference-gates/autoPublishLocalResults.md` via `AskUserQuestion`; map the answer back to one of the actions above.
-
-## Publish logic (when publishing is enabled)
-
-Publish every completed run per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) — parallel `muggle-local-publish-test-script` with the zero-step `muggle-remote-local-run-upload` fallback. Store every `viewUrl`, `testScriptId`, `actionScriptId`.
+Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/failures.md), reading structured fields and [interpreting failures](../_shared/dev-loop/failures.md) — never `execute`'s stdout tail. Issue the `muggle-local-run-result-get` calls in parallel; use `Error` as the headline for failures. The studio already published each run, so the same call surfaces `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId` — retain them per [`../_shared/dev-loop/publish.md`](../_shared/dev-loop/publish.md) for the dashboard and walkthrough.
 
 ## Report summary
 
@@ -68,4 +57,4 @@ For failures, don't hand-write a verdict — the router routes each through the 
 
 ## Output
 
-Return the uniform runs list the router consumes: `[{ testCaseId, mode, runId, status, viewUrl?, testScriptId?, actionScriptId? }]`.
+Return the uniform runs list the router consumes: `[{ testCaseId, mode, runId, status, viewUrl?, cloudTestScriptId?, cloudActionScriptId? }]`. The studio published each run during execution, so `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId` come straight off the run result (`muggle-local-run-result-get`).

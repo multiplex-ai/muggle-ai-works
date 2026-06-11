@@ -19,8 +19,7 @@ Run once the target `testCaseId` is chosen and the local URL + services are conf
    - Not ready → **generate its script only (never replay):**
      1. `muggle-remote-test-case-get` for the ancestor.
      2. Determine `freshSession` for that ancestor from its own content — same rules as Step 6.
-     3. `muggle-local-execute-test-generation` with the ancestor test case, `localUrl`, `cwd`, and a long `timeoutMs` (see Step 6's timeout guidance). Do **not** call `muggle-local-execute-replay`.
-     4. `muggle-local-publish-test-script` (`runId`, `cloudTestCaseId` = ancestor) so the generated script is promoted as that ancestor's canonical replay script — it now reads as ready for any case downstream.
+     3. `muggle-local-execute-test-generation` with the ancestor test case, `localUrl`, `cwd`, and a long `timeoutMs` (see Step 6's timeout guidance). Do **not** call `muggle-local-execute-replay`. The studio publishes the generated run during execution, promoting its script as that ancestor's canonical replay script — it now reads as ready for any case downstream (confirm via `muggle-local-run-result-get` carrying a `cloudActionScriptId`).
 
 3. **All ancestors ready** → continue to Step 5 for the target test case.
 

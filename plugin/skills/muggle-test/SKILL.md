@@ -7,7 +7,7 @@ description: "Change-driven E2E acceptance testing with Muggle AI: detect the us
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test"`.
 
-A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, publishes results to the Muggle AI dashboard, and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
+A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, reads the cloud results from the Muggle AI dashboard (local runs are published by the studio during execution; remote runs publish cloud-side), and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
 
 ## UX Guidelines — Minimize Typing
 
@@ -45,7 +45,6 @@ Gates run per `preference-gates/README.md`.
 | `autoSelectLocalHost` | execute-local | Reuse last-used local dev server URL for this repo |
 | `autoDetectChanges` | 2 | Scan local git changes and map to affected test cases |
 | `defaultExecutionMode` | 1 | Default to local or remote test execution |
-| `autoPublishLocalResults` | execute-local | Upload local results to Muggle Test cloud after run |
 | `showElectronBrowser` | execute-local | Show the Electron browser window during local test execution (vs. run headless) |
 | `postPRVisualWalkthrough` | 9 | Post visual walkthrough to PR after results are available |
 | `autoCreatePR` | 9 (if no PR) | Auto-create the PR when posting the walkthrough has no PR to target |
@@ -256,13 +255,13 @@ Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the
 
 ## Step 8: Open Results in Browser
 
-After execution (and publishing, for local runs), open the Muggle AI dashboard so the user can inspect results and screenshots. Key off the uniform runs list:
+After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. The studio published every local run during execution, so each run result already carries its `viewUrl` (read it from `muggle-local-run-result-get`). Key off the uniform runs list:
 
-- **Runs carry published `viewUrl`s and there are ≤3** — open each:
+- **Runs carry a `viewUrl` and there are ≤3** — open each:
   ```bash
   open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
   ```
-- **Otherwise** (remote runs, unpublished local runs, or more than 3 local runs) — open the project runs page:
+- **Otherwise** (more than 3 runs, or a run with no `viewUrl`) — open the project runs page:
   ```bash
   open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
   ```
@@ -312,6 +311,6 @@ Each rule below is covered in-step above; these are the ones this skill most oft
 - **PR URLs run in a dedicated worktree** — never switch the user's main checkout; pass that worktree as `cwd`.
 - **Every selection uses `AskUserQuestion`** — never ask the user to type a number; the user picks the project (never auto-select).
 - **Parallelize independent cloud jobs**; the only sequential loop is local Electron execution (one browser).
-- **Publish before opening the browser**, and delegate PR posting to `muggle-pr-visual-walkthrough` — never inline the walkthrough or call `gh pr comment` here.
+- **Read cloud refs off the run result** (the studio published during execution) and delegate PR posting to `muggle-pr-visual-walkthrough` — never inline the walkthrough or call `gh pr comment` here.
 
 Phase→tool map and multi-agent (acceptance-tester) dispatch: [`reference.md`](reference.md).

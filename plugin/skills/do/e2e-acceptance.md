@@ -27,7 +27,7 @@ For local runs, the tool boundaries are:
 | Scope | MCP tools |
 | :---- | :-------- |
 | Cloud (projects, cases, scripts, auth) | `muggle-remote-*` |
-| Local (Electron run, publish, results) | `muggle-local-*` |
+| Local (Electron run, results — the studio publishes during the run) | `muggle-local-*` |
 
 This keeps execution deterministic: local runs do not depend on cloud replay execution availability.
 
@@ -96,9 +96,9 @@ Based on the changed files and the requirements goal, determine which test cases
 - Test cases that cover areas potentially affected by the changes
 - When in doubt, include the test case (better to over-test than miss a regression)
 
-### Step 4: Run the dev loop, publish, gather screenshots
+### Step 4: Run the dev loop, gather screenshots
 
-For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), [publish](../_shared/dev-loop/publish.md), and gather [per-step screenshots](../_shared/dev-loop/publish.md).
+For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
@@ -161,5 +161,5 @@ Failed runs use the same evidence + diagnosis assembly as the interactive debug 
 - Replay/timeout/result discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`, always pass `timeoutMs`, read structured run-result fields.
 - No hiding failures: surface errors, exit codes, and artifact paths.
 - In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips).
-- Always publish after execution to ensure screenshots are cloud-accessible for PR comments.
+- The studio publishes every run during execution, so screenshots are cloud-accessible for PR comments — read the refs off the run result, never re-publish.
 - **Never drop a test case from the report because it "couldn't run cleanly."** A test that didn't reach its assertion is `inconclusive`, not absent. Dropping it produces misleading verdicts and pushes downstream PR-comment renderers to hand-write the comment — which is the failure mode this stage exists to prevent.

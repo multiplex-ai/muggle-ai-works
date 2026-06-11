@@ -84,6 +84,61 @@ export interface ILocalRunResult {
   errorMessage?: string;
 }
 
+/**
+ * Cloud identifiers the studio attaches to its result after publishing the run.
+ */
+interface IStudioCloudRefs {
+  /** Dashboard URL for the published run. */
+  viewUrl?: string;
+  /** Cloud test script ID (absent for a failed generation). */
+  cloudTestScriptId?: string;
+  /** Cloud action script ID. */
+  cloudActionScriptId?: string;
+}
+
+/**
+ * Pull the studio-published cloud identifiers off the studio's result object.
+ *
+ * The studio publishes the run during execution and carries `viewUrl` /
+ * `testScriptId` / `actionScriptId` back on its result. That object is `unknown`
+ * here, so narrow each field independently and drop anything that isn't a
+ * non-empty string. Returns only the fields that are actually present.
+ */
+function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs {
+  if (typeof studioReturnedResult !== "object" || studioReturnedResult === null) {
+    return {};
+  }
+  const source = studioReturnedResult as Record<string, unknown>;
+  const asString = (value: unknown): string | undefined =>
+    typeof value === "string" && value.trim() !== "" ? value : undefined;
+
+  const refs: IStudioCloudRefs = {};
+  const viewUrl = asString(source.viewUrl);
+  const cloudTestScriptId = asString(source.testScriptId);
+  const cloudActionScriptId = asString(source.actionScriptId);
+  if (viewUrl !== undefined) refs.viewUrl = viewUrl;
+  if (cloudTestScriptId !== undefined) refs.cloudTestScriptId = cloudTestScriptId;
+  if (cloudActionScriptId !== undefined) refs.cloudActionScriptId = cloudActionScriptId;
+  return refs;
+}
+
+/**
+ * Read the studio's `cloudrefs_<input>.json` sidecar written next to the input
+ * script after it publishes the run. Returns undefined when absent (e.g. an
+ * older studio build that doesn't publish) — callers narrow defensively.
+ */
+async function readCloudRefsFile(inputFilePath: string): Promise<unknown> {
+  const cloudRefsPath = path.join(
+    path.dirname(inputFilePath),
+    `cloudrefs_${path.basename(inputFilePath)}`,
+  );
+  try {
+    return JSON.parse(await fs.readFile(cloudRefsPath, "utf-8"));
+  } catch {
+    return undefined;
+  }
+}
+
 /** Map of active execution processes. */
 const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
 
@@ -717,20 +772,28 @@ async function runTestGenerationLocked(params: {
         );
         // goal_not_achievable and partial-progress failures often still leave a gen_*.json
         // with the agent's attempted steps + halt summary. Persist it so reviewers can see
-        // what was tried. Silent on missing — early Electron crashes write no gen file.
+        // what was tried, and read the studio's cloud refs off it — the backend still
+        // records the action script + viewUrl for a failed generation (no test script).
+        // Silent on missing — early Electron crashes write no gen file.
+        let failedStudioResult: unknown;
         try {
+          const failedScriptRaw = await fs.readFile(generatedScriptPath, "utf-8");
+          failedStudioResult = JSON.parse(failedScriptRaw);
           await fs.copyFile(generatedScriptPath, path.join(artifactsDir, "action-script.json"));
           await fs.unlink(generatedScriptPath).catch(() => {});
         } catch {
           // No gen file produced before failure.
         }
 
+        const failedStudioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
         storage.updateRunResult(runId, {
           status: "failed",
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
           artifactsDir: artifactsDir,
+          studioReturnedResult: failedStudioResult,
+          ...failedStudioCloudRefs,
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,
@@ -772,11 +835,14 @@ async function runTestGenerationLocked(params: {
         runId: runId,
         generatedScriptPath: generatedScriptPath,
       });
+      const studioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
+        studioReturnedResult: generatedScript,
+        ...studioCloudRefs,
         localExecutionContext: {
           ...localExecutionContextBase,
           localExecutionCompletedAt: completedAt,
@@ -969,10 +1035,14 @@ async function runReplayLocked(params: {
       }
 
       const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
+      const replayStudioResult = await readCloudRefsFile(inputFilePath);
+      const replayStudioCloudRefs = extractStudioCloudRefs(replayStudioResult);
       storage.updateRunResult(runId, {
         status: "passed",
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
+        studioReturnedResult: replayStudioResult,
+        ...replayStudioCloudRefs,
         localExecutionContext: {
           ...localExecutionContextBase,
           localExecutionCompletedAt: completedAt,

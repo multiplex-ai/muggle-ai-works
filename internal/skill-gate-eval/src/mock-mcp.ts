@@ -172,13 +172,6 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
           ),
       ),
       tool(
-        "muggle-local-publish-test-script",
-        "Publish (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult({ viewUrl: "https://example.invalid/script/stub" }),
-      ),
-      tool(
         "muggle-local-run-result-get",
         "Run result (mock).",
         PERMISSIVE_SHAPE,
@@ -188,6 +181,9 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
               runId: "run-stub",
               status: "passed",
               steps: [],
+              viewUrl: "https://example.invalid/run/stub",
+              cloudTestScriptId: "cloud-ts-stub",
+              cloudActionScriptId: "cloud-as-stub",
             },
           ),
       ),

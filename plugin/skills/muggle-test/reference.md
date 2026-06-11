@@ -23,9 +23,8 @@ Lookup material pulled out of `SKILL.md` to keep the always-loaded body lean. Ev
 | Execute (regen) | `muggle-remote-workflow-start-test-script-generation` | Remote |
 | Execute (replay) | `muggle-remote-workflow-start-test-script-replay` | Remote |
 | Failure-mode telemetry | `muggle-local-telemetry-event-emit` | Both |
-| Results | `muggle-local-run-result-get` | Local |
+| Results + cloud refs (studio-published `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId`) | `muggle-local-run-result-get` | Local |
 | Results | `muggle-remote-wf-get-ts-gen-latest-run`, `muggle-remote-wf-get-ts-replay-latest-run` | Remote |
-| Publish | `muggle-local-publish-test-script` | Local |
 | Per-step screenshots (for walkthrough) | `muggle-remote-test-script-get` | Both |
 | Browser | `open` (shell command) | Both |
 | PR walkthrough | `muggle-pr-visual-walkthrough` (shared skill) | Both |

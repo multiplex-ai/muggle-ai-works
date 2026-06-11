@@ -59,6 +59,12 @@ export interface IRunResult {
   localExecutionContext: ILocalExecutionContext;
   /** Associated test script ID (if generated). */
   testScriptId?: string;
+  /** Dashboard URL for the cloud-published run, from the studio result. */
+  viewUrl?: string;
+  /** Cloud test script ID the studio published, from the studio result (undefined for a failed generation). */
+  cloudTestScriptId?: string;
+  /** Cloud action script ID the studio published, from the studio result. */
+  cloudActionScriptId?: string;
   /** Path to run artifacts directory (action script, screenshots, results). */
   artifactsDir?: string;
   /** Execution time in ms. */

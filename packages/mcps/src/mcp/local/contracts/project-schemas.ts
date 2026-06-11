@@ -164,15 +164,3 @@ export const TestScriptGetInputSchema = z.object({
 });
 
 export type TestScriptGetInput = z.infer<typeof TestScriptGetInputSchema>;
-
-
-/**
- * Publish test script input schema.
- * Uses local run ID to find the generated script and cloud IDs for where to publish.
- */
-export const PublishTestScriptInputSchema = z.object({
-  runId: MuggleEntityIdSchema.describe("Local run result ID (UUID) from muggle_execute_test_generation"),
-  cloudTestCaseId: MuggleEntityIdSchema.describe("Cloud test case ID (UUID) to publish the script under"),
-});
-
-export type PublishTestScriptInput = z.infer<typeof PublishTestScriptInputSchema>;

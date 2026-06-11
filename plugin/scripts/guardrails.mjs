@@ -27,14 +27,16 @@ function markPrHandled(sessionId2, prUrl, dirOverride) {
 
 // src/guardrails/prOpened.ts
 var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
+var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
 var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
+var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
 function detectPrOpened(input2) {
   if (input2.tool_name !== "Bash") return null;
   const cmd = input2.tool_input?.command ?? "";
-  if (!CREATE_CMD.test(cmd)) return null;
+  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
   const out = `${input2.tool_response?.stdout ?? ""}
 ${input2.tool_response?.output ?? ""}`;
-  const m = out.match(PR_URL);
+  const m = out.match(PR_URL) ?? out.match(MR_URL);
   return m ? m[0] : null;
 }
 

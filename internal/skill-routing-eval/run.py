@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parents[2]  # internal/skill-routing-eval -> repo root
+REPO_ROOT = HERE.parents[1]  # internal/skill-routing-eval -> repo root
 EVAL_SET = HERE / "eval-set.json"
 ROUTER = HERE / "router_eval.py"
 ANALYZE = HERE / "analyze.py"

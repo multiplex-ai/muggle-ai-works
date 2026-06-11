@@ -26,6 +26,14 @@ Each entry: the genuine routing miss from the baseline, the description change, 
 
 **Re-run (8/8):** failing query → `muggle-test-prepare` 3/3; all 4 other prepare positives pass; `muggle-test` ("validate before PR", "test on staging") and `muggle-test-feature-local` ("checkout on localhost") siblings unaffected.
 
+## muggle-browser-task (Opus 4.8 re-validation)
+
+**Baseline miss (runs=3):** 20/25 — "log into X and do Y" action requests (AWS IAM, Slack message, Stripe refund, prod checkout, …) routed to `none`; the model attempts or declines the task itself instead of invoking the skill. Original description was the thinnest real skill (322 ch) and named neither the user's verbs nor the failure mode.
+
+**Change:** pushier, concrete framing — transactional verbs (submit the form, place the order, refund the charge, file the ticket, publish a post) and sites (Stripe, Jira, Shopify, AWS console, WordPress, LinkedIn), plus an explicit "reach for this rather than declining or doing it by hand." Chat framing ("Slack", "send a message") was deliberately dropped: it collided with the negative "ping the team on slack to review my PR".
+
+**Re-run (runs=3, browser-task + 48 negatives):** browser-task **24/25**, negatives **48/48** clean. Triggering here is high-variance (21–25/25 across four near-identical runs — the dispositional floor for action skills), so the gain is real but modest; the one remaining miss (a Slack-channel message) is a deliberate trade to keep negatives clean. Full analysis in [`opus-4-8-revalidation.md`](opus-4-8-revalidation.md).
+
 ---
 
 # Verified-clean entrances (no change needed)

@@ -10,7 +10,7 @@ Resolve red CI on a PR's head — lint/format, typecheck, and failing unit tests
 
 ## Input
 
-`$ARGUMENTS` carries a `github.com/.../pull/<n>` URL, `slug=<slug>`, and the failing check names (no review ids). Parse all three.
+`$ARGUMENTS` carries a PR/MR URL (`github.com/.../pull/<n>` or `<host>/<group>/<project>/-/merge_requests/<iid>`), `slug=<slug>`, and the failing check names (no review ids). Parse all three. The names are GitHub check-runs or — when the URL resolves `gitlab` per [`../_shared/detect-vcs.md`](../_shared/detect-vcs.md) — the failed pipeline-job names the watcher read off [`../_shared/gitlab-cli-recipes/mr-pipeline.md`](../_shared/gitlab-cli-recipes/mr-pipeline.md); the fix cycle below is identical for either.
 
 ## Inputs from disk
 

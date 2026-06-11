@@ -33,7 +33,9 @@ Before assembling work, rebase onto the latest default branch so the cycle addre
 
 ### Step 1 — Assemble the work set
 
-Two sources, combined into one batch (dedupe by comment id):
+Resolve the provider per [`../_shared/detect-vcs.md`](../_shared/detect-vcs.md), then assemble.
+
+**`github`** — two sources, combined into one batch (dedupe by comment id):
 
 **(a) The dispatched reviews.** For each review id in the input:
 
@@ -43,6 +45,8 @@ Two sources, combined into one batch (dedupe by comment id):
 **(b) Unaddressed comments on every unresolved thread.** Fetch unresolved threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). For each thread classified **unaddressed human comment** — newest comment lacks the loop marker `<!-- muggle-do:bot -->` ([`loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)) and post-dates the loop's last marked reply — add it to the batch — unresolved thread state, not any review-id watermark, is the authority here. This is how a human thread follow-up (a marker-less reply) gets addressed. **Exclude** comments whose review id is in `last_seen.escalated_review_ids` — paused awaiting the user, not re-work.
 
 Group (a) and (b) into one combined batch.
+
+**`gitlab`** — single source (no review-id watermark; discussion state is the sole authority). Fetch unresolved discussions per [`../_shared/gitlab-cli-recipes/unresolved-discussions.md`](../_shared/gitlab-cli-recipes/unresolved-discussions.md) (drop to [`../_shared/gitlab-cli-recipes/mr-discussions.md`](../_shared/gitlab-cli-recipes/mr-discussions.md) for raw notes where classification needs them). The input ids are discussion ids; the batch is every discussion classified **unaddressed human comment** — newest note lacks the marker and post-dates the loop's last marked note. **Exclude** discussions whose id is in `last_seen.escalated_review_ids`. A discussion is the unit of work in place of GitHub's review + line-comment pair.
 
 ### Step 2 — Classify each review
 
@@ -93,7 +97,7 @@ Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + exis
 
 #### 4f. Post per-comment inline replies
 
-Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews and the new SHA. One reply per comment, in its own thread, describing what was done for it.
+Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions) and the new SHA. One reply per comment, in its own thread, describing what was done for it; on `gitlab` the same step also resolves each fully-addressed discussion.
 
 (The resolve-reminder runs once per round in Step 5.5 below — not only after a push — so a round that pushed nothing still nudges addressed-but-unresolved threads.)
 
@@ -109,7 +113,7 @@ Invoke [`resolve-reminder.md`](resolve-reminder.md) once, regardless of whether 
 
 ### Step 6 — Respawn the watcher
 
-Refresh PR state per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). If the PR is now merged or closed:
+Refresh PR state with the provider resolved in Step 1 — `github` per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md), `gitlab` per [`../_shared/gitlab-cli-recipes/mr-metadata.md`](../_shared/gitlab-cli-recipes/mr-metadata.md) (`state == merged`/`closed`, lowercase). If the PR is now merged or closed:
 
 1. Write `result.md` per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#resultmd).
 2. Do **not** respawn the watcher.

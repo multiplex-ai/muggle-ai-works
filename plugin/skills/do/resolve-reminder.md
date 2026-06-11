@@ -14,21 +14,23 @@ This stage does not print a turn preamble — it runs inside `/muggle-do`'s addr
 
 ## Inputs
 
-- The current PR (URL, owner, repo, number) from the session's `prs.json`.
+- The current PR (URL, owner, repo, number) from the session's `prs.json`. On `gitlab`, the project ref and MR iid.
 - `last_seen.pushed_shas[]` from `last_seen.json` — the list of every SHA `/muggle-do` has pushed for this PR.
-- The loop user's GitHub login (cached in `state.md` under `Loop user:` — re-resolve per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md) if missing).
+- The loop user's login (cached in `state.md` under `Loop user:`) — re-resolve when missing, `github` per [`../_shared/github-cli-recipes/loop-user-identity.md`](../_shared/github-cli-recipes/loop-user-identity.md), `gitlab` per [`../_shared/gitlab-cli-recipes/loop-user-identity.md`](../_shared/gitlab-cli-recipes/loop-user-identity.md).
+
+Resolve the provider once per [`../_shared/detect-vcs.md`](../_shared/detect-vcs.md).
 
 ## Procedure
 
 ### Step 1 — Fetch unresolved comment threads
 
-Per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). Filter client-side to `isResolved == false`. Each thread carries its line comments with `author.login`, `body`, and `databaseId`.
+`github` per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md) (filter client-side to `isResolved == false`; each thread carries its line comments with `author.login`, `body`, `databaseId`); `gitlab` per [`../_shared/gitlab-cli-recipes/unresolved-discussions.md`](../_shared/gitlab-cli-recipes/unresolved-discussions.md) (each discussion carries its `notes[]` and `id`).
 
 If the API call fails, log the error to `followup.log` and skip the stage. Do not surface a user-facing error — the resolve reminder is a nice-to-have, not load-bearing. The reply summaries on the threads themselves still happen.
 
 ### Step 2 — Classify each thread
 
-Per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md): walk each thread's comments in `createdAt` order and classify by the loop marker `<!-- muggle-do:bot -->` ([`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)), not by `author.login`:
+Walk each thread's comments (`gitlab`: notes) in chronological order and classify by the loop marker `<!-- muggle-do:bot -->` ([`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)), not by `author.login` — `github` per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md), `gitlab` per [`../_shared/gitlab-cli-recipes/unresolved-discussions.md`](../_shared/gitlab-cli-recipes/unresolved-discussions.md):
 
 - **Addressed, awaiting resolve** — the **newest** comment carries the marker. The loop replied and nothing newer is waiting. These feed the reminder.
 - **Unaddressed human comment** — the newest comment lacks the marker and post-dates the loop's last marked reply (or there is no loop reply yet). The address-reviews round handles these as work (Step 1 sweep), not the reminder.
@@ -42,7 +44,7 @@ Collect the thread `databaseId` of every thread classified **addressed, awaiting
 
 ### Step 4 — Post the top-level reminder comment
 
-If the resolve-reminder list is non-empty, post **one** top-level PR comment using the template in [`../muggle-pr-followup/output-templates/resolve-reminder.md`](../muggle-pr-followup/output-templates/resolve-reminder.md) per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md). The comment carries the loop signature, so a later round's scan won't read it back as a human comment.
+If the resolve-reminder list is non-empty, post **one** top-level comment using the template in [`../muggle-pr-followup/output-templates/resolve-reminder.md`](../muggle-pr-followup/output-templates/resolve-reminder.md) — `github` per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md), `gitlab` per [`../_shared/gitlab-cli-recipes/mr-note.md`](../_shared/gitlab-cli-recipes/mr-note.md). The comment carries the loop signature, so a later round's scan won't read it back as a human comment.
 
 If the list is empty, post **nothing**. Still emit telemetry so the stage's run is observable.
 
@@ -59,7 +61,7 @@ Emit one event per [`../_shared/telemetry-events/muggle-do-resolve-reminder.md`]
 
 This stage is best-effort. Any failure is logged to `followup.log` and silently skipped — the reviewer still gets the per-comment inline replies (the canonical signal that work was done), and the cycle continues to respawn the watcher.
 
-The one exception: do not silently swallow a `gh pr comment` failure if Step 4 ran. The comment is a user-visible artifact; if it fails, surface the underlying `gh` error to the user so they know the reminder didn't post.
+The one exception: do not silently swallow a Step 4 post failure (`gh pr comment` / `glab mr note`) if Step 4 ran. The comment is a user-visible artifact; if it fails, surface the underlying CLI error to the user so they know the reminder didn't post.
 
 ## Invariants
 

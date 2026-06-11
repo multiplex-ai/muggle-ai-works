@@ -10,7 +10,7 @@ This is **not** a top-level "summary reply on the review." Each comment thread g
 - `new_sha` — the SHA `open-prs/update.md` just pushed.
 - The PR's owner, repo, number. On `gitlab`, the project ref and MR iid.
 
-Resolve the provider once per [`../_shared/detect-vcs.md`](../_shared/detect-vcs.md).
+Resolve the provider once per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-vcs.md).
 
 ## Procedure
 
@@ -36,7 +36,7 @@ For each comment id with a description, post the reply with the resolved provide
     -f body="<reply-body>"
   ```
 
-- **`gitlab`** — one threaded note per actionable discussion per [`../_shared/gitlab-cli-recipes/reply-discussion.md`](../_shared/gitlab-cli-recipes/reply-discussion.md) (the discussion id stands in for the comment id), then resolve each fully-addressed thread per [`../_shared/gitlab-cli-recipes/resolve-discussion.md`](../_shared/gitlab-cli-recipes/resolve-discussion.md). The loop-marked reply is the addressed signal; the resolve is GitLab's equivalent of a reviewer closing the thread, which the loop can do directly. Resolving folds the discussion out of the next tick's actionable set, so no separate resolve-reminder nudge is needed for it.
+- **`gitlab`** — one threaded note per actionable discussion per [`../_shared/vcs/gitlab/reply-discussion.md`](../_shared/vcs/gitlab/reply-discussion.md) (the discussion id stands in for the comment id), then resolve each fully-addressed thread per [`../_shared/vcs/gitlab/resolve-discussion.md`](../_shared/vcs/gitlab/resolve-discussion.md). The loop-marked reply is the addressed signal; the resolve is GitLab's equivalent of a reviewer closing the thread, which the loop can do directly. Resolving folds the discussion out of the next tick's actionable set, so no separate resolve-reminder nudge is needed for it.
 
 Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md):
 
@@ -63,7 +63,7 @@ Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
 🤖 _Automated reply from muggle-do._
 ```
 
-Posted per [`../_shared/github-cli-recipes/top-level-comment.md`](../_shared/github-cli-recipes/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.
+Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.
 
 ## Failure modes
 

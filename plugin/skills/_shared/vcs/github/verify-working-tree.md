@@ -14,4 +14,4 @@ Accept any remote URL form for `<owner>/<repo>` (with or without trailing `.git`
 - `git@github.com:<owner>/<repo>`
 - `ssh://git@github.com/<owner>/<repo>`
 
-Any mismatch → bootstrap aborts using the wrong-checkout template in [`../../muggle-pr-followup/output-templates/bootstrap.md`](../../muggle-pr-followup/output-templates/bootstrap.md).
+Any mismatch → bootstrap aborts using the wrong-checkout template in [`../../../muggle-pr-followup/output-templates/bootstrap.md`](../../../muggle-pr-followup/output-templates/bootstrap.md).

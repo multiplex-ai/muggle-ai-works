@@ -1,6 +1,6 @@
 # Open a merge request
 
-For `open-prs`. Push the branch first (see [`../github-cli-recipes/push-to-branch.md`](../github-cli-recipes/push-to-branch.md)), then open the MR.
+For `open-prs`. Push the branch first (see [`../github/push-to-branch.md`](../github/push-to-branch.md)), then open the MR.
 
 ```bash
 glab mr create -R <group>/<project> \

@@ -31,7 +31,7 @@ If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was fi
 
 ### Step 1 — Refresh PR state
 
-Per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` (conflict signal) for Step 5, and run the recipe's `compare` call to capture `behind_by` (out-of-date signal) for Step 5.
+Per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` (conflict signal) for Step 5, and run the recipe's `compare` call to capture `behind_by` (out-of-date signal) for Step 5.
 
 ### Step 2 — Termination check
 
@@ -50,17 +50,17 @@ If `state` is `MERGED` or `CLOSED`:
 
 ### Step 3 — Compute the actionable set from live thread state
 
-The watcher's dispatch trigger is **derived from current provider state**, not a stored review-id cursor — see the [thread-state baseline design](../../../../muggle-ai-brain/architecture/2026-06-06-pr-followup-thread-state-baseline-design.md). Resolve the provider per [`../_shared/detect-vcs.md`](../_shared/detect-vcs.md), then:
+The watcher's dispatch trigger is **derived from current provider state**, not a stored review-id cursor — see the [thread-state baseline design](../../../../muggle-ai-brain/architecture/2026-06-06-pr-followup-thread-state-baseline-design.md). Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-vcs.md), then:
 
 - **`github`** — two sources, unioned:
 
-  **(a) Actionable threads.** Fetch unresolved review threads per [`../_shared/github-cli-recipes/unresolved-threads.md`](../_shared/github-cli-recipes/unresolved-threads.md). A thread is **actionable** when `isResolved == false` **and** `isOutdated == false` **and** its newest comment lacks the loop marker `<!-- muggle-do:bot -->` — classify by the marker, never `author.login` (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)). The marker rule makes echo intrinsic: once the loop has replied, the thread's newest comment is the loop's own, so the thread is no longer actionable — no cursor to advance, no self-recursion (see [`../_shared/pr-followup-helpers/echo-skip.md`](../_shared/pr-followup-helpers/echo-skip.md)).
+  **(a) Actionable threads.** Fetch unresolved review threads per [`../_shared/vcs/github/unresolved-threads.md`](../_shared/vcs/github/unresolved-threads.md). A thread is **actionable** when `isResolved == false` **and** `isOutdated == false` **and** its newest comment lacks the loop marker `<!-- muggle-do:bot -->` — classify by the marker, never `author.login` (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)). The marker rule makes echo intrinsic: once the loop has replied, the thread's newest comment is the loop's own, so the thread is no longer actionable — no cursor to advance, no self-recursion (see [`../_shared/pr-followup-helpers/echo-skip.md`](../_shared/pr-followup-helpers/echo-skip.md)).
 
-  **(b) Actionable body-only reviews — GitHub only.** A body-only review — a submitted `CHANGES_REQUESTED`/`COMMENTED` review with no line comments — has no thread to derive state from, so it keeps a narrow watermark. GitLab has no review envelope (feedback is always a discussion note), so this sub-branch is GitHub-only and has no GitLab analogue. Fetch submitted reviews per [`../_shared/github-cli-recipes/submitted-reviews.md`](../_shared/github-cli-recipes/submitted-reviews.md); a body-only review is actionable when `id > last_seen.lastBodyReviewId` **and** `id ∉ last_seen.escalated_review_ids`.
+  **(b) Actionable body-only reviews — GitHub only.** A body-only review — a submitted `CHANGES_REQUESTED`/`COMMENTED` review with no line comments — has no thread to derive state from, so it keeps a narrow watermark. GitLab has no review envelope (feedback is always a discussion note), so this sub-branch is GitHub-only and has no GitLab analogue. Fetch submitted reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md); a body-only review is actionable when `id > last_seen.lastBodyReviewId` **and** `id ∉ last_seen.escalated_review_ids`.
 
   Collect the **owning review ids** for dispatch: for each actionable thread, the owning review of its newest comment (`pullRequestReview.databaseId` from the query); plus every actionable body-only review id. The dedup'd union is the dispatch list.
 
-- **`gitlab`** — single source. Fetch unresolved discussions per [`../_shared/gitlab-cli-recipes/unresolved-discussions.md`](../_shared/gitlab-cli-recipes/unresolved-discussions.md) (drop to [`../_shared/gitlab-cli-recipes/mr-discussions.md`](../_shared/gitlab-cli-recipes/mr-discussions.md) for the raw notes if a thread's classification needs them). A discussion is **actionable** when it is unresolved **and** its newest note lacks the loop marker `<!-- muggle-do:bot -->` — same marker classification, never `author.username`. There is no body-only watermark: discussion state is the sole authority. The dispatch list is the **discussion ids** of the actionable discussions.
+- **`gitlab`** — single source. Fetch unresolved discussions per [`../_shared/vcs/gitlab/unresolved-discussions.md`](../_shared/vcs/gitlab/unresolved-discussions.md) (drop to [`../_shared/vcs/gitlab/mr-discussions.md`](../_shared/vcs/gitlab/mr-discussions.md) for the raw notes if a thread's classification needs them). A discussion is **actionable** when it is unresolved **and** its newest note lacks the loop marker `<!-- muggle-do:bot -->` — same marker classification, never `author.username`. There is no body-only watermark: discussion state is the sole authority. The dispatch list is the **discussion ids** of the actionable discussions.
 
 ### Step 4 — If the actionable set is non-empty → dispatch (reviews preempt CI)
 
@@ -86,7 +86,7 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 A merge-ready branch is **current with its base** — neither conflicting nor behind. From the Step 1 metadata, the branch needs a rebase when either:
 
 - `mergeable == CONFLICTING` (corroborated by `mergeStateStatus == DIRTY`) — conflicts with the base, **or**
-- `behind_by > 0` — out of date with the base. Read this from the `compare` call (commit ancestry), **never** from `mergeStateStatus == BEHIND`: GitHub masks `BEHIND` behind `DIRTY`/`BLOCKED` and only surfaces it under "require branches up to date" protection, so a stale PR that is also awaiting review or has a red required check reports `BLOCKED` — and its staleness would go unseen. See [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md#behind-by-out-of-date-detection). On `gitlab`, the same behind-by comes from the compare in [`../_shared/gitlab-cli-recipes/mr-metadata.md`](../_shared/gitlab-cli-recipes/mr-metadata.md#behind-by-out-of-date-detection) (commit ancestry, not `detailed_merge_status`); conflict is `detailed_merge_status` in `{broken_status, conflict}`.
+- `behind_by > 0` — out of date with the base. Read this from the `compare` call (commit ancestry), **never** from `mergeStateStatus == BEHIND`: GitHub masks `BEHIND` behind `DIRTY`/`BLOCKED` and only surfaces it under "require branches up to date" protection, so a stale PR that is also awaiting review or has a red required check reports `BLOCKED` — and its staleness would go unseen. See [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md#behind-by-out-of-date-detection). On `gitlab`, the same behind-by comes from the compare in [`../_shared/vcs/gitlab/mr-metadata.md`](../_shared/vcs/gitlab/mr-metadata.md#behind-by-out-of-date-detection) (commit ancestry, not `detailed_merge_status`); conflict is `detailed_merge_status` in `{broken_status, conflict}`.
 
 This trigger is **independent of approval and CI state**: an out-of-date branch is rebased whether or not it has been reviewed, approved, or has green checks. The watcher acts on staleness directly — it never waits for an approval to surface it.
 
@@ -106,7 +106,7 @@ Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fi
 
 ### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
 
-Fetch the CI rollup for `prs.json[0].head_sha`, provider resolved as in Step 3 — `github` → the check-run rollup per [`../_shared/github-cli-recipes/pr-checks.md`](../_shared/github-cli-recipes/pr-checks.md); `gitlab` → the pipeline-job rollup per [`../_shared/gitlab-cli-recipes/mr-pipeline.md`](../_shared/gitlab-cli-recipes/mr-pipeline.md) (failed/running/success jobs fold into the same red/pending/green buckets). Then, on the bucket:
+Fetch the CI rollup for `prs.json[0].head_sha`, provider resolved as in Step 3 — `github` → the check-run rollup per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md); `gitlab` → the pipeline-job rollup per [`../_shared/vcs/gitlab/mr-pipeline.md`](../_shared/vcs/gitlab/mr-pipeline.md) (failed/running/success jobs fold into the same red/pending/green buckets). Then, on the bucket:
 
 - **Any check still pending** (`bucket == "pending"`) → idle (wait for checks to settle).
 - **All checks green / skipped, or no checks** → idle (green path).

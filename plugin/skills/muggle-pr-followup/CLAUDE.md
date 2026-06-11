@@ -21,6 +21,6 @@ Shared with other skills, under `../_shared/`:
 - [`pr-followup-helpers.md`](../_shared/pr-followup-helpers.md) — TOC of allow-list / reply-routing / classify; per-section files in `_shared/pr-followup-helpers/`. Called by `/muggle-do`, not by this folder.
 - [`telemetry-emit.md`](../_shared/telemetry-emit.md) — how to emit a telemetry event.
 - [`telemetry-events.md`](../_shared/telemetry-events.md) — TOC of canonical event shapes; per-event files in `_shared/telemetry-events/`.
-- [`github-cli-recipes.md`](../_shared/github-cli-recipes.md) — TOC of reusable `gh` / `git` snippets; per-recipe files in `_shared/github-cli-recipes/`.
+- [`vcs/github.md`](../_shared/vcs/github.md) — TOC of reusable `gh` / `git` snippets; per-recipe files in `_shared/vcs/github/`.
 
 Callers (e.g. `/muggle-do`) reference this folder, not the reverse — see [`../CLAUDE.md`](../CLAUDE.md) for the one-way-dependency rule.

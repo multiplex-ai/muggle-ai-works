@@ -20,7 +20,7 @@ From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + branch + `head_
 
 ### Step 1 — Re-attach
 
-Materialize the PR branch in its worktree per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) (or use `state.md`'s `worktreePath`). Capture `rebase_sha = prs.json[0].head_sha` and the base branch (`baseRefName` from [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md)).
+Materialize the PR branch in its worktree per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) (or use `state.md`'s `worktreePath`). Capture `rebase_sha = prs.json[0].head_sha` and the base branch (`baseRefName` from [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md)).
 
 ### Step 2 — Rebase onto base (resolve conflicts if any)
 

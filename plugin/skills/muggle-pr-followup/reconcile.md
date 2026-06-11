@@ -16,7 +16,7 @@ List `~/.muggle-ai/muggle-do/sessions/*/` dirs that contain a `prs.json`. Skip a
 
 ### Step 2 — Refresh live state
 
-For each candidate, fetch the PR per [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md) using `prs.json[0].url`. A `gh` failure on one slot (deleted repo, missing auth) → log it to that slot's `followup.log` and skip; never abort the whole sweep.
+For each candidate, fetch the PR per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md) using `prs.json[0].url`. A `gh` failure on one slot (deleted repo, missing auth) → log it to that slot's `followup.log` and skip; never abort the whole sweep.
 
 ### Step 3 — Finalize the terminal ones
 

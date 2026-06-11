@@ -7,7 +7,7 @@ This step only finalizes — marks the slot terminal, writes the record, unsched
 ## Inputs
 
 - `<slug>`, `<owner>/<repo>`, `<n>` — the slot's PR.
-- `state` — `MERGED` or `CLOSED`, from a fresh [`../_shared/github-cli-recipes/pr-metadata.md`](../_shared/github-cli-recipes/pr-metadata.md).
+- `state` — `MERGED` or `CLOSED`, from a fresh [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md).
 - `mergeCommit` + `mergedAt` when `MERGED`.
 
 ## Procedure

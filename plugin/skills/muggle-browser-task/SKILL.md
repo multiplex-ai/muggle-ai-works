@@ -1,6 +1,6 @@
 ---
 name: muggle-browser-task
-description: Run a browser automation task on a website using natural language. Finds or creates the Muggle Test project, use case, test case, and script, then executes locally via the electron app. Use when the user wants to perform an action on a website (post, fill a form, click through a flow) rather than implement a code change.
+description: "Perform a real action on a website or web app from a plain-English instruction — log in and do the thing: submit a form, create or update a record, place an order, refund a charge, file a ticket, publish a post, click through and complete a multi-step flow (Stripe, Jira, Shopify, the AWS console, WordPress, LinkedIn, an admin dashboard). Use whenever the user wants something actually done in a web UI ('log into X and …', 'submit the form', 'create the ticket', 'refund the charge', 'place the order', 'update the listing'); Muggle drives a real browser to do it, so reach for this rather than declining or doing it by hand. Boundary: this performs the action (operating a site's own UI), not migrating personal data between consumer apps; to verify a flow works instead, use muggle-test-feature-local."
 ---
 
 # Muggle Test Task Runner

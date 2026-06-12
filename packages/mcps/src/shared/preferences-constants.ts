@@ -18,25 +18,36 @@ export const PREFERENCES_PROJECT_DIR_NAME = ".muggle-ai";
 /** Current schema version. */
 export const PREFERENCES_VERSION = 1;
 
-/** Default preferences — every knob set to "ask". */
+/**
+ * Default preferences — max automation out of the box. Every knob defaults
+ * to its proceed-without-asking value. Two deliberate exceptions:
+ * `showElectronBrowser` stays visible so a new user sees their first run, and
+ * `verboseOutput` stays quiet (it's UX noise, not automation).
+ * `defaultExecutionMode` resolves to `local` rather than re-prompting.
+ */
 export const DEFAULT_PREFERENCES: IPreferences = {
-  [PreferenceKey.AutoLogin]: PreferenceValue.Ask,
-  [PreferenceKey.AutoSelectProject]: PreferenceValue.Ask,
-  [PreferenceKey.AutoSelectLocalHost]: PreferenceValue.Ask,
-  [PreferenceKey.ShowElectronBrowser]: PreferenceValue.Ask,
-  [PreferenceKey.OpenTestResultsAfterRun]: PreferenceValue.Ask,
-  [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Ask,
-  [PreferenceKey.SuggestRelatedUseCases]: PreferenceValue.Ask,
-  [PreferenceKey.SuggestRelatedTestCases]: PreferenceValue.Ask,
-  [PreferenceKey.AutoDetectChanges]: PreferenceValue.Ask,
-  [PreferenceKey.PostPRVisualWalkthrough]: PreferenceValue.Ask,
-  [PreferenceKey.AutoCreatePR]: PreferenceValue.Ask,
-  [PreferenceKey.CheckForUpdates]: PreferenceValue.Ask,
-  [PreferenceKey.VerboseOutput]: PreferenceValue.Ask,
-  [PreferenceKey.AutoUseWorktree]: PreferenceValue.Ask,
-  [PreferenceKey.AutoRebase]: PreferenceValue.Ask,
-  [PreferenceKey.AutoCleanup]: PreferenceValue.Ask,
+  [PreferenceKey.AutoLogin]: PreferenceValue.Always,
+  [PreferenceKey.AutoSelectProject]: PreferenceValue.Always,
+  [PreferenceKey.AutoSelectLocalHost]: PreferenceValue.Always,
+  [PreferenceKey.ShowElectronBrowser]: PreferenceValue.Always,
+  [PreferenceKey.OpenTestResultsAfterRun]: PreferenceValue.Always,
+  [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Local,
+  [PreferenceKey.SuggestRelatedUseCases]: PreferenceValue.Always,
+  [PreferenceKey.SuggestRelatedTestCases]: PreferenceValue.Always,
+  [PreferenceKey.AutoDetectChanges]: PreferenceValue.Always,
+  [PreferenceKey.PostPRVisualWalkthrough]: PreferenceValue.Always,
+  [PreferenceKey.AutoCreatePR]: PreferenceValue.Always,
+  [PreferenceKey.CheckForUpdates]: PreferenceValue.Always,
+  [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
+  [PreferenceKey.AutoUseWorktree]: PreferenceValue.Always,
+  [PreferenceKey.AutoRebase]: PreferenceValue.Always,
+  [PreferenceKey.AutoCleanup]: PreferenceValue.Always,
   [PreferenceKey.AutoE2ETest]: PreferenceValue.Always,
+  [PreferenceKey.AutoResolveConflicts]: PreferenceValue.Always,
+  [PreferenceKey.AutoReuseValidationContext]: PreferenceValue.Always,
+  [PreferenceKey.AutoRouteBuildToMuggleDo]: PreferenceValue.Always,
+  [PreferenceKey.AutoWatchPR]: PreferenceValue.Always,
+  [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
 };
 
 const ALWAYS_ASK_NEVER = [
@@ -79,6 +90,11 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoRebase]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoCleanup]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoE2ETest]: ALWAYS_ASK,
+  [PreferenceKey.AutoResolveConflicts]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoReuseValidationContext]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoRouteBuildToMuggleDo]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoWatchPR]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
 };
 
 /** Human-readable schema for each preference — used in setup wizard and validation. */
@@ -133,5 +149,20 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.AutoE2ETest]: {
     description: "Run Stage 6 (E2E acceptance) at the end of every /muggle-do cycle (default always — running E2E is the point of muggle-do; never is not an option)",
+  },
+  [PreferenceKey.AutoResolveConflicts]: {
+    description: "When a rebase onto the default branch hits conflicts, resolve them autonomously behind a verify-or-rollback gate instead of aborting and escalating",
+  },
+  [PreferenceKey.AutoReuseValidationContext]: {
+    description: "When a prior session left an E2E validation context for this working tree, reuse it instead of re-asking the validation questions",
+  },
+  [PreferenceKey.AutoRouteBuildToMuggleDo]: {
+    description: "When a prompt looks like a build/implement/fix request, route it through the /muggle-do pipeline (requirements → build → impact → tests → E2E → PR → watcher)",
+  },
+  [PreferenceKey.AutoWatchPR]: {
+    description: "After a test run opens a PR, start a muggle-pr-followup watcher that polls for new reviews and hands them to /muggle-do",
+  },
+  [PreferenceKey.ReusePreparePlan]: {
+    description: "Reuse the saved prepare plan for this stack (skip discovery, jump to check-running + smoke-test) instead of rediscovering from scratch",
   },
 };

@@ -26,16 +26,19 @@ back to the same place.
 
 ## Running
 
-Layer 2 is run **manually** until the suite is stable. From the
-muggle-ai-works repo root:
+Layer 2 is **ad-hoc**, never wired to CI — trigger it by hand when you
+want it. From the muggle-ai-works repo root, via the `test:gates:behavioral`
+script (forward args after `--`):
 
 ```bash
 MUGGLE_BRAIN_DIR=../muggle-ai-brain \
-  pnpm tsx internal/skill-gate-eval/src/run.ts \
+  pnpm test:gates:behavioral -- \
     --gate showElectronBrowser \
     --skill muggle-test-feature-local \
     --runs 10
 ```
+
+(equivalently `pnpm tsx internal/skill-gate-eval/src/run.ts …`)
 
 **Auth:** the harness drives `@anthropic-ai/claude-agent-sdk`'s `query()`, which uses your **Claude Code login session** by default — no API key needed when you're logged in. Set `ANTHROPIC_API_KEY` (prefix the command) only where there's no login session, e.g. headless CI.
 

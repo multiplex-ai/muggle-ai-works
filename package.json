@@ -39,7 +39,8 @@
     "lint:check": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts"
   },
   "muggleConfig": {
     "electronAppVersion": "1.4.0",

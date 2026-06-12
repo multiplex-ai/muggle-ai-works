@@ -32,9 +32,9 @@ import {
 } from "../shared/preferences.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 17 keys", () => {
+  it("has exactly 22 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(17);
+    expect(keys).toHaveLength(22);
   });
 
   it("contains all expected keys", () => {
@@ -55,6 +55,11 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoRebase).toBe("autoRebase");
     expect(PreferenceKey.AutoCleanup).toBe("autoCleanup");
     expect(PreferenceKey.AutoE2ETest).toBe("autoE2ETest");
+    expect(PreferenceKey.AutoResolveConflicts).toBe("autoResolveConflicts");
+    expect(PreferenceKey.AutoReuseValidationContext).toBe("autoReuseValidationContext");
+    expect(PreferenceKey.AutoRouteBuildToMuggleDo).toBe("autoRouteBuildToMuggleDo");
+    expect(PreferenceKey.AutoWatchPR).toBe("autoWatchPR");
+    expect(PreferenceKey.ReusePreparePlan).toBe("reusePreparePlan");
   });
 });
 
@@ -103,10 +108,15 @@ describe("DEFAULT_PREFERENCES", () => {
     }
   });
 
-  it("defaults every key to ask except autoE2ETest (always)", () => {
+  it("defaults to max automation (always) except defaultExecutionMode (local) and verboseOutput (never)", () => {
     for (const [key, value] of Object.entries(DEFAULT_PREFERENCES)) {
-      const expected = key === "autoE2ETest" ? PreferenceValue.Always : PreferenceValue.Ask;
-      expect(value).toBe(expected);
+      const expected =
+        key === PreferenceKey.DefaultExecutionMode
+          ? PreferenceValue.Local
+          : key === PreferenceKey.VerboseOutput
+            ? PreferenceValue.Never
+            : PreferenceValue.Always;
+      expect(value, `DEFAULT_PREFERENCES.${key}`).toBe(expected);
     }
   });
 });
@@ -169,11 +179,11 @@ describe("PreferencesService", () => {
       const filePath = path.join(globalDir, "preferences.json");
       fs.writeFileSync(filePath, JSON.stringify({
         version: 1,
-        preferences: { autoLogin: "always" },
+        preferences: { autoLogin: "never" },
       }));
       const prefs = readGlobalPreferences(globalDir);
-      expect(prefs.autoLogin).toBe("always");
-      expect(prefs.autoSelectProject).toBe("ask");
+      expect(prefs.autoLogin).toBe("never"); // saved value overrides the default
+      expect(prefs.autoSelectProject).toBe("always"); // unsaved key falls back to default
     });
   });
 
@@ -199,7 +209,7 @@ describe("PreferencesService", () => {
     it("merges global + project, project wins", () => {
       fs.writeFileSync(
         path.join(globalDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { autoLogin: "always", verboseOutput: "never" } }),
+        JSON.stringify({ version: 1, preferences: { autoLogin: "always", verboseOutput: "always" } }),
       );
       const overrideDir = path.join(projectDir, ".muggle-ai");
       fs.mkdirSync(overrideDir, { recursive: true });
@@ -209,9 +219,9 @@ describe("PreferencesService", () => {
       );
 
       const resolved = resolvePreferences(globalDir, projectDir);
-      expect(resolved.autoLogin).toBe("never");
-      expect(resolved.verboseOutput).toBe("never");
-      expect(resolved.checkForUpdates).toBe("ask");
+      expect(resolved.autoLogin).toBe("never"); // project overrides global
+      expect(resolved.verboseOutput).toBe("always"); // global override (non-default) survives
+      expect(resolved.checkForUpdates).toBe("always"); // unset everywhere → default
     });
   });
 
@@ -289,8 +299,9 @@ describe("PreferencesService", () => {
   describe("formatPreferencesOneLiner", () => {
     it("formats all preferences into a compact string", () => {
       const result = formatPreferencesOneLiner(DEFAULT_PREFERENCES);
-      expect(result).toContain("autoLogin=ask");
-      expect(result).toContain("verboseOutput=ask");
+      expect(result).toContain("autoLogin=always");
+      expect(result).toContain("verboseOutput=never");
+      expect(result).toContain("defaultExecutionMode=local");
     });
   });
 });

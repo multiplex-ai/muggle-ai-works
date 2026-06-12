@@ -10,6 +10,14 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+// Import the leaf modules, not the package barrel: the barrel has import-time
+// side effects (config/logger) that need the root package.json's muggleConfig
+// and throw when pulled into this test. These two modules are side-effect-free.
+import { PreferenceKey } from "../../../packages/mcps/src/shared/preferences-types.js";
+import {
+  DEFAULT_PREFERENCES,
+  PREFERENCE_ALLOWED_VALUES,
+} from "../../../packages/mcps/src/shared/preferences-constants.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -169,6 +177,61 @@ describe("preference-gate contract lint", () => {
           allReferencedGates.has(key),
           `preference-gates/${key}.md is gated but no skill's Preferences table references it`,
         ).toBe(true);
+      });
+    }
+  });
+
+  describe("code/contract parity: PreferenceKey enum === gate files", () => {
+    const enumKeys = new Set<string>(Object.values(PreferenceKey));
+    const fileKeys = new Set(gateFiles);
+    for (const key of enumKeys) {
+      it(`PreferenceKey.${key} has a gate file`, () => {
+        expect(
+          fileKeys.has(key),
+          `PreferenceKey "${key}" has no preference-gates/${key}.md — add the gate file`,
+        ).toBe(true);
+      });
+    }
+    for (const key of fileKeys) {
+      it(`${key}.md has a PreferenceKey entry`, () => {
+        expect(
+          enumKeys.has(key),
+          `preference-gates/${key}.md has no PreferenceKey entry — the gate is unsettable and unseeded`,
+        ).toBe(true);
+      });
+    }
+  });
+
+  describe("defaults sanity: every key has a default in its allowed set", () => {
+    for (const key of Object.values(PreferenceKey)) {
+      it(`${key} default is present and allowed`, () => {
+        const def = (DEFAULT_PREFERENCES as Record<string, string>)[key];
+        expect(def, `DEFAULT_PREFERENCES is missing ${key}`).toBeDefined();
+        const allowed = (
+          PREFERENCE_ALLOWED_VALUES as Record<string, readonly string[]>
+        )[key];
+        expect(
+          allowed.includes(def),
+          `DEFAULT_PREFERENCES.${key} = "${def}" is not in allowed {${allowed.join(",")}}`,
+        ).toBe(true);
+      });
+    }
+  });
+
+  describe("footer contract: the canonical silent footer is mandated", () => {
+    const readme = fs.readFileSync(path.join(GATES_DIR, "README.md"), "utf8");
+    it("README declares the footer required on every skipped prompt", () => {
+      expect(/Skipped the prompt/.test(readme)).toBe(true);
+      expect(/`\/muggle-preferences <key>`/.test(readme)).toBe(true);
+      expect(/required|mandatory/i.test(readme)).toBe(true);
+    });
+    for (const [key, contract] of gateContracts) {
+      if (contract.ungated) continue;
+      it(`${key}.md declares a Silent action the footer can render`, () => {
+        expect(
+          contract.silentActionValues.size,
+          `${key}.md has no Silent action — a skipped ${key} gate would have no footer text`,
+        ).toBeGreaterThan(0);
       });
     }
   });

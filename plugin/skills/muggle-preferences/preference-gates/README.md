@@ -16,16 +16,19 @@ which uses `local` / `remote` / `ask`).
 
 ## Gate behavior
 
-- `always` → take the pro-action, then print silent footer.
-- `never` → take the skip-action, then print silent footer.
+- `always` → take the pro-action, then **always** print the silent footer.
+- `never` → take the skip-action, then **always** print the silent footer.
 - `ask` (or absent) → run Picker 1 (per-key file) → Picker 2 (below).
 
 `defaultExecutionMode` uses `local`/`remote` instead of `always`/`never`.
 
-## Silent footer (whenever pickers are skipped)
+## Silent footer (mandatory whenever a prompt is skipped)
 
-The user must always be told **what happened**, **why it was silent**, and
-**how to change it**. Two lines:
+Whenever a gate resolves to a non-`ask` value and skips its picker, the footer
+below is **required** — every gate, every time, no exceptions. It tells the
+user **what happened**, **why it was silent**, and **how to change it**. The
+`preference-gates-lint` test enforces that this contract exists; omitting the
+footer when a gate fires is a bug. Two lines:
 
 ```
 ✓ <silent action from per-key file>

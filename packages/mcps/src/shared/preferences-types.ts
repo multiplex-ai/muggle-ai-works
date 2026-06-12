@@ -40,6 +40,16 @@ export enum PreferenceKey {
   AutoCleanup = "autoCleanup",
   /** Run Stage 6 (E2E acceptance) at the end of every /muggle-do cycle. */
   AutoE2ETest = "autoE2ETest",
+  /** Resolve rebase conflicts autonomously (verify-or-rollback) instead of escalating. */
+  AutoResolveConflicts = "autoResolveConflicts",
+  /** Reuse a prior session's E2E validation context instead of re-asking. */
+  AutoReuseValidationContext = "autoReuseValidationContext",
+  /** Route build/implement/fix requests through the /muggle-do pipeline. */
+  AutoRouteBuildToMuggleDo = "autoRouteBuildToMuggleDo",
+  /** After a test run opens a PR, start a muggle-pr-followup watcher on it. */
+  AutoWatchPR = "autoWatchPR",
+  /** Reuse the saved prepare plan for this stack instead of rediscovering. */
+  ReusePreparePlan = "reusePreparePlan",
 }
 
 /**

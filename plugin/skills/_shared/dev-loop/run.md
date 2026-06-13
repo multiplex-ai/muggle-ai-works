@@ -23,7 +23,7 @@ One local browser exists, so **execution is sequential** — one test case at a 
 Per test case, branch on `mode`:
 
 **Replay**
-1. `muggle-remote-test-script-get` (latest replayable script) → note `actionScriptId`.
+1. `muggle-remote-test-script-get` (latest replayable script — the lane-scoped one the caller resolved during classification per [`../failure-mode-handling.md`](../failure-mode-handling.md) §A) → note `actionScriptId`.
 2. `muggle-remote-action-script-get` with that id → full `actionScript` (see [`action-script.md`](action-script.md)).
 3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl`, `cwd`, `showUi`, `freshSession` (see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
 

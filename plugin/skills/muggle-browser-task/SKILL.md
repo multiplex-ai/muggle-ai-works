@@ -74,7 +74,7 @@ Tell the user: `Created test case: <id>`.
 Load and call `muggle-remote-test-script-list` with:
 - `projectId`: from Step 2
 - `testCaseId`: from Step 4
-- `runEnvironmentType`: `"local"` when `localUrl` (Step 1) is a loopback host (`localhost`, `127.0.0.1`, `[::1]`), else `"remote"` — replay runs locally against `localUrl`, so this resolves the script on the lane that URL belongs to.
+- `runEnvironmentType`: `"local"` — this skill executes in the local browser, so it resolves the local-lane script. The lane is an explicit env type, exactly as the remote flow passes `"remote"`; the target URL is just the lane's url and never decides the lane.
 
 Tell the user which mutations will be applied: `Mutations: <mutations[]>` (or "no mutations" if empty).
 

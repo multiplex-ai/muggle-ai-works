@@ -462,7 +462,7 @@ const testScriptTools: IQaToolDefinition[] = [
         queryParams: {
           projectId: data.projectId,
           testCaseId: data.testCaseId,
-          type: data.runEnvironmentType,
+          runEnvironmentType: data.runEnvironmentType,
           page: data.page,
           pageSize: data.pageSize,
           sortBy: data.sortBy,

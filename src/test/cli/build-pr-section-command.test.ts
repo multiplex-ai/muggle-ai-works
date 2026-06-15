@@ -94,6 +94,7 @@ describe("buildPrSectionCommand", () => {
     const written = stdoutSpy.mock.calls.map((c) => String(c[0])).join("");
     const parsed = JSON.parse(written);
     expect(parsed.body).toContain("E2E Acceptance Results");
+    expect(parsed.body.startsWith("<!-- muggle-pr-section:v1 -->\n")).toBe(true);
   });
 
   it("sets a nonzero exit code when the report is invalid", async () => {

@@ -14,6 +14,17 @@ import { resolveGsScreenshotUrls } from "./pr-section/resolve-urls.js";
 /** Default UTF-8 byte budget for the PR description. */
 export const DEFAULT_MAX_BODY_BYTES = 60_000;
 
+/**
+ * Invisible marker prepended to every rendered section. GitHub hides HTML
+ * comments, so reviewers never see it — but the report-format guardrail
+ * (src/guardrails/reportGate.ts) reads it to tell a CLI-rendered walkthrough
+ * apart from a hand-written one and block the latter.
+ */
+export const REPORT_SECTION_SENTINEL = "<!-- muggle-pr-section:v1 -->";
+
+const withSentinel = <T extends string | null>(s: T): T =>
+  (s ? (`${REPORT_SECTION_SENTINEL}\n${s}` as T) : s);
+
 interface IRunOptions {
   stdin: NodeJS.ReadableStream;
   stdoutWrite: (s: string) => boolean;
@@ -68,8 +79,11 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
     return 1;
   }
   const resolvedReport = await resolveGsScreenshotUrls(report, { stderrWrite: opts.stderrWrite });
-  const result = buildPrSection(resolvedReport, { maxBodyBytes: opts.maxBodyBytes });
-  opts.stdoutWrite(JSON.stringify({ body: result.body, comment: result.comment }));
+  const sentinelCost = Buffer.byteLength(`${REPORT_SECTION_SENTINEL}\n`, "utf-8");
+  const result = buildPrSection(resolvedReport, { maxBodyBytes: opts.maxBodyBytes - sentinelCost });
+  opts.stdoutWrite(
+    JSON.stringify({ body: withSentinel(result.body), comment: withSentinel(result.comment) }),
+  );
   return 0;
 }
 

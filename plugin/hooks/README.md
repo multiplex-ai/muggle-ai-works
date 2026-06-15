@@ -9,18 +9,29 @@ Condition-triggered hooks that make Muggle Test's high-value handoffs fire path-
 - **Claude Code layer** — the agent runtime that fires these hooks. A guardrail is a Claude-Code-layer trigger, nothing more.
 - **Muggle Test layer** — the product (muggle-do, muggle-test, the watcher). This is what a guardrail *invokes*.
 
-A guardrail injects an advisory directive (`additionalContext`); the model then runs the Muggle Test flow. The guardrail never reimplements the flow.
+A guardrail steers the model toward a Muggle Test flow; it never reimplements the flow.
 
-Design rationale: `muggle-ai-brain/architecture/2026-06-02-harness-pipeline-integration-design.md`.
+Design rationale: `muggle-ai-brain/architecture/2026-06-02-harness-pipeline-integration-design.md` (original advisory design; the E2E gate and report gate below now enforce rather than advise).
+
+## Advise vs enforce
+
+A guardrail emits one of two strengths:
+
+- **Advise** — `additionalContext` (PostToolUse/UserPromptSubmit) or a plain Stop message. A soft nudge the model can ignore.
+- **Enforce** — a `Stop` `decision: "block"` that refuses to end the turn, or a `PreToolUse` `permissionDecision: "deny"` that refuses a tool call. The model cannot proceed until the condition is met.
+
+Enforcement is reserved for the handoffs that were being skipped: the E2E acceptance run and posting a deterministically-rendered report. Each enforcing gate carries an escape so it can't trap a turn — the E2E gate releases to advisory after `MAX_E2E_BLOCKS` (3) blocks; the report gate only denies a body it can positively see is a hand-written report and fails open otherwise.
 
 ## Mechanism
 
-Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json`. The wrapper pipes the event payload (stdin JSON) to the bundled `../scripts/guardrails.mjs <subcommand>`, which holds the decision logic (built from `src/guardrails/`, vitest-covered). Per-session state in `~/.muggle-ai/guardrails/<session_id>.json` makes each guardrail fire once. Any failure degrades to `{}` — a guardrail must never block a turn.
+Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json`. The wrapper pipes the event payload (stdin JSON) to the bundled `../scripts/guardrails.mjs <subcommand>`, which holds the decision logic (built from `src/guardrails/`, vitest-covered). Per-session state in `~/.muggle-ai/guardrails/<session_id>.json` tracks what fired. Any *failure* degrades to `{}` (allow) — a gate blocks only by an explicit, tested decision, never by accident.
 
 ## Guardrails
 
-| Hook event | Wrapper | Condition | Preference | Flow invoked |
-| :--------- | :------ | :-------- | :--------- | :----------- |
-| `PostToolUse` (Bash) | `guardrail-pr-opened.sh` | a `gh pr create`/`gh pr ready` just succeeded | `autoWatchPR` | start a `muggle-pr-followup` watcher on the new PR |
-| `Stop` | `guardrail-e2e-gate.sh` | unit tests passed this session and no E2E ran yet (recorded by `guardrail-record-tests.sh`) | `autoE2ETest` | run change-driven E2E via `muggle-test` before finishing |
-| `UserPromptSubmit` | `guardrail-build-router.sh` | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |
+| Hook event | Wrapper | Strength | Condition | Preference | Effect |
+| :--------- | :------ | :------- | :-------- | :--------- | :----- |
+| `PostToolUse` (Bash) | `guardrail-pr-opened.sh` | advise | a `gh pr create`/`gh pr ready` just succeeded | `autoWatchPR` | start a `muggle-pr-followup` watcher on the new PR |
+| `PostToolUse` (Bash + muggle execute/replay MCP tools) | `guardrail-record-tests.sh` | record | a unit-test command passed, or an E2E run happened | — | set `unitTestsGreen` / `e2eRun` session state |
+| `PreToolUse` (Bash) | `guardrail-report-format.sh` | **enforce** | a `gh pr comment\|create\|edit` body reads like an E2E report but lacks the `build-pr-section` sentinel | — | **deny** — render via `muggle build-pr-section` instead |
+| `Stop` | `guardrail-e2e-gate.sh` | **enforce** | unit tests passed this session and no E2E ran yet | `autoE2ETest` | **block** the turn until E2E runs via `muggle-test` (releases after 3 blocks) |
+| `UserPromptSubmit` | `guardrail-build-router.sh` | advise | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |

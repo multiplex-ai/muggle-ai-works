@@ -66,9 +66,9 @@ function shouldRunE2E(state) {
 }
 function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
   const blockCount = state.e2eBlockCount ?? 0;
-  if (!shouldRunE2E(state)) return { action: "none", blockCount };
-  if (blockCount >= maxBlocks) return { action: "release", blockCount };
-  return { action: "block", blockCount: blockCount + 1 };
+  if (!shouldRunE2E(state)) return { action: "none" /* None */, blockCount };
+  if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
 
 // src/guardrails/detectBuildIntent.ts
@@ -200,7 +200,7 @@ function recordTests() {
 function e2eGate() {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === "none" || decision.action === "release") return "{}";
+  if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
   const reason = `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app, services down, no PR), say so explicitly to the user \u2014 this gate releases after ${MAX_E2E_BLOCKS} attempts.`;

@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { e2eGateDecision, MAX_E2E_BLOCKS } from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
@@ -53,7 +53,7 @@ function recordTests(): string {
 function e2eGate(): string {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === "none" || decision.action === "release") return "{}";
+  if (decision.action === E2eGateAction.None || decision.action === E2eGateAction.Release) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
   const reason =

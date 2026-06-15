@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldRunE2E, e2eGateDecision, MAX_E2E_BLOCKS } from "../../guardrails/shouldRunE2E";
+import { shouldRunE2E, e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "../../guardrails/shouldRunE2E";
 
 describe("shouldRunE2E", () => {
   it("fires when tests green and no e2e yet", () => {
@@ -17,22 +17,22 @@ describe("e2eGateDecision", () => {
   const green = { sessionId: "s", prsHandled: [], unitTestsGreen: true };
 
   it("does nothing when no E2E is owed", () => {
-    expect(e2eGateDecision({ ...green, e2eRun: true }).action).toBe("none");
-    expect(e2eGateDecision({ sessionId: "s", prsHandled: [] }).action).toBe("none");
+    expect(e2eGateDecision({ ...green, e2eRun: true }).action).toBe(E2eGateAction.None);
+    expect(e2eGateDecision({ sessionId: "s", prsHandled: [] }).action).toBe(E2eGateAction.None);
   });
 
   it("blocks and increments the count on the first owed stop", () => {
-    expect(e2eGateDecision(green)).toEqual({ action: "block", blockCount: 1 });
-    expect(e2eGateDecision({ ...green, e2eBlockCount: 2 })).toEqual({ action: "block", blockCount: 3 });
+    expect(e2eGateDecision(green)).toEqual({ action: E2eGateAction.Block, blockCount: 1 });
+    expect(e2eGateDecision({ ...green, e2eBlockCount: 2 })).toEqual({ action: E2eGateAction.Block, blockCount: 3 });
   });
 
   it("releases once it has blocked MAX_E2E_BLOCKS times", () => {
     const d = e2eGateDecision({ ...green, e2eBlockCount: MAX_E2E_BLOCKS });
-    expect(d.action).toBe("release");
+    expect(d.action).toBe(E2eGateAction.Release);
     expect(d.blockCount).toBe(MAX_E2E_BLOCKS);
   });
 
   it("a recorded E2E run wins even after blocks", () => {
-    expect(e2eGateDecision({ ...green, e2eRun: true, e2eBlockCount: 2 }).action).toBe("none");
+    expect(e2eGateDecision({ ...green, e2eRun: true, e2eBlockCount: 2 }).action).toBe(E2eGateAction.None);
   });
 });

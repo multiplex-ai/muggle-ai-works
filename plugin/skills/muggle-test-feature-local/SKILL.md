@@ -136,7 +136,7 @@ Before deciding the target's script, resolve its prerequisite chain from the bac
 
 ### 5. Existing scripts vs new generation
 
-`muggle-remote-test-script-list` with `testCaseId`.
+`muggle-remote-test-script-list` with `testCaseId` and `runEnvironmentType: "local"` — this skill always replays against localhost, so resolve the local-lane script (the remote-lane script carries the deployed URL).
 
 - **If any replayable/succeeded scripts exist:** use `AskUserQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
 - **If none:** go straight to generation (no need to ask replay vs generate).

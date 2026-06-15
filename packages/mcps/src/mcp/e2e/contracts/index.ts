@@ -367,6 +367,7 @@ export const TestCaseUpdateInputSchema = z.object({
 export const TestScriptListInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to list test scripts for"),
   testCaseId: IdSchema.optional().describe("Optional test case ID (UUID) to filter scripts by"),
+  runEnvironmentType: RunEnvironmentInputSchema,
 }).merge(PaginationInputSchema);
 
 export const TestScriptGetInputSchema = z.object({

@@ -452,7 +452,7 @@ const testScriptTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-script-list",
     description:
-      "List test scripts for a project, optionally filtered by test case. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
+      "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestScriptListInputSchema,
     mapToUpstream: (input) => {
       const data = input as z.infer<typeof schemas.TestScriptListInputSchema>;
@@ -462,6 +462,7 @@ const testScriptTools: IQaToolDefinition[] = [
         queryParams: {
           projectId: data.projectId,
           testCaseId: data.testCaseId,
+          runEnvironmentType: data.runEnvironmentType,
           page: data.page,
           pageSize: data.pageSize,
           sortBy: data.sortBy,

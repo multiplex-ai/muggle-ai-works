@@ -61,7 +61,7 @@ Run during change analysis, **per impacted test case**. Picks the initial execut
 
 - The change summary from `git diff` (file paths + diff content).
 - The test case (title, description, instructions, last passing run timestamp).
-- Existing test scripts for that test case from `muggle-remote-test-script-list`.
+- Existing test scripts for that test case from `muggle-remote-test-script-list`, scoped to the run's lane: pass `runEnvironmentType: "local"` in Local mode (Step 7A), `"remote"` in Remote mode (Step 7B). The lane is fixed at runtime — it selects the versioned runSettings the cloud resolves — so a local run keys replay-vs-regen off the localhost-lane script and a remote run off the deployed-lane script, never the other lane's.
 
 ### Rules (fire in order; first match wins)
 

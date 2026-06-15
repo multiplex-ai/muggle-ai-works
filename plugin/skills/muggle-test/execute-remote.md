@@ -28,7 +28,7 @@ Branch each test case on its `mode`, then issue **all** workflow-start calls in 
 - `instructions`: From the test case
 - `expectedResult`: From the test case
 
-**Replay-mode test case** — `muggle-remote-workflow-start-test-script-replay` against the latest replayable script for that test case (resolve via `muggle-remote-test-script-list` if not already in hand from the classification step). Tag results with `mode: "replay"` so the router routes failures correctly.
+**Replay-mode test case** — `muggle-remote-workflow-start-test-script-replay` against the latest replayable script for that test case (resolve via `muggle-remote-test-script-list` with `runEnvironmentType: "remote"` if not already in hand from the classification step). Tag results with `mode: "replay"` so the router routes failures correctly.
 
 Store each returned workflow runtime ID along with its mode tag.
 

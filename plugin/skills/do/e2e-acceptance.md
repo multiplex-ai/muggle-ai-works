@@ -98,7 +98,7 @@ Based on the changed files and the requirements goal, determine which test cases
 
 ### Step 4: Run the dev loop, gather screenshots
 
-For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
+For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 

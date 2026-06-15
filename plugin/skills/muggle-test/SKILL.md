@@ -219,7 +219,7 @@ Wait for user confirmation before moving to execution.
 
 ### 6f: Classify execution mode per test case (replay vs regen)
 
-For each selected test case, decide whether the run should be a **replay** of an existing script or a fresh **regen**, using the rules in [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section A. Inputs: the change summary from Step 2, the test case body, and the result of `muggle-remote-test-script-list` for that test case (last passing timestamp + whether any replayable script exists).
+For each selected test case, decide whether the run should be a **replay** of an existing script or a fresh **regen**, using the rules in [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section A. Inputs: the change summary from Step 2, the test case body, and the result of `muggle-remote-test-script-list` for that test case (last passing timestamp + whether any replayable script exists). Scope that list call to the run's lane — `runEnvironmentType: "local"` in Local mode, `"remote"` in Remote mode (section A) — so replay reuses the script for the lane the run will execute against.
 
 Per test case, fire one `muggle-local-telemetry-event-emit` with `eventType: "pre-execution-classification"` capturing the picked mode, the rule that fired, and the matched changed-file paths.
 

@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, resolve, join } from 'path';
 import { homedir } from 'os';
 
 // src/guardrails/cli.ts
@@ -60,8 +60,25 @@ function isE2ERun(input2) {
 }
 
 // src/guardrails/shouldRunE2E.ts
+var MAX_E2E_BLOCKS = 3;
 function shouldRunE2E(state) {
   return state.unitTestsGreen === true && state.e2eRun !== true;
+}
+function applyRecordedRun(state, run) {
+  let next = state;
+  if (run.unitTestPassed) {
+    next = { ...next, unitTestsGreen: true, e2eRun: false, e2eBlockCount: 0 };
+  }
+  if (run.e2eRan) {
+    next = { ...next, e2eRun: true };
+  }
+  return next;
+}
+function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
+  const blockCount = state.e2eBlockCount ?? 0;
+  if (!shouldRunE2E(state)) return { action: "none" /* None */, blockCount };
+  if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
 
 // src/guardrails/detectBuildIntent.ts
@@ -74,6 +91,60 @@ function detectBuildIntent(prompt) {
   if (QUESTION.test(p)) return false;
   return BUILD.test(p) || DEVCYCLE.test(p);
 }
+var REPORT_SENTINEL = "muggle-pr-section";
+var PR_POST_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
+var defaultReader = (path, cwd) => {
+  try {
+    const abs = isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path);
+    if (!existsSync(abs)) return null;
+    return readFileSync(abs, "utf-8");
+  } catch {
+    return null;
+  }
+};
+function unquote(s) {
+  const t = s.trim();
+  if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
+    return t.slice(1, -1);
+  }
+  return t;
+}
+function looksLikeE2EReport(text) {
+  const t = text.toLowerCase();
+  const statusEmojis = (text.match(/[✅❌⚠]/gu) ?? []).length;
+  const tally = /\b\d+\s+(tests?\s+)?passed\b/.test(t) && /\b\d+\s+(tests?\s+)?(failed|inconclusive)\b/.test(t);
+  const slashTally = /\bpassed\b\s*[/|]\s*\d*\s*(tests?\s*)?\bfailed\b/.test(t) || /\bfailed\b\s*[/|]\s*\d*\s*(tests?\s*)?\bpassed\b/.test(t);
+  const resultsStructure = /acceptance results/.test(t) || tally || slashTally || statusEmojis >= 2;
+  const muggleContext = /\bmuggle\b/.test(t) || /muggle-ai\.com/.test(t) || /\be2e\b/.test(t) || /\bacceptance\b/.test(t);
+  return resultsStructure && muggleContext;
+}
+function collectInspectableText(cmd, cwd, read) {
+  let text = cmd;
+  for (const m of cmd.matchAll(/--body-file[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
+    const p = unquote(m[1]);
+    if (p && p !== "-") {
+      const c = read(p, cwd);
+      if (c) text += "\n" + c;
+    }
+  }
+  for (const m of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
+    const c = read(unquote(m[1]), cwd);
+    if (c) text += "\n" + c;
+  }
+  return text;
+}
+function evaluateReportPost(input2, read = defaultReader) {
+  if (input2.tool_name !== "Bash") return { deny: false };
+  const cmd = input2.tool_input?.command ?? "";
+  if (!PR_POST_CMD.test(cmd)) return { deny: false };
+  const text = collectInspectableText(cmd, input2.cwd, read);
+  if (text.includes(REPORT_SENTINEL)) return { deny: false };
+  if (!looksLikeE2EReport(text)) return { deny: false };
+  return {
+    deny: true,
+    reason: "Blocked: this looks like a hand-written E2E test report. Muggle requires the deterministic renderer \u2014 build the run's E2eReport JSON and pipe it through `muggle build-pr-section` (or invoke /muggle:muggle-pr-visual-walkthrough), then post that output. Never hand-write the walkthrough markdown."
+  };
+}
 
 // src/guardrails/emit.ts
 function envelope(eventName, context, host2) {
@@ -81,6 +152,22 @@ function envelope(eventName, context, host2) {
   if (host2 === "cursor") return JSON.stringify({ additional_context: context });
   return JSON.stringify({
     hookSpecificOutput: { hookEventName: eventName, additionalContext: context }
+  });
+}
+function blockStop(reason, host2) {
+  if (!reason) return "{}";
+  if (host2 === "cursor") return JSON.stringify({ additional_context: reason });
+  return JSON.stringify({ decision: "block", reason });
+}
+function denyTool(reason, host2) {
+  if (!reason) return "{}";
+  if (host2 === "cursor") return JSON.stringify({ additional_context: reason });
+  return JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: reason
+    }
   });
 }
 
@@ -108,25 +195,26 @@ Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its i
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  let changed = false;
-  if (isTestCommand(cmd) && testsPassed(input)) {
-    state.unitTestsGreen = true;
-    changed = true;
-  }
-  if (isE2ERun(input)) {
-    state.e2eRun = true;
-    changed = true;
-  }
-  if (changed) writeState(state);
+  const next = applyRecordedRun(state, {
+    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+    e2eRan: isE2ERun(input)
+  });
+  if (next !== state) writeState(next);
   return "{}";
 }
 function e2eGate() {
   const state = readState(sessionId);
-  if (!shouldRunE2E(state)) return "{}";
-  state.e2eRun = true;
+  const decision = e2eGateDecision(state);
+  if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) return "{}";
+  state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const ctx = `Unit tests passed this session and no E2E acceptance run has happened yet. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test before finishing. If autoE2ETest=never, skip.`;
-  return envelope("Stop", ctx, host);
+  const reason = `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app, services down, no PR), say so explicitly to the user \u2014 this gate releases after ${MAX_E2E_BLOCKS} attempts.`;
+  return blockStop(reason, host);
+}
+function reportGate() {
+  const result = evaluateReportPost(input);
+  if (!result.deny || !result.reason) return "{}";
+  return denyTool(result.reason, host);
 }
 function buildRouter() {
   if (!detectBuildIntent(input.prompt ?? "")) return "{}";
@@ -141,6 +229,7 @@ var handlers = {
   "pr-opened": prOpened,
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
+  "report-gate": reportGate,
   "build-router": buildRouter
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

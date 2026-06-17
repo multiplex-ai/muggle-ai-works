@@ -2,9 +2,10 @@ import { readFileSync } from "fs";
 import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { shouldRunE2E } from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
-import { envelope, type Host } from "./emit.js";
+import { evaluateReportPost } from "./reportGate.js";
+import { envelope, blockStop, denyTool, type Host } from "./emit.js";
 import type { HookInput } from "./types.js";
 
 function readStdin(): HookInput {
@@ -36,29 +37,32 @@ function prOpened(): string {
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  let changed = false;
-  if (isTestCommand(cmd) && testsPassed(input)) {
-    state.unitTestsGreen = true;
-    changed = true;
-  }
-  if (isE2ERun(input)) {
-    state.e2eRun = true;
-    changed = true;
-  }
-  if (changed) writeState(state);
+  const next = applyRecordedRun(state, {
+    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+    e2eRan: isE2ERun(input),
+  });
+  if (next !== state) writeState(next);
   return "{}";
 }
 
 function e2eGate(): string {
   const state = readState(sessionId);
-  if (!shouldRunE2E(state)) return "{}";
-  state.e2eRun = true;
+  const decision = e2eGateDecision(state);
+  if (decision.action === E2eGateAction.None || decision.action === E2eGateAction.Release) return "{}";
+  state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const ctx =
-    `Unit tests passed this session and no E2E acceptance run has happened yet. ` +
-    `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test ` +
-    `before finishing. If autoE2ETest=never, skip.`;
-  return envelope("Stop", ctx, host);
+  const reason =
+    `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. ` +
+    `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
+    `then finish. If E2E genuinely cannot run here (no app, services down, no PR), say so explicitly to the ` +
+    `user — this gate releases after ${MAX_E2E_BLOCKS} attempts.`;
+  return blockStop(reason, host);
+}
+
+function reportGate(): string {
+  const result = evaluateReportPost(input);
+  if (!result.deny || !result.reason) return "{}";
+  return denyTool(result.reason, host);
 }
 
 function buildRouter(): string {
@@ -79,6 +83,7 @@ const handlers: Record<string, () => string> = {
   "pr-opened": prOpened,
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
+  "report-gate": reportGate,
   "build-router": buildRouter,
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

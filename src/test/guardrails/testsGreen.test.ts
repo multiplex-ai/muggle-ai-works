@@ -17,9 +17,21 @@ describe("testsGreen", () => {
     expect(testsPassed({ tool_response: { stdout: "" } })).toBe(false);
   });
 
-  it("detects a muggle E2E run", () => {
-    expect(isE2ERun({ tool_input: { command: "muggle test --local" } })).toBe(true);
+  it("counts a muggle execute/replay MCP tool call as an E2E run", () => {
+    expect(isE2ERun({ tool_name: "muggle-local-execute-replay" })).toBe(true);
     expect(isE2ERun({ tool_name: "muggle-local-execute-test-generation" })).toBe(true);
-    expect(isE2ERun({ tool_input: { command: "pnpm test" } })).toBe(false);
+    expect(
+      isE2ERun({ tool_name: "mcp__plugin_muggle_muggle__muggle-remote-workflow-start-test-script-replay" }),
+    ).toBe(true);
+  });
+
+  it("never counts a Bash command as an E2E run, even one naming muggle + test", () => {
+    const bash = (command: string) => isE2ERun({ tool_name: "Bash", tool_input: { command } });
+    expect(bash("git commit -m 'feat: muggle e2e test gate'")).toBe(false);
+    expect(bash("gh pr create --title 'muggle lane-aware test-script-list'")).toBe(false);
+    expect(bash("grep -rn muggle src/test/")).toBe(false);
+    expect(bash("cd /c/Users/x/muggle-ai-works && npm test")).toBe(false);
+    expect(bash("muggle test --local")).toBe(false);
+    expect(bash("pnpm test")).toBe(false);
   });
 });

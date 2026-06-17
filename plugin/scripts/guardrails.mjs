@@ -43,7 +43,7 @@ ${input2.tool_response?.output ?? ""}`;
 // src/guardrails/testsGreen.ts
 var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
-var E2E_RUN = /\bmuggle\b[^\n]*\b(execute|test)\b/i;
+var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
 function isTestCommand(cmd) {
   return TEST_CMD.test(cmd);
 }
@@ -54,9 +54,7 @@ ${input2.tool_response?.stderr ?? ""}`;
   return !FAIL.test(out);
 }
 function isE2ERun(input2) {
-  const cmd = input2.tool_input?.command ?? "";
-  const tool = input2.tool_name ?? "";
-  return E2E_RUN.test(cmd) || /muggle.*(execute|test-generation|replay)/i.test(tool);
+  return E2E_TOOL.test(input2.tool_name ?? "");
 }
 
 // src/guardrails/shouldRunE2E.ts

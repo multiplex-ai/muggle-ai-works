@@ -40,7 +40,7 @@ MUGGLE_BRAIN_DIR=../muggle-ai-brain \
 
 (equivalently `pnpm tsx internal/skill-gate-eval/src/run.ts …`)
 
-**Auth:** the harness drives `@anthropic-ai/claude-agent-sdk`'s `query()`, which uses your **Claude Code login session** by default — no API key needed when you're logged in. Set `ANTHROPIC_API_KEY` (prefix the command) only where there's no login session, e.g. headless CI.
+**Auth:** the harness drives `@anthropic-ai/claude-agent-sdk`'s `query()`, which uses your **Claude Code login session** by default — no API key needed when you're logged in. In headless CI, authenticate with your subscription: run `claude setup-token` once and set `CLAUDE_CODE_OAUTH_TOKEN` (not a pay-per-use API key).
 
 The harness loads
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/showElectronBrowser/scenarios.json`,
@@ -63,5 +63,5 @@ blocking workflow — see CI below.
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/*/scenarios.json` on each PR to
 `master` (`--runs 10`, each scenario must hold ≥99%), plus nightly and on
 `workflow_dispatch`. It checks out `muggle-ai-brain` for the scenarios, so
-CI needs two repo secrets: `ANTHROPIC_API_KEY` and `BRAIN_REPO_TOKEN`
-(read access to the scenario repo).
+CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
+`claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).

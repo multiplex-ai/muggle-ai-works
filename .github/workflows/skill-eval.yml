@@ -30,7 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Subscription auth, not a pay-per-use API key. Generate with
+      # `claude setup-token` and store as the CLAUDE_CODE_OAUTH_TOKEN secret.
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
     steps:
@@ -40,7 +42,7 @@ jobs:
         env:
           BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
         run: |
-          : "${ANTHROPIC_API_KEY:?set the ANTHROPIC_API_KEY repo secret to run skill evals}"
+          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
           : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
 
       - name: Checkout works
@@ -77,7 +79,9 @@ jobs:
             gate="$(basename "$(dirname "$scenarios")")"
             skill="$(node -e "process.stdout.write(require(process.argv[1]).skill)" "$scenarios")"
             echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
-            if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
+            # Keep a stray API key from outranking the subscription token (it would bill the API).
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
                  --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $gate"
@@ -98,7 +102,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Subscription auth, not a pay-per-use API key (see skill-gate-eval above).
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
@@ -167,6 +172,7 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         run: |
           set -euo pipefail
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
           route="$(python internal/skill-routing-eval/router_eval.py \
             --probe 'test my changes before I open the PR' --repo-root "$CLEAN_CWD")"
           echo "preflight route=$route"
@@ -179,6 +185,7 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         run: |
           set -euo pipefail
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \

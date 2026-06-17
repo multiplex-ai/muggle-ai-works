@@ -34,6 +34,15 @@ jobs:
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
     steps:
+      # Fail fast with a clear reason if setup is incomplete, rather than a
+      # cryptic git-auth error deep in the scenario-repo checkout.
+      - name: Require secrets
+        env:
+          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
+        run: |
+          : "${ANTHROPIC_API_KEY:?set the ANTHROPIC_API_KEY repo secret to run skill evals}"
+          : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
+
       - name: Checkout works
         uses: actions/checkout@v6
 
@@ -92,7 +101,7 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
-      CLEAN_CWD: ${{ runner.temp }}/clean-cwd
+      CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
     steps:
       - name: Checkout works
         uses: actions/checkout@v6

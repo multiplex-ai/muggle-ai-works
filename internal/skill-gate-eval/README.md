@@ -54,4 +54,14 @@ A scenario passes if it succeeds on ≥ 99% of runs (per the design doc).
 Layer 1 lives in `src/test/skills/` and runs via vitest on every
 commit. Layer 2 is multi-turn agent sessions — slow, costs API
 tokens, nondeterministic. Keeping it out of the vitest tree avoids
-accidental CI runs. Promote to CI only after the suite stabilizes.
+running it on every unit-test commit; it runs instead as its own
+blocking workflow — see CI below.
+
+## CI (blocking)
+
+`.github/workflows/skill-eval.yml` runs every gate found under
+`$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/*/scenarios.json` on each PR to
+`master` (`--runs 10`, each scenario must hold ≥99%), plus nightly and on
+`workflow_dispatch`. It checks out `muggle-ai-brain` for the scenarios, so
+CI needs two repo secrets: `ANTHROPIC_API_KEY` and `BRAIN_REPO_TOKEN`
+(read access to the scenario repo).

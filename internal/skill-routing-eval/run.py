@@ -86,12 +86,16 @@ def main():
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--all", action="store_true", help="run every skill chunk (default)")
     g.add_argument("--skill", help="run only this expected_skill chunk")
+    g.add_argument("--skills", help="comma-separated subset of expected_skills to run (e.g. the skills changed in a PR)")
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--workers", type=int, default=3, help="keep low — high concurrency trips the MCP disconnect")
     ap.add_argument("--timeout", type=int, default=200)
     ap.add_argument("--out-dir", default=str(HERE / "reports" / "run"))
     ap.add_argument("--repo-root", default=str(REPO_ROOT))
     ap.add_argument("--sync-cache", action="store_true", help="copy working-tree descriptions into the installed plugin cache first")
+    # CI gate: exit non-zero when accuracy < threshold or a chunk stays 0% (suspected disconnect).
+    # Default 0.0 leaves dev runs informational, never failing the process.
+    ap.add_argument("--fail-under", type=float, default=0.0, help="CI gate: exit 1 if overall accuracy is below this, or if any chunk is flagged suspected-disconnect")
     args = ap.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
@@ -111,7 +115,12 @@ def main():
     for item in eval_set:
         by_skill[item.get("expected_skill", NONE)].append(item)
 
-    skills = [args.skill] if args.skill else sorted(by_skill)
+    if args.skill:
+        skills = [args.skill]
+    elif args.skills:
+        skills = [s.strip() for s in args.skills.split(",") if s.strip()]
+    else:
+        skills = sorted(by_skill)
     all_results = []
     flagged = []
 
@@ -141,11 +150,23 @@ def main():
     def ok(r):
         # mirror analyze.py's rule: negatives pass when no muggle skill fires
         return (not r["majority"].startswith("muggle")) if r["expected_skill"] == NONE else (r["majority"] == r["expected_skill"])
+    total = len(all_results)
     passed = sum(1 for r in all_results if ok(r))
-    print(f"\nDone. {passed}/{len(all_results)} = {passed/len(all_results):.1%}", file=sys.stderr)
+    accuracy = passed / total if total else 1.0
+    print(f"\nDone. {passed}/{total} = {accuracy:.1%}", file=sys.stderr)
     if flagged:
         print(f"Suspected-disconnect (unverified): {', '.join(flagged)}", file=sys.stderr)
     print(f"Report: {md_path}", file=sys.stderr)
+
+    if args.fail_under > 0.0:
+        reasons = []
+        if flagged:
+            reasons.append(f"{len(flagged)} chunk(s) flagged suspected-disconnect (re-run to clear): {', '.join(flagged)}")
+        if accuracy < args.fail_under:
+            reasons.append(f"accuracy {accuracy:.1%} below --fail-under {args.fail_under:.0%}")
+        if reasons:
+            print("GATE FAILED: " + "; ".join(reasons), file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

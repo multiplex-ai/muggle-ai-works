@@ -2,7 +2,14 @@ import type { HookInput } from "./types.js";
 
 const TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 const FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
-const E2E_RUN = /\bmuggle\b[^\n]*\b(execute|test)\b/i;
+
+// A real acceptance run reaches the hook only as a muggle execute/replay MCP
+// tool call — there is no `muggle test`/`muggle replay` CLI. Match the tool name,
+// never the Bash command text: in a repo named "muggle", commits, PR titles and
+// greps say "muggle … test" constantly, so a command-text match flips e2eRun=true
+// before any run happens and disarms the Stop gate (even the unit-test command,
+// `cd …/muggle-ai-works && npm test`, both armed and disarmed it in one call).
+const E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
 
 export function isTestCommand(cmd: string): boolean {
   return TEST_CMD.test(cmd);
@@ -15,7 +22,5 @@ export function testsPassed(input: HookInput): boolean {
 }
 
 export function isE2ERun(input: HookInput): boolean {
-  const cmd = input.tool_input?.command ?? "";
-  const tool = input.tool_name ?? "";
-  return E2E_RUN.test(cmd) || /muggle.*(execute|test-generation|replay)/i.test(tool);
+  return E2E_TOOL.test(input.tool_name ?? "");
 }

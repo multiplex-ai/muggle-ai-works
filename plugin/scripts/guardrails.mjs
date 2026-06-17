@@ -64,6 +64,16 @@ var MAX_E2E_BLOCKS = 3;
 function shouldRunE2E(state) {
   return state.unitTestsGreen === true && state.e2eRun !== true;
 }
+function applyRecordedRun(state, run) {
+  let next = state;
+  if (run.unitTestPassed) {
+    next = { ...next, unitTestsGreen: true, e2eRun: false, e2eBlockCount: 0 };
+  }
+  if (run.e2eRan) {
+    next = { ...next, e2eRun: true };
+  }
+  return next;
+}
 function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
   const blockCount = state.e2eBlockCount ?? 0;
   if (!shouldRunE2E(state)) return { action: "none" /* None */, blockCount };
@@ -185,16 +195,11 @@ Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its i
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  let changed = false;
-  if (isTestCommand(cmd) && testsPassed(input)) {
-    state.unitTestsGreen = true;
-    changed = true;
-  }
-  if (isE2ERun(input)) {
-    state.e2eRun = true;
-    changed = true;
-  }
-  if (changed) writeState(state);
+  const next = applyRecordedRun(state, {
+    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+    e2eRan: isE2ERun(input)
+  });
+  if (next !== state) writeState(next);
   return "{}";
 }
 function e2eGate() {

@@ -6,6 +6,30 @@ export function shouldRunE2E(state: GuardrailState): boolean {
   return state.unitTestsGreen === true && state.e2eRun !== true;
 }
 
+export interface RecordedRun {
+  unitTestPassed?: boolean;
+  e2eRan?: boolean;
+}
+
+// Fold a recorded test run into the gate state, returning the same reference
+// when nothing was recorded so the caller can skip a redundant write.
+//
+// A fresh unit-test pass re-arms the latch — it clears `e2eRun` and the block
+// counter so the gate fires again after the *latest* green unit run. Without
+// the reset the first E2E of a long-lived session keeps the gate satisfied for
+// every later round, so a watcher addressing a second round of review comments
+// would change code, go unit-green, and end the turn with no fresh E2E.
+export function applyRecordedRun(state: GuardrailState, run: RecordedRun): GuardrailState {
+  let next = state;
+  if (run.unitTestPassed) {
+    next = { ...next, unitTestsGreen: true, e2eRun: false, e2eBlockCount: 0 };
+  }
+  if (run.e2eRan) {
+    next = { ...next, e2eRun: true };
+  }
+  return next;
+}
+
 export enum E2eGateAction {
   Block = "block",
   Release = "release",

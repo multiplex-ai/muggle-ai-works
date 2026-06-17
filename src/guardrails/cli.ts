@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
@@ -37,16 +37,11 @@ function prOpened(): string {
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  let changed = false;
-  if (isTestCommand(cmd) && testsPassed(input)) {
-    state.unitTestsGreen = true;
-    changed = true;
-  }
-  if (isE2ERun(input)) {
-    state.e2eRun = true;
-    changed = true;
-  }
-  if (changed) writeState(state);
+  const next = applyRecordedRun(state, {
+    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+    e2eRan: isE2ERun(input),
+  });
+  if (next !== state) writeState(next);
   return "{}";
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldRunE2E, e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "../../guardrails/shouldRunE2E";
+import { shouldRunE2E, e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "../../guardrails/shouldRunE2E";
 
 describe("shouldRunE2E", () => {
   it("fires when tests green and no e2e yet", () => {
@@ -34,5 +34,35 @@ describe("e2eGateDecision", () => {
 
   it("a recorded E2E run wins even after blocks", () => {
     expect(e2eGateDecision({ ...green, e2eRun: true, e2eBlockCount: 2 }).action).toBe(E2eGateAction.None);
+  });
+});
+
+describe("applyRecordedRun", () => {
+  const base = { sessionId: "s", prsHandled: [] };
+
+  it("a unit-test pass marks tests green and arms the gate", () => {
+    const next = applyRecordedRun(base, { unitTestPassed: true });
+    expect(next.unitTestsGreen).toBe(true);
+    expect(shouldRunE2E(next)).toBe(true);
+  });
+
+  it("an E2E run satisfies the gate", () => {
+    const next = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eRan: true });
+    expect(next.e2eRun).toBe(true);
+    expect(shouldRunE2E(next)).toBe(false);
+  });
+
+  it("re-arms across rounds: a fresh unit pass after a prior E2E re-requires E2E", () => {
+    const afterRound1 = { ...base, unitTestsGreen: true, e2eRun: true, e2eBlockCount: 2 };
+    expect(shouldRunE2E(afterRound1)).toBe(false);
+
+    const afterRound2Unit = applyRecordedRun(afterRound1, { unitTestPassed: true });
+    expect(afterRound2Unit.e2eRun).toBe(false);
+    expect(afterRound2Unit.e2eBlockCount).toBe(0);
+    expect(shouldRunE2E(afterRound2Unit)).toBe(true);
+  });
+
+  it("returns the same reference when nothing was recorded", () => {
+    expect(applyRecordedRun(base, { unitTestPassed: false, e2eRan: false })).toBe(base);
   });
 });

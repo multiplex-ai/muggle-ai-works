@@ -88,15 +88,22 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--eval-set", required=True)
-    ap.add_argument("--repo-root", required=True)
+    ap.add_argument("--eval-set")
+    ap.add_argument("--repo-root", default=".")
     ap.add_argument("--model", default=None)
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--timeout", type=int, default=120)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--out")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--probe", help="route a single query, print the detected skill, and exit (CI preflight)")
     args = ap.parse_args()
+
+    if args.probe:
+        print(detect_route(args.probe, args.repo_root, args.timeout, args.model))
+        return
+    if not args.eval_set or not args.out:
+        ap.error("--eval-set and --out are required unless --probe is given")
 
     eval_set = json.loads(Path(args.eval_set).read_text(encoding="utf-8"))
     if args.limit:

@@ -37,6 +37,17 @@ python internal/skill-routing-eval/router_eval.py --eval-set <set.json> --repo-r
 python internal/skill-routing-eval/analyze.py report --in <report.json> --out <report.md>
 ```
 
+## CI (blocking)
+
+`.github/workflows/skill-eval.yml` runs this on every PR to `master`, scoped to
+the skills the PR changed; the full set runs nightly and on `workflow_dispatch`.
+
+- `--skills a,b` — run a subset (CI derives it from the PR's changed `plugin/skills/*/SKILL.md`).
+- `--fail-under F` — exit non-zero if accuracy < F, or if a chunk stays 0% (suspected disconnect, unverified). Default `0.0` keeps dev runs informational. CI uses `1.0` on PRs (changed skills must route perfectly) and `0.95` for the nightly full sweep.
+- `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
+
+CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `ANTHROPIC_API_KEY` repo secret.
+
 ## Optimization loop (per skill)
 
 1. Run the router eval; `analyze.py report` surfaces each skill's recall and the confusion pairs.

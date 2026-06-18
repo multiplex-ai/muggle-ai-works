@@ -209,6 +209,12 @@ export async function runScenarioOnce(
       maxTurns: opts.maxTurns ?? DEFAULT_MAX_TURNS,
       // Disable everything except our mock MCP namespace + AskUserQuestion.
       tools: ["AskUserQuestion"],
+      // In CI the SDK's bundled native binary isn't present; the workflow sets
+      // CLAUDE_CODE_EXECUTABLE to the globally-installed CLI. Unset locally, so
+      // the SDK falls back to its default resolution.
+      ...(process.env.CLAUDE_CODE_EXECUTABLE
+        ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
+        : {}),
     },
   });
 

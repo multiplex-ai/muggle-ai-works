@@ -69,19 +69,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The gate harness drives @anthropic-ai/claude-agent-sdk's query(), which
+      # needs the Claude Code CLI; the SDK's bundled native binary isn't usable
+      # on the runner. Install it (as skill-routing-eval does) and let the run
+      # step point the SDK at it. Auth stays on the subscription token.
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Run skill-gate evals (every gate in the scenario repo)
         run: |
           set -euo pipefail
           shopt -s nullglob
+          # Keep a stray API key from outranking the subscription token (it would bill the API).
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          # The SDK can't find its bundled native binary on the runner; point it
+          # at the globally-installed CLI instead.
+          export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
           fail=0
           ran=0
           for scenarios in "$MUGGLE_BRAIN_DIR"/eval/skill-gate-eval/*/scenarios.json; do
             gate="$(basename "$(dirname "$scenarios")")"
             skill="$(node -e "process.stdout.write(require(process.argv[1]).skill)" "$scenarios")"
             echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
-            # Keep a stray API key from outranking the subscription token (it would bill the API).
-          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
+            if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
                  --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $gate"

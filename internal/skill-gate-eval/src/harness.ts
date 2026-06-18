@@ -215,6 +215,9 @@ export async function runScenarioOnce(
       ...(process.env.CLAUDE_CODE_EXECUTABLE
         ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
         : {}),
+      // Surface the CLI's own stderr — otherwise an auth/launch failure only
+      // shows as "Claude Code process exited with code 1".
+      stderr: (data: string) => process.stderr.write(data),
     },
   });
 

@@ -35,6 +35,9 @@ jobs:
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      # Fresh, writable config dir for the headless Claude Code CLI (same as
+      # skill-routing-eval) — avoids first-run state in an unwritable HOME.
+      CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
       # Fail fast with a clear reason if setup is incomplete, rather than a
       # cryptic git-auth error deep in the scenario-repo checkout.
@@ -85,6 +88,7 @@ jobs:
           # The SDK can't find its bundled native binary on the runner; point it
           # at the globally-installed CLI instead.
           export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
+          mkdir -p "$CLAUDE_CONFIG_DIR"
           fail=0
           ran=0
           for scenarios in "$MUGGLE_BRAIN_DIR"/eval/skill-gate-eval/*/scenarios.json; do

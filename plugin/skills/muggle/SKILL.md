@@ -1,5 +1,6 @@
 ---
 name: muggle
+model: haiku
 description: Muggle AI command router and menu. Use when user types "muggle" or asks for available Muggle Test commands.
 ---
 

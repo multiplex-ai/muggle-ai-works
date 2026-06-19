@@ -1,5 +1,6 @@
 ---
 name: muggle-repair
+model: sonnet
 description: Diagnose and fix a broken Muggle AI installation. Use when user types muggle repair or asks to fix Muggle Test setup.
 ---
 

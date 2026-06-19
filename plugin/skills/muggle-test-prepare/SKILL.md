@@ -1,6 +1,6 @@
 ---
 name: muggle-test-prepare
-model: sonnet
+model: opus
 description: "Get a user's local environment ready before running E2E acceptance tests — verify the dev servers, APIs, and sibling services they need are up and responding, and offer to start whatever is missing (with approval per step). Trigger when the user wants to confirm specific ports or localhost URLs are listening before testing (check if localhost:3000 and the api on 8080 are up, are my services running), spin up their local dev stack, or verify their setup — and whenever another muggle skill (muggle-test, muggle-do, muggle-test-feature-local) needs services running but they're not. This is environment readiness and service startup, not running the tests."
 ---
 

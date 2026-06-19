@@ -1,6 +1,6 @@
 ---
 name: muggle-preferences
-model: sonnet
+model: haiku
 description: >-
   View, set, or reset Muggle AI preferences that control testing behavior.
   Use when user asks to see preferences, change a setting, configure Muggle Test

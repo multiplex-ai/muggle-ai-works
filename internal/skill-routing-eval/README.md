@@ -46,7 +46,7 @@ the skills the PR changed; the full set runs nightly and on `workflow_dispatch`.
 - `--fail-under F` — exit non-zero if accuracy < F, or if a chunk stays 0% (suspected disconnect, unverified). Default `0.0` keeps dev runs informational. CI uses `1.0` on PRs (changed skills must route perfectly) and `0.95` for the nightly full sweep.
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
-CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `ANTHROPIC_API_KEY` repo secret.
+CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key).
 
 ## Optimization loop (per skill)
 

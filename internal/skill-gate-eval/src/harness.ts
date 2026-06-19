@@ -221,9 +221,30 @@ export async function runScenarioOnce(
     },
   });
 
-  // Drain the stream so the SDK actually runs the agent to completion.
-  for await (const msg of stream) {
-    if (onMessage) onMessage(msg);
+  // Drain the stream so the SDK actually runs the agent to completion. Capture
+  // the terminal `result` message: on an auth/launch failure the real reason
+  // rides this stdout message (e.g. an is_error subtype), which the SDK then
+  // collapses into an opaque "process exited with code 1" throw. Surfacing it
+  // is the difference between "a token 401" and "an SDK fault" in the CI log.
+  let lastResult: unknown = null;
+  try {
+    for await (const msg of stream) {
+      if (onMessage) onMessage(msg);
+      if ((msg as { type?: unknown }).type === "result") lastResult = msg;
+    }
+  } catch (err) {
+    if (lastResult !== null) {
+      process.stderr.write(
+        `[skill-gate-eval] final SDK message before failure: ${JSON.stringify(lastResult)}\n`,
+      );
+    }
+    throw err;
+  }
+
+  if ((lastResult as { is_error?: unknown } | null)?.is_error) {
+    process.stderr.write(
+      `[skill-gate-eval] SDK returned an error result: ${JSON.stringify(lastResult)}\n`,
+    );
   }
 
   return verdict(opts.scenario, mcpCalls, askQuestions, gateQuestionFired);

@@ -79,6 +79,25 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      # Prove the subscription token authenticates before the agent-SDK harness
+      # runs, via the same `claude -p` path skill-routing-eval relies on. A
+      # rejected CLAUDE_CODE_OAUTH_TOKEN and an SDK/harness fault otherwise both
+      # surface only as the SDK's opaque "process exited with code 1"; this
+      # separates them and fails fast with an actionable message.
+      - name: Preflight — confirm subscription auth
+        run: |
+          set -euo pipefail
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          mkdir -p "$CLAUDE_CONFIG_DIR"
+          if out="$(claude -p 'Respond with exactly: OK' --max-turns 1 2>&1)"; then
+            echo "auth preflight ok"
+          else
+            echo "::error::Subscription auth preflight failed — CLAUDE_CODE_OAUTH_TOKEN is rejected. Regenerate with \`claude setup-token\` and re-set the secret (no trailing newline)." >&2
+            echo "claude output:" >&2
+            echo "$out" >&2
+            exit 1
+          fi
+
       - name: Run skill-gate evals (every gate in the scenario repo)
         run: |
           set -euo pipefail

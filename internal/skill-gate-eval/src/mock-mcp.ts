@@ -63,6 +63,19 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
         async () => jsonResult({ ok: true }),
       ),
       tool(
+        "muggle-local-check-status",
+        "MCP server / local status (mock).",
+        PERMISSIVE_SHAPE,
+        async () =>
+          jsonResult(
+            fixtures.checkStatus ?? {
+              ok: true,
+              authenticated: true,
+              email: "tester@example.com",
+            },
+          ),
+      ),
+      tool(
         "muggle-remote-auth-status",
         "Auth status (mock).",
         PERMISSIVE_SHAPE,

@@ -17,7 +17,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { DEFAULT_MODEL, PASS_THRESHOLD } from "./constants.js";
+import { DEFAULT_MODEL, MODEL_ALIASES, PASS_THRESHOLD } from "./constants.js";
 import { runScenarioOnce } from "./harness.js";
 import { loadScenarioFile } from "./scenario.js";
 import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
@@ -25,6 +25,27 @@ import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
 interface RunCliArgs extends CliArgs {
   scenarioFilter?: string;
   verbose: boolean;
+}
+
+/** Resolve a `/model`-style value (alias or full id) to a model id; `inherit`/empty falls back. */
+function resolveModel(raw: string | undefined, fallback: string): string {
+  if (!raw || raw === "inherit") return fallback;
+  return MODEL_ALIASES[raw] ?? raw;
+}
+
+/**
+ * Read a skill's `model:` frontmatter so the eval runs it on the same model
+ * production would. Returns undefined when the skill leaves `model:` unset
+ * (it inherits the session model — represented here by DEFAULT_MODEL).
+ */
+function frontmatterModel(skillsDir: string, skill: string): string | undefined {
+  const p = path.resolve(skillsDir, skill, "SKILL.md");
+  if (!fs.existsSync(p)) return undefined;
+  const body = fs.readFileSync(p, "utf8");
+  const fm = body.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!fm) return undefined;
+  const m = fm[1].match(/^model:[ \t]*(.+?)[ \t]*$/m);
+  return m ? m[1].trim() : undefined;
 }
 
 function parseArgs(argv: string[]): RunCliArgs {
@@ -45,13 +66,20 @@ function parseArgs(argv: string[]): RunCliArgs {
   if (!out.gate || !out.skill) {
     throw new Error("Required: --gate <key> --skill <name>");
   }
+  const skillsDir = out["skills-dir"] ?? "plugin/skills";
+  // Precedence: explicit --model > the skill's declared `model:` > DEFAULT_MODEL.
+  // Honoring the frontmatter means the eval exercises the skill on the same
+  // model it runs on in production (e.g. a haiku-tier skill is tested on haiku).
+  const model = out.model
+    ? resolveModel(out.model, DEFAULT_MODEL)
+    : resolveModel(frontmatterModel(skillsDir, out.skill), DEFAULT_MODEL);
   return {
     gate: out.gate,
     skill: out.skill,
     runs: parseInt(out.runs ?? "10", 10),
     brainDir: out["brain-dir"] ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain",
-    skillsDir: out["skills-dir"] ?? "plugin/skills",
-    model: out.model ?? DEFAULT_MODEL,
+    skillsDir: skillsDir,
+    model: model,
     scenarioFilter: out.scenario,
     verbose: flags.has("verbose"),
   };
@@ -59,6 +87,8 @@ function parseArgs(argv: string[]): RunCliArgs {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+  // eslint-disable-next-line no-console
+  console.error(`[skill-gate-eval] ${args.gate} on ${args.skill} — model=${args.model} runs=${args.runs}`);
   const scenarioFilePath = path.resolve(
     args.brainDir,
     "eval",

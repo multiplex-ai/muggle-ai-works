@@ -50,11 +50,50 @@ jobs:
 
       - name: Checkout works
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # The gate suite is LLM-driven and slow. On a PR, skip it entirely when
+      # nothing gate-relevant changed: a SKILL.md whose only diff is the `model:`
+      # frontmatter (or a docs-only change) cannot alter gate behavior. Any gate
+      # content (skill body, preference-gates/*, ops/*) or harness change runs
+      # the full suite, unchanged. Non-PR events (nightly, dispatch) always run.
+      - name: Determine scope
+        id: scope
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Full gate sweep (event: ${{ github.event_name }})"
+            exit 0
+          fi
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          relevant=false
+          if git diff --name-only "$base...HEAD" -- internal/skill-gate-eval/ | grep -q .; then
+            relevant=true
+          else
+            for s in $(git diff --name-only "$base...HEAD" -- plugin/skills/ | awk -F/ 'NF>=4{print $3}' | sort -u); do
+              # any non-SKILL.md file in the skill dir is gate-relevant
+              if git diff --name-only "$base...HEAD" -- "plugin/skills/$s/" | grep -qvE '/SKILL\.md$'; then relevant=true; break; fi
+              # a SKILL.md change counts only if a non-`model:` line changed
+              if git diff -U0 "$base...HEAD" -- "plugin/skills/$s/SKILL.md" \
+                   | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]model:[[:space:]]'; then relevant=true; break; fi
+            done
+          fi
+          if $relevant; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Gate-relevant changes detected — running full gate suite."
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "No gate-relevant changes (model:-only / docs) — gate eval not required."
+          fi
 
       # Scenario data lives in a separate private repo; needs a token with read
       # access to multiplex-ai/muggle-ai-brain (the default GITHUB_TOKEN cannot
       # read other private repos).
       - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.scope.outputs.should_run == 'true'
         uses: actions/checkout@v6
         with:
           repository: multiplex-ai/muggle-ai-brain
@@ -62,14 +101,17 @@ jobs:
           path: muggle-ai-brain
 
       - name: Setup Node.js
+        if: steps.scope.outputs.should_run == 'true'
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Setup pnpm
+        if: steps.scope.outputs.should_run == 'true'
         uses: pnpm/action-setup@v6
 
       - name: Install dependencies
+        if: steps.scope.outputs.should_run == 'true'
         run: pnpm install --frozen-lockfile
 
       # The gate harness drives @anthropic-ai/claude-agent-sdk's query(), which
@@ -77,6 +119,7 @@ jobs:
       # on the runner. Install it (as skill-routing-eval does) and let the run
       # step point the SDK at it. Auth stays on the subscription token.
       - name: Install Claude Code CLI
+        if: steps.scope.outputs.should_run == 'true'
         run: npm install -g @anthropic-ai/claude-code
 
       # Prove the subscription token authenticates before the agent-SDK harness
@@ -85,6 +128,7 @@ jobs:
       # surface only as the SDK's opaque "process exited with code 1"; this
       # separates them and fails fast with an actionable message.
       - name: Preflight — confirm subscription auth
+        if: steps.scope.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
@@ -99,6 +143,7 @@ jobs:
           fi
 
       - name: Run skill-gate evals (every gate in the scenario repo)
+        if: steps.scope.outputs.should_run == 'true'
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -160,15 +205,25 @@ jobs:
             exit 0
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
-          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- 'plugin/skills/*/SKILL.md' \
-            | awk -F/ '{print $3}' | sort -u | paste -sd, -)"
-          if [ -z "$changed" ]; then
+          base="origin/${{ github.base_ref }}"
+          # Routing depends only on a skill's `description:`. A change that only
+          # touches the `model:` frontmatter cannot affect routing, so exclude
+          # those skills — otherwise a model-only PR needlessly runs (and flakes)
+          # the eval. Keep a skill when its SKILL.md has any non-`model:` change.
+          relevant=""
+          for s in $(git diff --name-only "$base...HEAD" -- 'plugin/skills/*/SKILL.md' | awk -F/ '{print $3}' | sort -u); do
+            if git diff -U0 "$base...HEAD" -- "plugin/skills/$s/SKILL.md" \
+                 | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]model:[[:space:]]'; then
+              relevant="${relevant:+$relevant,}$s"
+            fi
+          done
+          if [ -z "$relevant" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "No plugin/skills/*/SKILL.md changed — routing eval not required."
+            echo "No routing-relevant SKILL.md changes (model:-only) — routing eval not required."
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "skills=$changed" >> "$GITHUB_OUTPUT"
-            echo "Changed skills: $changed"
+            echo "skills=$relevant" >> "$GITHUB_OUTPUT"
+            echo "Routing-relevant skills: $relevant"
           fi
 
       - name: Setup Node.js

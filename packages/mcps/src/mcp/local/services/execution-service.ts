@@ -28,6 +28,7 @@ import {
   buildReplayActionScript,
 } from "./action-script-builders.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
+import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -594,7 +595,12 @@ async function executeElectronAppAsync(params: {
     child.on("error", (error) => {
       finalize({
         ok: false,
-        payload: new Error(`Failed to start electron-app: ${error.message}`),
+        payload: new Error(
+          describeElectronSpawnFailure({
+            error: error as NodeJS.ErrnoException,
+            electronAppPath: electronAppPath,
+          }),
+        ),
       });
     });
 

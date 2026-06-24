@@ -62,6 +62,10 @@ export function buildGenerationActionScript(params: {
       actionScriptId: params.localTestScriptId,
       workflowRunId: params.runId,
       url: params.localUrl,
+      // The studio executes against `url` (localhost) but uploads `productionUrl`
+      // as the run's remoteUrl. Without it the studio falls back to the localhost
+      // url, so the run record shows localhost where the test case's cloud url belongs.
+      productionUrl: params.testCase.url,
       // Tags the run as locally executed so the studio skips its own cloud
       // ActionScript/TestScript write — the /local-run/upload path is the
       // single writer for local runs (avoids duplicate Firestore docs).
@@ -132,6 +136,11 @@ export function buildReplayActionScript(params: {
       testCaseId: params.testScript.testCaseId,
       testScriptId: params.testScript.id,
       workflowRunId: params.runId,
+      // The studio executes against the rewritten localhost steps but uploads
+      // `productionUrl` as the run's remoteUrl. Without it the studio falls back
+      // to the localhost url, so the run record shows localhost where the test
+      // script's cloud url belongs.
+      productionUrl: params.testScript.url,
       // Tags the run as locally executed so the studio skips its own cloud
       // ActionScript write — replay's cloud record is owned by the upload path
       // (avoids duplicate Firestore docs).

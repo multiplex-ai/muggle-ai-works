@@ -20,6 +20,7 @@ function makeTestCase(): TestCaseDetails {
     precondition: "",
     instructions: "",
     expectedResult: "Dashboard shown",
+    url: "https://staging.example.com",
   } as unknown as TestCaseDetails;
 }
 
@@ -59,6 +60,14 @@ describe("buildGenerationActionScript", () => {
   it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {
     expect(actionParams(script).sharedTestMemoryId).toBe("");
   });
+
+  it("carries the cloud url as productionUrl so the run's remoteUrl is not localhost", () => {
+    expect(actionParams(script).productionUrl).toBe("https://staging.example.com");
+  });
+
+  it("keeps localUrl on actionParams.url, not the cloud url", () => {
+    expect(actionParams(script).url).toBe("http://localhost:3999");
+  });
 });
 
 describe("buildReplayActionScript", () => {
@@ -80,5 +89,13 @@ describe("buildReplayActionScript", () => {
 
   it("leaves sharedTestMemoryId empty (resolved server-side, never the projectId)", () => {
     expect(actionParams(script).sharedTestMemoryId).toBe("");
+  });
+
+  it("carries the cloud url as productionUrl so the run's remoteUrl is not localhost", () => {
+    expect(actionParams(script).productionUrl).toBe("https://staging.example.com");
+  });
+
+  it("runs the script against localUrl, not the cloud url", () => {
+    expect(script.url).toBe("http://localhost:3999");
   });
 });

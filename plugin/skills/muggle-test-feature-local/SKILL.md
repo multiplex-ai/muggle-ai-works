@@ -151,12 +151,12 @@ Caller glue: `mode` is the path chosen in §5; `localUrl` from §4; `cwd` = the 
 
 Resolve the `showElectronBrowser` gate **first**, then call `muggle-local-execute-test-generation` or `muggle-local-execute-replay`. **Do not** ask the user to re-approve the Electron launch itself — choosing this skill is the approval. That run-approval suppression does **not** extend to the gate below: when `showElectronBrowser=ask` you must still fire its picker.
 
-Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse the choice within a session.
-- `always` → omit `showUi` (the browser shows by default).
-- `never` → pass `showUi: false`.
+Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse the choice within a session. The runner shows the browser by default, so treat `showUi` as a **hide switch** — include it only to turn the browser off:
+- `always` (show it) → **omit `showUi` entirely** — no `showUi` key in the call. Passing `showUi: false` here is a bug: it hides the browser the user wanted to watch.
+- `never` (hide it) → pass `showUi: false`.
 - `ask` → you **must** call `AskUserQuestion` (Picker 1 from `preference-gates/showElectronBrowser.md`) **before** the execute call, then map the answer to the `always`/`never` action above. Do not decide for the user.
 
-`showUi` is only ever omitted or `false` — never pass `showUi: true`.
+So the execute call carries **no `showUi` key** for `always`, or `showUi: false` for `never` — never `showUi: true`.
 
 ### 8. Open the run on the dashboard (`viewUrl` gated by `openTestResultsAfterRun`)
 

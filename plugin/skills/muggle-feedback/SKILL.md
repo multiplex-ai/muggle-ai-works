@@ -1,5 +1,6 @@
 ---
 name: muggle-feedback
+model: haiku
 description: "Use when the user wants to flag that a generated Muggle Test action script — or one specific step in it — did the wrong thing, so Muggle can analyze and regenerate affected scripts. Covers any report that a script or step is wrong, broken, or misbehaving (clicked the wrong element, step N did not work, broken at the submit step), whether from a recent local/remote run or a pasted Muggle dashboard run/script URL. Also lists, views, or deletes previously submitted feedback. Triggers on /muggle-feedback, give feedback on this run, the test was wrong, flag this run."
 ---
 

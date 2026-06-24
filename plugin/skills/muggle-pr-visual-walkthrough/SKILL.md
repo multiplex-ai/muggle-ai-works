@@ -1,5 +1,6 @@
 ---
 name: muggle-pr-visual-walkthrough
+model: sonnet
 description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance test results to a PR — per-test-case dashboard links, step-by-step screenshots, and pass/fail summary — using the `muggle build-pr-section` CLI for deterministic formatting with automatic fit-vs-overflow. Use at the end of any Muggle Test test run (local or remote) to give PR reviewers clickable visual evidence that user flows work. Triggers on 'post results to PR', 'attach walkthrough to PR', 'share E2E screenshots on the PR', 'add visual walkthrough to PR'.
 ---
 

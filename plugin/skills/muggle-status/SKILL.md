@@ -1,5 +1,6 @@
 ---
 name: muggle-status
+model: haiku
 description: "Check the health of the user's Muggle AI installation and diagnose why it's misbehaving — MCP server connectivity, tool loading, login/auth validity, overall setup. Engage on muggle status and on any diagnostic question about Muggle itself: is muggle working or healthy, why does muggle keep failing or timing out, are the muggle MCP tools loading, is my muggle login still valid. Prefer this over answering from memory whenever the user is unsure Muggle itself is functioning. Boundary: diagnosing is muggle-status; fixing a broken install is muggle-repair. Not for the health of the user's own app, CI, or infra."
 ---
 

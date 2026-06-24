@@ -1,5 +1,6 @@
 ---
 name: muggle-test-regenerate-missing
+model: sonnet
 description: "Bulk-regenerate test scripts for every test case in a Muggle AI project that has no active script. Scans the project, finds test cases stuck in DRAFT or GENERATION_PENDING, shows the user the list, and on approval kicks off bulk remote script generation via the Muggle Test cloud. Use when the user wants to regenerate missing scripts, fill in missing test scripts, generate scripts for test cases without one, rebuild scripts for stale test cases, or bulk regenerate across a project. Handles discovery, filtering, confirmation, and remote dispatch end-to-end."
 ---
 

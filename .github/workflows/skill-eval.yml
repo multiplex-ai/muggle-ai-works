@@ -24,6 +24,8 @@ concurrency:
 
 permissions:
   contents: read
+  # Post the eval results back to the PR as a sticky comment.
+  pull-requests: write
 
 jobs:
   skill-gate-eval:
@@ -176,6 +178,30 @@ jobs:
           fi
           exit "$fail"
 
+      # Post the gate results to the job summary always, and to the PR as a
+      # sticky comment on pull_request runs. `always()` so a failing gate still
+      # reports which scenario/model regressed instead of just a red check.
+      - name: Report gate results
+        if: always() && steps.scope.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          md="$(pnpm exec tsx internal/skill-gate-eval/src/report.ts "$MUGGLE_BRAIN_DIR")"
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:gate -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
+          fi
+
   skill-routing-eval:
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -285,4 +311,33 @@ jobs:
           else
             python internal/skill-routing-eval/run.py \
               --all --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 0.95
+          fi
+
+      # Post the routing report (reports/run/combined.md) to the job summary and,
+      # on a PR, a sticky comment. `always()` so a flaked/failed sweep still
+      # reports rather than leaving a bare red check.
+      - name: Report routing results
+        if: always() && steps.scope.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          f="internal/skill-routing-eval/reports/run/combined.md"
+          if [ -f "$f" ]; then
+            md="$(printf '### 🧭 Skill routing eval\n\n%s' "$(head -c 60000 "$f")")"
+          else
+            md="$(printf '### 🧭 Skill routing eval\n\n_No routing report produced — the run failed before writing combined.md (often the MCP-disconnect / subscription-limit flake; re-run)._')"
+          fi
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:routing -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
           fi

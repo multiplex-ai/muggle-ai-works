@@ -43,14 +43,14 @@
     "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts"
   },
   "muggleConfig": {
-    "electronAppVersion": "1.5.1",
+    "electronAppVersion": "1.6.4",
     "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
     "runtimeTargetDefault": "dev",
     "checksums": {
-      "darwin-arm64": "70649bed80b3ae407893728abd426e32c54eeda03fde7856e530bb6f67e359cd",
-      "darwin-x64": "26a2176c0c926a6f20a4af99e4bc7362e8365ad260c3ca42d18bb1f6cf1b29d5",
-      "linux-x64": "69f33e49c6baa017604ffd49a4f4db2eba90260375c4fb5918326843c51d7bdd",
-      "win32-x64": "559d02c0e80860dec3ed5c82e8e1d3d4aa2c4dea4f73a2c62c149ad4bd6131d0"
+      "darwin-arm64": "224ad15cf1676f31b907d2bada439b4845a169595ba3d81ae8edeaeb996733bc",
+      "darwin-x64": "cd48224f9cd5e25132f8433389d1a95b67c53dba001e40943a79e564af8a55dd",
+      "linux-x64": "7e30f0afb9d6099f736f85fb2a987c784dc71c3b4818132ca2261a7c340518a3",
+      "win32-x64": "b1b6758f39dfac2a347827bca82c8944962c1b345614cb91c5d2e81ae7d779a3"
     }
   },
   "dependencies": {

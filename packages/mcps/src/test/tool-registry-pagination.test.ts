@@ -121,7 +121,7 @@ describe("cloud E2E tool registry — pagination", () => {
           "name": "muggle-remote-test-case-list",
         },
         {
-          "description": "List test scripts for a project, optionally filtered by test case. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+          "description": "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
           "name": "muggle-remote-test-script-list",
         },
       ]

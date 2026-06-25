@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     passWithNoTests: true,
-    exclude: ['packages/**', 'apps/**', '**/node_modules/**', '**/.claude/worktrees/**'],
+    exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**'],
     coverage: {
       provider: "v8",
       all: true,

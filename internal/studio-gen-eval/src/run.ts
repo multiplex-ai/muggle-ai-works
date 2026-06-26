@@ -73,8 +73,11 @@ async function cmdRun (client: BackendClient, args: string[]): Promise<void> {
     dryRun: hasFlag(args, "--dry-run"),
   };
 
+  const targetGolden = config.caseFilter
+    ? { ...golden, cases: golden.cases.filter((c) => config.caseFilter?.includes(c.testCaseId)) }
+    : golden;
   try {
-    const drifted = detectDrift(golden, await liveHashes(client, golden));
+    const drifted = detectDrift(targetGolden, await liveHashes(client, targetGolden));
     if (drifted.length > 0) {
       process.stdout.write(`WARNING: ${drifted.length} case(s) drifted from the snapshot since import:\n`);
       for (const c of drifted) process.stdout.write(`  ${c.testCaseId}  ${c.title}\n`);

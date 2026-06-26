@@ -1,0 +1,4 @@
+# Run artifacts and locally-imported golden sets. Commit a curated golden set
+# deliberately (git add -f golden-set.json) rather than baking a bulk auto-import.
+reports/
+golden-set.json

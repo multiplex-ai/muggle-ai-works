@@ -99,9 +99,15 @@ export function createBackendClient (): BackendClient {
     },
 
     async listTestCasesByProject (projectId: string): Promise<TestCaseDetail[]> {
-      const q = `?projectId=${encodeURIComponent(projectId)}&page=1&pageSize=500`;
-      const body = await request<unknown>("GET", `/v1/protected/muggle-test/test-cases${q}`);
-      return asArray<TestCaseDetail>(body);
+      const pageSize = 100;
+      const all: TestCaseDetail[] = [];
+      for (let page = 1; ; page++) {
+        const q = `?projectId=${encodeURIComponent(projectId)}&page=${page}&pageSize=${pageSize}`;
+        const got = asArray<TestCaseDetail>(await request<unknown>("GET", `/v1/protected/muggle-test/test-cases${q}`));
+        all.push(...got);
+        if (got.length < pageSize) break;
+      }
+      return all;
     },
 
     async getTestCase (testCaseId: string): Promise<TestCaseDetail> {

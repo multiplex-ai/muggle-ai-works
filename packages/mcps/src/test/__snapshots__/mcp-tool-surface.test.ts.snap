@@ -1,0 +1,516 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name + description for every tool 1`] = `
+[
+  {
+    "description": "Cancel an active test generation or replay execution.",
+    "name": "muggle-local-cancel-execution",
+  },
+  {
+    "description": "Check the status of Muggle Test Local. This verifies the connection to web-service and shows current session information.",
+    "name": "muggle-local-check-status",
+  },
+  {
+    "description": "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — defaults to a visible window; pass showUi: false to run headless.",
+    "name": "muggle-local-execute-replay",
+  },
+  {
+    "description": "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — defaults to a visible window; pass showUi: false to run headless.",
+    "name": "muggle-local-execute-test-generation",
+  },
+  {
+    "description": "Remove the cached last-used host for this repo. After this, \`autoSelectLocalHost = always\` will fall through to ask until the user picks a new URL. No-op if no cache exists.",
+    "name": "muggle-local-last-host-clear",
+  },
+  {
+    "description": "Get the cached last-used local dev server URL for a repo (read from <cwd>/.muggle-ai/last-host.json). Returns the URL and saved-at timestamp, or null if no cache exists. Skills consult this when 'autoSelectLocalHost = always' to silently reuse the URL the user used previously.",
+    "name": "muggle-local-last-host-get",
+  },
+  {
+    "description": "Save the user's chosen local dev server URL as the cached last-used host for this repo. Writes to <cwd>/.muggle-ai/last-host.json. Call this on every host pick (independent of 'Remember this URL?' Picker 2) so future runs can offer 'Use {lastHost}' regardless of whether the user opted to set autoSelectLocalHost=always.",
+    "name": "muggle-local-last-host-set",
+  },
+  {
+    "description": "Remove the cached last-used project for this repo. After this, \`autoSelectProject = always\` will fall through to ask until the user picks a new project. No-op if no cache exists.",
+    "name": "muggle-local-last-project-clear",
+  },
+  {
+    "description": "Get the cached last-used Muggle Test project for a repo (read from <cwd>/.muggle-ai/last-project.json). Returns the project ID, URL, name, and saved-at timestamp, or null if no cache exists. Skills consult this when 'autoSelectProject = always' to silently reuse the project the user picked previously, instead of presenting the project picker every time.",
+    "name": "muggle-local-last-project-get",
+  },
+  {
+    "description": "Save the user's selected Muggle Test project as the cached last-used project for this repo. Writes to <cwd>/.muggle-ai/last-project.json. Subsequent skill invocations honor 'autoSelectProject = always' by silently reusing this entry — no project picker shown. Always pair this call with 'muggle-local-preferences-set autoSelectProject=always' when the user chose 'Yes, save it'.",
+    "name": "muggle-local-last-project-set",
+  },
+  {
+    "description": "List all stored testing sessions. Shows session IDs, status, and metadata for each session.",
+    "name": "muggle-local-list-sessions",
+  },
+  {
+    "description": "Set a Muggle AI user preference. Preferences control automation behavior (auto-login, show browser, suggest test cases, etc.). Values: 'always' (proceed without asking), 'ask' (prompt each time), 'never' (skip without asking). Scope: 'global' writes to ~/.muggle-ai/preferences.json, 'project' writes to .muggle-ai/preferences.json in the repo root.",
+    "name": "muggle-local-preferences-set",
+  },
+  {
+    "description": "Get detailed information about a run result including screenshots and action script output.",
+    "name": "muggle-local-run-result-get",
+  },
+  {
+    "description": "List run results (test generation and replay history), optionally filtered by cloud test case ID.",
+    "name": "muggle-local-run-result-list",
+  },
+  {
+    "description": "Emit a structured failure-mode telemetry event recording how a Muggle Test skill classified a situation and what action the user took. Used at five decision points: 'pre-execution-classification' (replay vs regen), 'replay-failure-classified', 'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved'. Records to ~/.muggle-ai/telemetry/failure-events.jsonl. Never fails the skill on telemetry errors.",
+    "name": "muggle-local-telemetry-event-emit",
+  },
+  {
+    "description": "Emit a client telemetry event recording that a Muggle Test skill was invoked. Each muggle-* skill calls this in its first step so we can measure skill usage. Never fails the skill on telemetry errors.",
+    "name": "muggle-local-telemetry-skill-emit",
+  },
+  {
+    "description": "Get details of a locally generated test script including action script steps.",
+    "name": "muggle-local-test-script-get",
+  },
+  {
+    "description": "List locally generated test scripts, optionally filtered by cloud test case ID.",
+    "name": "muggle-local-test-script-list",
+  },
+  {
+    "description": "Get the full action script content by ID. Use actionScriptId from a test script to fetch the complete script with all steps and element labels needed for replay.",
+    "name": "muggle-remote-action-script-get",
+  },
+  {
+    "description": "Create a new API key for the authenticated user. Requires existing authentication.",
+    "name": "muggle-remote-auth-api-key-create",
+  },
+  {
+    "description": "Get details of a specific API key by ID.",
+    "name": "muggle-remote-auth-api-key-get",
+  },
+  {
+    "description": "List all API keys for the authenticated user. Shows key metadata but not the secret values.",
+    "name": "muggle-remote-auth-api-key-list",
+  },
+  {
+    "description": "Revoke an API key. The key will immediately stop working. Use muggle-remote-auth-api-key-list to find the key ID first.",
+    "name": "muggle-remote-auth-api-key-revoke",
+  },
+  {
+    "description": "Start authentication with the Muggle Test service. Opens a browser-based login flow and waits for confirmation by default. If login is still pending after the wait timeout, use muggle-remote-auth-poll to finish authentication.",
+    "name": "muggle-remote-auth-login",
+  },
+  {
+    "description": "Log out and clear stored credentials.",
+    "name": "muggle-remote-auth-logout",
+  },
+  {
+    "description": "Poll for login completion after starting the login flow with muggle-remote-auth-login. Call this after the user completes authentication in their browser.",
+    "name": "muggle-remote-auth-poll",
+  },
+  {
+    "description": "Check current authentication status. Shows if you're logged in and when your session expires.",
+    "name": "muggle-remote-auth-status",
+  },
+  {
+    "description": "Request cancellation of a bulk-preview job. Cancellation is cooperative — the harvester picks it up on its next tick and moves the job to status=cancelled.",
+    "name": "muggle-remote-bulk-preview-job-cancel",
+  },
+  {
+    "description": "Get the current status and (when terminal) results of a bulk-preview job. Poll this after submitting a bulk-preview job — every 10–15 seconds is fine. Terminal statuses: succeeded, partial, failed, cancelled, expired.",
+    "name": "muggle-remote-bulk-preview-job-get",
+  },
+  {
+    "description": "List bulk-preview jobs for a project, optionally filtered by status or kind.",
+    "name": "muggle-remote-bulk-preview-job-list",
+  },
+  {
+    "description": "Upload a locally executed run (generation/replay) to cloud workflow records.",
+    "name": "muggle-remote-local-run-upload",
+  },
+  {
+    "description": "Delete a PRD file from a project.",
+    "name": "muggle-remote-prd-file-delete",
+  },
+  {
+    "description": "List all PRD files associated with a project.",
+    "name": "muggle-remote-prd-file-list-by-project",
+  },
+  {
+    "description": "Upload a PRD file to a project. File content should be base64-encoded.",
+    "name": "muggle-remote-prd-file-upload",
+  },
+  {
+    "description": "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests.",
+    "name": "muggle-remote-project-create",
+  },
+  {
+    "description": "Delete a project and all associated entities. This is a soft delete.",
+    "name": "muggle-remote-project-delete",
+  },
+  {
+    "description": "Get details of a specific project by ID.",
+    "name": "muggle-remote-project-get",
+  },
+  {
+    "description": "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+    "name": "muggle-remote-project-list",
+  },
+  {
+    "description": "Get a summary of test results for a project.",
+    "name": "muggle-remote-project-test-results-summary-get",
+  },
+  {
+    "description": "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { page, pageSize, totalCount, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). \`totalCount\` is the project-wide total after the replay-status filter; \`runs\` is the page slice. Check \`hasMore\` to decide whether to fetch additional pages. Use muggle-remote-test-case-get / muggle-remote-wf-get-ts-replay-latest-run for full per-run detail.",
+    "name": "muggle-remote-project-test-runs-summary-get",
+  },
+  {
+    "description": "Get a summary of test scripts for a project.",
+    "name": "muggle-remote-project-test-scripts-summary-get",
+  },
+  {
+    "description": "Update an existing project's details.",
+    "name": "muggle-remote-project-update",
+  },
+  {
+    "description": "Get recommendations and templates for CI/CD integration.",
+    "name": "muggle-remote-recommend-cicd-setup",
+  },
+  {
+    "description": "Get recommendations for test scheduling based on project needs.",
+    "name": "muggle-remote-recommend-schedule",
+  },
+  {
+    "description": "Query cost/usage data for a project over a date range.",
+    "name": "muggle-remote-report-cost-query",
+  },
+  {
+    "description": "Generate a final test report for a project.",
+    "name": "muggle-remote-report-final-generate",
+  },
+  {
+    "description": "Update report delivery preferences for a project.",
+    "name": "muggle-remote-report-preferences-upsert",
+  },
+  {
+    "description": "Get report statistics summary for a project.",
+    "name": "muggle-remote-report-stats-summary-get",
+  },
+  {
+    "description": "Create a new secret (credential) for a project.",
+    "name": "muggle-remote-secret-create",
+  },
+  {
+    "description": "Delete a secret from a project.",
+    "name": "muggle-remote-secret-delete",
+  },
+  {
+    "description": "Get details of a specific secret. The secret value is not returned for security.",
+    "name": "muggle-remote-secret-get",
+  },
+  {
+    "description": "List all secrets for a project. Secret values are not returned for security.",
+    "name": "muggle-remote-secret-list",
+  },
+  {
+    "description": "Update an existing secret.",
+    "name": "muggle-remote-secret-update",
+  },
+  {
+    "description": "Resolve a test case's prerequisite chain from the project's test-plan graph. Returns { testCaseId, ancestors, orphan } where \`ancestors\` is an array of test case IDs ordered immediate-parent → root (empty when the case is a graph root). \`orphan: true\` means the case has no graph node, so it has no prerequisites. Call this before generating or replaying a script to ensure every prerequisite test case already has a ready script.",
+    "name": "muggle-remote-test-case-ancestors-get",
+  },
+  {
+    "description": "Submit an async bulk-preview job that uses the OpenAI Batch API to generate test cases for a single use case from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-test-case-create. Note: one input prompt may fan out to 1–5 test cases.",
+    "name": "muggle-remote-test-case-bulk-preview-submit",
+  },
+  {
+    "description": "Create a new test case for a use case.",
+    "name": "muggle-remote-test-case-create",
+  },
+  {
+    "description": "Generate E2E acceptance test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
+    "name": "muggle-remote-test-case-generate-from-prompt",
+  },
+  {
+    "description": "Get details of a specific test case.",
+    "name": "muggle-remote-test-case-get",
+  },
+  {
+    "description": "List test cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+    "name": "muggle-remote-test-case-list",
+  },
+  {
+    "description": "List test cases for a specific use case.",
+    "name": "muggle-remote-test-case-list-by-use-case",
+  },
+  {
+    "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    "name": "muggle-remote-test-case-update",
+  },
+  {
+    "description": "Get details of a specific test script.",
+    "name": "muggle-remote-test-script-get",
+  },
+  {
+    "description": "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+    "name": "muggle-remote-test-script-list",
+  },
+  {
+    "description": "Submit an async bulk-preview job that uses the OpenAI Batch API to generate use cases from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-use-case-create.",
+    "name": "muggle-remote-use-case-bulk-preview-submit",
+  },
+  {
+    "description": "Approve (graduate) selected use case candidates into actual use cases.",
+    "name": "muggle-remote-use-case-candidates-approve",
+  },
+  {
+    "description": "Create a single use case from a fully-specified payload. Use this to persist use cases returned by muggle-remote-use-case-bulk-preview-submit — no LLM is invoked.",
+    "name": "muggle-remote-use-case-create",
+  },
+  {
+    "description": "Create one or more use cases from natural language instructions.",
+    "name": "muggle-remote-use-case-create-from-prompts",
+  },
+  {
+    "description": "Get the use case discovery memory for a project, including all discovered use case candidates.",
+    "name": "muggle-remote-use-case-discovery-memory-get",
+  },
+  {
+    "description": "Get details of a specific use case by ID.",
+    "name": "muggle-remote-use-case-get",
+  },
+  {
+    "description": "List use cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+    "name": "muggle-remote-use-case-list",
+  },
+  {
+    "description": "Preview a use case generated from a natural language instruction without saving.",
+    "name": "muggle-remote-use-case-prompt-preview",
+  },
+  {
+    "description": "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: changing title, description, or url triggers background regeneration of dependent test cases on the server.",
+    "name": "muggle-remote-use-case-update",
+  },
+  {
+    "description": "Update an existing use case by regenerating its fields from a new instruction.",
+    "name": "muggle-remote-use-case-update-from-prompt",
+  },
+  {
+    "description": "Submit user feedback on a generated action script — either the whole script (targetType='actionScript', targetId=actionScriptId) or a specific step (targetType='step', targetId=\`\${actionScriptId}:\${stepIndex}\` with 0-based stepIndex). Persists the feedback and triggers an async feedback-analysis workflow that may regenerate the script. The response includes the saved feedback and, when the analysis workflow was started, a feedbackAnalysisWorkflowRuntimeId for polling.",
+    "name": "muggle-remote-user-feedback-create",
+  },
+  {
+    "description": "Soft-delete a user feedback entry by ID. Returns 204 on success.",
+    "name": "muggle-remote-user-feedback-delete",
+  },
+  {
+    "description": "List active user feedback entries for a project. Optionally narrow by exactly one of actionScriptId / testScriptId / testCaseId / useCaseId — the typical query is 'show me feedback on this test case (or test script, or use case).' Supports limit/offset pagination. Response: { feedback: IUserFeedback[], total: number, hasMore: boolean }.",
+    "name": "muggle-remote-user-feedback-list",
+  },
+  {
+    "description": "Set the saved payment method used by wallet auto top-up.",
+    "name": "muggle-remote-wallet-auto-topup-set-payment-method",
+  },
+  {
+    "description": "Update wallet auto-topup settings.",
+    "name": "muggle-remote-wallet-auto-topup-update",
+  },
+  {
+    "description": "List saved payment methods.",
+    "name": "muggle-remote-wallet-payment-method-list",
+  },
+  {
+    "description": "Create a Stripe setup session to add a payment method.",
+    "name": "muggle-remote-wallet-pm-create-setup-session",
+  },
+  {
+    "description": "Create a Stripe checkout session to purchase a token package.",
+    "name": "muggle-remote-wallet-topup",
+  },
+  {
+    "description": "Get the latest test script generation runtime for a specific test case.",
+    "name": "muggle-remote-wf-get-latest-ts-gen-by-tc",
+  },
+  {
+    "description": "Get the latest run status of a PRD file processing workflow.",
+    "name": "muggle-remote-wf-get-prd-process-latest-run",
+  },
+  {
+    "description": "Get the summary of a bulk replay run batch.",
+    "name": "muggle-remote-wf-get-replay-bulk-batch-summary",
+  },
+  {
+    "description": "Get the latest run status for a test case detection workflow runtime.",
+    "name": "muggle-remote-wf-get-tc-detect-latest-run",
+  },
+  {
+    "description": "Get the latest run status for a test script generation workflow runtime.",
+    "name": "muggle-remote-wf-get-ts-gen-latest-run",
+  },
+  {
+    "description": "Get the latest run status for a bulk test script replay workflow runtime.",
+    "name": "muggle-remote-wf-get-ts-replay-bulk-latest-run",
+  },
+  {
+    "description": "Get the latest run status for a test script replay workflow runtime.",
+    "name": "muggle-remote-wf-get-ts-replay-latest-run",
+  },
+  {
+    "description": "List test case detection workflow runtimes.",
+    "name": "muggle-remote-wf-list-tc-detect-runtimes",
+  },
+  {
+    "description": "List bulk test script replay workflow runtimes.",
+    "name": "muggle-remote-wf-list-ts-replay-bulk-runtimes",
+  },
+  {
+    "description": "Cancel a running workflow run.",
+    "name": "muggle-remote-workflow-cancel-run",
+  },
+  {
+    "description": "Cancel a workflow runtime and all its runs.",
+    "name": "muggle-remote-workflow-cancel-runtime",
+  },
+  {
+    "description": "Get the latest run status for a website scan workflow runtime.",
+    "name": "muggle-remote-workflow-get-website-scan-latest-run",
+  },
+  {
+    "description": "List website scan workflow runtimes.",
+    "name": "muggle-remote-workflow-list-website-scan-runtimes",
+  },
+  {
+    "description": "Start a PRD file processing workflow to extract use cases.",
+    "name": "muggle-remote-workflow-start-prd-file-process",
+  },
+  {
+    "description": "Start a test case detection workflow to generate test cases from use cases.",
+    "name": "muggle-remote-workflow-start-test-case-detection",
+  },
+  {
+    "description": "Start a test script generation workflow.",
+    "name": "muggle-remote-workflow-start-test-script-generation",
+  },
+  {
+    "description": "Start a bulk test script generation workflow to generate scripts for multiple test cases in a single request.",
+    "name": "muggle-remote-workflow-start-test-script-generation-bulk",
+  },
+  {
+    "description": "Start a test script replay workflow to execute a single test script.",
+    "name": "muggle-remote-workflow-start-test-script-replay",
+  },
+  {
+    "description": "Start a bulk test script replay workflow to execute multiple test scripts.",
+    "name": "muggle-remote-workflow-start-test-script-replay-bulk",
+  },
+  {
+    "description": "Scan a website to automatically discover testable user flows and UI interactions. Crawls the site and identifies use cases like signup, login, search, checkout, form submissions, and navigation patterns. Use this when setting up E2E acceptance testing for a site without predefined test cases.",
+    "name": "muggle-remote-workflow-start-website-scan",
+  },
+]
+`;
+
+exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set of tool names 1`] = `
+[
+  "muggle-local-cancel-execution",
+  "muggle-local-check-status",
+  "muggle-local-execute-replay",
+  "muggle-local-execute-test-generation",
+  "muggle-local-last-host-clear",
+  "muggle-local-last-host-get",
+  "muggle-local-last-host-set",
+  "muggle-local-last-project-clear",
+  "muggle-local-last-project-get",
+  "muggle-local-last-project-set",
+  "muggle-local-list-sessions",
+  "muggle-local-preferences-set",
+  "muggle-local-run-result-get",
+  "muggle-local-run-result-list",
+  "muggle-local-telemetry-event-emit",
+  "muggle-local-telemetry-skill-emit",
+  "muggle-local-test-script-get",
+  "muggle-local-test-script-list",
+  "muggle-remote-action-script-get",
+  "muggle-remote-auth-api-key-create",
+  "muggle-remote-auth-api-key-get",
+  "muggle-remote-auth-api-key-list",
+  "muggle-remote-auth-api-key-revoke",
+  "muggle-remote-auth-login",
+  "muggle-remote-auth-logout",
+  "muggle-remote-auth-poll",
+  "muggle-remote-auth-status",
+  "muggle-remote-bulk-preview-job-cancel",
+  "muggle-remote-bulk-preview-job-get",
+  "muggle-remote-bulk-preview-job-list",
+  "muggle-remote-local-run-upload",
+  "muggle-remote-prd-file-delete",
+  "muggle-remote-prd-file-list-by-project",
+  "muggle-remote-prd-file-upload",
+  "muggle-remote-project-create",
+  "muggle-remote-project-delete",
+  "muggle-remote-project-get",
+  "muggle-remote-project-list",
+  "muggle-remote-project-test-results-summary-get",
+  "muggle-remote-project-test-runs-summary-get",
+  "muggle-remote-project-test-scripts-summary-get",
+  "muggle-remote-project-update",
+  "muggle-remote-recommend-cicd-setup",
+  "muggle-remote-recommend-schedule",
+  "muggle-remote-report-cost-query",
+  "muggle-remote-report-final-generate",
+  "muggle-remote-report-preferences-upsert",
+  "muggle-remote-report-stats-summary-get",
+  "muggle-remote-secret-create",
+  "muggle-remote-secret-delete",
+  "muggle-remote-secret-get",
+  "muggle-remote-secret-list",
+  "muggle-remote-secret-update",
+  "muggle-remote-test-case-ancestors-get",
+  "muggle-remote-test-case-bulk-preview-submit",
+  "muggle-remote-test-case-create",
+  "muggle-remote-test-case-generate-from-prompt",
+  "muggle-remote-test-case-get",
+  "muggle-remote-test-case-list",
+  "muggle-remote-test-case-list-by-use-case",
+  "muggle-remote-test-case-update",
+  "muggle-remote-test-script-get",
+  "muggle-remote-test-script-list",
+  "muggle-remote-use-case-bulk-preview-submit",
+  "muggle-remote-use-case-candidates-approve",
+  "muggle-remote-use-case-create",
+  "muggle-remote-use-case-create-from-prompts",
+  "muggle-remote-use-case-discovery-memory-get",
+  "muggle-remote-use-case-get",
+  "muggle-remote-use-case-list",
+  "muggle-remote-use-case-prompt-preview",
+  "muggle-remote-use-case-update",
+  "muggle-remote-use-case-update-from-prompt",
+  "muggle-remote-user-feedback-create",
+  "muggle-remote-user-feedback-delete",
+  "muggle-remote-user-feedback-list",
+  "muggle-remote-wallet-auto-topup-set-payment-method",
+  "muggle-remote-wallet-auto-topup-update",
+  "muggle-remote-wallet-payment-method-list",
+  "muggle-remote-wallet-pm-create-setup-session",
+  "muggle-remote-wallet-topup",
+  "muggle-remote-wf-get-latest-ts-gen-by-tc",
+  "muggle-remote-wf-get-prd-process-latest-run",
+  "muggle-remote-wf-get-replay-bulk-batch-summary",
+  "muggle-remote-wf-get-tc-detect-latest-run",
+  "muggle-remote-wf-get-ts-gen-latest-run",
+  "muggle-remote-wf-get-ts-replay-bulk-latest-run",
+  "muggle-remote-wf-get-ts-replay-latest-run",
+  "muggle-remote-wf-list-tc-detect-runtimes",
+  "muggle-remote-wf-list-ts-replay-bulk-runtimes",
+  "muggle-remote-workflow-cancel-run",
+  "muggle-remote-workflow-cancel-runtime",
+  "muggle-remote-workflow-get-website-scan-latest-run",
+  "muggle-remote-workflow-list-website-scan-runtimes",
+  "muggle-remote-workflow-start-prd-file-process",
+  "muggle-remote-workflow-start-test-case-detection",
+  "muggle-remote-workflow-start-test-script-generation",
+  "muggle-remote-workflow-start-test-script-generation-bulk",
+  "muggle-remote-workflow-start-test-script-replay",
+  "muggle-remote-workflow-start-test-script-replay-bulk",
+  "muggle-remote-workflow-start-website-scan",
+]
+`;

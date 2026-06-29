@@ -9,7 +9,7 @@ description: >-
 
 # Muggle Test Works — npm release (single playbook)
 
-> Maintainer-only. Lives under `internal/` and is not shipped in the published plugin.
+> Maintainer-only. Lives at `.claude/skills/` (mirrored to `.cursor/skills/`), not in the published plugin (`plugin/skills/`). Invokable as `/mrelease` while working in this repo; run `pnpm run link:maintainer-skills` to invoke it from any project.
 
 Repo: **`multiplex-ai/muggle-ai-works`**. Workflow: **`.github/workflows/publish-works-to-npm.yml`** (“Publish Works to npm”). **Never** run local **`npm publish`** (OIDC trusted publishing in CI).
 

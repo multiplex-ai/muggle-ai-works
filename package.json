@@ -24,6 +24,7 @@
     "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
     "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
     "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
+    "link:maintainer-skills": "node scripts/link-maintainer-skills.mjs",
     "build:workspace": "turbo run build",
     "typecheck:workspace": "turbo run typecheck",
     "lint:workspace": "turbo run lint",

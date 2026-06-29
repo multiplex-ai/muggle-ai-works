@@ -153,7 +153,7 @@ Resolve the `showElectronBrowser` gate **first**, then call `muggle-local-execut
 
 Gate `showElectronBrowser` (per `preference-gates/README.md`). Reuse the choice within a session. The runner shows the browser by default, so treat `showUi` as a **hide switch** — include it only to turn the browser off:
 - `always` (show it) → **omit `showUi` entirely** — no `showUi` key in the call. Passing `showUi: false` here is a bug: it hides the browser the user wanted to watch.
-- `never` (hide it) → pass `showUi: false`.
+- `never` (hide it) → pass `showUi: false` **explicitly**. Omitting `showUi` here is a bug: it falls back to the default (shown) and reveals the browser the user turned off.
 - `ask` → you **must** call `AskUserQuestion` (Picker 1 from `preference-gates/showElectronBrowser.md`) **before** the execute call, then map the answer to the `always`/`never` action above. Do not decide for the user.
 
 So the execute call carries **no `showUi` key** for `always`, or `showUi: false` for `never` — never `showUi: true`.

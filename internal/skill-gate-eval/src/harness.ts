@@ -288,7 +288,21 @@ function verdict(
       const args = (exec.args ?? {}) as Record<string, unknown>;
       for (const [k, expected] of Object.entries(scenario.expect.executeArgs)) {
         const actualPresent = Object.prototype.hasOwnProperty.call(args, k);
-        if (expected === "OMITTED") {
+        if (Array.isArray(expected)) {
+          // Set of acceptable outcomes — for gates where more than one arg shape
+          // is behaviorally correct (e.g. showElectronBrowser=always is satisfied
+          // by omitting showUi OR passing showUi:true; only showUi:false is wrong).
+          // The literal "OMITTED" element means "absent is acceptable".
+          const allowAbsent = expected.includes("OMITTED");
+          const allowedValues = expected.filter((v) => v !== "OMITTED");
+          const ok = actualPresent
+            ? allowedValues.some((v) => v === args[k])
+            : allowAbsent;
+          if (!ok) {
+            const got = actualPresent ? JSON.stringify(args[k]) : "<omitted>";
+            reasons.push(`expected ${k} to be one of ${JSON.stringify(expected)} on ${exec.tool} but got ${got}`);
+          }
+        } else if (expected === "OMITTED") {
           if (actualPresent) {
             reasons.push(`expected ${k} to be omitted from ${exec.tool} but it was ${JSON.stringify(args[k])}`);
           }

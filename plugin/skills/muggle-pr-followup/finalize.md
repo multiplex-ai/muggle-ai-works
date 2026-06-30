@@ -26,4 +26,4 @@ Append the terminal line per [`output-templates/watcher-log.md`](output-template
 
 ### Step 4 — Unschedule the cron
 
-Call `CronList`, find any job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` (exact two-arg match), and `CronDelete` it. No-op when none matches — a manually-run tick, or a cron that already expired. Recurring `/loop` crons auto-expire after 7 days; that lapse is the gap [`reconcile.md`](reconcile.md) exists to catch.
+Cancel this slot's cron per [`cancel-cron.md`](cancel-cron.md). No-op when none matches — a manually-run tick, or a cron that already expired. Recurring `/loop` crons auto-expire after 7 days; that lapse is the gap [`reconcile.md`](reconcile.md) exists to catch.

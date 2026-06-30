@@ -27,7 +27,7 @@ If either file is missing or the PR is not in `prs.json`, the tick is a no-op. L
 
 ### Step 0 — Stale-fire guard
 
-If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was finalized by a prior tick and this is a stale (queued) fire — per-minute cron fires enqueued while the session was busy still drain after the cron is cancelled. Defensively cancel any lingering cron for this slug (`CronList` → the job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` → `CronDelete`; no-op if none), append a `stale-tick` line to `followup.log`, and exit. Do not re-fetch or re-finalize.
+If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was finalized by a prior tick and this is a stale (queued) fire — per-minute cron fires enqueued while the session was busy still drain after the cron is cancelled. Defensively cancel any lingering cron for this slug per [`cancel-cron.md`](cancel-cron.md) (no-op if none), append a `stale-tick` line to `followup.log`, and exit. Do not re-fetch or re-finalize.
 
 ### Step 1 — Refresh PR state
 
@@ -67,7 +67,7 @@ The watcher's dispatch trigger is **derived from current provider state**, not a
 The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher hands over the dispatch ids from Step 3 (GitHub: owning review ids; GitLab: discussion ids) and exits — `/muggle-do`'s address-reviews re-derives the unresolved threads itself (its authority), so the watcher only needs to decide *that* there is work, not enumerate it exhaustively.
 
 1. Reset `last_seen.idle_tick_count` to 0.
-2. **Stop this watcher (single-thread).** Cancel its cron so no tick fires while the dev cycle runs: `CronList`, find the job whose command ends with `/muggle:muggle-pr-followup <slug> <n>` (exact two-arg match), `CronDelete` it. `/muggle-do` respawns the watcher when the cycle finishes — exactly one cron ever, and no tick overlaps a running cycle.
+2. **Stop this watcher (single-thread).** Cancel its cron so no tick fires while the dev cycle runs, per [`cancel-cron.md`](cancel-cron.md). `/muggle-do` respawns the watcher when the cycle finishes — exactly one cron ever, and no tick overlaps a running cycle.
 3. Dispatch `/muggle-do` with an *address-reviews* directive carrying:
    - PR URL (from `prs.json[0].url`)
    - Session slug (from the invocation arguments)

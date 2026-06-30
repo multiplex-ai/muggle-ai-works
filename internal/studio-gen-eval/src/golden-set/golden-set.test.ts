@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { bodyHash, detectDrift } from "./golden-set.js";
-import { type GoldenCase, type GoldenSet } from "./types.js";
+import { type GoldenCase, type GoldenSet } from "../domain/types.js";
 
 function gcase (over: Partial<GoldenCase> = {}): GoldenCase {
   const base = {

@@ -1,4 +1,4 @@
-import { FAILURE_KEYWORDS, TERMINAL_WORKFLOW_STATES } from "./constants.js";
+import { FAILURE_KEYWORDS, TERMINAL_WORKFLOW_STATES } from "../domain/constants.js";
 import {
   type BackendRunData,
   type CaseSummary,
@@ -10,7 +10,7 @@ import {
   RunFailureReasonType,
   StudioResultStatus,
   WorkflowRunStatus,
-} from "./types.js";
+} from "../domain/types.js";
 
 /** A run is done when its workflow status is terminal. */
 export function isTerminal(status: string | undefined): boolean {

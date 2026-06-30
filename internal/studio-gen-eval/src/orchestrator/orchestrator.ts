@@ -1,5 +1,5 @@
-import { POLL_INTERVAL_MS } from "./constants.js";
-import { classifyRun, isTerminal } from "./scorer.js";
+import { POLL_INTERVAL_MS } from "../domain/constants.js";
+import { classifyRun, isTerminal } from "../scorer/scorer.js";
 import {
   type BackendClient,
   type BackendRunData,
@@ -10,7 +10,7 @@ import {
   OutcomeClass,
   type RepResult,
   type StartGenerationInput,
-} from "./types.js";
+} from "../domain/types.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 

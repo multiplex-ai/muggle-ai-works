@@ -9,7 +9,7 @@ import {
   RunFailureReasonType,
   StudioResultStatus,
   WorkflowRunStatus,
-} from "./types.js";
+} from "../domain/types.js";
 
 function run (over: Partial<BackendRunData>): BackendRunData {
   return { id: "run-1", status: WorkflowRunStatus.Completed, ...over };

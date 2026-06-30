@@ -4,13 +4,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createBackendClient } from "./client.js";
-import { DEFAULT_CONCURRENCY, DEFAULT_REP_TIMEOUT_MS, DEFAULT_RUNS } from "./constants.js";
-import { detectDrift, loadGoldenSet, saveGoldenSet } from "./golden-set.js";
-import { importProject, liveHashes } from "./import.js";
-import { planTasks, runBatch } from "./orchestrator.js";
-import { buildReport, renderMarkdown, writeReport } from "./report.js";
-import { type BackendClient, type BatchConfig, type RepResult } from "./types.js";
+import { createBackendClient } from "./client/client.js";
+import { DEFAULT_CONCURRENCY, DEFAULT_REP_TIMEOUT_MS, DEFAULT_RUNS } from "./domain/constants.js";
+import { detectDrift, loadGoldenSet, saveGoldenSet } from "./golden-set/golden-set.js";
+import { importProject, liveHashes } from "./golden-set/import.js";
+import { planTasks, runBatch } from "./orchestrator/orchestrator.js";
+import { buildReport, renderMarkdown, writeReport } from "./report/report.js";
+import { type BackendClient, type BatchConfig, type RepResult } from "./domain/types.js";
 
 const TOOL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GOLDEN_PATH = path.join(TOOL_DIR, "golden-set.json");

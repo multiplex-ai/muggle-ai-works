@@ -7,7 +7,7 @@ import {
   type GoldenSet,
   OutcomeClass,
   type RepResult,
-} from "./types.js";
+} from "../domain/types.js";
 
 const golden: GoldenSet = {
   sourceProjectId: "proj-1",

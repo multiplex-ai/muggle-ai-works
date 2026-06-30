@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { type GoldenCase, type GoldenSet } from "./types.js";
+import { type GoldenCase, type GoldenSet } from "../domain/types.js";
 
 type HashableCase = Pick<GoldenCase, "url" | "goal" | "precondition" | "instructions" | "expectedResult">;
 

@@ -7,7 +7,7 @@ import {
   type StartedRun,
   type StartGenerationInput,
   type TestCaseDetail,
-} from "./types.js";
+} from "../domain/types.js";
 
 const CLIENT_NAME = "studio-gen-eval";
 

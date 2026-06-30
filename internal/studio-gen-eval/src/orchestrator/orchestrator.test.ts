@@ -10,7 +10,7 @@ import {
   OutcomeClass,
   StudioResultStatus,
   WorkflowRunStatus,
-} from "./types.js";
+} from "../domain/types.js";
 
 function gcase (id: string): GoldenCase {
   return {

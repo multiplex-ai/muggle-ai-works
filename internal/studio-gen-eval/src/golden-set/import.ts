@@ -4,7 +4,7 @@ import {
   type GoldenCase,
   type GoldenSet,
   type TestCaseDetail,
-} from "./types.js";
+} from "../domain/types.js";
 
 /** Map a backend test case onto a generation-ready golden case, computing its snapshot hash. */
 export function toGoldenCase (projectId: string, tc: TestCaseDetail): GoldenCase {

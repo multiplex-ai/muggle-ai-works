@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { caseTitle, passRate, summariseCase } from "./scorer.js";
+import { caseTitle, passRate, summariseCase } from "../scorer/scorer.js";
 import {
   type BatchConfig,
   type BatchReport,
@@ -9,7 +9,7 @@ import {
   type GoldenSet,
   OutcomeClass,
   type RepResult,
-} from "./types.js";
+} from "../domain/types.js";
 
 function groupByCase (reps: RepResult[]): Map<string, RepResult[]> {
   const byCase = new Map<string, RepResult[]>();

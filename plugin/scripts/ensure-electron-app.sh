@@ -2,6 +2,26 @@
 
 set -euo pipefail
 
+# Epoch mtime of a file, or 0 if unreadable. GNU coreutils (Linux/WSL/Git Bash)
+# need `stat -c %Y`; BSD/macOS need `stat -f %m`. The wrong form doesn't fail
+# cleanly — GNU `stat -f` prints filesystem info to stdout and exits non-zero —
+# so each form is tried alone and accepted only when all-digits, keeping stray
+# text like `File:` out of the caller's arithmetic.
+file_mtime() {
+    local f="$1" m
+    m=$(stat -c %Y "$f" 2>/dev/null) || m=""
+    case "$m" in ''|*[!0-9]*) ;; *) printf '%s\n' "$m"; return 0 ;; esac
+    m=$(stat -f %m "$f" 2>/dev/null) || m=""
+    case "$m" in ''|*[!0-9]*) ;; *) printf '%s\n' "$m"; return 0 ;; esac
+    printf '0\n'
+}
+
+# Sourcing with MUGGLE_ENSURE_ELECTRON_LIB_ONLY=1 exposes the helper above
+# without running the hook — used by the unit test.
+if [ -n "${MUGGLE_ENSURE_ELECTRON_LIB_ONLY:-}" ]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 # Ensure the Electron browser test runner is installed/up to date (silent, best-effort).
 #
 # Bounded + cached: this script runs from a SessionStart hook on every Claude
@@ -16,7 +36,7 @@ ensure_ttl=$((24 * 60 * 60))
 ensure_now=$(date +%s)
 ensure_last=0
 if [ -f "${ensure_marker}" ]; then
-    ensure_last=$(stat -f %m "${ensure_marker}" 2>/dev/null || stat -c %Y "${ensure_marker}" 2>/dev/null || echo 0)
+    ensure_last=$(file_mtime "${ensure_marker}")
 fi
 
 if [ $((ensure_now - ensure_last)) -ge "${ensure_ttl}" ]; then
@@ -60,7 +80,7 @@ version_check() {
     now=$(date +%s)
 
     if [ -f "$cache_file" ]; then
-        mtime=$(stat -f %m "$cache_file" 2>/dev/null || stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+        mtime=$(file_mtime "$cache_file")
         age=$((now - mtime))
         if [ "$age" -lt "$ttl" ]; then
             cached=$(cat "$cache_file" 2>/dev/null || true)

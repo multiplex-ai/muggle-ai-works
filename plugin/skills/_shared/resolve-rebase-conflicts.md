@@ -1,6 +1,6 @@
 # Auto-Resolve Rebase Conflicts
 
-The autonomous conflict-resolution body, run when a rebase onto `origin/{default}` reports conflicts **and** [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md) is `always`. Under the default `never` the caller aborts and escalates instead, and this file never runs. The caller hands off the inputs below; this file names no caller — the dependency runs one way.
+The autonomous conflict-resolution body, run when a rebase onto `origin/{default}` reports conflicts **and** [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md) is `always`. Under `never` the caller aborts and escalates instead, and this file never runs. The caller hands off the inputs below; this file names no caller — the dependency runs one way.
 
 Contract: never push an auto-resolved rebase that has not passed the verify gate, and always keep the branch restorable to its pre-rebase state.
 

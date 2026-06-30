@@ -28,7 +28,7 @@ Run the rebase from [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before
 
 - **Clean replay** — a behind-only branch (and any rebase that hits no conflicts) replays without intervention. Proceed to Step 3.
 - **Conflicts** — handle per [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md):
-  - default `never` → abort and escalate per Step 5 (`kind: "rebase-conflict"`). The watcher keeps polling; the user resolves on GitHub, or opts into `autoResolveConflicts=always`.
+  - `never` → abort and escalate per Step 5 (`kind: "rebase-conflict"`). The watcher keeps polling; the user resolves on GitHub.
   - `always` → resolve behind the verify-or-rollback gate in [`../_shared/resolve-rebase-conflicts.md`](../_shared/resolve-rebase-conflicts.md).
 
 ### Step 3 — Verify the resolution
@@ -61,4 +61,4 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 
 - Max 2 rebase attempts per SHA; then escalate rather than churn.
 - Never push an unverified rebase — verify-or-rollback always.
-- The default `autoResolveConflicts=never` escalates to the user rather than guessing a conflict resolution. Auto-resolution of conflicts is strictly opt-in; a clean behind-only rebase needs no opt-in.
+- Resolve `autoResolveConflicts` from the configured preference (per the gate contract — don't assume a default): `always` resolves conflicts behind the verify-or-rollback gate, `never` escalates to the user. A clean behind-only rebase needs neither.

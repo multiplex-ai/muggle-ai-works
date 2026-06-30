@@ -62,7 +62,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 | Preference | Gate |
 | :--------- | :--- |
 | `autoE2ETest` | Stage 6 — run E2E every cycle (default `always`), or fold into pre-flight |
-| `autoResolveConflicts` | On rebase conflict — resolve autonomously behind a verify-or-rollback gate (opt-in), or abort + escalate (default `never`) |
+| `autoResolveConflicts` | On rebase conflict — `always` resolves autonomously behind a verify-or-rollback gate, `never` aborts + escalates; resolve from the configured preference (don't assume a default) |
 | `autoRouteBuildToMuggleDo` | Front-door guardrail — route build/implement/fix requests through this pipeline (build delegated to superpowers); fired by the UserPromptSubmit guardrail, default `ask` |
 
 `autoUseWorktree`, `autoRebase`, `autoResolveConflicts`, `autoCreatePR`, `autoCleanup`, `postPRVisualWalkthrough` fire from per-stage files.

@@ -81,6 +81,10 @@ def recall(report: dict, skill: str) -> float:
     return correct / len(rows)
 
 
+def has_no_coverage(skills: list[str], by_skill: dict) -> bool:
+    return not any(by_skill.get(s) for s in skills)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Run the skill-routing eval (chunked, guarded).")
     g = ap.add_mutually_exclusive_group()
@@ -121,6 +125,25 @@ def main():
         skills = [s.strip() for s in args.skills.split(",") if s.strip()]
     else:
         skills = sorted(by_skill)
+
+    # A PR that only touches skills with no positive queries in the eval-set
+    # (e.g. muggle-do) has nothing to route-test. Skip cleanly with a posted note
+    # rather than running zero chunks and hitting analyze.py's empty-input path —
+    # re-running would never help, so this must not red the check.
+    if has_no_coverage(skills, by_skill):
+        missing = ", ".join(skills) or "(none)"
+        msg = (
+            f"No routing queries cover the requested skill(s): {missing}. "
+            "The eval-set has no positive queries for them, so there is nothing "
+            "to evaluate — passing."
+        )
+        print(msg, file=sys.stderr)
+        combined = {"model": "claude (run.py)", "runs_per_query": args.runs, "results": []}
+        (out_dir / "combined.json").write_text(json.dumps(combined, indent=2), encoding="utf-8")
+        (out_dir / "combined.md").write_text("# Router eval report\n\n- " + msg + "\n", encoding="utf-8")
+        print(f"Report: {out_dir / 'combined.md'}", file=sys.stderr)
+        return
+
     all_results = []
     flagged = []
 

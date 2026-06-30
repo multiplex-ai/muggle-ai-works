@@ -30,7 +30,10 @@ permissions:
 jobs:
   skill-gate-eval:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # LLM-driven and fully sequential: every gate × every scenario × GATE_RUNS
+    # real Claude reps (~1 min each). 45 min cancelled healthy sweeps mid-gate;
+    # match the sibling skill-routing-eval budget so a full run can finish.
+    timeout-minutes: 180
     env:
       # Subscription auth, not a pay-per-use API key. Generate with
       # `claude setup-token` and store as the CLAUDE_CODE_OAUTH_TOKEN secret.

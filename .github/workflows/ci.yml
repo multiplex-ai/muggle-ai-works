@@ -33,6 +33,22 @@ jobs:
       - name: Build
         run: pnpm run build
 
+  # Guards the Python eval harness (skill-routing-eval). Pure stdlib unittest,
+  # no Claude calls, so it runs on every PR without the LLM evals' flake/cost.
+  harness-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run harness unit tests
+        run: python -m unittest discover -s internal/skill-routing-eval -p "test_*.py" -v
+
   # Type check with different TypeScript versions
   typecheck:
     runs-on: ubuntu-latest

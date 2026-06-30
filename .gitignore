@@ -5,6 +5,10 @@ node_modules/
 # Build output
 dist/
 
+# Python (skill-routing-eval harness)
+__pycache__/
+*.pyc
+
 # Declaration emit is disabled; ignore if regenerated locally next to sources
 packages/**/src/**/*.d.ts
 packages/**/src/**/*.d.ts.map

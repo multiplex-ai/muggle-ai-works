@@ -22,6 +22,7 @@
     "build:release": "npm run build",
     "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
     "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
     "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
     "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
     "build:workspace": "turbo run build",

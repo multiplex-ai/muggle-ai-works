@@ -140,3 +140,6 @@ jobs:
 
       - name: Verify compatibility contracts
         run: pnpm run verify:contracts
+
+      - name: Smoke-test the built CLI
+        run: pnpm run smoke:cli

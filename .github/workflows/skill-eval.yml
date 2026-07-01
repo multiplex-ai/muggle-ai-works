@@ -54,7 +54,7 @@ jobs:
           : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
 
       - name: Checkout works
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -99,7 +99,7 @@ jobs:
       # read other private repos).
       - name: Checkout scenario data (muggle-ai-brain)
         if: steps.scope.outputs.should_run == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: multiplex-ai/muggle-ai-brain
           token: ${{ secrets.BRAIN_REPO_TOKEN }}
@@ -216,7 +216,7 @@ jobs:
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
     steps:
       - name: Checkout works
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

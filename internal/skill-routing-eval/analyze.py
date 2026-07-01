@@ -70,6 +70,19 @@ def per_skill_report(report):
     passed = sum(1 for r in rows_all if r["_pass"])
     total = len(rows_all)
 
+    # An empty result set means the run collected nothing to score. Return a
+    # legible note instead of dividing by zero below — the caller still gets a
+    # combined.md to post rather than an opaque ZeroDivisionError traceback.
+    if total == 0:
+        return (
+            "# Router eval report\n\n"
+            f"- model: `{report.get('model')}`  runs/query: {report.get('runs_per_query')}\n"
+            "- **No routing samples were collected — nothing to score.**\n"
+            "- Either none of the evaluated skills had queries in the eval-set, or "
+            "every chunk flaked (MCP disconnect / subscription limit). Check the run "
+            "log; re-run if it was a flake.\n"
+        )
+
     pos_skills = sorted({r["expected_skill"] for r in rows_all if r["expected_skill"] != NONE})
     lines = []
     lines.append("# Router eval report")

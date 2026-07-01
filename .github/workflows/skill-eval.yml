@@ -263,7 +263,7 @@ jobs:
 
       - name: Setup Python
         if: steps.scope.outputs.should_run == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 

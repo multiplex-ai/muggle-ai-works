@@ -9,6 +9,7 @@ This folder holds the watcher loop that drives one PR toward merge-ready. The wa
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (resolves the validation context once when the PR has a testable surface — else seeds poll-only like auto-track — then dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit).
 - [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.
+- [`cancel-cron.md`](cancel-cron.md) — the find-and-delete that stops this watcher's cron, with the tool-call-not-shell guard. Referenced by `contract.md` and `finalize.md`.
 - [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed; runs at the top of auto-track and on demand.
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.

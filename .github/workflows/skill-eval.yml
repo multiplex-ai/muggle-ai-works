@@ -58,40 +58,56 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The gate suite is LLM-driven and slow. On a PR, skip it entirely when
-      # nothing gate-relevant changed: a SKILL.md whose only diff is the `model:`
-      # frontmatter (or a docs-only change) cannot alter gate behavior. Any gate
-      # content (skill body, preference-gates/*, ops/*) or harness change runs
-      # the full suite, unchanged. Non-PR events (nightly, dispatch) always run.
+      # The gate suite is LLM-driven and slow. On a PR, scope it to what the diff
+      # can actually affect. A gate runs the skill's body under its configured
+      # `model:`, so gate behavior shifts when either the gate content OR the
+      # model changes:
+      #   - harness / preference-gates / any non-SKILL.md skill file, or a
+      #     non-`model:` SKILL.md line → full suite (scope unknown).
+      #   - ONLY the `model:` line changed → the gate still runs, but scoped to
+      #     that skill: a cheaper model may mishandle the contract, so its gate
+      #     must re-run under the new model — while unrelated gates need not.
+      #   - docs-only / nothing skill-relevant → skip.
+      # `skills` is the scoped list (empty = full suite). Non-PR events run full.
       - name: Determine scope
         id: scope
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "skills=" >> "$GITHUB_OUTPUT"
             echo "Full gate sweep (event: ${{ github.event_name }})"
             exit 0
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
-          relevant=false
+          full=false
+          model_only=""
           if git diff --name-only "$base...HEAD" -- internal/skill-gate-eval/ | grep -q .; then
-            relevant=true
+            full=true
           else
             for s in $(git diff --name-only "$base...HEAD" -- plugin/skills/ | awk -F/ 'NF>=4{print $3}' | sort -u); do
-              # any non-SKILL.md file in the skill dir is gate-relevant
-              if git diff --name-only "$base...HEAD" -- "plugin/skills/$s/" | grep -qvE '/SKILL\.md$'; then relevant=true; break; fi
-              # a SKILL.md change counts only if a non-`model:` line changed
-              if git diff -U0 "$base...HEAD" -- "plugin/skills/$s/SKILL.md" \
-                   | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]model:[[:space:]]'; then relevant=true; break; fi
+              # any non-SKILL.md file in the skill dir is gate-relevant with unknown scope
+              if git diff --name-only "$base...HEAD" -- "plugin/skills/$s/" | grep -qvE '/SKILL\.md$'; then full=true; break; fi
+              d="$(git diff -U0 "$base...HEAD" -- "plugin/skills/$s/SKILL.md" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' || true)"
+              [ -z "$d" ] && continue
+              # a non-`model:` SKILL.md line (gate body) changed → full suite
+              if printf '%s\n' "$d" | grep -qvE '^[+-]model:[[:space:]]'; then full=true; break; fi
+              # only the `model:` line changed → re-run this skill's gate, scoped
+              if printf '%s\n' "$d" | grep -qE '^[+-]model:[[:space:]]'; then model_only="${model_only:+$model_only,}$s"; fi
             done
           fi
-          if $relevant; then
+          if $full; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "skills=" >> "$GITHUB_OUTPUT"
             echo "Gate-relevant changes detected — running full gate suite."
+          elif [ -n "$model_only" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "skills=$model_only" >> "$GITHUB_OUTPUT"
+            echo "Model-only change — gate eval scoped to: $model_only"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "No gate-relevant changes (model:-only / docs) — gate eval not required."
+            echo "No gate-relevant changes (docs) — gate eval not required."
           fi
 
       # Scenario data lives in a separate private repo; needs a token with read
@@ -149,6 +165,10 @@ jobs:
 
       - name: Run skill-gate evals (every gate in the scenario repo)
         if: steps.scope.outputs.should_run == 'true'
+        env:
+          # Empty = full suite; a comma-list scopes the run to those skills' gates
+          # (a model-only PR — see Determine scope).
+          SCOPE_SKILLS: ${{ steps.scope.outputs.skills }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -159,10 +179,18 @@ jobs:
           export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
           mkdir -p "$CLAUDE_CONFIG_DIR"
           fail=0
+          total=0
           ran=0
           for scenarios in "$MUGGLE_BRAIN_DIR"/eval/skill-gate-eval/*/scenarios.json; do
+            total=$((total + 1))
             gate="$(basename "$(dirname "$scenarios")")"
             skill="$(node -e "process.stdout.write(require(process.argv[1]).skill)" "$scenarios")"
+            if [ -n "$SCOPE_SKILLS" ]; then
+              case ",$SCOPE_SKILLS," in
+                *",$skill,"*) : ;;
+                *) echo "skip gate=$gate (skill=$skill not in scope: $SCOPE_SKILLS)"; continue ;;
+              esac
+            fi
             echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
             if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
@@ -175,9 +203,12 @@ jobs:
             ran=$((ran + 1))
             echo "::endgroup::"
           done
-          if [ "$ran" -eq 0 ]; then
+          if [ "$total" -eq 0 ]; then
             echo "No scenarios.json found under $MUGGLE_BRAIN_DIR/eval/skill-gate-eval" >&2
             exit 1
+          fi
+          if [ "$ran" -eq 0 ]; then
+            echo "Scoped to [$SCOPE_SKILLS] — no matching gate scenario; nothing to run (clean pass)."
           fi
           exit "$fail"
 

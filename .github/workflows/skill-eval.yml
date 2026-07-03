@@ -235,20 +235,24 @@ jobs:
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
-          # Routing depends only on a skill's `description:`. A change that only
-          # touches the `model:` frontmatter cannot affect routing, so exclude
-          # those skills — otherwise a model-only PR needlessly runs (and flakes)
-          # the eval. Keep a skill when its SKILL.md has any non-`model:` change.
+          # Routing depends only on a skill's frontmatter (`name` + `description`)
+          # — the body (gate contracts, procedure) never reaches the router. So
+          # compare just the frontmatter block, minus `model:`, between base and
+          # head: a `model:`-only or body-only change leaves it identical and is
+          # skipped. This is what stops a gate-body edit needlessly running (and
+          # flaking) the routing eval; a description/name change still runs it.
+          fm() { awk 'NR==1 && $0=="---"{f=1;next} f&&$0=="---"{exit} f{print}' | grep -vE '^model:[[:space:]]'; }
           relevant=""
           for s in $(git diff --name-only "$base...HEAD" -- 'plugin/skills/*/SKILL.md' | awk -F/ '{print $3}' | sort -u); do
-            if git diff -U0 "$base...HEAD" -- "plugin/skills/$s/SKILL.md" \
-                 | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' | grep -qvE '^[+-]model:[[:space:]]'; then
+            before="$(git show "$base:plugin/skills/$s/SKILL.md" 2>/dev/null | fm || true)"
+            after="$(git show "HEAD:plugin/skills/$s/SKILL.md" 2>/dev/null | fm || true)"
+            if [ "$before" != "$after" ]; then
               relevant="${relevant:+$relevant,}$s"
             fi
           done
           if [ -z "$relevant" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "No routing-relevant SKILL.md changes (model:-only) — routing eval not required."
+            echo "No routing-relevant frontmatter changes (model:-only / body-only) — routing eval not required."
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "skills=$relevant" >> "$GITHUB_OUTPUT"

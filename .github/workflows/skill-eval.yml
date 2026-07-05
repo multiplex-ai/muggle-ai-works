@@ -4,9 +4,17 @@ name: Skill Evals
 # contract) and the routing eval (skill descriptions route the right queries).
 # Both are LLM-driven, so the per-PR routing run is scoped to the skills the PR
 # touches; the full 391-query routing sweep runs nightly and on demand.
+#
+# The `run-full-eval` label forces the full gate + routing suite on any PR — even
+# one that changes only runtime and touches no skill/gate file (which the change
+# detection would skip). The on-demand lever for de-risking a refactor that alters
+# how skills are delivered but not their definitions.
 on:
   pull_request:
     branches: [master]
+    # Re-declaring the defaults keeps opened/synchronize/reopened; `labeled` lets
+    # the run-full-eval label force the full suite (each job's scope step reads it).
+    types: [opened, synchronize, reopened, labeled]
   schedule:
     - cron: "0 7 * * *"
   workflow_dispatch:
@@ -71,8 +79,18 @@ jobs:
       # `skills` is the scoped list (empty = full suite). Non-PR events run full.
       - name: Determine scope
         id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
         run: |
           set -euo pipefail
+          # The run-full-eval label runs the whole gate suite regardless of what
+          # the PR changed — the change detection below skips runtime-only PRs.
+          if [ "$RUN_FULL_EVAL" = "true" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "skills=" >> "$GITHUB_OUTPUT"
+            echo "Full gate sweep (run-full-eval label)"
+            exit 0
+          fi
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "skills=" >> "$GITHUB_OUTPUT"
@@ -256,10 +274,22 @@ jobs:
       # remaining steps are skipped — the required check still goes green.
       - name: Determine scope
         id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
         run: |
           set -euo pipefail
+          # The run-full-eval label runs the full 391-query sweep on any PR, even
+          # one that changed no skill description (which the detection below skips).
+          if [ "$RUN_FULL_EVAL" = "true" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo "skills=" >> "$GITHUB_OUTPUT"
+            echo "Full routing sweep (run-full-eval label)"
+            exit 0
+          fi
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "full=true" >> "$GITHUB_OUTPUT"
             echo "skills=" >> "$GITHUB_OUTPUT"
             echo "Full routing sweep (event: ${{ github.event_name }})"
             exit 0
@@ -283,9 +313,11 @@ jobs:
           done
           if [ -z "$relevant" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "full=false" >> "$GITHUB_OUTPUT"
             echo "No routing-relevant frontmatter changes (model:-only / body-only) — routing eval not required."
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "full=false" >> "$GITHUB_OUTPUT"
             echo "skills=$relevant" >> "$GITHUB_OUTPUT"
             echo "Routing-relevant skills: $relevant"
           fi
@@ -342,13 +374,17 @@ jobs:
         run: |
           set -euo pipefail
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          # A full sweep (nightly, dispatch, or the run-full-eval label) scores the
+          # whole 391-query set at the nightly 0.95 bar — it carries known-flaky
+          # tail queries. A scoped PR run demands 1.0: the skills it changed must
+          # route perfectly.
+          if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
+            python internal/skill-routing-eval/run.py \
+              --all --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 0.95
+          else
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \
               --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 1.0
-          else
-            python internal/skill-routing-eval/run.py \
-              --all --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 0.95
           fi
 
       # Post the routing report (reports/run/combined.md) to the job summary and,

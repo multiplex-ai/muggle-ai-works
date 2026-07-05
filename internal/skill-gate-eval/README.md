@@ -62,6 +62,9 @@ blocking workflow — see CI below.
 `.github/workflows/skill-eval.yml` runs every gate found under
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/*/scenarios.json` on each PR to
 `master` (`--runs 10`, each scenario must hold ≥99%), plus nightly and on
-`workflow_dispatch`. It checks out `muggle-ai-brain` for the scenarios, so
+`workflow_dispatch`. A PR that changes only runtime (no gate/skill files) is
+skipped; label it `run-full-eval` to force the whole suite anyway — the lever
+for de-risking a refactor that changes how skills run, not their definitions.
+It checks out `muggle-ai-brain` for the scenarios, so
 CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
 `claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).

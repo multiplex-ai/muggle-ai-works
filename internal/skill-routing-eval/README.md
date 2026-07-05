@@ -41,6 +41,9 @@ python internal/skill-routing-eval/analyze.py report --in <report.json> --out <r
 
 `.github/workflows/skill-eval.yml` runs this on every PR to `master`, scoped to
 the skills the PR changed; the full set runs nightly and on `workflow_dispatch`.
+A PR that changed no skill description is skipped; label it `run-full-eval` to
+force the full 391-query sweep anyway (the lever for de-risking a runtime
+refactor that touches no `SKILL.md`).
 
 - `--skills a,b` — run a subset (CI derives it from the PR's changed `plugin/skills/*/SKILL.md`).
 - `--fail-under F` — exit non-zero if accuracy < F, or if a chunk stays 0% (suspected disconnect, unverified). Default `0.0` keeps dev runs informational. CI uses `1.0` on PRs (changed skills must route perfectly) and `0.95` for the nightly full sweep.

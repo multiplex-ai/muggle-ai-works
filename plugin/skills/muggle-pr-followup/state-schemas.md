@@ -2,7 +2,7 @@
 
 Canonical shapes for the JSON files in a PR-follow-up session slot. The slot path is `~/.muggle-ai/muggle-do/sessions/<slug>/` (under the user's home, shared across repos; `muggle-do` is the current and only caller).
 
-All files are atomic writes — the caller rewrites the whole file each time, never mutates in place. Use a temp file + rename if the platform supports it.
+All files are **whole-file atomic writes** — rewrite the entire file each time, never a partial Edit. The mechanism (tool-based, OS-agnostic) and the reason Edit fails on these files live in [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md).
 
 ## Legacy location
 

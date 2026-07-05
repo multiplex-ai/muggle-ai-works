@@ -23,6 +23,10 @@ Read these from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 If either file is missing or the PR is not in `prs.json`, the tick is a no-op. Log an error line in `followup.log` and exit. The watcher must not be invoked in this state — if it happens, the slot is corrupt.
 
+## Writing state
+
+Every `increment`/`reset` this procedure applies to `last_seen.json`, and the `prs.json` refresh in Step 1, is a **whole-file rewrite** (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md). **Never** patch session JSON with the Edit tool — an exact-string match against these files silently fails ("malformed edit") and drops the update, so the counter never advances.
+
 ## Procedure
 
 ### Step 0 — Stale-fire guard

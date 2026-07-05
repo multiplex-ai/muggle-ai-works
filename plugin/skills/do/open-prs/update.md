@@ -24,7 +24,7 @@ Resolve the provider once per [`../../_shared/vcs/detect-vcs.md`](../../_shared/
 
 1. **Push:** per [`../../_shared/vcs/github/push-to-branch.md`](../../_shared/vcs/github/push-to-branch.md). Capture the new SHA.
 
-2. **Append new SHA** to `last_seen.json[<key>].pushed_shas` (the resolve-reminder stage uses this to recognize threads addressed by the loop). Set `last_seen.last_pushed_sha` to the new SHA too.
+2. **Append new SHA** to `last_seen.json[<key>].pushed_shas` (the resolve-reminder stage uses this to recognize threads addressed by the loop). Set `last_seen.last_pushed_sha` to the new SHA too. Both are whole-file rewrites (Read → change field → Write) per [`../../_shared/session-state-writes.md`](../../_shared/session-state-writes.md) — never the Edit tool.
 
 3. **Refresh title if state changed.** Compare the new state against the current PR title prefix:
    - E2E now passing, current title has `[E2E FAILING]` → strip the prefix per [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md).

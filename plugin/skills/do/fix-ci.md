@@ -39,7 +39,7 @@ Commit per the `fix(ci): <check> — <what>` convention ([`../_shared/pr-followu
 
 ### Step 5 — Update state + respawn
 
-- Increment `last_seen.ci_fix_attempts[red_sha]`.
+- Increment `last_seen.ci_fix_attempts[red_sha]` — a whole-file `jq` rewrite per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#writing-state-files), never the Edit tool.
 - Respawn the watcher: `/loop 1m /muggle:muggle-pr-followup <slug> <n>`. The watcher cancelled its own cron when it dispatched this fix-ci cycle ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md) Step 5), so this restart is the single live watcher. CI on the new SHA is the verify loop — a still-red SHA returns as a fresh dispatch, bounded by the per-SHA fix budget (Step 6).
 
 ### Step 6 — Escalate (budget spent or out of scope)

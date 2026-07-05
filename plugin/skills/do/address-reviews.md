@@ -103,6 +103,8 @@ Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable re
 
 ### Step 5 — Update session state
 
+Apply each field write below as a whole-file `jq` rewrite per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#writing-state-files) — never the Edit tool.
+
 - `last_seen.cycles_completed` += 1
 - `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)
 - `last_seen.lastBodyReviewId` = max(body-only input review ids ∪ last_seen.lastBodyReviewId) — line-comment threads need no watermark; they fall out of the actionable set once the per-comment reply carries the loop marker.

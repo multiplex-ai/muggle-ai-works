@@ -37,7 +37,7 @@ Build (typecheck + lint on the changed surface) + unit suite must pass. Run E2E 
 
 ### Step 4 — Force-push + respawn
 
-Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_sha]` — both whole-file `jq` rewrites per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#writing-state-files), never the Edit tool. Respawn the watcher as the last action:
+Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_sha]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher as the last action:
 
 ```
 /loop 1m /muggle:muggle-pr-followup <slug> <n>

@@ -2,32 +2,7 @@
 
 Canonical shapes for the JSON files in a PR-follow-up session slot. The slot path is `~/.muggle-ai/muggle-do/sessions/<slug>/` (under the user's home, shared across repos; `muggle-do` is the current and only caller).
 
-All files are **whole-file atomic writes** — rewrite the entire file each time, never a partial edit. See [Writing state files](#writing-state-files) for the exact mechanism.
-
-## Writing state files
-
-Apply every `increment` / `reset` / `set` / `append` the procedures call for as a **whole-file rewrite** — `jq` to a temp file, then `mv` — so untouched fields survive and the write is atomic:
-
-```bash
-f=~/.muggle-ai/muggle-do/sessions/<slug>/last_seen.json
-key=$(jq -r 'keys[0]' "$f")          # the single "<owner>/<repo>#<n>" key
-tmp=$(mktemp)
-jq --arg k "$key" '.[$k].idle_tick_count += 1' "$f" > "$tmp" && mv "$tmp" "$f"
-```
-
-Per mutation kind — substitute the field, add the `--arg` it needs:
-
-| Kind | `jq` filter |
-| :--- | :---------- |
-| increment counter | `.[$k].idle_tick_count += 1` |
-| reset counter | `.[$k].idle_tick_count = 0` |
-| set scalar | `.[$k].last_pushed_sha = $sha` (`--arg sha "$new_sha"`) |
-| append to array | `.[$k].pushed_shas += [$sha]` |
-| bump per-SHA map entry | `.[$k].ci_fix_attempts[$sha] = ((.[$k].ci_fix_attempts[$sha] // 0) + 1)` |
-
-`prs.json` is a one-element array — key on `.[0]`: `jq --arg sha "$h" --arg st "$s" '.[0].head_sha = $sha | .[0].state = $st' "$f" > "$tmp" && mv "$tmp" "$f"`.
-
-**Never patch these files with the Edit tool.** On-disk formatting is not guaranteed to match the shapes shown below — a writer may emit them single-line — so an `old_string` shaped on the documented form silently fails to match, the edit is dropped ("malformed edit"), and the counter never advances. `jq` and Write ignore formatting and can't miss. If `jq` is unavailable, Read the whole file and rewrite it with Write — still never a partial Edit.
+All files are **whole-file atomic writes** — rewrite the entire file each time, never a partial Edit. The mechanism (tool-based, OS-agnostic) and the reason Edit fails on these files live in [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md).
 
 ## Legacy location
 

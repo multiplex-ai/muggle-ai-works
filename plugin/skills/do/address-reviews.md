@@ -103,7 +103,7 @@ Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable re
 
 ### Step 5 — Update session state
 
-Apply each field write below as a whole-file `jq` rewrite per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#writing-state-files) — never the Edit tool.
+Apply each field write below as a whole-file rewrite (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md) — never the Edit tool.
 
 - `last_seen.cycles_completed` += 1
 - `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)

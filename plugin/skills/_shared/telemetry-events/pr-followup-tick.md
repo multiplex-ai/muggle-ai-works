@@ -17,6 +17,7 @@ One per watcher iteration (idle or not).
   "dispatched_ci_fix": true | false,
   "terminal": true | false,
   "idle": true | false,
+  "parked": true | false,
   "tick_duration_ms": <int>
 }
 ```
@@ -29,3 +30,4 @@ One per watcher iteration (idle or not).
 - `dispatched_ci_fix`: true when this tick dispatched `/muggle-do` with a fix-ci directive.
 - `terminal`: true when this tick observed the PR merged or closed and wrote `result.md`.
 - `idle`: true when nothing was dispatched this tick.
+- `parked`: true on a tick spent backed off on a PR blocked pending a human — either the tick that entered park (a durable block: escalated rebase/CI, or an ambiguous review awaiting the user) or a subsequent parked tick that recomputed the fingerprint and stayed parked. `false` on the un-park tick and every active-cadence tick. Always accompanies `idle: true`.

@@ -29,9 +29,11 @@ Every `increment`/`reset` this procedure applies to `last_seen.json`, and the `p
 
 ## Procedure
 
-### Step 0 — Stale-fire guard
+### Step 0 — Stale-fire guard, then record this cron's id
 
 If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was finalized by a prior tick and this is a stale (queued) fire — per-minute cron fires enqueued while the session was busy still drain after the cron is cancelled. Defensively cancel any lingering cron for this slug per [`cancel-cron.md`](cancel-cron.md) (no-op if none), append a `stale-tick` line to `followup.log`, and exit. Do not re-fetch or re-finalize.
+
+Otherwise, self-record this watcher's cron id per [`record-cron-id.md`](record-cron-id.md) before proceeding. Recording every tick — while `CronList` can still see the cron — is what keeps the id a valid `CronDelete` target after a session continue / compaction blinds `CronList` to it, so teardown ([`finalize.md`](finalize.md), [`reconcile.md`](reconcile.md)) can always kill the orphan.
 
 ### Step 1 — Refresh PR state
 
@@ -51,6 +53,26 @@ If `state` is `MERGED` or `CLOSED`:
    `/muggle-do` owns the worktree/branch knowledge: it runs teardown only on `merged` (honoring the `autoCleanup` gate — `closed` is unmerged, so the branch and any worktree stay intact), then suggests the next step. This is a runtime dispatch, not a doc dependency on `/muggle-do` — see the one-way rule in [`../CLAUDE.md`](../CLAUDE.md).
 3. Exit. The watcher has unscheduled itself; no future ticks fire for this PR.
 
+
+### Step 2.5 — Park-resume gate
+
+Only when `last_seen.park` is present (the watcher is backed off — see Step 7 and [`state-schemas.md`](state-schemas.md#last_seenjson)). When absent, skip straight to Step 3.
+
+A parked slot polls on the slow parked cadence, and each parked tick's whole job is to decide **resume or stay parked** — never to dispatch. Recompute the fingerprint from live state:
+
+- `head_sha` — from the Step 1 refresh.
+- `latest_review_id` — `max(id)` over submitted reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md) (`0` if none).
+- `ci_digest` — the CI rollup digest for `head_sha` per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md): the bucket plus each check's name and conclusion, sorted into one stable string.
+
+Compare to `last_seen.park.fingerprint`:
+
+- **Unchanged** → stay parked. Increment `last_seen.idle_tick_count`, append a `parked` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `parked: true`. Exit. The slow cron persists — no re-arm.
+- **Changed** → un-park, then exit. The block may have cleared: a new push (`head_sha` moved, which also cleared the per-SHA escalation sets), a new review, or a CI/deploy state change. Restoring the active cadence is a cron swap, so this tick only swaps and exits — the next `1m` tick does the actual review/CI/rebase evaluation, ≤1 min later. Do **not** fall through to Step 3: a fall-through that dispatched would cancel and let `/muggle-do` respawn the watcher, double-arming against the `1m` cron armed here.
+
+  1. Clear `last_seen.park`.
+  2. Cancel the parked cron per [`cancel-cron.md`](cancel-cron.md); set `cron.json` to `interval: "1m"`, `cron_id: null` (the next tick self-records the new id).
+  3. Append an `unparked` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `parked: false`.
+  4. Re-arm `/loop 1m /muggle:muggle-pr-followup <slug> <n>` as the last action of the turn. Exit.
 
 ### Step 3 — Compute the actionable set from live thread state
 
@@ -125,9 +147,26 @@ Fetch the CI rollup for `prs.json[0].head_sha`, provider resolved as in Step 3 �
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
 - **One or more red, but `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas`** → idle. The fix budget is spent; `/muggle-do`'s fix-ci stage already recorded the escalation. The watcher does not re-dispatch.
 
-### Step 7 — Idle
+### Step 7 — Idle (park when blocked pending a human)
 
-Any idle branch (Steps 4–6 that did not dispatch): increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+Any idle branch (Steps 4–6 that did not dispatch). First classify **why** this tick idled. It is **blocked pending a human** when the head is under a durable block that only the user can clear:
+
+- `head_sha` ∈ `conflict_escalated_shas` — a rebase `/muggle-do` gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`; or
+- `head_sha` ∈ `ci_escalated_shas` — CI the fix-ci stage gave up on, reason `ci_escalated`; or
+- `last_seen.escalated_review_ids` is non-empty with the actionable set empty — an ambiguous review awaiting the user's direction, reason `reviews_escalated`.
+
+Everything else that idles is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
+
+**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `parked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+
+**Blocked pending a human** (a durable block, and `last_seen.park` not already set): back off instead of re-polling every minute — nothing the watcher does moves a human-blocked PR, so a `1m` cron here just burns a model turn a minute (a real PR accrued 1000+ such idle ticks over days). Park:
+
+1. Increment `last_seen.idle_tick_count`.
+2. Compute the park fingerprint — `{ head_sha, latest_review_id, ci_digest }` exactly as Step 2.5 defines it (reuse the `latest_review_id` / `ci_digest` already fetched this tick). Write `last_seen.park = { reason, since: <now>, fingerprint }`.
+3. Swap to the parked cadence: cancel the `1m` cron per [`cancel-cron.md`](cancel-cron.md); set `cron.json` to `interval: "<parked-interval>"`, `cron_id: null`; re-arm `/loop <parked-interval> /muggle:muggle-pr-followup <slug> <n>` as the last action of the turn.
+4. Append a `parked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `parked: true`, and the same fields as the transient case. Exit.
+
+**Parked interval:** `30m`. From here every parked tick runs the Step 2.5 resume check and un-parks the instant `head_sha`, a review, or CI moves — so an external unblock (a force-push after the user resolves, a re-review, a staging deploy finishing) is caught within one parked interval, and the branch-vs-base / CI / review evaluation still happens, just at the backed-off cadence.
 
 ## Output
 

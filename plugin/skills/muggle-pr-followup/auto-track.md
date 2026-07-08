@@ -51,7 +51,7 @@ For each PR URL in the track list, run the [`bootstrap.md`](bootstrap.md) proced
 - **Existing slot → skip silently** (never the slot-conflict abort); add it to the *skipped* list.
 - **`caller = "auto-track"`** in the bootstrap telemetry event.
 
-Everything else is unchanged: URL parse, metadata + terminal-PR abort, slug, `lastBodyReviewId` 0 (line-comment threads are picked up live from thread state; body-only reviews from id 0), and the `prs.json`/`last_seen.json`/`state.md` writes minus the pre-flight block.
+Everything else is unchanged: URL parse, metadata + terminal-PR abort, slug, `lastBodyReviewId` 0 (line-comment threads are picked up live from thread state; body-only reviews from id 0), and the `prs.json`/`last_seen.json`/`cron.json`/`state.md` writes minus the pre-flight block.
 
 ### Step 5 — Print the summary
 

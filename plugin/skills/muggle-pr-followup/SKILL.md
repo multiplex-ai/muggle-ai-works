@@ -14,6 +14,10 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Per-PR isolation.** One watcher per PR. Multi-PR work runs N independent watchers.
 
+**Backoff when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher **parks**: it swaps the `1m` cron for a slow parked cadence and each parked tick only checks a fingerprint (head sha, latest review, CI state), un-parking the instant any of them moves ([`contract.md`](contract.md) Steps 2.5, 7). This stops the per-minute idle ticks that otherwise pile up for days on a stuck PR.
+
+**Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone.
+
 ## Routing
 
 The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-disk state. It never runs procedure inline — it identifies the mode and routes to the appropriate procedure file.

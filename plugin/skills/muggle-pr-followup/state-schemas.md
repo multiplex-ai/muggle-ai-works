@@ -30,6 +30,23 @@ A list of one entry. (Historical: the file is an array for forward-compat with t
 - `state` is the **observed** state from the last `gh pr view`. The watcher refreshes it each tick.
 - Terminal states (`merged`, `closed`) are sticky — once set, the watcher writes `result.md` and exits without rescheduling.
 
+## `cron.json`
+
+A durable, on-disk handle to this slot's watcher cron. Its whole reason to exist: `CronList` goes **blind to crons that outlive a session continue / compaction** (the watcher's `/loop` cron survives, but the tool can no longer enumerate it), so a teardown that can only find crons through `CronList` can never delete the orphan — it re-fires until the 7-day `/loop` expiry. A cron id recorded to disk **while the cron was still visible** stays a valid `CronDelete` target afterward. See [`record-cron-id.md`](record-cron-id.md) (who writes it) and [`cancel-cron.md`](cancel-cron.md) (who deletes by it).
+
+```json
+{
+  "cron_id": "<scheduler-id-or-null>",
+  "command": "/muggle:muggle-pr-followup <slug> <n>",
+  "interval": "1m" | "<parked-interval>",
+  "recorded_at": "<ISO-8601>"
+}
+```
+
+- `cron_id`: the scheduler id of the live `/loop` cron for this slot. Bootstrap seeds `null` (it dispatches `/loop` as its last action and cannot yet see the id); the first tick self-records the real id per [`record-cron-id.md`](record-cron-id.md). `null` again for the one tick after a cadence swap (park / un-park cancels the old cron and arms a new one whose id is unknown until the next tick observes it).
+- `command`: the exact two-arg dispatch, the same string [`cancel-cron.md`](cancel-cron.md) matches on as its `CronList` fallback.
+- `interval`: the current cadence — `1m` when active, the parked interval while backed off (`park` present in `last_seen.json`).
+
 ## `last_seen.json`
 
 Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
@@ -46,7 +63,16 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "ci_fix_attempts": { "<sha>": <int> },
     "ci_escalated_shas": ["<sha>", ...],
     "conflict_resolve_attempts": { "<sha>": <int> },
-    "conflict_escalated_shas": ["<sha>", ...]
+    "conflict_escalated_shas": ["<sha>", ...],
+    "park": {
+      "reason": "conflict_escalated" | "ci_escalated" | "reviews_escalated",
+      "since": "<ISO-8601>",
+      "fingerprint": {
+        "head_sha": "<sha>",
+        "latest_review_id": <int>,
+        "ci_digest": "<string>"
+      }
+    }
   }
 }
 ```
@@ -61,6 +87,9 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
 - `conflict_resolve_attempts`: per-SHA count of rebase cycles `/muggle-do` has run for this SHA (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching a rebase for a SHA once its count reaches 2. Keyed by head SHA. A clean behind-only rebase produces a new SHA, so the cap only bites a SHA that keeps failing to rebase-and-verify.
 - `conflict_escalated_shas`: head SHAs whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless SHA is never re-attempted.
+- `park`: present only while the watcher is **backed off** on a PR that cannot progress without a human ([`contract.md`](contract.md) Step 7). Absent ⇒ the watcher polls at the active `1m` cadence. When present, the watcher runs at the parked cadence and each tick is a resume check ([`contract.md`](contract.md) Step 2.5): it recomputes the `fingerprint` and un-parks the moment any component moves.
+  - `reason`: which durable block triggered the park — `conflict_escalated` (`head_sha` ∈ `conflict_escalated_shas`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), or `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty). Diagnostic; the resume decision is fingerprint-driven, not reason-driven.
+  - `fingerprint`: the external state the park is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts. Any change un-parks.
 
 ## `state.md`
 

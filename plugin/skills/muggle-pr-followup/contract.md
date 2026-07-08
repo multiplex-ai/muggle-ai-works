@@ -54,20 +54,11 @@ If `state` is `MERGED` or `CLOSED`:
 3. Exit. The watcher has unscheduled itself; no future ticks fire for this PR.
 
 
-### Step 2.5 — Blocked-tick gate (remind, or resume on change)
+### Step 2.5 — Blocked-tick gate
 
-Only when `last_seen.blocked` is present (the watcher is awaiting the owner on a durable human-block — see Step 7 and [`state-schemas.md`](state-schemas.md#last_seenjson)). When absent, skip straight to Step 3.
+Only when `last_seen.blocked` is present (the watcher is awaiting the owner on a durable human-block, flagged in Step 7). When absent, skip straight to Step 3.
 
-The watcher **stays on the responsive `1m` cadence while blocked** — it never slows or stops the poll. This gate keeps each blocked tick cheap: recompute the fingerprint, re-emit one line to the owner, and only re-run the full Step 3–6 evaluation when the fingerprint moves. Recompute from live state:
-
-- `head_sha` — from the Step 1 refresh.
-- `latest_review_id` — `max(id)` over submitted reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md) (`0` if none).
-- `ci_digest` — the CI rollup digest for `head_sha` per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md): the bucket plus each check's name and conclusion, sorted into one stable string.
-
-Compare to `last_seen.blocked.fingerprint`:
-
-- **Unchanged** → still blocked. **Remind the owner:** emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md) — the pending act plus a reference back to the decision context (the escalation, the review, or the blocked SHA). Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: true`, `reminded: true`. Exit. The `1m` cron is unchanged — no cron swap, no re-arm.
-- **Changed** → the block may have cleared: a new push (`head_sha` moved, which also cleared the per-SHA escalation sets), a new review, or a CI/deploy state change. Clear `last_seen.blocked` and **fall through to Step 3** to re-evaluate against the moved state this same tick. Safe because the cadence was `1m` throughout — there is no slowed cron to swap and no double-arm: if Step 3–6 dispatches, that is the normal single-thread stop-and-respawn; if it idles back into the block, Step 7 re-flags it.
+Run the remind-or-resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint, re-emit the one-line owner reminder and stay blocked while it holds, or clear the block and fall through to Step 3 the moment it moves. The watcher stays on the responsive `1m` cadence throughout — it never slows or stops the poll.
 
 ### Step 3 — Compute the actionable set from live thread state
 
@@ -154,14 +145,7 @@ Everything else that idles is **transient** — green and waiting for the next r
 
 **Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `reminded: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
-**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): the watcher **keeps the responsive `1m` cadence** — it must not stop or slow the poll — but turns each blocked tick from a silent idle into a **reminder**. Nothing the watcher does moves a human-blocked PR, so the value of continuing to poll is twofold: keep the owner aware of the pending act until they answer, and catch an external unblock within a minute. The cost stays bounded because each blocked tick is cheap — a fingerprint check and one line out (Step 2.5), not a full re-evaluation. Flag the block and remind:
-
-1. Increment `last_seen.idle_tick_count`.
-2. Compute the fingerprint — `{ head_sha, latest_review_id, ci_digest }` exactly as Step 2.5 defines it (reuse the `latest_review_id` / `ci_digest` already fetched this tick). Write `last_seen.blocked = { reason, since: <now>, fingerprint }`.
-3. **Remind the owner:** emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md) — the pending act plus a reference back to the decision context.
-4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, `reminded: true`, and the same fields as the transient case. The `1m` cron is unchanged — no cadence swap, no re-arm. Exit.
-
-From the next tick on, the Step 2.5 gate carries the block: it re-reminds the owner each tick and clears the block the instant `head_sha`, a review, or CI moves — so an external unblock (a force-push after the user resolves, a re-review, a staging deploy finishing) is caught within one minute, at no loss of responsiveness.
+**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, keeping the responsive `1m` cadence (the watcher reminds rather than backing off). From the next tick on, the Step 2.5 gate carries the block. Exit.
 
 ## Output
 

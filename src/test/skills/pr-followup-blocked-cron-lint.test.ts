@@ -30,6 +30,7 @@ describe("pr-followup blocked-reminder wiring", () => {
   const contract = read(SKILL_DIR, "contract.md");
   const stateSchemas = read(SKILL_DIR, "state-schemas.md");
   const watcherLog = read(SKILL_DIR, "output-templates", "watcher-log.md");
+  const blockedTick = read(SKILL_DIR, "blocked-tick.md");
   const blockedReminder = read(
     SKILL_DIR,
     "output-templates",
@@ -47,10 +48,21 @@ describe("pr-followup blocked-reminder wiring", () => {
     }
   });
 
-  it("contract has a blocked-tick gate that recomputes the fingerprint and reminds", () => {
+  it("contract's blocked-tick gate references the extracted blocked-tick.md", () => {
     expect(contract).toMatch(/Blocked-tick gate/i);
-    expect(contract).toMatch(/fingerprint/i);
-    expect(contract).toMatch(/blocked-reminder\.md/);
+    expect(contract).toMatch(/blocked-tick\.md/);
+  });
+
+  it("blocked-tick.md carries the fingerprint + remind detail extracted from contract", () => {
+    expect(fs.existsSync(path.join(SKILL_DIR, "blocked-tick.md"))).toBe(true);
+    for (const component of ["head_sha", "latest_review_id", "ci_digest"]) {
+      expect(
+        blockedTick.includes(component),
+        `blocked-tick.md fingerprint is missing ${component}`,
+      ).toBe(true);
+    }
+    expect(blockedTick).toMatch(/blocked-reminder\.md/);
+    expect(blockedTick).toMatch(/Remind or resume/i);
   });
 
   it("contract's idle step reminds on every durable human-block reason", () => {
@@ -69,9 +81,11 @@ describe("pr-followup blocked-reminder wiring", () => {
   it("blocked watcher keeps the responsive 1m cadence — never slows or backs off", () => {
     // The whole point of this design: keep polling, remind — do not park/slow.
     expect(contract).toMatch(/never slows or stops the poll/i);
-    expect(contract).not.toMatch(/parked/i);
-    expect(contract).not.toMatch(/un-?park/i);
-    expect(contract).not.toMatch(/30m/);
+    for (const doc of [contract, blockedTick]) {
+      expect(doc).not.toMatch(/parked/i);
+      expect(doc).not.toMatch(/un-?park/i);
+      expect(doc).not.toMatch(/30m/);
+    }
   });
 
   it("blocked-reminder template is one line with a per-reason traceback reference", () => {

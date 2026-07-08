@@ -1,9 +1,10 @@
 /**
- * Static wiring lint for the muggle-pr-followup park/backoff state and the
+ * Static wiring lint for the muggle-pr-followup blocked-reminder state and the
  * durable cron-id lifecycle. Guards the two features against silent drift —
  * a schema field dropped from a doc, a procedure step deleted, a log-line
- * template removed. It reads the prose contract; it does not execute the
- * watcher (that judgment lives in the LLM at runtime).
+ * template removed, or the responsive cadence quietly reintroducing a backoff.
+ * It reads the prose contract; it does not execute the watcher (that judgment
+ * lives in the LLM at runtime).
  */
 
 import { describe, it, expect } from "vitest";
@@ -25,33 +26,34 @@ function read(...segments: string[]): string {
   return fs.readFileSync(path.join(...segments), "utf8");
 }
 
-describe("pr-followup park/backoff wiring", () => {
+describe("pr-followup blocked-reminder wiring", () => {
   const contract = read(SKILL_DIR, "contract.md");
   const stateSchemas = read(SKILL_DIR, "state-schemas.md");
   const watcherLog = read(SKILL_DIR, "output-templates", "watcher-log.md");
-  const tickEvent = read(
-    SHARED_DIR,
-    "telemetry-events",
-    "pr-followup-tick.md",
+  const blockedReminder = read(
+    SKILL_DIR,
+    "output-templates",
+    "blocked-reminder.md",
   );
+  const tickEvent = read(SHARED_DIR, "telemetry-events", "pr-followup-tick.md");
 
-  it("state-schemas documents the park field with its fingerprint components", () => {
-    expect(stateSchemas).toMatch(/"park"/);
+  it("state-schemas documents the blocked field with its fingerprint components", () => {
+    expect(stateSchemas).toMatch(/"blocked"/);
     for (const component of ["head_sha", "latest_review_id", "ci_digest"]) {
       expect(
         stateSchemas.includes(component),
-        `state-schemas.md park fingerprint is missing ${component}`,
+        `state-schemas.md blocked fingerprint is missing ${component}`,
       ).toBe(true);
     }
   });
 
-  it("contract has a park-resume gate that recomputes and compares the fingerprint", () => {
-    expect(contract).toMatch(/Park-resume gate/i);
+  it("contract has a blocked-tick gate that recomputes the fingerprint and reminds", () => {
+    expect(contract).toMatch(/Blocked-tick gate/i);
     expect(contract).toMatch(/fingerprint/i);
-    expect(contract).toMatch(/un-?park/i);
+    expect(contract).toMatch(/blocked-reminder\.md/);
   });
 
-  it("contract's idle step parks on every durable human-block reason", () => {
+  it("contract's idle step reminds on every durable human-block reason", () => {
     for (const reason of [
       "conflict_escalated",
       "ci_escalated",
@@ -59,23 +61,47 @@ describe("pr-followup park/backoff wiring", () => {
     ]) {
       expect(
         contract.includes(reason),
-        `contract.md idle step does not cover park reason ${reason}`,
+        `contract.md idle step does not cover blocked reason ${reason}`,
       ).toBe(true);
     }
   });
 
-  it("contract swaps cadence to a defined parked interval, not a bare 1m re-arm", () => {
-    expect(contract).toMatch(/parked interval/i);
-    expect(contract).toMatch(/30m/);
+  it("blocked watcher keeps the responsive 1m cadence — never slows or backs off", () => {
+    // The whole point of this design: keep polling, remind — do not park/slow.
+    expect(contract).toMatch(/never slows or stops the poll/i);
+    expect(contract).not.toMatch(/parked/i);
+    expect(contract).not.toMatch(/un-?park/i);
+    expect(contract).not.toMatch(/30m/);
   });
 
-  it("watcher-log carries parked and unparked line shapes", () => {
-    expect(watcherLog).toMatch(/parked/);
-    expect(watcherLog).toMatch(/unparked/);
+  it("blocked-reminder template is one line with a per-reason traceback reference", () => {
+    expect(
+      fs.existsSync(
+        path.join(SKILL_DIR, "output-templates", "blocked-reminder.md"),
+      ),
+    ).toBe(true);
+    for (const reason of [
+      "conflict_escalated",
+      "ci_escalated",
+      "reviews_escalated",
+    ]) {
+      expect(
+        blockedReminder.includes(reason),
+        `blocked-reminder.md is missing wording for ${reason}`,
+      ).toBe(true);
+    }
+    expect(blockedReminder).toMatch(/awaiting you/);
   });
 
-  it("tick telemetry event declares the parked field", () => {
-    expect(tickEvent).toMatch(/"parked"/);
+  it("watcher-log carries the blocked line shape, not parked/unparked", () => {
+    expect(watcherLog).toMatch(/blocked reason=/);
+    expect(watcherLog).not.toMatch(/unparked/);
+  });
+
+  it("tick telemetry declares blocked and reminded, not parked", () => {
+    expect(tickEvent).toMatch(/"blocked"/);
+    expect(tickEvent).toMatch(/"reminded"/);
+    expect(tickEvent).not.toMatch(/"parked"/);
   });
 });
 

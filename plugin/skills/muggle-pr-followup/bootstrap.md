@@ -71,7 +71,7 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 
-**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`. Omit `park` — the watcher starts on the active cadence.
+**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`. Omit `blocked` — the watcher starts unblocked.
 
 **`cron.json`** — see [`state-schemas.md`](state-schemas.md#cronjson). `cron_id: null` (Step 8 dispatches `/loop` as the last action, so the id isn't observable yet — the first tick self-records it per [`record-cron-id.md`](record-cron-id.md)), `command: "/muggle:muggle-pr-followup <slug> <n>"`, `interval: "1m"`, `recorded_at: <now>`.
 

@@ -14,7 +14,7 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Per-PR isolation.** One watcher per PR. Multi-PR work runs N independent watchers.
 
-**Backoff when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher **parks**: it swaps the `1m` cron for a slow parked cadence and each parked tick only checks a fingerprint (head sha, latest review, CI state), un-parking the instant any of them moves ([`contract.md`](contract.md) Steps 2.5, 7). This stops the per-minute idle ticks that otherwise pile up for days on a stuck PR.
+**Active reminders when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher **keeps polling at the responsive `1m` cadence** and turns each blocked tick into a **one-line reminder**: the pending act plus a reference back to the decision context, nudging the owner every poll until they act ([`contract.md`](contract.md) Steps 2.5, 7). It never stops or slows the poll; it keeps each blocked tick cheap (a fingerprint check, one line out) so responsiveness costs little, and clears the block the instant a push, review, or CI/deploy state moves.
 
 **Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone.
 

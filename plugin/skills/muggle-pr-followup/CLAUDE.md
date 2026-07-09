@@ -7,12 +7,12 @@ This folder holds the watcher loop that drives one PR toward merge-ready. The wa
 - [`SKILL.md`](SKILL.md) — public entry. Routing between bootstrap (URL input), tick (slug + PR number), and auto-track (no args). Read first.
 - [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (resolves the validation context once when the PR has a testable surface — else seeds poll-only like auto-track — then dispatches the first watcher).
-- [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit; on a human-blocked PR it keeps polling and reminds the owner each tick, resuming on external change).
-- [`blocked-tick.md`](blocked-tick.md) — the conditional blocked-path detail: fingerprint, flag-and-remind (Step 7), and remind-or-resume (Step 2.5). Referenced by `contract.md`; runs only while `last_seen.blocked` is set.
+- [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit; on a human-blocked PR it backs off to a `5m` poll and reminds the owner each tick, restoring the `1m` cadence on external change).
+- [`blocked-tick.md`](blocked-tick.md) — the conditional blocked-path detail: fingerprint, the `1m`↔`5m` cadence swap, flag-and-remind (Step 7), and remind-or-resume (Step 2.5). Referenced by `contract.md`; runs only while `last_seen.blocked` is set.
 - [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.
 - [`cancel-cron.md`](cancel-cron.md) — stops this watcher's cron, recorded-id-first (survives `CronList` going blind) with a `CronList`-match fallback, plus the tool-call-not-shell guard. Referenced by `contract.md` and `finalize.md`.
 - [`record-cron-id.md`](record-cron-id.md) — the per-tick self-record that keeps this slot's cron id in `cron.json` deletable after a compaction blinds `CronList`. Referenced by `contract.md` Step 0.
-- [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed and deletes orphaned crons; runs at the top of auto-track and on demand.
+- [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed, deletes orphaned crons, and re-arms open slots whose watcher stopped silently (dropped respawn); runs at the top of auto-track and on demand.
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
 

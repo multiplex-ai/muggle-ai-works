@@ -58,7 +58,7 @@ If `state` is `MERGED` or `CLOSED`:
 
 Only when `last_seen.blocked` is present (the watcher is awaiting the owner on a durable human-block, flagged in Step 7). When absent, skip straight to Step 3.
 
-Run the remind-or-resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint, re-emit the one-line owner reminder and stay blocked while it holds, or clear the block and fall through to Step 3 the moment it moves. The watcher stays on the responsive `1m` cadence throughout — it never slows or stops the poll.
+Run the remind-or-resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint, re-emit the one-line owner reminder and stay blocked while it holds, or restore the `1m` cadence and fall through to Step 3 the moment it moves. While blocked the watcher polls at the slowed `5m` cadence — it backs off to remind rather than stop, and swaps the cron back to `1m` on resume.
 
 ### Step 3 — Compute the actionable set from live thread state
 
@@ -145,7 +145,7 @@ Everything else that idles is **transient** — green and waiting for the next r
 
 **Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `reminded: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
 
-**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, keeping the responsive `1m` cadence (the watcher reminds rather than backing off). From the next tick on, the Step 2.5 gate carries the block. Exit.
+**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked`, swap the cron down to the `5m` blocked cadence, and emit the one-line owner reminder (the watcher backs off to remind rather than stop). From the next tick on, the Step 2.5 gate carries the block. Exit.
 
 ## Output
 

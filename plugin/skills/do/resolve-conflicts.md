@@ -37,13 +37,7 @@ Build (typecheck + lint on the changed surface) + unit suite must pass. Run E2E 
 
 ### Step 4 — Force-push + respawn
 
-Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_sha]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher as the last action:
-
-```
-/loop 1m /muggle:muggle-pr-followup <slug> <n>
-```
-
-The watcher cancelled its own cron when it dispatched this cycle ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md) Step 5b), so this restart is the single live watcher. Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_sha]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 
@@ -51,7 +45,7 @@ When `autoResolveConflicts=never`, the resolution failed verification, or `confl
 
 1. Add `rebase_sha` to `last_seen.conflict_escalated_shas` so the watcher does not re-dispatch this SHA.
 2. Emit one terminal escalation naming the PR and the conflicting files (or the failing verification, for a behind-only rebase that didn't verify).
-3. Respawn the watcher (last action) — it keeps polling for the user's manual resolution or any new reviews.
+3. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md) — it keeps polling for the user's manual resolution or any new reviews.
 
 ### Step 6 — Telemetry
 

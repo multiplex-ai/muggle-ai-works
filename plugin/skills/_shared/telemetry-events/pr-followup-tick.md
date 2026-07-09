@@ -19,6 +19,7 @@ One per watcher iteration (idle or not).
   "idle": true | false,
   "blocked": true | false,
   "reminded": true | false,
+  "interval": "1m" | "5m",
   "tick_duration_ms": <int>
 }
 ```
@@ -31,5 +32,6 @@ One per watcher iteration (idle or not).
 - `dispatched_ci_fix`: true when this tick dispatched `/muggle-do` with a fix-ci directive.
 - `terminal`: true when this tick observed the PR merged or closed and wrote `result.md`.
 - `idle`: true when nothing was dispatched this tick.
-- `blocked`: true on a tick that idled on a durable human-block (escalated rebase/CI, or an ambiguous review awaiting the user) and emitted the one-line owner reminder. `false` on the tick the block clears and on every normal tick. Always accompanies `idle: true`. The cadence stays `1m` throughout — the watcher reminds rather than backing off.
+- `blocked`: true on a tick that idled on a durable human-block (escalated rebase/CI, or an ambiguous review awaiting the user) and emitted the one-line owner reminder. `false` on the tick the block clears and on every normal tick. Always accompanies `idle: true`. While blocked the cadence backs off to `5m` (`interval: "5m"`); it returns to `1m` the moment the block clears — the watcher slows to remind, never stops.
 - `reminded`: true when this tick emitted the one-line blocked reminder to the owner (every `blocked: true` tick does). `false` otherwise.
+- `interval`: the poll cadence this tick fired at — `"5m"` on a blocked tick (the poll is slowed while awaiting the owner), `"1m"` otherwise. Mirrors `cron.json.interval`.

@@ -1,10 +1,11 @@
 /**
- * Static wiring lint for the muggle-pr-followup blocked-reminder state and the
- * durable cron-id lifecycle. Guards the two features against silent drift —
- * a schema field dropped from a doc, a procedure step deleted, a log-line
- * template removed, or the responsive cadence quietly reintroducing a backoff.
- * It reads the prose contract; it does not execute the watcher (that judgment
- * lives in the LLM at runtime).
+ * Static wiring lint for the muggle-pr-followup blocked-reminder state, the
+ * durable cron-id lifecycle, and the guaranteed watcher respawn. Guards these
+ * against silent drift — a schema field dropped from a doc, a procedure step
+ * deleted, a log-line template removed, the blocked-path cadence drifting off
+ * its 5m backoff, or a /muggle-do exit path dropping the respawn. It reads the
+ * prose contract; it does not execute the watcher (that judgment lives in the
+ * LLM at runtime).
  */
 
 import { describe, it, expect } from "vitest";
@@ -21,6 +22,7 @@ const SKILL_DIR = path.join(
   "muggle-pr-followup",
 );
 const SHARED_DIR = path.join(REPO_ROOT, "plugin", "skills", "_shared");
+const DO_DIR = path.join(REPO_ROOT, "plugin", "skills", "do");
 
 function read(...segments: string[]): string {
   return fs.readFileSync(path.join(...segments), "utf8");
@@ -78,14 +80,18 @@ describe("pr-followup blocked-reminder wiring", () => {
     }
   });
 
-  it("blocked watcher keeps the responsive 1m cadence — never slows or backs off", () => {
-    // The whole point of this design: keep polling, remind — do not park/slow.
-    expect(contract).toMatch(/never slows or stops the poll/i);
+  it("blocked watcher backs off to the 5m cadence — slower but never stopped", () => {
+    // #315 review: slow the blocked poll to 5m to save cost, keep reminding (never stop).
     for (const doc of [contract, blockedTick]) {
-      expect(doc).not.toMatch(/parked/i);
+      expect(doc).toMatch(/5m/); // the blocked cadence
+      expect(doc).not.toMatch(/parked/i); // not the rejected park design
       expect(doc).not.toMatch(/un-?park/i);
-      expect(doc).not.toMatch(/30m/);
+      expect(doc).not.toMatch(/30m/); // 5m, not the old slow interval
     }
+    // The backoff is a real cron swap (cancel-then-create), and the poll never fully stops.
+    expect(blockedTick).toMatch(/CronCreate/);
+    expect(blockedTick).toMatch(/\* \* \* \* \*/); // restores the 1m cron on resume
+    expect(blockedTick).toMatch(/never stop/i);
   });
 
   it("blocked-reminder template is one line with a per-reason traceback reference", () => {
@@ -112,9 +118,11 @@ describe("pr-followup blocked-reminder wiring", () => {
     expect(watcherLog).not.toMatch(/unparked/);
   });
 
-  it("tick telemetry declares blocked and reminded, not parked", () => {
+  it("tick telemetry declares blocked, reminded, and the cadence interval", () => {
     expect(tickEvent).toMatch(/"blocked"/);
     expect(tickEvent).toMatch(/"reminded"/);
+    expect(tickEvent).toMatch(/"interval"/);
+    expect(tickEvent).toMatch(/5m/); // interval field documents the blocked backoff
     expect(tickEvent).not.toMatch(/"parked"/);
   });
 });
@@ -153,5 +161,58 @@ describe("pr-followup cron-id lifecycle wiring", () => {
     expect(reconcile).toMatch(/orphan/i);
     expect(reconcile).toMatch(/CronDelete/);
     expect(reconcile).toMatch(/CronList/);
+  });
+});
+
+describe("pr-followup watcher-respawn robustness wiring", () => {
+  const reconcile = read(SKILL_DIR, "reconcile.md");
+  const respawnWatcher = read(DO_DIR, "respawn-watcher.md");
+  const addressReviews = read(DO_DIR, "address-reviews.md");
+  const fixCi = read(DO_DIR, "fix-ci.md");
+  const resolveConflicts = read(DO_DIR, "resolve-conflicts.md");
+
+  it("respawn-watcher.md exists as the shared, guaranteed restart", () => {
+    expect(fs.existsSync(path.join(DO_DIR, "respawn-watcher.md"))).toBe(true);
+    expect(respawnWatcher).toMatch(/\/loop 1m \/muggle:muggle-pr-followup/);
+    // The whole point: respawn on every open-PR exit, terminal PR is the only skip.
+    expect(respawnWatcher).toMatch(/every.{0,40}exit/i);
+    expect(respawnWatcher).toMatch(/merged or closed/i);
+  });
+
+  it("every watcher-dispatched mode routes its respawn through the shared helper", () => {
+    for (const [name, doc] of [
+      ["address-reviews", addressReviews],
+      ["fix-ci", fixCi],
+      ["resolve-conflicts", resolveConflicts],
+    ] as const) {
+      expect(
+        doc.includes("respawn-watcher.md"),
+        `${name} does not reference the shared respawn helper`,
+      ).toBe(true);
+    }
+  });
+
+  it("the two closed holes escalate AND respawn (never a silent stop)", () => {
+    // address-reviews Step 0 rebase-escalation must reach the respawn step.
+    const step0 = addressReviews.slice(
+      addressReviews.indexOf("Step 0 — Track"),
+      addressReviews.indexOf("Step 1 — Assemble"),
+    );
+    expect(step0).toMatch(/respawn/i);
+    // fix-ci Step 6 escalation must respawn, not just stop looping on the SHA.
+    // Anchor on the heading text — "Step 6" is also cross-referenced from earlier steps.
+    const escalate = fixCi.slice(
+      fixCi.indexOf("Escalate (budget"),
+      fixCi.indexOf("Step 7 — Telemetry"),
+    );
+    expect(escalate).toMatch(/respawn-watcher\.md/);
+  });
+
+  it("reconcile re-arms an open slot whose watcher stopped silently", () => {
+    expect(reconcile).toMatch(/re-arm/i);
+    expect(reconcile).toMatch(/silent/i);
+    expect(reconcile).toMatch(/CronCreate/);
+    // Guarded by a staleness window so a live (CronList-blind) cron is never doubled.
+    expect(reconcile).toMatch(/followup\.log/);
   });
 });

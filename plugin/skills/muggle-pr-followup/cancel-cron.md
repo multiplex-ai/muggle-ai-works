@@ -1,6 +1,6 @@
 # Cancel the watcher's cron
 
-The delete every tick uses to stop its own loop: the stale-fire guard and terminal unschedule ([`finalize.md`](finalize.md) Step 4), and each single-thread "stop this watcher" before a `/muggle-do` dispatch ([`contract.md`](contract.md) Steps 4–6). The blocked path also uses this delete as the cancel half of its cadence swap — cancel the current cron, then `CronCreate` the same command at the target interval ([`blocked-tick.md`](blocked-tick.md)) — so a blocked watcher slows to `5m` and restores `1m` without ever leaving the slot cron-less ([`contract.md`](contract.md) Steps 2.5, 7).
+Deletes this slot's watcher cron, and nothing more — the caller owns whatever comes next (respawn, cadence swap, or terminal teardown). Used by the stale-fire guard and terminal unschedule ([`finalize.md`](finalize.md) Step 4), each single-thread "stop this watcher" before a `/muggle-do` dispatch ([`contract.md`](contract.md) Steps 4–6), and the blocked-path cadence swap.
 
 > **`CronList` and `CronDelete` are Claude Code tool calls, not shell commands.** Invoke them directly through the tool system. Never wrap them in a Bash/shell call: `bash -c "CronDelete …"` fails with "command not found", which a `2>/dev/null` on the line swallows, so the delete silently no-ops and the per-minute cron keeps firing — every later tick hits the stale-fire guard and re-fires until the 7-day expiry.
 

@@ -49,6 +49,23 @@ jobs:
       - name: Run harness unit tests
         run: python -m unittest discover -s internal/skill-routing-eval -p "test_*.py" -v
 
+  # Enforces the one-way skill dependency rule (plugin/skills/CLAUDE.md).
+  # Zero-dep Node script, so no install step — catches reverse dependencies
+  # in PRs from any agent, including ones the local PreToolUse hook never sees.
+  skill-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Check skill dependency direction
+        run: node scripts/check-skill-deps.mjs
+
   # Type check with different TypeScript versions
   typecheck:
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 # Cancel the watcher's cron
 
-Deletes this slot's watcher cron, and nothing more — the caller owns whatever comes next (respawn, cadence swap, or terminal teardown). Used by the stale-fire guard and terminal unschedule ([`finalize.md`](finalize.md) Step 4), each single-thread "stop this watcher" before a `/muggle-do` dispatch ([`contract.md`](contract.md) Steps 4–6), and the blocked-path cadence swap.
+Deletes this slot's watcher cron, and nothing more — the caller owns whatever comes next (respawn or terminal teardown). Used by the stale-fire guard and terminal unschedule ([`finalize.md`](finalize.md) Step 4) and each single-thread "stop this watcher" before a `/muggle-do` dispatch ([`contract.md`](contract.md) Steps 4–6).
 
 > **`CronList` and `CronDelete` are Claude Code tool calls, not shell commands.** Invoke them directly through the tool system. Never wrap them in a Bash/shell call: `bash -c "CronDelete …"` fails with "command not found", which a `2>/dev/null` on the line swallows, so the delete silently no-ops and the per-minute cron keeps firing — every later tick hits the stale-fire guard and re-fires until the 7-day expiry.
 

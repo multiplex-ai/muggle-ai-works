@@ -38,7 +38,7 @@ This reaches only crons `CronList` still enumerates. A cron that both survived a
 
 The recovery net for a **dropped respawn**: a `/muggle-do` cycle cancels the watcher's cron when it dispatches ([`contract.md`](contract.md) Steps 4 / 5 / 5b) and is responsible for respawning it when the cycle ends, but a cycle that crashes or errors out before it respawns can leave an open slot with no cron and no next tick — the poller stops silently. This step re-arms it.
 
-For each candidate still `open` after Step 3, check when its watcher last ticked — the newest ISO-8601 line in `followup.log` (or `cron.json.recorded_at` if the log is empty). If that is **older than 15 minutes** (comfortably beyond even the `5m` blocked cadence, so a live cron would have logged at least twice inside the window), the poller is gone → re-arm:
+For each candidate still `open` after Step 3, check when its watcher last ticked — the newest ISO-8601 line in `followup.log` (or `cron.json.recorded_at` if the log is empty). If that is **older than 15 minutes** (comfortably beyond the `1m` cadence, so a live cron would have logged many times inside the window), the poller is gone → re-arm:
 
 - `CronCreate` a recurring cron (call the **tool**, never a shell) with `cron: "* * * * *"` and prompt `/muggle:muggle-pr-followup <slug> <n>`, then record its id and `interval: "1m"` to `cron.json` (whole-file rewrite per [`state-schemas.md`](state-schemas.md#cronjson)). Append a `re-armed (silent watcher)` line to the slot's `followup.log`.
 

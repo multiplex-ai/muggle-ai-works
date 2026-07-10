@@ -80,18 +80,20 @@ describe("pr-followup blocked-reminder wiring", () => {
     }
   });
 
-  it("blocked watcher backs off to the 5m cadence — slower but never stopped", () => {
-    // #315 review: slow the blocked poll to 5m to save cost, keep reminding (never stop).
+  it("blocked watcher reminds at the 1m cadence — never backs off, never stops", () => {
+    // #315 follow-up review: keep the poll at 1m always (haiku is cheap; the owner
+    // gets a timely nudge). The 5m backoff and its cron swap were removed — a
+    // blocked PR reminds at 1m, it does not slow down.
     for (const doc of [contract, blockedTick]) {
-      expect(doc).toMatch(/5m/); // the blocked cadence
+      expect(doc).not.toMatch(/5m/); // no blocked backoff anywhere
       expect(doc).not.toMatch(/parked/i); // not the rejected park design
       expect(doc).not.toMatch(/un-?park/i);
-      expect(doc).not.toMatch(/30m/); // 5m, not the old slow interval
     }
-    // The backoff is a real cron swap (cancel-then-create), and the poll never fully stops.
-    expect(blockedTick).toMatch(/CronCreate/);
-    expect(blockedTick).toMatch(/\* \* \* \* \*/); // restores the 1m cron on resume
+    // No cadence swap: the blocked path no longer cancels/creates a cron to change interval.
+    expect(blockedTick).not.toMatch(/CronCreate/);
+    // The poll still never stops — it reminds on every 1m tick.
     expect(blockedTick).toMatch(/never stop/i);
+    expect(blockedTick).toMatch(/1m/);
   });
 
   it("blocked-reminder template is one line with a per-reason traceback reference", () => {
@@ -118,11 +120,13 @@ describe("pr-followup blocked-reminder wiring", () => {
     expect(watcherLog).not.toMatch(/unparked/);
   });
 
-  it("tick telemetry declares blocked, reminded, and the cadence interval", () => {
+  it("tick telemetry declares blocked, and no longer carries reminded/interval", () => {
     expect(tickEvent).toMatch(/"blocked"/);
-    expect(tickEvent).toMatch(/"reminded"/);
-    expect(tickEvent).toMatch(/"interval"/);
-    expect(tickEvent).toMatch(/5m/); // interval field documents the blocked backoff
+    // #315 follow-up: `reminded` is redundant (always implied by `blocked`) and
+    // `interval` is a constant 1m now, so both were dropped from the event.
+    expect(tickEvent).not.toMatch(/"reminded"/);
+    expect(tickEvent).not.toMatch(/"interval"/);
+    expect(tickEvent).not.toMatch(/5m/);
     expect(tickEvent).not.toMatch(/"parked"/);
   });
 });

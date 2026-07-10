@@ -27,4 +27,4 @@ The watcher's one-line nudge to the loop owner, emitted every tick a PR sits blo
   ⏳ acme/widget#142 awaiting you (2h): the failing checks on <short-sha> need your call — fix and push, or advise here. → <pr-url>/checks
   ```
 
-The reminder repeats every `5m` blocked tick until the owner acts (the poll slows from `1m` to `5m` while blocked); the watcher stops it and restores the `1m` cadence the moment the fingerprint moves (a push, a new review, or a CI/deploy change).
+The reminder repeats every blocked tick (at the normal `1m` cadence) until the owner acts; the watcher stops it the moment the fingerprint moves (a push, a new review, or a CI/deploy change).

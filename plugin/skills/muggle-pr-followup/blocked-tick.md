@@ -2,15 +2,7 @@
 
 The watcher's conditional path for a PR **blocked pending a human** — a durable block only the user can clear (an escalated rebase or CI budget spent, or an ambiguous review awaiting direction). Entered from [`contract.md`](contract.md) Step 7 (flag), then driven each subsequent tick by Step 2.5 (remind-or-resume). None of this runs on a normal tick: when `last_seen.blocked` is absent, the watcher skips straight through.
 
-**Governing rule — slow to `5m` while blocked, but never stop.** Nothing the watcher does moves a human-blocked PR, so a `1m` poll spends its cost catching an external unblock a few minutes sooner than a `5m` poll would — a poor trade against firing 5× as often across a block that can stand for days. So while blocked the watcher **backs off to a `5m` cadence** and turns each (now 5-minutely) tick into a one-line reminder, resuming the responsive `1m` cadence the instant the block clears. The poll never stops: it keeps the owner aware of the pending act until they answer, and still catches an external unblock within one 5-minute tick.
-
-## Cadence swap
-
-The blocked path polls at `5m`; the active path at `1m`. Both flag (Step 7) and resume (Step 2.5) change cadence by cancel-then-create — never leave the slot with no cron:
-
-1. Cancel the current cron per [`cancel-cron.md`](cancel-cron.md) (recorded-id-first, so it dies even after `CronList` goes blind).
-2. `CronCreate` a new recurring cron for the **same** command `/muggle:muggle-pr-followup <slug> <n>` at the target cadence — `*/5 * * * *` to slow down when flagging, `* * * * *` to restore `1m` when resuming. Call the `CronCreate`/`CronDelete` **tools**, never a shell (see [`cancel-cron.md`](cancel-cron.md)).
-3. Record the new job's id, the new `interval` (`"5m"` or `"1m"`), and `recorded_at` to `cron.json` — a whole-file rewrite per [`state-schemas.md`](state-schemas.md#cronjson), never the Edit tool.
+**Governing rule — remind at the normal `1m` cadence, never stop.** The poll stays at `1m` whether or not the PR is blocked: a `1m` tick is cheap (a fingerprint check and one line out) and it gives the owner a timely nudge and catches an external unblock within a minute. The `blocked` state does **not** change cadence — its only job is to (a) emit the reason-specific one-line owner reminder each tick and (b) drive fingerprint-based auto-resume, so the watcher knows the instant the block clears. There is no cadence swap and no separate `reminded` flag: while `blocked` is set, the watcher reminds every tick by definition.
 
 ## The fingerprint
 
@@ -28,20 +20,19 @@ When an idle tick is a durable human-block and `last_seen.blocked` is not alread
 
 1. Increment `last_seen.idle_tick_count`.
 2. Write `last_seen.blocked = { reason, since: <now>, fingerprint }` (reuse the `latest_review_id` / `ci_digest` already fetched this tick).
-3. **Slow to `5m`** — run the cadence swap above with target `*/5 * * * *`, recording `interval: "5m"` to `cron.json`.
-4. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context.
-5. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, `reminded: true`, `interval: "5m"`, and the same other fields as a transient idle. Exit.
+3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context.
+4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, and the same other fields as a transient idle. Exit. The `1m` cron is unchanged — no swap.
 
 ## Remind or resume (the Step 2.5 gate)
 
 Every subsequent tick while `last_seen.blocked` is present: recompute the fingerprint and compare to `last_seen.blocked.fingerprint`.
 
-- **Unchanged** → still blocked. Re-emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md). Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`, `reminded: true`, `interval: "5m"`. Exit. The `5m` cron is unchanged — already slowed, no swap needed.
-- **Changed** → **restore `1m`** first: run the cadence swap above with target `* * * * *`, recording `interval: "1m"` to `cron.json`. Then clear `last_seen.blocked` and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick. Restoring the cron before falling through is what keeps the slot armed: if Step 3–6 dispatches, that cancels the fresh `1m` cron and `/muggle-do` respawns `1m` (normal single-thread); if it idles transient, the `1m` cron is already correct; if it idles back into the block, Step 7 re-flags and re-slows to `5m`.
+- **Unchanged** → still blocked. Re-emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md). Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`. Exit. The `1m` cron is unchanged.
+- **Changed** → clear `last_seen.blocked` and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick. The cron is already `1m`, so no swap is needed: if Step 3–6 dispatches, that cancels the `1m` cron and `/muggle-do` respawns `1m` (normal single-thread); if it idles transient, the `1m` cron is already correct; if it idles back into the block, Step 7 re-flags.
 
 ## Invariants
 
-- Cadence is `5m` while blocked, `1m` while active. Every flag slows the cron to `5m`; every resume restores it to `1m`. The swap is cancel-then-create, so the slot is never left cron-less.
-- The poll never stops — blocked backs off but keeps firing; only a terminal PR or an explicit teardown removes the cron.
-- Every blocked tick emits exactly one owner reminder (`reminded: true`) and no PR-side post.
-- The block clears the instant any fingerprint component moves; an external unblock is caught within one `5m` tick.
+- Cadence is `1m` whether blocked or active — the block never changes the poll interval. There is no cadence swap, so a blocked slot is never left cron-less by one.
+- The poll never stops — a blocked tick keeps firing and reminding; only a terminal PR or an explicit teardown removes the cron.
+- Every blocked tick emits exactly one owner reminder (implied by `blocked: true`, no separate flag) and no PR-side post.
+- The block clears the instant any fingerprint component moves; an external unblock is caught within one `1m` tick.

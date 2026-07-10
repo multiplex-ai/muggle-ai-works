@@ -38,14 +38,14 @@ A durable, on-disk handle to this slot's watcher cron. Its whole reason to exist
 {
   "cron_id": "<scheduler-id-or-null>",
   "command": "/muggle:muggle-pr-followup <slug> <n>",
-  "interval": "1m" | "5m",
+  "interval": "1m",
   "recorded_at": "<ISO-8601>"
 }
 ```
 
 - `cron_id`: the scheduler id of the live `/loop` cron for this slot. Bootstrap seeds `null` (it dispatches `/loop` as its last action and cannot yet see the id); the first tick self-records the real id per [`record-cron-id.md`](record-cron-id.md). `null` again for the one tick after `/muggle-do` respawns the watcher (a dispatch cancels the old cron and the respawn arms a new one whose id is unknown until the next tick observes it).
 - `command`: the exact two-arg dispatch, the same string [`cancel-cron.md`](cancel-cron.md) matches on as its `CronList` fallback.
-- `interval`: the poll cadence — `1m` while active, `5m` while blocked pending a human. The blocked path swaps the cron down to `5m` (it backs off to remind rather than stop) and restores `1m` the instant the block clears; each swap rewrites this field (see [`blocked-tick.md`](blocked-tick.md) and [`contract.md`](contract.md) Steps 2.5 / 7). Recorded for teardown/forensics and to track which cadence the live cron is on.
+- `interval`: the poll cadence — always `1m`. The watcher polls at `1m` whether or not the PR is blocked; a blocked PR reminds at `1m`, it does not back off (see [`blocked-tick.md`](blocked-tick.md) and [`contract.md`](contract.md) Steps 2.5 / 7). Recorded for teardown/forensics.
 
 ## `last_seen.json`
 
@@ -87,7 +87,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
 - `conflict_resolve_attempts`: per-SHA count of rebase cycles `/muggle-do` has run for this SHA (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching a rebase for a SHA once its count reaches 2. Keyed by head SHA. A clean behind-only rebase produces a new SHA, so the cap only bites a SHA that keeps failing to rebase-and-verify.
 - `conflict_escalated_shas`: head SHAs whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless SHA is never re-attempted.
-- `blocked`: present only while the watcher is **awaiting the owner** on a PR that cannot progress without a human ([`contract.md`](contract.md) Step 7). Absent ⇒ the watcher is in its normal dispatch flow. When present, the watcher **backs off to the `5m` cadence** — it slows but never stops — and each (5-minutely) tick is a reminder-or-resume check ([`contract.md`](contract.md) Step 2.5): it re-emits a one-line reminder to the owner, recomputes the `fingerprint`, and restores the `1m` cadence the moment any component moves.
+- `blocked`: present only while the watcher is **awaiting the owner** on a PR that cannot progress without a human ([`contract.md`](contract.md) Step 7). Absent ⇒ the watcher is in its normal dispatch flow. When present, the watcher **keeps the normal `1m` cadence** and each tick is a reminder-or-resume check ([`contract.md`](contract.md) Step 2.5): it re-emits a one-line reminder to the owner, recomputes the `fingerprint`, and clears the block the moment any component moves. The block changes no cadence — its value is the reason-specific reminder plus fingerprint auto-resume.
   - `reason`: which durable block is being awaited — `conflict_escalated` (`head_sha` ∈ `conflict_escalated_shas`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), or `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty). Selects the reminder wording; the resume decision is fingerprint-driven, not reason-driven.
   - `since`: when the block was first flagged — lets the reminder state how long the owner has been the blocker.
   - `fingerprint`: the external state the block is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts. Any change clears the block and resumes evaluation.

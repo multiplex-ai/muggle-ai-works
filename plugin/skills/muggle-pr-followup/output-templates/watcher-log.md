@@ -16,7 +16,7 @@ The watcher only appends to `followup.log` during normal operation; the one visi
 
 ## Blocked tick
 
-The tick idled on a durable human-block ([`../contract.md`](../contract.md) Step 7) and emitted the one-line owner reminder ([`blocked-reminder.md`](blocked-reminder.md)). One per tick for as long as the block stands — at the slowed `5m` blocked cadence:
+The tick idled on a durable human-block ([`../contract.md`](../contract.md) Step 7) and emitted the one-line owner reminder ([`blocked-reminder.md`](blocked-reminder.md)). One per tick for as long as the block stands, at the normal `1m` cadence:
 
 ```
 <ISO-8601> tick pr=<n> blocked reason=<conflict_escalated|ci_escalated|reviews_escalated>

@@ -14,6 +14,10 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Per-PR isolation.** One watcher per PR. Multi-PR work runs N independent watchers.
 
+**Active reminders when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher keeps its `1m` poll and turns each blocked tick into a **one-line reminder**: the pending act plus a reference back to the decision context, nudging the owner every poll until they act ([`contract.md`](contract.md) Steps 2.5, 7). The block reminds but never stops or slows: each tick stays cheap (a fingerprint check, one line out), and the block clears the instant a push, review, or CI/deploy state moves.
+
+**Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone, and re-arms an open slot whose watcher stopped silently.
+
 ## Routing
 
 The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-disk state. It never runs procedure inline — it identifies the mode and routes to the appropriate procedure file.
@@ -29,7 +33,7 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 | `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 | `reconcile` / `sweep` (optional `<slug>`) | — | **reconcile** → [`reconcile.md`](reconcile.md) |
 
-Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session). Reconcile never re-arms a watcher.
+Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session) and re-arms any open slot whose watcher stopped silently (a dropped respawn). Reconcile recovers a watcher that was already running; it never seeds a first watcher for a PR — that is auto-track's / bootstrap's job.
 
 Bootstrap accepts three optional trailing flags:
 

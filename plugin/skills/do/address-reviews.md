@@ -29,7 +29,7 @@ Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 ### Step 0 — Track the default branch
 
-Before assembling work, rebase onto the latest default branch so the cycle addresses reviews against current master, not a stale base. Run [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) — gated by [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. Conflict handling follows [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md): the default `never` aborts and escalates (`kind: "rebase-conflict"`); `always` resolves behind the verify-or-rollback gate. If the rebase escalates, stop the cycle — do not push.
+Before assembling work, rebase onto the latest default branch so the cycle addresses reviews against current master, not a stale base. Run [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) — gated by [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. Conflict handling follows [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md): the default `never` aborts and escalates (`kind: "rebase-conflict"`); `always` resolves behind the verify-or-rollback gate. If the rebase escalates, stop the cycle — do not push, do not address reviews — but **skip to Step 6 to respawn the watcher**. Escalating the rebase does not end the PR; the poller must keep running (it will remind on the `conflict_escalated` block), so skipping respawn here is exactly the silent-stop bug [`respawn-watcher.md`](respawn-watcher.md) exists to prevent.
 
 ### Step 1 — Assemble the work set
 
@@ -115,16 +115,7 @@ Invoke [`resolve-reminder.md`](resolve-reminder.md) once, regardless of whether 
 
 ### Step 6 — Respawn the watcher
 
-Refresh PR state with the provider resolved in Step 1 — `github` per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md), `gitlab` per [`../_shared/vcs/gitlab/mr-metadata.md`](../_shared/vcs/gitlab/mr-metadata.md) (`state == merged`/`closed`, lowercase). If the PR is now merged or closed:
-
-1. Write `result.md` per [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#resultmd).
-2. Do **not** respawn the watcher.
-
-Otherwise, dispatch the next watcher as the last action of this turn. The watcher cancelled its own cron when it dispatched this cycle ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md) Step 4), so this restart is the single live watcher — never a duplicate:
-
-```
-/loop 1m /muggle:muggle-pr-followup <slug> <n>
-```
+Respawn per [`respawn-watcher.md`](respawn-watcher.md): refresh PR state, finalize (write `result.md`, no respawn) if the PR is now merged or closed, otherwise restart the single live watcher as the turn's last action. **Every** exit path in this procedure lands here — the actionable-and-pushed happy path, the ambiguous-only branch (Step 3), the design-adjustment escalation, and the Step 0 rebase-escalation — so an open PR is never left un-watched.
 
 ### Step 7 — Telemetry
 

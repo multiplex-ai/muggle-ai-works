@@ -71,7 +71,9 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 
-**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`.
+**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`. Omit `blocked` — the watcher starts unblocked.
+
+**`cron.json`** — see [`state-schemas.md`](state-schemas.md#cronjson). `cron_id: null` (Step 8 dispatches `/loop` as the last action, so the id isn't observable yet — the first tick self-records it per [`record-cron-id.md`](record-cron-id.md)), `command: "/muggle:muggle-pr-followup <slug> <n>"`, `interval: "1m"`, `recorded_at: <now>`.
 
 **`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. If Step 6.5 resolved a validation context, append the `## Pre-flight answers` block with its fields, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields). If it seeded poll-only, write **no** such block — a missing block is a clean E2E skip.
 

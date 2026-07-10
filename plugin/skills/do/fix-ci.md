@@ -40,7 +40,7 @@ Commit per the `fix(ci): <check> — <what>` convention ([`../_shared/pr-followu
 ### Step 5 — Update state + respawn
 
 - Increment `last_seen.ci_fix_attempts[red_sha]` — a whole-file rewrite (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool.
-- Respawn the watcher: `/loop 1m /muggle:muggle-pr-followup <slug> <n>`. The watcher cancelled its own cron when it dispatched this fix-ci cycle ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md) Step 5), so this restart is the single live watcher. CI on the new SHA is the verify loop — a still-red SHA returns as a fresh dispatch, bounded by the per-SHA fix budget (Step 6).
+- Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). CI on the new SHA is the verify loop — a still-red SHA returns as a fresh dispatch, bounded by the per-SHA fix budget (Step 6).
 
 ### Step 6 — Escalate (budget spent or out of scope)
 
@@ -48,7 +48,8 @@ When the failing checks are all out of scope, or `ci_fix_attempts[red_sha]` has 
 
 1. Add `red_sha` to `last_seen.ci_escalated_shas` so the SHA is not re-fixed.
 2. Emit one terminal message naming the unresolved checks.
-3. Emit the cycle event with `outcome: "ci-escalated"` (Step 7). Do not loop further on this SHA.
+3. Emit the cycle event with `outcome: "ci-escalated"` (Step 7).
+4. **Respawn the watcher** per [`respawn-watcher.md`](respawn-watcher.md). Escalation stops fix-ci from re-dispatching this SHA — but the poller must keep running: it reminds on the `ci_escalated` block and catches a new push, a new review, or the user's own fix. Skipping respawn here is the silent-stop bug the helper exists to prevent.
 
 ### Step 7 — Telemetry
 

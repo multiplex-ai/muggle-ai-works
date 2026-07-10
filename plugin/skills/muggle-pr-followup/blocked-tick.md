@@ -2,7 +2,7 @@
 
 The watcher's conditional path for a PR **blocked pending a human** — a durable block only the user can clear (an escalated rebase or CI budget spent, or an ambiguous review awaiting direction). Entered from [`contract.md`](contract.md) Step 7 (flag), then driven each subsequent tick by Step 2.5 (remind-or-resume). None of this runs on a normal tick: when `last_seen.blocked` is absent, the watcher skips straight through.
 
-**Governing rule — remind at the normal `1m` cadence, never stop.** The poll stays at `1m` whether or not the PR is blocked: a `1m` tick is cheap (a fingerprint check and one line out) and it gives the owner a timely nudge and catches an external unblock within a minute. The `blocked` state does **not** change cadence — its only job is to (a) emit the reason-specific one-line owner reminder each tick and (b) drive fingerprint-based auto-resume, so the watcher knows the instant the block clears. There is no cadence swap and no separate `reminded` flag: while `blocked` is set, the watcher reminds every tick by definition.
+**Governing rule — remind at the normal `1m` cadence, never stop.** The poll stays at `1m` whether or not the PR is blocked — a `1m` tick is cheap (one fingerprint check, one line out) and keeps the owner nudged and an external unblock caught within a minute. The `blocked` state changes no cadence; its only job is (a) the reason-specific one-line reminder each tick and (b) fingerprint-based auto-resume. No cadence swap, no separate `reminded` flag — while `blocked` is set, the watcher reminds every tick by definition.
 
 ## The fingerprint
 

@@ -30,4 +30,4 @@ One per watcher iteration (idle or not).
 - `dispatched_ci_fix`: true when this tick dispatched `/muggle-do` with a fix-ci directive.
 - `terminal`: true when this tick observed the PR merged or closed and wrote `result.md`.
 - `idle`: true when nothing was dispatched this tick.
-- `blocked`: true on a tick that idled on a durable human-block (escalated rebase/CI, or an ambiguous review awaiting the user) and emitted the one-line owner reminder. `false` on the tick the block clears and on every normal tick. Always accompanies `idle: true`. The cadence stays `1m` whether blocked or not — a blocked tick reminds at `1m`, it does not back off. A `blocked: true` tick always emits exactly one owner reminder (the reminder is implied by the flag, so no separate `reminded` field is carried).
+- `blocked`: true on a tick that idled on a durable human-block (escalated rebase/CI, or an ambiguous review awaiting the user) and emitted the one-line owner reminder. `false` otherwise. Always accompanies `idle: true`. The block reminds at the normal `1m` cadence — it never backs off — so a `blocked: true` tick reminds exactly once.

@@ -1,6 +1,6 @@
 # Writing session-state files
 
-How to update the session-state JSON — `last_seen.json` and `prs.json` under `~/.muggle-ai/muggle-do/sessions/<slug>/`. Field shapes: [`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md). Both the watcher and `/muggle-do` write these.
+How to update the session-state JSON — `last_seen.json` and `prs.json` under `~/.muggle-ai/muggle-do/sessions/<slug>/`. Field shapes: see the [`## Field map`](#field-map) below. Both the watcher and `/muggle-do` write these.
 
 ## Mechanism — tool-based, OS-agnostic
 

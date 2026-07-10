@@ -28,7 +28,7 @@ Resolve without prompting; use as questionnaire defaults:
 
 ## Questions
 
-One `AskUserQuestion` for the validation subset, detected values as defaults. Canonical wording lives in [`../do/pre-flight.md`](../do/pre-flight.md) — reference, don't fork:
+One `AskUserQuestion` for the validation subset, detected values as defaults. Ask each with the same intent the interactive pre-flight uses; the caller supplies the exact option wording:
 
 - Validation strategy — pre-flight Q4
 - Local URL — pre-flight Q5 (defers to [`autoSelectLocalHost`](../muggle-preferences/preference-gates/autoSelectLocalHost.md))

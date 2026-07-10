@@ -2,17 +2,7 @@
   "supportDirs": { "do": "muggle-do" },
   "sharedNamespaces": ["_shared"],
   "knownReverseDeps": {
-    "comment": "Pre-existing reverse dependencies grandfathered when the one-way guard was added. Each is a genuine violation of plugin/skills/CLAUDE.md (a shared module or lower-level skill linking UP into a caller) — debt to fix and delete from this list, not a pattern to copy. The guard blocks any NEW cycle regardless of this list; these entries only keep the pre-existing tangle from failing CI. Burn this list down to empty.",
-    "edges": [
-      { "from": "_shared/dev-loop/run.md", "to": "../../do/e2e-acceptance.md" },
-      { "from": "_shared/resolve-e2e-validation-context.md", "to": "../do/pre-flight.md" },
-      { "from": "_shared/resolve-rebase-conflicts.md", "to": "../do/build.md" },
-      { "from": "_shared/resolve-rebase-conflicts.md", "to": "../do/unit-tests.md" },
-      { "from": "_shared/resolve-rebase-conflicts.md", "to": "../do/e2e-acceptance.md" },
-      { "from": "_shared/resolve-rebase-conflicts.md", "to": "../muggle-pr-followup/output-templates/escalation.md" },
-      { "from": "_shared/session-state-writes.md", "to": "../muggle-pr-followup/state-schemas.md" },
-      { "from": "_shared/vcs/github/verify-working-tree.md", "to": "../../../muggle-pr-followup/output-templates/bootstrap.md" },
-      { "from": "_shared/use-worktrees.md", "to": "pr-branch-worktree.md" }
-    ]
+    "comment": "Reverse dependencies grandfathered so CI stays green — each is a genuine violation of plugin/skills/CLAUDE.md (a shared module or lower-level skill linking UP into a caller). Currently empty: the tree is one-way. If an entry is ever added here, it is debt to fix and delete, not a pattern to copy. The guard blocks any NEW cycle regardless of this list.",
+    "edges": []
   }
 }

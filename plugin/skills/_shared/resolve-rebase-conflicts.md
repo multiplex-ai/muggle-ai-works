@@ -34,9 +34,9 @@ Then `git add -A && git rebase --continue`, and repeat Steps 1–2 for each rema
 
 Each must pass, in order:
 
-1. **Build** — typecheck + lint on the changed surface, per [`../do/build.md`](../do/build.md).
-2. **Unit suite** — per [`../do/unit-tests.md`](../do/unit-tests.md); record PASS.
-3. **E2E** — per [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) and the persisted [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) strategy. A poll-only session with no validation context reports `SKIPPED`, same as the normal cycle.
+1. **Build** — typecheck + lint on the changed surface, run via the caller's build step.
+2. **Unit suite** — the caller's unit run; record PASS.
+3. **E2E** — the caller's E2E step under the persisted [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) strategy. A poll-only session with no validation context reports `SKIPPED`, same as the normal cycle.
 
 ### Step 4 — Pass → proceed
 
@@ -51,7 +51,7 @@ git rebase --abort 2>/dev/null || true
 git reset --hard <pre_rebase_sha>
 ```
 
-The branch is now byte-for-byte its pre-rebase state. Emit one terminal escalation per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) naming the conflicted files and the failing step, plus the `muggle-do:escalation` event with `kind: "rebase-conflict"` ([`telemetry-events/muggle-do-escalation.md`](telemetry-events/muggle-do-escalation.md)). Do not push.
+The branch is now byte-for-byte its pre-rebase state. Emit one terminal escalation — the caller's escalation message — naming the conflicted files and the failing step, plus the `muggle-do:escalation` event with `kind: "rebase-conflict"` ([`telemetry-events/muggle-do-escalation.md`](telemetry-events/muggle-do-escalation.md)). Do not push.
 
 ## Invariants
 

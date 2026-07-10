@@ -289,7 +289,7 @@ async function runHook() {
   if (relFile.startsWith("..")) allow();
 
   const config = loadConfig(skillsRoot);
-  let orig = "";
+  let orig;
   try {
     orig = fs.readFileSync(absFile, "utf8");
   } catch {

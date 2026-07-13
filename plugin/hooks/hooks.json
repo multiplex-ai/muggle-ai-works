@@ -7,7 +7,8 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
-            "async": false
+            "async": false,
+            "timeout": 120
           }
         ]
       }
@@ -19,7 +20,8 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-report-format.sh\"",
-            "async": false
+            "async": false,
+            "timeout": 5
           }
         ]
       }
@@ -31,12 +33,14 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-opened.sh\"",
-            "async": false
+            "async": true,
+            "timeout": 10
           },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
-            "async": false
+            "async": true,
+            "timeout": 10
           }
         ]
       },
@@ -46,7 +50,8 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
-            "async": false
+            "async": true,
+            "timeout": 10
           }
         ]
       }
@@ -57,7 +62,8 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-e2e-gate.sh\"",
-            "async": false
+            "async": false,
+            "timeout": 5
           }
         ]
       }
@@ -68,7 +74,8 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\"",
-            "async": false
+            "async": true,
+            "timeout": 10
           }
         ]
       }

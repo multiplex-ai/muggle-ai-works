@@ -16,6 +16,6 @@ Pass `{behind}` and `{default}` to the picker prompts. On `always`:
 2. `git rebase origin/${default}`.
 3. On conflict, branch by [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md):
    - `never` → `git rebase --abort`; stop and report, naming the conflicted files. Never auto-resolve.
-   - `always` → hand off to [`resolve-rebase-conflicts.md`](resolve-rebase-conflicts.md) with `pre_rebase_sha`; it resolves, runs the verify-or-rollback gate, and either proceeds or restores `pre_rebase_sha` and escalates.
+   - `always` → hand off to [`resolve-rebase-conflicts.md`](resolve-rebase-conflicts.md) with `pre_rebase_sha` to resolve the conflicts, then run the [`verify-or-rollback-gate.md`](verify-or-rollback-gate.md) with `pre_rebase_sha`; it either proceeds or restores `pre_rebase_sha` and escalates.
 
 Stale branches produce false failures and false greens — that's why this gate exists.

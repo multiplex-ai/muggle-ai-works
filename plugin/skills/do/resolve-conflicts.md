@@ -29,7 +29,7 @@ Run the rebase from [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before
 - **Clean replay** — a behind-only branch (and any rebase that hits no conflicts) replays without intervention. Proceed to Step 3.
 - **Conflicts** — handle per [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md):
   - `never` → abort and escalate per Step 5 (`kind: "rebase-conflict"`). The watcher keeps polling; the user resolves on GitHub.
-  - `always` → resolve behind the verify-or-rollback gate in [`../_shared/resolve-rebase-conflicts.md`](../_shared/resolve-rebase-conflicts.md).
+  - `always` → resolve via [`../_shared/resolve-rebase-conflicts.md`](../_shared/resolve-rebase-conflicts.md); Steps 3 and 5 below are this mode's instance of the [`../_shared/verify-or-rollback-gate.md`](../_shared/verify-or-rollback-gate.md).
 
 ### Step 3 — Verify the resolution
 

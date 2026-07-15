@@ -1,6 +1,6 @@
 # Dev Loop — Run a Test
 
-> The local dev loop: run one test case in the browser (replay an existing script, or regenerate from the case), then record the result. Source of truth for the run mechanics; the sibling files in this folder own each invariant. Used by `muggle-test`, `muggle-test-feature-local`, `muggle-do` Stage 6 ([`../../do/e2e-acceptance.md`](../../do/e2e-acceptance.md)), and the `acceptance-tester` agent.
+> The local dev loop: run one test case in the browser (replay an existing script, or regenerate from the case), then record the result. Source of truth for the run mechanics; the sibling files in this folder own each invariant.
 
 Not owned here — the caller resolves and passes in: which test cases to run, replay-vs-regen classification and failure routing ([`../failure-mode-handling.md`](../failure-mode-handling.md)), dev-server readiness ([`../dev-server-readiness.md`](../dev-server-readiness.md)), validation context ([`../resolve-e2e-validation-context.md`](../resolve-e2e-validation-context.md)), and PR posting ([`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md)).
 

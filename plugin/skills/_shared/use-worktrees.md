@@ -7,7 +7,6 @@ Use this for feature development, local validation, and PR iteration.
 - **One worktree per branch.** Never switch branches inside a long-lived checkout.
 - **Isolate runtime resources.** Parallel worktrees need unique ports and isolated mutable test state.
 - **Keep worktrees disposable.** Create for focused work, remove after merge.
-- **Existing PR branch?** Materialize it via [`pr-branch-worktree.md`](pr-branch-worktree.md) — same `<repo>/.claude/worktrees/` path scheme, checking out the existing branch instead of creating a new one.
 
 ## Start new change work
 

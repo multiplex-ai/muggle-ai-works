@@ -1,0 +1,8 @@
+{
+  "supportDirs": { "do": "muggle-do" },
+  "sharedNamespaces": ["_shared"],
+  "knownReverseDeps": {
+    "comment": "Reverse dependencies grandfathered so CI stays green — each is a genuine violation of plugin/skills/CLAUDE.md (a shared module or lower-level skill linking UP into a caller). Currently empty: the tree is one-way. If an entry is ever added here, it is debt to fix and delete, not a pattern to copy. The guard blocks any NEW cycle regardless of this list.",
+    "edges": []
+  }
+}

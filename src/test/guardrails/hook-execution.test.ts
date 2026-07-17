@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
-import { mkdtempSync, readFileSync, readdirSync } from "fs";
+import { chmodSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { delimiter, dirname, join } from "path";
 
 // End-to-end hook contract. The per-function guardrail logic is unit-tested
 // elsewhere; this file exercises the *entry* the way Claude Code runs it —
@@ -152,6 +152,79 @@ describe("guardrail wrapper never-block fallback (Lazy-core tripwire)", () => {
       expect(body, `${f} must keep its never-block fallback`).toContain("printf '{}'");
       expect(body, `${f} must swallow guardrail stderr`).toContain("2>/dev/null");
     }
+  });
+});
+
+// The wrappers guard guardrails.mjs behind an in-shell keyword pre-filter so the
+// common case (a prompt, a Bash call, a turn end that doesn't concern a guardrail)
+// never pays Node cold-start — the fix for hooks stalling the turn on a loaded
+// box. These run the real bash wrappers with `node` stubbed on PATH: a marker in
+// the output proves Node ran; its absence proves the pre-filter short-circuited.
+// Bash-only, so skipped on win32 (covered by the Linux/macOS platform-compat jobs).
+describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no Node on the cold path)", () => {
+  const NODE_RAN = "__STUB_NODE_RAN__";
+  const event = (o: unknown): string => JSON.stringify(o);
+  let root: string;
+  let binDir: string;
+
+  beforeEach(() => {
+    root = dirname(SCRIPTS); // plugin/, so ${root}/scripts/guardrails.mjs resolves
+    binDir = mkdtempSync(join(tmpdir(), "gr-stub-"));
+    const stub = join(binDir, "node");
+    writeFileSync(stub, `#!/usr/bin/env bash\nprintf '%s' '${NODE_RAN}'\n`);
+    chmodSync(stub, 0o755);
+  });
+
+  function runWrapper(script: string, stdin: string): string {
+    const home = mkdtempSync(join(tmpdir(), "gr-home-"));
+    const r = spawnSync("bash", [join(SCRIPTS, script)], {
+      input: stdin,
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        CLAUDE_PLUGIN_ROOT: root,
+        HOME: home,
+        USERPROFILE: home,
+      },
+    });
+    return (r.stdout ?? "").trim();
+  }
+
+  it("build-router: skips Node on a non-build prompt, spawns it on a build ask", () => {
+    expect(runWrapper("guardrail-build-router.sh", event({ session_id: "a", prompt: "what time is it?" }))).toBe("{}");
+    expect(runWrapper("guardrail-build-router.sh", event({ session_id: "b", prompt: "implement dark mode" }))).toContain(NODE_RAN);
+  });
+
+  it("pr-opened: skips Node on a plain command, spawns it on gh pr create", () => {
+    expect(
+      runWrapper("guardrail-pr-opened.sh", event({ tool_name: "Bash", tool_input: { command: "ls -la" } })),
+    ).toBe("{}");
+    expect(
+      runWrapper("guardrail-pr-opened.sh", event({ tool_name: "Bash", tool_input: { command: "gh pr create --fill" } })),
+    ).toContain(NODE_RAN);
+  });
+
+  it("report-format: skips Node on a plain command, spawns it on gh pr comment", () => {
+    expect(
+      runWrapper("guardrail-report-format.sh", event({ tool_name: "Bash", tool_input: { command: "git status" } })),
+    ).toBe("{}");
+    expect(
+      runWrapper("guardrail-report-format.sh", event({ tool_name: "Bash", tool_input: { command: "gh pr comment 1 --body x" } })),
+    ).toContain(NODE_RAN);
+  });
+
+  it("record-tests: skips Node on a plain command, spawns it on a test run", () => {
+    expect(
+      runWrapper("guardrail-record-tests.sh", event({ tool_name: "Bash", tool_input: { command: "git log" } })),
+    ).toBe("{}");
+    expect(
+      runWrapper("guardrail-record-tests.sh", event({ tool_name: "Bash", tool_input: { command: "pnpm test" } })),
+    ).toContain(NODE_RAN);
+  });
+
+  it("e2e-gate: skips Node when no armed state file exists for the session", () => {
+    expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
 });
 

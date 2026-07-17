@@ -21,7 +21,7 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-report-format.sh\"",
             "async": false,
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }
@@ -33,13 +33,13 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-opened.sh\"",
-            "async": true,
+            "async": false,
             "timeout": 10
           },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
-            "async": true,
+            "async": false,
             "timeout": 10
           }
         ]
@@ -50,7 +50,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
-            "async": true,
+            "async": false,
             "timeout": 10
           }
         ]
@@ -63,7 +63,7 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-e2e-gate.sh\"",
             "async": false,
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }
@@ -74,7 +74,7 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\"",
-            "async": true,
+            "async": false,
             "timeout": 10
           }
         ]

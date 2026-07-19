@@ -10,7 +10,7 @@ Three ways in, all running the same procedure:
 
 - **Manual** — `/muggle:muggle-pr-followup reconcile` (or `sweep`).
 - **Auto-track** — the top of a no-arg invocation ([`auto-track.md`](auto-track.md)).
-- **Session start** — the `reconcile-stale-watchers.sh` hook ([`../../hooks/README.md`](../../hooks/README.md)). It scans for open slots (a `prs.json` with no `result.md`) and nudges the agent to run this procedure **only when some exist**, staying silent otherwise. The hook can't re-arm anything itself — re-arming needs the `CronCreate` tool, which a shell hook can't call — so it only surfaces the work. This closes the gap where session-only crons die (session end, 7-day expiry) and open PRs accumulate dead watchers with nothing to notice.
+- **Session start** — the `reconcile-stale-watchers.sh` hook ([`../../hooks/README.md`](../../hooks/README.md)) runs this sweep, catching a watcher that died with its session (end, or 7-day `/loop` cron expiry) before its PR's merge was observed.
 
 Recover-don't-seed holds on every trigger: a session-start run still never seeds a first watcher (see Invariants).
 

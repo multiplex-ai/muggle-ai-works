@@ -35,6 +35,8 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 
 Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session) and re-arms any open slot whose watcher stopped silently (a dropped respawn). Reconcile recovers a watcher that was already running; it never seeds a first watcher for a PR — that is auto-track's / bootstrap's job.
 
+**Reconcile is also triggered at session start**, so a dead watcher gets caught without waiting for a manual sweep: a `SessionStart` hook ([`../../hooks/README.md`](../../hooks/README.md)) scans for open slots and, only when some exist, nudges the agent to run reconcile. Session-only crons die on session end and the 7-day `/loop` expiry, so without this a merged-away PR's slot could sit un-finalized indefinitely. The hook only nudges — it can't call `CronCreate` to re-arm — and stays silent when no open slot exists. See [`reconcile.md`](reconcile.md#triggers).
+
 Bootstrap accepts three optional trailing flags:
 
 - `--slug=<name>` — override the default `<repo>-pr<n>` slug

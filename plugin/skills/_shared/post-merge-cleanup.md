@@ -2,9 +2,9 @@
 
 Gated by [`autoCleanup`](../muggle-preferences/preference-gates/autoCleanup.md). Follow the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md). Fire only after the PR is **merged** — never while it's still open.
 
-On `always`, the four steps below run as one pre-authorized sequence (no per-step prompts). Stop on the first failure; do not force.
+On `always`, the steps below run as one pre-authorized sequence (no per-step prompts). Stop on the first failure; do not force.
 
-1. `git worktree remove {worktreePath}` — only if a worktree was used.
+1. **Remove the worktree — junction-safe.** `git worktree remove {worktreePath}`, only if a worktree was used. On Windows a worktree's `node_modules` (and sometimes other deps) is frequently a **directory junction** into the main checkout's real `node_modules`, so the worktree skips a multi-GB install and shares the main one. `git worktree remove --force` (and `rm -rf`) recurse *through* the junction and delete its **target** — wiping the main checkout's `node_modules` and breaking every other worktree that shares it. So **never `--force` here**: first drop each junction **link** without touching its target — `cmd /c rmdir "{worktreePath}\node_modules"` (`rmdir` **without** `/S` removes the link only, not the target) — then plain `git worktree remove {worktreePath}`. Detect a junction with `Get-Item <path> -Force` → `LinkType=Junction` (or `dir` shows `<JUNCTION>`); after dropping it, confirm the main checkout's `node_modules` is still populated before continuing.
 2. `git branch -d {branch}` — **skip when no worktree was used**: the branch is the user's current live checkout (a bootstrap/auto-track watcher), and the checked-out branch must never be deleted. Then `git push origin --delete {branch}`.
 3. Clear `.muggle-ai/` session folders for this branch's runs and stale `/tmp/muggle-prepare-*.log` files. Cloud results stay.
-4. Invoke `commit-commands:clean_gone` via the `Skill` tool.
+4. Invoke `commit-commands:clean_gone` via the `Skill` tool — **but only after neutralizing junctions.** That command **force-removes** every `[gone]` branch's worktree, so against a junctioned worktree it destroys the shared `node_modules` exactly as in step 1. Before invoking it, drop the `node_modules` junction (step 1) in each remaining `[gone]` worktree, or skip `clean_gone` for any that still junction it. It also cannot remove the main working tree or a checked-out branch — leave those to the user.

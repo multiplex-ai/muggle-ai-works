@@ -4,6 +4,16 @@ The procedure for the **reconcile mode** of `muggle-pr-followup` — a sweep tha
 
 Termination is otherwise tick-driven ([`contract.md`](contract.md) Step 2): a slot finalizes only when a tick fires and observes `MERGED` / `CLOSED`. If the tick stream stops first — the recurring `/loop` cron auto-expires after 7 days, the session ends, or the machine is off when the PR merges — no tick catches the transition, and the slot is left un-finalized: no `result.md`, no post-merge cleanup, and a surviving cron would keep polling a dead PR. Reconcile is the catch-up.
 
+## Triggers
+
+Three ways in, all running the same procedure:
+
+- **Manual** — `/muggle:muggle-pr-followup reconcile` (or `sweep`).
+- **Auto-track** — the top of a no-arg invocation ([`auto-track.md`](auto-track.md)).
+- **Session start** — the `reconcile-stale-watchers.sh` hook ([`../../hooks/README.md`](../../hooks/README.md)) runs this sweep, catching a watcher that died with its session (end, or 7-day `/loop` cron expiry) before its PR's merge was observed.
+
+Recover-don't-seed holds on every trigger: a session-start run still never seeds a first watcher (see Invariants).
+
 ## Input
 
 `$ARGUMENTS` is `reconcile` (or `sweep`), optionally followed by a `<slug>` to scope the sweep to one slot.

@@ -35,3 +35,9 @@ Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json
 | `PreToolUse` (Bash) | `guardrail-report-format.sh` | **enforce** | a `gh pr comment\|create\|edit` body reads like an E2E report but lacks the `build-pr-section` sentinel | — | **deny** — render via `muggle build-pr-section` instead |
 | `Stop` | `guardrail-e2e-gate.sh` | **enforce** | unit tests passed this session and no E2E ran yet | `autoE2ETest` | **block** the turn until E2E runs via `muggle-test` (releases after 3 blocks) |
 | `UserPromptSubmit` | `guardrail-build-router.sh` | advise | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |
+
+## Session-start reconcile nudge
+
+`SessionStart` (`scripts/reconcile-stale-watchers.sh`) — a standalone advisory, not part of the `guardrails.mjs` decision tree above.
+
+`muggle-pr-followup` watchers are session-only `/loop` crons; they die on session end and the 7-day `/loop` expiry, leaving open PRs with no live poller. The skill's [`reconcile`](../skills/muggle-pr-followup/reconcile.md) procedure recovers them — finalizes slots whose PR went terminal, sweeps orphan crons, re-arms silently-stopped open watchers — but re-arming needs the `CronCreate` tool, which a shell hook can't call. So this hook nudges rather than acts: it scans `~/.muggle-ai/muggle-do/sessions/*/` for open slots (a `prs.json` with no `result.md`) and, **only when one or more exist**, injects `additionalContext` telling the agent to run `/muggle:muggle-pr-followup reconcile`. Zero open slots → it emits nothing. A pure directory scan (no `gh`, no writes), so it's cheap enough for every session start.

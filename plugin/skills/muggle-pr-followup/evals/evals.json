@@ -1,0 +1,89 @@
+{
+  "skill_name": "muggle-pr-followup",
+  "notes": "These evals test the TICK DECISION behavior. A real tick needs live GitHub state and the Cron tools, so each prompt hands the model a concrete slot + provider state and asks for the step-by-step plan it would execute; assertions check the plan takes the branch the contract mandates. Run via skill-creator's eval runner — CI does not execute these (ci.yml gates on vitest/check-skill-deps; skill-eval.yml runs gate scenarios sourced from muggle-ai-brain and the routing eval).",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "actionable-threads-dispatch-address-reviews",
+      "prompt": "Tick muggle-ai-works-pr500 500. The slot is open. The PR has two unresolved, not-outdated review threads whose newest comments are from a human (no muggle-do:bot marker), CI is fully green, and the branch is level with master. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "computes_actionable_from_live_thread_state", "text": "Plan derives the actionable set from current unresolved-thread state, not from a stored review-id cursor." },
+        { "name": "classifies_by_loop_marker", "text": "Plan decides a thread is actionable by the absence of the muggle-do:bot marker on the newest comment, never by author login." },
+        { "name": "cancels_own_cron_before_dispatch", "text": "Plan cancels this watcher's own cron before dispatching, so no tick overlaps the running cycle." },
+        { "name": "dispatches_address_reviews", "text": "Plan dispatches /muggle-do with an address-reviews directive carrying the PR URL, slug, and owning review ids, then exits." },
+        { "name": "stays_a_dumb_pipe", "text": "Plan does NOT classify reviews, post replies, resolve threads, or escalate — those belong to /muggle-do." }
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "reviews-preempt-ci",
+      "prompt": "Tick muggle-ai-works-pr501 501. The slot is open. There is one unresolved human review thread AND two red required checks on the head SHA. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "dispatches_address_reviews_only", "text": "Plan dispatches address-reviews for the review thread." },
+        { "name": "does_not_poll_or_dispatch_ci", "text": "Plan does NOT dispatch fix-ci on this tick — actionable feedback preempts the CI branch entirely." },
+        { "name": "single_dispatch_then_exit", "text": "Plan performs exactly one dispatch and exits rather than handling both concerns in one tick." }
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "behind-branch-dispatches-rebase",
+      "prompt": "Tick muggle-ai-works-pr502 502. The slot is open, there are no unresolved review threads, CI is green. GitHub reports mergeStateStatus BLOCKED and mergeable MERGEABLE, and the compare call shows behind_by 4. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "reads_staleness_from_compare", "text": "Plan determines the branch is out of date from behind_by on the compare call (commit ancestry)." },
+        { "name": "does_not_trust_mergeStateStatus", "text": "Plan does NOT conclude the branch is current just because mergeStateStatus reads BLOCKED rather than BEHIND." },
+        { "name": "dispatches_rebase", "text": "Plan dispatches /muggle-do with a rebase directive (PR URL + slug, no review ids, no check names)." },
+        { "name": "keys_dedup_on_head_and_base_pair", "text": "Plan keys the rebase attempt/escalation lookup on the head..base_tip pair, not the head SHA alone." }
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "red-ci-within-budget-dispatches-fix-ci",
+      "prompt": "Tick muggle-ai-works-pr503 503. The slot is open, no unresolved review threads, branch is level with its base. Two checks are red on the head SHA. ci_fix_attempts for that SHA is 1 and the SHA is not in ci_escalated_shas. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "checks_attempt_budget", "text": "Plan verifies ci_fix_attempts for the head SHA is under the cap of 3 before dispatching." },
+        { "name": "checks_escalated_set", "text": "Plan verifies the head SHA is not in ci_escalated_shas." },
+        { "name": "dispatches_fix_ci_with_check_names", "text": "Plan dispatches /muggle-do with a fix-ci directive carrying the red check names." },
+        { "name": "cancels_own_cron_before_dispatch", "text": "Plan cancels this watcher's cron before dispatching." }
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "red-ci-over-budget-idles",
+      "prompt": "Tick muggle-ai-works-pr504 504. The slot is open, no unresolved review threads, branch is level with its base. Three checks are red on the head SHA, ci_fix_attempts for that SHA is 3, and the SHA is in ci_escalated_shas. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "does_not_dispatch", "text": "Plan does NOT dispatch fix-ci — the budget is spent and the SHA is already escalated." },
+        { "name": "treats_as_durable_block", "text": "Plan classifies this idle as blocked pending a human (reason ci_escalated), not as a transient idle." },
+        { "name": "reminds_owner_at_1m", "text": "Plan emits a one-line owner reminder and keeps the normal 1m cadence — it does not back off, slow down, or stop polling." },
+        { "name": "no_pr_side_post", "text": "Plan does NOT post anything to the PR for a blocked tick; the reminder goes to the loop owner in-session." }
+      ]
+    },
+    {
+      "id": 5,
+      "eval_name": "merged-pr-finalizes-without-respawn",
+      "prompt": "Tick muggle-ai-works-pr505 505. Refreshing the PR shows state MERGED. The slot on disk still says open. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "finalizes_the_slot", "text": "Plan finalizes the slot: marks it terminal, writes result.md, logs, and unschedules this watcher's cron." },
+        { "name": "does_not_respawn", "text": "Plan does NOT respawn or re-arm a watcher — a terminal PR needs none." },
+        { "name": "hands_off_terminal_wrapup", "text": "Plan hands the terminal wrap-up to /muggle-do post-merge cleanup as the turn's last action." },
+        { "name": "unschedules_recorded_id_first", "text": "Plan cancels the cron by the id recorded in cron.json first, falling back to a CronList match — so teardown works even after CronList has gone blind." }
+      ]
+    },
+    {
+      "id": 6,
+      "eval_name": "stale-queued-fire-does-not-refinalize",
+      "prompt": "Tick muggle-ai-works-pr506 506. Reading the slot, prs.json already records state merged and result.md exists — this fire was queued before the cron was cancelled. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "detects_stale_fire", "text": "Plan recognises this as a stale queued fire from the on-disk terminal state before fetching anything." },
+        { "name": "does_not_refetch_or_refinalize", "text": "Plan does NOT re-fetch the PR, re-write result.md, or re-run the terminal handoff." },
+        { "name": "defensively_cancels_and_logs", "text": "Plan defensively cancels any lingering cron for the slug and appends a stale-tick line to followup.log, then exits." }
+      ]
+    }
+  ]
+}

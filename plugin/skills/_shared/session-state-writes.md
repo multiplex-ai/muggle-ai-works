@@ -18,5 +18,5 @@ If you script the rewrite instead of using the Write tool, any tool that replace
 
 ## Field map
 
-- `last_seen.json` — one object keyed by `"<owner>/<repo>#<n>"`. Mutate fields under that key: `idle_tick_count`, `cycles_completed` (counters), `last_pushed_sha`, `lastBodyReviewId` (scalars), `pushed_shas`, `escalated_review_ids`, `ci_escalated_shas`, `conflict_escalated_shas` (arrays), `ci_fix_attempts[<sha>]`, `conflict_resolve_attempts[<sha>]` (per-SHA maps).
+- `last_seen.json` — one object keyed by `"<owner>/<repo>#<n>"`. Mutate fields under that key: `idle_tick_count`, `cycles_completed` (counters), `last_pushed_sha`, `lastBodyReviewId` (scalars), `pushed_shas`, `escalated_review_ids`, `ci_escalated_shas`, `conflict_escalated_keys` (arrays), `ci_fix_attempts[<sha>]` (keyed by head SHA), `conflict_resolve_attempts[<head-sha>..<base-tip-sha>]` (keyed by the head/base-tip pair).
 - `prs.json` — a one-element array. Mutate `[0]`: `head_sha`, `state`.

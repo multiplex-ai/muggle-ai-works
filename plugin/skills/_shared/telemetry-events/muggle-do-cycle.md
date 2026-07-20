@@ -30,6 +30,6 @@ One per address-reviews invocation, regardless of outcome.
 - `"ci-fixed"` — a watcher-dispatched fix-ci cycle pushed a fix for one or more red checks.
 - `"ci-escalated"` — fix-ci exhausted its 3 attempts for the SHA or the failing checks were out of scope; the SHA was added to `ci_escalated_shas`. No further auto-fix on it.
 - `"rebased"` — a watcher-dispatched rebase cycle rebased the branch onto its base (behind-only or conflicts resolved), verified, and force-pushed.
-- `"rebase-escalated"` — the rebase couldn't be completed (a conflict under `autoResolveConflicts=never`, verification failed, or the 2-attempt budget for the SHA was spent); the SHA was added to `conflict_escalated_shas`. No further auto-rebase on it.
+- `"rebase-escalated"` — the rebase couldn't be completed (a conflict under `autoResolveConflicts=never`, verification failed, or the 2-attempt budget for the head/base-tip pair was spent); the pair was added to `conflict_escalated_keys`. No further auto-rebase until either side moves.
 
 For fix-ci cycles (`ci-fixed` / `ci-escalated`) the `review_ids_*` arrays are empty and the `ci_checks_*` arrays carry the data: `ci_checks_in` (red checks dispatched), `ci_checks_fixed` (made green and pushed), `ci_checks_escalated` (out-of-scope or unresolved). For rebase cycles (`rebased` / `rebase-escalated`) all the `review_ids_*` and `ci_checks_*` arrays are empty; the SHA fields carry the before/after of the rebase.

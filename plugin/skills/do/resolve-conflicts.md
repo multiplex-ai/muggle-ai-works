@@ -14,13 +14,13 @@ Rebase a PR's branch onto its base — whether it's merely **behind** (out of da
 
 ## Inputs from disk
 
-From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + branch + `head_sha`), `last_seen.json` (`conflict_resolve_attempts`, `conflict_escalated_shas`, `pushed_shas`), `state.md` (worktree path, validation strategy, base branch).
+From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + branch + `head_sha`), `last_seen.json` (`conflict_resolve_attempts`, `conflict_escalated_keys`, `pushed_shas`), `state.md` (worktree path, validation strategy, base branch).
 
 ## Procedure
 
 ### Step 1 — Re-attach
 
-Materialize the PR branch in its worktree per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) (or use `state.md`'s `worktreePath`). Capture `rebase_sha = prs.json[0].head_sha` and the base branch (`baseRefName` from [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md)).
+Materialize the PR branch in its worktree per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) (or use `state.md`'s `worktreePath`). Capture `rebase_sha = prs.json[0].head_sha` and the base branch (`baseRefName` from [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md)). Capture the base tip too — `.base_commit.sha` from that recipe's `compare` call — and form `rebase_key = "<rebase_sha>..<base_tip_sha>"`. Both budget fields below are keyed on that pair, matching the watcher's Step 5; writing a bare SHA instead leaves an entry the watcher ignores, and the rebase re-dispatches forever.
 
 ### Step 2 — Rebase onto base (resolve conflicts if any)
 
@@ -37,13 +37,13 @@ Build (typecheck + lint on the changed surface) + unit suite must pass. Run E2E 
 
 ### Step 4 — Force-push + respawn
 
-Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_sha]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+Push with `--force-with-lease` (the rebase rewrote history). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_key]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 
-When `autoResolveConflicts=never`, the resolution failed verification, or `conflict_resolve_attempts[rebase_sha]` has reached 2:
+When `autoResolveConflicts=never`, the resolution failed verification, or `conflict_resolve_attempts[rebase_key]` has reached 2:
 
-1. Add `rebase_sha` to `last_seen.conflict_escalated_shas` so the watcher does not re-dispatch this SHA.
+1. Add `rebase_key` to `last_seen.conflict_escalated_keys` so the watcher does not re-dispatch this head against this base. If the base later moves, the key changes and the branch re-arms on its own — a conflict the user resolved upstream stops being this watcher's dead end.
 2. Emit one terminal escalation naming the PR and the conflicting files (or the failing verification, for a behind-only rebase that didn't verify).
 3. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md) — it keeps polling for the user's manual resolution or any new reviews.
 

@@ -62,8 +62,8 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "pushed_shas": ["<sha>", ...],
     "ci_fix_attempts": { "<sha>": <int> },
     "ci_escalated_shas": ["<sha>", ...],
-    "conflict_resolve_attempts": { "<sha>": <int> },
-    "conflict_escalated_shas": ["<sha>", ...],
+    "conflict_resolve_attempts": { "<head-sha>..<base-tip-sha>": <int> },
+    "conflict_escalated_keys": ["<head-sha>..<base-tip-sha>", ...],
     "blocked": {
       "reason": "conflict_escalated" | "ci_escalated" | "reviews_escalated",
       "since": "<ISO-8601>",
@@ -85,10 +85,14 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
 - `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
-- `conflict_resolve_attempts`: per-SHA count of rebase cycles `/muggle-do` has run for this SHA (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching a rebase for a SHA once its count reaches 2. Keyed by head SHA. A clean behind-only rebase produces a new SHA, so the cap only bites a SHA that keeps failing to rebase-and-verify.
-- `conflict_escalated_shas`: head SHAs whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless SHA is never re-attempted.
+- `conflict_resolve_attempts`: count of rebase cycles `/muggle-do` has run (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching once a key's count reaches 2. Keyed by `rebase_key` — `"<head_sha>..<base_tip_sha>"`, the head paired with the base branch tip it was measured against.
+- `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless pairing is never re-attempted.
+
+Both are keyed on the pair, not the head alone, because whether a branch conflicts depends on both sides. Under a head-only key, a base that moves produces a genuinely new conflict against an unchanged head — and the stale entry suppresses it permanently, because nothing can change the head while the branch sits blocked. Pairing re-arms the budget whenever either side moves. Legacy entries written before this change are bare SHAs with no `..`; readers ignore them, which un-wedges any slot they had blocked.
+
+Unlike these, `ci_fix_attempts` / `ci_escalated_shas` stay keyed on the head SHA alone — a CI result is a function of the head only, so base movement must not re-arm them.
 - `blocked`: present only while the watcher is **awaiting the owner** on a PR that cannot progress without a human ([`contract.md`](contract.md) Step 7). Absent ⇒ the watcher is in its normal dispatch flow. When present, the watcher **keeps the normal `1m` cadence** and each tick is a reminder-or-resume check ([`contract.md`](contract.md) Step 2.5): it re-emits a one-line reminder to the owner, recomputes the `fingerprint`, and clears the block the moment any component moves. Its value is the reason-specific reminder plus fingerprint auto-resume.
-  - `reason`: which durable block is being awaited — `conflict_escalated` (`head_sha` ∈ `conflict_escalated_shas`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), or `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty). Selects the reminder wording; the resume decision is fingerprint-driven, not reason-driven.
+  - `reason`: which durable block is being awaited — `conflict_escalated` (`rebase_key` ∈ `conflict_escalated_keys`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), or `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty). Selects the reminder wording; the resume decision is fingerprint-driven, not reason-driven.
   - `since`: when the block was first flagged — lets the reminder state how long the owner has been the blocker.
   - `fingerprint`: the external state the block is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts. Any change clears the block and resumes evaluation.
 

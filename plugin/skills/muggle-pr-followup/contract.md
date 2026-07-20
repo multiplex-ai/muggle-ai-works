@@ -37,7 +37,7 @@ Otherwise, self-record this watcher's cron id per [`record-cron-id.md`](record-c
 
 ### Step 1 — Refresh PR state
 
-Per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` (conflict signal) for Step 5, and run the recipe's `compare` call to capture `behind_by` (out-of-date signal) for Step 5.
+Per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md). Update `prs.json[0].head_sha` and `prs.json[0].state` from the response; keep `mergeable` (conflict signal) for Step 5, and run the recipe's `compare` call to capture both `behind_by` (out-of-date signal) and `.base_commit.sha` — the base branch tip, Step 5's `base_tip_sha`.
 
 ### Step 2 — Termination check
 
@@ -102,7 +102,11 @@ A merge-ready branch is **current with its base** — neither conflicting nor be
 
 This trigger is **independent of approval and CI state**: an out-of-date branch is rebased whether or not it has been reviewed, approved, or has green checks. The watcher acts on staleness directly — it never waits for an approval to surface it.
 
-If a rebase is due **and** `conflict_resolve_attempts[head_sha] < 2` **and** `head_sha` ∉ `conflict_escalated_shas` → dispatch and exit:
+Rebase dedup is keyed on the **pair** `rebase_key = "<head_sha>..<base_tip_sha>"`, not on the head alone. Whether a branch conflicts is a function of both sides, so a head-only key wedges a PR permanently the first time the base moves: the head cannot change while nobody pushes, so one stale entry suppresses every genuinely new conflict that base movement introduces, forever. Take `base_tip_sha` from the Step 1 compare's `.base_commit.sha` (the base branch tip, which advances when the base does) — **never** `.merge_base_commit.sha`, which does not move when only the base advances and so would never re-arm.
+
+Entries written by an older watcher are bare head SHAs with no `..` — ignore them when reading `conflict_escalated_keys`, which re-arms any slot a head-only key had wedged.
+
+If a rebase is due **and** `conflict_resolve_attempts[rebase_key] < 2` **and** `rebase_key` ∉ `conflict_escalated_keys` → dispatch and exit:
 
   1. Reset `last_seen.idle_tick_count` to 0.
   2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s rebase respawns it when the cycle is done.
@@ -114,7 +118,7 @@ If a rebase is due **and** `conflict_resolve_attempts[head_sha] < 2` **and** `he
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `rebase_needed: true`, `dispatched_rebase: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
-Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or budget spent (`conflict_resolve_attempts[head_sha] >= 2` or `head_sha` ∈ `conflict_escalated_shas`) → fall through to CI.
+Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or budget spent (`conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys`) → fall through to CI.
 
 ### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
 
@@ -137,7 +141,7 @@ Fetch the CI rollup for `prs.json[0].head_sha`, provider resolved as in Step 3 �
 
 Any idle branch (Steps 4–6 that did not dispatch). First classify **why** this tick idled. It is **blocked pending a human** when the head is under a durable block that only the user can clear:
 
-- `head_sha` ∈ `conflict_escalated_shas` — a rebase `/muggle-do` gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`; or
+- `rebase_key` ∈ `conflict_escalated_keys` — a rebase `/muggle-do` gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`. This block clears on its own when the base moves: the new `base_tip_sha` yields a key the set does not contain, and the branch re-arms for a fresh rebase attempt; or
 - `head_sha` ∈ `ci_escalated_shas` — CI the fix-ci stage gave up on, reason `ci_escalated`; or
 - `last_seen.escalated_review_ids` is non-empty with the actionable set empty — an ambiguous review awaiting the user's direction, reason `reviews_escalated`.
 

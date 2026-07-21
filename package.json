@@ -1,320 +1,116 @@
 {
-
   "name": "@muggleai/works",
-
   "mcpName": "io.github.multiplex-ai/muggle",
-
   "version": "5.5.1",
-
   "description": "Ship quality products with AI-powered E2E acceptance testing that validates your web app like a real user — from Claude Code and Cursor to PR.",
-
   "type": "module",
-
   "main": "dist/index.js",
-
   "bin": {
-
-  
-  "muggle": "bin/muggle.js"
-
+    "muggle": "bin/muggle.js"
   },
-
   "files": [
-
-  
-  "dist",
-
-  
-  "plugin",
-
-  
-  "bin/muggle.js",
-
-  
-  "scripts/postinstall.mjs"
-
+    "dist",
+    "plugin",
+    "bin/muggle.js",
+    "scripts/postinstall.mjs"
   ],
-
   "scripts": {
-
-  
-  "clean": "rimraf dist",
-
-  
-  "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
-
-  
-  "build:plugin": "node scripts/build-plugin.mjs",
-
-  
-  "sync:versions": "node scripts/sync-versions.mjs",
-
-  
-  "build:release": "npm run build",
-
-  
-  "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
-
-  
-  "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
-
-  
-  "verify:skill-deps": "node scripts/check-skill-deps.mjs",
-
-  
-  "smoke:cli": "node scripts/smoke-cli.mjs",
-
-  
-  "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
-
-  
-  "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
-
-  
-  "link:maintainer-skills": "node scripts/link-maintainer-skills.mjs",
-
-  
-  "build:workspace": "turbo run build",
-
-  
-  "typecheck:workspace": "turbo run typecheck",
-
-  
-  "lint:workspace": "turbo run lint",
-
-  
-  "test:workspace": "turbo run test",
-
-  
-  "dev:workspace": "turbo run dev",
-
-  
-  "bootstrap": "npm install && npm run build",
-
-  
-  "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
-
-  
-  "prepare": "npm run build",
-
-  
-  "postinstall": "node scripts/postinstall.mjs",
-
-  
-  "start": "node dist/index.js",
-
-  
-  "dev": "tsx watch src/index.ts",
-
-  
-  "lint": "eslint . --fix",
-
-  
-  "lint:check": "eslint .",
-
-  
-  "typecheck": "tsc --noEmit",
-
-  
-  "test": "vitest run",
-
-  
-  "test:watch": "vitest",
-
-  
-  "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts",
-
-  
-  "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts"
-
+    "clean": "rimraf dist",
+    "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "sync:versions": "node scripts/sync-versions.mjs",
+    "build:release": "npm run build",
+    "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
+    "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
+    "verify:skill-deps": "node scripts/check-skill-deps.mjs",
+    "smoke:cli": "node scripts/smoke-cli.mjs",
+    "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
+    "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",
+    "link:maintainer-skills": "node scripts/link-maintainer-skills.mjs",
+    "build:workspace": "turbo run build",
+    "typecheck:workspace": "turbo run typecheck",
+    "lint:workspace": "turbo run lint",
+    "test:workspace": "turbo run test",
+    "dev:workspace": "turbo run dev",
+    "bootstrap": "npm install && npm run build",
+    "bootstrap:workspace": "pnpm install && pnpm run build:workspace",
+    "prepare": "npm run build",
+    "postinstall": "node scripts/postinstall.mjs",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint . --fix",
+    "lint:check": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts",
+    "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts"
   },
-
   "muggleConfig": {
-
-  
-  "electronAppVersion": "1.6.10",
-
-  
-  "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
-
-  
-  "runtimeTargetDefault": "dev",
-
-  
-  "checksums": {
-
-  
-  
-  "darwin-arm64": "11672d444a151125a4d2f3413a7f0f4f8cb2de64ecbd2a43eddca4f364743b13",
-
-  
-  
-  "darwin-x64": "6277246853cdcc3aa3fbbaae703d428cfbf85c53fda6720a71a0cadbe8f5a5f6",
-
-  
-  
-  "linux-x64": "9485e0f9f4a0fb90666e63e87bd83da3c4b865a8cff8da40dc4d1b0ad2aba242",
-
-  
-  
-  "win32-x64": "e68471bcbf4f00d501067a282e835d00bb2f4941dc42878a8f041a5dab06acdf"
-
-  
-  }
-
+    "electronAppVersion": "1.6.10",
+    "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
+    "runtimeTargetDefault": "dev",
+    "checksums": {
+      "darwin-arm64": "11672d444a151125a4d2f3413a7f0f4f8cb2de64ecbd2a43eddca4f364743b13",
+      "darwin-x64": "6277246853cdcc3aa3fbbaae703d428cfbf85c53fda6720a71a0cadbe8f5a5f6",
+      "linux-x64": "9485e0f9f4a0fb90666e63e87bd83da3c4b865a8cff8da40dc4d1b0ad2aba242",
+      "win32-x64": "e68471bcbf4f00d501067a282e835d00bb2f4941dc42878a8f041a5dab06acdf"
+    }
   },
-
   "dependencies": {
-
-  
-  "@modelcontextprotocol/sdk": "^1.25.3",
-
-  
-  "applicationinsights": "^3.14.0",
-
-  
-  "axios": "^1.7.9",
-
-  
-  "commander": "^14.0.3",
-
-  
-  "open": "^11.0.0",
-
-  
-  "ulid": "^3.0.2",
-
-  
-  "uuid": "^14.0.0",
-
-  
-  "winston": "^3.17.0",
-
-  
-  "zod": "^4.3.6"
-
+    "@modelcontextprotocol/sdk": "^1.25.3",
+    "applicationinsights": "^3.14.0",
+    "axios": "^1.7.9",
+    "commander": "^14.0.3",
+    "open": "^11.0.0",
+    "ulid": "^3.0.2",
+    "uuid": "^14.0.0",
+    "winston": "^3.17.0",
+    "zod": "^4.3.6"
   },
-
   "devDependencies": {
-
-  
-  "@anthropic-ai/claude-agent-sdk": "^0.2.133",
-
-  
-  "@eslint/js": "^10.0.1",
-
-  
-  "@muggleai/mcp": "file:packages/mcps",
-
-  
-  "@muggleai/telemetry": "0.3.2",
-
-  
-  "@muggleai/workflows": "file:packages/workflows",
-
-  
-  "@types/node": "^25.5.2",
-
-  
-  "@types/uuid": "^11.0.0",
-
-  
-  "@typescript-eslint/eslint-plugin": "^8.34.0",
-
-  
-  "@typescript-eslint/parser": "^8.34.0",
-
-  
-  "@vitest/coverage-v8": "4.1.5",
-
-  
-  "eslint": "^10.2.0",
-
-  
-  "eslint-plugin-unused-imports": "^4.2.0",
-
-  
-  "rimraf": "^6.0.1",
-
-  
-  "tsup": "^8.5.1",
-
-  
-  "tsx": "^4.19.2",
-
-  
-  "turbo": "^2.9.4",
-
-  
-  "typescript": "^6.0.2",
-
-  
-  "vitest": "^4.0.18"
-
+    "@anthropic-ai/claude-agent-sdk": "^0.2.133",
+    "@eslint/js": "^10.0.1",
+    "@muggleai/mcp": "file:packages/mcps",
+    "@muggleai/telemetry": "0.3.2",
+    "@muggleai/workflows": "file:packages/workflows",
+    "@types/node": "^25.5.2",
+    "@types/uuid": "^11.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
+    "@vitest/coverage-v8": "4.1.5",
+    "eslint": "^10.2.0",
+    "eslint-plugin-unused-imports": "^4.2.0",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.19.2",
+    "turbo": "^2.9.4",
+    "typescript": "^6.0.2",
+    "vitest": "^4.0.18"
   },
-
   "engines": {
-
-  
-  "node": ">=22.0.0"
-
+    "node": ">=22.0.0"
   },
-
   "keywords": [
-
-  
-  "mcp",
-
-  
-  "model-context-protocol",
-
-  
-  "muggle-ai",
-
-  
-  "e2e-testing",
-
-  
-  "testing",
-
-  
-  "automation",
-
-  
-  "localhost",
-
-  
-  "ai-coding",
-
-  
-  "user-experience",
-
-  
-  "cursor",
-
-  
-  "claude-code",
-
-  
-  "vibe-coding"
-
+    "mcp",
+    "model-context-protocol",
+    "muggle-ai",
+    "e2e-testing",
+    "testing",
+    "automation",
+    "localhost",
+    "ai-coding",
+    "user-experience",
+    "cursor",
+    "claude-code",
+    "vibe-coding"
   ],
-
   "author": "Muggle AI",
-
   "license": "MIT",
-
   "packageManager": "pnpm@10.0.0",
-
   "repository": {
-
-  
-  "type": "git",
-
-  
-  "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
-
+    "type": "git",
+    "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
   },
-
   "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
 }

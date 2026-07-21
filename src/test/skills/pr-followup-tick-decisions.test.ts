@@ -118,6 +118,25 @@ describe("Step 0 — stale-fire guard", () => {
       "re-finalizing a torn-down slot rewrites result.md and re-fires the terminal handoff",
     ).toBe(true);
   });
+
+  it("escalates an unreachable orphaned cron to the owner on repeated stale fires", () => {
+    expect(/third or later/i.test(step0)).toBe(true);
+    expect(
+      /stale-orphan-escalated/.test(step0),
+      "without the marker line the notice repeats every minute — the escalation must fire exactly once",
+    ).toBe(true);
+    expect(
+      /restart/i.test(step0),
+      "a cron neither the recorded id nor CronList can reach clears only with a session restart; the owner has to be told, not left watching silent absorbs",
+    ).toBe(true);
+  });
+
+  it("forbids guess-deleting other watchers' cron ids", () => {
+    expect(
+      /never[^.]*guess-delet/i.test(step0),
+      "ids CronList does surface belong to other live watchers — deleting one silently kills a wanted loop",
+    ).toBe(true);
+  });
 });
 
 describe("record-cron-id — the recorded id survives CronList going blind", () => {

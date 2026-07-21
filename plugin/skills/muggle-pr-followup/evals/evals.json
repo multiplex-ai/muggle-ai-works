@@ -84,6 +84,18 @@
         { "name": "does_not_refetch_or_refinalize", "text": "Plan does NOT re-fetch the PR, re-write result.md, or re-run the terminal handoff." },
         { "name": "defensively_cancels_and_logs", "text": "Plan defensively cancels any lingering cron for the slug and appends a stale-tick line to followup.log, then exits." }
       ]
+    },
+    {
+      "id": 7,
+      "eval_name": "repeated-stale-fires-escalate-orphan-once",
+      "prompt": "Tick muggle-ai-works-pr507 507. prs.json records state merged and result.md exists. followup.log already holds four stale-tick lines for this slot and no stale-orphan-escalated line. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "detects_orphaned_cron", "text": "Plan concludes the cron is orphaned — repeated stale fires after finalize mean both cancel-cron lookups (recorded id, CronList match) keep missing it — rather than treating this as a normal queued-fire drain." },
+        { "name": "escalates_to_owner_once", "text": "Plan surfaces a one-line owner notice that only a session restart clears the orphan, and appends a stale-orphan-escalated marker line so the notice never repeats." },
+        { "name": "later_fires_absorb_silently", "text": "Plan treats any stale fire after the marker exists as a silent absorb — log stale-tick and exit, no repeated notice." },
+        { "name": "never_guess_deletes_other_ids", "text": "Plan does NOT delete cron ids that CronList surfaces for other slugs — those belong to other live watchers." }
+      ]
     }
   ]
 }

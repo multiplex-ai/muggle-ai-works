@@ -11,8 +11,19 @@ const FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
 // `cd …/muggle-ai-works && npm test`, both armed and disarmed it in one call).
 const E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
 
+// A deliberate "E2E can't run here" declaration: the model runs
+// `echo "MUGGLE_E2E_SKIP: <reason>"` and the Stop gate stays quiet for the
+// session. Anchored to a leading `echo` for the same reason E2E_TOOL matches
+// tool names, not command text — a grep, commit message, or skill edit that
+// merely *mentions* the token must not disarm the gate.
+const E2E_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_E2E_SKIP\b/;
+
 export function isTestCommand(cmd: string): boolean {
   return TEST_CMD.test(cmd);
+}
+
+export function isE2ESkipMarker(cmd: string): boolean {
+  return E2E_SKIP_MARKER.test(cmd);
 }
 
 export function testsPassed(input: HookInput): boolean {

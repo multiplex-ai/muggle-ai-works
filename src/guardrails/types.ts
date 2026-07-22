@@ -3,6 +3,7 @@ export interface GuardrailState {
   prsHandled: string[];
   unitTestsGreen?: boolean;
   e2eRun?: boolean;
+  e2eSkipped?: boolean;
   e2eBlockCount?: number;
   buildIntentRouted?: boolean;
 }

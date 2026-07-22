@@ -3,12 +3,13 @@ import type { GuardrailState } from "./types.js";
 export const MAX_E2E_BLOCKS = 3;
 
 export function shouldRunE2E(state: GuardrailState): boolean {
-  return state.unitTestsGreen === true && state.e2eRun !== true;
+  return state.unitTestsGreen === true && state.e2eRun !== true && state.e2eSkipped !== true;
 }
 
 export interface RecordedRun {
   unitTestPassed?: boolean;
   e2eRan?: boolean;
+  e2eSkipped?: boolean;
 }
 
 // Fold a recorded test run into the gate state, returning the same reference
@@ -19,6 +20,11 @@ export interface RecordedRun {
 // the reset the first E2E of a long-lived session keeps the gate satisfied for
 // every later round, so a watcher addressing a second round of review comments
 // would change code, go unit-green, and end the turn with no fresh E2E.
+//
+// A recorded skip is deliberately NOT cleared by the re-arm: the reasons E2E
+// can't run (no app to drive, CLI/library repo, no PR) don't change because
+// more unit tests passed, so re-nagging every round is pure noise. The skip
+// holds for the rest of the session.
 export function applyRecordedRun(state: GuardrailState, run: RecordedRun): GuardrailState {
   let next = state;
   if (run.unitTestPassed) {
@@ -26,6 +32,9 @@ export function applyRecordedRun(state: GuardrailState, run: RecordedRun): Guard
   }
   if (run.e2eRan) {
     next = { ...next, e2eRun: true };
+  }
+  if (run.e2eSkipped) {
+    next = { ...next, e2eSkipped: true };
   }
   return next;
 }

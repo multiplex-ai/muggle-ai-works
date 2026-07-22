@@ -20,6 +20,8 @@ This stage is **mode-driven by pre-flight**:
 
 - `local-e2e` runs the local browser flow (`test-feature-local` approach).
 - `unit-only` or `skip` does not execute browser runs and must emit an explicit non-pass verdict (`SKIPPED` / `UNIT-ONLY` equivalent in downstream reporting).
+
+**Every SKIPPED exit from this stage** (Step 0 poll-only, Step 1 `unit-only`/`skip`, Step 1.5 placeholder branch) also runs `echo "MUGGLE_E2E_SKIP: <one-line reason>"` as a single Bash call before exiting — it records the skip in guardrail session state so the Stop-hook E2E gate releases instead of blocking the turn.
 - `staging-replay` is not executed in this stage path and should be surfaced as `INCONCLUSIVE` unless the caller has already routed to a dedicated staging runner.
 
 For local runs, the tool boundaries are:

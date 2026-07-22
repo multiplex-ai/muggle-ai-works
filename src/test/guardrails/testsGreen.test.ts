@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTestCommand, testsPassed, isE2ERun } from "../../guardrails/testsGreen";
+import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "../../guardrails/testsGreen";
 
 describe("testsGreen", () => {
   it("recognizes common test commands", () => {
@@ -33,5 +33,19 @@ describe("testsGreen", () => {
     expect(bash("cd /c/Users/x/muggle-ai-works && npm test")).toBe(false);
     expect(bash("muggle test --local")).toBe(false);
     expect(bash("pnpm test")).toBe(false);
+  });
+
+  it("recognizes a deliberate skip marker command", () => {
+    expect(isE2ESkipMarker('echo "MUGGLE_E2E_SKIP: CLI package, no web surface to drive"')).toBe(true);
+    expect(isE2ESkipMarker("echo 'MUGGLE_E2E_SKIP: services down'")).toBe(true);
+    expect(isE2ESkipMarker("echo MUGGLE_E2E_SKIP: no PR")).toBe(true);
+    expect(isE2ESkipMarker('  echo "MUGGLE_E2E_SKIP: reason"')).toBe(true);
+  });
+
+  it("ignores commands that merely mention the skip token", () => {
+    expect(isE2ESkipMarker('grep -rn "MUGGLE_E2E_SKIP" src/')).toBe(false);
+    expect(isE2ESkipMarker("git commit -m 'add MUGGLE_E2E_SKIP marker'")).toBe(false);
+    expect(isE2ESkipMarker('gh pr create --title "MUGGLE_E2E_SKIP support"')).toBe(false);
+    expect(isE2ESkipMarker('cat file && echo "MUGGLE_E2E_SKIP: nope"')).toBe(false);
   });
 });

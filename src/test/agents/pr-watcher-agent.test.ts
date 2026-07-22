@@ -72,3 +72,39 @@ describe("pr-watcher agent definition", () => {
     expect(links.filter((target) => /(^|\/)do\//.test(target))).toEqual([]);
   });
 });
+
+describe("skill ↔ agent arming wiring", () => {
+  const SKILLS = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../../..",
+    "plugin/skills",
+  );
+  const read = (rel: string) => fs.readFileSync(path.join(SKILLS, rel), "utf8");
+  const armWatcher = read("muggle-pr-followup/arm-watcher.md");
+
+  it("arm-watcher spawns this agent and names it after the PR", () => {
+    expect(armWatcher).toMatch(/agents\/pr-watcher\.md/);
+    expect(armWatcher).toContain("PR #<n> — <title>");
+  });
+
+  // Drain-then-watch: the poller baselines at wake, so anything not drained
+  // first is silently swallowed by the fresh baseline.
+  it("drains before it watches — the tick precedes the spawn", () => {
+    expect(armWatcher.indexOf("contract.md")).toBeGreaterThan(-1);
+    expect(armWatcher.indexOf("contract.md")).toBeLessThan(
+      armWatcher.indexOf("agents/pr-watcher.md"),
+    );
+  });
+
+  it("every arming point routes through arm-watcher.md", () => {
+    for (const rel of [
+      "muggle-pr-followup/bootstrap.md",
+      "muggle-pr-followup/auto-track.md",
+      "do/respawn-watcher.md",
+    ]) {
+      expect(read(rel), `${rel} does not arm via arm-watcher.md`).toMatch(
+        /arm-watcher\.md/,
+      );
+    }
+  });
+});

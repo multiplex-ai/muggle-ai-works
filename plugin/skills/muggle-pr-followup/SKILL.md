@@ -16,7 +16,9 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Active reminders when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher keeps its `1m` poll and turns each blocked tick into a **one-line reminder**: the pending act plus a reference back to the decision context, nudging the owner every poll until they act ([`contract.md`](contract.md) Steps 2.5, 7). The block reminds but never stops or slows: each tick stays cheap (a fingerprint check, one line out), and the block clears the instant a push, review, or CI/deploy state moves.
 
-**Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone, and re-arms an open slot whose watcher stopped silently.
+**Detection is not a turn.** Bootstrap and auto-track arm a watcher as a `Monitor`-hosted shell poller, [`poll.sh`](poll.sh), which polls at `1m` and prints a line only when the PR needs work — see [`watch-mode.md`](watch-mode.md). A tick turn happens on that line, not on the clock, so an idle PR costs no session context and no model call.
+
+**Cron lifecycle.** The `/loop` cron remains the recovery substrate. A tick armed that way records its cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone, and re-arms an open slot whose watcher stopped silently.
 
 ## Routing
 

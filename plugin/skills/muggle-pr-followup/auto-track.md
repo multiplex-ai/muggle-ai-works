@@ -67,22 +67,26 @@ Already tracking (skipped):
   ...
   (or "none")
 
-Dispatching:
-  /loop 1m /muggle:muggle-pr-followup <slug> <n>
+Arming:
+  <slug> → poll.sh --slug <slug> --repo <owner>/<repo> --number <n>
   ...
 ```
 
-Print the summary **before** the `/loop` dispatches so it stays visible.
+Print the summary **before** arming the monitors so it stays visible.
 
-### Step 6 — Dispatch the watchers
+### Step 6 — Arm the watchers
 
-As the last action of the turn, emit one `/loop` line per **newly tracked** PR (not the skipped ones):
+As the last action of the turn, arm one Monitor-based poller per **newly tracked** PR (not the skipped ones) per [`watch-mode.md`](watch-mode.md):
 
 ```
-/loop 1m /muggle:muggle-pr-followup <slug> <n>
+Monitor(
+  command: bash "${CLAUDE_PLUGIN_ROOT}/skills/muggle-pr-followup/poll.sh" --slug <slug> --repo <owner>/<repo> --number <n>,
+  description: "<owner>/<repo>#<n> — review, CI, and rebase events",
+  persistent: true,
+)
 ```
 
-Each registers an independent cron — the N-independent-watchers model from [`SKILL.md`](SKILL.md).
+Each is an independent monitor — the N-independent-watchers model from [`SKILL.md`](SKILL.md). This replaces the per-PR `/loop 1m` cron: N idle watchers now cost N shell loops instead of N turns a minute.
 
 ### Step 7 — Emit telemetry
 

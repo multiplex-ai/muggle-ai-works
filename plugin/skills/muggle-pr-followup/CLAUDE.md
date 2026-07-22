@@ -8,6 +8,8 @@ This folder holds the watcher loop that drives one PR toward merge-ready. The wa
 - [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
 - [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (resolves the validation context once when the PR has a testable surface — else seeds poll-only like auto-track — then dispatches the first watcher).
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit; on a human-blocked PR it reminds the owner each tick at the normal `1m` cadence, resuming evaluation on external change).
+- [`watch-mode.md`](watch-mode.md) — how a watcher is armed: the `Monitor`-hosted [`poll.sh`](poll.sh) detector, the line grammar it emits, and how an emitted line becomes a `contract.md` tick.
+- [`poll.sh`](poll.sh) — the detector itself. Zero LLM: polls threads, body-only reviews, CI, and behind-by at `1m`, and prints a line only when there is something to act on.
 - [`blocked-tick.md`](blocked-tick.md) — the conditional blocked-path detail: fingerprint, flag-and-remind (Step 7), and remind-or-resume (Step 2.5), all at the normal `1m` cadence. Referenced by `contract.md`; runs only while `last_seen.blocked` is set.
 - [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.
 - [`cancel-cron.md`](cancel-cron.md) — stops this watcher's cron, recorded-id-first (survives `CronList` going blind) with a `CronList`-match fallback, plus the tool-call-not-shell guard. Referenced by `contract.md` and `finalize.md`.

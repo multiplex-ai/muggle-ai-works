@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
-import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
+import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
@@ -40,6 +40,7 @@ function recordTests(): string {
   const next = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
+    e2eSkipped: isE2ESkipMarker(cmd),
   });
   if (next !== state) writeState(next);
   return "{}";
@@ -51,11 +52,17 @@ function e2eGate(): string {
   if (decision.action === E2eGateAction.None || decision.action === E2eGateAction.Release) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
+  // Full instruction once; repeats are one line. The first block already
+  // taught the model both exits, so repeating the paragraph is pure noise.
   const reason =
-    `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. ` +
-    `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
-    `then finish. If E2E genuinely cannot run here (no app, services down, no PR), say so explicitly to the ` +
-    `user — this gate releases after ${MAX_E2E_BLOCKS} attempts.`;
+    decision.blockCount === 1
+      ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. ` +
+        `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
+        `then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user ` +
+        `why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
+        `for the rest of the session.`
+      : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
+        `run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 

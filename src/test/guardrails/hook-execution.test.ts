@@ -101,6 +101,52 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("e2e-gate", event({ session_id: "fresh" })).out).toBe("{}");
   });
 
+  it("record-tests -> e2e-gate: an explicit skip marker releases an armed gate", () => {
+    const session = "skip-chain";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_response: { stdout: "Tests: 18 passed", stderr: "" },
+      }),
+    );
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: 'echo "MUGGLE_E2E_SKIP: CLI package, no web surface to drive"' },
+        tool_response: { stdout: "MUGGLE_E2E_SKIP: CLI package, no web surface to drive" },
+      }),
+    );
+    expect(runHook("e2e-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("e2e-gate: full instruction on the first block, one-line reminder on repeats", () => {
+    const session = "terse-repeats";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_response: { stdout: "Tests: 18 passed", stderr: "" },
+      }),
+    );
+    const first = JSON.parse(runHook("e2e-gate", event({ session_id: session })).out);
+    expect(first.decision).toBe("block");
+    expect(first.reason).toContain("Do not end the turn yet");
+    expect(first.reason).toContain("MUGGLE_E2E_SKIP");
+
+    const second = JSON.parse(runHook("e2e-gate", event({ session_id: session })).out);
+    expect(second.decision).toBe("block");
+    expect(second.reason).toContain("2/3");
+    expect(second.reason).toContain("MUGGLE_E2E_SKIP");
+    expect(second.reason.length).toBeLessThan(first.reason.length);
+  });
+
   it("build-router: nudges a build ask toward muggle-do, once per session", () => {
     const ev = event({ session_id: "br", prompt: "implement a dark-mode toggle" });
     const first = JSON.parse(runHook("build-router", ev).out);
@@ -220,6 +266,15 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     ).toBe("{}");
     expect(
       runWrapper("guardrail-record-tests.sh", event({ tool_name: "Bash", tool_input: { command: "pnpm test" } })),
+    ).toContain(NODE_RAN);
+  });
+
+  it("record-tests: spawns Node on an E2E skip marker", () => {
+    expect(
+      runWrapper(
+        "guardrail-record-tests.sh",
+        event({ tool_name: "Bash", tool_input: { command: 'echo "MUGGLE_E2E_SKIP: no app"' } }),
+      ),
     ).toContain(NODE_RAN);
   });
 

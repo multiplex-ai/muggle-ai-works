@@ -11,6 +11,9 @@ describe("shouldRunE2E", () => {
   it("does not fire if tests never went green", () => {
     expect(shouldRunE2E({ sessionId: "s", prsHandled: [], unitTestsGreen: false })).toBe(false);
   });
+  it("does not fire once a skip was recorded", () => {
+    expect(shouldRunE2E({ sessionId: "s", prsHandled: [], unitTestsGreen: true, e2eSkipped: true })).toBe(false);
+  });
 });
 
 describe("e2eGateDecision", () => {
@@ -60,6 +63,20 @@ describe("applyRecordedRun", () => {
     expect(afterRound2Unit.e2eRun).toBe(false);
     expect(afterRound2Unit.e2eBlockCount).toBe(0);
     expect(shouldRunE2E(afterRound2Unit)).toBe(true);
+  });
+
+  it("a recorded skip satisfies the gate", () => {
+    const next = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eSkipped: true });
+    expect(next.e2eSkipped).toBe(true);
+    expect(shouldRunE2E(next)).toBe(false);
+    expect(e2eGateDecision(next).action).toBe(E2eGateAction.None);
+  });
+
+  it("a skip survives a later unit-green re-arm — no re-nagging within the session", () => {
+    const skipped = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eSkipped: true });
+    const afterNextUnitPass = applyRecordedRun(skipped, { unitTestPassed: true });
+    expect(afterNextUnitPass.e2eSkipped).toBe(true);
+    expect(shouldRunE2E(afterNextUnitPass)).toBe(false);
   });
 
   it("returns the same reference when nothing was recorded", () => {

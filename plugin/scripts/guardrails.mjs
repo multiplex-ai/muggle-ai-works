@@ -44,8 +44,12 @@ ${input2.tool_response?.output ?? ""}`;
 var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
 var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
+var E2E_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_E2E_SKIP\b/;
 function isTestCommand(cmd) {
   return TEST_CMD.test(cmd);
+}
+function isE2ESkipMarker(cmd) {
+  return E2E_SKIP_MARKER.test(cmd);
 }
 function testsPassed(input2) {
   const out = `${input2.tool_response?.stdout ?? ""}
@@ -60,7 +64,7 @@ function isE2ERun(input2) {
 // src/guardrails/shouldRunE2E.ts
 var MAX_E2E_BLOCKS = 3;
 function shouldRunE2E(state) {
-  return state.unitTestsGreen === true && state.e2eRun !== true;
+  return state.unitTestsGreen === true && state.e2eRun !== true && state.e2eSkipped !== true;
 }
 function applyRecordedRun(state, run) {
   let next = state;
@@ -69,6 +73,9 @@ function applyRecordedRun(state, run) {
   }
   if (run.e2eRan) {
     next = { ...next, e2eRun: true };
+  }
+  if (run.e2eSkipped) {
+    next = { ...next, e2eSkipped: true };
   }
   return next;
 }
@@ -195,7 +202,8 @@ function recordTests() {
   const state = readState(sessionId);
   const next = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
-    e2eRan: isE2ERun(input)
+    e2eRan: isE2ERun(input),
+    e2eSkipped: isE2ESkipMarker(cmd)
   });
   if (next !== state) writeState(next);
   return "{}";
@@ -206,7 +214,7 @@ function e2eGate() {
   if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const reason = `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app, services down, no PR), say so explicitly to the user \u2014 this gate releases after ${MAX_E2E_BLOCKS} attempts.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function reportGate() {

@@ -8,12 +8,13 @@ set -uo pipefail
 #
 # Fires after every Bash call and every muggle execute/replay, so a keyword
 # pre-filter for test runners and the muggle E2E tool names keeps Node off the
-# hot path. Only a `test` command (npm/pnpm/yarn/jest/vitest/pytest/go/cargo) or
-# a muggle execute/replay/test-generation event reaches guardrails.mjs, which
-# then inspects the output for pass/fail and updates state. Degrades to {}.
+# hot path. Only a `test` command (npm/pnpm/yarn/jest/vitest/pytest/go/cargo),
+# a muggle execute/replay/test-generation event, or an E2E skip marker reaches
+# guardrails.mjs, which then inspects the output for pass/fail and updates
+# state. Degrades to {}.
 payload="$(cat)"
 
-if ! grep -Eiq '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test-generation|replay)' <<<"$payload"; then
+if ! grep -Eiq '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test-generation|replay)|MUGGLE_E2E_SKIP' <<<"$payload"; then
   printf '{}'
   exit 0
 fi

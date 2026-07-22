@@ -8,7 +8,9 @@ Respawn is the **last action on every exit path that leaves the PR open** — th
 
 ## Procedure
 
-As the final action of the turn, arm per [`../muggle-pr-followup/arm-watcher.md`](../muggle-pr-followup/arm-watcher.md). Its drain tick finalizes a terminal PR (merged or closed — no watch needed), dispatches a follow-on cycle if feedback arrived while this one ran, or spawns the poller.
+As the final action of the turn, arm per [`../muggle-pr-followup/arm-watcher.md`](../muggle-pr-followup/arm-watcher.md). Its drain tick finalizes a terminal PR (merged or closed — no watch needed), dispatches a follow-on cycle if feedback arrived while this one ran, or resumes the poller.
+
+A cycle is not finished while its per-comment replies are unposted. A blocked reply — e.g. GitHub refuses with 422 while the reviewer's own pending review is open — escalates to the owner and holds this arming until the replies land. Never resume the watch over unposted replies.
 
 ## Recovery net
 

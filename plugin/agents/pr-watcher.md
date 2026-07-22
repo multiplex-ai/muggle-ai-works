@@ -1,6 +1,6 @@
 ---
 name: pr-watcher
-description: "Watches one PR in its own context; reports on new comment activity or terminal state. Detection only — never classifies, executes, or posts. Spawned and resumed by muggle-pr-followup's arming procedure."
+description: "Watches one PR in its own context; reports on new comment activity or terminal state, then pauses until resumed. Detection only — never classifies, executes, or posts."
 model: haiku
 ---
 

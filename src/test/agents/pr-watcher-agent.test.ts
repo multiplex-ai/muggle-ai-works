@@ -34,9 +34,12 @@ describe("pr-watcher agent definition", () => {
     expect(tools.sort()).toEqual(["Bash"]);
   });
 
+  // Matched on substance, not phrasing — an earlier version pinned the exact
+  // wording and broke on a pure copy-edit that kept both rules.
   it("keeps the detect-never-execute and never-stop-watching rules", () => {
     expect(body).toMatch(/detect, never execute/i);
-    expect(body).toMatch(/never decide to stop watching/i);
+    expect(body).toMatch(/never .{0,20}stop watching/i);
+    expect(body).toMatch(/only a terminal pr or the user/i);
   });
 
   it("restates none of muggle-pr-followup's decision rules", () => {

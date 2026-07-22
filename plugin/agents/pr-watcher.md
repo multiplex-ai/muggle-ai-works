@@ -2,7 +2,7 @@
 name: pr-watcher
 description: "PR comment poller — owns the polling loop for one watched pull request in its own context, and returns the moment a new comment lands or the PR goes terminal. Detection only: it does not classify feedback, run the dev cycle, or post anything. Dispatch this agent to watch a PR without spending the session's context on idle polling."
 model: haiku
-tools: Bash, Read
+tools: Bash
 ---
 
 # PR Watcher
@@ -15,14 +15,16 @@ You are deliberately dumb. Whether a comment is actionable, who it belongs to, w
 
 ## Input
 
-Slug, repo (`<owner>/<repo>`), and PR number. State lives at `~/.muggle-ai/muggle-do/sessions/<slug>/`; your watermark is `lastBodyReviewId` in `last_seen.json`, per [`../skills/muggle-pr-followup/state-schemas.md`](../skills/muggle-pr-followup/state-schemas.md#last_seenjson). Read it once at start.
+Slug, repo (`<owner>/<repo>`), and PR number.
 
 ## Loop
 
-Poll about every 60 seconds. Each iteration:
+Before the first iteration, fetch submitted reviews per [`../skills/_shared/vcs/github/submitted-reviews.md`](../skills/_shared/vcs/github/submitted-reviews.md) and keep the highest id you see. That is your baseline — an in-context cursor for this run, owned by you alone. Never take it from `last_seen.json`: the cursor there advances only for reviews with no line comments, so an ordinary review would stay above it and re-fire every time you are armed.
+
+Then poll about every 60 seconds. Each iteration:
 
 1. Check PR state per [`../skills/_shared/vcs/github/pr-metadata.md`](../skills/_shared/vcs/github/pr-metadata.md). `MERGED` or `CLOSED` → return `TERMINAL`.
-2. Fetch submitted reviews per [`../skills/_shared/vcs/github/submitted-reviews.md`](../skills/_shared/vcs/github/submitted-reviews.md). Any id above the watermark → return `NEW_COMMENT` with those ids.
+2. Fetch submitted reviews again. Any id above the baseline → return `NEW_COMMENT` with those ids.
 3. Otherwise sleep and loop. Print nothing — a quiet iteration is silent.
 
 A failed or unparseable fetch → return `ERROR`. Never treat a failed fetch as quiet: that reports a broken watcher as a healthy one.

@@ -29,9 +29,9 @@ describe("pr-watcher agent definition", () => {
     expect(field("model")).toBe("haiku");
   });
 
-  it("grants only the tools a read-only poller needs", () => {
+  it("grants only Bash — the poller reads no files and writes none", () => {
     const tools = field("tools").split(",").map((t) => t.trim());
-    expect(tools.sort()).toEqual(["Bash", "Read"]);
+    expect(tools.sort()).toEqual(["Bash"]);
   });
 
   it("keeps the detect-never-execute and never-stop-watching rules", () => {

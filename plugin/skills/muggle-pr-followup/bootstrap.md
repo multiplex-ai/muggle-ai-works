@@ -81,23 +81,13 @@ Do **not** write `cycle.json` or `requirements.md` — those files are no longer
 
 Create `iterations/` subdir (empty) for future caller use.
 
-### Step 8 — Arm the watcher
+### Step 8 — Dispatch the first watcher
 
-The last action of this turn. Arm the Monitor-based poller per [`watch-mode.md`](watch-mode.md):
-
-```
-Monitor(
-  command: bash "${CLAUDE_PLUGIN_ROOT}/skills/muggle-pr-followup/poll.sh" --slug <slug> --repo <owner>/<repo> --number <n>,
-  description: "<owner>/<repo>#<n> — review, CI, and rebase events",
-  persistent: true,
-)
-```
-
-This replaces the `/loop 1m /muggle:muggle-pr-followup <slug> <n>` cron. Detection now runs as a shell loop at the same `1m` cadence, and a tick turn happens only when the poller emits — an idle minute costs nothing. The cron path remains the recovery substrate for a slot whose monitor died ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
+The last action of this turn: spawn the [`pr-watcher`](../../agents/pr-watcher.md) agent with the slug, repo, and PR number. It owns the `1m` poll inside its own context and returns only when a new comment lands or the PR goes terminal; act on its decision by running [`contract.md`](contract.md). This replaces `/loop 1m /muggle:muggle-pr-followup <slug> <n>`, which billed the whole session's context every idle minute. The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
 
 ### Step 9 — Print the success summary
 
-Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** arming the monitor so it's visible.
+Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** the `/loop` dispatch so it's visible.
 
 ### Step 10 — Emit telemetry
 

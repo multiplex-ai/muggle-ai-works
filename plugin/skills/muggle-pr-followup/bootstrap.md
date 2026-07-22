@@ -81,13 +81,13 @@ Do **not** write `cycle.json` or `requirements.md` — those files are no longer
 
 Create `iterations/` subdir (empty) for future caller use.
 
-### Step 8 — Dispatch the first watcher
+### Step 8 — Arm the watch
 
-The last action of this turn: spawn the [`pr-watcher`](../../agents/pr-watcher.md) agent with the slug, repo, and PR number. It owns the `1m` poll inside its own context and returns only when a new comment lands or the PR goes terminal; act on its decision by running [`contract.md`](contract.md). The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
+Arm per [`arm-watcher.md`](arm-watcher.md) as the last action of the turn: one tick drains anything already actionable — this is the first tick Step 6 promises — then the `pr-watcher` agent watches in its own context. The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
 
 ### Step 9 — Print the success summary
 
-Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** spawning the watcher so it's visible.
+Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** arming the watch so it's visible.
 
 ### Step 10 — Emit telemetry
 

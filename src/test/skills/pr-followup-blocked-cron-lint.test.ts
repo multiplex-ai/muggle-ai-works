@@ -177,10 +177,11 @@ describe("pr-followup watcher-respawn robustness wiring", () => {
 
   it("respawn-watcher.md exists as the shared, guaranteed restart", () => {
     expect(fs.existsSync(path.join(DO_DIR, "respawn-watcher.md"))).toBe(true);
-    expect(respawnWatcher).toMatch(/\/loop 1m \/muggle:muggle-pr-followup/);
+    // Respawn arms through the shared drain-then-watch sequence, not its own dispatch.
+    expect(respawnWatcher).toMatch(/arm-watcher\.md/);
     // The whole point: respawn on every open-PR exit, terminal PR is the only skip.
     expect(respawnWatcher).toMatch(/every.{0,40}exit/i);
-    expect(respawnWatcher).toMatch(/merged or closed/i);
+    expect(respawnWatcher).toMatch(/terminal PR/i);
   });
 
   it("every watcher-dispatched mode routes its respawn through the shared helper", () => {

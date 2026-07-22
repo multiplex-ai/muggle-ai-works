@@ -1,13 +1,13 @@
 # Bootstrap output templates
 
-## Success summary (printed just before dispatch)
+## Success summary (printed just before arming)
 
 ```
 Bootstrapped PR follow-up for <owner>/<repo>#<n>
   Slug:           <slug>
   Baseline:       thread-state (unresolved threads picked up live); lastBodyReviewId=0 | =<id> (forward-only)
   Working tree:   <toplevel>
-  Dispatching:    pr-watcher → <owner>/<repo>#<n>
+  Arming:         <owner>/<repo>#<n>
 ```
 
 ## Aborts

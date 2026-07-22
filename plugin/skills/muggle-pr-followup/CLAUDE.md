@@ -6,7 +6,8 @@ This folder holds the watcher loop that drives one PR toward merge-ready. The wa
 
 - [`SKILL.md`](SKILL.md) — public entry. Routing between bootstrap (URL input), tick (slug + PR number), and auto-track (no args). Read first.
 - [`auto-track.md`](auto-track.md) — the no-args procedure: discovers PRs pushed this session (any repo) and seeds one poll-only watcher each. Seeds no E2E context — the watcher only watches.
-- [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (resolves the validation context once when the PR has a testable surface — else seeds poll-only like auto-track — then dispatches the first watcher).
+- [`bootstrap.md`](bootstrap.md) — the bootstrap procedure (resolves the validation context once when the PR has a testable surface — else seeds poll-only like auto-track — then arms the first watch).
+- [`arm-watcher.md`](arm-watcher.md) — the drain-then-watch arming sequence shared by bootstrap, auto-track, and the executor's respawn: one tick, then the `pr-watcher` agent.
 - [`contract.md`](contract.md) — the watcher per-tick procedure (poll → dispatch → exit; on a human-blocked PR it reminds the owner each tick at the normal `1m` cadence, resuming evaluation on external change).
 - [`blocked-tick.md`](blocked-tick.md) — the conditional blocked-path detail: fingerprint, flag-and-remind (Step 7), and remind-or-resume (Step 2.5), all at the normal `1m` cadence. Referenced by `contract.md`; runs only while `last_seen.blocked` is set.
 - [`finalize.md`](finalize.md) — shared termination sequence for a terminal PR (mark terminal, `result.md`, log/telemetry, unschedule cron, post-merge cleanup handoff). Called by `contract.md` and `reconcile.md`.

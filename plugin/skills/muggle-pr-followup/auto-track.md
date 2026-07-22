@@ -67,18 +67,16 @@ Already tracking (skipped):
   ...
   (or "none")
 
-Dispatching:
-  pr-watcher → <owner>/<repo>#<n>
+Arming:
+  <owner>/<repo>#<n>
   ...
 ```
 
-Print the summary **before** spawning the watchers so it stays visible.
+Print the summary **before** arming the watchers so it stays visible.
 
-### Step 6 — Dispatch the watchers
+### Step 6 — Arm the watchers
 
-As the last action of the turn, spawn one [`pr-watcher`](../../agents/pr-watcher.md) agent per **newly tracked** PR (not the skipped ones), per [`bootstrap.md`](bootstrap.md#step-8--dispatch-the-first-watcher).
-
-Each is an independent agent — the N-independent-watchers model from [`SKILL.md`](SKILL.md). N idle watchers now cost N background contexts instead of N session turns a minute.
+Arm one watch per **newly tracked** PR (not the skipped ones), per [`arm-watcher.md`](arm-watcher.md). Each watch is independent — one drain tick and one `pr-watcher` agent per PR.
 
 ### Step 7 — Emit telemetry
 

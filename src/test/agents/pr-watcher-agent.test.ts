@@ -1,11 +1,11 @@
 /**
  * Static lint for plugin/agents/pr-watcher.md.
  *
- * A skill's own `model:` frontmatter is inert for anything a cron dispatches, so
- * the agent definition is the only place the pin holds — dropping it silently
- * restores the bug. The duplication guard is the other half: the poller is
- * deliberately dumb, and restating muggle-pr-followup's decision rules here is
- * what a reviewer already rejected once.
+ * A skill's own `model:` frontmatter is inert for anything dispatched outside
+ * the skill turn, so the agent definition is the only place the haiku pin
+ * holds. The other assertions keep the poller dumb: detection semantics live
+ * in muggle-pr-followup, and the poller may only change-detect against the
+ * two comment sources the tick acts on.
  */
 
 import { describe, it, expect } from "vitest";
@@ -30,20 +30,21 @@ describe("pr-watcher agent definition", () => {
   });
 
   // Skills must run on any host, so the definition may not name a shell — not in
-  // `tools`, not as a command in the body. This replaced a `tools: Bash` pin.
+  // `tools`, not as a command in the body.
   it("pins no OS-specific shell", () => {
     const shellSpecific = /\b(bash|zsh|sh -c|powershell|pwsh|cmd\.exe)\b/i;
     expect(field("tools")).not.toMatch(shellSpecific);
     expect(body).not.toMatch(shellSpecific);
   });
 
-  // Weaker than the old `tools` restriction, which made reading the file
-  // impossible. Without a tool pin the prohibition is prose, so assert the prose.
-  it("still forbids taking the baseline from session state", () => {
-    expect(body).toMatch(/never read it from `last_seen\.json`/i);
+  // The tick acts on thread state AND submitted reviews; a poller watching only
+  // one source silently misses the other (thread replies, or body-only reviews).
+  it("baselines both comment sources", () => {
+    expect(body).toContain("submitted-reviews.md");
+    expect(body).toContain("unresolved-threads.md");
   });
 
-  // Matched on substance, not phrasing — an earlier version pinned the exact
+  // Matched on substance, not phrasing — an earlier version pinned exact
   // wording and broke on a pure copy-edit that kept both rules.
   it("keeps the detect-never-execute and never-stop-watching rules", () => {
     expect(body).toMatch(/detect, never execute/i);
@@ -51,10 +52,11 @@ describe("pr-watcher agent definition", () => {
     expect(body).toMatch(/only a terminal pr or the user/i);
   });
 
-  it("restates none of muggle-pr-followup's decision rules", () => {
+  it("restates none of muggle-pr-followup's decision rules or state fields", () => {
     const owned = ["isResolved", "isOutdated", "muggle-do:bot", "ci_fix_attempts",
       "ci_escalated_shas", "conflict_resolve_attempts", "conflict_escalated_keys",
-      "escalated_review_ids", "behind_by", "mergeStateStatus"];
+      "escalated_review_ids", "behind_by", "mergeStateStatus",
+      "lastBodyReviewId", "last_seen"];
     expect(owned.filter((rule) => body.includes(rule))).toEqual([]);
   });
 

@@ -52,6 +52,13 @@ describe("pr-watcher agent definition", () => {
     expect(body).toMatch(/only a terminal pr or the user/i);
   });
 
+  // One watcher per PR for its whole life: reporting pauses it, the
+  // orchestrator resumes it — it is never respawned per cycle.
+  it("pauses on report and resumes on the orchestrator's message", () => {
+    expect(body).toMatch(/pause/i);
+    expect(body).toMatch(/resume/i);
+  });
+
   it("restates none of muggle-pr-followup's decision rules or state fields", () => {
     const owned = ["isResolved", "isOutdated", "muggle-do:bot", "ci_fix_attempts",
       "ci_escalated_shas", "conflict_resolve_attempts", "conflict_escalated_keys",

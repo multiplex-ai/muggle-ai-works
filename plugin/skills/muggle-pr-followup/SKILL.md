@@ -14,7 +14,7 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Per-PR isolation.** One watcher per PR. Multi-PR work runs N independent watchers.
 
-**Arming.** Bootstrap, auto-track, and the executor's post-cycle respawn all arm the watch the same way — one drain tick, then a `pr-watcher` agent polling in its own context ([`arm-watcher.md`](arm-watcher.md)). Crons are the recovery substrate only ([`reconcile.md`](reconcile.md)).
+**Arming.** Bootstrap, auto-track, and the executor's post-cycle respawn all arm the watch the same way — one drain tick, then one `pr-watcher` agent per PR polling in its own context, spawned once and paused/resumed across cycles ([`arm-watcher.md`](arm-watcher.md)). Crons are the recovery substrate only ([`reconcile.md`](reconcile.md)).
 
 **Active reminders when blocked pending a human.** When a PR can't progress without the user — an escalated rebase/CI budget spent, or an ambiguous review awaiting direction — the watcher keeps its `1m` poll and turns each blocked tick into a **one-line reminder**: the pending act plus a reference back to the decision context, nudging the owner every poll until they act ([`contract.md`](contract.md) Steps 2.5, 7). The block reminds but never stops or slows: each tick stays cheap (a fingerprint check, one line out), and the block clears the instant a push, review, or CI/deploy state moves.
 

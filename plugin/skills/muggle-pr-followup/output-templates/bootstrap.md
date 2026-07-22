@@ -7,7 +7,7 @@ Bootstrapped PR follow-up for <owner>/<repo>#<n>
   Slug:           <slug>
   Baseline:       thread-state (unresolved threads picked up live); lastBodyReviewId=0 | =<id> (forward-only)
   Working tree:   <toplevel>
-  Dispatching:    /loop 1m /muggle:muggle-pr-followup <slug> <n>
+  Dispatching:    pr-watcher → <owner>/<repo>#<n>
 ```
 
 ## Aborts

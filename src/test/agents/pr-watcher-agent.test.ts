@@ -29,9 +29,18 @@ describe("pr-watcher agent definition", () => {
     expect(field("model")).toBe("haiku");
   });
 
-  it("grants only Bash — the poller reads no files and writes none", () => {
-    const tools = field("tools").split(",").map((t) => t.trim());
-    expect(tools.sort()).toEqual(["Bash"]);
+  // Skills must run on any host, so the definition may not name a shell — not in
+  // `tools`, not as a command in the body. This replaced a `tools: Bash` pin.
+  it("pins no OS-specific shell", () => {
+    const shellSpecific = /\b(bash|zsh|sh -c|powershell|pwsh|cmd\.exe)\b/i;
+    expect(field("tools")).not.toMatch(shellSpecific);
+    expect(body).not.toMatch(shellSpecific);
+  });
+
+  // Weaker than the old `tools` restriction, which made reading the file
+  // impossible. Without a tool pin the prohibition is prose, so assert the prose.
+  it("still forbids taking the baseline from session state", () => {
+    expect(body).toMatch(/never read it from `last_seen\.json`/i);
   });
 
   // Matched on substance, not phrasing — an earlier version pinned the exact

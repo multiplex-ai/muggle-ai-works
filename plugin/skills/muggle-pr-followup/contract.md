@@ -149,7 +149,7 @@ Any idle branch (Steps 4–6 that did not dispatch). First classify **why** this
 
 Everything else that idles is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
 
-**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires in 1 min via `/loop`.
+**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires from the arming loop ([`arm-watcher.md`](arm-watcher.md)) — or, under a recovery cron, in 1 min via `/loop`.
 
 **Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder (the watcher reminds each tick at the normal `1m` cadence rather than backing off). From the next tick on, the Step 2.5 gate carries the block. Exit.
 

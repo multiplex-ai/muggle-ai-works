@@ -67,22 +67,16 @@ Already tracking (skipped):
   ...
   (or "none")
 
-Dispatching:
-  /loop 1m /muggle:muggle-pr-followup <slug> <n>
+Arming:
+  <owner>/<repo>#<n>
   ...
 ```
 
-Print the summary **before** the `/loop` dispatches so it stays visible.
+Print the summary **before** arming the watchers so it stays visible.
 
-### Step 6 — Dispatch the watchers
+### Step 6 — Arm the watchers
 
-As the last action of the turn, emit one `/loop` line per **newly tracked** PR (not the skipped ones):
-
-```
-/loop 1m /muggle:muggle-pr-followup <slug> <n>
-```
-
-Each registers an independent cron — the N-independent-watchers model from [`SKILL.md`](SKILL.md).
+Arm one watch per **newly tracked** PR (not the skipped ones), per [`arm-watcher.md`](arm-watcher.md). Each watch is independent — one drain tick and one `pr-watcher` agent per PR.
 
 ### Step 7 — Emit telemetry
 

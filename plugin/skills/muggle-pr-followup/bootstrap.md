@@ -73,7 +73,7 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`. Omit `blocked` — the watcher starts unblocked.
 
-**`cron.json`** — see [`state-schemas.md`](state-schemas.md#cronjson). `cron_id: null` (Step 8 dispatches `/loop` as the last action, so the id isn't observable yet — the first tick self-records it per [`record-cron-id.md`](record-cron-id.md)), `command: "/muggle:muggle-pr-followup <slug> <n>"`, `interval: "1m"`, `recorded_at: <now>`.
+**`cron.json`** — see [`state-schemas.md`](state-schemas.md#cronjson). `cron_id: null` (bootstrap arms no cron; a tick running under one recorded by [`reconcile.md`](reconcile.md) self-records its id per [`record-cron-id.md`](record-cron-id.md)), `command: "/muggle:muggle-pr-followup <slug> <n>"`, `interval: "1m"`, `recorded_at: <now>`.
 
 **`state.md`** — see [`state-schemas.md`](state-schemas.md#statemd). `Bootstrapped from URL: yes`. Cache the loop-user login. If Step 6.5 resolved a validation context, append the `## Pre-flight answers` block with its fields, per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md#persisted-fields). If it seeded poll-only, write **no** such block — a missing block is a clean E2E skip.
 
@@ -81,17 +81,13 @@ Do **not** write `cycle.json` or `requirements.md` — those files are no longer
 
 Create `iterations/` subdir (empty) for future caller use.
 
-### Step 8 — Dispatch the first watcher
+### Step 8 — Arm the watch
 
-The last action of this turn:
-
-```
-/loop 1m /muggle:muggle-pr-followup <slug> <n>
-```
+Arm per [`arm-watcher.md`](arm-watcher.md) as the last action of the turn: one tick drains anything already actionable — this is the first tick Step 6 promises — then the `pr-watcher` agent watches in its own context. The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
 
 ### Step 9 — Print the success summary
 
-Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** the `/loop` dispatch so it's visible.
+Use the success-summary template from [`output-templates/bootstrap.md`](output-templates/bootstrap.md). Print it **before** arming the watch so it's visible.
 
 ### Step 10 — Emit telemetry
 

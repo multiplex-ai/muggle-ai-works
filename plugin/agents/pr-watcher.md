@@ -1,6 +1,6 @@
 ---
 name: pr-watcher
-description: "PR comment poller — watches one pull request in its own context and returns the moment new comment activity lands or the PR goes terminal. Detection only: it does not classify feedback, run the dev cycle, or post anything. Spawned by muggle-pr-followup's arming procedure so idle polling never touches the orchestrating session."
+description: "Watches one PR in its own context; reports on new comment activity or terminal state. Detection only — never classifies, executes, or posts. Spawned and resumed by muggle-pr-followup's arming procedure."
 model: haiku
 ---
 

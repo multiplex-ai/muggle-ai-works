@@ -6,7 +6,10 @@ How a watcher is armed so that a quiet PR costs nothing. The detector is [`poll.
 
 A `/loop`-driven tick is a turn in the arming session. That turn re-reads the whole session transcript as prompt-cache tokens before it does any work, and it runs on the session's model — which makes the `model:` pin in [`SKILL.md`](SKILL.md) inert, since a cron-dispatched skill never gets to override the session that hosts it. A minute-cadence watcher therefore bills a full session's context every minute for the overwhelmingly common answer: nothing changed.
 
-`poll.sh` moves the *detection* out of the model entirely. The model is re-entered only on a state change, which is where its judgment was needed in the first place.
+Neither half is fixable by scheduling alone: a cron or `/loop` carries only a prompt, so whatever it enqueues lands in the armed session and has already paid that session's cache read before it can delegate anywhere. The two halves need two fixes.
+
+- **Idle cost** — `poll.sh` moves detection out of the model entirely. The model is re-entered only on a state change, which is where its judgment was needed in the first place.
+- **Model pin** — the [`pr-watcher`](../../agents/pr-watcher.md) agent carries `model: haiku` in its own frontmatter, which *is* honored, and runs in its own context window. An agent definition is the only place the pin holds.
 
 ## Arming
 
@@ -53,14 +56,17 @@ Every iteration also appends one line to the slot's `followup.log`, whether or n
 
 ## From an emitted line to a tick
 
-An emitted line is a notification, not a dispatch. Handle it as one turn:
+An emitted line is a notification, not a dispatch, and evaluating it is not the session's job either. Handle it as one turn that delegates the looking and keeps only the acting:
 
 1. Confirm the line's slug matches a live slot. A line for a slot that has `result.md` is stale — `TaskStop` the monitor and do nothing else.
-2. Run [`contract.md`](contract.md) from **Step 1**, using the emitted line to select the branch: `REVIEWS` → Step 4, `REBASE` → Step 5, `CI` → Step 6, `TERMINAL` → Step 2 ([`finalize.md`](finalize.md)). The payload is a hint about *what* changed; the contract re-derives state itself and remains the authority.
-3. Step 0's cron bookkeeping ([`record-cron-id.md`](record-cron-id.md)) is a no-op under this substrate — there is no cron id to record, and `cron.json` keeps `cron_id: null`.
-4. Where Steps 4 / 5 / 6 say to stop the watcher before dispatching, `TaskStop` the monitor instead of cancelling a cron. Everything else about the dispatch is unchanged.
+2. Spawn the [`pr-watcher`](../../agents/pr-watcher.md) agent with the slug, repo, PR number, and the emitted line as a hint. It performs the [`contract.md`](contract.md) evaluation — Steps 1, 3, 5, 6 — in its own context on its own pinned model, and returns a `DECISION` block. This is where the tick's reasoning happens; the session pays only for the dispatch that follows.
+3. Act on the returned decision, per [`contract.md`](contract.md): `REVIEWS` → Step 4, `REBASE` → Step 5, `CI` → Step 6, `TERMINAL` → Step 2 ([`finalize.md`](finalize.md)), `IDLE` → nothing, `ERROR` → surface the reason. The `/muggle-do` dispatch itself is unchanged and stays in the session, which is the only place that has the working tree.
+4. Step 0's cron bookkeeping ([`record-cron-id.md`](record-cron-id.md)) is a no-op under this substrate — there is no cron id to record, and `cron.json` keeps `cron_id: null`.
+5. Where Steps 4 / 5 / 6 say to stop the watcher before dispatching, `TaskStop` the monitor instead of cancelling a cron. Everything else about the dispatch is unchanged.
 
-Step 4 is not optional. The dispatch contract's single-thread rule assumes the watcher is stopped for the duration of the cycle, and the restart at the end of a cycle arms a cron — so a monitor left running would sit alongside that cron as a second watcher on the same PR. Stopping it keeps exactly one watcher alive at all times. A PR therefore polls on the monitor substrate until its first dispatch and on the cron substrate afterwards, until the next bootstrap or reconcile re-arms it; the cost win is on the idle watchers, which is where the cost was.
+The agent evaluates and reports; it never runs the dev cycle. A subagent cannot fire a slash command into the session that spawned it, and it does not have that session's worktree — so the split is structural, not a preference. Do not "simplify" it into having the agent do the work.
+
+Step 5 is not optional. The dispatch contract's single-thread rule assumes the watcher is stopped for the duration of the cycle, and the restart at the end of a cycle arms a cron — so a monitor left running would sit alongside that cron as a second watcher on the same PR. Stopping it keeps exactly one watcher alive at all times. A PR therefore polls on the monitor substrate until its first dispatch and on the cron substrate afterwards, until the next bootstrap or reconcile re-arms it; the cost win is on the idle watchers, which is where the cost was.
 
 ## Relationship to the cron substrate
 

@@ -25,11 +25,13 @@ On spawn and on every resume, record the activity already on the PR — the call
 
 ## Loop
 
-Repeat, leaving about 60 seconds between iterations:
+Each iteration, about 60 seconds apart:
 
 1. Check PR state per [`../skills/_shared/vcs/github/pr-metadata.md`](../skills/_shared/vcs/github/pr-metadata.md). `MERGED` or `CLOSED` → report `TERMINAL`.
 2. Re-fetch both baseline sources. A review id above the baseline, a thread-comment id above the baseline, or an unresolved thread absent from the baseline set → report `NEW_COMMENT`.
-3. Otherwise wait and repeat, emitting nothing.
+3. Otherwise nothing — no output, no report.
+
+Run the whole loop as **one background command** that performs these checks every ~60 seconds and exits only when something moved, the PR went terminal, or fetches keep failing — then evaluate what it printed and report. While it runs you emit nothing and consume nothing. Never implement the wait as one turn per iteration, and never end your turn just because time passed: a quiet PR must cost zero — yours and the orchestrator's.
 
 A failed or unparseable fetch → report `ERROR`. Never report a failed fetch as quiet — that turns a broken watcher into a healthy-looking one.
 

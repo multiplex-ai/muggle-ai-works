@@ -14,6 +14,10 @@ Three ways in, all running the same procedure:
 
 Recover-don't-seed holds on every trigger: a session-start run still never seeds a first watcher (see Invariants).
 
+## Out-of-session watchdog
+
+Every trigger above needs a live session, so a watcher killed by a session's death — a usage-limit hit ends the monitor stream mid-watch — stays dead until a human starts the next session. The watchdog daemon (`plugin/scripts/pr-followup-watchdog.mjs`, ensured by the `ensure-pr-watchdog.sh` session-start hook and by [`arm-watcher.md`](arm-watcher.md) step 4) closes that gap from outside any session: a detached singleton that scans open slots on an interval, treats a slot as live on the same heartbeat-or-log beacon as Step 3.6, polls dead slots with plain `gh` calls, and spawns a **headless recovery tick** (`claude -p "/muggle:muggle-pr-followup <slug> <n>"`) when a dead slot has a terminal PR or a signature-confirmed signal. A spawn that dies silently (usage limit still active) is retried on later scans — recovery lands on its own once the limit resets. The tick, not the watchdog, holds all semantics; the watchdog only decides *that* a tick is owed. It defers to live watchers, holds off while a dispatched cycle owns the PR, never re-spawns an unchanged signature, and exits when no open slot remains.
+
 ## Input
 
 `$ARGUMENTS` is `reconcile` (or `sweep`), optionally followed by a `<slug>` to scope the sweep to one slot.
@@ -48,11 +52,11 @@ This reaches only crons `CronList` still enumerates. A cron that both survived a
 
 The recovery net for a **dropped respawn**: a `/muggle-do` cycle cancels the watcher's cron when it dispatches ([`contract.md`](contract.md) Steps 4 / 5 / 5b) and is responsible for respawning it when the cycle ends, but a cycle that crashes or errors out before it respawns can leave an open slot with no cron and no next tick — the poller stops silently. This step re-arms it.
 
-For each candidate still `open` after Step 3, check when its watcher last ticked — the newest ISO-8601 line in `followup.log` (or `cron.json.recorded_at` if the log is empty). If that is **older than 15 minutes** (comfortably beyond the `1m` cadence, so a live cron would have logged many times inside the window), the poller is gone → re-arm:
+For each candidate still `open` after Step 3, check the slot's liveness beacons: the `watch-heartbeat` file's mtime (a live monitor touches it every iteration, even when quiet — [`arm-watcher.md`](arm-watcher.md)) and the newest ISO-8601 line in `followup.log` (a live `1m` recovery cron logs every tick; fall back to `cron.json.recorded_at` if both are absent). If the **freshest beacon is older than 15 minutes**, the poller is gone → re-arm:
 
 - `CronCreate` a recurring cron (call the **tool**, never a shell) with `cron: "* * * * *"` and prompt `/muggle:muggle-pr-followup <slug> <n>`, then record its id and `interval: "1m"` to `cron.json` (whole-file rewrite per [`state-schemas.md`](state-schemas.md#cronjson)). Append a `re-armed (silent watcher)` line to the slot's `followup.log`.
 
-A fresh log line (within the window) means the cron is alive — even one `CronList` has gone blind to — so this step leaves it untouched; re-arming can never double an already-live poller. This recovers only a slot that was **already being watched**; a PR that never had a watcher is seeded by [`auto-track.md`](auto-track.md) / bootstrap, not here.
+A fresh beacon (within the window) means the poller is alive — a quiet monitor still touching its heartbeat, or a cron `CronList` has gone blind to — so this step leaves it untouched; re-arming can never double an already-live poller. This recovers only a slot that was **already being watched**; a PR that never had a watcher is seeded by [`auto-track.md`](auto-track.md) / bootstrap, not here.
 
 ### Step 4 — Report
 

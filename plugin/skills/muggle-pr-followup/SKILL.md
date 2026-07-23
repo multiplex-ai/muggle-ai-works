@@ -20,6 +20,8 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone, and re-arms an open slot whose watcher stopped silently.
 
+**Session death.** Monitors and crons are both session-bound — a session that ends or hits its usage limit takes every watch with it, and reconcile's triggers all need a live session. The out-of-session watchdog daemon ([`reconcile.md`](reconcile.md#out-of-session-watchdog)) is the substrate that survives: ensured at session start and at arm time, it reads each slot's liveness beacon (`watch-heartbeat` / `followup.log`), polls dead slots with plain `gh` calls, and spawns a headless recovery tick when one is owed — retrying through usage-limit windows so watching resumes at limit reset with no user action.
+
 ## Routing
 
 The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-disk state. It never runs procedure inline — it identifies the mode and routes to the appropriate procedure file.

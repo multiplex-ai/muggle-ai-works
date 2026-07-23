@@ -1,3 +1,5 @@
+import type { GitlabMrLocator } from "./types.js";
+
 export interface PrRepoLocator {
   owner: string;
   name: string;
@@ -15,4 +17,16 @@ export function locatePrRepo(prRecord: { url?: string; repo?: string }): PrRepoL
   const [owner, name] = (prRecord.repo ?? "").split("/");
   if (owner && name) return { owner: owner, name: name };
   return null;
+}
+
+/**
+ * Host + project path for GitLab API calls, from the MR URL. The `/-/` segment
+ * separates project path from resource on any host, and the path may nest to
+ * any depth (`group/subgroup/project`) — so split on `/-/`, never assume two
+ * segments. Returns e.g. { host: "gitlab.com", projectPath: "acme/tools/works" }.
+ */
+export function locateGitlabMrProject(prRecord: { url?: string }): GitlabMrLocator | null {
+  const urlMatch = /^https?:\/\/([^/]+)\/(.+)\/-\/merge_requests\/\d+/.exec(prRecord.url ?? "");
+  if (!urlMatch) return null;
+  return { host: urlMatch[1], projectPath: urlMatch[2] };
 }

@@ -27,8 +27,14 @@ import {
 } from "./constants.js";
 import { decideSlotAction, emptyWatchdogSlotState } from "./decide.js";
 import { isCycleInProgress, newestFollowupLogTimestampMs } from "./followupLog.js";
+import {
+  isGitlabMrConflicting,
+  mapGitlabDiscussionsToThreadSnapshots,
+  mapGitlabMrStateToPrState,
+  mapGitlabPipelineStatusToCiBucket,
+} from "./gitlabSnapshot.js";
 import { isWatcherLive } from "./liveness.js";
-import { locatePrRepo } from "./prLocator.js";
+import { locateGitlabMrProject, locatePrRepo } from "./prLocator.js";
 import {
   computeSlotSignature,
   selectActionableBodyReviewIds,
@@ -36,6 +42,7 @@ import {
 } from "./signature.js";
 import {
   CiRollupBucket,
+  GitlabDiscussion,
   ReviewThreadSnapshot,
   SlotPollSnapshot,
   SlotWatchAction,
@@ -127,7 +134,7 @@ function listOpenSlots(): OpenSlot[] {
       log(`skip slot with unusable slug: ${JSON.stringify(slug)}`);
       continue;
     }
-    if ((prRecord.provider ?? "github") !== "github") {
+    if (!["github", "gitlab"].includes(prRecord.provider ?? "github")) {
       log(`skip slot ${slug}: provider ${prRecord.provider} not supported by the watchdog`);
       continue;
     }
@@ -136,17 +143,27 @@ function listOpenSlots(): OpenSlot[] {
   return openSlots;
 }
 
-function gh(args: string[]): string {
-  const result = spawnSync("gh", args, {
+function providerCli(command: "gh" | "glab", args: string[]): string {
+  const result = spawnSync(command, args, {
     encoding: "utf-8",
     windowsHide: true,
     timeout: 60_000,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`gh ${args[0]} exited ${result.status}: ${(result.stderr ?? "").slice(0, 400)}`);
+    throw new Error(
+      `${command} ${args[0]} exited ${result.status}: ${(result.stderr ?? "").slice(0, 400)}`,
+    );
   }
   return result.stdout;
+}
+
+function gh(args: string[]): string {
+  return providerCli("gh", args);
+}
+
+function glab(args: string[]): string {
+  return providerCli("glab", args);
 }
 
 const PR_SNAPSHOT_QUERY = `
@@ -267,6 +284,65 @@ function pollGithubPrSnapshot(slot: OpenSlot): SlotPollSnapshot {
   };
 }
 
+function pollGitlabMrSnapshot(slot: OpenSlot): SlotPollSnapshot {
+  const mrLocator = locateGitlabMrProject(slot.prRecord);
+  if (!mrLocator) throw new Error(`cannot resolve GitLab project for slot ${slot.slug}`);
+  const hostArgs = ["--hostname", mrLocator.host];
+  const mrApiPath = `projects/${encodeURIComponent(mrLocator.projectPath)}/merge_requests/${slot.prRecord.number}`;
+
+  interface GitlabMrResponse {
+    state: string;
+    sha: string;
+    target_branch: string;
+    detailed_merge_status?: string;
+  }
+  const mergeRequest = JSON.parse(glab(["api", ...hostArgs, mrApiPath])) as GitlabMrResponse;
+  const prState = mapGitlabMrStateToPrState(mergeRequest.state);
+
+  const discussions = JSON.parse(
+    glab(["api", ...hostArgs, `${mrApiPath}/discussions?per_page=100`]),
+  ) as GitlabDiscussion[];
+
+  let behindBy = 0;
+  if (prState === "OPEN") {
+    // Compare from=head to=target: GitLab lists only the commits `to` is ahead
+    // by, so this direction yields the base commits the head lacks — see
+    // _shared/vcs/gitlab/mr-metadata.md for why detailed_merge_status can't
+    // report a behind branch.
+    const compareApiPath =
+      `projects/${encodeURIComponent(mrLocator.projectPath)}/repository/compare` +
+      `?from=${mergeRequest.sha}&to=${encodeURIComponent(mergeRequest.target_branch)}`;
+    const compareResponse = JSON.parse(glab(["api", ...hostArgs, compareApiPath])) as {
+      commits?: unknown[];
+    };
+    behindBy = compareResponse.commits?.length ?? 0;
+  }
+
+  const pipelines = JSON.parse(
+    glab(["api", ...hostArgs, `${mrApiPath}/pipelines?per_page=1`]),
+  ) as Array<{ status?: string }>;
+
+  return {
+    prState: prState,
+    headSha: mergeRequest.sha,
+    actionableThreadIds: selectActionableThreadIds(
+      mapGitlabDiscussionsToThreadSnapshots(discussions),
+    ),
+    // GitLab has no review envelope — feedback is always a discussion
+    // (contract.md Step 3b is GitHub-only), so there is no body-only source.
+    actionableBodyReviewIds: [],
+    behindBy: behindBy,
+    isConflicting: isGitlabMrConflicting(mergeRequest.detailed_merge_status ?? ""),
+    ciBucket: mapGitlabPipelineStatusToCiBucket(pipelines[0]?.status ?? null),
+  };
+}
+
+function pollSlotPrSnapshot(slot: OpenSlot): SlotPollSnapshot {
+  return (slot.prRecord.provider ?? "github") === "gitlab"
+    ? pollGitlabMrSnapshot(slot)
+    : pollGithubPrSnapshot(slot);
+}
+
 function spawnHeadlessTick(slot: OpenSlot, spawnReason: SpawnTickReason): void {
   const claudeCommand = process.env.MUGGLE_WATCHDOG_CLAUDE_CMD ?? "claude";
   const claudeArgs =
@@ -312,10 +388,10 @@ function scanOnce(nowMs: number): { openSlotCount: number; spawnedCount: number 
       });
       const cycleInProgress =
         !watcherLive && isCycleInProgress({ logText: followupLogText, nowMs: nowMs });
-      // Only a dead, out-of-cycle slot is worth two GitHub calls.
+      // Only a dead, out-of-cycle slot is worth the provider API calls.
       if (watcherLive || cycleInProgress) continue;
 
-      const pollSnapshot = pollGithubPrSnapshot(slot);
+      const pollSnapshot = pollSlotPrSnapshot(slot);
       const slotStateFile = join(slot.slotDir, WATCHDOG_SLOT_STATE_FILENAME);
       const decision = decideSlotAction({
         isWatcherLive: false,

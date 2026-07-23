@@ -7,7 +7,8 @@ set -uo pipefail
 # hook keeps the out-of-session recovery substrate alive instead: when any open
 # watcher slot exists, it ensures the detached watchdog daemon
 # (pr-followup-watchdog.mjs) is running. The daemon polls dead slots with plain
-# gh calls and spawns a headless recovery tick when a slot needs one, retrying
+# gh/glab calls (per the slot's provider) and spawns a headless recovery tick
+# when a slot needs one, retrying
 # through usage-limit windows — so watchers resume after a limit reset with no
 # user action. Idempotent: a live daemon (lockfile pid + fresh heartbeat) is
 # left alone.

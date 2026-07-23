@@ -71,6 +71,22 @@ export interface ReviewThreadSnapshot {
   newestCommentBody: string;
 }
 
+export interface GitlabMrLocator {
+  host: string;
+  projectPath: string;
+}
+
+export interface GitlabDiscussionNote {
+  body: string;
+  resolvable: boolean;
+  resolved?: boolean;
+}
+
+export interface GitlabDiscussion {
+  id: string;
+  notes: GitlabDiscussionNote[];
+}
+
 export interface SubmittedReviewSnapshot {
   reviewId: number;
   reviewState: string;

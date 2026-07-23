@@ -138,6 +138,36 @@ function isCycleInProgress(args) {
   return args.nowMs - lastDispatchMs < graceMs;
 }
 
+// src/watchdog/gitlabSnapshot.ts
+var GITLAB_CONFLICTING_MERGE_STATUSES = /* @__PURE__ */ new Set(["broken_status", "conflict"]);
+var GITLAB_GREEN_PIPELINE_STATUSES = /* @__PURE__ */ new Set(["success", "canceled", "skipped", "manual"]);
+function mapGitlabMrStateToPrState(gitlabMrState) {
+  if (gitlabMrState === "merged") return "MERGED";
+  if (gitlabMrState === "closed") return "CLOSED";
+  return "OPEN";
+}
+function isGitlabMrConflicting(detailedMergeStatus) {
+  return GITLAB_CONFLICTING_MERGE_STATUSES.has(detailedMergeStatus);
+}
+function mapGitlabPipelineStatusToCiBucket(pipelineStatus) {
+  if (pipelineStatus === null || pipelineStatus === "") return "none" /* None */;
+  if (pipelineStatus === "failed") return "fail" /* Fail */;
+  if (GITLAB_GREEN_PIPELINE_STATUSES.has(pipelineStatus)) return "pass" /* Pass */;
+  return "pending" /* Pending */;
+}
+function mapGitlabDiscussionsToThreadSnapshots(discussions) {
+  return discussions.map((discussion) => {
+    const isResolvable = discussion.notes[0]?.resolvable === true;
+    const isUnresolved = isResolvable && discussion.notes.some((note) => note.resolved === false);
+    return {
+      threadId: discussion.id,
+      isResolved: !isUnresolved,
+      isOutdated: false,
+      newestCommentBody: discussion.notes[discussion.notes.length - 1]?.body ?? ""
+    };
+  });
+}
+
 // src/watchdog/liveness.ts
 function isWatcherLive(args) {
   const staleAfterMs = args.staleAfterMs ?? WATCHER_LIVENESS_STALE_AFTER_MS;
@@ -155,6 +185,11 @@ function locatePrRepo(prRecord) {
   const [owner, name] = (prRecord.repo ?? "").split("/");
   if (owner && name) return { owner, name };
   return null;
+}
+function locateGitlabMrProject(prRecord) {
+  const urlMatch = /^https?:\/\/([^/]+)\/(.+)\/-\/merge_requests\/\d+/.exec(prRecord.url ?? "");
+  if (!urlMatch) return null;
+  return { host: urlMatch[1], projectPath: urlMatch[2] };
 }
 
 // src/watchdog/cli.ts
@@ -215,7 +250,7 @@ function listOpenSlots() {
       log(`skip slot with unusable slug: ${JSON.stringify(slug)}`);
       continue;
     }
-    if ((prRecord.provider ?? "github") !== "github") {
+    if (!["github", "gitlab"].includes(prRecord.provider ?? "github")) {
       log(`skip slot ${slug}: provider ${prRecord.provider} not supported by the watchdog`);
       continue;
     }
@@ -223,17 +258,25 @@ function listOpenSlots() {
   }
   return openSlots;
 }
-function gh(args) {
-  const result = spawnSync("gh", args, {
+function providerCli(command, args) {
+  const result = spawnSync(command, args, {
     encoding: "utf-8",
     windowsHide: true,
     timeout: 6e4
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
-    throw new Error(`gh ${args[0]} exited ${result.status}: ${(result.stderr ?? "").slice(0, 400)}`);
+    throw new Error(
+      `${command} ${args[0]} exited ${result.status}: ${(result.stderr ?? "").slice(0, 400)}`
+    );
   }
   return result.stdout;
+}
+function gh(args) {
+  return providerCli("gh", args);
+}
+function glab(args) {
+  return providerCli("glab", args);
 }
 var PR_SNAPSHOT_QUERY = `
 query($owner: String!, $name: String!, $number: Int!) {
@@ -315,6 +358,42 @@ function pollGithubPrSnapshot(slot) {
     )
   };
 }
+function pollGitlabMrSnapshot(slot) {
+  const mrLocator = locateGitlabMrProject(slot.prRecord);
+  if (!mrLocator) throw new Error(`cannot resolve GitLab project for slot ${slot.slug}`);
+  const hostArgs = ["--hostname", mrLocator.host];
+  const mrApiPath = `projects/${encodeURIComponent(mrLocator.projectPath)}/merge_requests/${slot.prRecord.number}`;
+  const mergeRequest = JSON.parse(glab(["api", ...hostArgs, mrApiPath]));
+  const prState = mapGitlabMrStateToPrState(mergeRequest.state);
+  const discussions = JSON.parse(
+    glab(["api", ...hostArgs, `${mrApiPath}/discussions?per_page=100`])
+  );
+  let behindBy = 0;
+  if (prState === "OPEN") {
+    const compareApiPath = `projects/${encodeURIComponent(mrLocator.projectPath)}/repository/compare?from=${mergeRequest.sha}&to=${encodeURIComponent(mergeRequest.target_branch)}`;
+    const compareResponse = JSON.parse(glab(["api", ...hostArgs, compareApiPath]));
+    behindBy = compareResponse.commits?.length ?? 0;
+  }
+  const pipelines = JSON.parse(
+    glab(["api", ...hostArgs, `${mrApiPath}/pipelines?per_page=1`])
+  );
+  return {
+    prState,
+    headSha: mergeRequest.sha,
+    actionableThreadIds: selectActionableThreadIds(
+      mapGitlabDiscussionsToThreadSnapshots(discussions)
+    ),
+    // GitLab has no review envelope — feedback is always a discussion
+    // (contract.md Step 3b is GitHub-only), so there is no body-only source.
+    actionableBodyReviewIds: [],
+    behindBy,
+    isConflicting: isGitlabMrConflicting(mergeRequest.detailed_merge_status ?? ""),
+    ciBucket: mapGitlabPipelineStatusToCiBucket(pipelines[0]?.status ?? null)
+  };
+}
+function pollSlotPrSnapshot(slot) {
+  return (slot.prRecord.provider ?? "github") === "gitlab" ? pollGitlabMrSnapshot(slot) : pollGithubPrSnapshot(slot);
+}
 function spawnHeadlessTick(slot, spawnReason) {
   const claudeCommand = process.env.MUGGLE_WATCHDOG_CLAUDE_CMD ?? "claude";
   const claudeArgs = process.env.MUGGLE_WATCHDOG_CLAUDE_ARGS ?? "--permission-mode acceptEdits --allowedTools Bash Read Write Edit Glob Grep Skill";
@@ -345,7 +424,7 @@ function scanOnce(nowMs) {
       });
       const cycleInProgress = !watcherLive && isCycleInProgress({ logText: followupLogText, nowMs });
       if (watcherLive || cycleInProgress) continue;
-      const pollSnapshot = pollGithubPrSnapshot(slot);
+      const pollSnapshot = pollSlotPrSnapshot(slot);
       const slotStateFile = join(slot.slotDir, WATCHDOG_SLOT_STATE_FILENAME);
       const decision = decideSlotAction({
         isWatcherLive: false,

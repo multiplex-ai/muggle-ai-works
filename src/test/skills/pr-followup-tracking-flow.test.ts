@@ -119,10 +119,13 @@ describe("Step 2 — a comment, or a wave of comments, becomes the actionable se
     expect(actionableStep).toMatch(/from live thread state/i);
   });
 
-  it("marks a thread actionable only when unresolved, not outdated, and unanswered by the loop", () => {
+  it("marks a thread actionable when unresolved and unanswered by the loop — outdated does NOT exclude", () => {
     expect(actionableStep).toMatch(/isResolved == false/);
-    expect(actionableStep).toMatch(/isOutdated == false/);
     expect(actionableStep.includes(LOOP_MARKER)).toBe(true);
+    // An outdated thread can still hold an unanswered question; the gate is
+    // resolution + marker, never outdatedness.
+    expect(actionableStep).not.toMatch(/isOutdated == false/);
+    expect(actionableStep).toMatch(/[Oo]utdatedness is \*\*not\*\* a gate/);
   });
 
   it("classifies by the loop marker, never by the comment author", () => {
@@ -326,15 +329,17 @@ describe("Actionable vs non-actionable comments — the watcher's set is mechani
   const stateSchemas = read(SKILL_DIR, "state-schemas.md");
   const addressReviews = read(DO_DIR, "address-reviews.md");
 
-  it("the watcher's 'actionable' is purely mechanical — unresolved AND not-outdated AND unmarked", () => {
+  it("the watcher's 'actionable' is purely mechanical — unresolved AND unmarked (outdated does NOT exclude)", () => {
     const actionableStep = contract.slice(
       contract.indexOf("### Step 3"),
       contract.indexOf("### Step 4"),
     );
-    // Resolved, outdated, or loop-marked comments are non-actionable to the watcher.
+    // Resolved or loop-marked comments are non-actionable to the watcher;
+    // outdatedness is deliberately not a gate — the moved line still carries
+    // the unanswered question.
     expect(actionableStep).toMatch(/isResolved == false/);
-    expect(actionableStep).toMatch(/isOutdated == false/);
     expect(actionableStep.includes(LOOP_MARKER)).toBe(true);
+    expect(actionableStep).not.toMatch(/isOutdated == false/);
   });
 
   it("the smart part — actionable vs ambiguous — is decided inside /muggle-do, not the watcher", () => {

@@ -108,6 +108,29 @@
         { "name": "dedups_ci_on_head_sha", "text": "The loop dedups the CI wake on the head SHA (fires once per red head) rather than on a monotonic id, because the check rollup is non-monotonic and resets on each push." },
         { "name": "stays_a_dumb_pipe", "text": "The loop only signals that CI went red and hands off to a tick; it does NOT apply the ci_fix_attempts budget, classify the failure, or dispatch fix-ci itself — those belong to the tick and /muggle-do." }
       ]
+    },
+    {
+      "id": 9,
+      "eval_name": "outdated-thread-with-unanswered-question-still-actionable",
+      "prompt": "Tick muggle-ai-works-pr509 509. The slot is open. The PR has one unresolved review thread whose newest comment is a human question with no muggle-do:bot marker, but GitHub reports isOutdated=true on the thread because a later push moved the line it was anchored to. CI is green and the branch is level with master. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "treats_outdated_thread_as_actionable", "text": "Plan marks the thread actionable even though isOutdated=true — the gates are resolution state and the loop marker, never outdatedness." },
+        { "name": "does_not_skip_on_isOutdated", "text": "Plan does NOT skip or idle the thread on the grounds that its anchored line moved; the unanswered question survives the line move and must be surfaced." },
+        { "name": "dispatches_address_reviews", "text": "Plan dispatches /muggle-do with an address-reviews directive for the thread's owning review id, rather than idling." },
+        { "name": "leaves_mootness_to_mdo", "text": "Plan leaves the judgment of whether the moved code already mooted the concern to /muggle-do's reply — it is not a reason for the watcher to filter the thread out." }
+      ]
+    },
+    {
+      "id": 10,
+      "eval_name": "outdated-thread-loop-already-replied-stays-quiet",
+      "prompt": "Tick muggle-ai-works-pr510 510. The slot is open. The PR has one unresolved review thread with isOutdated=true whose newest comment carries the muggle-do:bot marker — the loop has already replied. CI is green and the branch is level with master. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "marker_makes_it_non_actionable", "text": "Plan treats the thread as non-actionable because its newest comment carries the muggle-do:bot marker — the marker rule holds regardless of outdatedness." },
+        { "name": "no_dispatch_no_echo", "text": "Plan does NOT dispatch address-reviews; re-dispatching would echo the loop's own reply." },
+        { "name": "idles_transiently", "text": "Plan idles this tick as a transient idle (green, branch current, awaiting the next human comment) and keeps the 1m cadence — it is not a durable human-block." }
+      ]
     }
   ]
 }

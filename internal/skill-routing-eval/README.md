@@ -26,7 +26,7 @@ python internal/skill-routing-eval/run.py --skill muggle-status   # one skill
 python internal/skill-routing-eval/run.py --all --sync-cache      # see below
 ```
 
-Output lands in `reports/run/` (`combined.json` + `combined.md`, plus per-skill `chunk_*.json`). `run.py` runs each skill's queries as a separate `claude -p` batch so an MCP disconnect can only spoil one chunk, not the whole sweep; a positive chunk that comes back all-`none` (the disconnect signature) is re-run once and flagged if it stays empty. Keep `--workers` low (default 3) — high concurrency is what trips the disconnect.
+Output lands in `reports/run/` (`combined.json` + `combined.md`, plus per-skill `chunk_*.json`). `run.py` runs each skill's queries as a separate `claude -p` batch so an MCP disconnect can only spoil one chunk, not the whole sweep; a positive chunk that comes back all-`none` (the disconnect signature) is re-run once and flagged if it stays empty. Within a chunk, a run that fails with a rate-limit signature retries up to 3× with exponential backoff shared across the worker pool (`throttle.py`), and exhausted retries score as `THROTTLED` rather than a silent `none` — which is what makes `--workers` above the old default of 3 safe (CI uses 6).
 
 **`--sync-cache`:** the harness routes via the *installed* muggle plugin, not the working tree. When you've edited a `SKILL.md` description but not reinstalled, `claude -p` sees both the cached copy and the bare-name working-tree skill and results are unreliable. `--sync-cache` copies `plugin/skills/*/SKILL.md` over the installed cache first (auto-detected from `~/.claude/plugins/installed_plugins.json`) so the eval tests your edits. Always pass it when validating a description change.
 

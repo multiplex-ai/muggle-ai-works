@@ -17,6 +17,7 @@ internal/skill-gate-eval/
     scenario.ts     # scenario file loader (types live in types.ts)
     types.ts        # shared types + PreferenceValue enum
     constants.ts    # ASK_QUESTION_TOOL, PASS_THRESHOLD, DEFAULT_MODEL
+    concurrency.ts  # bounded rep pool + shared throttle gate (vitest-covered)
     run.ts          # CLI entrypoint
 ```
 
@@ -47,6 +48,14 @@ The harness loads
 runs each scenario `--runs` times, and writes results to
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/showElectronBrowser/results.json`.
 
+**Concurrency:** reps are isolated agent sessions, so they run through a
+bounded pool — `--concurrency N` (or `SKILL_GATE_EVAL_CONCURRENCY`), default 4;
+`--concurrency 1` restores strictly sequential runs. Rate-limited reps retry up
+to 3× with exponential backoff, and the cooldown is shared across the pool so
+one 429 pauses new starts for every worker instead of compounding. `--verbose`
+traces interleave under concurrency; each line is prefixed with its
+scenario/rep label.
+
 A scenario passes if it succeeds on ≥ 99% of runs (per the design doc).
 
 ## Why not vitest
@@ -61,8 +70,10 @@ blocking workflow — see CI below.
 
 `.github/workflows/skill-eval.yml` runs every gate found under
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/*/scenarios.json` on each PR to
-`master` (`--runs 10`, each scenario must hold ≥99%), plus nightly and on
-`workflow_dispatch`. A PR that changes only runtime (no gate/skill files) is
+`master` (`--runs 10` at `--concurrency 4`, each scenario must hold ≥99%),
+plus nightly and on `workflow_dispatch`. Gates run one at a time — the
+parallelism lives inside each gate's rep pool — so per-gate log groups stay
+attributable. A PR that changes only runtime (no gate/skill files) is
 skipped; label it `run-full-eval` to force the whole suite anyway — the lever
 for de-risking a refactor that changes how skills run, not their definitions.
 It checks out `muggle-ai-brain` for the scenarios, so

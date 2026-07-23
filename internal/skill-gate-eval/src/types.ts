@@ -127,6 +127,21 @@ export interface CliArgs {
   brainDir: string;
   skillsDir: string;
   model: string;
+  /** Max eval reps in flight at once; 1 reproduces the old sequential behavior. */
+  concurrency: number;
+}
+
+/** Shared cooldown: one throttled rep pauses new starts for every worker. */
+export interface ThrottleGateLike {
+  reportThrottle(backoffMs: number): void;
+  waitUntilClear(): Promise<void>;
+}
+
+export interface ThrottleRetryOptions {
+  gate: ThrottleGateLike;
+  maxRetries?: number;
+  computeBackoffMs?: (attempt: number) => number;
+  onThrottle?: (attempt: number, backoffMs: number, error: unknown) => void;
 }
 
 export interface ScenarioReport {

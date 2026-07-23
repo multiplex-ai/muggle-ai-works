@@ -163,3 +163,13 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 ## Not in the slot
 
 `cycle.json` and `requirements.md` are not seeded or read. `/muggle-do` reads reviews off GitHub each invocation.
+
+## `watch-watermark.env`
+
+The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot:
+
+- `REV` — highest submitted-review id already handled
+- `COM` — highest thread-comment id already handled
+- `THREADS` — semicolon-joined ids of threads already known unresolved
+
+Written whole-file by the orchestrating session — seeded at arm time from a post-drain fetch, advanced after every cycle from a post-replies fetch. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply ([`arm-watcher.md`](arm-watcher.md)).

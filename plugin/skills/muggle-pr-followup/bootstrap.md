@@ -83,7 +83,7 @@ Create `iterations/` subdir (empty) for future caller use.
 
 ### Step 8 — Arm the watch
 
-Arm per [`arm-watcher.md`](arm-watcher.md) as the last action of the turn: one tick drains anything already actionable — this is the first tick Step 6 promises — then the `pr-watcher` agent watches in its own context. The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
+Arm per [`arm-watcher.md`](arm-watcher.md) as the last action of the turn: one tick drains anything already actionable — this is the first tick Step 6 promises — then a persistent, labeled monitor keeps watch — visible until the PR terminates. The cron path stays as the recovery substrate ([`reconcile.md`](reconcile.md)), so `cron.json` is still seeded in Step 7.
 
 ### Step 9 — Print the success summary
 

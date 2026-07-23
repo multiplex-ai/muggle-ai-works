@@ -76,7 +76,7 @@ Print the summary **before** arming the watchers so it stays visible.
 
 ### Step 6 — Arm the watchers
 
-Arm one watch per **newly tracked** PR (not the skipped ones), per [`arm-watcher.md`](arm-watcher.md). Each watch is independent — one drain tick and one `pr-watcher` agent per PR.
+Arm one watch per **newly tracked** PR (not the skipped ones), per [`arm-watcher.md`](arm-watcher.md). Each watch is independent — one drain tick and one labeled monitor per PR.
 
 ### Step 7 — Emit telemetry
 

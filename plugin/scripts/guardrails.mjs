@@ -45,6 +45,8 @@ var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pul
 var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
+var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
+var MUGGLE_TEST_SKILL_NAME = "muggle-test";
 
 // src/guardrails/prTerminal.ts
 function detectPrTerminal(input2) {
@@ -113,7 +115,8 @@ ${input2.tool_response?.stderr ?? ""}`;
   return !FAIL.test(out);
 }
 function isE2ERun(input2) {
-  return E2E_TOOL.test(input2.tool_name ?? "");
+  if (E2E_TOOL.test(input2.tool_name ?? "")) return true;
+  return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
 }
 
 // src/guardrails/shouldRunE2E.ts
@@ -124,10 +127,10 @@ function shouldRunE2E(state) {
 function applyRecordedRun(state, run) {
   let next = state;
   if (run.unitTestPassed) {
-    next = { ...next, unitTestsGreen: true, e2eRun: false, e2eBlockCount: 0 };
+    next = { ...next, unitTestsGreen: true, e2eRun: false };
   }
   if (run.e2eRan) {
-    next = { ...next, e2eRun: true };
+    next = { ...next, e2eRun: true, e2eBlockCount: 0 };
   }
   if (run.e2eSkipped) {
     next = { ...next, e2eSkipped: true };

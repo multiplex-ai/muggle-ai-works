@@ -1,4 +1,5 @@
 import type { HookInput } from "./types.js";
+import { MUGGLE_SKILL_EMIT_TOOL, MUGGLE_TEST_SKILL_NAME } from "./constants.js";
 
 const TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 const FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
@@ -32,6 +33,14 @@ export function testsPassed(input: HookInput): boolean {
   return !FAIL.test(out);
 }
 
+// An acceptance run registers two ways: an execute/replay MCP tool call, or
+// the muggle-test skill's own telemetry emit — the latter is what registers a
+// clean SKIP verdict, where the skill ran but never reached an execute call
+// (see MUGGLE_SKILL_EMIT_TOOL in constants.ts).
 export function isE2ERun(input: HookInput): boolean {
-  return E2E_TOOL.test(input.tool_name ?? "");
+  if (E2E_TOOL.test(input.tool_name ?? "")) return true;
+  return (
+    MUGGLE_SKILL_EMIT_TOOL.test(input.tool_name ?? "") &&
+    input.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME
+  );
 }

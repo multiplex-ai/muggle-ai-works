@@ -25,6 +25,29 @@ describe("testsGreen", () => {
     ).toBe(true);
   });
 
+  it("counts the muggle-test skill's own telemetry emit as an E2E run (clean SKIP included)", () => {
+    expect(
+      isE2ERun({
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: "muggle-test" },
+      }),
+    ).toBe(true);
+  });
+
+  it("ignores telemetry emits from other skills", () => {
+    const emit = (skillName: string) =>
+      isE2ERun({
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: skillName },
+      });
+    expect(emit("muggle-do")).toBe(false);
+    expect(emit("muggle-pr-followup")).toBe(false);
+    expect(emit("muggle-test-prepare")).toBe(false);
+    expect(
+      isE2ERun({ tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit" }),
+    ).toBe(false);
+  });
+
   it("never counts a Bash command as an E2E run, even one naming muggle + test", () => {
     const bash = (command: string) => isE2ERun({ tool_name: "Bash", tool_input: { command } });
     expect(bash("git commit -m 'feat: muggle e2e test gate'")).toBe(false);

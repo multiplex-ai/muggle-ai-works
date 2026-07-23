@@ -57,7 +57,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*muggle.*(execute|replay)",
+        "matcher": "mcp__.*muggle.*(execute|replay|telemetry-skill-emit)",
         "hooks": [
           {
             "type": "command",

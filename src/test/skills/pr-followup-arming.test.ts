@@ -51,6 +51,14 @@ describe("pr-followup arming wiring", () => {
     expect(armWatcher).toMatch(/exits only when the PR goes terminal/i);
   });
 
+  // Wake turns dispatch, never work inline — otherwise every cycle re-reads
+  // the orchestrating session's context and cost scales with its size.
+  it("mandates dispatching the wake's tick-and-cycle to a fresh context", () => {
+    expect(armWatcher).toMatch(/dispatch/i);
+    expect(armWatcher).toMatch(/fresh context/i);
+    expect(armWatcher).toMatch(/inline/i);
+  });
+
   it("every arming point routes through arm-watcher.md", () => {
     for (const rel of [
       "muggle-pr-followup/bootstrap.md",

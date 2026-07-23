@@ -40,6 +40,59 @@ ${input2.tool_response?.output ?? ""}`;
   return m ? m[0] : null;
 }
 
+// src/guardrails/prTerminal.ts
+var GH_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
+var GH_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
+var MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
+function detectPrTerminal(input2) {
+  if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
+  const response = input2.tool_response;
+  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
+  const mergedMatch = haystack.match(GH_MERGED_LINE);
+  if (mergedMatch) {
+    return { prNumber: Number(mergedMatch[1]), verdict: "merged" /* Merged */ };
+  }
+  const closedMatch = haystack.match(GH_CLOSED_LINE);
+  if (closedMatch) {
+    return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
+  }
+  const monitorMatch = haystack.match(MONITOR_TERMINAL_LINE);
+  if (monitorMatch) {
+    return {
+      prNumber: Number(monitorMatch[1]),
+      verdict: monitorMatch[2] === "MERGED" ? "merged" /* Merged */ : "closed" /* Closed */
+    };
+  }
+  return null;
+}
+function applyPrTerminalDetected(state, prNumber) {
+  const pending = state.terminalPending ?? [];
+  const handled = state.terminalHandled ?? [];
+  if (pending.includes(prNumber) || handled.includes(prNumber)) return state;
+  return { ...state, terminalPending: [...pending, prNumber] };
+}
+function applyNextOptionsOffered(state) {
+  const pending = state.terminalPending ?? [];
+  if (pending.length === 0) return state;
+  return {
+    ...state,
+    terminalPending: [],
+    terminalHandled: [...state.terminalHandled ?? [], ...pending],
+    terminalBlockCount: 0
+  };
+}
+var MAX_PR_TERMINAL_BLOCKS = 3;
+function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
+  const blockCount = state.terminalBlockCount ?? 0;
+  if ((state.terminalPending ?? []).length === 0) {
+    return { action: "none" /* None */, blockCount };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+
 // src/guardrails/testsGreen.ts
 var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
@@ -197,6 +250,33 @@ function prOpened() {
 Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
+function prTerminal() {
+  const terminalEvent = detectPrTerminal(input);
+  if (!terminalEvent) return "{}";
+  const state = readState(sessionId);
+  const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
+  if (next === state) return "{}";
+  writeState(next);
+  const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user (AskUserQuestion) \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
+  return envelope("PostToolUse", ctx, host);
+}
+function offerRan() {
+  if (input.tool_name !== "AskUserQuestion") return "{}";
+  const state = readState(sessionId);
+  const next = applyNextOptionsOffered(state);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+function terminalGate() {
+  const state = readState(sessionId);
+  const decision = prTerminalGateDecision(state);
+  if (decision.action !== "block" /* Block */) return "{}";
+  state.terminalBlockCount = decision.blockCount;
+  writeState(state);
+  const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user via AskUserQuestion \u2014 release, queued work, deferred items. Only the AskUserQuestion offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then run the AskUserQuestion next-options offer.`;
+  return blockStop(reason, host);
+}
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
@@ -233,8 +313,11 @@ function buildRouter() {
 }
 var handlers = {
   "pr-opened": prOpened,
+  "pr-terminal": prTerminal,
+  "offer-ran": offerRan,
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
+  "terminal-gate": terminalGate,
   "report-gate": reportGate,
   "build-router": buildRouter
 };

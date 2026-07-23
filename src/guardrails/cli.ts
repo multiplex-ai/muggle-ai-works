@@ -1,6 +1,14 @@
 import { readFileSync } from "fs";
 import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
+import {
+  detectPrTerminal,
+  applyPrTerminalDetected,
+  applyNextOptionsOffered,
+  prTerminalGateDecision,
+  PrTerminalGateAction,
+  MAX_PR_TERMINAL_BLOCKS,
+} from "./prTerminal.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
@@ -32,6 +40,47 @@ function prOpened(): string {
     `If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; ` +
     `if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
+}
+
+function prTerminal(): string {
+  const terminalEvent = detectPrTerminal(input);
+  if (!terminalEvent) return "{}";
+  const state = readState(sessionId);
+  const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
+  if (next === state) return "{}";
+  writeState(next);
+  const ctx =
+    `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: ` +
+    `finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ` +
+    `(AskUserQuestion) — release, queued work, deferred items. The stop gate holds until the offer runs.`;
+  return envelope("PostToolUse", ctx, host);
+}
+
+function offerRan(): string {
+  if (input.tool_name !== "AskUserQuestion") return "{}";
+  const state = readState(sessionId);
+  const next = applyNextOptionsOffered(state);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+
+function terminalGate(): string {
+  const state = readState(sessionId);
+  const decision = prTerminalGateDecision(state);
+  if (decision.action !== PrTerminalGateAction.Block) return "{}";
+  state.terminalBlockCount = decision.blockCount;
+  writeState(state);
+  const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
+  // Full instruction once; repeats are one line (same rationale as e2eGate).
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge ` +
+        `handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next ` +
+        `options to the user via AskUserQuestion — release, queued work, deferred items. Only the ` +
+        `AskUserQuestion offer clears this gate.`
+      : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): ` +
+        `finalize + tear down, then run the AskUserQuestion next-options offer.`;
+  return blockStop(reason, host);
 }
 
 function recordTests(): string {
@@ -88,8 +137,11 @@ function buildRouter(): string {
 
 const handlers: Record<string, () => string> = {
   "pr-opened": prOpened,
+  "pr-terminal": prTerminal,
+  "offer-ran": offerRan,
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
+  "terminal-gate": terminalGate,
   "report-gate": reportGate,
   "build-router": buildRouter,
 };

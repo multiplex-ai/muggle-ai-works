@@ -275,10 +275,9 @@ function spawnHeadlessTick(slot: OpenSlot, spawnReason: SpawnTickReason): void {
   const tickPrompt = `/muggle:muggle-pr-followup ${slot.slug} ${slot.prRecord.number}`;
   const command = `${claudeCommand} ${claudeArgs} -p "${tickPrompt}"`;
 
-  appendFileSync(
-    join(slot.slotDir, "followup.log"),
-    `${new Date().toISOString()} watchdog spawned recovery tick pr=${slot.prRecord.number} reason=${spawnReason}\n`,
-  );
+  // Never write the slot's followup.log here: a line there is the tick's
+  // proof-of-run (spawn confirmation) and a liveness beacon for reconcile —
+  // a spawn marker would self-confirm every spawn and fake a live watcher.
   log(`spawn tick slug=${slot.slug} pr=${slot.prRecord.number} reason=${spawnReason}`);
 
   const child = spawn(command, {

@@ -320,11 +320,6 @@ function spawnHeadlessTick(slot, spawnReason) {
   const claudeArgs = process.env.MUGGLE_WATCHDOG_CLAUDE_ARGS ?? "--permission-mode acceptEdits --allowedTools Bash Read Write Edit Glob Grep Skill";
   const tickPrompt = `/muggle:muggle-pr-followup ${slot.slug} ${slot.prRecord.number}`;
   const command = `${claudeCommand} ${claudeArgs} -p "${tickPrompt}"`;
-  appendFileSync(
-    join(slot.slotDir, "followup.log"),
-    `${(/* @__PURE__ */ new Date()).toISOString()} watchdog spawned recovery tick pr=${slot.prRecord.number} reason=${spawnReason}
-`
-  );
   log(`spawn tick slug=${slot.slug} pr=${slot.prRecord.number} reason=${spawnReason}`);
   const child = spawn$1(command, {
     shell: true,

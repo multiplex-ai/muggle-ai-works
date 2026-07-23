@@ -25,6 +25,9 @@ describe("pr-followup arming wiring", () => {
     expect(armWatcher).toMatch(/persistent/i);
     expect(armWatcher).toMatch(/visible/i);
     expect(armWatcher).toMatch(/terminal/i);
+    // Surfaces that show the command instead of the label must still identify
+    // the watch — the command is the slot's watch.sh path, never a script blob.
+    expect(armWatcher).toMatch(/watch\.sh/);
   });
 
   // Drain-then-watch: the monitor compares against a watermark, so anything

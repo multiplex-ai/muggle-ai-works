@@ -37,8 +37,15 @@ describe("pr-followup arming wiring", () => {
     expect(tick).toBeLessThan(watch);
   });
 
-  it("requires the watermark to be passed in, not self-captured", () => {
-    expect(armWatcher).toMatch(/pass the watermark in/i);
+  it("seeds the watermark outside the loop and advances it after every cycle", () => {
+    expect(armWatcher).toMatch(/never let the loop capture its own baseline/i);
+    expect(armWatcher).toMatch(/after a cycle/i);
+    expect(armWatcher).toMatch(/watch-watermark/);
+  });
+
+  it("the monitor survives events and exits only at terminal", () => {
+    expect(armWatcher).toMatch(/keeps watching/i);
+    expect(armWatcher).toMatch(/exits only when the PR goes terminal/i);
   });
 
   it("every arming point routes through arm-watcher.md", () => {

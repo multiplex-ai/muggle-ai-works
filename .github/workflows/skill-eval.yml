@@ -22,9 +22,15 @@ on:
       gate_runs:
         description: "skill-gate-eval: runs per scenario"
         default: "10"
+      gate_concurrency:
+        description: "skill-gate-eval: parallel reps per gate"
+        default: "4"
       routing_runs:
         description: "skill-routing-eval: runs per query"
         default: "3"
+      routing_workers:
+        description: "skill-routing-eval: parallel sessions per chunk"
+        default: "6"
 
 concurrency:
   group: skill-eval-${{ github.ref }}
@@ -38,15 +44,17 @@ permissions:
 jobs:
   skill-gate-eval:
     runs-on: ubuntu-latest
-    # LLM-driven and fully sequential: every gate × every scenario × GATE_RUNS
-    # real Claude reps (~1 min each). 45 min cancelled healthy sweeps mid-gate;
-    # match the sibling skill-routing-eval budget so a full run can finish.
+    # LLM-driven: every gate × every scenario × GATE_RUNS real Claude reps
+    # (~1 min each). Reps run GATE_CONCURRENCY-wide with throttle backoff
+    # (run.ts); gates stay sequential so ::group:: logs stay attributable.
+    # Budget kept generous — throttling can serialize a run back down.
     timeout-minutes: 180
     env:
       # Subscription auth, not a pay-per-use API key. Generate with
       # `claude setup-token` and store as the CLAUDE_CODE_OAUTH_TOKEN secret.
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
+      GATE_CONCURRENCY: ${{ inputs.gate_concurrency || '4' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
       # Fresh, writable config dir for the headless Claude Code CLI (same as
       # skill-routing-eval) — avoids first-run state in an unwritable HOME.
@@ -212,6 +220,7 @@ jobs:
             echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
             if pnpm exec tsx internal/skill-gate-eval/src/run.ts \
                  --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
+                 --concurrency "$GATE_CONCURRENCY" \
                  --brain-dir "$MUGGLE_BRAIN_DIR"; then
               echo "PASS $gate"
             else
@@ -261,6 +270,9 @@ jobs:
       # Subscription auth, not a pay-per-use API key (see skill-gate-eval above).
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
+      # Safe above the old default of 3 now that router_eval retries throttled
+      # runs with a pool-wide backoff instead of scoring them as `none`.
+      ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
     steps:
@@ -380,11 +392,13 @@ jobs:
           # route perfectly.
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py \
-              --all --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 0.95
+              --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
+              --repo-root "$CLEAN_CWD" --fail-under 0.95
           else
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \
-              --runs "$ROUTING_RUNS" --repo-root "$CLEAN_CWD" --fail-under 1.0
+              --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
+              --repo-root "$CLEAN_CWD" --fail-under 1.0
           fi
 
       # Post the routing report (reports/run/combined.md) to the job summary and,

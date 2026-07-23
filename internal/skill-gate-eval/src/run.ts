@@ -10,6 +10,7 @@
  *     --runs 10 \
  *     [--brain-dir ../muggle-ai-brain] \
  *     [--model claude-sonnet-4-6] \
+ *     [--concurrency 4]           # parallel reps; SKILL_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]   # only run scenarios whose name contains this
  *     [--verbose]                 # dump per-run trace to stderr
  */
@@ -17,7 +18,17 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { DEFAULT_MODEL, MODEL_ALIASES, PASS_THRESHOLD } from "./constants.js";
+import {
+  runWithConcurrencyLimit,
+  ThrottleGate,
+  withThrottleRetry,
+} from "./concurrency.js";
+import {
+  DEFAULT_GATE_EVAL_CONCURRENCY,
+  DEFAULT_MODEL,
+  MODEL_ALIASES,
+  PASS_THRESHOLD,
+} from "./constants.js";
 import { runScenarioOnce } from "./harness.js";
 import { loadScenarioFile } from "./scenario.js";
 import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
@@ -73,6 +84,14 @@ function parseArgs(argv: string[]): RunCliArgs {
   const model = out.model
     ? resolveModel(out.model, DEFAULT_MODEL)
     : resolveModel(frontmatterModel(skillsDir, out.skill), DEFAULT_MODEL);
+  const concurrencyRaw =
+    out.concurrency ??
+    process.env.SKILL_GATE_EVAL_CONCURRENCY ??
+    String(DEFAULT_GATE_EVAL_CONCURRENCY);
+  const concurrency = parseInt(concurrencyRaw, 10);
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    throw new Error(`--concurrency must be a positive integer, got "${concurrencyRaw}"`);
+  }
   return {
     gate: out.gate,
     skill: out.skill,
@@ -80,6 +99,7 @@ function parseArgs(argv: string[]): RunCliArgs {
     brainDir: out["brain-dir"] ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain",
     skillsDir: skillsDir,
     model: model,
+    concurrency: concurrency,
     scenarioFilter: out.scenario,
     verbose: flags.has("verbose"),
   };
@@ -88,7 +108,9 @@ function parseArgs(argv: string[]): RunCliArgs {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   // eslint-disable-next-line no-console
-  console.error(`[skill-gate-eval] ${args.gate} on ${args.skill} — model=${args.model} runs=${args.runs}`);
+  console.error(
+    `[skill-gate-eval] ${args.gate} on ${args.skill} — model=${args.model} runs=${args.runs} concurrency=${args.concurrency}`,
+  );
   const scenarioFilePath = path.resolve(
     args.brainDir,
     "eval",
@@ -115,43 +137,70 @@ async function main(): Promise<void> {
     );
   }
 
-  const reports: ScenarioReport[] = [];
-  for (const scenario of filteredScenarios) {
-    const verdicts: RunVerdict[] = [];
-    for (let i = 0; i < args.runs; i++) {
-      // eslint-disable-next-line no-console
-      console.error(`[skill-gate-eval] running ${scenario.name} (rep ${i + 1}/${args.runs})…`);
-      // eslint-disable-next-line no-await-in-loop
-      const v = await runScenarioOnce(
-        {
-          scenarioFile: scenarioFile,
-          scenarioFilePath: scenarioFilePath,
-          scenario: scenario,
-          skillsDir: path.resolve(args.skillsDir),
-          model: args.model,
-        },
-        args.verbose ? (msg) => process.stderr.write(`[sdk] ${oneLine(msg)}\n`) : undefined,
-      );
-      verdicts.push(v);
-      if (args.verbose) {
+  // Each rep is an isolated agent session, so reps run through a bounded pool.
+  // One shared gate: a rate-limited rep pauses new starts for every worker.
+  const throttleGate = new ThrottleGate();
+  const repJobs = filteredScenarios.flatMap((scenario, scenarioIndex) =>
+    Array.from({ length: args.runs }, (_, repIndex) => {
+      const repLabel = `${scenario.name} (rep ${repIndex + 1}/${args.runs})`;
+      return async (): Promise<{ scenarioIndex: number; verdict: RunVerdict }> => {
         // eslint-disable-next-line no-console
-        console.error(JSON.stringify(v, null, 2));
-      }
-    }
+        console.error(`[skill-gate-eval] running ${repLabel}…`);
+        const verdict = await withThrottleRetry(
+          () =>
+            runScenarioOnce(
+              {
+                scenarioFile: scenarioFile,
+                scenarioFilePath: scenarioFilePath,
+                scenario: scenario,
+                skillsDir: path.resolve(args.skillsDir),
+                model: args.model,
+              },
+              args.verbose
+                ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
+                : undefined,
+            ),
+          {
+            gate: throttleGate,
+            onThrottle: (attempt, backoffMs, error) => {
+              // eslint-disable-next-line no-console
+              console.error(
+                `[skill-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+              );
+            },
+          },
+        );
+        if (args.verbose) {
+          // eslint-disable-next-line no-console
+          console.error(JSON.stringify(verdict, null, 2));
+        }
+        return { scenarioIndex: scenarioIndex, verdict: verdict };
+      };
+    }),
+  );
+  const repOutcomes = await runWithConcurrencyLimit(repJobs, args.concurrency);
+
+  const verdictsByScenario: RunVerdict[][] = filteredScenarios.map(() => []);
+  for (const outcome of repOutcomes) {
+    verdictsByScenario[outcome.scenarioIndex].push(outcome.verdict);
+  }
+
+  const reports: ScenarioReport[] = filteredScenarios.map((scenario, scenarioIndex) => {
+    const verdicts = verdictsByScenario[scenarioIndex];
     const passes = verdicts.filter((v) => v.pass).length;
     const passRate = passes / verdicts.length;
     const failureReasons = Array.from(
       new Set(verdicts.flatMap((v) => v.reasons)),
     );
-    reports.push({
+    return {
       name: scenario.name,
       runs: verdicts.length,
       passes: passes,
       passRate: passRate,
       passed: passRate >= PASS_THRESHOLD,
       failureReasons: failureReasons,
-    });
-  }
+    };
+  });
 
   const resultsPath = path.resolve(
     path.dirname(scenarioFilePath),

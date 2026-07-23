@@ -92,7 +92,7 @@ def main():
     g.add_argument("--skill", help="run only this expected_skill chunk")
     g.add_argument("--skills", help="comma-separated subset of expected_skills to run (e.g. the skills changed in a PR)")
     ap.add_argument("--runs", type=int, default=3)
-    ap.add_argument("--workers", type=int, default=3, help="keep low — high concurrency trips the MCP disconnect")
+    ap.add_argument("--workers", type=int, default=3, help="parallel claude sessions per chunk; router_eval's per-run throttle retry + shared backoff make higher values safe (CI uses 6)")
     ap.add_argument("--timeout", type=int, default=200)
     ap.add_argument("--out-dir", default=str(HERE / "reports" / "run"))
     ap.add_argument("--repo-root", default=str(REPO_ROOT))

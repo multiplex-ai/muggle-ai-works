@@ -171,5 +171,6 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 - `REV` — highest submitted-review id already handled
 - `COM` — highest thread-comment id already handled
 - `THREADS` — semicolon-joined ids of threads already known unresolved
+- `CIRED` — head SHA whose settled-red CI the drain already handled; empty when the checks are green, still pending, or unseen. The CI floor is a SHA rather than a monotonic id because the check rollup flips green↔red and resets on each push — keying on the head SHA fires the loop once per red head and re-arms on the next push ([`arm-watcher.md`](arm-watcher.md)).
 
 Written whole-file by the orchestrating session — seeded at arm time from a post-drain fetch, advanced after every cycle from a post-replies fetch. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply ([`arm-watcher.md`](arm-watcher.md)).

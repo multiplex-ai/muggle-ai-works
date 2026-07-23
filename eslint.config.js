@@ -92,6 +92,8 @@ export default [
       "coverage/**",
       "*.config.js",
       "*.config.mjs",
+      // tsup-bundled artifacts (built from src/guardrails and src/watchdog).
+      "plugin/scripts/*.mjs",
     ],
   },
 ];

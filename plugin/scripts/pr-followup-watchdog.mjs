@@ -80,7 +80,7 @@ function decideSlotAction(input) {
   }
   if (stored.last_spawn_signature === input.signature && stored.last_spawn_at !== null) {
     const lastSpawnMs = Date.parse(stored.last_spawn_at);
-    const tickRanAfterSpawn = input.newestFollowupLogTimestampMs !== null && input.newestFollowupLogTimestampMs > lastSpawnMs;
+    const tickRanAfterSpawn = input.pollSnapshot.prState === "OPEN" && input.newestFollowupLogTimestampMs !== null && input.newestFollowupLogTimestampMs > lastSpawnMs;
     if (tickRanAfterSpawn) return skip("already-handled" /* AlreadyHandled */);
     if (input.nowMs - lastSpawnMs < input.spawnRetryAfterMs) {
       return skip("awaiting-spawn-retry-window" /* AwaitingSpawnRetryWindow */);
@@ -205,6 +205,7 @@ function listOpenSlots() {
   const openSlots = [];
   for (const slug of readdirSync(sessionsDir)) {
     const slotDir = join(sessionsDir, slug);
+    if (slug.endsWith(".stopped")) continue;
     if (!existsSync(join(slotDir, "prs.json"))) continue;
     if (existsSync(join(slotDir, "result.md"))) continue;
     const prRecords = readJsonOrNull(join(slotDir, "prs.json"));

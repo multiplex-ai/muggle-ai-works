@@ -57,7 +57,12 @@ export function decideSlotAction(input: SlotDecisionInput): SlotDecision {
 
   if (stored.last_spawn_signature === input.signature && stored.last_spawn_at !== null) {
     const lastSpawnMs = Date.parse(stored.last_spawn_at);
+    // Terminal completion is the finalize itself — result.md removes the slot
+    // from the open set. A log line alone proves nothing for terminal (a tick
+    // killed mid-finalize logs but leaves the slot open), so terminal spawns
+    // stay retry-eligible for as long as the slot exists.
     const tickRanAfterSpawn =
+      input.pollSnapshot.prState === "OPEN" &&
       input.newestFollowupLogTimestampMs !== null &&
       input.newestFollowupLogTimestampMs > lastSpawnMs;
     if (tickRanAfterSpawn) return skip(SlotSkipReason.AlreadyHandled);

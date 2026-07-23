@@ -172,6 +172,25 @@ describe("decideSlotAction", () => {
     expect(decision.updatedSlotState?.spawn_attempts).toBe(2);
   });
 
+  it("a terminal spawn is never marked handled by log movement — killed finalize retries", () => {
+    const pollSnapshot = snapshot({ prState: "MERGED" });
+    const spawnedAtMs = NOW_MS - 15 * MINUTE_MS;
+    const stored: WatchdogSlotState = {
+      ...emptyWatchdogSlotState(),
+      last_spawn_signature: computeSlotSignature(pollSnapshot),
+      last_spawn_at: new Date(spawnedAtMs).toISOString(),
+      spawn_attempts: 1,
+    };
+    const decision = decideSlotAction(
+      decisionInput(pollSnapshot, {
+        storedSlotState: stored,
+        newestFollowupLogTimestampMs: spawnedAtMs + 2 * MINUTE_MS,
+      }),
+    );
+    expect(decision.action).toBe(SlotWatchAction.SpawnTick);
+    expect(decision.spawnReason).toBe(SpawnTickReason.SpawnRetry);
+  });
+
   it("a new signature after a handled one goes through pending, not straight to spawn", () => {
     const handledSnapshot = snapshot({ behindBy: 2 });
     const newSnapshot = snapshot({ behindBy: 2, headSha: "def5678" });

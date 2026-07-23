@@ -115,6 +115,9 @@ function listOpenSlots(): OpenSlot[] {
   const openSlots: OpenSlot[] = [];
   for (const slug of readdirSync(sessionsDir)) {
     const slotDir = join(sessionsDir, slug);
+    // A ".stopped" suffix is the user's neutralize-this-watcher convention —
+    // recovery must never resurrect it.
+    if (slug.endsWith(".stopped")) continue;
     if (!existsSync(join(slotDir, "prs.json"))) continue;
     if (existsSync(join(slotDir, "result.md"))) continue;
     const prRecords = readJsonOrNull<SlotPrRecord[]>(join(slotDir, "prs.json"));

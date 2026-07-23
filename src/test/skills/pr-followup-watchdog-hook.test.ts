@@ -92,6 +92,11 @@ describe("pr-followup out-of-session watchdog wiring", () => {
       const daemonSource = read(path.join(REPO_ROOT, "src", "watchdog", "cli.ts"));
       expect(daemonSource).toMatch(/\/muggle:muggle-pr-followup \$\{slot\.slug\}/);
     });
+
+    it("the daemon never resurrects a user-neutralized (.stopped) slot", () => {
+      const daemonSource = read(path.join(REPO_ROOT, "src", "watchdog", "cli.ts"));
+      expect(daemonSource).toMatch(/endsWith\("\.stopped"\)/);
+    });
   });
 
   describe("skill docs carry the contract", () => {

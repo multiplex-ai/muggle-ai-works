@@ -28,6 +28,7 @@ import {
 import { decideSlotAction, emptyWatchdogSlotState } from "./decide.js";
 import { isCycleInProgress, newestFollowupLogTimestampMs } from "./followupLog.js";
 import { isWatcherLive } from "./liveness.js";
+import { locatePrRepo } from "./prLocator.js";
 import {
   computeSlotSignature,
   selectActionableBodyReviewIds,
@@ -175,14 +176,15 @@ function ciBucketFromRollupState(rollupState: string | null): CiRollupBucket {
 }
 
 function pollGithubPrSnapshot(slot: OpenSlot): SlotPollSnapshot {
-  const [owner, name] = slot.prRecord.repo.split("/");
+  const repoLocator = locatePrRepo(slot.prRecord);
+  if (!repoLocator) throw new Error(`cannot resolve owner/repo for slot ${slot.slug}`);
   const raw = gh([
     "api",
     "graphql",
     "-F",
-    `owner=${owner}`,
+    `owner=${repoLocator.owner}`,
     "-F",
-    `name=${name}`,
+    `name=${repoLocator.name}`,
     "-F",
     `number=${slot.prRecord.number}`,
     "-f",
@@ -238,7 +240,7 @@ function pollGithubPrSnapshot(slot: OpenSlot): SlotPollSnapshot {
     // _shared/vcs/github/pr-metadata.md for why BEHIND is masked.
     const compareRaw = gh([
       "api",
-      `repos/${slot.prRecord.repo}/compare/${pullRequest.baseRefName}...${pullRequest.headRefOid}`,
+      `repos/${repoLocator.owner}/${repoLocator.name}/compare/${pullRequest.baseRefName}...${pullRequest.headRefOid}`,
       "--jq",
       ".behind_by",
     ]);

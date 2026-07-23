@@ -148,6 +148,15 @@ function isWatcherLive(args) {
   return args.nowMs - newestBeaconMs < staleAfterMs;
 }
 
+// src/watchdog/prLocator.ts
+function locatePrRepo(prRecord) {
+  const urlMatch = /github\.com\/([^/]+)\/([^/]+)\/pull\/\d+/.exec(prRecord.url ?? "");
+  if (urlMatch) return { owner: urlMatch[1], name: urlMatch[2] };
+  const [owner, name] = (prRecord.repo ?? "").split("/");
+  if (owner && name) return { owner, name };
+  return null;
+}
+
 // src/watchdog/cli.ts
 var muggleDoDir = process.env.MUGGLE_WATCHDOG_MUGGLE_DO_DIR ?? join(homedir(), ".muggle-ai", "muggle-do");
 var sessionsDir = join(muggleDoDir, "sessions");
@@ -248,14 +257,15 @@ function ciBucketFromRollupState(rollupState) {
   return "none" /* None */;
 }
 function pollGithubPrSnapshot(slot) {
-  const [owner, name] = slot.prRecord.repo.split("/");
+  const repoLocator = locatePrRepo(slot.prRecord);
+  if (!repoLocator) throw new Error(`cannot resolve owner/repo for slot ${slot.slug}`);
   const raw = gh([
     "api",
     "graphql",
     "-F",
-    `owner=${owner}`,
+    `owner=${repoLocator.owner}`,
     "-F",
-    `name=${name}`,
+    `name=${repoLocator.name}`,
     "-F",
     `number=${slot.prRecord.number}`,
     "-f",
@@ -282,7 +292,7 @@ function pollGithubPrSnapshot(slot) {
   if (pullRequest.state === "OPEN") {
     const compareRaw = gh([
       "api",
-      `repos/${slot.prRecord.repo}/compare/${pullRequest.baseRefName}...${pullRequest.headRefOid}`,
+      `repos/${repoLocator.owner}/${repoLocator.name}/compare/${pullRequest.baseRefName}...${pullRequest.headRefOid}`,
       "--jq",
       ".behind_by"
     ]);

@@ -12,6 +12,8 @@ Make sure the local services a user needs for E2E acceptance testing are up and 
 
 Some users start their own services (tmux scripts, docker-compose, a terminal per service). Others want help launching them. This skill handles both: it verifies readiness first, and only offers to start things when something is missing.
 
+The skill runs in two phases. **Decide (in-session):** every user-facing choice — plan reuse, scope, exclusions, service selection, start approvals — resolved here, in conversation. **Execute (agent):** the resolved plan dispatches to the `test-prepare-runner` agent (`plugin/agents/test-prepare-runner.md`), whose `model: opus` frontmatter — unlike this file's `model:` — holds even when the skill fires mid-session in a cheaper-model conversation. Other skills gate on this skill's readiness verdict, so execution must never run below its reliability floor; that pin gap is why execution lives in the agent.
+
 ## Privacy Boundary
 
 This skill touches the user's local machine — processes, ports, directories outside the current repo. Every action is explicit and confirmed.
@@ -46,7 +48,7 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 
 `testing_scope` records what the user is testing (from [scope](./steps/scope.md)). `excluded_services` records services the user said can't run locally (from [viability-check](./steps/viability-check.md)).
 
-This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge.
+This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
 
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
@@ -57,7 +59,7 @@ Prune dead PIDs silently.
 
 ## Preferences
 
-Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md).
+Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md). All three resolve in the Decide phase; the agent receives outcomes, never gates.
 
 | Preference | Gates |
 |------------|-------|
@@ -67,26 +69,25 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 ## Workflow
 
-Run the stages in this order. The sequence number is display-only — it lives only in this table for at-a-glance ordering; detail files and cross-references use slugs. Each row links to its detail file; read the file when you reach the stage.
+**Decide (in-session).** Run these stages in order; read each detail file when you reach it:
 
 | # | Stage | Summary |
 |:--|:------|:--------|
-| 0 | [reuse-plan](./steps/reuse-plan.md) | Reuse saved prepare plan (gated); short-circuits to check-running on reuse |
+| 0 | [reuse-plan](./steps/reuse-plan.md) | Reuse saved prepare plan (gated); on reuse, skip straight to dispatch |
 | 1 | [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
 | 2 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | 3 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
 | 4 | [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
-| 5 | [check-running](./steps/check-running.md) | Detect what's already listening |
-| 6 | [env-file](./steps/env-file.md) | Env file present + correct |
-| 7 | [start-commands](./steps/start-commands.md) | Determine per-service start command |
-| 8 | [fresh-install](./steps/fresh-install.md) | Auto-install deps if missing/stale |
-| 9 | [start-services](./steps/start-services.md) | Launch + two-stage readiness |
-| 10 | [smoke-test](./steps/smoke-test.md) | HTTP + body sniff + log tail; clean-restart on fail |
-| 11 | [readiness-report](./steps/readiness-report.md) | Final ready table |
+
+The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, and resolved gate outcomes.
+
+**Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan. The agent runs [check-running](./steps/check-running.md), [env-file](./steps/env-file.md), [start-commands](./steps/start-commands.md), [fresh-install](./steps/fresh-install.md), [start-services](./steps/start-services.md), [smoke-test](./steps/smoke-test.md), and [readiness-report](./steps/readiness-report.md), and returns `READY` / `DEGRADED` plus the readiness table. In a harness with no agent/subagent facility, execute those stage files inline instead.
+
+Relay the readiness table to the user or calling skill verbatim. A `needs-input:` line from the agent names an unresolved decision — resolve it here (asking the user if needed) and re-dispatch; the agent never asks.
 
 ## Cleanup
 
-Triggered when the user says "stop services", "tear down", "clean up", "I'm done testing", another skill signals run complete, or this skill is re-invoked with "tear down and start fresh".
+Triggered when the user says "stop services", "tear down", "clean up", "I'm done testing", another skill signals run complete, or this skill is re-invoked with "tear down and start fresh". Runs in-session, not in the agent.
 
 1. Read `/tmp/muggle-test-prepare.json`
 2. Skip services marked `external: true`
@@ -117,7 +118,7 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 - **No silent auto-selection without a gate** — when no preference authorizes a silent choice (host, restart, kill), confirm with the user. A gate set to `always` is the only license to skip the question; absent that, ask.
 - **Verify first, offer to start second** — check what's already running before proposing to start anything.
 - **The user may prefer to start services themselves** — always offer that option.
-- **Never start a process the user didn't approve.**
+- **Never start a process the user didn't approve** — approvals are granted in Decide and travel in the plan; the agent starts nothing outside it.
 - **Never read file contents outside confirmed directories** — folder names are discoverable; file contents require explicit user selection.
 - **Never leave orphan processes untracked** — every background PID goes into the tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.

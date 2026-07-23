@@ -40,23 +40,26 @@ ${input2.tool_response?.output ?? ""}`;
   return m ? m[0] : null;
 }
 
+// src/guardrails/constants.ts
+var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
+var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
+var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
+var MAX_PR_TERMINAL_BLOCKS = 3;
+
 // src/guardrails/prTerminal.ts
-var GH_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
-var GH_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
-var MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 function detectPrTerminal(input2) {
   if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
   const response = input2.tool_response;
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
-  const mergedMatch = haystack.match(GH_MERGED_LINE);
+  const mergedMatch = haystack.match(GH_PR_MERGED_LINE);
   if (mergedMatch) {
     return { prNumber: Number(mergedMatch[1]), verdict: "merged" /* Merged */ };
   }
-  const closedMatch = haystack.match(GH_CLOSED_LINE);
+  const closedMatch = haystack.match(GH_PR_CLOSED_LINE);
   if (closedMatch) {
     return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
   }
-  const monitorMatch = haystack.match(MONITOR_TERMINAL_LINE);
+  const monitorMatch = haystack.match(PR_MONITOR_TERMINAL_LINE);
   if (monitorMatch) {
     return {
       prNumber: Number(monitorMatch[1]),
@@ -81,7 +84,6 @@ function applyNextOptionsOffered(state) {
     terminalBlockCount: 0
   };
 }
-var MAX_PR_TERMINAL_BLOCKS = 3;
 function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
   const blockCount = state.terminalBlockCount ?? 0;
   if ((state.terminalPending ?? []).length === 0) {

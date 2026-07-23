@@ -4,12 +4,10 @@ import {
   applyPrTerminalDetected,
   applyNextOptionsOffered,
   prTerminalGateDecision,
-  PrTerminalGateAction,
-  PrTerminalVerdict,
-  MAX_PR_TERMINAL_BLOCKS,
 } from "../../guardrails/prTerminal";
+import { PrTerminalGateAction, PrTerminalVerdict, type GuardrailState } from "../../guardrails/types";
+import { MAX_PR_TERMINAL_BLOCKS } from "../../guardrails/constants";
 import { applyRecordedRun } from "../../guardrails/shouldRunE2E";
-import type { GuardrailState } from "../../guardrails/types";
 
 describe("detectPrTerminal", () => {
   it("detects a gh pr merge success line (gh writes it to stderr)", () => {

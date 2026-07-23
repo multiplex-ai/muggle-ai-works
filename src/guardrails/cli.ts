@@ -6,15 +6,14 @@ import {
   applyPrTerminalDetected,
   applyNextOptionsOffered,
   prTerminalGateDecision,
-  PrTerminalGateAction,
-  MAX_PR_TERMINAL_BLOCKS,
 } from "./prTerminal.js";
+import { MAX_PR_TERMINAL_BLOCKS } from "./constants.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
-import type { HookInput } from "./types.js";
+import { PrTerminalGateAction, type HookInput } from "./types.js";
 
 function readStdin(): HookInput {
   try {

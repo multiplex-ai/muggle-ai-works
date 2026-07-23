@@ -164,6 +164,28 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 
 `cycle.json` and `requirements.md` are not seeded or read. `/muggle-do` reads reviews off GitHub each invocation.
 
+## `watch-heartbeat`
+
+Touched (mtime refreshed) by the watch loop every iteration — content irrelevant. The slot's liveness beacon: a quiet monitor writes no log lines, so mtime is the only proof it is still polling. Read by [`reconcile.md`](reconcile.md) Step 3.6 and the out-of-session watchdog; a beacon older than 15 minutes means the poller is dead.
+
+## `watchdog.json`
+
+The out-of-session watchdog's per-slot spawn ledger ([`reconcile.md`](reconcile.md#out-of-session-watchdog)). Written only by the watchdog daemon; no skill reads it.
+
+```json
+{
+  "pending_signature": "<signal-signature-or-null>",
+  "pending_seen_at": "<ISO-8601-or-null>",
+  "last_spawn_signature": "<signal-signature-or-null>",
+  "last_spawn_at": "<ISO-8601-or-null>",
+  "spawn_attempts": <int>
+}
+```
+
+- `pending_signature` / `pending_seen_at`: a non-terminal signal must be observed on two consecutive scans before it spawns a recovery tick — this pair records the first sighting.
+- `last_spawn_signature` / `last_spawn_at`: the last spawned signature. Unchanged signature + a `followup.log` line newer than `last_spawn_at` (the tick ran) ⇒ never re-spawn; no newer line ⇒ the spawn died silently (usage limit) and is retried after a backoff window.
+- `spawn_attempts`: lifetime spawn count, forensics only.
+
 ## `watch-watermark.env`
 
 The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot:
@@ -174,3 +196,5 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 - `CIRED` — head SHA whose settled-red CI the drain already handled; empty when the checks are green, still pending, or unseen. The CI floor is a SHA rather than a monotonic id because the check rollup flips green↔red and resets on each push — keying on the head SHA fires the loop once per red head and re-arms on the next push ([`arm-watcher.md`](arm-watcher.md)).
 
 Written whole-file by the orchestrating session — seeded at arm time from a post-drain fetch, advanced after every cycle from a post-replies fetch. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply ([`arm-watcher.md`](arm-watcher.md)).
+
+**Never `source` this file, and quote or extract values.** `THREADS` holds bare semicolons: sourced unquoted, the shell splits the line at the first `;` and silently drops every id after it — the loop then re-reports known threads as new. The watch loop must extract values verbatim (e.g. `grep '^THREADS=' | cut -d= -f2- | tr -d '"\r'`), tolerating quotes and CRLF; writers should quote the value anyway.

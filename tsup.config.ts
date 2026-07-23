@@ -32,11 +32,14 @@ export default defineConfig([
     ],
     noExternal: ["@muggleai/mcp"],
   },
-  // Guardrail hook logic. Bundled self-contained (node builtins only) into the
-  // plugin tree so the bash hooks can `node scripts/guardrails.mjs <sub>`;
+  // Guardrail hook + watchdog logic. Bundled self-contained (node builtins
+  // only) into the plugin tree so the bash hooks can `node scripts/<x>.mjs`;
   // build-plugin then copies plugin/ → dist/plugin/ for publish.
   {
-    entry: { "guardrails": "src/guardrails/cli.ts" },
+    entry: {
+      "guardrails": "src/guardrails/cli.ts",
+      "pr-followup-watchdog": "src/watchdog/cli.ts",
+    },
     format: ["esm"],
     target: "node22",
     outDir: "plugin/scripts",

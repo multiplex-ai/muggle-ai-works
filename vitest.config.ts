@@ -16,6 +16,9 @@ export default defineConfig({
         "src/cli/index.ts",
         "src/cli/main.ts",
         "src/server/index.ts",
+        // Daemon I/O shell (fs scans, gh subprocess, detached spawns); its
+        // decision logic lives in the covered sibling modules.
+        "src/watchdog/cli.ts",
       ],
       reporter: ["text", "json-summary"],
       thresholds: {

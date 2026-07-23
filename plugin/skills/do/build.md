@@ -29,7 +29,7 @@ For each affected repo:
 
    The body explains *why* when the why is non-obvious. The diff already says *what*.
 
-   Signing is non-negotiable: preflight per [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md) — no working local signing means commit remotely per that recipe; never an unsigned local commit, never `--no-gpg-sign`.
+   Signing is non-negotiable: preflight per the provider's signed-commits recipe — `github` → [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md) (no working local signing means commit remotely per that recipe), `gitlab` → [`../_shared/vcs/gitlab/signed-commits.md`](../_shared/vcs/gitlab/signed-commits.md) (no working local signing means stop and escalate); never an unsigned local commit, never `--no-gpg-sign`.
 
 ## Delegation
 

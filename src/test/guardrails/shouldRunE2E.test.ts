@@ -61,8 +61,34 @@ describe("applyRecordedRun", () => {
 
     const afterRound2Unit = applyRecordedRun(afterRound1, { unitTestPassed: true });
     expect(afterRound2Unit.e2eRun).toBe(false);
-    expect(afterRound2Unit.e2eBlockCount).toBe(0);
     expect(shouldRunE2E(afterRound2Unit)).toBe(true);
+  });
+
+  it("a unit-test pass re-arms without rewinding the block counter", () => {
+    const blockedTwice = { ...base, unitTestsGreen: true, e2eRun: false, e2eBlockCount: 2 };
+    const afterUnitPass = applyRecordedRun(blockedTwice, { unitTestPassed: true });
+    expect(afterUnitPass.e2eBlockCount).toBe(2);
+    expect(shouldRunE2E(afterUnitPass)).toBe(true);
+  });
+
+  it("only a registered E2E run resets the block counter", () => {
+    const blockedTwice = { ...base, unitTestsGreen: true, e2eBlockCount: 2 };
+    const afterE2E = applyRecordedRun(blockedTwice, { e2eRan: true });
+    expect(afterE2E.e2eBlockCount).toBe(0);
+    expect(afterE2E.e2eRun).toBe(true);
+  });
+
+  it("blocked ×3 then released stays released across interleaved unit-test passes", () => {
+    let state = applyRecordedRun(base, { unitTestPassed: true });
+    for (let round = 1; round <= MAX_E2E_BLOCKS; round++) {
+      const decision = e2eGateDecision(state);
+      expect(decision).toEqual({ action: E2eGateAction.Block, blockCount: round });
+      state = { ...state, e2eBlockCount: decision.blockCount };
+      state = applyRecordedRun(state, { unitTestPassed: true });
+    }
+    expect(e2eGateDecision(state).action).toBe(E2eGateAction.Release);
+    const afterYetAnotherUnitPass = applyRecordedRun(state, { unitTestPassed: true });
+    expect(e2eGateDecision(afterYetAnotherUnitPass).action).toBe(E2eGateAction.Release);
   });
 
   it("a recorded skip satisfies the gate", () => {

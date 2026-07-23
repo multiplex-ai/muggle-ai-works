@@ -36,7 +36,7 @@ export interface HookInput {
   session_id?: string;
   cwd?: string;
   tool_name?: string;
-  tool_input?: { command?: string };
+  tool_input?: { command?: string; skillName?: string };
   tool_response?: { stdout?: string; stderr?: string; output?: string; content?: string };
   prompt?: string;
 }

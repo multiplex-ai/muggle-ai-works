@@ -186,6 +186,29 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("e2e-gate", event({ session_id: session })).out).toBe("{}");
   });
 
+  it("record-tests -> e2e-gate: a muggle-test skill emit (clean SKIP path) releases an armed gate", () => {
+    const session = "skill-emit-chain";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_response: { stdout: "Tests: 18 passed", stderr: "" },
+      }),
+    );
+    expect(JSON.parse(runHook("e2e-gate", event({ session_id: session })).out).decision).toBe("block");
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: "muggle-test" },
+      }),
+    );
+    expect(runHook("e2e-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
   it("e2e-gate: full instruction on the first block, one-line reminder on repeats", () => {
     const session = "terse-repeats";
     runHook(
@@ -328,6 +351,18 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     ).toBe("{}");
     expect(
       runWrapper("guardrail-record-tests.sh", event({ tool_name: "Bash", tool_input: { command: "pnpm test" } })),
+    ).toContain(NODE_RAN);
+  });
+
+  it("record-tests: spawns Node on a muggle-test skill telemetry emit", () => {
+    expect(
+      runWrapper(
+        "guardrail-record-tests.sh",
+        event({
+          tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+          tool_input: { skillName: "muggle-test" },
+        }),
+      ),
     ).toContain(NODE_RAN);
   });
 

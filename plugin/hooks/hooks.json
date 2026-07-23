@@ -47,6 +47,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-terminal.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       },
@@ -60,6 +66,28 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Monitor",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-terminal.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-offer-ran.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
       }
     ],
     "Stop": [
@@ -68,6 +96,12 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-e2e-gate.sh\"",
+            "async": false,
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-terminal-gate.sh\"",
             "async": false,
             "timeout": 10
           }

@@ -101,6 +101,68 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("e2e-gate", event({ session_id: "fresh" })).out).toBe("{}");
   });
 
+  it("pr-terminal -> terminal-gate: a merged PR holds the Stop until the AskUserQuestion offer runs", () => {
+    const session = "terminal-chain";
+    const detect = runHook(
+      "pr-terminal",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 341 --squash" },
+        tool_response: { stdout: "", stderr: "✓ Squashed and merged pull request #341 (feat: thing)\n" },
+      }),
+    );
+    const nudge = JSON.parse(detect.out);
+    expect(nudge.hookSpecificOutput.hookEventName).toBe("PostToolUse");
+    expect(nudge.hookSpecificOutput.additionalContext).toContain("PR #341");
+    expect(nudge.hookSpecificOutput.additionalContext).toContain("AskUserQuestion");
+
+    const blocked = JSON.parse(runHook("terminal-gate", event({ session_id: session })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("#341");
+
+    expect(runHook("offer-ran", event({ session_id: session, tool_name: "AskUserQuestion" })).out).toBe("{}");
+    expect(runHook("terminal-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("terminal-gate: full instruction once, one-line reminders after, hard release after 3 blocks", () => {
+    const session = "terminal-cap";
+    runHook(
+      "pr-terminal",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_response: { stderr: "✓ Closed pull request o/r#12 (stale)\n" },
+      }),
+    );
+    const first = JSON.parse(runHook("terminal-gate", event({ session_id: session })).out);
+    expect(first.decision).toBe("block");
+    expect(first.reason).toContain("Do not end the turn yet");
+    const second = JSON.parse(runHook("terminal-gate", event({ session_id: session })).out);
+    expect(second.reason).toContain("2/3");
+    expect(second.reason.length).toBeLessThan(first.reason.length);
+    expect(JSON.parse(runHook("terminal-gate", event({ session_id: session })).out).decision).toBe("block");
+    expect(runHook("terminal-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("pr-terminal: ignores PR state metadata in a JSON fetch", () => {
+    const { out } = runHook(
+      "pr-terminal",
+      event({
+        session_id: "terminal-json",
+        tool_name: "Bash",
+        tool_input: { command: "gh pr view 9 --json state" },
+        tool_response: { stdout: '{"state":"MERGED"}' },
+      }),
+    );
+    expect(out).toBe("{}");
+  });
+
+  it("offer-ran: an AskUserQuestion with nothing pending is a no-op", () => {
+    expect(runHook("offer-ran", event({ session_id: "no-pending", tool_name: "AskUserQuestion" })).out).toBe("{}");
+    expect(runHook("terminal-gate", event({ session_id: "no-pending" })).out).toBe("{}");
+  });
+
   it("record-tests -> e2e-gate: an explicit skip marker releases an armed gate", () => {
     const session = "skip-chain";
     runHook(
@@ -281,6 +343,31 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
   it("e2e-gate: skips Node when no armed state file exists for the session", () => {
     expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
+
+  it("pr-terminal: skips Node on a plain command, spawns it on a merge success line", () => {
+    expect(
+      runWrapper("guardrail-pr-terminal.sh", event({ tool_name: "Bash", tool_input: { command: "git status" } })),
+    ).toBe("{}");
+    expect(
+      runWrapper(
+        "guardrail-pr-terminal.sh",
+        event({ tool_name: "Bash", tool_response: { stderr: "✓ Merged pull request #341 (x)" } }),
+      ),
+    ).toContain(NODE_RAN);
+    expect(
+      runWrapper(
+        "guardrail-pr-terminal.sh",
+        event({ tool_name: "Bash", tool_response: { stdout: "TERMINAL pr=331: MERGED" } }),
+      ),
+    ).toContain(NODE_RAN);
+  });
+
+  it("terminal-gate and offer-ran: skip Node when no terminal PR is pending", () => {
+    expect(runWrapper("guardrail-terminal-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
+    expect(
+      runWrapper("guardrail-offer-ran.sh", event({ session_id: "no-state", tool_name: "AskUserQuestion" })),
+    ).toBe("{}");
+  });
 });
 
 describe("hooks.json fan-out (Lazy-core tripwire)", () => {
@@ -293,12 +380,30 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly two observers on a Bash PostToolUse (pr-opened + record-tests)", () => {
+  it("fires exactly three observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal)", () => {
     const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
-    expect(cmds).toHaveLength(2);
+    expect(cmds).toHaveLength(3);
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-tests.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-pr-terminal.sh"))).toBe(true);
+  });
+
+  it("fires the offer observer on AskUserQuestion and the terminal detector on Monitor", () => {
+    const ask = hooks.PostToolUse.find((g) => g.matcher === "AskUserQuestion");
+    expect(ask!.hooks.map((h) => h.command)).toEqual([
+      expect.stringContaining("guardrail-offer-ran.sh"),
+    ]);
+    const monitor = hooks.PostToolUse.find((g) => g.matcher === "Monitor");
+    expect(monitor!.hooks.map((h) => h.command)).toEqual([
+      expect.stringContaining("guardrail-pr-terminal.sh"),
+    ]);
+  });
+
+  it("runs both gates on Stop (e2e + post-merge handoff)", () => {
+    const stop = hooks.Stop[0].hooks.map((h) => h.command);
+    expect(stop.some((c) => c.includes("guardrail-e2e-gate.sh"))).toBe(true);
+    expect(stop.some((c) => c.includes("guardrail-terminal-gate.sh"))).toBe(true);
   });
 });

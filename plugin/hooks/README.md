@@ -20,7 +20,7 @@ A guardrail emits one of two strengths:
 - **Advise** — `additionalContext` (PostToolUse/UserPromptSubmit) or a plain Stop message. A soft nudge the model can ignore.
 - **Enforce** — a `Stop` `decision: "block"` that refuses to end the turn, or a `PreToolUse` `permissionDecision: "deny"` that refuses a tool call. The model cannot proceed until the condition is met.
 
-Enforcement is reserved for the handoffs that were being skipped: the E2E acceptance run and posting a deterministically-rendered report. Each enforcing gate carries an escape so it can't trap a turn — the E2E gate accepts an explicit skip declaration (`echo "MUGGLE_E2E_SKIP: <reason>"`, session-durable) and hard-releases after `MAX_E2E_BLOCKS` (3) blocks; the report gate only denies a body it can positively see is a hand-written report and fails open otherwise.
+Enforcement is reserved for the handoffs that were being skipped: the E2E acceptance run, posting a deterministically-rendered report, and the post-merge handoff. Each enforcing gate carries an escape so it can't trap a turn — the E2E gate accepts an explicit skip declaration (`echo "MUGGLE_E2E_SKIP: <reason>"`, session-durable) and hard-releases after `MAX_E2E_BLOCKS` (3) blocks; the report gate only denies a body it can positively see is a hand-written report and fails open otherwise; the post-merge gate hard-releases after `MAX_PR_TERMINAL_BLOCKS` (3) blocks, and only the AskUserQuestion next-options offer clears it — nothing else resets its counter.
 
 ## Mechanism
 
@@ -32,8 +32,11 @@ Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json
 | :--------- | :------ | :------- | :-------- | :--------- | :----- |
 | `PostToolUse` (Bash) | `guardrail-pr-opened.sh` | advise | a `gh pr create`/`gh pr ready` just succeeded | `autoWatchPR` | start a `muggle-pr-followup` watcher on the new PR |
 | `PostToolUse` (Bash + muggle execute/replay MCP tools) | `guardrail-record-tests.sh` | record | a unit-test command passed, an E2E run happened, or an `echo "MUGGLE_E2E_SKIP: <reason>"` marker declared E2E un-runnable | — | set `unitTestsGreen` / `e2eRun` / `e2eSkipped` session state |
+| `PostToolUse` (Bash + Monitor) | `guardrail-pr-terminal.sh` | advise | a PR just went terminal — a `gh pr merge`/`gh pr close` success line or the watch monitor's `TERMINAL pr=N` exit line (never bare `"state":"MERGED"` metadata) | — | record `terminalPending`, direct the post-merge handoff: finalize the watcher slot, tear down per `autoCleanup`, offer next options via AskUserQuestion |
+| `PostToolUse` (AskUserQuestion) | `guardrail-offer-ran.sh` | record | a next-options offer ran while a terminal PR was pending | — | clear `terminalPending` — the only exit for the post-merge Stop gate |
 | `PreToolUse` (Bash) | `guardrail-report-format.sh` | **enforce** | a `gh pr comment\|create\|edit` body reads like an E2E report but lacks the `build-pr-section` sentinel | — | **deny** — render via `muggle build-pr-section` instead |
 | `Stop` | `guardrail-e2e-gate.sh` | **enforce** | unit tests passed this session, no E2E ran yet, and no skip was recorded | `autoE2ETest` | **block** the turn until E2E runs via `muggle-test` or a `MUGGLE_E2E_SKIP` marker records a legitimate skip (full message once, one-line reminders after; releases after 3 blocks) |
+| `Stop` | `guardrail-terminal-gate.sh` | **enforce** | a PR went terminal this session and the AskUserQuestion next-options offer hasn't run since | — | **block** the turn until the post-merge handoff runs (full message once, one-line reminders after; releases after 3 blocks; nothing but the offer resets the counter) |
 | `UserPromptSubmit` | `guardrail-build-router.sh` | advise | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |
 
 ## Session-start reconcile nudge

@@ -15,7 +15,8 @@ Skills assume a working `gh auth status`. Auth errors surface verbatim from `gh`
 | [`unresolved-threads`](github/unresolved-threads.md) | GraphQL unresolved-thread state — watcher's dispatch trigger + resolve-reminder. |
 | [`reply-line-comment`](github/reply-line-comment.md) | POST a threaded reply on a line comment. |
 | [`top-level-comment`](github/top-level-comment.md) | POST a top-level PR comment — resolve-reminder + overflow. |
-| [`push-to-branch`](github/push-to-branch.md) | Push + capture new SHA after address-reviews work. |
+| [`push-to-branch`](github/push-to-branch.md) | Signing-gated push + capture new SHA after address-reviews work. |
+| [`signed-commits`](github/signed-commits.md) | Never-push-unsigned rule: `%G?` preflight, server-signed commits via `createCommitOnBranch`, rebase replay. |
 | [`verify-working-tree`](github/verify-working-tree.md) | Three checks bootstrap runs before seeding state. |
 | [`pr-edit`](github/pr-edit.md) | Refresh title or body when address-reviews mode flips state. |
 | [`loop-user-identity`](github/loop-user-identity.md) | Resolve the GitHub login of the loop user. |

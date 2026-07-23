@@ -1,8 +1,8 @@
 # Blocked-tick procedure
 
-The watcher's conditional path for a PR **blocked pending a human** — a durable block only the user can clear (an escalated rebase or CI budget spent, or an ambiguous review awaiting direction). Entered from [`contract.md`](contract.md) Step 7 (flag), then driven each subsequent tick by Step 2.5 (remind-or-resume). None of this runs on a normal tick: when `last_seen.blocked` is absent, the watcher skips straight through.
+The watcher's conditional path for a PR **blocked pending a human** — a durable block only the user can clear (an escalated rebase or CI budget spent, or an ambiguous review awaiting direction). Entered from [`contract.md`](contract.md) Step 7 (flag), then driven on each subsequent tick by Step 2.5 (resume gate). None of this runs on a normal tick: when `last_seen.blocked` is absent, the watcher skips straight through.
 
-**Governing rule — remind at the normal `1m` cadence, never stop.** The poll stays at `1m` whether or not the PR is blocked — a `1m` tick is cheap (one fingerprint check, one line out) and keeps the owner nudged and an external unblock caught within a minute. The `blocked` state changes no cadence; its only job is (a) the reason-specific one-line reminder each tick and (b) fingerprint-based auto-resume. No cadence swap, no separate `reminded` flag — while `blocked` is set, the watcher reminds every tick by definition.
+**Governing rule — one reminder per block, and the watch never stops.** The tick that flags the block reminds the owner once; every later blocked tick is silent. The watch keeps standing — the monitor stays visible, and ticks still run at their normal cadence (historically `1m`) whenever a wake or recovery cron fires — with fingerprint-based auto-resume clearing the block the moment external state moves. No repeat nagging, no cadence swap, no separate `reminded` flag: `blocked` present means the reminder has already been sent.
 
 ## The fingerprint
 
@@ -20,19 +20,19 @@ When an idle tick is a durable human-block and `last_seen.blocked` is not alread
 
 1. Increment `last_seen.idle_tick_count`.
 2. Write `last_seen.blocked = { reason, since: <now>, fingerprint }` (reuse the `latest_review_id` / `ci_digest` already fetched this tick).
-3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context.
-4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, and the same other fields as a transient idle. Exit. The `1m` cron is unchanged — no swap.
+3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context. This is the block's **only** reminder.
+4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, and the same other fields as a transient idle. Exit.
 
 ## Remind or resume (the Step 2.5 gate)
 
 Every subsequent tick while `last_seen.blocked` is present: recompute the fingerprint and compare to `last_seen.blocked.fingerprint`.
 
-- **Unchanged** → still blocked. Re-emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md). Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`. Exit. The `1m` cron is unchanged.
-- **Changed** → clear `last_seen.blocked` and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick. The cron is already `1m`, so no swap is needed: if Step 3–6 dispatches, that cancels the `1m` cron and `/muggle-do` respawns `1m` (normal single-thread); if it idles transient, the `1m` cron is already correct; if it idles back into the block, Step 7 re-flags.
+- **Unchanged** → still blocked. Stay **silent** — the reminder went out when the block was flagged. Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`. Exit.
+- **Changed** → clear `last_seen.blocked` and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick: a dispatch hands the PR to the cycle (its exit settles the watch); a transient idle changes nothing; idling back into a block re-flags per Step 7 — a new block, which sends its own single reminder.
 
 ## Invariants
 
-- Cadence is `1m` whether blocked or active — the block never changes the poll interval. There is no cadence swap, so a blocked slot is never left cron-less by one.
-- The poll never stops — a blocked tick keeps firing and reminding; only a terminal PR or an explicit teardown removes the cron.
-- Every blocked tick emits exactly one owner reminder (implied by `blocked: true`, no separate flag) and no PR-side post.
-- The block clears the instant any fingerprint component moves; an external unblock is caught within one `1m` tick.
+- One reminder per block — sent when flagged, never repeated while the same block holds. A re-flag after a resume is a new block and sends its own single reminder.
+- The watch never stops — a blocked PR stays visibly watched at the normal `1m` cadence; only a terminal PR or an explicit teardown ends it.
+- The block clears the instant any fingerprint component moves, caught at the next wake or tick.
+- The blocked path never posts to the PR.

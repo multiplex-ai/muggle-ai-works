@@ -60,7 +60,7 @@ If `state` is `MERGED` or `CLOSED`:
 
 Only when `last_seen.blocked` is present (the watcher is awaiting the owner on a durable human-block, flagged in Step 7). When absent, skip straight to Step 3.
 
-Run the remind-or-resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint, re-emit the one-line owner reminder and stay blocked while it holds, or clear the block and fall through to Step 3 the moment it moves. While blocked the watcher keeps the normal `1m` cadence and reminds the owner each tick — the block reminds rather than backs off, and never changes the poll interval.
+Run the resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint; while it holds, stay blocked **silently** — the single owner reminder went out when the block was flagged — and clear the block and fall through to Step 3 the moment it moves. The block never changes the poll; it only mutes dispatch until the state the user must act on moves.
 
 ### Step 3 — Compute the actionable set from live thread state
 
@@ -151,7 +151,7 @@ Everything else that idles is **transient** — green and waiting for the next r
 
 **Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires from the arming loop ([`arm-watcher.md`](arm-watcher.md)) — or, under a recovery cron, in 1 min via `/loop`.
 
-**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder (the watcher reminds each tick at the normal `1m` cadence rather than backing off). From the next tick on, the Step 2.5 gate carries the block. Exit.
+**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, **once per block**. From the next tick on, the Step 2.5 gate carries the block silently. Exit.
 
 ## Output
 

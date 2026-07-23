@@ -196,3 +196,5 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 - `CIRED` — head SHA whose settled-red CI the drain already handled; empty when the checks are green, still pending, or unseen. The CI floor is a SHA rather than a monotonic id because the check rollup flips green↔red and resets on each push — keying on the head SHA fires the loop once per red head and re-arms on the next push ([`arm-watcher.md`](arm-watcher.md)).
 
 Written whole-file by the orchestrating session — seeded at arm time from a post-drain fetch, advanced after every cycle from a post-replies fetch. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply ([`arm-watcher.md`](arm-watcher.md)).
+
+**Never `source` this file, and quote or extract values.** `THREADS` holds bare semicolons: sourced unquoted, the shell splits the line at the first `;` and silently drops every id after it — the loop then re-reports known threads as new. The watch loop must extract values verbatim (e.g. `grep '^THREADS=' | cut -d= -f2- | tr -d '"\r'`), tolerating quotes and CRLF; writers should quote the value anyway.

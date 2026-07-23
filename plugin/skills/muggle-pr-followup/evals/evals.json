@@ -106,7 +106,8 @@
         { "name": "polls_check_run_rollup", "text": "The loop polls the head SHA's check-run rollup each iteration, not just reviews and threads." },
         { "name": "wakes_only_on_settled_red", "text": "The loop wakes the session when the checks have settled with a failure (no check pending and one or more in the fail bucket) — it does NOT wake while any check is still pending." },
         { "name": "dedups_ci_on_head_sha", "text": "The loop dedups the CI wake on the head SHA (fires once per red head) rather than on a monotonic id, because the check rollup is non-monotonic and resets on each push." },
-        { "name": "stays_a_dumb_pipe", "text": "The loop only signals that CI went red and hands off to a tick; it does NOT apply the ci_fix_attempts budget, classify the failure, or dispatch fix-ci itself — those belong to the tick and /muggle-do." }
+        { "name": "stays_a_dumb_pipe", "text": "The loop only signals that CI went red and hands off to a tick; it does NOT apply the ci_fix_attempts budget, classify the failure, or dispatch fix-ci itself — those belong to the tick and /muggle-do." },
+        { "name": "self_terminates_not_unbounded", "text": "The loop is self-terminating, not a bare while-true: it claims the slot by writing its PID to watch.pid, and each iteration exits when superseded by a newer arm (watch.pid changed) or past the lifetime cap — so it cannot keep polling forever after its session ends." }
       ]
     },
     {

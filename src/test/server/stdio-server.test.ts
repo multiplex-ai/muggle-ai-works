@@ -64,4 +64,50 @@ describe("startStdioServer", () => {
     fakeStdin.emit("close");
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
+
+  it("exits when the polled parent process is gone (abrupt-death path)", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(process, "ppid", "get").mockReturnValue(4242);
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(((): never => {
+      const err = new Error("no such process") as NodeJS.ErrnoException;
+      err.code = "ESRCH";
+      throw err;
+    }) as never);
+
+    const connect = vi.fn(async () => undefined);
+    await startStdioServer({ connect } as never);
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(30_000);
+    expect(killSpy).toHaveBeenCalledWith(4242, 0);
+    expect(exitSpy).toHaveBeenCalledWith(0);
+    vi.useRealTimers();
+  });
+
+  it("keeps running while the polled parent is alive", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(process, "ppid", "get").mockReturnValue(4242);
+    vi.spyOn(process, "kill").mockImplementation((() => true) as never);
+
+    const connect = vi.fn(async () => undefined);
+    await startStdioServer({ connect } as never);
+
+    vi.advanceTimersByTime(120_000);
+    expect(exitSpy).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("does not poll when there is no real parent (ppid <= 1)", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(process, "ppid", "get").mockReturnValue(1);
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((() => true) as never);
+
+    const connect = vi.fn(async () => undefined);
+    await startStdioServer({ connect } as never);
+
+    vi.advanceTimersByTime(120_000);
+    expect(killSpy).not.toHaveBeenCalled();
+    expect(exitSpy).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
 });

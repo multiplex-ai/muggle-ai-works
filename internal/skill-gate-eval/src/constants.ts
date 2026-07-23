@@ -14,6 +14,18 @@ export const PASS_THRESHOLD = 0.8;
 /** Default eval target — used when a skill leaves `model:` unset (inherits the session model). */
 export const DEFAULT_MODEL = "claude-sonnet-4-6";
 
+/**
+ * Reps are isolated agent sessions sharing one subscription token, so the
+ * ceiling is the token's rate budget, not CPU. 4 keeps a healthy sweep fast
+ * while leaving headroom before the throttle gate starts firing.
+ */
+export const DEFAULT_GATE_EVAL_CONCURRENCY = 4;
+
+export const THROTTLE_MAX_RETRIES = 3;
+export const THROTTLE_BACKOFF_BASE_MS = 15_000;
+export const THROTTLE_BACKOFF_CAP_MS = 120_000;
+export const THROTTLE_BACKOFF_JITTER_MAX_MS = 5_000;
+
 /** Map `/model`-style aliases (as used in SKILL.md `model:`) to concrete model ids. */
 export const MODEL_ALIASES: Record<string, string> = {
   haiku: "claude-haiku-4-5-20251001",

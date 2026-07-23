@@ -22,7 +22,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 
+import throttle
+
 NONE = "none"
+
+# Shared across the worker pool: one rate-limited run pauses new starts for all.
+THROTTLE_GATE = throttle.ThrottleGate()
 
 
 def normalize_skill(raw: str) -> str:
@@ -39,28 +44,7 @@ def _route_from_path(path: str) -> str:
     return normalize_skill(m.group(1)) if m else ""
 
 
-def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> str:
-    cmd = [
-        "claude", "-p", query,
-        "--output-format", "stream-json",
-        "--verbose",
-        "--max-turns", "1",
-    ]
-    if model:
-        cmd.extend(["--model", model])
-
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-
-    try:
-        proc = subprocess.run(
-            cmd, cwd=repo_root, env=env,
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        return "TIMEOUT"
-
-    out = proc.stdout.decode("utf-8", errors="replace")
+def parse_route_from_stream(out: str) -> str:
     for line in out.splitlines():
         line = line.strip()
         if not line:
@@ -84,6 +68,80 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
         elif etype == "result":
             return NONE
     return NONE
+
+
+def stream_error_text(out: str) -> str:
+    """Text of an `is_error` result event, or "" — a normal result is not an error."""
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") == "result" and event.get("is_error"):
+            return line
+    return ""
+
+
+def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None) -> tuple[str, str]:
+    """One isolated `claude -p` session. Returns (status, stdout) where status is
+    OK | TIMEOUT | THROTTLED | ERROR."""
+    cmd = [
+        "claude", "-p", query,
+        "--output-format", "stream-json",
+        "--verbose",
+        "--max-turns", "1",
+    ]
+    if model:
+        cmd.extend(["--model", model])
+
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+    try:
+        proc = subprocess.run(
+            cmd, cwd=repo_root, env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return ("TIMEOUT", "")
+
+    out = proc.stdout.decode("utf-8", errors="replace")
+    err = proc.stderr.decode("utf-8", errors="replace")
+    error_text = stream_error_text(out)
+    if proc.returncode != 0 or error_text:
+        # Classify before parsing: a throttled run's stream often still carries a
+        # result event, and silently scoring it as `none` is what used to pollute
+        # negatives and crater positive chunks into the disconnect guard.
+        if throttle.is_throttle_text("\n".join([error_text, err])):
+            return ("THROTTLED", "")
+        if proc.returncode != 0:
+            return ("ERROR", "")
+    return ("OK", out)
+
+
+def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> str:
+    attempt = 1
+    while True:
+        THROTTLE_GATE.wait_until_clear()
+        status, out = run_claude_once(query, repo_root, timeout, model)
+        if status == "THROTTLED" and attempt <= throttle.MAX_THROTTLE_RETRIES:
+            backoff = throttle.backoff_seconds(attempt)
+            THROTTLE_GATE.report_throttle(backoff)
+            print(
+                f"  rate-limited (attempt {attempt}/{throttle.MAX_THROTTLE_RETRIES + 1}) — backing off {backoff:.0f}s",
+                file=sys.stderr, flush=True,
+            )
+            attempt += 1
+            continue
+        if status == "OK":
+            return parse_route_from_stream(out)
+        # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
+        # strings, so they score exactly like the old silent `none` on negatives
+        # while staying attributable in the fired[] lists.
+        return status
 
 
 def main():

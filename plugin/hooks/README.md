@@ -53,4 +53,9 @@ Cost: zero open slots — the common case — is one directory scan, no `node` s
 
 ## Session-start state GC
 
-`SessionStart` (`scripts/gc-state.sh`) — prunes ephemeral state that nothing else garbage-collects, so it doesn't grow without bound (the per-session guardrails files and finalized watcher slots otherwise accumulate one-per-session forever). Deletes `~/.muggle-ai/guardrails/*.json` older than 14 days (each is read only by its own session's hooks) and finalized watcher slots — `result.md` present — older than 30 days (their `followup.log` is forensic-only). TTL-gated to once per day via a `~/.cache/muggle/state-gc-checked` marker; silent and best-effort, never blocks session start. Never touches an open slot (no `result.md`) or the current session's own state.
+`SessionStart` (`scripts/gc-state.sh`) — prunes ephemeral state that nothing else garbage-collects, so it doesn't grow without bound (the per-session guardrails files and finalized watcher slots otherwise accumulate one-per-session forever). Collection is keyed on **inactivity, never creation age**, so state a long-lived session still relies on is never deleted out from under it:
+
+- `~/.muggle-ai/guardrails/*.json` (one per session) is pruned only after 14 days of **no activity**. An in-use session keeps rewriting its file (`guardrails.mjs` on every guarded tool call) and this hook refreshes it on every resume, so its mtime tracks last activity — a session that runs for months stays live indefinitely, and only one that has genuinely gone quiet for the whole window (i.e. ended) is collected.
+- Finalized watcher slots (`result.md` present) are pruned 30 days after finalize; their `followup.log` is forensic-only. An **open** slot — a PR watched for any length of time — has no `result.md` and is never touched.
+
+Both windows are overridable (`MUGGLE_GUARDRAILS_TTL_DAYS`, `MUGGLE_SLOT_TTL_DAYS`). TTL-gated to once per day via a `~/.cache/muggle/state-gc-checked` marker (the current-session refresh runs every start regardless); silent and best-effort, never blocks session start. Never touches an open slot or the current session's own state.

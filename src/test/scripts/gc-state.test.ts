@@ -64,7 +64,28 @@ describe.skipIf(!hasBash)("gc-state.sh", () => {
     expect(existsSync(termOld)).toBe(false);
     expect(existsSync(termFresh)).toBe(true);
     expect(existsSync(openOld)).toBe(true);
-  });
+  }, 30_000);
+
+  it("never prunes the running session's guardrails file, however old", () => {
+    const home = mkdtempSync(join(tmpdir(), "muggle-gc-home-"));
+    const guardrails = join(home, ".muggle-ai", "guardrails");
+    mkdirSync(guardrails, { recursive: true });
+
+    const sessionId = "live-session-abc";
+    const liveJson = join(guardrails, `${sessionId}.json`);
+    const deadJson = join(guardrails, "dead-session.json");
+    seedFile(liveJson, 60); // ancient, but it belongs to the running session
+    seedFile(deadJson, 60); // equally ancient, nobody's live session
+
+    execFileSync("bash", [scriptPath], {
+      env: { ...process.env, HOME: toBash(home), MUGGLE_STATE_GC_FORCE: "1" },
+      input: JSON.stringify({ session_id: sessionId }),
+      stdio: ["pipe", "ignore", "ignore"],
+    });
+
+    expect(existsSync(liveJson)).toBe(true); // refreshed on start → immune
+    expect(existsSync(deadJson)).toBe(false); // inactive 60d → collected
+  }, 30_000);
 
   it("is a no-op when the TTL marker is fresh (gate closed)", () => {
     const home = mkdtempSync(join(tmpdir(), "muggle-gc-home-"));
@@ -83,5 +104,5 @@ describe.skipIf(!hasBash)("gc-state.sh", () => {
     });
 
     expect(existsSync(oldJson)).toBe(true); // gate closed, nothing pruned
-  });
+  }, 30_000);
 });

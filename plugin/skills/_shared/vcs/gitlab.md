@@ -20,5 +20,6 @@ The project ref `:id` is `<group>/<project>` — URL-encode it for `glab api` (`
 | [`mr-edit`](gitlab/mr-edit.md) | Refresh title or description when address-reviews mode flips state. |
 | [`mr-create`](gitlab/mr-create.md) | Open an MR + capture its URL for handoff. |
 | [`loop-user-identity`](gitlab/loop-user-identity.md) | Resolve the GitLab username of the loop user. |
-| [`push-to-branch`](github/push-to-branch.md) | Push + capture new SHA after address-reviews work (provider-agnostic). |
+| [`push-to-branch`](github/push-to-branch.md) | Signing-gated push + capture new SHA after address-reviews work (provider-agnostic). |
+| [`signed-commits`](gitlab/signed-commits.md) | Never-push-unsigned rule: `%G?` preflight; no server-side signing analogue → stop and escalate. |
 | [`verify-working-tree`](github/verify-working-tree.md) | Three checks bootstrap runs before seeding state (provider-agnostic). |

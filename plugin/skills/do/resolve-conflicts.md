@@ -37,7 +37,7 @@ Build (typecheck + lint on the changed surface) + unit suite must pass. Run E2E 
 
 ### Step 4 — Force-push + respawn
 
-Push with `--force-with-lease` (the rebase rewrote history). The signing gate applies here too: without working local signing the rebased commits are unsigned — use the replay path in [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md#rebase--force-push) instead of force-pushing. Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_key]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+Push with `--force-with-lease` (the rebase rewrote history). The signing gate applies here too: without working local signing the rebased commits are unsigned — `github` → use the replay path in [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md#rebase--force-push) instead of force-pushing, `gitlab` → stop and escalate per [`../_shared/vcs/gitlab/signed-commits.md`](../_shared/vcs/gitlab/signed-commits.md). Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_key]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 
@@ -55,5 +55,5 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 
 - Max 2 rebase attempts per SHA; then escalate rather than churn.
 - Never push an unverified rebase — verify-or-rollback always.
-- Never push unsigned commits — signing preflight per [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md) before any push or force-push.
+- Never push unsigned commits — signing preflight per the provider's signed-commits recipe ([`github`](../_shared/vcs/github/signed-commits.md) / [`gitlab`](../_shared/vcs/gitlab/signed-commits.md)) before any push or force-push.
 - Resolve `autoResolveConflicts` from the configured preference (per the gate contract — don't assume a default): `always` resolves conflicts behind the verify-or-rollback gate, `never` escalates to the user. A clean behind-only rebase needs neither.

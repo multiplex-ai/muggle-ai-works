@@ -18,7 +18,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.
 
-1. **Push:** `git push -u origin <branch>` in the repo directory, through the signing gate in [`../../_shared/vcs/github/push-to-branch.md`](../../_shared/vcs/github/push-to-branch.md) — unsigned commits never leave the machine; without local signing, the branch's commits are created server-signed per [`../../_shared/vcs/github/signed-commits.md`](../../_shared/vcs/github/signed-commits.md) and the push is skipped (the remote already has them).
+1. **Push:** `git push -u origin <branch>` in the repo directory, through the signing gate in [`../../_shared/vcs/github/push-to-branch.md`](../../_shared/vcs/github/push-to-branch.md) (indexed for both providers) — unsigned commits never leave the machine. Without local signing, follow the provider's signed-commits recipe: `github` → [`../../_shared/vcs/github/signed-commits.md`](../../_shared/vcs/github/signed-commits.md) (the branch's commits are created server-signed and the push is skipped — the remote already has them), `gitlab` → [`../../_shared/vcs/gitlab/signed-commits.md`](../../_shared/vcs/gitlab/signed-commits.md) (stop and escalate — no server-side signing).
 
 2. **Title** (under 70 chars):
    - E2E report exists and has failures → `[E2E FAILING] <goal>`

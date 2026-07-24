@@ -26,7 +26,3 @@ A local rebase mints new local commits — unsigned on this machine — so the `
 3. Move the branch ref with a lease: verify the branch's current remote head is still the expected pre-rebase SHA, then `gh api -X PATCH repos/<owner>/<repo>/git/refs/heads/<branch> -f sha=<new-head> -F force=true`. Delete the temp ref.
 
 The replayed commits are GitHub-signed; the guarded ref move is the only force operation.
-
-## GitLab
-
-No server-side signing analogue. Unsigned commits bound for a GitLab MR branch → stop and escalate to the owner to configure local signing; never push unsigned.

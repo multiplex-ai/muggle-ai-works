@@ -22,7 +22,7 @@ Skip `autoCreatePR` (it gates creation, not update). The PR's title is left inta
 
 Resolve the provider once per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md). Wherever Steps 3–4 below edit title/description: `github` uses `gh pr edit` per [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md); `gitlab` uses `glab mr update --title --description` per [`../../_shared/vcs/gitlab/mr-edit.md`](../../_shared/vcs/gitlab/mr-edit.md).
 
-1. **Push:** per [`../../_shared/vcs/github/push-to-branch.md`](../../_shared/vcs/github/push-to-branch.md). Capture the new SHA.
+1. **Push:** per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md). Capture the new SHA.
 
 2. **Append new SHA** to `last_seen.json[<key>].pushed_shas` (the resolve-reminder stage uses this to recognize threads addressed by the loop). Set `last_seen.last_pushed_sha` to the new SHA too. Both are whole-file rewrites (Read → change field → Write) per [`../../_shared/session-state-writes.md`](../../_shared/session-state-writes.md) — never the Edit tool.
 

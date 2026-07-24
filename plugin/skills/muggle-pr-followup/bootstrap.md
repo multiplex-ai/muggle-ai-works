@@ -33,7 +33,7 @@ If `state` is `MERGED` or `CLOSED`, exit with the terminal-PR abort. If the `gh`
 
 ### Step 3 — Verify the working tree
 
-Per [`../_shared/vcs/github/verify-working-tree.md`](../_shared/vcs/github/verify-working-tree.md). On any check failure, exit with the wrong-working-tree abort.
+Per [`../_shared/vcs/common/verify-working-tree.md`](../_shared/vcs/common/verify-working-tree.md). On any check failure, exit with the wrong-working-tree abort.
 
 ### Step 4 — Resolve the slug
 

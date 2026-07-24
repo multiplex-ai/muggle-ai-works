@@ -29,7 +29,7 @@ const GITLAB_RECIPE = path.join(
   "gitlab",
   "signed-commits.md",
 );
-const PUSH = path.join(SKILLS, "_shared", "vcs", "github", "push-to-branch.md");
+const PUSH = path.join(SKILLS, "_shared", "vcs", "common", "push-to-branch.md");
 
 function read(p: string): string {
   return fs.readFileSync(p, "utf8");
@@ -83,7 +83,7 @@ describe("gitlab signed-commits recipe", () => {
 describe("push paths route through the signing gate", () => {
   it("push-to-branch.md gates before the push commands and routes per provider", () => {
     const push = read(PUSH);
-    expect(push).toMatch(/\(signed-commits\.md\)/);
+    expect(push).toMatch(/github\/signed-commits\.md/);
     expect(push).toMatch(/gitlab\/signed-commits\.md/);
     const gate = push.indexOf("never push unsigned commits");
     const bash = push.indexOf("```bash");

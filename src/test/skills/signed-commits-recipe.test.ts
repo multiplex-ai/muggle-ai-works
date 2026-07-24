@@ -93,10 +93,13 @@ describe("push paths route through the signing gate", () => {
     ).toBe(false);
   });
 
-  it("build.md routes its commit through both providers' recipes", () => {
+  it("build.md commits through push-to-branch.md alone (single source of truth)", () => {
     const build = read(path.join(SKILLS, "do", "build.md"));
-    expect(build).toMatch(/github\/signed-commits\.md/);
-    expect(build).toMatch(/gitlab\/signed-commits\.md/);
+    expect(build).toMatch(/push-to-branch\.md/);
+    expect(
+      build,
+      "provider routing lives in push-to-branch.md, not the commit site",
+    ).not.toMatch(/signed-commits\.md/);
   });
 
   it("open-prs/forward.md pushes through push-to-branch.md alone (single source of truth)", () => {

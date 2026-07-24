@@ -29,7 +29,7 @@ For each affected repo:
 
    The body explains *why* when the why is non-obvious. The diff already says *what*.
 
-   **Signing:** never an unsigned commit. If local signing is broken, follow the provider's signed-commits recipe: `github` → [`../_shared/vcs/github/signed-commits.md`](../_shared/vcs/github/signed-commits.md) (commit server-side), `gitlab` → [`../_shared/vcs/gitlab/signed-commits.md`](../_shared/vcs/gitlab/signed-commits.md) (escalate). Never `--no-gpg-sign` or disable signing to work around the failure.
+   **Signing:** never an unsigned commit. Commit through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) — it routes a broken local signing setup to the provider's signed-commits recipe. Never `--no-gpg-sign` or disable signing to work around the failure.
 
 ## Delegation
 

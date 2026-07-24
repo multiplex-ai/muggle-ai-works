@@ -55,5 +55,5 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 
 - Max 2 rebase attempts per SHA; then escalate rather than churn.
 - Never push an unverified rebase — verify-or-rollback always.
-- Never push unsigned commits — signing preflight per the provider's signed-commits recipe ([`github`](../_shared/vcs/github/signed-commits.md) / [`gitlab`](../_shared/vcs/gitlab/signed-commits.md)) before any push or force-push.
+- Never push unsigned commits — every push or force-push goes through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md).
 - Resolve `autoResolveConflicts` from the configured preference (per the gate contract — don't assume a default): `always` resolves conflicts behind the verify-or-rollback gate, `never` escalates to the user. A clean behind-only rebase needs neither.

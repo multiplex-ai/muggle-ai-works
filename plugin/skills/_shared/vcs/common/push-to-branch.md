@@ -1,23 +1,16 @@
 # Push to branch (tool-agnostic)
 
-**This is the tool-agnostic instruction for pushing commits to a branch.** All commit/push sites in skills reference this file, never embed the logic inline — single source of truth.
+The single instruction every commit/push site references — sites link here and never embed provider commands inline.
 
 ## Signing gate — never push unsigned commits
 
-Before pushing, verify the commits about to leave the machine are signed. Use the resolved provider's preflight per [`../detect-vcs.md`](../detect-vcs.md):
+Resolve the provider per [`../detect-vcs.md`](../detect-vcs.md), then run its signed-commits recipe — the recipe owns the preflight and the actual commands:
 
-- **`github`** — follow [`../github/signed-commits.md`](../github/signed-commits.md). If local signing works, push normally. If not, use the remote-signed path (createCommitOnBranch) instead of pushing unsigned.
-- **`gitlab`** — follow [`../gitlab/signed-commits.md`](../gitlab/signed-commits.md). If local signing is broken, stop and escalate — GitLab has no server-side signing analogue.
+- `github` → [`../github/signed-commits.md`](../github/signed-commits.md) — local signing working: commit and push normally; broken: create the commits server-signed (`createCommitOnBranch`) and skip the push (the remote already has them). Rebase/force-push follows the same recipe's replay path.
+- `gitlab` → [`../gitlab/signed-commits.md`](../gitlab/signed-commits.md) — local signing working: commit and push normally; broken: stop and escalate (no server-side signing).
 
-Never disable signing to make a push go through (`--no-gpg-sign`, `-c commit.gpgsign=false`).
+Never disable signing to make a push go through.
 
-## Push
+## After the push
 
-For the resolved provider, execute per its signed-commits recipe:
-
-- `github` with working local signing → standard push: `git push origin <branch>` (or `git push -u origin <branch>` for new branches).
-- `github` without working local signing → createCommitOnBranch path ([see recipe](../github/signed-commits.md#remote-signed-commit)); push is skipped (commits already on remote).
-- `gitlab` with working local signing → standard push: `git push origin <branch>` (or `git push -u origin <branch>`).
-- `gitlab` without working local signing → escalate per [`../gitlab/signed-commits.md`](../gitlab/signed-commits.md).
-
-Capture the new SHA: `git rev-parse HEAD` (local mode) or from the remote mutation response (createCommitOnBranch). Append to `last_seen.pushed_shas[]` so resolve-reminder can recognize it.
+Capture the new head SHA — from the local branch, or from the mutation response on the server-signed path — and append it to `last_seen.pushed_shas[]` so resolve-reminder can recognize it.

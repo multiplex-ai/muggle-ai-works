@@ -81,18 +81,16 @@ describe("gitlab signed-commits recipe", () => {
 });
 
 describe("push paths route through the signing gate", () => {
-  it("push-to-branch.md gates before the push commands and routes per provider", () => {
+  it("push-to-branch.md is the tool-agnostic gate: routes per provider, embeds no commands", () => {
     const push = read(PUSH);
+    expect(push).toMatch(/detect-vcs\.md/);
     expect(push).toMatch(/github\/signed-commits\.md/);
     expect(push).toMatch(/gitlab\/signed-commits\.md/);
-    const gate = push.indexOf("never push unsigned commits");
-    const bash = push.indexOf("```bash");
-    expect(gate, "no signing-gate text found").toBeGreaterThan(-1);
-    expect(bash, "no push command block found").toBeGreaterThan(-1);
+    expect(push).toMatch(/never push unsigned commits/i);
     expect(
-      gate,
-      "the signing gate must precede the push command block",
-    ).toBeLessThan(bash);
+      push.includes("```"),
+      "push-to-branch.md must stay tool-agnostic — provider recipes own the commands",
+    ).toBe(false);
   });
 
   it("build.md routes its commit through both providers' recipes", () => {
@@ -101,17 +99,18 @@ describe("push paths route through the signing gate", () => {
     expect(build).toMatch(/gitlab\/signed-commits\.md/);
   });
 
-  it("open-prs/forward.md pushes through the gate and both providers' recipes", () => {
+  it("open-prs/forward.md pushes through push-to-branch.md alone (single source of truth)", () => {
     const forward = read(path.join(SKILLS, "do", "open-prs", "forward.md"));
     expect(forward).toMatch(/push-to-branch\.md/);
-    expect(forward).toMatch(/github\/signed-commits\.md/);
-    expect(forward).toMatch(/gitlab\/signed-commits\.md/);
+    expect(
+      forward,
+      "provider routing lives in push-to-branch.md, not the push site",
+    ).not.toMatch(/signed-commits\.md/);
   });
 
-  it("resolve-conflicts.md carries both providers' paths and keeps the lease", () => {
+  it("resolve-conflicts.md force-pushes through push-to-branch.md and keeps the lease", () => {
     const resolve = read(path.join(SKILLS, "do", "resolve-conflicts.md"));
-    expect(resolve).toMatch(/github\/signed-commits\.md/);
-    expect(resolve).toMatch(/gitlab\/signed-commits\.md/);
+    expect(resolve).toMatch(/push-to-branch\.md/);
     expect(resolve).toMatch(/--force-with-lease/);
   });
 

@@ -46,9 +46,11 @@ describe("pr-followup arming wiring", () => {
     expect(armWatcher).toMatch(/watch-watermark/);
   });
 
-  it("the monitor survives events and exits only at terminal", () => {
+  it("the monitor survives events and self-terminates, never unbounded", () => {
     expect(armWatcher).toMatch(/keeps watching/i);
-    expect(armWatcher).toMatch(/exits only when the PR goes terminal/i);
+    expect(armWatcher).toMatch(/exits when the PR goes terminal/i);
+    expect(armWatcher).toMatch(/self-terminating/i);
+    expect(armWatcher).toMatch(/never\b.{0,15}while true.{0,15}unbounded/i);
   });
 
   // Wake turns dispatch, never work inline — otherwise every cycle re-reads

@@ -4,7 +4,7 @@ Reusable `glab` / `git` snippets used by `muggle-pr-followup` (watcher + bootstr
 
 Skills assume a working `glab auth status`. Auth errors surface verbatim from `glab`.
 
-The project ref `:id` is `<group>/<project>` — URL-encode it for `glab api` (`mygroup/myproj` → `mygroup%2Fmyproj`). `:iid` is the MR's per-project internal id (the `!123` number), not the global id.
+`glab api` fills `:id` itself with the URL-encoded path of the current directory's project — run recipes from the MR worktree and leave `:id` as written (elsewhere, substitute the encoded path yourself: `mygroup/myproj` → `mygroup%2Fmyproj`). `<iid>` is the MR's per-project internal id (the `!123` number), not the global id; glab has no placeholder for it — substitute it. `glab api` has no `--jq` flag — pipe to `jq`.
 
 ## Index
 

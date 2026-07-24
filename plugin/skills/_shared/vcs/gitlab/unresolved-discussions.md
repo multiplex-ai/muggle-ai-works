@@ -3,8 +3,8 @@
 For the watcher's dispatch trigger and the resolve-reminder stage. REST exposes resolution directly — no GraphQL needed, unlike GitHub.
 
 ```bash
-glab api projects/:id/merge_requests/:iid/discussions --paginate \
-  --jq '[.[] | select(.notes[0].resolvable == true) | select(any(.notes[]; .resolved == false))]'
+glab api projects/:id/merge_requests/<iid>/discussions --paginate \
+  | jq '[.[] | select(.notes[0].resolvable == true) | select(any(.notes[]; .resolved == false))]'
 ```
 
 A discussion is resolvable when its notes carry `resolvable == true` (diff/line threads are; the MR description and system notes are not). A thread is **unresolved** when any of its notes has `resolved == false`.

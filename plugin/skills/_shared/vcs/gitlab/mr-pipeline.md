@@ -9,7 +9,7 @@ glab ci status -R <group>/<project> -b <source_branch>
 Or straight from the API for the latest pipeline and its jobs:
 
 ```bash
-glab api projects/:id/merge_requests/:iid/pipelines --jq '.[0].id'
+glab api projects/:id/merge_requests/<iid>/pipelines | jq -r '.[0].id'
 glab api projects/:id/pipelines/<pipeline-id>/jobs --paginate
 ```
 

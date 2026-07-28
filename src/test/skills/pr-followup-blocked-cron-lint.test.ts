@@ -213,10 +213,13 @@ describe("pr-followup watcher-respawn robustness wiring", () => {
     expect(escalate).toMatch(/respawn-watcher\.md/);
   });
 
-  it("reconcile re-arms an open slot whose watcher stopped silently", () => {
+  it("reconcile re-arms an open slot whose watcher stopped silently — monitor-first", () => {
     expect(reconcile).toMatch(/re-arm/i);
     expect(reconcile).toMatch(/silent/i);
-    expect(reconcile).toMatch(/CronCreate/);
+    // Monitor-first: a recurring-cron re-arm turns every poll into a model
+    // turn — the regression pr-followup-monitor-first-recovery pins in depth.
+    expect(reconcile).toMatch(/arm-watcher\.md/);
+    expect(reconcile).not.toMatch(/CronCreate/);
     // Guarded by a staleness window so a live (CronList-blind) cron is never doubled.
     expect(reconcile).toMatch(/followup\.log/);
   });

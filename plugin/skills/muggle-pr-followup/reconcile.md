@@ -50,13 +50,13 @@ This reaches only crons `CronList` still enumerates. A cron that both survived a
 
 ### Step 3.6 — Re-arm a silently-stopped open watcher
 
-The recovery net for a **dropped respawn**: a `/muggle-do` cycle cancels the watcher's cron when it dispatches ([`contract.md`](contract.md) Steps 4 / 5 / 5b) and is responsible for respawning it when the cycle ends, but a cycle that crashes or errors out before it respawns can leave an open slot with no cron and no next tick — the poller stops silently. This step re-arms it.
+The recovery net for a **dropped respawn**: a `/muggle-do` cycle cancels the watcher's cron when it dispatches ([`contract.md`](contract.md) Steps 4 / 5 / 5b) and is responsible for respawning it when the cycle ends, but a cycle that crashes or errors out before it respawns can leave an open slot with no poller and no next tick — the watch stops silently. This step re-arms it.
 
 For each candidate still `open` after Step 3, check the slot's liveness beacons: the `watch-heartbeat` file's mtime (a live monitor touches it every iteration, even when quiet — [`arm-watcher.md`](arm-watcher.md)) and the newest ISO-8601 line in `followup.log` (a live `1m` recovery cron logs every tick; fall back to `cron.json.recorded_at` if both are absent). If the **freshest beacon is older than 15 minutes**, the poller is gone → re-arm:
 
-- `CronCreate` a recurring cron (call the **tool**, never a shell) with `cron: "* * * * *"` and prompt `/muggle:muggle-pr-followup <slug> <n>`, then record its id and `interval: "1m"` to `cron.json` (whole-file rewrite per [`state-schemas.md`](state-schemas.md#cronjson)). Append a `re-armed (silent watcher)` line to the slot's `followup.log`.
+- Re-arm per [`arm-watcher.md`](arm-watcher.md) — drain tick, watermark seed, persistent monitor, watchdog ensure. Append a `re-armed (silent watcher)` line to the slot's `followup.log`. **Never re-arm with a recurring cron**: every cron fire is a full model turn, and the `1m` cadence already lives token-free in the monitor loop. A cron's only legitimate job is delivering a single recovery tick, and [`contract.md`](contract.md) Step 7.5 converts even that back to a monitor.
 
-A fresh beacon (within the window) means the poller is alive — a quiet monitor still touching its heartbeat, or a cron `CronList` has gone blind to — so this step leaves it untouched; re-arming can never double an already-live poller. This recovers only a slot that was **already being watched**; a PR that never had a watcher is seeded by [`auto-track.md`](auto-track.md) / bootstrap, not here.
+A fresh beacon (within the window) means the poller is alive — a quiet monitor still touching its heartbeat, or a cron `CronList` has gone blind to (which hands itself back to a monitor on its next tick — [`contract.md`](contract.md) Step 7.5) — so this step leaves it untouched; re-arming can never double an already-live poller. This recovers only a slot that was **already being watched**; a PR that never had a watcher is seeded by [`auto-track.md`](auto-track.md) / bootstrap, not here.
 
 ### Step 4 — Report
 

@@ -60,7 +60,7 @@ If `state` is `MERGED` or `CLOSED`:
 
 Only when `last_seen.blocked` is present (the watcher is awaiting the owner on a durable human-block, flagged in Step 7). When absent, skip straight to Step 3.
 
-Run the resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint; while it holds, stay blocked **silently** — the single owner reminder went out when the block was flagged — and clear the block and fall through to Step 3 the moment it moves. The block never changes the poll; it only mutes dispatch until the state the user must act on moves.
+Run the resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fingerprint; while it holds, stay blocked **silently** — the single owner reminder went out when the block was flagged — and clear the block and fall through to Step 3 the moment it moves. The block never changes the poll; it only mutes dispatch until the state the user must act on moves. A held block still exits through Step 7.5 — a cron-delivered blocked tick must not stay on a model-turn cadence either.
 
 ### Step 3 — Compute the actionable set from live thread state
 
@@ -149,9 +149,20 @@ Any idle branch (Steps 4–6 that did not dispatch). First classify **why** this
 
 Everything else that idles is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
 
-**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit. The next tick fires from the arming loop ([`arm-watcher.md`](arm-watcher.md)) — or, under a recovery cron, in 1 min via `/loop`.
+**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit through Step 7.5. The next tick fires from the monitor ([`arm-watcher.md`](arm-watcher.md)).
 
-**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, **once per block**. From the next tick on, the Step 2.5 gate carries the block silently. Exit.
+**Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, **once per block**. From the next tick on, the Step 2.5 gate carries the block silently. Exit through Step 7.5.
+
+### Step 7.5 — Hand a cron-delivered tick back to the monitor
+
+Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block — and only when the tick was **delivered by a recovery cron** (`/loop` fired it). A monitor wake skips this step (the monitor already owns the cadence), and so does a headless watchdog tick (its one-shot session cannot host a persistent monitor). The cron's job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the monitor polls token-free at the same `1m` cadence ([`arm-watcher.md`](arm-watcher.md)).
+
+Check the slot's `watch-heartbeat` mtime — a live monitor touches it every iteration:
+
+- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark from a fresh post-tick fetch, start the persistent monitor, ensure the watchdog. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
+- **Fresh** — a monitor already owns the cadence and this cron is a duplicate poller. Cancel the cron per [`cancel-cron.md`](cancel-cron.md); nothing to arm.
+
+Either way exactly one poller remains — the monitor — and at most one model turn was spent. Without this step a recovery cron keeps firing a model-turn tick every minute until its 7-day expiry, burning tokens on unchanged PRs the whole time.
 
 ## Output
 

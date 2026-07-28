@@ -1,9 +1,9 @@
 # Start services
 
-For each service, launch in the background:
+For each service, launch in the background through the shipped process cap — `guard-run --service` kernel-bounds the service's process tree (a runaway spawn loop dies at the cap, not the machine) while letting the service outlive this session:
 
 ```bash
-cd "<service-dir>" && nohup <command> > /tmp/muggle-prepare-<service-name>.log 2>&1 &
+cd "<service-dir>" && nohup node "${CLAUDE_PLUGIN_ROOT}/scripts/guard-run.mjs" --service -- <command> > /tmp/muggle-prepare-<service-name>.log 2>&1 &
 echo $!
 ```
 

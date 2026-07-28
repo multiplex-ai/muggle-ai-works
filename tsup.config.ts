@@ -39,6 +39,7 @@ export default defineConfig([
     entry: {
       "guardrails": "src/guardrails/cli.ts",
       "pr-followup-watchdog": "src/watchdog/cli.ts",
+      "guard-run": "src/guard-run/cli.ts",
     },
     format: ["esm"],
     target: "node22",

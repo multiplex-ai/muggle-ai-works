@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // Watch never exits and orphans on Windows kill; opt-in only.
+    watch: process.env.MUGGLE_VITEST_WATCH === "1",
     passWithNoTests: true,
     exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**'],
     coverage: {
@@ -19,6 +21,9 @@ export default defineConfig({
         // Daemon I/O shell (fs scans, gh subprocess, detached spawns); its
         // decision logic lives in the covered sibling modules.
         "src/watchdog/cli.ts",
+        // Launcher I/O shell (backend probes, spawn, signal traps); its
+        // decision logic lives in the covered sibling modules.
+        "src/guard-run/cli.ts",
       ],
       reporter: ["text", "json-summary"],
       thresholds: {

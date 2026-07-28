@@ -8,11 +8,11 @@ Append these two lines as the end of every loop-posted comment body:
 
 ```
 <!-- muggle-do:bot -->
-🤖 _Automated reply from muggle-do._
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
-- `<!-- muggle-do:bot -->` — hidden HTML marker; GitHub renders it invisibly and humans never type it. This is the **detection token**.
-- The visible line makes the automation clear to a reader.
+- `<!-- muggle-do:bot -->` — hidden HTML marker; GitHub renders it invisibly and humans never type it. This is the **detection token**. It must stay exactly as written — echo-protection and addressed-by-loop classification read this literal string.
+- The visible line is the shared Muggle Works signature ([`../vcs/post-signature.md`](../vcs/post-signature.md)) with `/muggle-do` as the command. It links a reader back to the tool and names the command that posted the comment.
 
 ## Detection
 

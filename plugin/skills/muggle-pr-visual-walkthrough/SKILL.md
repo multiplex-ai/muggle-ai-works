@@ -144,16 +144,22 @@ gh pr view --json number,url,title 2>/dev/null
 
 ### 3A.2: Post the body as a PR comment
 
-Extract the `body` field with `jq -r` (not `sed`) so JSON escape sequences are properly decoded, then pipe to `--body-file -`:
+Extract the `body` field with `jq -r` (not `sed`) so JSON escape sequences are properly decoded, append the Muggle Works signature (command `/muggle-pr-visual-walkthrough`) per [`../_shared/vcs/post-signature.md`](../_shared/vcs/post-signature.md), then pipe to `--body-file -`. The renderer's sentinel stays at the top of `body`, so the report-format guardrail still recognises the post:
 
 ```bash
-jq -r '.body' /tmp/muggle-pr-section.json | gh pr comment <pr-number> --body-file -
+{
+  jq -r '.body' /tmp/muggle-pr-section.json
+  printf '\n\n%s\n' '🤖 _Posted by `/muggle-pr-visual-walkthrough` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
+} | gh pr comment <pr-number> --body-file -
 ```
 
 ### 3A.3: Post the overflow comment only if the CLI emitted one
 
 ```bash
-jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <pr-number> --body-file -
+{
+  jq -r '.comment' /tmp/muggle-pr-section.json
+  printf '\n\n%s\n' '🤖 _Posted by `/muggle-pr-visual-walkthrough` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
+} | gh pr comment <pr-number> --body-file -
 ```
 
 **Skip this step entirely if `comment` is `null`** — do not post a placeholder. The CLI decides fit-vs-overflow; never post the overflow comment speculatively.
@@ -172,10 +178,13 @@ Instead of posting, **return** the CLI output to the caller's context so they ca
 
 1. **Embed `body`** in their PR body, concatenated after `## Changes`. `body` already includes its own `## E2E Acceptance Results` header — do not add another.
 2. **Create the PR** with `gh pr create --title "..." --body "..."` using the concatenated body.
-3. **Post `comment` as a follow-up only if the CLI emitted one:**
+3. **Post `comment` as a follow-up only if the CLI emitted one**, ending the posted body with the signature (the caller owns this post, so command `/muggle-do`) per [`../_shared/vcs/post-signature.md`](../_shared/vcs/post-signature.md):
 
    ```bash
-   jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <new-pr-number> --body-file -
+   {
+     jq -r '.comment' /tmp/muggle-pr-section.json
+     printf '\n\n%s\n' '🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
+   } | gh pr comment <new-pr-number> --body-file -
    ```
 
    Skip if `comment` is `null`.

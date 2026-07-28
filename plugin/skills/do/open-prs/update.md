@@ -32,11 +32,11 @@ Resolve the provider once per [`../../_shared/vcs/detect-vcs.md`](../../_shared/
    - Validation now ran (was unit-only/skip, now has E2E report) → strip `[UNVERIFIED]` or `[UNIT-ONLY]`.
    - Otherwise → no title change.
 
-4. **Refresh body when validation outcome changed** — only when the `## Validation` section's content differs from what's in the body. Use the `--body-file` form in [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md). Preserve `## Goal` and `## Acceptance Criteria` verbatim.
+4. **Refresh body when validation outcome changed** — only when the `## Validation` section's content differs from what's in the body. Use the `--body-file` form in [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md). Preserve `## Goal` and `## Acceptance Criteria` verbatim. Re-stamp the signature: delete the existing block from the `<!-- muggle-works:signature -->` marker to the end, then append the editable-body signature (command `/muggle-do`) as the last thing in the body per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md) — this keeps exactly one signature across refreshes.
 
 5. **Visual walkthrough comment** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md) (PR number from `prs.json`); on skip, record `skipped (gate)` and continue. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A — a fresh comment per cycle; do not edit prior walkthrough comments.
 
-6. **Overflow comment** — same rule as forward mode: post when the walkthrough skill returns non-null `comment`, via [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md).
+6. **Overflow comment** — same rule as forward mode: post when the walkthrough skill returns non-null `comment`, via [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md).
 
 ## Handoff
 

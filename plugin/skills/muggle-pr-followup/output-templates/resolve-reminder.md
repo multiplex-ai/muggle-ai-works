@@ -9,7 +9,7 @@ These threads are addressed and still open — mark them resolved if satisfied, 
 - ...
 
 <!-- muggle-do:bot -->
-🤖 _Automated reply from muggle-do._
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 If no such thread exists, no comment is posted (silent). The trailing signature block ([`loop-signature.md`](../../_shared/pr-followup-helpers/loop-signature.md)) keeps the loop from later mistaking its own reminder for a human comment.

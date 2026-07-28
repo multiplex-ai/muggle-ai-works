@@ -1,5 +1,9 @@
-# Windows backend for guard-run. Internal shim, not a user entry point —
-# guard-run.mjs invokes it as:
+# Windows backend for guard-run. Callers never invoke this file: the portable
+# entry point is guard-run.mjs (plain node, runs everywhere), which probes the
+# platform and dispatches to one backend — this Job Object shim on win32,
+# systemd scope / prlimit on linux, ulimit + process group on darwin. So skill
+# instructions stay OS-agnostic by referencing guard-run.mjs only; PowerShell
+# exists solely inside this win32 backend. guard-run.mjs invokes it as:
 #
 #   powershell -File guard-run-job-object.ps1 <limit> <kill|persist> <launcherPid> <base64CommandLine>
 #

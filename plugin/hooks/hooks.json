@@ -21,6 +21,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-pr-watchdog.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/gc-state.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       }

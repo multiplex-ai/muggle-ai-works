@@ -198,3 +198,12 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 Written whole-file by the orchestrating session — seeded at arm time from a post-drain fetch, advanced after every cycle from a post-replies fetch. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply ([`arm-watcher.md`](arm-watcher.md)).
 
 **Never `source` this file, and quote or extract values.** `THREADS` holds bare semicolons: sourced unquoted, the shell splits the line at the first `;` and silently drops every id after it — the loop then re-reports known threads as new. The watch loop must extract values verbatim (e.g. `grep '^THREADS=' | cut -d= -f2- | tr -d '"\r'`), tolerating quotes and CRLF; writers should quote the value anyway.
+
+## `watch.pid`
+
+A single line: the process id of the watch loop that currently owns this slot. Written once by the loop itself on start (`echo "$$" > watch.pid`); read by two parties, never rewritten in place:
+
+- **arm-watcher's pre-arm dedup** ([`arm-watcher.md`](arm-watcher.md) Step 3) reads it and, if the PID is live (`kill -0`), skips arming — one live watcher per slot.
+- **the loop's own supersede guard** (`watcher_superseded`, [`../../scripts/pr-watch-guards.sh`](../../scripts/pr-watch-guards.sh)) compares it to `$$` each iteration and exits when they differ — a newer arm that overwrote the file steps the old loop down.
+
+This is the lease that keeps orphaned watchers from accumulating across sessions: the in-session monitor task dying does not stop the detached OS loop it launched (notably on Windows), so slot ownership is tracked by a durable PID on disk, not by the live task list. It is not seeded, migrated, or cleaned up — a stale PID (loop already dead) simply fails the `kill -0` liveness check and the next arm proceeds.

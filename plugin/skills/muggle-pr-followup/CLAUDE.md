@@ -14,6 +14,7 @@ This folder holds the watcher loop that drives one PR toward merge-ready. The wa
 - [`cancel-cron.md`](cancel-cron.md) — stops this watcher's cron, recorded-id-first (survives `CronList` going blind) with a `CronList`-match fallback, plus the tool-call-not-shell guard. Referenced by `contract.md` and `finalize.md`.
 - [`record-cron-id.md`](record-cron-id.md) — the per-tick self-record that keeps this slot's cron id in `cron.json` deletable after a compaction blinds `CronList`. Referenced by `contract.md` Step 0.
 - [`reconcile.md`](reconcile.md) — sweep that finalizes slots whose PR went terminal while polling lapsed, deletes orphaned crons, and re-arms open slots whose watcher stopped silently (dropped respawn); runs on demand, at the top of auto-track, and nudged by a session-start hook.
+- [`stop.md`](stop.md) — the owner's kill switch: tears down monitor + cron per slot, renames the slot to `<slug>.stopped` (invisible to every recovery path), and — for stop-everything — writes the global kill file; surviving orphaned crons arrive as one-line absorbs.
 - [`state-schemas.md`](state-schemas.md) — canonical JSON shapes of session state files.
 - [`output-templates.md`](output-templates.md) — TOC of message templates; per-group files in `output-templates/`.
 

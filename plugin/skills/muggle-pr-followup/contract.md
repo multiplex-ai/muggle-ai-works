@@ -29,7 +29,9 @@ Every `increment`/`reset` this procedure applies to `last_seen.json`, and the `p
 
 ## Procedure
 
-### Step 0 — Stale-fire guard, then record this cron's id
+### Step 0 — Stopped-slot absorb, stale-fire guard, then record this cron's id
+
+**Stopped-slot absorb — before anything else, including the disk reads above.** If the kill file `~/.muggle-ai/muggle-do/polling.disabled` exists, or the slot dir is absent but `~/.muggle-ai/muggle-do/sessions/<slug>.stopped/` exists (the owner ran [`stop.md`](stop.md)), absorb: no fetch, no state write, no log line — output one line (`stopped: <slug> — absorbed`) and exit. This gate is what makes an **unreachable orphaned cron** harmless: a cron whose handle a compaction severed can neither be enumerated by `CronList` nor deleted by its recorded id, so it fires until its session dies — the absorb caps each fire at one line of output and nothing else. Never "fix" an orphan by deleting ids `CronList` does surface; those belong to other live watchers.
 
 If `prs.json[0].state` on disk is already `merged` or `closed`, this slot was finalized by a prior tick and this is a stale (queued) fire — per-minute cron fires enqueued while the session was busy still drain after the cron is cancelled. Defensively cancel any lingering cron for this slug per [`cancel-cron.md`](cancel-cron.md) (no-op if none), append a `stale-tick` line to `followup.log`, and exit. Do not re-fetch or re-finalize.
 

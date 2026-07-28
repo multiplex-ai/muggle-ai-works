@@ -30,7 +30,9 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 | :---- | :------------ | :--- |
 | First arg matches `https?://github\.com/[^/]+/[^/]+/pull/\d+` | — | **bootstrap** → [`bootstrap.md`](bootstrap.md) |
 | `<slug> <pr-number>` | session dir for `<slug>` exists | **tick** → [`contract.md`](contract.md) |
+| `<slug> <pr-number>` | session dir missing, `<slug>.stopped` exists (or the global kill file `~/.muggle-ai/muggle-do/polling.disabled`) | **absorb** — one line, nothing else ([`contract.md`](contract.md) Step 0) |
 | `<slug> <pr-number>` | session dir missing | **error:** "no session at `<path>`; pass a PR URL to start one" |
+| `stop` (optional `<slug>`) | — | **stop** → [`stop.md`](stop.md) — tear down monitor + cron, mark slot(s) `.stopped`; no slug stops everything and writes the kill file |
 | `<pr-number>` alone | exactly one existing session contains it | **tick** for that PR |
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
 | empty | — | **auto-track** → [`auto-track.md`](auto-track.md) |

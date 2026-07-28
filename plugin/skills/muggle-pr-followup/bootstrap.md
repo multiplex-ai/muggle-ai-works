@@ -25,6 +25,8 @@ Bootstrap seeds watcher state and dispatches the first tick. The watcher itself 
 
 Extract `<owner>`, `<repo>`, `<pr-number>`. On malformed input, exit with the malformed-URL abort from [`output-templates/bootstrap.md`](output-templates/bootstrap.md).
 
+If the global kill file `~/.muggle-ai/muggle-do/polling.disabled` exists, delete it and say so in one line — a pasted PR URL is an explicit request to watch ([`stop.md`](stop.md)), and leaving the kill file in place would make every tick of the new watch absorb itself stillborn.
+
 ### Step 2 — Fetch PR metadata
 
 Per [`../_shared/vcs/github/pr-metadata.md`](../_shared/vcs/github/pr-metadata.md).

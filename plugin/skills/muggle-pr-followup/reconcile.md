@@ -26,7 +26,7 @@ Every trigger above needs a live session, so a watcher killed by a session's dea
 
 ### Step 1 — Enumerate slots
 
-List `~/.muggle-ai/muggle-do/sessions/*/` dirs that contain a `prs.json`. Skip any that already have a `result.md` — those are finalized. Scope to a single `<slug>` if the arg gave one.
+List `~/.muggle-ai/muggle-do/sessions/*/` dirs that contain a `prs.json`. Skip any that already have a `result.md` — those are finalized — and any whose dir name ends in `.stopped` — the owner killed those per [`stop.md`](stop.md), and no recovery path may revive them (a `.stopped` dir still holds a `prs.json`, so this name check is the only thing standing between the owner's stop and a resurrected watcher). Scope to a single `<slug>` if the arg gave one.
 
 ### Step 2 — Refresh live state
 
@@ -54,7 +54,7 @@ The recovery net for a **dropped respawn**: a `/muggle-do` cycle cancels the wat
 
 For each candidate still `open` after Step 3, check the slot's liveness beacons: the `watch-heartbeat` file's mtime (a live monitor touches it every iteration, even when quiet — [`arm-watcher.md`](arm-watcher.md)) and the newest ISO-8601 line in `followup.log` (a live `1m` recovery cron logs every tick; fall back to `cron.json.recorded_at` if both are absent). If the **freshest beacon is older than 15 minutes**, the poller is gone → re-arm:
 
-- Re-arm per [`arm-watcher.md`](arm-watcher.md) — drain tick, watermark seed, persistent monitor, watchdog ensure. Append a `re-armed (silent watcher)` line to the slot's `followup.log`. **Never re-arm with a recurring cron**: every cron fire is a full model turn, and the `1m` cadence already lives token-free in the monitor loop. A cron's only legitimate job is delivering a single recovery tick, and [`contract.md`](contract.md) Step 7.5 converts even that back to a monitor.
+- Re-arm per [`arm-watcher.md`](arm-watcher.md) — drain tick, watermark seed, persistent monitor, watchdog ensure. Append a `re-armed (silent watcher)` line to the slot's `followup.log`. **Never re-arm with a recurring cron**: every cron fire is a full model turn, and the `1m` cadence already lives token-free in the monitor loop. A cron's only legitimate job is delivering a single recovery tick, and [`contract.md`](contract.md) Step 7.5 converts even that back to a monitor. Skip re-arming entirely while the global kill file `~/.muggle-ai/muggle-do/polling.disabled` exists ([`stop.md`](stop.md)).
 
 A fresh beacon (within the window) means the poller is alive — a quiet monitor still touching its heartbeat, or a cron `CronList` has gone blind to (which hands itself back to a monitor on its next tick — [`contract.md`](contract.md) Step 7.5) — so this step leaves it untouched; re-arming can never double an already-live poller. This recovers only a slot that was **already being watched**; a PR that never had a watcher is seeded by [`auto-track.md`](auto-track.md) / bootstrap, not here.
 

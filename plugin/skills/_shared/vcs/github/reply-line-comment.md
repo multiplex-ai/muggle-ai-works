@@ -8,3 +8,5 @@ gh api --method POST \
   repos/<owner>/<repo>/pulls/<n>/comments/<comment-id>/replies \
   -f body="<reply-text>"
 ```
+
+The `<reply-text>` must end with the loop signature block — the `<!-- muggle-do:bot -->` detection marker above the Muggle Works line. See [`../post-signature.md`](../post-signature.md).

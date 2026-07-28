@@ -18,7 +18,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.
 
-1. **Push:** `git push -u origin <branch>` in the repo directory.
+1. **Push:** Execute per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md) — the tool-agnostic instruction for pushing commits (handles the signing gate and directs to provider-specific recipes).
 
 2. **Title** (under 70 chars):
    - E2E report exists and has failures → `[E2E FAILING] <goal>`

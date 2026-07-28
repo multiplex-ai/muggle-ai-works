@@ -16,7 +16,7 @@ glab mr view <iid> -R <group>/<project> -F json
 `detailed_merge_status == "need_rebase"` reports a behind branch only when the project enforces "fast-forward merge"; otherwise it stays `mergeable` while behind. Detect out-of-date straight from commit ancestry instead — independent of merge-method config:
 
 ```bash
-glab api projects/:id/repository/compare?from=<target_branch>&to=<head_sha> --jq '.commits | length'
+glab api "projects/:id/repository/compare?from=<head_sha>&to=<target_branch>" | jq '.commits | length'
 ```
 
-GitLab's compare lists only the commits `to` is ahead by, so flip the direction: compare `from=<head_sha>&to=<target_branch>` and a non-empty `.commits` ⇒ the base has commits the head lacks ⇒ out of date. Empty ⇒ current with base.
+Compare lists the commits reachable from `to` but not `from`, so `from=<head_sha>&to=<target_branch>` yields exactly the base commits the head lacks — non-zero ⇒ out of date; zero ⇒ current with base.

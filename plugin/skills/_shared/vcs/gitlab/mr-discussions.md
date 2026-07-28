@@ -3,7 +3,7 @@
 Incoming feedback for the watcher's poll and the address-reviews fetch. GitLab has **no review envelope** — there is no submitted-review object grouping a summary body with line comments. Feedback arrives as individual notes, each belonging to a discussion (a thread). This recipe is the `submitted-reviews` analogue.
 
 ```bash
-glab api projects/:id/merge_requests/:iid/discussions --paginate
+glab api projects/:id/merge_requests/<iid>/discussions --paginate
 ```
 
 Each discussion has `id` and a `notes[]` array; each note has `id`, `author.username`, `body`, `created_at`, `system` (a `true` flag marks GitLab's own activity entries — skip them).

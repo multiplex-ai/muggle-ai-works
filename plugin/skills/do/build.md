@@ -29,6 +29,8 @@ For each affected repo:
 
    The body explains *why* when the why is non-obvious. The diff already says *what*.
 
+   **Signing:** never an unsigned commit. Commit through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) — it routes a broken local signing setup to the provider's signed-commits recipe. Never `--no-gpg-sign` or disable signing to work around the failure.
+
 ## Delegation
 
 For a non-trivial change — multiple files, real design surface, or anything you would otherwise brainstorm before coding — run the implementation through superpowers' design → plan → subagent-driven build, then return to this stage's Output. That is a runtime hand-off (an action), not a doc dependency; do not encode superpowers' internals here. Routing a build request into this pipeline (the `autoRouteBuildToMuggleDo` front-door guardrail) exists to combine superpowers' design rigor with this pipeline's impact analysis, E2E, PR, and watcher — neither delivers both alone.

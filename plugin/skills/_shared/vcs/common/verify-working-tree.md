@@ -8,10 +8,10 @@ git remote get-url origin            # remote matches <owner>/<repo>
 git rev-parse --abbrev-ref HEAD      # current branch matches PR's headRefName
 ```
 
-Accept any remote URL form for `<owner>/<repo>` (with or without trailing `.git`):
+Accept any remote URL form for `<owner>/<repo>`, with or without trailing `.git`, where `<host>` is the provider host (`github.com`, or the GitLab instance host):
 
-- `https://github.com/<owner>/<repo>`
-- `git@github.com:<owner>/<repo>`
-- `ssh://git@github.com/<owner>/<repo>`
+- `https://<host>/<owner>/<repo>`
+- `git@<host>:<owner>/<repo>`
+- `ssh://git@<host>/<owner>/<repo>`
 
 Any mismatch → abort; the calling skill reports the wrong checkout to the user with its own message.

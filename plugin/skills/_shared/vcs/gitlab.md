@@ -4,7 +4,7 @@ Reusable `glab` / `git` snippets used by `muggle-pr-followup` (watcher + bootstr
 
 Skills assume a working `glab auth status`. Auth errors surface verbatim from `glab`.
 
-The project ref `:id` is `<group>/<project>` — URL-encode it for `glab api` (`mygroup/myproj` → `mygroup%2Fmyproj`). `:iid` is the MR's per-project internal id (the `!123` number), not the global id.
+`glab api` fills `:id` itself with the URL-encoded path of the current directory's project — run recipes from the MR worktree and leave `:id` as written (elsewhere, substitute the encoded path yourself: `mygroup/myproj` → `mygroup%2Fmyproj`). `<iid>` is the MR's per-project internal id (the `!123` number), not the global id; glab has no placeholder for it — substitute it. `glab api` has no `--jq` flag — pipe to `jq`.
 
 ## Index
 
@@ -20,5 +20,6 @@ The project ref `:id` is `<group>/<project>` — URL-encode it for `glab api` (`
 | [`mr-edit`](gitlab/mr-edit.md) | Refresh title or description when address-reviews mode flips state. |
 | [`mr-create`](gitlab/mr-create.md) | Open an MR + capture its URL for handoff. |
 | [`loop-user-identity`](gitlab/loop-user-identity.md) | Resolve the GitLab username of the loop user. |
-| [`push-to-branch`](github/push-to-branch.md) | Push + capture new SHA after address-reviews work (provider-agnostic). |
-| [`verify-working-tree`](github/verify-working-tree.md) | Three checks bootstrap runs before seeding state (provider-agnostic). |
+| [`push-to-branch`](common/push-to-branch.md) | Signing-gated push + capture new SHA after address-reviews work. |
+| [`signed-commits`](gitlab/signed-commits.md) | Never-push-unsigned rule: `%G?` preflight; no server-side signing analogue → stop and escalate. |
+| [`verify-working-tree`](common/verify-working-tree.md) | Three checks bootstrap runs before seeding state. |

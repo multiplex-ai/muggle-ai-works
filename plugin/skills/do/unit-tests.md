@@ -19,7 +19,7 @@ You receive:
 
 For each repo:
 
-1. **Run the test command** using Bash in the repo's directory. Use the provided test command (default: `pnpm test`).
+1. **Run the test command** using Bash in the repo's directory. Use the provided test command (default: `pnpm test`). Only when the env flag `MUGGLE_WORKS_INTERNAL_DIAGNOSTICS=1` is set (internal fleet / eval runs; end-user runs skip this), before a run expected to take minutes (full suite, many workers), append a `workload` line to the session slot's `followup.log` per [`state-schemas.md`](../muggle-pr-followup/state-schemas.md#followuplog).
 2. **Capture the full output** — both stdout and stderr.
 3. **Determine pass/fail** — exit code 0 means pass, anything else means fail.
 4. **If tests fail**, extract the specific failing test names/descriptions from the output.

@@ -26,7 +26,9 @@ import {
   WATCH_HEARTBEAT_FILENAME,
 } from "./constants.js";
 import { decideSlotAction, emptyWatchdogSlotState } from "./decide.js";
+import { internalDiagnosticsEnabled } from "./diagnostics.js";
 import { isCycleInProgress, newestFollowupLogTimestampMs } from "./followupLog.js";
+import { captureOrphanLedgerForDeadSlot, listProcessTable, ProcessRecord } from "./orphanLedger.js";
 import {
   isGitlabMrConflicting,
   mapGitlabDiscussionsToThreadSnapshots,
@@ -377,6 +379,14 @@ function scanOnce(nowMs: number): { openSlotCount: number; spawnedCount: number 
   const openSlots = listOpenSlots();
   const spawnCandidates: SpawnCandidate[] = [];
 
+  // One process-table snapshot per scan, taken lazily on the first dead slot —
+  // most scans have every watcher live and never pay for it.
+  let scanProcessTable: ProcessRecord[] | null = null;
+  const getScanProcessTable = (): ProcessRecord[] => {
+    scanProcessTable ??= listProcessTable();
+    return scanProcessTable;
+  };
+
   for (const slot of openSlots) {
     try {
       const followupLogText = readTextOrEmpty(join(slot.slotDir, "followup.log"));
@@ -390,6 +400,24 @@ function scanOnce(nowMs: number): { openSlotCount: number; spawnedCount: number 
         !watcherLive && isCycleInProgress({ logText: followupLogText, nowMs: nowMs });
       // Only a dead, out-of-cycle slot is worth the provider API calls.
       if (watcherLive || cycleInProgress) continue;
+
+      // The orphan ledger is internal diagnostics; gating it here also skips
+      // the process-table snapshot (its only consumer), so an end user's
+      // watchdog pays nothing for it. Recovery below is never gated.
+      if (internalDiagnosticsEnabled()) {
+        try {
+          const ledgerResult = captureOrphanLedgerForDeadSlot({
+            slotDir: slot.slotDir,
+            nowMs: nowMs,
+            processTable: getScanProcessTable(),
+          });
+          if (ledgerResult.written) {
+            log(`slot ${slot.slug}: orphan ledger written (${ledgerResult.suspectCount} suspects)`);
+          }
+        } catch (error) {
+          log(`slot ${slot.slug}: orphan ledger failed: ${String(error)}`);
+        }
+      }
 
       const pollSnapshot = pollSlotPrSnapshot(slot);
       const slotStateFile = join(slot.slotDir, WATCHDOG_SLOT_STATE_FILENAME);

@@ -14,6 +14,8 @@ var PENDING_SIGNAL_CONFIRM_AFTER_MS = 4 * 60 * 1e3;
 var SPAWN_RETRY_AFTER_MS = 10 * 60 * 1e3;
 var CYCLE_IN_PROGRESS_GRACE_MS = 90 * 60 * 1e3;
 var MAX_TICK_SPAWNS_PER_SCAN = 3;
+var ORPHAN_LEDGER_MIN_INTERVAL_MS = 6 * 60 * 60 * 1e3;
+var INTERNAL_DIAGNOSTICS_ENV_VAR = "MUGGLE_WORKS_INTERNAL_DIAGNOSTICS";
 var LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
 var WATCH_HEARTBEAT_FILENAME = "watch-heartbeat";
 var WATCHDOG_SLOT_STATE_FILENAME = "watchdog.json";
@@ -102,6 +104,11 @@ function decideSlotAction(input) {
   return skip("awaiting-signal-confirmation" /* AwaitingSignalConfirmation */);
 }
 
+// src/watchdog/diagnostics.ts
+function internalDiagnosticsEnabled() {
+  return process.env[INTERNAL_DIAGNOSTICS_ENV_VAR] === "1";
+}
+
 // src/watchdog/followupLog.ts
 var DISPATCH_LINE_PATTERN = /\bdispatch/i;
 var CYCLE_OUTCOME_LINE_PATTERN = /\boutcome=/i;
@@ -136,6 +143,134 @@ function isCycleInProgress(args) {
   if (lastDispatchMs === null) return false;
   if (lastOutcomeMs !== null && lastOutcomeMs >= lastDispatchMs) return false;
   return args.nowMs - lastDispatchMs < graceMs;
+}
+var HEAVY_WORKLOAD_COMMAND_PATTERN = /\b(node|jest|tsc|vitest|esbuild|bash|pwsh|powershell|claude|gh)(\.exe)?\b/i;
+var ORPHAN_LEDGER_FILENAME_PREFIX = "orphan-ledger-";
+var COMMAND_LINE_MAX_CHARS = 400;
+function toProcessRecord(candidate) {
+  const pid = Number(candidate.pid);
+  const ppid = Number(candidate.ppid);
+  if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(ppid) || ppid < 0) return null;
+  return {
+    pid,
+    ppid,
+    name: String(candidate.name ?? ""),
+    commandLine: String(candidate.commandLine ?? "").slice(0, COMMAND_LINE_MAX_CHARS)
+  };
+}
+function parseWindowsProcessJson(raw) {
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const rows = Array.isArray(parsed) ? parsed : [parsed];
+  const records = [];
+  for (const row of rows) {
+    if (typeof row !== "object" || row === null) continue;
+    const rowRecord = row;
+    const record = toProcessRecord({
+      pid: rowRecord.ProcessId,
+      ppid: rowRecord.ParentProcessId,
+      name: rowRecord.Name,
+      commandLine: rowRecord.CommandLine
+    });
+    if (record) records.push(record);
+  }
+  return records;
+}
+function parsePosixPsOutput(raw) {
+  const records = [];
+  for (const line of raw.split("\n")) {
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\S+)\s*(.*)$/);
+    if (!match) continue;
+    const record = toProcessRecord({
+      pid: match[1],
+      ppid: match[2],
+      name: match[3],
+      commandLine: match[4]
+    });
+    if (record) records.push(record);
+  }
+  return records;
+}
+function selectSuspectOrphanProcesses(processes) {
+  const livePids = new Set(processes.map((processRecord) => processRecord.pid));
+  return processes.filter(
+    (processRecord) => processRecord.pid > 4 && processRecord.ppid > 4 && !livePids.has(processRecord.ppid) && HEAVY_WORKLOAD_COMMAND_PATTERN.test(`${processRecord.name} ${processRecord.commandLine}`)
+  );
+}
+function listProcessTable() {
+  if (process.platform === "win32") {
+    const result2 = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        "Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress -Depth 2"
+      ],
+      { encoding: "utf-8", windowsHide: true, timeout: 6e4, maxBuffer: 16 * 1024 * 1024 }
+    );
+    if (result2.error) throw result2.error;
+    return parseWindowsProcessJson(result2.stdout ?? "");
+  }
+  const result = spawnSync("ps", ["-eo", "pid=,ppid=,comm=,args="], {
+    encoding: "utf-8",
+    timeout: 6e4,
+    maxBuffer: 16 * 1024 * 1024
+  });
+  if (result.error) throw result.error;
+  return parsePosixPsOutput(result.stdout ?? "");
+}
+function newestLedgerMtimeMs(slotDir) {
+  let newestMs = null;
+  let entries;
+  try {
+    entries = readdirSync(slotDir);
+  } catch {
+    return null;
+  }
+  for (const entry of entries) {
+    if (!entry.startsWith(ORPHAN_LEDGER_FILENAME_PREFIX)) continue;
+    try {
+      const mtimeMs = statSync(join(slotDir, entry)).mtimeMs;
+      if (newestMs === null || mtimeMs > newestMs) newestMs = mtimeMs;
+    } catch {
+    }
+  }
+  return newestMs;
+}
+function captureOrphanLedgerForDeadSlot(args) {
+  const minIntervalMs = args.minIntervalMs ?? ORPHAN_LEDGER_MIN_INTERVAL_MS;
+  const newestMs = minIntervalMs > 0 ? newestLedgerMtimeMs(args.slotDir) : null;
+  if (newestMs !== null && args.nowMs - newestMs < minIntervalMs) {
+    return {
+      written: false,
+      suspectCount: 0,
+      skipReason: "recent-ledger-exists" /* RecentLedgerExists */
+    };
+  }
+  const suspects = selectSuspectOrphanProcesses(args.processTable);
+  if (suspects.length === 0) {
+    return { written: false, suspectCount: 0, skipReason: "no-suspects" /* NoSuspects */ };
+  }
+  const capturedAt = new Date(args.nowMs).toISOString();
+  const ledgerFilename = `${ORPHAN_LEDGER_FILENAME_PREFIX}${capturedAt.replace(/[:.]/g, "-")}.json`;
+  writeFileSync(
+    join(args.slotDir, ledgerFilename),
+    JSON.stringify(
+      {
+        captured_at: capturedAt,
+        reason: "watcher-dead",
+        total_process_count: args.processTable.length,
+        suspects
+      },
+      null,
+      2
+    )
+  );
+  return { written: true, suspectCount: suspects.length };
 }
 
 // src/watchdog/gitlabSnapshot.ts
@@ -413,6 +548,11 @@ function spawnHeadlessTick(slot, spawnReason) {
 function scanOnce(nowMs) {
   const openSlots = listOpenSlots();
   const spawnCandidates = [];
+  let scanProcessTable = null;
+  const getScanProcessTable = () => {
+    scanProcessTable ??= listProcessTable();
+    return scanProcessTable;
+  };
   for (const slot of openSlots) {
     try {
       const followupLogText = readTextOrEmpty(join(slot.slotDir, "followup.log"));
@@ -424,6 +564,20 @@ function scanOnce(nowMs) {
       });
       const cycleInProgress = !watcherLive && isCycleInProgress({ logText: followupLogText, nowMs });
       if (watcherLive || cycleInProgress) continue;
+      if (internalDiagnosticsEnabled()) {
+        try {
+          const ledgerResult = captureOrphanLedgerForDeadSlot({
+            slotDir: slot.slotDir,
+            nowMs,
+            processTable: getScanProcessTable()
+          });
+          if (ledgerResult.written) {
+            log(`slot ${slot.slug}: orphan ledger written (${ledgerResult.suspectCount} suspects)`);
+          }
+        } catch (error) {
+          log(`slot ${slot.slug}: orphan ledger failed: ${String(error)}`);
+        }
+      }
       const pollSnapshot = pollSlotPrSnapshot(slot);
       const slotStateFile = join(slot.slotDir, WATCHDOG_SLOT_STATE_FILENAME);
       const decision = decideSlotAction({

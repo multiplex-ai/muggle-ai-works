@@ -104,6 +104,8 @@ For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
+Only when the env flag `MUGGLE_WORKS_INTERNAL_DIAGNOSTICS=1` is set (internal fleet / eval runs; end-user runs skip this), before the first execution append a `workload` line for the runner to the session slot's `followup.log` per [`state-schemas.md`](../muggle-pr-followup/state-schemas.md#followuplog) — E2E runs are the heaviest processes a cycle spawns, and the ledger is what names them if this session dies mid-run.
+
 ### Step 7: Collect Results
 
 For each test case:

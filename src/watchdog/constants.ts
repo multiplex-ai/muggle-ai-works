@@ -20,6 +20,18 @@ export const CYCLE_IN_PROGRESS_GRACE_MS = 90 * 60 * 1000;
 
 export const MAX_TICK_SPAWNS_PER_SCAN = 3;
 
+// One orphan ledger per slot per window: a dead slot is re-detected on every
+// scan until recovery lands, and each detection would otherwise re-snapshot
+// the same abandoned processes.
+export const ORPHAN_LEDGER_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+// Memory/orphan diagnostics are internal fleet-eval instrumentation, not an
+// end-user feature. The watchdog captures an orphan ledger, and the muggle-do
+// stages append workload lines, only when this is set to "1" — so an end
+// user's watcher leaves no diagnostic files behind. Recovery (poll + spawn) is
+// unaffected and always runs.
+export const INTERNAL_DIAGNOSTICS_ENV_VAR = "MUGGLE_WORKS_INTERNAL_DIAGNOSTICS";
+
 export const LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
 
 export const WATCH_HEARTBEAT_FILENAME = "watch-heartbeat";

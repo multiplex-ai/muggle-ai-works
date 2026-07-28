@@ -31,6 +31,8 @@ For each affected repo:
 
    **Signing:** never an unsigned commit. Commit through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) — it routes a broken local signing setup to the provider's signed-commits recipe. Never `--no-gpg-sign` or disable signing to work around the failure.
 
+**Heavy workloads leave a ledger line — internal diagnostics only.** Only when the env flag `MUGGLE_WORKS_INTERNAL_DIAGNOSTICS=1` is set (internal fleet / eval runs; end-user runs skip this entirely): when this stage spawns a long-running or memory-heavy process (test suite, typecheck watcher, dev server, background shell), append a `workload` line to the session slot's `followup.log` per [`state-schemas.md`](../muggle-pr-followup/state-schemas.md#followuplog) — that line is the only way a post-mortem can name the processes a dying session abandoned.
+
 ## Delegation
 
 For a non-trivial change — multiple files, real design surface, or anything you would otherwise brainstorm before coding — run the implementation through superpowers' design → plan → subagent-driven build, then return to this stage's Output. That is a runtime hand-off (an action), not a doc dependency; do not encode superpowers' internals here. Routing a build request into this pipeline (the `autoRouteBuildToMuggleDo` front-door guardrail) exists to combine superpowers' design rigor with this pipeline's impact analysis, E2E, PR, and watcher — neither delivers both alone.

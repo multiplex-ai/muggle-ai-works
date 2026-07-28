@@ -134,7 +134,10 @@ Append-only line-per-tick log. One line per watcher tick, plus one line per `/mu
 2026-05-20T12:34:56Z tick pr=154 threads=0 idle
 2026-05-20T12:35:56Z tick pr=154 threads=1 dispatched=4295962800
 2026-05-20T12:36:14Z muggle-do cycle review_ids=[4295962800] outcome=pushed head_sha=abc1234
+2026-05-20T12:36:20Z workload pid=31240 kind=jest cmd="node scripts/run-jest-app.js --ci"
 ```
+
+- `workload` lines name the long-running / memory-heavy processes a cycle spawns (test suites, typechecks, dev servers, background shells): `workload pid=<pid-when-known> kind=<jest|tsc|dev-server|shell|other> cmd="<command, truncated>"`. They are the post-mortem trail when a dying session orphans its children — a reaped session's abandoned processes are otherwise nameless. Internal diagnostics: the `/muggle-do` stages append these only when `MUGGLE_WORKS_INTERNAL_DIAGNOSTICS=1` (internal fleet / eval runs); an end-user cycle writes none.
 
 Used for forensics only — never read back by skills.
 
@@ -163,6 +166,25 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 ## Not in the slot
 
 `cycle.json` and `requirements.md` are not seeded or read. `/muggle-do` reads reviews off GitHub each invocation.
+
+## `watch-stderr.log`
+
+Append-only stderr from the watch loop's provider fetches. Every line is prefixed with the UTC timestamp at append time — the loop captures each iteration's stderr and prefixes it before appending, never a bare `2>>` redirect ([`arm-watcher.md`](arm-watcher.md)). Forensics only.
+
+## `orphan-ledger-<timestamp>.json`
+
+Written by the out-of-session watchdog daemon when it finds the slot's watcher dead: the heavy processes (agent sessions, test suites, typechecks, shells) whose parent was gone from the process table at detection time — the work a dead session likely abandoned. At most one ledger per slot per 6-hour window; nothing is written when there are no suspects. Forensics only; no skill reads it. Internal diagnostics: written only when `MUGGLE_WORKS_INTERNAL_DIAGNOSTICS=1` (internal fleet / eval runs) — an end user's watchdog writes none, and skips the process-table snapshot entirely.
+
+```json
+{
+  "captured_at": "<ISO-8601>",
+  "reason": "watcher-dead",
+  "total_process_count": <int>,
+  "suspects": [
+    { "pid": <int>, "ppid": <int>, "name": "<image-name>", "commandLine": "<truncated>" }
+  ]
+}
+```
 
 ## `watch-heartbeat`
 

@@ -7,7 +7,7 @@ Every pull-request / merge-request body, comment, and review-thread reply that m
 Append this as the last line of the posted body:
 
 ```
-🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `<command>`_
+🤖 _Posted by `<command>` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 `<command>` is the slash-command of the skill whose `gh` / `glab` call posts the body:
@@ -23,7 +23,7 @@ A description is re-posted whenever state changes, so its signature must not sta
 
 ```
 <!-- muggle-works:signature -->
-🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-do`_
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 Before writing an edited body, delete everything from the `<!-- muggle-works:signature -->` marker to the end of the body, then append the block fresh. This keeps exactly one signature no matter how many times the description is refreshed.

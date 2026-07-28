@@ -149,7 +149,7 @@ Extract the `body` field with `jq -r` (not `sed`) so JSON escape sequences are p
 ```bash
 {
   jq -r '.body' /tmp/muggle-pr-section.json
-  printf '\n\n%s\n' '🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-pr-visual-walkthrough`_'
+  printf '\n\n%s\n' '🤖 _Posted by `/muggle-pr-visual-walkthrough` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
 } | gh pr comment <pr-number> --body-file -
 ```
 
@@ -158,7 +158,7 @@ Extract the `body` field with `jq -r` (not `sed`) so JSON escape sequences are p
 ```bash
 {
   jq -r '.comment' /tmp/muggle-pr-section.json
-  printf '\n\n%s\n' '🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-pr-visual-walkthrough`_'
+  printf '\n\n%s\n' '🤖 _Posted by `/muggle-pr-visual-walkthrough` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
 } | gh pr comment <pr-number> --body-file -
 ```
 
@@ -183,7 +183,7 @@ Instead of posting, **return** the CLI output to the caller's context so they ca
    ```bash
    {
      jq -r '.comment' /tmp/muggle-pr-section.json
-     printf '\n\n%s\n' '🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-do`_'
+     printf '\n\n%s\n' '🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
    } | gh pr comment <new-pr-number> --body-file -
    ```
 

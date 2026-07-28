@@ -8,7 +8,7 @@ Append these two lines as the end of every loop-posted comment body:
 
 ```
 <!-- muggle-do:bot -->
-🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-do`_
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 - `<!-- muggle-do:bot -->` — hidden HTML marker; GitHub renders it invisibly and humans never type it. This is the **detection token**. It must stay exactly as written — echo-protection and addressed-by-loop classification read this literal string.

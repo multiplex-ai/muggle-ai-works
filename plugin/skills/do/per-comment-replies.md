@@ -44,7 +44,7 @@ Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-
 Addressed in <short-sha>: <one-line summary of the change made for THIS comment>.
 
 <!-- muggle-do:bot -->
-🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-do`_
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 `<short-sha>` is the first 7 chars of `new_sha`; the body must contain that substring so the resolve-reminder stage knows which push addressed the thread. The trailing signature block is mandatory — its `<!-- muggle-do:bot -->` marker is what identifies the reply as loop-authored (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)).
@@ -60,7 +60,7 @@ If an actionable review has a non-empty `body` and **zero** line comments, GitHu
 Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
 
 <!-- muggle-do:bot -->
-🤖 _Posted by [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works) · `/muggle-do`_
+🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.

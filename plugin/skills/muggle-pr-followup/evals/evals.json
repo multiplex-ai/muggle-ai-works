@@ -1,6 +1,6 @@
 {
   "skill_name": "muggle-pr-followup",
-  "notes": "These evals test the TICK DECISION behavior. A real tick needs live GitHub state and the Cron tools, so each prompt hands the model a concrete slot + provider state and asks for the step-by-step plan it would execute; assertions check the plan takes the branch the contract mandates. Run via skill-creator's eval runner — CI does not execute these (ci.yml gates on vitest/check-skill-deps; skill-eval.yml runs gate scenarios sourced from muggle-ai-brain and the routing eval).",
+  "notes": "These evals test the TICK DECISION behavior plus the recovery/stop substrate. A real tick needs live GitHub state and the Cron tools, so each prompt hands the model a concrete slot + provider state and asks for the step-by-step plan it would execute; assertions check the plan takes the branch the contract mandates. Cases 0–10 cover per-tick dispatch/idle decisions; cases 11–17 cover cron-delivered ticks handing back to the token-free monitor, the owner stop switch, and the stopped-slot / kill-file absorb that makes an unreachable orphaned cron inert. Run via skill-creator's eval runner — CI does not execute these (ci.yml gates on vitest/check-skill-deps; skill-eval.yml runs gate scenarios sourced from muggle-ai-brain and the routing eval).",
   "evals": [
     {
       "id": 0,
@@ -131,6 +131,90 @@
         { "name": "marker_makes_it_non_actionable", "text": "Plan treats the thread as non-actionable because its newest comment carries the muggle-do:bot marker — the marker rule holds regardless of outdatedness." },
         { "name": "no_dispatch_no_echo", "text": "Plan does NOT dispatch address-reviews; re-dispatching would echo the loop's own reply." },
         { "name": "idles_transiently", "text": "Plan idles this tick as a transient idle (green, branch current, awaiting the next human comment) and keeps the 1m cadence — it is not a durable human-block." }
+      ]
+    },
+    {
+      "id": 11,
+      "eval_name": "cron-delivered-idle-with-live-monitor-cancels-duplicate",
+      "prompt": "Tick muggle-ai-works-pr520 520 — this fire was delivered by a /loop recovery cron, not a monitor wake. The slot is open, watch-heartbeat was touched 40 seconds ago, there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "recognises_cron_delivered_fire", "text": "Plan recognises this tick was delivered by a /loop recovery cron and therefore runs the hand-back-to-monitor step — a monitor wake or a headless watchdog tick would skip it." },
+        { "name": "reads_heartbeat_as_live_monitor", "text": "Plan reads watch-heartbeat mtime, sees it is fresh (within 3 minutes), and concludes a live monitor already owns the 1m cadence." },
+        { "name": "cancels_duplicate_cron", "text": "Plan cancels this cron per cancel-cron.md (recorded-id first) because it is a duplicate poller — there is nothing to arm." },
+        { "name": "never_recreates_cron_or_double_arms", "text": "Plan does NOT CronCreate a recurring cron and does NOT start a second monitor over the live one; exactly one poller (the monitor) remains." }
+      ]
+    },
+    {
+      "id": 12,
+      "eval_name": "cron-delivered-idle-with-dead-monitor-rearms-monitor",
+      "prompt": "Tick muggle-ai-works-pr521 521 — this fire was delivered by a /loop recovery cron. The slot is open, watch-heartbeat is missing (the last monitor died), there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "detects_dead_monitor_from_beacon", "text": "Plan reads watch-heartbeat, finds it missing or older than 3 minutes, and concludes the monitor is dead and this cron has become the primary poller." },
+        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark from a fresh post-tick fetch, start the persistent labeled monitor, ensure the watchdog — using this tick as the drain." },
+        { "name": "cancels_cron_after_arming", "text": "Plan then cancels this cron per cancel-cron.md and appends a re-armed (monitor restored) line to followup.log, so the 1m cadence lives in the token-free monitor rather than a per-minute model turn." },
+        { "name": "never_rearms_with_a_cron", "text": "Plan does NOT restore the poller by creating a recurring /loop cron; the cron is only ever a one-shot recovery delivery." }
+      ]
+    },
+    {
+      "id": 13,
+      "eval_name": "reconcile-rearms-silent-open-watcher-with-monitor",
+      "prompt": "Reconcile the slots. muggle-ai-works-pr522 522 is open (no result.md), but its watch-heartbeat is 40 minutes stale and the newest followup.log line is 40 minutes old — the watcher stopped silently (a crashed cycle that never respawned). The global kill file is absent. Walk me through the plan for this slot.",
+      "files": [],
+      "assertions": [
+        { "name": "classifies_silent_watcher_from_freshest_beacon", "text": "Plan judges the watcher dead because the freshest beacon (watch-heartbeat mtime or newest followup.log line) is older than the staleness window." },
+        { "name": "rearms_via_arm_watcher_monitor", "text": "Plan re-arms per arm-watcher.md — drain tick, watermark seed, persistent monitor, watchdog ensure — restoring a token-free poller." },
+        { "name": "never_rearms_with_cron", "text": "Plan does NOT re-arm by creating a recurring /loop cron; the 1m cadence belongs in the monitor and a cron fire would be a full model turn." },
+        { "name": "would_skip_under_killfile", "text": "Plan notes it would skip re-arming entirely if polling.disabled existed — here it is absent, so it proceeds." }
+      ]
+    },
+    {
+      "id": 14,
+      "eval_name": "stop-single-slot-teardown-and-stopped-rename",
+      "prompt": "The owner runs stop for muggle-ai-works-pr523 523 (one slot). The slot has a live monitor, a recorded cron id in cron.json, and on Windows an inner bash watch.sh grandchild. Walk me through the plan.",
+      "files": [],
+      "assertions": [
+        { "name": "stops_monitor_including_windows_grandchild", "text": "Plan TaskStops the monitor AND kills the surviving bash <slug>/watch.sh grandchild (enumerated by command line) that outlives TaskStop on Windows — otherwise it keeps touching watch-heartbeat and its open handles block the rename." },
+        { "name": "cancels_cron_recorded_id_first", "text": "Plan cancels the cron per cancel-cron.md, recorded-id first with a CronList-match fallback, and admits a cron neither lookup reaches is orphaned but inert." },
+        { "name": "renames_slot_to_stopped", "text": "Plan renames the slot dir to <slug>.stopped — the load-bearing act the tick absorb, reconcile, and the watchdog all key on to stay away." },
+        { "name": "no_global_killfile_for_single_slot", "text": "Plan does NOT write the global polling.disabled kill file for a scoped single-slot stop, and writes no result.md — stopping is resumable, not finalizing." }
+      ]
+    },
+    {
+      "id": 15,
+      "eval_name": "stop-everything-writes-global-killfile",
+      "prompt": "The owner runs stop with no slug — take every watcher down. Several slots are open with live monitors and recorded crons. Walk me through the plan.",
+      "files": [],
+      "assertions": [
+        { "name": "stops_and_renames_every_open_slot", "text": "Plan stops each open slot (monitor + Windows grandchild + cron) and renames each to <slug>.stopped." },
+        { "name": "writes_global_killfile", "text": "Plan writes the global kill file ~/.muggle-ai/muggle-do/polling.disabled so any surviving orphaned cron fire absorbs itself before resolving a slot, and reconcile refuses to re-arm while it exists." },
+        { "name": "stopping_is_not_finalizing", "text": "Plan writes no result.md — a stopped slot stays open on the provider and is resumable by renaming <slug>.stopped back and re-arming." },
+        { "name": "honest_about_orphan_floor", "text": "Plan reports an orphaned cron honestly — it may keep firing one-line absorbs until its host session ends, which is the harness's floor, not a teardown failure." }
+      ]
+    },
+    {
+      "id": 16,
+      "eval_name": "stopped-slot-absorb-before-any-io",
+      "prompt": "Tick agent-pin-conversions 137 — this fire was delivered by an orphaned /loop cron whose handle a compaction severed. On disk the live slot is gone and only agent-pin-conversions.stopped exists (the owner ran stop). Walk me through the plan for this tick.",
+      "files": [],
+      "assertions": [
+        { "name": "absorbs_before_any_fetch_or_write", "text": "Plan checks for the .stopped slot (and the polling.disabled kill file) at the very top of Step 0, before any GitHub fetch, state write, or log line." },
+        { "name": "one_line_absorb_then_exit", "text": "Plan outputs a single line (stopped: <slug> — absorbed) and exits — no fetch, no state write, no followup.log line, no dispatch." },
+        { "name": "does_not_resurrect_or_guess_delete", "text": "Plan does NOT recreate the slot, re-arm a monitor, or delete cron ids CronList surfaces for other slugs — those belong to other live watchers." },
+        { "name": "absorb_caps_the_orphan", "text": "Plan recognises this absorb gate is exactly what caps an unreachable orphaned cron at one harmless line per fire until its session dies." }
+      ]
+    },
+    {
+      "id": 17,
+      "eval_name": "bootstrap-clears-killfile-on-explicit-url",
+      "prompt": "Bootstrap a watcher from the URL https://github.com/multiplex-ai/muggle-ai-works/pull/524. The global polling.disabled kill file is present from an earlier stop-everything. Walk me through the plan.",
+      "files": [],
+      "assertions": [
+        { "name": "clears_killfile_as_first_act", "text": "Plan deletes the polling.disabled kill file during bootstrap, treating a pasted PR URL as an explicit request to watch that overrides a prior stop-everything." },
+        { "name": "surfaces_the_clear_in_one_line", "text": "Plan says in one line that it cleared the kill file, so the state change is visible." },
+        { "name": "then_seeds_and_arms", "text": "Plan then seeds the slot and arms the watch normally — leaving the kill file in place would make every tick of the new watch absorb itself stillborn." },
+        { "name": "only_bootstrap_clears_it", "text": "Plan notes only bootstrap (an explicit URL) clears the kill file; auto-track and reconcile never do." }
       ]
     }
   ]

@@ -139,7 +139,7 @@
       "prompt": "Tick muggle-ai-works-pr520 520 — this fire was delivered by a /loop recovery cron, not a monitor wake. The slot is open, watch-heartbeat was touched 40 seconds ago, there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
       "files": [],
       "assertions": [
-        { "name": "recognises_cron_delivered_fire", "text": "Plan recognises this tick was delivered by a /loop recovery cron and therefore runs the hand-back-to-monitor step — a monitor wake or a headless watchdog tick would skip it." },
+        { "name": "recognises_cron_delivered_fire", "text": "Plan recognises this tick was delivered by a /loop recovery cron and therefore runs the hand-back-to-monitor step — a monitor wake would skip it." },
         { "name": "reads_heartbeat_as_live_monitor", "text": "Plan reads watch-heartbeat mtime, sees it is fresh (within 3 minutes), and concludes a live monitor already owns the 1m cadence." },
         { "name": "cancels_duplicate_cron", "text": "Plan cancels this cron per cancel-cron.md (recorded-id first) because it is a duplicate poller — there is nothing to arm." },
         { "name": "never_recreates_cron_or_double_arms", "text": "Plan does NOT CronCreate a recurring cron and does NOT start a second monitor over the live one; exactly one poller (the monitor) remains." }
@@ -152,7 +152,7 @@
       "files": [],
       "assertions": [
         { "name": "detects_dead_monitor_from_beacon", "text": "Plan reads watch-heartbeat, finds it missing or older than 3 minutes, and concludes the monitor is dead and this cron has become the primary poller." },
-        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark from a fresh post-tick fetch, start the persistent labeled monitor, ensure the watchdog — using this tick as the drain." },
+        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark from a fresh post-tick fetch, start the persistent labeled monitor — using this tick as the drain." },
         { "name": "cancels_cron_after_arming", "text": "Plan then cancels this cron per cancel-cron.md and appends a re-armed (monitor restored) line to followup.log, so the 1m cadence lives in the token-free monitor rather than a per-minute model turn." },
         { "name": "never_rearms_with_a_cron", "text": "Plan does NOT restore the poller by creating a recurring /loop cron; the cron is only ever a one-shot recovery delivery." }
       ]
@@ -164,7 +164,7 @@
       "files": [],
       "assertions": [
         { "name": "classifies_silent_watcher_from_freshest_beacon", "text": "Plan judges the watcher dead because the freshest beacon (watch-heartbeat mtime or newest followup.log line) is older than the staleness window." },
-        { "name": "rearms_via_arm_watcher_monitor", "text": "Plan re-arms per arm-watcher.md — drain tick, watermark seed, persistent monitor, watchdog ensure — restoring a token-free poller." },
+        { "name": "rearms_via_arm_watcher_monitor", "text": "Plan re-arms per arm-watcher.md — drain tick, watermark seed, persistent monitor — restoring a token-free poller." },
         { "name": "never_rearms_with_cron", "text": "Plan does NOT re-arm by creating a recurring /loop cron; the 1m cadence belongs in the monitor and a cron fire would be a full model turn." },
         { "name": "would_skip_under_killfile", "text": "Plan notes it would skip re-arming entirely if polling.disabled existed — here it is absent, so it proceeds." }
       ]
@@ -177,7 +177,7 @@
       "assertions": [
         { "name": "stops_monitor_including_windows_grandchild", "text": "Plan TaskStops the monitor AND kills the surviving bash <slug>/watch.sh grandchild (enumerated by command line) that outlives TaskStop on Windows — otherwise it keeps touching watch-heartbeat and its open handles block the rename." },
         { "name": "cancels_cron_recorded_id_first", "text": "Plan cancels the cron per cancel-cron.md, recorded-id first with a CronList-match fallback, and admits a cron neither lookup reaches is orphaned but inert." },
-        { "name": "renames_slot_to_stopped", "text": "Plan renames the slot dir to <slug>.stopped — the load-bearing act the tick absorb, reconcile, and the watchdog all key on to stay away." },
+        { "name": "renames_slot_to_stopped", "text": "Plan renames the slot dir to <slug>.stopped — the load-bearing act the tick absorb, reconcile, and auto-track all key on to stay away." },
         { "name": "no_global_killfile_for_single_slot", "text": "Plan does NOT write the global polling.disabled kill file for a scoped single-slot stop, and writes no result.md — stopping is resumable, not finalizing." }
       ]
     },

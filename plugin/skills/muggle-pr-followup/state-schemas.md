@@ -166,25 +166,7 @@ Written exactly once when the PR's watcher exits terminally (PR merged or closed
 
 ## `watch-heartbeat`
 
-Touched (mtime refreshed) by the watch loop every iteration — content irrelevant. The slot's liveness beacon: a quiet monitor writes no log lines, so mtime is the only proof it is still polling. Read by [`reconcile.md`](reconcile.md) Step 3.6 and the out-of-session watchdog; a beacon older than 15 minutes means the poller is dead.
-
-## `watchdog.json`
-
-The out-of-session watchdog's per-slot spawn ledger ([`reconcile.md`](reconcile.md#out-of-session-watchdog)). Written only by the watchdog daemon; no skill reads it.
-
-```json
-{
-  "pending_signature": "<signal-signature-or-null>",
-  "pending_seen_at": "<ISO-8601-or-null>",
-  "last_spawn_signature": "<signal-signature-or-null>",
-  "last_spawn_at": "<ISO-8601-or-null>",
-  "spawn_attempts": <int>
-}
-```
-
-- `pending_signature` / `pending_seen_at`: a non-terminal signal must be observed on two consecutive scans before it spawns a recovery tick — this pair records the first sighting.
-- `last_spawn_signature` / `last_spawn_at`: the last spawned signature. Unchanged signature + a `followup.log` line newer than `last_spawn_at` (the tick ran) ⇒ never re-spawn; no newer line ⇒ the spawn died silently (usage limit) and is retried after a backoff window.
-- `spawn_attempts`: lifetime spawn count, forensics only.
+Touched (mtime refreshed) by the watch loop every iteration — content irrelevant. The slot's liveness beacon: a quiet monitor writes no log lines, so mtime is the only proof it is still polling. Read by [`reconcile.md`](reconcile.md) Step 3.6; a beacon older than 15 minutes means the poller is dead.
 
 ## `watch-watermark.env`
 

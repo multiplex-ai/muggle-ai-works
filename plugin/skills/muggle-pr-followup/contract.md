@@ -12,7 +12,7 @@ Routing into this mode is documented in [`SKILL.md`](SKILL.md#routing). The arch
 
 ## Input
 
-`$ARGUMENTS = <slug> <pr-number>` (or `<pr-number>` alone — slug inferred from on-disk state per [`SKILL.md`](SKILL.md#routing)).
+`$ARGUMENTS = <slug> <pr-number> [--wake=<event>]` (or `<pr-number>` alone — slug inferred from on-disk state per [`SKILL.md`](SKILL.md#routing)). `--wake` is consumed by routing's live-watcher gate; the tick itself ignores it. An invocation that reaches this file has already passed that gate — a live watcher plus no `--wake` never gets here.
 
 ## Inputs from disk
 

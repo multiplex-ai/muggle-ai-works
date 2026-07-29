@@ -29,15 +29,18 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 | Input | On-disk check | Mode |
 | :---- | :------------ | :--- |
 | First arg matches `https?://github\.com/[^/]+/[^/]+/pull/\d+` | — | **bootstrap** → [`bootstrap.md`](bootstrap.md) |
-| `<slug> <pr-number>` | session dir for `<slug>` exists | **tick** → [`contract.md`](contract.md) |
+| `<slug> <pr-number>` | session dir for `<slug>` exists; slot's `watch.pid` is dead, or `--wake` passed | **tick** → [`contract.md`](contract.md) |
+| `<slug> <pr-number>` | session dir for `<slug>` exists; `watch.pid` names a live process and no `--wake` | **watch-status** — report the slot from on-disk state (`prs.json` state + head, newest `followup.log` tick line, monitor liveness, watermark floors). **Zero provider calls:** a live monitor owns the cadence, and the session never polls unwoken. |
 | `<slug> <pr-number>` | session dir missing, `<slug>.stopped` exists (or the global kill file `~/.muggle-ai/muggle-do/polling.disabled`) | **absorb** — one line, nothing else ([`contract.md`](contract.md) Step 0) |
 | `<slug> <pr-number>` | session dir missing | **error:** "no session at `<path>`; pass a PR URL to start one" |
 | `stop` (optional `<slug>`) | — | **stop** → [`stop.md`](stop.md) — tear down monitor + cron, mark slot(s) `.stopped`; no slug stops everything and writes the kill file |
-| `<pr-number>` alone | exactly one existing session contains it | **tick** for that PR |
+| `<pr-number>` alone | exactly one existing session contains it | **tick** or **watch-status** for that PR, by the same `watch.pid` gate |
 | `<pr-number>` alone | zero or multiple matches | **error:** ambiguous; list candidates and exit |
 | empty | — | **auto-track** → [`auto-track.md`](auto-track.md) |
 | `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 | `reconcile` / `sweep` (optional `<slug>`) | — | **reconcile** → [`reconcile.md`](reconcile.md) |
+
+**`--wake=<event>`** is passed only by an event wake's dispatch ([`arm-watcher.md`](arm-watcher.md) step 5) — it asserts the monitor already saw something new, so the tick's poll is justified. Manual invocations never pass it; with a live watcher they get watch-status, because a poll that nothing prompted is a main-session poll wasted. Recovery fires need no flag — a recoverable slot's watcher is dead by definition, so the gate falls through to tick. A stale cron firing against a re-armed slot hits the live-`watch.pid` branch and is absorbed as a status line, no provider calls.
 
 Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session) and re-arms any open slot whose watcher stopped silently (a dropped respawn). Reconcile recovers a watcher that was already running; it never seeds a first watcher for a PR — that is auto-track's / bootstrap's job.
 

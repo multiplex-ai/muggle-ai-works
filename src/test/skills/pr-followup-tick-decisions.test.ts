@@ -192,3 +192,28 @@ describe("SKILL.md routing — the error branches stay documented", () => {
     expect(/ambiguous/i.test(skill)).toBe(true);
   });
 });
+
+describe("SKILL.md routing — live-watcher gate: the session never polls unwoken", () => {
+  const skill = read("SKILL.md");
+  const armWatcher = read("arm-watcher.md");
+
+  // A manual `<slug> <n>` while a monitor owns the slot must not reach
+  // contract.md — that poll would be a main-session provider fetch nothing
+  // prompted. Watch-status reads only on-disk state.
+  it("routes a manual invocation with a live watch.pid to watch-status, zero provider calls", () => {
+    expect(skill).toMatch(/watch-status/);
+    expect(skill).toMatch(/Zero provider calls/i);
+    expect(skill).toMatch(/never polls unwoken/i);
+    expect(skill).toMatch(/`watch\.pid` is dead, or `--wake` passed/);
+  });
+
+  it("documents --wake as the event wake's justification, never manual", () => {
+    expect(skill).toMatch(/--wake=<event>/);
+    expect(skill).toMatch(/Manual invocations never pass it/i);
+    expect(skill).toMatch(/stale cron .* absorbed as a status line/i);
+  });
+
+  it("the event wake dispatches its tick with --wake", () => {
+    expect(armWatcher).toMatch(/--wake=<event>/);
+  });
+});

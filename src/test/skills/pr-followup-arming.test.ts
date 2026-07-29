@@ -53,12 +53,13 @@ describe("pr-followup arming wiring", () => {
     expect(armWatcher).toMatch(/never\b.{0,15}while true.{0,15}unbounded/i);
   });
 
-  // Wake turns dispatch, never work inline — otherwise every cycle re-reads
-  // the orchestrating session's context and cost scales with its size.
-  it("mandates dispatching the wake's tick-and-cycle to a fresh context", () => {
-    expect(armWatcher).toMatch(/dispatch/i);
-    expect(armWatcher).toMatch(/fresh context/i);
-    expect(armWatcher).toMatch(/inline/i);
+  // Wake turns run the cycle inline in the owning session — a subagent only
+  // knows its briefing plus disk/provider state, so session history (decisions,
+  // review nuance) would be silently missing from the cycle.
+  it("mandates running the wake's tick-and-cycle inline in the owning session", () => {
+    expect(armWatcher).toMatch(/inline in the owning session/);
+    expect(armWatcher).toMatch(/never in a subagent/);
+    expect(armWatcher).not.toMatch(/fresh context/i);
   });
 
   it("every arming point routes through arm-watcher.md", () => {

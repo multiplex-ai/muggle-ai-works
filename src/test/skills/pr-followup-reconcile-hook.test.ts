@@ -131,13 +131,35 @@ describe("pr-followup session-start reconcile nudge", () => {
       expect(reconcile).toMatch(/newest \*\*tick line\*\*/);
       expect(reconcile).toMatch(/Non-tick lines are \*\*not\*\* beacons/);
       expect(reconcile).toMatch(/logging is not polling/);
-      expect(reconcile).toMatch(/heartbeat-or-tick-line beacon/);
       expect(reconcile).not.toMatch(/newest ISO-8601 line in `followup\.log`/);
     });
 
     it("SKILL.md notes reconcile is also triggered at session start", () => {
       expect(skill).toMatch(/session start/i);
       expect(skill).toMatch(/SessionStart|session-start hook/i);
+    });
+
+    // Watching is session-scoped by design (owner decision): nothing polls out
+    // of session, because a review is addressed only inside a session that
+    // carries the context. No out-of-session watchdog daemon, ever.
+    it("no skill doc resurrects an out-of-session watchdog", () => {
+      for (const [name, body] of [
+        ["reconcile.md", reconcile],
+        ["SKILL.md", skill],
+        ["arm-watcher.md", read(path.join(SKILL_DIR, "arm-watcher.md"))],
+        ["contract.md", read(path.join(SKILL_DIR, "contract.md"))],
+        ["state-schemas.md", read(path.join(SKILL_DIR, "state-schemas.md"))],
+        ["stop.md", read(path.join(SKILL_DIR, "stop.md"))],
+      ] as const) {
+        expect(/watchdog/i.test(body), `${name} still names a watchdog`).toBe(false);
+        expect(/headless.*(recovery )?tick|claude -p/i.test(body), `${name} still spawns headless ticks`).toBe(false);
+      }
+    });
+
+    it("reconcile.md documents session-scoped recovery — session down, watchers down; session up, re-armed", () => {
+      expect(reconcile).toMatch(/session-scoped/i);
+      expect(reconcile).toMatch(/next session start/i);
+      expect(reconcile).toMatch(/context to address it/i);
     });
 
     it("hooks README documents the nudge script", () => {

@@ -34,10 +34,6 @@ const stop = read("stop.md");
 const contract = read("contract.md");
 const reconcile = read("reconcile.md");
 const bootstrap = read("bootstrap.md");
-const watchdogScript = fs.readFileSync(
-  path.join(REPO_ROOT, "plugin", "scripts", "pr-followup-watchdog.mjs"),
-  "utf8",
-);
 
 describe("stop mode — one command tears down every substrate", () => {
   it("is routed from SKILL.md", () => {
@@ -105,10 +101,6 @@ describe("no recovery path revives a stopped slot", () => {
       reconcile.indexOf("### Step 4"),
     );
     expect(rearm).toMatch(/polling\.disabled/);
-  });
-
-  it("the out-of-session watchdog skips .stopped slots in code", () => {
-    expect(watchdogScript).toMatch(/\.stopped/);
   });
 
   it("bootstrap clears the kill file — an explicit URL is consent to watch again", () => {

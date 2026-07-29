@@ -157,11 +157,11 @@ Everything else that idles is **transient** — green and waiting for the next r
 
 ### Step 7.5 — Hand a cron-delivered tick back to the monitor
 
-Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block — and only when the tick was **delivered by a recovery cron** (`/loop` fired it). A monitor wake skips this step (the monitor already owns the cadence), and so does a headless watchdog tick (its one-shot session cannot host a persistent monitor). The cron's job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the monitor polls token-free at the same `1m` cadence ([`arm-watcher.md`](arm-watcher.md)).
+Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block — and only when the tick was **delivered by a recovery cron** (`/loop` fired it). A monitor wake skips this step (the monitor already owns the cadence). The cron's job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the monitor polls token-free at the same `1m` cadence ([`arm-watcher.md`](arm-watcher.md)).
 
 Check the slot's `watch-heartbeat` mtime — a live monitor touches it every iteration:
 
-- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark from a fresh post-tick fetch, start the persistent monitor, ensure the watchdog. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
+- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark from a fresh post-tick fetch, start the persistent monitor. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
 - **Fresh** — a monitor already owns the cadence and this cron is a duplicate poller. Cancel the cron per [`cancel-cron.md`](cancel-cron.md); nothing to arm.
 
 Either way exactly one poller remains — the monitor — and at most one model turn was spent. Without this step a recovery cron keeps firing a model-turn tick every minute until its 7-day expiry, burning tokens on unchanged PRs the whole time.

@@ -78,9 +78,8 @@ describe("contract Step 7.5 — a cron-delivered tick hands back to the monitor"
     expect(step75).toMatch(/token-free/);
   });
 
-  it("exempts monitor wakes and headless watchdog ticks", () => {
+  it("exempts a monitor wake — it already owns the cadence", () => {
     expect(step75).toMatch(/monitor wake/i);
-    expect(step75).toMatch(/headless watchdog tick/i);
   });
 
   it("both Step 7 idle branches and a Step 2.5 held block route through it", () => {

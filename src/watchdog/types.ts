@@ -51,7 +51,7 @@ export interface SlotDecisionInput {
   pollSnapshot: SlotPollSnapshot;
   signature: string;
   storedSlotState: WatchdogSlotState;
-  newestFollowupLogTimestampMs: number | null;
+  newestTickLineTimestampMs: number | null;
   nowMs: number;
   confirmSignalAfterMs: number;
   spawnRetryAfterMs: number;

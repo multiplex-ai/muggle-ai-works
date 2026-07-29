@@ -26,7 +26,7 @@ import {
   WATCH_HEARTBEAT_FILENAME,
 } from "./constants.js";
 import { decideSlotAction, emptyWatchdogSlotState } from "./decide.js";
-import { isCycleInProgress, newestFollowupLogTimestampMs } from "./followupLog.js";
+import { isCycleInProgress, newestTickLineTimestampMs } from "./followupLog.js";
 import {
   isGitlabMrConflicting,
   mapGitlabDiscussionsToThreadSnapshots,
@@ -380,10 +380,10 @@ function scanOnce(nowMs: number): { openSlotCount: number; spawnedCount: number 
   for (const slot of openSlots) {
     try {
       const followupLogText = readTextOrEmpty(join(slot.slotDir, "followup.log"));
-      const newestLogMs = newestFollowupLogTimestampMs(followupLogText);
+      const newestTickMs = newestTickLineTimestampMs(followupLogText);
       const watcherLive = isWatcherLive({
         heartbeatMtimeMs: mtimeMsOrNull(join(slot.slotDir, WATCH_HEARTBEAT_FILENAME)),
-        newestFollowupLogTimestampMs: newestLogMs,
+        newestTickLineTimestampMs: newestTickMs,
         nowMs: nowMs,
       });
       const cycleInProgress =
@@ -399,7 +399,7 @@ function scanOnce(nowMs: number): { openSlotCount: number; spawnedCount: number 
         pollSnapshot: pollSnapshot,
         signature: computeSlotSignature(pollSnapshot),
         storedSlotState: readJsonOrNull<WatchdogSlotState>(slotStateFile) ?? emptyWatchdogSlotState(),
-        newestFollowupLogTimestampMs: newestLogMs,
+        newestTickLineTimestampMs: newestTickMs,
         nowMs: nowMs,
         confirmSignalAfterMs: PENDING_SIGNAL_CONFIRM_AFTER_MS,
         spawnRetryAfterMs: SPAWN_RETRY_AFTER_MS,

@@ -123,6 +123,18 @@ describe("pr-followup session-start reconcile nudge", () => {
       expect(reconcile).toMatch(/Recover,?\s*don'?t\s*seed/i);
     });
 
+    it("reconcile.md scopes the log beacon to tick lines — logging is not polling", () => {
+      // An armed/re-armed announcement or cycle note is written by a session
+      // that may die the next instant; if it counted as liveness, a dead slot
+      // would sit unwatched for the whole staleness window (and auto-track,
+      // which skips existing slots, would never catch it either).
+      expect(reconcile).toMatch(/newest \*\*tick line\*\*/);
+      expect(reconcile).toMatch(/Non-tick lines are \*\*not\*\* beacons/);
+      expect(reconcile).toMatch(/logging is not polling/);
+      expect(reconcile).toMatch(/heartbeat-or-tick-line beacon/);
+      expect(reconcile).not.toMatch(/newest ISO-8601 line in `followup\.log`/);
+    });
+
     it("SKILL.md notes reconcile is also triggered at session start", () => {
       expect(skill).toMatch(/session start/i);
       expect(skill).toMatch(/SessionStart|session-start hook/i);

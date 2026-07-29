@@ -63,8 +63,8 @@ export function decideSlotAction(input: SlotDecisionInput): SlotDecision {
     // stay retry-eligible for as long as the slot exists.
     const tickRanAfterSpawn =
       input.pollSnapshot.prState === "OPEN" &&
-      input.newestFollowupLogTimestampMs !== null &&
-      input.newestFollowupLogTimestampMs > lastSpawnMs;
+      input.newestTickLineTimestampMs !== null &&
+      input.newestTickLineTimestampMs > lastSpawnMs;
     if (tickRanAfterSpawn) return skip(SlotSkipReason.AlreadyHandled);
     if (input.nowMs - lastSpawnMs < input.spawnRetryAfterMs) {
       return skip(SlotSkipReason.AwaitingSpawnRetryWindow);

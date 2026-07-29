@@ -80,7 +80,7 @@ function decideSlotAction(input) {
   }
   if (stored.last_spawn_signature === input.signature && stored.last_spawn_at !== null) {
     const lastSpawnMs = Date.parse(stored.last_spawn_at);
-    const tickRanAfterSpawn = input.pollSnapshot.prState === "OPEN" && input.newestFollowupLogTimestampMs !== null && input.newestFollowupLogTimestampMs > lastSpawnMs;
+    const tickRanAfterSpawn = input.pollSnapshot.prState === "OPEN" && input.newestTickLineTimestampMs !== null && input.newestTickLineTimestampMs > lastSpawnMs;
     if (tickRanAfterSpawn) return skip("already-handled" /* AlreadyHandled */);
     if (input.nowMs - lastSpawnMs < input.spawnRetryAfterMs) {
       return skip("awaiting-spawn-retry-window" /* AwaitingSpawnRetryWindow */);
@@ -105,14 +105,16 @@ function decideSlotAction(input) {
 // src/watchdog/followupLog.ts
 var DISPATCH_LINE_PATTERN = /\bdispatch/i;
 var CYCLE_OUTCOME_LINE_PATTERN = /\boutcome=/i;
+var TICK_LINE_PATTERN = /^\s*\S+\s+(?:stale-)?tick\b/;
 function lineTimestampMs(line) {
   const firstToken = line.trimStart().split(/\s+/, 1)[0] ?? "";
   const parsed = Date.parse(firstToken);
   return Number.isNaN(parsed) ? null : parsed;
 }
-function newestFollowupLogTimestampMs(logText) {
+function newestTickLineTimestampMs(logText) {
   let newestMs = null;
   for (const line of logText.split("\n")) {
+    if (!TICK_LINE_PATTERN.test(line)) continue;
     const timestampMs = lineTimestampMs(line);
     if (timestampMs !== null && (newestMs === null || timestampMs > newestMs)) {
       newestMs = timestampMs;
@@ -173,7 +175,7 @@ function isWatcherLive(args) {
   const staleAfterMs = args.staleAfterMs ?? WATCHER_LIVENESS_STALE_AFTER_MS;
   const newestBeaconMs = Math.max(
     args.heartbeatMtimeMs ?? Number.NEGATIVE_INFINITY,
-    args.newestFollowupLogTimestampMs ?? Number.NEGATIVE_INFINITY
+    args.newestTickLineTimestampMs ?? Number.NEGATIVE_INFINITY
   );
   return args.nowMs - newestBeaconMs < staleAfterMs;
 }
@@ -416,10 +418,10 @@ function scanOnce(nowMs) {
   for (const slot of openSlots) {
     try {
       const followupLogText = readTextOrEmpty(join(slot.slotDir, "followup.log"));
-      const newestLogMs = newestFollowupLogTimestampMs(followupLogText);
+      const newestTickMs = newestTickLineTimestampMs(followupLogText);
       const watcherLive = isWatcherLive({
         heartbeatMtimeMs: mtimeMsOrNull(join(slot.slotDir, WATCH_HEARTBEAT_FILENAME)),
-        newestFollowupLogTimestampMs: newestLogMs,
+        newestTickLineTimestampMs: newestTickMs,
         nowMs
       });
       const cycleInProgress = !watcherLive && isCycleInProgress({ logText: followupLogText, nowMs });
@@ -432,7 +434,7 @@ function scanOnce(nowMs) {
         pollSnapshot,
         signature: computeSlotSignature(pollSnapshot),
         storedSlotState: readJsonOrNull(slotStateFile) ?? emptyWatchdogSlotState(),
-        newestFollowupLogTimestampMs: newestLogMs,
+        newestTickLineTimestampMs: newestTickMs,
         nowMs,
         confirmSignalAfterMs: PENDING_SIGNAL_CONFIRM_AFTER_MS,
         spawnRetryAfterMs: SPAWN_RETRY_AFTER_MS

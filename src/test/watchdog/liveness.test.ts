@@ -9,17 +9,17 @@ describe("isWatcherLive", () => {
     expect(
       isWatcherLive({
         heartbeatMtimeMs: NOW_MS - 2 * MINUTE_MS,
-        newestFollowupLogTimestampMs: NOW_MS - 60 * MINUTE_MS,
+        newestTickLineTimestampMs: NOW_MS - 60 * MINUTE_MS,
         nowMs: NOW_MS,
       }),
     ).toBe(true);
   });
 
-  it("fresh log line alone is live — a recovery cron has no heartbeat file", () => {
+  it("fresh tick line alone is live — a recovery cron has no heartbeat file", () => {
     expect(
       isWatcherLive({
         heartbeatMtimeMs: null,
-        newestFollowupLogTimestampMs: NOW_MS - 1 * MINUTE_MS,
+        newestTickLineTimestampMs: NOW_MS - 1 * MINUTE_MS,
         nowMs: NOW_MS,
       }),
     ).toBe(true);
@@ -29,7 +29,7 @@ describe("isWatcherLive", () => {
     expect(
       isWatcherLive({
         heartbeatMtimeMs: NOW_MS - 20 * MINUTE_MS,
-        newestFollowupLogTimestampMs: NOW_MS - 16 * MINUTE_MS,
+        newestTickLineTimestampMs: NOW_MS - 16 * MINUTE_MS,
         nowMs: NOW_MS,
       }),
     ).toBe(false);
@@ -37,7 +37,7 @@ describe("isWatcherLive", () => {
 
   it("no beacon at all is dead", () => {
     expect(
-      isWatcherLive({ heartbeatMtimeMs: null, newestFollowupLogTimestampMs: null, nowMs: NOW_MS }),
+      isWatcherLive({ heartbeatMtimeMs: null, newestTickLineTimestampMs: null, nowMs: NOW_MS }),
     ).toBe(false);
   });
 
@@ -45,7 +45,7 @@ describe("isWatcherLive", () => {
     expect(
       isWatcherLive({
         heartbeatMtimeMs: NOW_MS - 4 * MINUTE_MS,
-        newestFollowupLogTimestampMs: null,
+        newestTickLineTimestampMs: null,
         nowMs: NOW_MS,
         staleAfterMs: 3 * MINUTE_MS,
       }),

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isCycleInProgress, newestFollowupLogTimestampMs } from "../../watchdog/followupLog.js";
+import { isCycleInProgress, newestTickLineTimestampMs } from "../../watchdog/followupLog.js";
+import { isWatcherLive } from "../../watchdog/liveness.js";
 
 const NOW_MS = Date.parse("2026-07-23T12:00:00Z");
 const MINUTE_MS = 60 * 1000;
@@ -8,19 +9,52 @@ function minutesAgoIso(minutes: number): string {
   return new Date(NOW_MS - minutes * MINUTE_MS).toISOString();
 }
 
-describe("newestFollowupLogTimestampMs", () => {
-  it("returns the newest parseable line timestamp", () => {
+describe("newestTickLineTimestampMs", () => {
+  it("returns the newest tick-line timestamp", () => {
     const logText = [
       `${minutesAgoIso(30)} tick pr=154 threads=0 idle`,
       `${minutesAgoIso(10)} tick pr=154 threads=0 idle`,
       `${minutesAgoIso(20)} tick pr=154 threads=0 idle`,
     ].join("\n");
-    expect(newestFollowupLogTimestampMs(logText)).toBe(NOW_MS - 10 * MINUTE_MS);
+    expect(newestTickLineTimestampMs(logText)).toBe(NOW_MS - 10 * MINUTE_MS);
   });
 
-  it("returns null for empty or unparseable content", () => {
-    expect(newestFollowupLogTimestampMs("")).toBeNull();
-    expect(newestFollowupLogTimestampMs("no timestamp here\nnor here")).toBeNull();
+  it("counts stale-tick and blocked/terminal tick lines", () => {
+    const logText = [
+      `${minutesAgoIso(20)} stale-tick pr=154`,
+      `${minutesAgoIso(30)} tick pr=154 blocked reason=ci_escalated`,
+    ].join("\n");
+    expect(newestTickLineTimestampMs(logText)).toBe(NOW_MS - 20 * MINUTE_MS);
+  });
+
+  it("ignores non-tick lines — logging is not polling", () => {
+    // The incident shape: a slot whose only fresh lines are arming/cycle
+    // announcements has no live poller, yet the old any-line beacon read it
+    // as alive and reconcile skipped the re-arm.
+    const logText = [
+      `${minutesAgoIso(60)} tick pr=154 threads=0 idle`,
+      `${minutesAgoIso(3)} armed monitor-based watch (drain clean: 0 reviews)`,
+      `${minutesAgoIso(2)} re-armed monitor watch after session restart`,
+      `${minutesAgoIso(2)} cycle rebase pr=154 pushed=abc1234 watcher=not-rearmed`,
+      `${minutesAgoIso(1)} slot x: Error: gh api exited 1 (HTTP 504)`,
+      `${minutesAgoIso(1)} watchdog spawned recovery tick pr=154 reason=confirmed-signal`,
+    ].join("\n");
+    expect(newestTickLineTimestampMs(logText)).toBe(NOW_MS - 60 * MINUTE_MS);
+    expect(
+      isWatcherLive({
+        heartbeatMtimeMs: null,
+        newestTickLineTimestampMs: newestTickLineTimestampMs(logText),
+        nowMs: NOW_MS,
+      }),
+    ).toBe(false);
+  });
+
+  it("returns null for empty, unparseable, or tick-free content", () => {
+    expect(newestTickLineTimestampMs("")).toBeNull();
+    expect(newestTickLineTimestampMs("no timestamp here\nnor here")).toBeNull();
+    expect(
+      newestTickLineTimestampMs(`${minutesAgoIso(1)} re-armed (silent watcher)`),
+    ).toBeNull();
   });
 });
 

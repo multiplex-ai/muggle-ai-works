@@ -39,7 +39,7 @@ function decisionInput(
     pollSnapshot: pollSnapshot,
     signature: computeSlotSignature(pollSnapshot),
     storedSlotState: emptyWatchdogSlotState(),
-    newestFollowupLogTimestampMs: null,
+    newestTickLineTimestampMs: null,
     nowMs: NOW_MS,
     confirmSignalAfterMs: CONFIRM_AFTER_MS,
     spawnRetryAfterMs: RETRY_AFTER_MS,
@@ -138,7 +138,7 @@ describe("decideSlotAction", () => {
     const decision = decideSlotAction(
       decisionInput(pollSnapshot, {
         storedSlotState: stored,
-        newestFollowupLogTimestampMs: spawnedAtMs + 2 * MINUTE_MS,
+        newestTickLineTimestampMs: spawnedAtMs + 2 * MINUTE_MS,
       }),
     );
     expect(decision.action).toBe(SlotWatchAction.Skip);
@@ -184,7 +184,7 @@ describe("decideSlotAction", () => {
     const decision = decideSlotAction(
       decisionInput(pollSnapshot, {
         storedSlotState: stored,
-        newestFollowupLogTimestampMs: spawnedAtMs + 2 * MINUTE_MS,
+        newestTickLineTimestampMs: spawnedAtMs + 2 * MINUTE_MS,
       }),
     );
     expect(decision.action).toBe(SlotWatchAction.SpawnTick);
@@ -204,7 +204,7 @@ describe("decideSlotAction", () => {
     const decision = decideSlotAction(
       decisionInput(newSnapshot, {
         storedSlotState: stored,
-        newestFollowupLogTimestampMs: spawnedAtMs + MINUTE_MS,
+        newestTickLineTimestampMs: spawnedAtMs + MINUTE_MS,
       }),
     );
     expect(decision.action).toBe(SlotWatchAction.RecordPendingSignal);

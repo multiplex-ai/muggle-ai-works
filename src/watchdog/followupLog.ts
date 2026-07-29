@@ -2,6 +2,7 @@ import { CYCLE_IN_PROGRESS_GRACE_MS } from "./constants.js";
 
 const DISPATCH_LINE_PATTERN = /\bdispatch/i;
 const CYCLE_OUTCOME_LINE_PATTERN = /\boutcome=/i;
+const TICK_LINE_PATTERN = /^\s*\S+\s+(?:stale-)?tick\b/;
 
 function lineTimestampMs(line: string): number | null {
   const firstToken = line.trimStart().split(/\s+/, 1)[0] ?? "";
@@ -9,10 +10,17 @@ function lineTimestampMs(line: string): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-/** Newest ISO-8601 line timestamp in a followup.log body, or null when none parse. */
-export function newestFollowupLogTimestampMs(logText: string): number | null {
+/**
+ * Newest timestamp among tick lines (`<ISO> tick …` / `<ISO> stale-tick …`),
+ * or null when the log has none. Only a tick line proves the poller fired:
+ * arming announcements, re-arm notes, cycle lines, and errors are written by
+ * sessions that can die the next instant, so counting them as liveness masks
+ * a dead watcher for the whole staleness window.
+ */
+export function newestTickLineTimestampMs(logText: string): number | null {
   let newestMs: number | null = null;
   for (const line of logText.split("\n")) {
+    if (!TICK_LINE_PATTERN.test(line)) continue;
     const timestampMs = lineTimestampMs(line);
     if (timestampMs !== null && (newestMs === null || timestampMs > newestMs)) {
       newestMs = timestampMs;

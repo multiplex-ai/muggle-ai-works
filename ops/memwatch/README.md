@@ -19,6 +19,18 @@ Start-Process powershell -Verb RunAs -ArgumentList '-NoProfile','-ExecutionPolic
 
 `install-memwatch.ps1` copies the sampler to `~\.muggle-ai\memwatch\bin\` so the task survives checkout deletion. The elevated installer writes `~\.muggle-ai\memwatch\install-elevated-result.json` for verification from an unelevated shell.
 
+## Pause / resume
+
+Turn the sampler off or on without unregistering it — samples and `trip-state.json` are kept:
+
+```powershell
+.\toggle-memwatch.ps1 -Off    # pause the per-minute sampler
+.\toggle-memwatch.ps1 -On     # resume it
+.\toggle-memwatch.ps1         # show current state / last run
+```
+
+`-Off` disables the scheduled task, `-On` re-enables it — both unprivileged. This is the reversible switch; to remove the task entirely instead, see [Uninstall](#uninstall). The elevated flight-recorder and audit pieces are not covered by this switch (they have no per-user disable) — manage them via their own commands in Uninstall.
+
 ## Data locations
 
 All under `~\.muggle-ai\memwatch\`: `memwatch-YYYYMMDD.jsonl` (14-day retention), `memsnapshot-*.json` (tripwire dumps, 90-day retention), `flight\memflight*.blg` (circular), `trip-state.json`.
@@ -31,6 +43,8 @@ All under `~\.muggle-ai\memwatch\`: `memwatch-YYYYMMDD.jsonl` (14-day retention)
 4. Security log 4688 events: spawn tree with command lines.
 
 ## Uninstall
+
+Full removal. To only pause the sampler (reversible), use [Pause / resume](#pause--resume) instead.
 
 ```powershell
 Unregister-ScheduledTask MuggleMemwatch -Confirm:$false

@@ -12,6 +12,8 @@ Skills assume a working `glab auth status`. Auth errors surface verbatim from `g
 | :----- | :------- |
 | [`mr-metadata`](gitlab/mr-metadata.md) | Snapshot MR state, head SHA, branch, conflict + out-of-date detection — watcher + bootstrap. |
 | [`mr-pipeline`](gitlab/mr-pipeline.md) | Pipeline-job rollup for the head SHA — watcher's CI poll. |
+| [`ci-rollup`](common/ci-rollup.md) | Tool-agnostic CI poll — dispatches to `pr-checks` / `mr-pipeline`, folds into red/pending/green. |
+| [`branch-standing`](common/branch-standing.md) | Tool-agnostic conflict + out-of-date detection — dispatches to `pr-metadata` / `mr-metadata`. |
 | [`mr-discussions`](gitlab/mr-discussions.md) | Fetch incoming notes/discussions — watcher's feedback poll. |
 | [`unresolved-discussions`](gitlab/unresolved-discussions.md) | Unresolved-discussion state — watcher's dispatch trigger + resolve-reminder. |
 | [`reply-discussion`](gitlab/reply-discussion.md) | POST a threaded reply on a discussion. |

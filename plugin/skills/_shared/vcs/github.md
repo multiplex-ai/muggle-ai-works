@@ -11,6 +11,8 @@ Skills assume a working `gh auth status`. Auth errors surface verbatim from `gh`
 | [`pr-metadata`](github/pr-metadata.md) | Snapshot PR state, head SHA, branch, conflict + `behind_by` out-of-date detection — watcher + bootstrap. |
 | [`submitted-reviews`](github/submitted-reviews.md) | Fetch a review by id / watcher's body-only-review check. |
 | [`pr-checks`](github/pr-checks.md) | Check-run rollup for the head SHA — watcher's CI poll. |
+| [`ci-rollup`](common/ci-rollup.md) | Tool-agnostic CI poll — dispatches to `pr-checks` / `mr-pipeline`, folds into red/pending/green. |
+| [`branch-standing`](common/branch-standing.md) | Tool-agnostic conflict + out-of-date detection — dispatches to `pr-metadata` / `mr-metadata`. |
 | [`line-comments-for-review`](github/line-comments-for-review.md) | Pull a review's line comments — `/muggle-do` per-comment routing. |
 | [`unresolved-threads`](github/unresolved-threads.md) | GraphQL unresolved-thread state — watcher's dispatch trigger + resolve-reminder. |
 | [`reply-line-comment`](github/reply-line-comment.md) | POST a threaded reply on a line comment. |

@@ -152,7 +152,7 @@
       "files": [],
       "assertions": [
         { "name": "detects_dead_monitor_from_beacon", "text": "Plan reads watch-heartbeat, finds it missing or older than 3 minutes, and concludes the monitor is dead and this cron has become the primary poller." },
-        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark from a fresh post-tick fetch, start the persistent labeled monitor — using this tick as the drain." },
+        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark to the ids this tick itself read (its own observed max, not a fresh post-tick fetch), start the persistent labeled monitor — using this tick as the drain." },
         { "name": "cancels_cron_after_arming", "text": "Plan then cancels this cron per cancel-cron.md and appends a re-armed (monitor restored) line to followup.log, so the 1m cadence lives in the token-free monitor rather than a per-minute model turn." },
         { "name": "never_rearms_with_a_cron", "text": "Plan does NOT restore the poller by creating a recurring /loop cron; the cron is only ever a one-shot recovery delivery." }
       ]

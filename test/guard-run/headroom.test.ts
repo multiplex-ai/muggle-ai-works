@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeNprocCeiling, countProcessListLines } from "../../guard-run/headroom.js";
+import { computeNprocCeiling, countProcessListLines } from "../../src/guard-run/headroom.js";
 
 describe("countProcessListLines", () => {
   it("counts one process per non-blank line", () => {

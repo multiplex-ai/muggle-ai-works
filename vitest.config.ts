@@ -5,6 +5,10 @@ export default defineConfig({
     // Watch never exits and orphans on Windows kill; opt-in only.
     watch: process.env.MUGGLE_VITEST_WATCH === "1",
     passWithNoTests: true,
+    // First entry is Vitest's default glob (kept so packages/** and internal/**
+    // stay discovered); second makes the top-level test/ tree — tests mirror
+    // their src/ path there — explicit.
+    include: ["**/*.{test,spec}.?(c|m)[jt]s?(x)", "test/**/*.test.ts"],
     exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**'],
     coverage: {
       provider: "v8",

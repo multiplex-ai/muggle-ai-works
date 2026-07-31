@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT } from "../../guard-run/constants.js";
-import { parseGuardRunArguments } from "../../guard-run/parseArguments.js";
+import { GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT } from "../../src/guard-run/constants.js";
+import { parseGuardRunArguments } from "../../src/guard-run/parseArguments.js";
 
 describe("parseGuardRunArguments", () => {
   it("parses flags, separator, and command", () => {

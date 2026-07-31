@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildBackendLaunchPlan,
   buildWindowsCommandLine,
-} from "../../guard-run/buildLaunchPlan.js";
-import { GuardRunBackend, GuardRunOptions } from "../../guard-run/types.js";
+} from "../../src/guard-run/buildLaunchPlan.js";
+import { GuardRunBackend, GuardRunOptions } from "../../src/guard-run/types.js";
 
 function optionsWith(overrides: Partial<GuardRunOptions>): GuardRunOptions {
   return {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { selectGuardRunBackend } from "../../guard-run/selectBackend.js";
-import { GuardRunBackend } from "../../guard-run/types.js";
+import { selectGuardRunBackend } from "../../src/guard-run/selectBackend.js";
+import { GuardRunBackend } from "../../src/guard-run/types.js";
 
 describe("selectGuardRunBackend", () => {
   it("win32 always uses the Job Object shim", () => {

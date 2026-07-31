@@ -161,7 +161,7 @@ Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block
 
 Check the slot's `watch-heartbeat` mtime — a live monitor touches it every iteration:
 
-- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark from a fresh post-tick fetch, start the persistent monitor. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
+- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark to the ids this tick itself read — its own observed max, never a fresh post-tick fetch (a later fetch would swallow a comment that arrived after the tick read the wave) — and start the persistent monitor. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
 - **Fresh** — a monitor already owns the cadence and this cron is a duplicate poller. Cancel the cron per [`cancel-cron.md`](cancel-cron.md); nothing to arm.
 
 Either way exactly one poller remains — the monitor — and at most one model turn was spent. Without this step a recovery cron keeps firing a model-turn tick every minute until its 7-day expiry, burning tokens on unchanged PRs the whole time.

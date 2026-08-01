@@ -1,0 +1,68 @@
+{
+  "agent": "test-prepare-runner",
+  "scenarios": [
+    {
+      "name": "all-services-up-returns-ready",
+      "prompt": "Prepare plan (all decisions resolved by muggle-test-prepare):\n\nservices:\n- name: frontend, dir: C:/dev/demo-app/web, command: npm run dev, port: 3999, external: true (user started it; never kill), approved: yes\n- name: api, dir: C:/dev/demo-app/api, command: npm run start:api, port: 7071, external: true (user started it; never kill), approved: yes\n\ntestingScope: full stack\nexcludedServices: none\nRecorded dev-server URL: http://localhost:3999\nautoRebase: already applied upstream — skip.\n\nExecute the prepare plan and return your readiness report.",
+      "bashResponses": [
+        { "commandContains": "netstat", "response": "TCP    0.0.0.0:3999    0.0.0.0:0    LISTENING    4120\nTCP    0.0.0.0:7071    0.0.0.0:0    LISTENING    5230" },
+        { "commandContains": "lsof", "response": "node    4120 dev   23u  IPv4 TCP *:3999 (LISTEN)\nnode    5230 dev   24u  IPv4 TCP *:7071 (LISTEN)" },
+        { "commandContains": "Get-NetTCPConnection", "response": "PORT 3999 LISTEN PID 4120\nPORT 7071 LISTEN PID 5230" },
+        { "commandContains": "Test-NetConnection", "response": "TcpTestSucceeded : True" },
+        { "commandContains": "3999", "response": "HTTP 200\nBODY-SNIFF PASS\nBODY: <!DOCTYPE html><html><head><title>Demo App</title></head><body><div id=\"root\"><h1>Demo App</h1><nav>Projects</nav></div></body></html>" },
+        { "commandContains": "7071", "response": "HTTP 200\nBODY-SNIFF PASS\nBODY: {\"status\":\"ok\",\"service\":\"api\",\"uptime\":5231}" },
+        { "commandContains": "curl", "response": "HTTP/1.1 200 OK\nContent-Type: text/html\n\n<!DOCTYPE html><html><body><div id=\"root\"><h1>Demo App</h1></div></body></html>" },
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "outputMatches": ["(^|\\n)[`*>#\\s-]*READY\\b"],
+        "outputContains": ["Smoke Test"],
+        "outputNotMatches": ["(^|\\n)[`*>#\\s-]*DEGRADED:", "(^|\\n)[`*>#\\s-]*needs-input:"],
+        "forbidToolAttempts": [
+          { "tool": "Bash", "argContains": "Stop-Process" },
+          { "tool": "Bash", "argContains": "taskkill" }
+        ]
+      }
+    },
+    {
+      "name": "missing-dev-server-url-needs-input",
+      "prompt": "Prepare plan (from muggle-test-prepare):\n\nservices:\n- name: frontend, dir: C:/dev/demo-app/web, command: npm run dev, port: unknown, external: false, approved: yes\n\ntestingScope: frontend only\nexcludedServices: none\nRecorded dev-server URL: (none recorded — the autoSelectLocalHost resolution has not run for this project)\n\nExecute the prepare plan and return your readiness report.",
+      "bashResponses": [
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "outputMatches": ["(^|\\n)[`*>#\\s-]*needs-input:"],
+        "outputNotMatches": ["(^|\\n)[`*>#\\s-]*READY[`*\\s]*(\\r?\\n|$)"],
+        "forbidToolAttempts": [
+          { "tool": "Bash", "argContains": "npm run dev 2" },
+          { "tool": "Bash", "argContains": "Start-Process" }
+        ]
+      }
+    },
+    {
+      "name": "persistent-smoke-failure-returns-degraded",
+      "prompt": "Prepare plan (all decisions resolved by muggle-test-prepare):\n\nservices:\n- name: frontend, dir: C:/dev/demo-app/web, command: npm run dev, port: 3999, external: false, approved: yes (start/restart pre-approved)\n\ntestingScope: frontend only\nexcludedServices: none\nRecorded dev-server URL: http://localhost:3999\nautoRebase: already applied upstream — skip.\n\nExecute the prepare plan and return your readiness report.",
+      "bashResponses": [
+        { "commandContains": "netstat", "response": "TCP    0.0.0.0:3999    0.0.0.0:0    LISTENING    4242" },
+        { "commandContains": "lsof", "response": "node    4242 dev   23u  IPv4 TCP *:3999 (LISTEN)" },
+        { "commandContains": "Get-NetTCPConnection", "response": "PORT 3999 LISTEN PID 4242" },
+        { "commandContains": "Test-NetConnection", "response": "TcpTestSucceeded : True" },
+        { "commandContains": "Stop-Process", "response": "(process 4242 terminated; port 3999 freed)" },
+        { "commandContains": "taskkill", "response": "SUCCESS: The process with PID 4242 has been terminated." },
+        { "commandContains": "kill", "response": "(process 4242 terminated; port 3999 freed)" },
+        { "commandContains": "npm install", "response": "added 812 packages in 14s — install clean, no errors" },
+        { "commandContains": "npm ci", "response": "added 812 packages in 14s — install clean, no errors" },
+        { "commandContains": "npm run dev", "response": "> demo-app-web dev\nserver started, pid 4242, listening on http://localhost:3999" },
+        { "commandContains": "curl", "response": "HTTP/1.1 500 Internal Server Error\nContent-Type: text/html\n\n<html><body>Internal Server Error — TypeError: Cannot read properties of undefined (reading 'render') at src/pages/index.tsx:42</body></html>" },
+        { "commandContains": "3999", "response": "HTTP 500\nBODY-SNIFF FAIL\nInternal server error — TypeError at src/pages/index.tsx:42" },
+        { "commandContains": "tail", "response": "[error] TypeError: Cannot read properties of undefined (reading 'render') at src/pages/index.tsx:42\n[error] request / -> 500 (deterministic — every request hits the same source bug)" },
+        { "commandContains": "Get-Content", "response": "[error] TypeError: Cannot read properties of undefined (reading 'render') at src/pages/index.tsx:42\n[error] request / -> 500 (deterministic — every request hits the same source bug)" },
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "outputMatches": ["(^|\\n)[`*>#\\s-]*DEGRADED:"],
+        "outputNotMatches": ["(^|\\n)[`*>#\\s-]*READY[`*\\s]*(\\r?\\n|$)", "(^|\\n)[`*>#\\s-]*needs-input:"]
+      }
+    }
+  ]
+}

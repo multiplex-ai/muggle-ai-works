@@ -44,6 +44,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts",
+    "test:agents:behavioral": "tsx internal/agent-gate-eval/src/run.ts",
     "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts"
   },
   "muggleConfig": {

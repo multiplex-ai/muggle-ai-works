@@ -1,0 +1,55 @@
+{
+  "agent": "visual-walkthrough-builder",
+  "scenarios": [
+    {
+      "name": "mode-b-renders-without-posting",
+      "prompt": "mode: render-for-new-pr\n\nE2eReport JSON (inline, complete):\n{\"projectId\":\"proj-demo-1\",\"tests\":[{\"testCaseId\":\"tc-101\",\"name\":\"Login flow\",\"result\":\"pass\",\"runId\":\"run-9001\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9001\",\"steps\":[{\"summary\":\"Open login page\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9001-1.png\"},{\"summary\":\"Submit credentials\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9001-2.png\"}]}]}\n\nRender the walkthrough and return it.",
+      "bashResponses": [
+        { "commandContains": "build-pr-section", "response": "{\"body\": \"### 🧪 Muggle Test E2E Walkthrough\\n\\n| Test | Result |\\n| --- | --- |\\n| [Login flow](https://dashboard.muggle-ai.com/runs/run-9001) | ✅ pass |\", \"comment\": null}" },
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "requireToolAttempts": [
+          { "tool": "Bash", "argContains": "build-pr-section" }
+        ],
+        "forbidToolAttempts": [
+          { "tool": "Bash", "argContains": "gh pr comment" },
+          { "tool": "Bash", "argContains": "gh pr create" }
+        ],
+        "outputContains": ["body:", "Muggle Test E2E Walkthrough", "comment:"]
+      }
+    },
+    {
+      "name": "mode-a-posts-comment-to-pr",
+      "prompt": "mode: post\nprNumber: 123\nrepo: multiplex-ai/demo-app (gh is authenticated for it)\n\nE2eReport JSON (inline, complete):\n{\"projectId\":\"proj-demo-1\",\"tests\":[{\"testCaseId\":\"tc-101\",\"name\":\"Login flow\",\"result\":\"pass\",\"runId\":\"run-9001\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9001\",\"steps\":[{\"summary\":\"Open login page\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9001-1.png\"}]},{\"testCaseId\":\"tc-102\",\"name\":\"Checkout\",\"result\":\"fail\",\"runId\":\"run-9002\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9002\",\"steps\":[{\"summary\":\"Add to cart\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9002-1.png\"}]}]}\n\nRender and deliver the walkthrough.",
+      "bashResponses": [
+        { "commandContains": "build-pr-section", "response": "{\"body\": \"### 🧪 Muggle Test E2E Walkthrough\\n\\n| Test | Result |\\n| --- | --- |\\n| [Login flow](https://dashboard.muggle-ai.com/runs/run-9001) | ✅ pass |\\n| [Checkout](https://dashboard.muggle-ai.com/runs/run-9002) | ❌ fail |\", \"comment\": null}" },
+        { "commandContains": "gh pr comment", "response": "https://github.com/multiplex-ai/demo-app/pull/123#issuecomment-99887766" },
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "requireToolAttempts": [
+          { "tool": "Bash", "argContains": "build-pr-section" },
+          { "tool": "Bash", "argContains": "gh pr comment" }
+        ],
+        "outputContains": ["pull/123"],
+        "outputNotContains": ["needs-input:"]
+      }
+    },
+    {
+      "name": "missing-screenshot-url-needs-input",
+      "prompt": "mode: post\nprNumber: 124\nrepo: multiplex-ai/demo-app (gh is authenticated for it)\n\nE2eReport JSON (inline — note: the second step has no screenshotUrl; the assembly source had none for it):\n{\"projectId\":\"proj-demo-1\",\"tests\":[{\"testCaseId\":\"tc-101\",\"name\":\"Login flow\",\"result\":\"pass\",\"runId\":\"run-9001\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9001\",\"steps\":[{\"summary\":\"Open login page\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9001-1.png\"},{\"summary\":\"Submit credentials\"}]}]}\n\nRender and deliver the walkthrough.",
+      "bashResponses": [
+        { "commandContains": "build-pr-section", "response": "exit status 1\nstderr:\nE2eReport validation failed: tests[0].steps[1].screenshotUrl — Required" },
+        { "commandContains": "", "response": "(exit 0, no output)" }
+      ],
+      "expect": {
+        "outputMatches": ["(^|\\n)[`*>#\\s-]*needs-input:"],
+        "outputContains": ["screenshotUrl"],
+        "forbidToolAttempts": [
+          { "tool": "Bash", "argContains": "gh pr comment" }
+        ]
+      }
+    }
+  ]
+}

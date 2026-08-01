@@ -10,7 +10,7 @@ description: Renders and posts a visual walkthrough of Muggle AI E2E acceptance 
 
 Renders a visual walkthrough of Muggle AI E2E acceptance test results and posts it to a PR. Each test case links to its detail page on the Muggle AI dashboard, so reviewers can click through to step-by-step screenshots — not just a pass/fail flag.
 
-This skill is a **dispatcher**: it resolves the mode and any user interaction, then hands execution to the `visual-walkthrough-builder` agent (`plugin/agents/visual-walkthrough-builder.md`). The agent carries `model: sonnet`, which — unlike this file's `model:` — applies even when the skill fires mid-session in a live conversation; that pin gap is why execution lives in the agent. The agent owns E2eReport assembly, `muggle build-pr-section` rendering, the fit-vs-overflow contract, and Mode A posting.
+This skill is a **dispatcher**: it resolves the mode and any user interaction, then hands execution to the `visual-walkthrough-builder` agent (`plugin/agents/visual-walkthrough-builder.md`), which renders and delivers per its own contract.
 
 This is the **canonical PR-walkthrough workflow** shared across every Muggle Test entry point:
 

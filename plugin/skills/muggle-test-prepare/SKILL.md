@@ -81,7 +81,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, and resolved gate outcomes.
 
-**Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan. The agent runs [check-running](./steps/check-running.md), [env-file](./steps/env-file.md), [start-commands](./steps/start-commands.md), [fresh-install](./steps/fresh-install.md), [start-services](./steps/start-services.md), [smoke-test](./steps/smoke-test.md), and [readiness-report](./steps/readiness-report.md), and returns `READY` / `DEGRADED` plus the readiness table. In a harness with no agent/subagent facility, execute those stage files inline instead.
+**Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan; it returns `READY` / `DEGRADED` plus the readiness table. The agent's own definition lists its stage files; in a harness with no agent/subagent facility, run the execute-phase stages ([check-running](./steps/check-running.md) through [readiness-report](./steps/readiness-report.md)) inline instead.
 
 Relay the readiness table to the user or calling skill verbatim. A `needs-input:` line from the agent names an unresolved decision — resolve it here (asking the user if needed) and re-dispatch; the agent never asks.
 

@@ -527,10 +527,12 @@ jobs:
           echo "preflight route=$route"
           # Any concrete route proves the plugin loaded and routing fired — that
           # includes short aliases (mtest, mdo, …), which are valid muggle routes
-          # the probe lands on nondeterministically. Only `none`/empty means the
-          # plugin failed to load or auth was rejected.
+          # the probe lands on nondeterministically. `none`/empty means the
+          # plugin failed to load or auth was rejected; ERROR/TIMEOUT means the
+          # probe session itself is broken — every chunk probe would fail the
+          # same way, so die here instead of burning the whole eval budget.
           case "$route" in
-            none|"") echo "Preflight failed: got '$route'. Plugin not loaded or auth missing." >&2; exit 1 ;;
+            none|""|ERROR|TIMEOUT|THROTTLED) echo "Preflight failed: got '$route'. Plugin not loaded, auth missing, or probe session broken." >&2; exit 1 ;;
             *) echo "plugin loaded; routing works (route=$route)" ;;
           esac
 

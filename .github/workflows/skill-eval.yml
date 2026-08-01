@@ -392,7 +392,8 @@ jobs:
           for results in internal/agent-gate-eval/scenarios/*.results.json; do
             [ -f "$results" ] || continue
             md+="$(node -e '
-              const r = require(process.argv[1]);
+              // require() would treat this relative glob path as a package name
+              const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
               const lines = [`\n**${r.agent}** — model \`${r.model}\` (pin: ${r.modelAlias}), ${r.runsPerScenario} runs/scenario, threshold ${r.passThreshold}`];
               lines.push("", "| Scenario | Pass rate | |", "| --- | --- | --- |");
               for (const s of r.scenarios) {

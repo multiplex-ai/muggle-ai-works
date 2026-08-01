@@ -155,7 +155,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -318,7 +318,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -489,7 +489,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "22"
 

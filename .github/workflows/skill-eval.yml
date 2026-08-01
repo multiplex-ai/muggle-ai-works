@@ -467,7 +467,7 @@ jobs:
           # head: a `model:`-only or body-only change leaves it identical and is
           # skipped. This is what stops a gate-body edit needlessly running (and
           # flaking) the routing eval; a description/name change still runs it.
-          fm() { awk 'NR==1 && $0=="---"{f=1;next} f&&$0=="---"{exit} f{print}' | grep -vE '^model:[[:space:]]'; }
+          fm() { tr -d '\r' | awk 'NR==1 && $0=="---"{f=1;next} f&&$0=="---"{exit} f{print}' | grep -vE '^model:[[:space:]]'; }
           relevant=""
           for s in $(git diff --name-only "$base...HEAD" -- 'plugin/skills/*/SKILL.md' | awk -F/ '{print $3}' | sort -u); do
             before="$(git show "$base:plugin/skills/$s/SKILL.md" 2>/dev/null | fm || true)"

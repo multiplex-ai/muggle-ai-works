@@ -117,6 +117,13 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
         # negatives and crater positive chunks into the disconnect guard.
         if throttle.is_throttle_text("\n".join([error_text, err])):
             return ("THROTTLED", "")
+        # A `--max-turns 1` probe that routes invokes a skill/tool on its only
+        # allowed turn; newer CLIs then exit non-zero with an `error_max_turns`
+        # result. The route intent is already in the stream (the tool_use), so
+        # this is a completed probe, not a broken session, so parse it as normal.
+        # Without this, every successful route scores as ERROR.
+        if "error_max_turns" in out:
+            return ("OK", out)
         if proc.returncode != 0:
             # Surface why the probe failed — an ERROR the caller only sees as the
             # bare string is undiagnosable; the stderr/stream text names the cause

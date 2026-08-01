@@ -31,11 +31,12 @@ echo "$REPORT_JSON" | muggle build-pr-section > /tmp/muggle-pr-section.json
 
 ## Deliver
 
-**Mode A (`post`)** — post `body` as a PR comment, then `comment` only if non-null:
+**Mode A (`post`)** — post `body` as a PR comment, then `comment` only if non-null. Append the Muggle Works signature to each posted body per [`../skills/_shared/vcs/post-signature.md`](../skills/_shared/vcs/post-signature.md) — this post is the walkthrough's own, so the command it names is `/muggle-pr-visual-walkthrough`:
 
 ```bash
-jq -r '.body' /tmp/muggle-pr-section.json | gh pr comment <prNumber> --body-file -
-jq -r '.comment' /tmp/muggle-pr-section.json | gh pr comment <prNumber> --body-file -   # skip when null
+sig='🤖 _Posted by `/muggle-pr-visual-walkthrough` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_'
+{ jq -r '.body' /tmp/muggle-pr-section.json; printf '\n\n%s\n' "$sig"; } | gh pr comment <prNumber> --body-file -
+{ jq -r '.comment' /tmp/muggle-pr-section.json; printf '\n\n%s\n' "$sig"; } | gh pr comment <prNumber> --body-file -   # skip when null
 ```
 
 Report back: PR URL + whether an overflow comment was posted.

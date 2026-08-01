@@ -31,6 +31,12 @@ on:
       routing_workers:
         description: "skill-routing-eval: parallel sessions per chunk"
         default: "6"
+      agent_runs:
+        description: "agent-gate-eval: runs per scenario"
+        default: "5"
+      agent_concurrency:
+        description: "agent-gate-eval: parallel reps per agent"
+        default: "4"
 
 concurrency:
   group: skill-eval-${{ github.ref }}
@@ -252,6 +258,152 @@ jobs:
           printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             marker='<!-- muggle-skill-eval:gate -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
+          fi
+
+  agent-gate-eval:
+    runs-on: ubuntu-latest
+    # LLM-driven like skill-gate-eval, but hermetic (scripted Bash, no brain
+    # checkout) and small: 2 agents × 3 scenarios × AGENT_RUNS reps.
+    timeout-minutes: 90
+    env:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
+      AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '4' }}
+      CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
+    steps:
+      - name: Require secrets
+        run: |
+          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
+
+      - name: Checkout works
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # An agent's behavior shifts when its definition, the eval harness, or the
+      # stage files it Reads at runtime change. Anything else (docs, runtime) is
+      # out of scope on a PR; nightly/dispatch/run-full-eval always run full.
+      - name: Determine scope
+        id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
+        run: |
+          set -euo pipefail
+          if [ "$RUN_FULL_EVAL" = "true" ] || [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Full agent-gate sweep"
+            exit 0
+          fi
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          if git diff --name-only "$base...HEAD" -- \
+               plugin/agents/ internal/agent-gate-eval/ \
+               plugin/skills/muggle-test-prepare/ plugin/skills/muggle-pr-visual-walkthrough/ \
+             | grep -q .; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Agent-relevant changes detected — running agent-gate eval."
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "No agent-relevant changes — agent-gate eval not required."
+          fi
+
+      - name: Setup Node.js
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        if: steps.scope.outputs.should_run == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        if: steps.scope.outputs.should_run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Claude Code CLI
+        if: steps.scope.outputs.should_run == 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Preflight — confirm subscription auth
+        if: steps.scope.outputs.should_run == 'true'
+        run: |
+          set -euo pipefail
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          mkdir -p "$CLAUDE_CONFIG_DIR"
+          if out="$(claude -p 'Respond with exactly: OK' --max-turns 1 2>&1)"; then
+            echo "auth preflight ok"
+          else
+            echo "::error::Subscription auth preflight failed — CLAUDE_CODE_OAUTH_TOKEN is rejected. Regenerate with \`claude setup-token\` and re-set the secret (no trailing newline)." >&2
+            echo "claude output:" >&2
+            echo "$out" >&2
+            exit 1
+          fi
+
+      - name: Run agent-gate evals (every scenario file)
+        if: steps.scope.outputs.should_run == 'true'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
+          mkdir -p "$CLAUDE_CONFIG_DIR"
+          fail=0
+          total=0
+          for scenarios in internal/agent-gate-eval/scenarios/*.json; do
+            case "$scenarios" in *.results.json) continue ;; esac
+            total=$((total + 1))
+            agent="$(basename "$scenarios" .json)"
+            echo "::group::agent=$agent runs=$AGENT_RUNS"
+            if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
+                 --agent "$agent" --runs "$AGENT_RUNS" \
+                 --concurrency "$AGENT_CONCURRENCY"; then
+              echo "PASS $agent"
+            else
+              echo "FAIL $agent"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$total" -eq 0 ]; then
+            echo "No scenario files under internal/agent-gate-eval/scenarios" >&2
+            exit 1
+          fi
+          exit "$fail"
+
+      # Post agent results to the job summary always, and to the PR as a sticky
+      # comment on pull_request runs — same pattern as the gate report.
+      - name: Report agent results
+        if: always() && steps.scope.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          md="### 🤖 Agent gate eval"$'\n'
+          for results in internal/agent-gate-eval/scenarios/*.results.json; do
+            [ -f "$results" ] || continue
+            md+="$(node -e '
+              const r = require(process.argv[1]);
+              const lines = [`\n**${r.agent}** — model \`${r.model}\` (pin: ${r.modelAlias}), ${r.runsPerScenario} runs/scenario, threshold ${r.passThreshold}`];
+              lines.push("", "| Scenario | Pass rate | |", "| --- | --- | --- |");
+              for (const s of r.scenarios) {
+                lines.push(`| ${s.name} | ${s.passes}/${s.runs} | ${s.passed ? "✅" : "❌"} |`);
+              }
+              process.stdout.write(lines.join("\n"));
+            ' "$results")"$'\n'
+          done
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:agent-gate -->'
             body="$(printf '%s\n%s' "$marker" "$md")"
             pr='${{ github.event.pull_request.number }}'
             repo='${{ github.repository }}'

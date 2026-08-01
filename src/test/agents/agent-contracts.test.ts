@@ -140,3 +140,33 @@ describe("skill -> agent dispatch consistency", () => {
     expect(tiersDoc).toContain("test-prepare-runner");
   });
 });
+
+describe("agent behavioral eval coverage", () => {
+  const scenariosDir = path.join(repoRoot, "internal", "agent-gate-eval", "scenarios");
+  const scenarioFiles = fs
+    .readdirSync(scenariosDir)
+    .filter((f) => f.endsWith(".json") && !f.endsWith(".results.json"));
+
+  it.each(["test-prepare-runner", "visual-walkthrough-builder"])(
+    "execution agent %s has behavioral scenarios",
+    (agentName) => {
+      expect(scenarioFiles).toContain(`${agentName}.json`);
+    },
+  );
+
+  it.each(scenarioFiles)("%s targets a real agent and is well-formed", (file) => {
+    const agentName = path.basename(file, ".json");
+    expect(agentFiles, `scenario file ${file} has no matching plugin/agents/${agentName}.md`).toContain(`${agentName}.md`);
+    const parsed = JSON.parse(fs.readFileSync(path.join(scenariosDir, file), "utf8")) as {
+      agent: string;
+      scenarios: Array<{ name: string; prompt: string; expect: unknown }>;
+    };
+    expect(parsed.agent).toBe(agentName);
+    expect(parsed.scenarios.length).toBeGreaterThan(0);
+    for (const scenario of parsed.scenarios) {
+      expect(scenario.name).toBeTruthy();
+      expect(scenario.prompt).toBeTruthy();
+      expect(scenario.expect).toBeTruthy();
+    }
+  });
+});

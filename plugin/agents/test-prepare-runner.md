@@ -37,7 +37,7 @@ Track every launched process in `/tmp/muggle-test-prepare.json` exactly per the 
 
 ## Output contract
 
-Return the readiness-report table verbatim as your report, prefixed by one line: `READY` (all services green), `DEGRADED: <which service, why>` (something is up but failed its smoke test after the clean-restart loop), or `needs-input: <decision>`. The dispatcher relays this to its caller — other skills gate on it, so a wrong `READY` is expensive; when in doubt between READY and DEGRADED, pick DEGRADED and say why.
+Return the readiness-report table verbatim as your report, prefixed by one line: `READY` (all services green), `DEGRADED: <which service, why>` (something is up but failed its smoke test after the clean-restart loop), or `needs-input: <decision>`. The dispatcher relays this to its caller — other skills gate on it, so a wrong `READY` is expensive; when in doubt between READY and DEGRADED, pick DEGRADED and say why. `needs-input:` is only for a decision the plan failed to resolve (a missing URL, an unapproved start, an unknown directory) — a service that stays broken after the loop is `DEGRADED` with the diagnosis, never `needs-input:`, even when no further automated fix exists. Repairing the app's own source code is out of scope entirely: a source-level bug surfaced by the smoke test is a `DEGRADED` diagnosis to report, not a decision to escalate.
 
 ## Guardrails
 

@@ -12,7 +12,7 @@ Make sure the local services a user needs for E2E acceptance testing are up and 
 
 Some users start their own services (tmux scripts, docker-compose, a terminal per service). Others want help launching them. This skill handles both: it verifies readiness first, and only offers to start things when something is missing.
 
-The skill runs in two phases. **Decide (in-session):** every user-facing choice — plan reuse, scope, exclusions, service selection, start approvals — resolved here, in conversation. **Execute (agent):** the resolved plan dispatches to the `test-prepare-runner` agent (`plugin/agents/test-prepare-runner.md`), whose `model: opus` frontmatter — unlike this file's `model:` — holds even when the skill fires mid-session in a cheaper-model conversation. Other skills gate on this skill's readiness verdict, so execution must never run below its reliability floor; that pin gap is why execution lives in the agent.
+The skill runs in two phases. **Decide (in-session):** every user-facing choice — plan reuse, scope, exclusions, service selection, start approvals — resolved here, in conversation. **Execute (agent):** the resolved plan dispatches to the `test-prepare-runner` agent (`plugin/agents/test-prepare-runner.md`), which runs the mechanical stages and returns the readiness verdict.
 
 ## Privacy Boundary
 

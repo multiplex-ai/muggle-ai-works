@@ -118,6 +118,16 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
         if throttle.is_throttle_text("\n".join([error_text, err])):
             return ("THROTTLED", "")
         if proc.returncode != 0:
+            # Surface why the probe failed — an ERROR the caller only sees as the
+            # bare string is undiagnosable; the stderr/stream text names the cause
+            # (plugin load failure, auth rejection, crash).
+            sys.stderr.write(
+                f"  [probe ERROR] rc={proc.returncode}"
+                f" stderr={err.strip()[:1500]!r}"
+                f" stream={error_text.strip()[:500]!r}"
+                f" stdout_tail={out.strip()[-500:]!r}\n"
+            )
+            sys.stderr.flush()
             return ("ERROR", "")
     return ("OK", out)
 

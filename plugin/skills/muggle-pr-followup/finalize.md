@@ -26,4 +26,4 @@ Append the terminal line per [`output-templates/watcher-log.md`](output-template
 
 ### Step 4 — Unschedule the cron
 
-Cancel this slot's cron per [`cancel-cron.md`](cancel-cron.md). No-op when none matches — a manually-run tick, or a cron that already expired. Recurring `/loop` crons auto-expire after 7 days; that lapse is the gap [`reconcile.md`](reconcile.md) exists to catch.
+Cancel this slot's cron per [`cancel-cron.md`](cancel-cron.md), which reports **found** or **not-found**. Record the result in `followup.log` — `finalize cancel=<found|not-found>` — so a later stale fire's orphan gate ([`contract.md`](contract.md) Step 0) can tell a reachable cron whose queued fires merely drain (**found** here) from one it could never reach (**not-found** here, the orphan case). A **not-found** is otherwise benign — a manually-run tick, or a cron that already expired. Recurring `/loop` crons auto-expire after 7 days; that lapse is the gap [`reconcile.md`](reconcile.md) exists to catch.

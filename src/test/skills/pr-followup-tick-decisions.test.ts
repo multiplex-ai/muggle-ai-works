@@ -119,8 +119,19 @@ describe("Step 0 — stale-fire guard", () => {
     ).toBe(true);
   });
 
-  it("escalates an unreachable orphaned cron to the owner on repeated stale fires", () => {
-    expect(/third or later/i.test(step0)).toBe(true);
+  it("gates the orphan escalation on cancel reporting not-found, not on a stale-fire count", () => {
+    expect(
+      /not-?found/i.test(step0),
+      "the gate keys on cancel-cron reporting not-found for this fire, not on counting prior stale-tick lines to a threshold",
+    ).toBe(true);
+    expect(
+      /not the first stale fire/i.test(step0),
+      "a lone not-found is not an orphan — escalation requires a prior stale-tick line, i.e. the stale fires persist",
+    ).toBe(true);
+    expect(
+      /cancel=found/i.test(step0) && /never escalate/i.test(step0),
+      "a cron some cancel reached is a finite drained backlog, never an orphan — the never-reachable clause is what stops a false escalation on a reachable-then-drained cron",
+    ).toBe(true);
     expect(
       /stale-orphan-escalated/.test(step0),
       "without the marker line the notice repeats every minute — the escalation must fire exactly once",

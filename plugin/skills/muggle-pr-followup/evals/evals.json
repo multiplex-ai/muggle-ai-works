@@ -88,10 +88,12 @@
     {
       "id": 7,
       "eval_name": "repeated-stale-fires-escalate-orphan-once",
-      "prompt": "Tick muggle-ai-works-pr507 507. prs.json records state merged and result.md exists. followup.log already holds four stale-tick lines for this slot and no stale-orphan-escalated line. Walk me through the plan for this tick.",
+      "prompt": "Tick muggle-ai-works-pr507 507. prs.json records state merged and result.md exists. The watcher's session was continued, so neither the recorded cron id nor CronList can reach this slug's cron. followup.log shows finalize recorded cancel=not-found and one earlier stale-tick line also recorded cancel=not-found — there is no cancel=found line anywhere for this slot — and no stale-orphan-escalated line. This fire's defensive cancel per cancel-cron.md again reports not-found. Walk me through the plan for this tick.",
       "files": [],
       "assertions": [
-        { "name": "detects_orphaned_cron", "text": "Plan concludes the cron is orphaned — repeated stale fires after finalize mean both cancel-cron lookups (recorded id, CronList match) keep missing it — rather than treating this as a normal queued-fire drain." },
+        { "name": "detects_orphaned_cron", "text": "Plan concludes the cron is orphaned because no cancel has ever reached it — finalize's teardown cancel and every stale fire's defensive cancel all report not-found — and the stale fires persist (a prior stale-tick line already exists). It reaches this from the reachability signal, not from counting stale fires to a threshold." },
+        { "name": "requires_persistence_not_a_lone_fire", "text": "Plan escalates because this is not the first stale fire (a prior stale-tick line exists); it would treat a single not-found fire as a possible manually-run tick or just-expired cron, not an orphan." },
+        { "name": "would_not_escalate_a_drained_backlog", "text": "Plan would NOT escalate had any cancel reported found — finalize's teardown cancel or an earlier stale fire's defensive cancel — because a reachable cron's later fires are a finite queued-drain backlog, not an orphan." },
         { "name": "escalates_to_owner_once", "text": "Plan surfaces a one-line owner notice that only a session restart clears the orphan, and appends a stale-orphan-escalated marker line so the notice never repeats." },
         { "name": "later_fires_absorb_silently", "text": "Plan treats any stale fire after the marker exists as a silent absorb — log stale-tick and exit, no repeated notice." },
         { "name": "never_guess_deletes_other_ids", "text": "Plan does NOT delete cron ids that CronList surfaces for other slugs — those belong to other live watchers." }

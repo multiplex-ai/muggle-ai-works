@@ -9,6 +9,22 @@ export interface GuardrailState {
   terminalPending?: number[];
   terminalHandled?: number[];
   terminalBlockCount?: number;
+  watchSkipped?: boolean;
+  watchBlockCount?: number;
+}
+
+/** Outcome of the watcher-arm Stop gate for a turn end. */
+export enum WatchGateAction {
+  Block = "block",
+  Release = "release",
+  None = "none",
+}
+
+/** A watcher-arm gate decision: the action, the running block count, and the opened-but-unwatched PR urls that drove it. */
+export interface WatchGateDecision {
+  action: WatchGateAction;
+  blockCount: number;
+  owed: string[];
 }
 
 export enum PrTerminalVerdict {

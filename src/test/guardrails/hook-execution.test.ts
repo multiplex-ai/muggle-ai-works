@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 
@@ -99,6 +99,71 @@ describe("guardrail hook execution (cli entry)", () => {
 
   it("e2e-gate: stays silent when no unit-test pass was recorded", () => {
     expect(runHook("e2e-gate", event({ session_id: "fresh" })).out).toBe("{}");
+  });
+
+  it("pr-opened -> watch-gate: an opened PR with no armed watcher blocks the Stop", () => {
+    const session = "watch-chain";
+    runHook(
+      "pr-opened",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr create" },
+        tool_response: { stdout: "https://github.com/o/r/pull/77\n" },
+      }),
+    );
+    const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
+    expect(gate.decision).toBe("block");
+    expect(gate.reason).toContain("no armed watcher");
+    expect(gate.reason).toContain("https://github.com/o/r/pull/77");
+    expect(gate.reason).toContain("MUGGLE_WATCH_SKIP");
+  });
+
+  it("watch-gate: silent once a watcher slot is armed for the opened PR", () => {
+    const session = "watch-armed";
+    const url = "https://github.com/o/r/pull/78";
+    runHook(
+      "pr-opened",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr create" },
+        tool_response: { stdout: `${url}\n` },
+      }),
+    );
+    const slot = join(home, ".muggle-ai", "muggle-do", "sessions", "r-pr78");
+    mkdirSync(slot, { recursive: true });
+    writeFileSync(join(slot, "prs.json"), JSON.stringify([{ url: url }]));
+    writeFileSync(join(slot, "watch.pid"), String(process.pid));
+    expect(runHook("watch-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("record-tests -> watch-gate: a MUGGLE_WATCH_SKIP marker releases the gate", () => {
+    const session = "watch-skip";
+    runHook(
+      "pr-opened",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr create" },
+        tool_response: { stdout: "https://github.com/o/r/pull/79\n" },
+      }),
+    );
+    expect(JSON.parse(runHook("watch-gate", event({ session_id: session })).out).decision).toBe("block");
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: 'echo "MUGGLE_WATCH_SKIP: manual PR, autoWatchPR=never"' },
+        tool_response: { stdout: "MUGGLE_WATCH_SKIP: manual PR, autoWatchPR=never" },
+      }),
+    );
+    expect(runHook("watch-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("watch-gate: silent when no PR was opened this session", () => {
+    expect(runHook("watch-gate", event({ session_id: "no-pr" })).out).toBe("{}");
   });
 
   it("pr-terminal -> terminal-gate: a merged PR holds the Stop until the AskUserQuestion offer runs", () => {
@@ -379,6 +444,10 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
 
+  it("watch-gate: skips Node when no PR was opened this session", () => {
+    expect(runWrapper("guardrail-watch-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
+  });
+
   it("pr-terminal: skips Node on a plain command, spawns it on a merge success line", () => {
     expect(
       runWrapper("guardrail-pr-terminal.sh", event({ tool_name: "Bash", tool_input: { command: "git status" } })),
@@ -436,9 +505,10 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     ]);
   });
 
-  it("runs both gates on Stop (e2e + post-merge handoff)", () => {
+  it("runs all three gates on Stop (e2e + post-merge handoff + watcher-arm)", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command);
     expect(stop.some((c) => c.includes("guardrail-e2e-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-terminal-gate.sh"))).toBe(true);
+    expect(stop.some((c) => c.includes("guardrail-watch-gate.sh"))).toBe(true);
   });
 });

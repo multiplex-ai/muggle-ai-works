@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { isAbsolute, resolve, join } from 'path';
 import { homedir } from 'os';
 
@@ -45,6 +45,7 @@ var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pul
 var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
+var MAX_WATCH_BLOCKS = 3;
 var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
 var MUGGLE_TEST_SKILL_NAME = "muggle-test";
 
@@ -142,6 +143,72 @@ function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
   if (!shouldRunE2E(state)) return { action: "none" /* None */, blockCount };
   if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+var HEARTBEAT_FRESH_MS = 15 * 60 * 1e3;
+var WATCH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WATCH_SKIP\b/;
+function isWatchSkipMarker(cmd) {
+  return WATCH_SKIP_MARKER.test(cmd);
+}
+function applyWatchSkip(state, skipped) {
+  if (!skipped || state.watchSkipped === true) return state;
+  return { ...state, watchSkipped: true };
+}
+function slotHasArmedWatcher(slotDir) {
+  if (existsSync(join(slotDir, "result.md"))) return true;
+  const pidFile = join(slotDir, "watch.pid");
+  if (existsSync(pidFile)) {
+    const pid = Number.parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
+    if (Number.isInteger(pid) && pid > 0) {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (err) {
+        if (err.code === "EPERM") return true;
+      }
+    }
+  }
+  const beat = join(slotDir, "watch-heartbeat");
+  if (existsSync(beat)) {
+    try {
+      if (Date.now() - statSync(beat).mtimeMs < HEARTBEAT_FRESH_MS) return true;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+function findUnarmedHandledPrs(handledUrls, sessionsDirOverride) {
+  if (handledUrls.length === 0) return [];
+  const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  if (!existsSync(sessionsDir)) return [...handledUrls];
+  const watchedUrls = /* @__PURE__ */ new Set();
+  for (const slug of readdirSync(sessionsDir)) {
+    const slotDir = join(sessionsDir, slug);
+    const prsFile = join(slotDir, "prs.json");
+    if (!existsSync(prsFile)) continue;
+    let slotUrl;
+    try {
+      const parsed = JSON.parse(readFileSync(prsFile, "utf-8"));
+      const entry = Array.isArray(parsed) ? parsed[0] : parsed;
+      slotUrl = entry?.url;
+    } catch {
+      continue;
+    }
+    if (slotUrl && handledUrls.includes(slotUrl) && slotHasArmedWatcher(slotDir)) {
+      watchedUrls.add(slotUrl);
+    }
+  }
+  return handledUrls.filter((url) => !watchedUrls.has(url));
+}
+function watchGateDecision(state, owedUrls, maxBlocks = MAX_WATCH_BLOCKS) {
+  const blockCount = state.watchBlockCount ?? 0;
+  if (state.watchSkipped === true || owedUrls.length === 0) {
+    return { action: "none" /* None */, blockCount, owed: owedUrls };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, owed: owedUrls };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedUrls };
 }
 
 // src/guardrails/detectBuildIntent.ts
@@ -285,11 +352,12 @@ function terminalGate() {
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  const next = applyRecordedRun(state, {
+  const recorded = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: isE2ESkipMarker(cmd)
   });
+  const next = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -300,6 +368,19 @@ function e2eGate() {
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+function watchGate() {
+  const state = readState(sessionId);
+  const owed = findUnarmedHandledPrs(state.prsHandled);
+  const decision = watchGateDecision(state, owed);
+  if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) {
+    return "{}";
+  }
+  state.watchBlockCount = decision.blockCount;
+  writeState(state);
+  const prList = decision.owed.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but has no armed watcher: ${prList}. muggle-do Stage 8 seeds the watcher slot and arms one watcher per opened PR \u2014 arm it now with /muggle:muggle-pr-followup ${decision.owed[0]} (or reconcile). If this PR should NOT be watched (autoWatchPR=never, a manually-opened PR, one handed off elsewhere, or already merged/closed), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Watcher hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function reportGate() {
@@ -323,6 +404,7 @@ var handlers = {
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
+  "watch-gate": watchGate,
   "report-gate": reportGate,
   "build-router": buildRouter
 };

@@ -110,6 +110,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-terminal-gate.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-watch-gate.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       }

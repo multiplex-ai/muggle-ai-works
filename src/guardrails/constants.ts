@@ -17,6 +17,9 @@ export const PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/
 
 export const MAX_PR_TERMINAL_BLOCKS = 3;
 
+/** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
+export const MAX_WATCH_BLOCKS = 3;
+
 // The muggle-test skill's own first-step telemetry emit
 // (mcp__…muggle-local-telemetry-skill-emit with skillName "muggle-test").
 // Registering it as an E2E run covers the clean-SKIP verdict: the skill runs

@@ -7,13 +7,19 @@ import {
   applyNextOptionsOffered,
   prTerminalGateDecision,
 } from "./prTerminal.js";
-import { MAX_PR_TERMINAL_BLOCKS } from "./constants.js";
+import { MAX_PR_TERMINAL_BLOCKS, MAX_WATCH_BLOCKS } from "./constants.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
+import {
+  findUnarmedHandledPrs,
+  watchGateDecision,
+  isWatchSkipMarker,
+  applyWatchSkip,
+} from "./watchArmed.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
-import { PrTerminalGateAction, type HookInput } from "./types.js";
+import { PrTerminalGateAction, WatchGateAction, type HookInput } from "./types.js";
 
 function readStdin(): HookInput {
   try {
@@ -85,11 +91,12 @@ function terminalGate(): string {
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  const next = applyRecordedRun(state, {
+  const recorded = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: isE2ESkipMarker(cmd),
   });
+  const next = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -111,6 +118,30 @@ function e2eGate(): string {
         `for the rest of the session.`
       : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
         `run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
+function watchGate(): string {
+  const state = readState(sessionId);
+  const owed = findUnarmedHandledPrs(state.prsHandled);
+  const decision = watchGateDecision(state, owed);
+  if (decision.action === WatchGateAction.None || decision.action === WatchGateAction.Release) {
+    return "{}";
+  }
+  state.watchBlockCount = decision.blockCount;
+  writeState(state);
+  const prList = decision.owed.join(", ");
+  // Full instruction once; repeats are one line — same rationale as e2eGate.
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. A PR was opened this session but has no armed watcher: ${prList}. ` +
+        `muggle-do Stage 8 seeds the watcher slot and arms one watcher per opened PR — arm it now with ` +
+        `/muggle:muggle-pr-followup ${decision.owed[0]} (or reconcile). If this PR should NOT be watched ` +
+        `(autoWatchPR=never, a manually-opened PR, one handed off elsewhere, or already merged/closed), ` +
+        `tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps ` +
+        `this gate quiet for the rest of the session.`
+      : `Watcher hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
+        `arm via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -141,6 +172,7 @@ const handlers: Record<string, () => string> = {
   "record-tests": recordTests,
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
+  "watch-gate": watchGate,
   "report-gate": reportGate,
   "build-router": buildRouter,
 };

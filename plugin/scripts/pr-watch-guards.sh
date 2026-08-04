@@ -20,6 +20,23 @@
 
 MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-21600}"
 MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
+# Consecutive failed fetches before a loop gives up. A watcher must ride through
+# a GitHub / network outage — an observed drop lasted ~8 minutes — not die and
+# leave the PR unwatched until the next session start. With the backoff below, 60
+# spans hours; only a genuinely persistent unreachable slot (deleted repo,
+# revoked auth) exhausts it.
+MUGGLE_PR_WATCH_MAX_FETCH_FAILURES="${MUGGLE_PR_WATCH_MAX_FETCH_FAILURES:-60}"
+
+# Seconds to sleep after `fails` consecutive failed fetches: the poll interval,
+# then a linear back-off capped at 5 minutes so a sustained outage is retried
+# calmly rather than hammered every 60s.
+watcher_fetch_backoff() {
+    local fails="$1" base="${MUGGLE_PR_WATCH_POLL_INTERVAL}" step secs
+    step=$((fails * 30))
+    secs=$((base + step))
+    [ "$secs" -gt 300 ] && secs=300
+    echo "$secs"
+}
 
 # True when watch.pid exists and names a PID other than this loop's — a newer arm
 # has taken ownership of the slot. Absent/empty watch.pid is not superseded: a

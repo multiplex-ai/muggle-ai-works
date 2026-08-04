@@ -81,3 +81,23 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_pid_alive", () => {
     expect(runGuard("watcher_pid_alive 2147483646")).toBe(1);
   });
 });
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh MUGGLE_PR_WATCH_MAX_FETCH_FAILURES", () => {
+  it("defaults to 60 (hours of outage tolerance with back-off)", () => {
+    expect(runGuard('[ "$MUGGLE_PR_WATCH_MAX_FETCH_FAILURES" = "60" ]')).toBe(0);
+  });
+});
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_fetch_backoff", () => {
+  it("is the poll interval on the first failure", () => {
+    expect(runGuard('[ "$(watcher_fetch_backoff 0)" = "60" ]')).toBe(0);
+  });
+
+  it("grows linearly with the failure count", () => {
+    expect(runGuard('[ "$(watcher_fetch_backoff 4)" = "180" ]')).toBe(0);
+  });
+
+  it("caps at 5 minutes", () => {
+    expect(runGuard('[ "$(watcher_fetch_backoff 100)" = "300" ]')).toBe(0);
+  });
+});

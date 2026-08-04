@@ -147,7 +147,7 @@ describe("agent behavioral eval coverage", () => {
     .readdirSync(scenariosDir)
     .filter((f) => f.endsWith(".json") && !f.endsWith(".results.json"));
 
-  it.each(["test-prepare-runner", "visual-walkthrough-builder"])(
+  it.each(["test-prepare-runner", "visual-walkthrough-builder", "acceptance-tester"])(
     "execution agent %s has behavioral scenarios",
     (agentName) => {
       expect(scenarioFiles).toContain(`${agentName}.json`);

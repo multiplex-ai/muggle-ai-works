@@ -15,6 +15,11 @@
  *   - Bash is intercepted: every call is denied with the scenario's scripted
  *     output for that command, so the run is hermetic (nothing executes) while
  *     the agent still "observes" ports, smoke results, and CLI output.
+ *   - Muggle MCP is mocked when the scenario declares `fixtures`: the in-process
+ *     mock server (shared with skill-gate-eval) mounts, canned handlers return
+ *     the fixtures, and each call is recorded so an agent whose contract runs
+ *     through the tools — acceptance-tester — completes a run without auth,
+ *     cloud, or Electron.
  *   - AskUserQuestion is denied and counted; the verdict fails any run that
  *     asks — agents return `needs-input:` instead of asking.
  */
@@ -28,13 +33,16 @@ import {
 } from "@anthropic-ai/claude-agent-sdk";
 
 import { ASK_QUESTION_TOOL } from "../../skill-gate-eval/src/constants.js";
+import { buildMockMcpServer } from "../../skill-gate-eval/src/mock-mcp.js";
 import type { AgentRunOptions, AgentRunVerdict, ToolAttempt } from "./types.js";
 import { judgeAgentRun } from "./verdict.js";
 
 const DEFAULT_MAX_TURNS = 60;
+const MOCK_MCP_PREFIX = "mcp__eval_mock__";
+const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
 
 function buildSystemPrompt(opts: AgentRunOptions): string {
-  return [
+  const lines = [
     opts.definition.body,
     "",
     "---",
@@ -49,7 +57,19 @@ function buildSystemPrompt(opts: AgentRunOptions): string {
     "",
     "There is no user. Follow your no-user-channel contract: a missing decision",
     "or input means returning a single `needs-input:` line, never a question.",
-  ].join("\n");
+  ];
+  if (opts.scenario.fixtures) {
+    lines.push(
+      "",
+      "The production `mcp__plugin_muggle_muggle__*` tools are NOT available;",
+      "call the matching `mcp__eval_mock__*` tools instead. They return canned",
+      "results so you can run and report without auth, cloud, or a real browser.",
+      "A bare tool name in your pasted skill text (e.g.",
+      "`muggle-local-execute-replay`) resolves to",
+      "`mcp__eval_mock__muggle-local-execute-replay`.",
+    );
+  }
+  return lines.join("\n");
 }
 
 function scriptedBashResponse(command: string, opts: AgentRunOptions): string {
@@ -71,11 +91,33 @@ export async function runAgentScenarioOnce(
     path.dirname(path.resolve(opts.definition.filePath)),
   );
 
+  const mock = opts.scenario.fixtures
+    ? buildMockMcpServer(opts.scenario.fixtures)
+    : null;
+
   const canUseTool: CanUseTool = async (
     toolName,
     input,
   ): Promise<PermissionResult> => {
+    // A mock MCP call is recorded under its bare name so `requireToolAttempts`
+    // and `forbidToolAttempts` match `muggle-local-execute-replay`, not the
+    // mounted `mcp__eval_mock__` alias.
+    if (toolName.startsWith(MOCK_MCP_PREFIX)) {
+      toolAttempts.push({ tool: toolName.slice(MOCK_MCP_PREFIX.length), args: input });
+      return { behavior: "allow", updatedInput: input };
+    }
+
     toolAttempts.push({ tool: toolName, args: input });
+
+    // The production muggle plugin loaded in the parent session bleeds into the
+    // SDK; steer the agent to the mock equivalents.
+    if (toolName.startsWith(PRODUCTION_MUGGLE_PREFIX)) {
+      const bare = toolName.slice(PRODUCTION_MUGGLE_PREFIX.length);
+      return {
+        behavior: "deny",
+        message: `[harness] the production muggle plugin is not available here — call \`${MOCK_MCP_PREFIX}${bare}\` instead.`,
+      };
+    }
 
     if (toolName === ASK_QUESTION_TOOL) {
       askQuestionCount++;
@@ -120,6 +162,7 @@ export async function runAgentScenarioOnce(
       model: opts.definition.model,
       maxTurns: opts.maxTurns ?? DEFAULT_MAX_TURNS,
       tools: ["Read", "Bash", "AskUserQuestion"],
+      ...(mock ? { mcpServers: { eval_mock: mock.config } } : {}),
       ...(process.env.CLAUDE_CODE_EXECUTABLE
         ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
         : {}),

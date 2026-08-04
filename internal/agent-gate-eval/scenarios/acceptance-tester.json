@@ -1,0 +1,51 @@
+{
+  "agent": "acceptance-tester",
+  "scenarios": [
+    {
+      "name": "all-pass-returns-pass",
+      "prompt": "Run acceptance tests against http://localhost:3000 for the demo app.\n\nUse the muggle-test run loop: for EACH test case below, call `muggle-local-execute-replay` with that test case, then `muggle-local-run-result-get` for the returned runId; treat the tool results as the real run outcome. Then return your report per your output contract (Test Summary + Per-Test Highlights).\n\nTest cases (project proj-demo-1, already bound):\n- tc-101 \"Login flow\"\n- tc-102 \"View dashboard\"",
+      "fixtures": {
+        "lastProject": { "id": "proj-demo-1", "url": "http://localhost:3000" },
+        "executeResult": { "runId": "run-pass", "status": "passed", "viewUrl": "https://example.invalid/run/run-pass" },
+        "runResult": { "runId": "run-pass", "status": "passed", "viewUrl": "https://example.invalid/run/run-pass", "steps": [{ "summary": "Open page", "status": "passed" }, { "summary": "Assert content", "status": "passed" }] }
+      },
+      "expect": {
+        "outputContains": ["Test Summary"],
+        "outputMatches": ["Verdict:\\**\\s*PASS\\b"],
+        "outputNotMatches": ["Verdict:\\**\\s*FAIL\\b", "(^|\\n)[`*>#\\s-]*needs-input:"],
+        "requireToolAttempts": [{ "tool": "muggle-local-execute-replay", "argContains": "" }]
+      }
+    },
+    {
+      "name": "failure-reports-blocking-issue-and-fix",
+      "prompt": "Run acceptance tests against http://localhost:3000 for the demo app.\n\nUse the muggle-test run loop: for EACH test case below, call `muggle-local-execute-replay` with that test case, then `muggle-local-run-result-get` for the returned runId; treat the tool results as the real run outcome. Then return your report per your output contract — report every failing test, describe the problem from the user's perspective, and give a suggested fix.\n\nTest cases (project proj-demo-1, already bound):\n- tc-201 \"Add to cart\"\n- tc-202 \"Checkout\"",
+      "fixtures": {
+        "lastProject": { "id": "proj-demo-1", "url": "http://localhost:3000" },
+        "executeResult": { "runId": "run-fail", "status": "failed", "viewUrl": "https://example.invalid/run/run-fail" },
+        "runResult": { "runId": "run-fail", "status": "failed", "viewUrl": "https://example.invalid/run/run-fail", "steps": [{ "summary": "Add item to cart", "status": "passed" }, { "summary": "Click the checkout button", "status": "failed" }], "failureStepIndex": 1, "error": "The checkout button did not respond after an item was added to the cart; the page stayed on the cart view." }
+      },
+      "expect": {
+        "outputMatches": ["Verdict:\\**\\s*FAIL\\b"],
+        "outputContains": ["Blocking issue:", "Suggested fix:"],
+        "outputNotMatches": ["(^|\\n)[`*>#\\s-]*needs-input:"],
+        "requireToolAttempts": [{ "tool": "muggle-local-execute-replay", "argContains": "" }]
+      }
+    },
+    {
+      "name": "missing-project-binding-needs-input",
+      "prompt": "Run acceptance tests for the app.\n\nUse the muggle-test run loop. No project or test cases are named in this dispatch, and no last-project is recorded. If you cannot determine what to run, follow your no-user-channel contract.",
+      "fixtures": {
+        "projects": { "items": [] },
+        "lastProject": null
+      },
+      "expect": {
+        "outputMatches": ["(^|\\n)[`*>#\\s-]*needs-input:"],
+        "outputNotMatches": ["Verdict:\\**\\s*PASS\\b", "Verdict:\\**\\s*FAIL\\b"],
+        "forbidToolAttempts": [
+          { "tool": "muggle-local-execute-replay", "argContains": "" },
+          { "tool": "muggle-local-execute-test-generation", "argContains": "" }
+        ]
+      }
+    }
+  ]
+}

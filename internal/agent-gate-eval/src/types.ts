@@ -5,6 +5,8 @@
  * preference-gate side effects.
  */
 
+import type { Fixtures } from "../../skill-gate-eval/src/types.js";
+
 /** A canned response for an intercepted Bash command. First match wins; `commandContains: ""` is the catch-all. */
 export interface ScriptedBashResponse {
   commandContains: string;
@@ -43,6 +45,13 @@ export interface AgentScenario {
   prompt: string;
   /** Scripted results for intercepted Bash calls. */
   bashResponses?: ScriptedBashResponse[];
+  /**
+   * Canned muggle MCP responses. When present, the harness mounts the mock
+   * muggle server (shared with skill-gate-eval) so an agent whose contract runs
+   * through the MCP tools — acceptance-tester — can complete a run hermetically.
+   * Absent for the Bash/CLI-driven agents.
+   */
+  fixtures?: Fixtures;
   expect: AgentScenarioExpectation;
 }
 

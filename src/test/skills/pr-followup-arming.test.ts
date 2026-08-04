@@ -75,9 +75,14 @@ describe("pr-followup arming wiring", () => {
   });
 
   it("owns none of the tick's decision semantics", () => {
+    // Decision-ownership terms the monitor must never replicate — the budgets,
+    // escalation sets, and watermark the tick alone acts on. Wake SIGNALS the
+    // monitor legitimately references (behind_by for branch-standing, the CI
+    // digest) are excluded: the monitor only signals that state moved, while the
+    // tick still owns the conflict_resolve_attempts budget and the dispatch.
     const owned = ["isResolved", "isOutdated", "muggle-do:bot", "ci_fix_attempts",
       "ci_escalated_shas", "conflict_resolve_attempts", "conflict_escalated_keys",
-      "escalated_review_ids", "behind_by", "mergeStateStatus", "lastBodyReviewId"];
+      "escalated_review_ids", "mergeStateStatus", "lastBodyReviewId"];
     expect(owned.filter((term) => armWatcher.includes(term))).toEqual([]);
   });
 });

@@ -81,3 +81,29 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_pid_alive", () => {
     expect(runGuard("watcher_pid_alive 2147483646")).toBe(1);
   });
 });
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_pin_token", () => {
+  it("exports GH_TOKEN from the source command", () => {
+    expect(
+      runGuard('unset GH_TOKEN; export MUGGLE_PR_GH_TOKEN_CMD="printf gho_abc"; watcher_pin_token; [ "$GH_TOKEN" = "gho_abc" ]'),
+    ).toBe(0);
+  });
+
+  it("is a no-op when the source command yields nothing", () => {
+    expect(
+      runGuard('unset GH_TOKEN; export MUGGLE_PR_GH_TOKEN_CMD="true"; watcher_pin_token; [ -z "${GH_TOKEN:-}" ]'),
+    ).toBe(0);
+  });
+
+  it("honors an already-set GH_TOKEN", () => {
+    expect(
+      runGuard('export GH_TOKEN=gho_existing; export MUGGLE_PR_GH_TOKEN_CMD="printf gho_new"; watcher_pin_token; [ "$GH_TOKEN" = "gho_existing" ]'),
+    ).toBe(0);
+  });
+});
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh MUGGLE_PR_WATCH_MAX_FETCH_FAILURES", () => {
+  it("defaults to 8", () => {
+    expect(runGuard('[ "$MUGGLE_PR_WATCH_MAX_FETCH_FAILURES" = "8" ]')).toBe(0);
+  });
+});

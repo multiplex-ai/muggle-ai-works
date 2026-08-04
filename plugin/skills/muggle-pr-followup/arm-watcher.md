@@ -13,9 +13,12 @@ How an orchestrating session starts the watch on one PR. Every arming point runs
    ```sh
    GUARDS="<abs>/scripts/pr-watch-guards.sh"
    [ -f "$GUARDS" ] && . "$GUARDS" || exit 0   # guards gone (plugin moved/upgraded) → a newer version's watcher owns this now
+   watcher_pin_token                           # capture GH_TOKEN now, while the session still holds keyring access
    echo "$$" > "<slot>/watch.pid"
    started=$(date +%s)
    ```
+
+   `watcher_pin_token` exports `GH_TOKEN` so every poll authenticates from the environment: a detached loop that re-reads gh's OS keyring on each call can lose that access mid-life (background processes do), which surfaces as silent empty fetches that march the loop to its failure cap. Each poll's fetch is retried once before it counts against the cap, and its error is appended to `<slot>/watch-fetch.log` so a persistent failure is diagnosable rather than a bare exit.
 
    and the top of every iteration, before any `gh` call, checks the two guards from [`../../scripts/pr-watch-guards.sh`](../../scripts/pr-watch-guards.sh):
 
@@ -24,7 +27,7 @@ How an orchestrating session starts the watch on one PR. Every arming point runs
    watcher_lifetime_exceeded "$started" "$(date +%s)" && exit 0   # 6h cap → any orphan dies on its own; reconcile re-arms an open PR in a live session
    ```
 
-   So it exits when the PR goes terminal, after five consecutive failed fetches, when a newer arm supersedes it, or once it passes the lifetime cap — never `while true` unbounded.
+   So it exits when the PR goes terminal, after `MUGGLE_PR_WATCH_MAX_FETCH_FAILURES` consecutive failed fetches (default 8, each already retried once), when a newer arm supersedes it, or once it passes the lifetime cap — never `while true` unbounded.
 4. **On event.** Polling never enters the session: the cadence lives entirely in the detached monitor loop (step 3), and the only thing the session ever receives is the monitor's one event line. That line wakes the session: the wake turn runs the tick (step 1) with `--wake=<event>` — the flag that tells routing's live-watcher gate this poll was prompted, not idle curiosity ([`SKILL.md`](SKILL.md#routing)) — and whatever cycle the tick produces runs **inline in the owning session** — never in a subagent. The session's full history is part of the cycle's context (decisions, review nuance, owner phrasing); a subagent only knows its briefing plus disk/provider state, and anything the briefing omits is silently missing from the cycle. The token cost of inline cycles is accepted — context beats cost. The tick still derives everything from live provider state; a terminal PR finalizes there while the monitor exits on its own. Persistent fetch failure → surface the reason; [`reconcile.md`](reconcile.md) re-arms the slot at the next session start.
 
 **After a cycle** — advance the watermark to the **handled wave's snapshot**, in the same dispatched context that ran the cycle. Capture the max review-id and comment-id **at the start of handling** — the ids the cycle actually read when it derived the wave, before any reply is posted — and advance the watermark to exactly those. **Never** re-derive it from a live-max fetched after the replies land: a reviewer comment that arrives during the handling window — between reading the wave and posting the replies — lands below that post-reply max and is marked seen without ever being read. Snapshotting at the start-of-handling read keeps such a comment above the watermark, so the next tick surfaces it. That advance is also what stops the loop from reporting its own reply; a cycle that skips it leaves the watermark stale, and the next event is an echo.

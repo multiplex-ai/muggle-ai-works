@@ -1,68 +1,42 @@
 /**
- * Per-repo last-used local dev server URL cache.
+ * Last-used local dev server URL, cached per working directory.
  *
- * Lives at `<repo>/.muggle-ai/last-host.json`. Honors `autoSelectLocalHost = always`:
- * when set, skills silently reuse the URL the user used last time in this repo
- * instead of prompting again. Cache is updated on every pick — independent of
- * the "Remember this URL?" Picker 2 — so `Use {lastHost}` always shows the
- * most recent run's URL.
+ * Stored in the Muggle home directory under the absolute working directory, so
+ * the user's project stays untouched. Honors `autoSelectLocalHost = always`:
+ * when set, skills silently reuse the URL the user used last time in this
+ * directory instead of prompting again. The cache is updated on every pick —
+ * independent of the "Remember this URL?" Picker 2 — so `Use {lastHost}` always
+ * shows the most recent run's URL.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { clearCwdEntry, readCwdEntry, writeCwdEntry } from "./cwd-keyed-cache.js";
+import { LAST_HOST_CACHE } from "./last-host-constants.js";
+import type { ILastHost } from "./last-host-types.js";
 
-import { getLogger } from "./logger.js";
-
-export const LAST_HOST_FILE_NAME = "last-host.json";
-export const LAST_HOST_DIR_NAME = ".muggle-ai";
-export const LAST_HOST_VERSION = 1;
-
-export interface ILastHost {
-  host: string;
-  savedAt: string;
-}
-
-export interface ILastHostFile {
-  version: number;
-  lastHost: ILastHost;
-}
+export {
+  LAST_HOST_CACHE,
+  LAST_HOST_DIR_NAME,
+  LAST_HOST_FILE_NAME,
+  LAST_HOST_VERSION,
+} from "./last-host-constants.js";
+export type { ILastHost, ILastHostFile } from "./last-host-types.js";
 
 /** Read the cached last host. Null if missing or unparseable. */
 export function readLastHost(cwd: string): ILastHost | null {
-  const filePath = path.join(cwd, LAST_HOST_DIR_NAME, LAST_HOST_FILE_NAME);
-  try {
-    if (!fs.existsSync(filePath)) {
-      return null;
-    }
-    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8")) as ILastHostFile;
-    return raw.lastHost ?? null;
-  } catch (error) {
-    getLogger().warn("Failed to read last-host file", {
-      path: filePath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
+  return readCwdEntry<ILastHost>(LAST_HOST_CACHE, cwd);
 }
 
-/** Write the cached last host. Creates the `.muggle-ai/` dir if needed. */
+/** Write the cached last host. Creates the Muggle home directory if needed. */
 export function writeLastHost(cwd: string, host: string): void {
-  const dir = path.join(cwd, LAST_HOST_DIR_NAME);
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, LAST_HOST_FILE_NAME);
-  const file: ILastHostFile = {
-    version: LAST_HOST_VERSION,
-    lastHost: { host, savedAt: new Date().toISOString() },
-  };
-  fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf-8");
+  writeCwdEntry<ILastHost>(LAST_HOST_CACHE, cwd, {
+    host: host,
+    savedAt: new Date().toISOString(),
+  });
 }
 
-/** Remove the cached last host. No-op if missing. */
+/** Remove the cached last host, including any superseded in-project file. */
 export function clearLastHost(cwd: string): void {
-  const filePath = path.join(cwd, LAST_HOST_DIR_NAME, LAST_HOST_FILE_NAME);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
+  clearCwdEntry(LAST_HOST_CACHE, cwd);
 }
 
 /** Compact one-liner for session context. Empty string if no cache. */

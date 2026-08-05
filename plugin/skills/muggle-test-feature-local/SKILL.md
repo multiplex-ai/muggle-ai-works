@@ -69,7 +69,7 @@ Gates run per `preference-gates/README.md`.
 
 ### 2. Targets (user must confirm)
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives in `~/.muggle-ai/last-project.json`, in the entry keyed on `<cwd>` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
 Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to use case selection. No cache → fall through to `ask`.

@@ -151,7 +151,7 @@ If **not authenticated**:
 
 A **project** is where all your imported use cases, test cases, and future test results are grouped on the Muggle AI dashboard.
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives in `~/.muggle-ai/last-project.json`, in the entry keyed on `<cwd>` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
 Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, skip to Step 6. No cache → fall through to `ask`.

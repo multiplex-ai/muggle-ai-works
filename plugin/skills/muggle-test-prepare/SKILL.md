@@ -50,6 +50,8 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 
 This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
 
+Alongside the plan sits `<repo>/.muggle-ai/e2e-instructions.md` — the prose companion written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. The plan stays the single source of truth for each service's start command; the markdown never restates one.
+
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
 - Option 2: "Tear down and start fresh"
@@ -64,7 +66,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 | Preference | Gates |
 |------------|-------|
 | `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<default>` before starting dev servers |
-| `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover |
+| `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover; also [e2e-instructions](./steps/e2e-instructions.md), which goes stale for the same reason |
 | `autoSelectLocalHost` | [check-running](./steps/check-running.md) — reuse the recorded dev-server URL silently, or confirm it each run |
 
 ## Workflow
@@ -78,8 +80,9 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 | 2 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | 3 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
 | 4 | [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
+| 5 | [e2e-instructions](./steps/e2e-instructions.md) | Capture startup order, manual steps, local gotchas (gated); persisted for reuse |
 
-The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, and resolved gate outcomes.
+The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
 
 **Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan; it returns `READY` / `DEGRADED` plus the readiness table. The agent's own definition lists its stage files; in a harness with no agent/subagent facility, run the execute-phase stages ([check-running](./steps/check-running.md) through [readiness-report](./steps/readiness-report.md)) inline instead.
 
@@ -120,6 +123,7 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 - **The user may prefer to start services themselves** — always offer that option.
 - **Never start a process the user didn't approve** — approvals are granted in Decide and travel in the plan; the agent starts nothing outside it.
 - **Never read file contents outside confirmed directories** — folder names are discoverable; file contents require explicit user selection.
+- **Never write a credential into `e2e-instructions.md`** — it lands in the user's repository, which nothing gitignores. Record the env-var or secret name, never its value.
 - **Never leave orphan processes untracked** — every background PID goes into the tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
 - **Never assume start commands** — verify via indicator file; confirm with user.

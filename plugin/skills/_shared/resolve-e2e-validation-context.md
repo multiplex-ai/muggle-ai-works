@@ -25,6 +25,7 @@ Resolve without prompting; use as questionnaire defaults:
 3. Candidate projects — `muggle-remote-project-list`, ranked against the repo's dev URL and the PR title.
 4. Existing test-user secrets — `muggle-remote-secret-list` per candidate project (`managed_profile_email` / `managed_profile_password`).
 5. Auth0 tenant for local dev — grep the repo env file for `*AUTH0_DOMAIN*`.
+6. E2E run instructions — read `<repo>/.muggle-ai/e2e-instructions.md` (else the sanitized-parent-dir file under `~/.muggle-ai/e2e-instructions/`) when it exists. It records startup order, manual steps, and local gotchas for this stack. Treat it as read-only input: surface its gotchas rather than re-deriving them, and never re-ask what it already answers. Absent is normal — proceed without it.
 
 ## Questions
 

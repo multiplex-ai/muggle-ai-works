@@ -29,6 +29,8 @@ Three gates apply, each per the standard procedure in [`preference-gates/README.
 
 Before any workflow step, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md). Halt on what it surfaces.
 
+Then read `<repo>/.muggle-ai/e2e-instructions.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. A gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
+
 ## UX Guidelines — Minimize Typing
 
 **Every selection-based question MUST use the `AskUserQuestion` tool** (or the platform's equivalent structured selection tool). Never ask the user to "reply with a number" in a plain text message — always present clickable options.

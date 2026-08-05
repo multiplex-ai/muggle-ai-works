@@ -16,6 +16,7 @@ The dispatch prompt carries the resolved prepare plan:
 - `testingScope` and `excludedServices[]` (with reasons).
 - The recorded dev-server URL (from the `autoSelectLocalHost` resolution) — never invent or default a host/port; a framework default like `:3000` is not a fallback.
 - Resolved gate values the stages read (`autoRebase` outcome already applied or explicitly skipped upstream).
+- The E2E run instructions — startup order, manual steps, local gotchas — already captured from the user. Honour the recorded startup order when starting services, and write the instructions out per the readiness-report stage. Absent means the skill had nothing to record; never invent them.
 
 ## Stages
 

@@ -103,12 +103,21 @@ describe("machine-local storage, never the user's project", () => {
     path.join(SKILLS_DIR, "muggle-test-feature-local", "SKILL.md"),
   ];
 
-  it("no document routes the file into the user's repository", () => {
+  it("no document routes saved state into the user's repository", () => {
     for (const docPath of DOCS_NAMING_THE_FILE) {
-      // A repo-relative path here would put user-level machine state under version
-      // control and ship one developer's local recipe to everyone who clones.
+      // Covers every file this skill saves — the prepare plan as well as the run
+      // instructions. A repo-relative path puts user-level machine state under
+      // version control and ships one developer's local setup to everyone who clones.
       expect(read(docPath), `repo-local path in ${path.basename(docPath)}`).not.toMatch(
-        /<repo>\/\.muggle-ai\/e2e-instructions|\$REPO\/\.muggle-ai\/e2e-instructions/,
+        /(<repo>|\$REPO)\/\.muggle-ai\//,
+      );
+    }
+  });
+
+  it("resolving saved state needs no version-control tool", () => {
+    for (const docPath of [STAGE_DOC, REUSE_PLAN_DOC, READINESS_DOC]) {
+      expect(read(docPath), `VCS call in ${path.basename(docPath)}`).not.toMatch(
+        /\bgit\s+rev-parse\b/,
       );
     }
   });

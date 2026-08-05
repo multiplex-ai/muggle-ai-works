@@ -41,10 +41,7 @@ jq '{
 }' /tmp/muggle-test-prepare.json
 ```
 
-Resolve the write location:
-
-- If `git rev-parse --show-toplevel` succeeds (call the result `$REPO`) → write `$REPO/.muggle-ai/prepare-plan.json`. Create `$REPO/.muggle-ai/` if missing.
-- Else → upsert the entry under key `$(dirname "$PWD")` (absolute) in `~/.muggle-ai/prepare-plans.json`. Create the file as `{}` if missing.
+Upsert it under the stack's key — the absolute path of the working directory's parent — in `~/.muggle-ai/prepare-plans.json`, creating the file as `{}` if missing. The plan is machine-local, user-level data: it never goes inside the user's project, and resolving it requires no version-control tool.
 
 Then print, once:
 

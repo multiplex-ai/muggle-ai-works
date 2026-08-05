@@ -48,9 +48,11 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 
 `testing_scope` records what the user is testing (from [scope](./steps/scope.md)). `excluded_services` records services the user said can't run locally (from [viability-check](./steps/viability-check.md)).
 
-This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
+This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives in `~/.muggle-ai/prepare-plans.json`, under the entry keyed on this stack, and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
 
-The prose companion to the plan is `~/.muggle-ai/e2e-instructions/<key>.md`, written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. Machine-local data stays under the Muggle home directory, never inside the user's project. The plan remains the single source of truth for each service's start command; the markdown never restates one.
+The prose companion to the plan is `~/.muggle-ai/e2e-instructions/<key>.md`, written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. The plan remains the single source of truth for each service's start command; the markdown never restates one.
+
+**Everything this skill saves is machine-local, user-level data and lives under the Muggle home directory — never inside the user's project.** A project directory is shared, versioned, and cloned onto machines set up differently; a local run recipe is none of those things. Both files are keyed on the same stack identity, so they stay in lockstep.
 
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
@@ -117,7 +119,7 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 
 ## Guardrails
 
-- **Never invent or default a host/port** — the dev-server URL is a recorded value, not a guess. Resolve it from `<repo>/.muggle-ai/last-host.json` (the [`autoSelectLocalHost`](../muggle-preferences/preference-gates/autoSelectLocalHost.md) cache) before probing ports; a framework default like `:3000` is never a fallback. See [check-running](./steps/check-running.md).
+- **Never invent or default a host/port** — the dev-server URL is a recorded value, not a guess. Read it from the last-host cache via `muggle-local-last-host-get` (the [`autoSelectLocalHost`](../muggle-preferences/preference-gates/autoSelectLocalHost.md) cache) before probing ports; a framework default like `:3000` is never a fallback. The cache's own storage location belongs to that tool — don't restate it here. See [check-running](./steps/check-running.md).
 - **No silent auto-selection without a gate** — when no preference authorizes a silent choice (host, restart, kill), confirm with the user. A gate set to `always` is the only license to skip the question; absent that, ask.
 - **Verify first, offer to start second** — check what's already running before proposing to start anything.
 - **The user may prefer to start services themselves** — always offer that option.

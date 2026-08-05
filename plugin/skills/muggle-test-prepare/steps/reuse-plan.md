@@ -6,9 +6,8 @@ A previously saved **prepare plan** is the durable recipe for this stack. Distin
 
 In order; first hit wins.
 
-1. **Project plan.** If `git rev-parse --show-toplevel` succeeds (call the result `$REPO`) and `$REPO/.muggle-ai/prepare-plan.json` exists → load it.
-2. **Global plan.** Else if `~/.muggle-ai/prepare-plans.json` exists, read the entry keyed by `$(dirname "$PWD")` (absolute path). If present → load that entry's value.
-3. **No plan found** → exit this step; the workflow continues at [rebase-check](./rebase-check.md).
+1. **Saved plan.** If `~/.muggle-ai/prepare-plans.json` exists, read the entry keyed on this stack — the absolute path of the working directory's parent. If present → load that entry's value. The plan is machine-local and is never read from, or written to, the user's project.
+2. **No plan found** → exit this step; the workflow continues at [rebase-check](./rebase-check.md).
 
 A loaded plan is a JSON object with `version`, `updated`, `testing_scope`, `excluded_services`, `services`. Reject and treat as "no plan" if `version != 1` or `services` is empty.
 

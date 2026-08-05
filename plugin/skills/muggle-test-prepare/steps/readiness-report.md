@@ -41,10 +41,7 @@ jq '{
 }' /tmp/muggle-test-prepare.json
 ```
 
-Resolve the write location:
-
-- If `git rev-parse --show-toplevel` succeeds (call the result `$REPO`) → write `$REPO/.muggle-ai/prepare-plan.json`. Create `$REPO/.muggle-ai/` if missing.
-- Else → upsert the entry under key `$(dirname "$PWD")` (absolute) in `~/.muggle-ai/prepare-plans.json`. Create the file as `{}` if missing.
+Upsert it under the stack's key — the absolute path of the working directory's parent — in `~/.muggle-ai/prepare-plans.json`, creating the file as `{}` if missing. The plan is machine-local, user-level data: it never goes inside the user's project, and resolving it requires no version-control tool.
 
 Then print, once:
 
@@ -54,3 +51,11 @@ Then print, once:
 ```
 
 If this run short-circuited via [reuse-plan](./reuse-plan.md), don't rewrite — but **do** refresh `updated` and any `command` that was re-derived during validation. Skip the announcement on the refresh path.
+
+## Save the E2E run instructions
+
+The instructions arrive resolved in the dispatch prompt — captured while the user was present, in [e2e-instructions](./e2e-instructions.md). Write them verbatim, in that stage's format, to the location it resolves: `~/.muggle-ai/e2e-instructions/<key>.md`. Create the directory if missing. This file is machine-local and never goes inside the user's project.
+
+Nothing resolved in the plan → write nothing. An absent file is a stage that has not run yet; an empty one would read as "nothing to say" and suppress the question forever.
+
+Never write a credential value here — pointers only, per that stage's Secrets rule.

@@ -6,11 +6,12 @@ A previously saved **prepare plan** is the durable recipe for this stack. Distin
 
 In order; first hit wins.
 
-1. **Project plan.** If `git rev-parse --show-toplevel` succeeds (call the result `$REPO`) and `$REPO/.muggle-ai/prepare-plan.json` exists → load it.
-2. **Global plan.** Else if `~/.muggle-ai/prepare-plans.json` exists, read the entry keyed by `$(dirname "$PWD")` (absolute path). If present → load that entry's value.
-3. **No plan found** → exit this step; the workflow continues at [rebase-check](./rebase-check.md).
+1. **Saved plan.** If `~/.muggle-ai/prepare-plans.json` exists, read the entry keyed on this stack — the absolute path of the working directory's parent. If present → load that entry's value. The plan is machine-local and is never read from, or written to, the user's project.
+2. **No plan found** → exit this step; the workflow continues at [rebase-check](./rebase-check.md).
 
 A loaded plan is a JSON object with `version`, `updated`, `testing_scope`, `excluded_services`, `services`. Reject and treat as "no plan" if `version != 1` or `services` is empty.
+
+Load the prose companion per [e2e-instructions](./e2e-instructions.md) — `~/.muggle-ai/e2e-instructions/<key>.md`, keyed on the same stack identity as the global plan entry. It is independent of the plan: a missing companion is not a missing plan, and vice versa.
 
 ## Gate `reusePreparePlan`
 
@@ -37,7 +38,7 @@ Per [`muggle-preferences/preference-gates/README.md`](../../muggle-preferences/p
    - The indicator file that produced `command` still exists in `dir` (e.g. `package.json` for an `npm`/`node` command; see the indicator table in [start-commands](./start-commands.md)) → keep. Else re-derive **just that one entry** by running the indicator-detection from [start-commands](./start-commands.md) against `dir`, and replace its `command`. Log `"Re-derived <name>: <old> → <new>"`.
 2. **All entries dropped** → discard the plan; continue at [rebase-check](./rebase-check.md). Otherwise proceed with surviving + re-derived entries.
 3. **Hydrate** `/tmp/muggle-test-prepare.json` with the surviving entries (no PIDs yet, `testing_scope` from the plan, `excluded_services` from the plan).
-4. **Short-circuit** to [check-running](./check-running.md). The skipped stages are [scope](./scope.md), [viability-check](./viability-check.md), [identify-services](./identify-services.md), [start-commands](./start-commands.md) — the reused plan supplies their answers. The remaining stages run normally: [env-file](./env-file.md), [fresh-install](./fresh-install.md), [start-services](./start-services.md) (only for entries not already listening), [smoke-test](./smoke-test.md), [readiness-report](./readiness-report.md).
+4. **Short-circuit** to [check-running](./check-running.md). The skipped stages are [scope](./scope.md), [viability-check](./viability-check.md), [identify-services](./identify-services.md), [start-commands](./start-commands.md), [e2e-instructions](./e2e-instructions.md) — the reused plan and its companion supply their answers. Carry the loaded instructions forward unchanged; the user is not re-asked. When the companion is absent, run [e2e-instructions](./e2e-instructions.md) once to capture it, then continue the short-circuit. The remaining stages run normally: [env-file](./env-file.md), [fresh-install](./fresh-install.md), [start-services](./start-services.md) (only for entries not already listening), [smoke-test](./smoke-test.md), [readiness-report](./readiness-report.md).
 
 ## Rediscover path
 

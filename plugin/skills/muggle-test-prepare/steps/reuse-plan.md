@@ -12,7 +12,7 @@ In order; first hit wins.
 
 A loaded plan is a JSON object with `version`, `updated`, `testing_scope`, `excluded_services`, `services`. Reject and treat as "no plan" if `version != 1` or `services` is empty.
 
-Load the prose companion from the same location per [e2e-instructions](./e2e-instructions.md) — `$REPO/.muggle-ai/e2e-instructions.md`, else the sanitized-parent-dir file under `~/.muggle-ai/e2e-instructions/`. It is independent of the plan: a missing companion is not a missing plan, and vice versa.
+Load the prose companion per [e2e-instructions](./e2e-instructions.md) — `~/.muggle-ai/e2e-instructions/<key>.md`, keyed on the same stack identity as the global plan entry. It is independent of the plan: a missing companion is not a missing plan, and vice versa.
 
 ## Gate `reusePreparePlan`
 

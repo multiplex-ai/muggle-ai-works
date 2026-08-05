@@ -55,8 +55,8 @@ describe("parser sanity: refuse to pass vacuously", () => {
 });
 
 describe("stage contract", () => {
-  it("names the durable file it writes", () => {
-    expect(read(STAGE_DOC)).toMatch(/\.muggle-ai\/e2e-instructions\.md/);
+  it("names the durable file it writes, under the Muggle home directory", () => {
+    expect(read(STAGE_DOC)).toMatch(/~\/\.muggle-ai\/e2e-instructions\//);
   });
 
   it("runs after service identification, when the service set is known", () => {
@@ -88,9 +88,47 @@ describe("credentials never reach the file", () => {
   });
 
   it("the skill lists it as a guardrail", () => {
-    expect(read(PREPARE_SKILL_DOC)).toMatch(
-      /never write a credential into `?e2e-instructions\.md`?/i,
-    );
+    expect(read(PREPARE_SKILL_DOC)).toMatch(/never write a credential/i);
+  });
+});
+
+describe("machine-local storage, never the user's project", () => {
+  const DOCS_NAMING_THE_FILE = [
+    STAGE_DOC,
+    PREPARE_SKILL_DOC,
+    REUSE_PLAN_DOC,
+    READINESS_DOC,
+    VALIDATION_CONTEXT_DOC,
+    path.join(SKILLS_DIR, "muggle-test", "execute-local.md"),
+    path.join(SKILLS_DIR, "muggle-test-feature-local", "SKILL.md"),
+  ];
+
+  it("no document routes the file into the user's repository", () => {
+    for (const docPath of DOCS_NAMING_THE_FILE) {
+      // A repo-relative path here would put user-level machine state under version
+      // control and ship one developer's local recipe to everyone who clones.
+      expect(read(docPath), `repo-local path in ${path.basename(docPath)}`).not.toMatch(
+        /<repo>\/\.muggle-ai\/e2e-instructions|\$REPO\/\.muggle-ai\/e2e-instructions/,
+      );
+    }
+  });
+
+  it("the stage says so explicitly", () => {
+    expect(read(STAGE_DOC)).toMatch(/never inside the user's project/i);
+  });
+});
+
+describe("the stage stays VCS-agnostic and OS-agnostic", () => {
+  it("resolves its location without invoking a version-control tool", () => {
+    // The file is keyed on a working directory, not a checkout; requiring `git`
+    // would break the stage for anyone on another VCS or outside a repo at all.
+    expect(read(STAGE_DOC)).not.toMatch(/\bgit\s+(rev-parse|status|config)\b/);
+  });
+
+  it("does not assume a platform path separator when deriving the key", () => {
+    const doc = read(STAGE_DOC);
+    expect(doc).toMatch(/resolved absolute path/i);
+    expect(doc).toMatch(/differ per platform|per platform/i);
   });
 });
 
@@ -126,7 +164,7 @@ describe("workflow wiring", () => {
 
 describe("no dependency cycle back into muggle-test-prepare", () => {
   it("the shared validation context reads the file", () => {
-    expect(read(VALIDATION_CONTEXT_DOC)).toMatch(/e2e-instructions\.md/);
+    expect(read(VALIDATION_CONTEXT_DOC)).toMatch(/e2e-instructions\//);
   });
 
   it("the shared validation context does not markdown-link into muggle-test-prepare", () => {

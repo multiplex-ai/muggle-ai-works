@@ -50,7 +50,7 @@ All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
 
 This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives at `<repo>/.muggle-ai/prepare-plan.json` (or the parent-dir-keyed entry in `~/.muggle-ai/prepare-plans.json`) and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
 
-Alongside the plan sits `<repo>/.muggle-ai/e2e-instructions.md` — the prose companion written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. The plan stays the single source of truth for each service's start command; the markdown never restates one.
+The prose companion to the plan is `~/.muggle-ai/e2e-instructions/<key>.md`, written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. Machine-local data stays under the Muggle home directory, never inside the user's project. The plan remains the single source of truth for each service's start command; the markdown never restates one.
 
 **On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
 - Option 1: "Keep them running — skip to testing"
@@ -123,7 +123,7 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 - **The user may prefer to start services themselves** — always offer that option.
 - **Never start a process the user didn't approve** — approvals are granted in Decide and travel in the plan; the agent starts nothing outside it.
 - **Never read file contents outside confirmed directories** — folder names are discoverable; file contents require explicit user selection.
-- **Never write a credential into `e2e-instructions.md`** — it lands in the user's repository, which nothing gitignores. Record the env-var or secret name, never its value.
+- **Never write a credential into the E2E run instructions** — plaintext notes are not a secret store, and this is the file a user pastes when asking why their stack won't start. Record the env-var or secret name, never its value.
 - **Never leave orphan processes untracked** — every background PID goes into the tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
 - **Never assume start commands** — verify via indicator file; confirm with user.

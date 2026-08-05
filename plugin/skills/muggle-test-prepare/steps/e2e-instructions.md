@@ -1,6 +1,6 @@
 # Stage 5 — E2E run instructions
 
-Capture what `prepare-plan.json` cannot express: the order services must come up in, steps that aren't a single shell command, and the local gotchas that make a healthy stack look broken. Persisted to `<repo>/.muggle-ai/e2e-instructions.md` and reused on later runs.
+Capture what `prepare-plan.json` cannot express: the order services must come up in, steps that aren't a single command, and the local gotchas that make a healthy stack look broken. Persisted under `~/.muggle-ai/e2e-instructions/` and reused on later runs.
 
 Runs after [identify-services](./identify-services.md) — startup order and per-service gotchas are unanswerable until the service set is known.
 
@@ -16,9 +16,17 @@ Runs after [identify-services](./identify-services.md) — startup order and per
 
 ## Resolve the saved file
 
-1. `git rev-parse --show-toplevel` succeeds (call it `$REPO`) and `$REPO/.muggle-ai/e2e-instructions.md` exists → load it.
-2. Else `~/.muggle-ai/e2e-instructions/<sanitized>.md`, where `<sanitized>` is `$(dirname "$PWD")` absolute with `/` and `\` replaced by `-` → load it.
-3. Neither exists → no saved instructions; run the capture below.
+This is machine-local, user-level data. It lives under the Muggle home directory and never inside the user's project — a project directory is shared, versioned, and cloned by people whose machines are set up differently, and none of that is true of a local run recipe.
+
+One file per stack:
+
+```
+~/.muggle-ai/e2e-instructions/<key>.md
+```
+
+`<key>` is the absolute path of the working directory's parent — the same stack identity the global prepare plan keys its entries on — reduced to a filename-safe token by replacing every path separator, and any drive-letter colon, with `-`. Derive it from the resolved absolute path rather than assuming a separator character; they differ per platform.
+
+Missing → no saved instructions; run the capture below.
 
 ## Gate `reusePreparePlan`
 
@@ -85,15 +93,8 @@ Nothing special — services start independently.
 
 ## Secrets
 
-Never write a credential value. A password, token, API key, or connection string with embedded credentials belongs in a secret store or an env file, and this file is created inside the user's repository — see [readiness-report](./readiness-report.md) for the write step.
+Never write a credential value. A password, token, API key, or connection string with embedded credentials belongs in a secret store or an env file — not in plaintext notes. Living outside the project keeps this file out of version control, but it is still readable on disk and is exactly the kind of file a user pastes into an issue when asking why their stack won't come up.
 
 Record a **pointer** instead: the env-var name, or the name of the Muggle secret. `Set LOCAL_TEST_PASSWORD before running` is fine; the password is not.
 
 If the user's free text contains something that looks like a credential, drop it, write the pointer form, and say so in one line.
-
-After the first write, if `$REPO/.gitignore` has no `.muggle-ai/` entry, print once:
-
-```
-Note: .muggle-ai/ isn't gitignored — this file will be committed. That's usually
-what you want (the recipe is shared), but keep credentials out of it.
-```

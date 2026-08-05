@@ -12,7 +12,7 @@
 
 Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) — the readiness/service-start owner (idempotent; halt on what it surfaces). The URL gate below only *selects* the target; prepare is what guarantees something is listening and compiled.
 
-Then read `<repo>/.muggle-ai/e2e-instructions.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. Use it to interpret what you see: a gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
+Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. Use it to interpret what you see: a gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
 
 ## Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
 

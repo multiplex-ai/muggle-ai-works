@@ -1,9 +1,31 @@
-/** Tests for the per-repo last-host cache. */
+/** Tests for the last-host cache. */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
+const homeDirState = vi.hoisted(() => ({ path: "" }));
+
+vi.mock("../shared/data-dir.js", () => ({
+  getDataDir: () => homeDirState.path,
+}));
+
+vi.mock("../shared/logger.js", () => {
+  const noop = (): undefined => undefined;
+  const silentLogger = {
+    info: noop,
+    warn: noop,
+    error: noop,
+    debug: noop,
+    child: () => silentLogger,
+  };
+  return {
+    getLogger: () => silentLogger,
+    createChildLogger: () => silentLogger,
+    resetLogger: noop,
+  };
+});
 
 import {
   LAST_HOST_FILE_NAME,
@@ -13,6 +35,7 @@ import {
   formatLastHostOneLiner,
   readLastHost,
   writeLastHost,
+  type ILastHostFile,
 } from "../shared/last-host.js";
 import {
   LastHostGetInputSchema,
@@ -36,13 +59,32 @@ describe("last-host constants", () => {
 
 describe("last-host cache", () => {
   let projectDir: string;
+  let otherProjectDir: string;
+
+  const homeFilePath = (): string => path.join(homeDirState.path, LAST_HOST_FILE_NAME);
+
+  const legacyFilePath = (cwd: string): string =>
+    path.join(cwd, LAST_HOST_DIR_NAME, LAST_HOST_FILE_NAME);
+
+  const writeLegacyFile = (cwd: string, host: string): void => {
+    fs.mkdirSync(path.join(cwd, LAST_HOST_DIR_NAME), { recursive: true });
+    const legacy: ILastHostFile = {
+      version: LAST_HOST_VERSION,
+      lastHost: { host: host, savedAt: "2020-01-01T00:00:00.000Z" },
+    };
+    fs.writeFileSync(legacyFilePath(cwd), JSON.stringify(legacy), "utf-8");
+  };
 
   beforeEach(() => {
     projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-host-test-"));
+    otherProjectDir = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-host-other-"));
+    homeDirState.path = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-host-home-"));
   });
 
   afterEach(() => {
     fs.rmSync(projectDir, { recursive: true, force: true });
+    fs.rmSync(otherProjectDir, { recursive: true, force: true });
+    fs.rmSync(homeDirState.path, { recursive: true, force: true });
   });
 
   describe("readLastHost", () => {
@@ -57,34 +99,83 @@ describe("last-host cache", () => {
       expect(cached?.host).toBe("http://localhost:3000");
       expect(cached?.savedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
+
+    it("returns null for an unparseable home file", () => {
+      fs.writeFileSync(homeFilePath(), "{ not json", "utf-8");
+      expect(readLastHost(projectDir)).toBeNull();
+    });
+
+    it("migrates a superseded in-project cache into the home file", () => {
+      writeLegacyFile(projectDir, "http://localhost:4200");
+
+      expect(readLastHost(projectDir)?.host).toBe("http://localhost:4200");
+
+      const stored = JSON.parse(fs.readFileSync(homeFilePath(), "utf-8"));
+      expect(stored.entries[path.resolve(projectDir)].host).toBe("http://localhost:4200");
+    });
+
+    it("prefers the home entry over a superseded in-project cache", () => {
+      writeLegacyFile(projectDir, "http://localhost:4200");
+      writeLastHost(projectDir, "http://localhost:3000");
+      expect(readLastHost(projectDir)?.host).toBe("http://localhost:3000");
+    });
   });
 
   describe("writeLastHost", () => {
-    it("creates the .muggle-ai directory if missing", () => {
+    it("writes nothing inside the project directory", () => {
       writeLastHost(projectDir, "http://localhost:3000");
-      expect(fs.existsSync(path.join(projectDir, LAST_HOST_DIR_NAME))).toBe(true);
+      expect(fs.existsSync(path.join(projectDir, LAST_HOST_DIR_NAME))).toBe(false);
     });
 
-    it("writes a versioned file shape", () => {
+    it("creates the home directory if missing", () => {
+      fs.rmSync(homeDirState.path, { recursive: true, force: true });
       writeLastHost(projectDir, "http://localhost:3000");
-      const filePath = path.join(projectDir, LAST_HOST_DIR_NAME, LAST_HOST_FILE_NAME);
-      const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      expect(raw.version).toBe(1);
-      expect(raw.lastHost.host).toBe("http://localhost:3000");
+      expect(fs.existsSync(homeFilePath())).toBe(true);
     });
 
-    it("overwrites an existing cache file", () => {
+    it("writes a versioned map keyed by absolute working directory", () => {
+      writeLastHost(projectDir, "http://localhost:3000");
+      const stored = JSON.parse(fs.readFileSync(homeFilePath(), "utf-8"));
+      expect(stored.version).toBe(1);
+      expect(stored.entries[path.resolve(projectDir)].host).toBe("http://localhost:3000");
+    });
+
+    it("overwrites the entry for the same working directory", () => {
       writeLastHost(projectDir, "http://localhost:3000");
       writeLastHost(projectDir, "http://localhost:5173");
       expect(readLastHost(projectDir)?.host).toBe("http://localhost:5173");
     });
+
+    it("keeps entries for different working directories apart", () => {
+      writeLastHost(projectDir, "http://localhost:3000");
+      writeLastHost(otherProjectDir, "http://localhost:5173");
+      expect(readLastHost(projectDir)?.host).toBe("http://localhost:3000");
+      expect(readLastHost(otherProjectDir)?.host).toBe("http://localhost:5173");
+    });
   });
 
   describe("clearLastHost", () => {
-    it("removes the cache file", () => {
+    it("removes the cached entry", () => {
       writeLastHost(projectDir, "http://localhost:3000");
       clearLastHost(projectDir);
       expect(readLastHost(projectDir)).toBeNull();
+    });
+
+    it("removes the superseded in-project file so it cannot resurrect the entry", () => {
+      writeLegacyFile(projectDir, "http://localhost:4200");
+      writeLastHost(projectDir, "http://localhost:3000");
+
+      clearLastHost(projectDir);
+
+      expect(fs.existsSync(legacyFilePath(projectDir))).toBe(false);
+      expect(readLastHost(projectDir)).toBeNull();
+    });
+
+    it("leaves other working directories untouched", () => {
+      writeLastHost(projectDir, "http://localhost:3000");
+      writeLastHost(otherProjectDir, "http://localhost:5173");
+      clearLastHost(projectDir);
+      expect(readLastHost(otherProjectDir)?.host).toBe("http://localhost:5173");
     });
 
     it("is a no-op when no cache exists", () => {
@@ -127,8 +218,11 @@ describe("LastHostSetInputSchema", () => {
   });
 
   it("accepts a valid input", () => {
-    const r = LastHostSetInputSchema.parse({ cwd: "/repo", host: "http://localhost:3000" });
-    expect(r.host).toBe("http://localhost:3000");
+    const parsed = LastHostSetInputSchema.parse({
+      cwd: "/repo",
+      host: "http://localhost:3000",
+    });
+    expect(parsed.host).toBe("http://localhost:3000");
   });
 });
 

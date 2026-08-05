@@ -1,11 +1,31 @@
-/**
- * Tests for the per-repo last-project cache.
- */
+/** Tests for the last-project cache. */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+
+const homeDirState = vi.hoisted(() => ({ path: "" }));
+
+vi.mock("../shared/data-dir.js", () => ({
+  getDataDir: () => homeDirState.path,
+}));
+
+vi.mock("../shared/logger.js", () => {
+  const noop = (): undefined => undefined;
+  const silentLogger = {
+    info: noop,
+    warn: noop,
+    error: noop,
+    debug: noop,
+    child: () => silentLogger,
+  };
+  return {
+    getLogger: () => silentLogger,
+    createChildLogger: () => silentLogger,
+    resetLogger: noop,
+  };
+});
 
 import {
   LAST_PROJECT_FILE_NAME,
@@ -15,6 +35,7 @@ import {
   formatLastProjectOneLiner,
   readLastProject,
   writeLastProject,
+  type ILastProjectFile,
 } from "../shared/last-project.js";
 import {
   LastProjectGetInputSchema,
@@ -38,13 +59,37 @@ describe("last-project constants", () => {
 
 describe("last-project cache", () => {
   let projectDir: string;
+  let otherProjectDir: string;
+
+  const homeFilePath = (): string => path.join(homeDirState.path, LAST_PROJECT_FILE_NAME);
+
+  const legacyFilePath = (cwd: string): string =>
+    path.join(cwd, LAST_PROJECT_DIR_NAME, LAST_PROJECT_FILE_NAME);
+
+  const writeLegacyFile = (cwd: string, projectId: string): void => {
+    fs.mkdirSync(path.join(cwd, LAST_PROJECT_DIR_NAME), { recursive: true });
+    const legacy: ILastProjectFile = {
+      version: LAST_PROJECT_VERSION,
+      lastProject: {
+        projectId: projectId,
+        projectUrl: "https://legacy.example.com",
+        projectName: "Legacy",
+        savedAt: "2020-01-01T00:00:00.000Z",
+      },
+    };
+    fs.writeFileSync(legacyFilePath(cwd), JSON.stringify(legacy), "utf-8");
+  };
 
   beforeEach(() => {
     projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-project-test-"));
+    otherProjectDir = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-project-other-"));
+    homeDirState.path = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-last-project-home-"));
   });
 
   afterEach(() => {
     fs.rmSync(projectDir, { recursive: true, force: true });
+    fs.rmSync(otherProjectDir, { recursive: true, force: true });
+    fs.rmSync(homeDirState.path, { recursive: true, force: true });
   });
 
   describe("readLastProject", () => {
@@ -65,43 +110,107 @@ describe("last-project cache", () => {
       expect(cached?.projectName).toBe("Example");
       expect(cached?.savedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
+
+    it("returns null for an unparseable home file", () => {
+      fs.writeFileSync(homeFilePath(), "{ not json", "utf-8");
+      expect(readLastProject(projectDir)).toBeNull();
+    });
+
+    it("migrates a superseded in-project cache into the home file", () => {
+      writeLegacyFile(projectDir, "legacy-1");
+
+      expect(readLastProject(projectDir)?.projectId).toBe("legacy-1");
+
+      const stored = JSON.parse(fs.readFileSync(homeFilePath(), "utf-8"));
+      expect(stored.entries[path.resolve(projectDir)].projectId).toBe("legacy-1");
+    });
+
+    it("prefers the home entry over a superseded in-project cache", () => {
+      writeLegacyFile(projectDir, "legacy-1");
+      writeLastProject(projectDir, {
+        projectId: "p1",
+        projectUrl: "https://x.com",
+        projectName: "X",
+      });
+      expect(readLastProject(projectDir)?.projectId).toBe("p1");
+    });
   });
 
   describe("writeLastProject", () => {
-    it("creates the .muggle-ai directory if missing", () => {
+    it("writes nothing inside the project directory", () => {
       writeLastProject(projectDir, {
         projectId: "p1",
         projectUrl: "https://x.com",
         projectName: "X",
       });
-      expect(fs.existsSync(path.join(projectDir, LAST_PROJECT_DIR_NAME))).toBe(true);
+      expect(fs.existsSync(path.join(projectDir, LAST_PROJECT_DIR_NAME))).toBe(false);
     });
 
-    it("writes a versioned file shape", () => {
+    it("creates the home directory if missing", () => {
+      fs.rmSync(homeDirState.path, { recursive: true, force: true });
       writeLastProject(projectDir, {
         projectId: "p1",
         projectUrl: "https://x.com",
         projectName: "X",
       });
-      const filePath = path.join(projectDir, LAST_PROJECT_DIR_NAME, LAST_PROJECT_FILE_NAME);
-      const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-      expect(raw.version).toBe(1);
-      expect(raw.lastProject.projectId).toBe("p1");
+      expect(fs.existsSync(homeFilePath())).toBe(true);
     });
 
-    it("overwrites an existing cache file", () => {
+    it("writes a versioned map keyed by absolute working directory", () => {
+      writeLastProject(projectDir, {
+        projectId: "p1",
+        projectUrl: "https://x.com",
+        projectName: "X",
+      });
+      const stored = JSON.parse(fs.readFileSync(homeFilePath(), "utf-8"));
+      expect(stored.version).toBe(1);
+      expect(stored.entries[path.resolve(projectDir)].projectId).toBe("p1");
+    });
+
+    it("overwrites the entry for the same working directory", () => {
       writeLastProject(projectDir, { projectId: "p1", projectUrl: "u1", projectName: "n1" });
       writeLastProject(projectDir, { projectId: "p2", projectUrl: "u2", projectName: "n2" });
-      const cached = readLastProject(projectDir);
-      expect(cached?.projectId).toBe("p2");
+      expect(readLastProject(projectDir)?.projectId).toBe("p2");
+    });
+
+    it("keeps entries for different working directories apart", () => {
+      writeLastProject(projectDir, { projectId: "p1", projectUrl: "u1", projectName: "n1" });
+      writeLastProject(otherProjectDir, {
+        projectId: "p2",
+        projectUrl: "u2",
+        projectName: "n2",
+      });
+      expect(readLastProject(projectDir)?.projectId).toBe("p1");
+      expect(readLastProject(otherProjectDir)?.projectId).toBe("p2");
     });
   });
 
   describe("clearLastProject", () => {
-    it("removes the cache file", () => {
+    it("removes the cached entry", () => {
       writeLastProject(projectDir, { projectId: "p1", projectUrl: "u", projectName: "n" });
       clearLastProject(projectDir);
       expect(readLastProject(projectDir)).toBeNull();
+    });
+
+    it("removes the superseded in-project file so it cannot resurrect the entry", () => {
+      writeLegacyFile(projectDir, "legacy-1");
+      writeLastProject(projectDir, { projectId: "p1", projectUrl: "u", projectName: "n" });
+
+      clearLastProject(projectDir);
+
+      expect(fs.existsSync(legacyFilePath(projectDir))).toBe(false);
+      expect(readLastProject(projectDir)).toBeNull();
+    });
+
+    it("leaves other working directories untouched", () => {
+      writeLastProject(projectDir, { projectId: "p1", projectUrl: "u1", projectName: "n1" });
+      writeLastProject(otherProjectDir, {
+        projectId: "p2",
+        projectUrl: "u2",
+        projectName: "n2",
+      });
+      clearLastProject(projectDir);
+      expect(readLastProject(otherProjectDir)?.projectId).toBe("p2");
     });
 
     it("is a no-op when no cache exists", () => {
@@ -144,8 +253,8 @@ describe("LastProjectGetInputSchema", () => {
   });
 
   it("accepts a valid input", () => {
-    const r = LastProjectGetInputSchema.parse({ cwd: "/some/repo" });
-    expect(r.cwd).toBe("/some/repo");
+    const parsed = LastProjectGetInputSchema.parse({ cwd: "/some/repo" });
+    expect(parsed.cwd).toBe("/some/repo");
   });
 });
 
@@ -162,13 +271,13 @@ describe("LastProjectSetInputSchema", () => {
   });
 
   it("accepts a valid input", () => {
-    const r = LastProjectSetInputSchema.parse({
+    const parsed = LastProjectSetInputSchema.parse({
       cwd: "/repo",
       projectId: "p1",
       projectUrl: "https://x.com",
       projectName: "n",
     });
-    expect(r.projectId).toBe("p1");
+    expect(parsed.projectId).toBe("p1");
   });
 
   it("rejects empty strings", () => {
@@ -189,7 +298,7 @@ describe("LastProjectClearInputSchema", () => {
   });
 
   it("accepts a valid input", () => {
-    const r = LastProjectClearInputSchema.parse({ cwd: "/some/repo" });
-    expect(r.cwd).toBe("/some/repo");
+    const parsed = LastProjectClearInputSchema.parse({ cwd: "/some/repo" });
+    expect(parsed.cwd).toBe("/some/repo");
   });
 });

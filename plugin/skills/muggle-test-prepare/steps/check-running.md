@@ -4,7 +4,7 @@
 
 The dev-server URL the tests will hit is a **recorded value, not a guess** — resolve it before probing anything.
 
-1. Read the cached host with `muggle-local-last-host-get`. It reads `<cwd>/.muggle-ai/last-host.json`; a worktree usually has **no cache of its own**, so when the worktree returns nothing, pass the **main** working-tree root as `cwd` — `git rev-parse --git-common-dir`, then its parent directory.
+1. Read the cached host with `muggle-local-last-host-get`. It reads the entry keyed on `<cwd>` in `~/.muggle-ai/last-host.json`; a worktree usually has **no cache of its own**, so when the worktree returns nothing, pass the **main** working-tree root as `cwd` — `git rev-parse --git-common-dir`, then its parent directory.
 2. Apply the [`autoSelectLocalHost`](../../muggle-preferences/preference-gates/autoSelectLocalHost.md) gate (read its value from the `Muggle Test Preferences` session-context line; absent → `ask`):
    - `always` **and** a cache exists → use it silently: `Using saved local URL {lastHost}`.
    - otherwise (`ask` / `never`, or no cache) → **confirm before using any host.** Run the gate's Picker 1 with `{lastHost}` (cached URL, omitted when absent) and `{suggestedHost}` (a port you actually detect listening). Never auto-pick, and never fall back to a framework default like `:3000`; if nothing is cached or detected, ask the user to type the URL.

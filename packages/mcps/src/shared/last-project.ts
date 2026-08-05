@@ -1,93 +1,60 @@
 /**
- * Per-repo last-used Muggle Test project cache.
+ * Last-used Muggle Test project, cached per working directory.
  *
- * Stored at `<repo>/.muggle-ai/last-project.json`. Honors the
- * `autoSelectProject = always` preference: when set, skills can silently reuse
- * the project that the user most recently picked for this repo, instead of
- * presenting the project picker every time.
+ * Stored in the Muggle home directory under the absolute working directory, so
+ * the user's project stays untouched. Honors the `autoSelectProject = always`
+ * preference: when set, skills can silently reuse the project that the user
+ * most recently picked for this directory, instead of presenting the project
+ * picker every time.
  *
- * Skills consume this via the `Muggle Test Last Project` line injected into session
- * context by the SessionStart hook (zero tokens). MCP tools import this module
- * directly (zero tokens).
+ * Skills consume this via the `Muggle Test Last Project` line injected into
+ * session context by the SessionStart hook (zero tokens). MCP tools import this
+ * module directly (zero tokens).
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { clearCwdEntry, readCwdEntry, writeCwdEntry } from "./cwd-keyed-cache.js";
+import { LAST_PROJECT_CACHE } from "./last-project-constants.js";
+import type { ILastProject } from "./last-project-types.js";
 
-import { getLogger } from "./logger.js";
-
-/** Per-repo cache file name. */
-export const LAST_PROJECT_FILE_NAME = "last-project.json";
-/** Per-repo cache directory name (shared with project preferences). */
-export const LAST_PROJECT_DIR_NAME = ".muggle-ai";
-/** Schema version for future migrations. */
-export const LAST_PROJECT_VERSION = 1;
-
-/** A cached "last used project" record for a single repo. */
-export interface ILastProject {
-  projectId: string;
-  projectUrl: string;
-  projectName: string;
-  /** ISO-8601 timestamp of when this entry was last written. */
-  savedAt: string;
-}
-
-/** On-disk file shape. */
-export interface ILastProjectFile {
-  version: number;
-  lastProject: ILastProject;
-}
+export {
+  LAST_PROJECT_CACHE,
+  LAST_PROJECT_DIR_NAME,
+  LAST_PROJECT_FILE_NAME,
+  LAST_PROJECT_VERSION,
+} from "./last-project-constants.js";
+export type { ILastProject, ILastProjectFile } from "./last-project-types.js";
 
 /**
- * Read the cached last project for a repo.
+ * Read the cached last project for a working directory.
  *
- * Returns null if the file does not exist or fails to parse.
+ * Returns null if no entry exists or the cache fails to parse.
  */
 export function readLastProject(cwd: string): ILastProject | null {
-  const filePath = path.join(cwd, LAST_PROJECT_DIR_NAME, LAST_PROJECT_FILE_NAME);
-  try {
-    if (!fs.existsSync(filePath)) {
-      return null;
-    }
-    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8")) as ILastProjectFile;
-    return raw.lastProject ?? null;
-  } catch (error) {
-    getLogger().warn("Failed to read last-project file", {
-      path: filePath,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return null;
-  }
+  return readCwdEntry<ILastProject>(LAST_PROJECT_CACHE, cwd);
 }
 
 /**
- * Write the cached last project for a repo.
+ * Write the cached last project for a working directory.
  *
- * Creates the `.muggle-ai/` directory if it doesn't exist. `savedAt` is set
+ * Creates the Muggle home directory if it doesn't exist. `savedAt` is set
  * automatically; the caller only provides project identity fields.
  */
 export function writeLastProject(
   cwd: string,
   lastProject: Omit<ILastProject, "savedAt">,
 ): void {
-  const dir = path.join(cwd, LAST_PROJECT_DIR_NAME);
-  fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, LAST_PROJECT_FILE_NAME);
-  const file: ILastProjectFile = {
-    version: LAST_PROJECT_VERSION,
-    lastProject: { ...lastProject, savedAt: new Date().toISOString() },
-  };
-  fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf-8");
+  writeCwdEntry<ILastProject>(LAST_PROJECT_CACHE, cwd, {
+    ...lastProject,
+    savedAt: new Date().toISOString(),
+  });
 }
 
 /**
- * Remove the cached last project for a repo. No-op if the file does not exist.
+ * Remove the cached last project for a working directory, including any
+ * superseded in-project file.
  */
 export function clearLastProject(cwd: string): void {
-  const filePath = path.join(cwd, LAST_PROJECT_DIR_NAME, LAST_PROJECT_FILE_NAME);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
+  clearCwdEntry(LAST_PROJECT_CACHE, cwd);
 }
 
 /**

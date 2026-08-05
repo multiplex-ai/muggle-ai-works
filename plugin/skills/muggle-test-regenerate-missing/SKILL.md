@@ -65,7 +65,7 @@ If auth keeps failing, suggest the user run `muggle logout && muggle login` from
 
 A **project** is the unit on the Muggle AI dashboard that groups test cases, scripts, and runs. The user must pick the one to scan — never auto-select from repo name, branch, or URL heuristics.
 
-The per-repo project cache lives at `<cwd>/.muggle-ai/last-project.json` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
+The per-repo project cache lives in `~/.muggle-ai/last-project.json`, in the entry keyed on `<cwd>` (via the `muggle-local-last-project-get` / `muggle-local-last-project-set` MCP tools). Look for `Muggle Test Last Project: id=… url=… name="…"` in session context.
 
 Gate `autoSelectProject` (per `preference-gates/README.md`). Cache: `Muggle Test Last Project` session line.
 - `always` + cache → use cached `projectId`, proceed to Step 3. No cache → fall through to `ask`.

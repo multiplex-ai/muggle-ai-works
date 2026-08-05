@@ -11,6 +11,7 @@ import {
   PreferenceKey,
   PreferenceValue,
 } from "../shared/preferences-types.js";
+import { ProjectPreferencesReconcileOutcome } from "../shared/project-preferences-reconcile-types.js";
 import { PreferencesSetInputSchema } from "../mcp/local/contracts/preferences-schemas.js";
 import {
   DEFAULT_PREFERENCES,
@@ -21,15 +22,14 @@ import {
 } from "../shared/preferences-constants.js";
 
 import {
-  readGlobalPreferences,
-  readProjectPreferences,
+  reconcileProjectPreferences,
   resolvePreferences,
   writePreferences,
   resetPreference,
   isFirstRun,
   validatePreference,
   formatPreferencesOneLiner,
-} from "../shared/preferences.js";
+} from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
   it("has exactly 22 keys", () => {
@@ -169,98 +169,142 @@ describe("PreferencesService", () => {
     });
   });
 
-  describe("readGlobalPreferences", () => {
-    it("returns defaults when file does not exist", () => {
-      const prefs = readGlobalPreferences(globalDir);
-      expect(prefs).toEqual(DEFAULT_PREFERENCES);
-    });
+  function writeGlobalPreferences(prefs: Record<string, string>): void {
+    fs.writeFileSync(
+      path.join(globalDir, "preferences.json"),
+      JSON.stringify({ version: 1, preferences: prefs }),
+    );
+  }
 
-    it("reads saved preferences", () => {
-      const filePath = path.join(globalDir, "preferences.json");
-      fs.writeFileSync(filePath, JSON.stringify({
-        version: 1,
-        preferences: { autoLogin: "never" },
-      }));
-      const prefs = readGlobalPreferences(globalDir);
-      expect(prefs.autoLogin).toBe("never"); // saved value overrides the default
-      expect(prefs.autoSelectProject).toBe("always"); // unsaved key falls back to default
-    });
-  });
+  function writeLegacyProjectPreferences(prefs: Record<string, string>): void {
+    const dir = path.join(projectDir, ".muggle-ai");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, "preferences.json"),
+      JSON.stringify({ version: 1, preferences: prefs }),
+    );
+  }
 
-  describe("readProjectPreferences", () => {
-    it("returns empty object when no project file exists", () => {
-      const prefs = readProjectPreferences(projectDir);
-      expect(prefs).toEqual({});
-    });
-
-    it("reads project overrides", () => {
-      const overrideDir = path.join(projectDir, ".muggle-ai");
-      fs.mkdirSync(overrideDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(overrideDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { defaultExecutionMode: "local" } }),
-      );
-      const prefs = readProjectPreferences(projectDir);
-      expect(prefs.defaultExecutionMode).toBe("local");
-    });
-  });
+  function readGlobalPreferencesFile(): Record<string, unknown> {
+    return JSON.parse(fs.readFileSync(path.join(globalDir, "preferences.json"), "utf-8"));
+  }
 
   describe("resolvePreferences", () => {
-    it("merges global + project, project wins", () => {
-      fs.writeFileSync(
-        path.join(globalDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { autoLogin: "always", verboseOutput: "always" } }),
-      );
-      const overrideDir = path.join(projectDir, ".muggle-ai");
-      fs.mkdirSync(overrideDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(overrideDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { autoLogin: "never" } }),
-      );
+    it("returns defaults when no global file exists", () => {
+      expect(resolvePreferences(globalDir)).toEqual(DEFAULT_PREFERENCES);
+    });
 
-      const resolved = resolvePreferences(globalDir, projectDir);
-      expect(resolved.autoLogin).toBe("never"); // project overrides global
-      expect(resolved.verboseOutput).toBe("always"); // global override (non-default) survives
-      expect(resolved.checkForUpdates).toBe("always"); // unset everywhere → default
+    it("overlays the global file on defaults", () => {
+      writeGlobalPreferences({ autoLogin: "never" });
+      const resolved = resolvePreferences(globalDir);
+      expect(resolved.autoLogin).toBe("never"); // saved value overrides the default
+      expect(resolved.autoSelectProject).toBe("always"); // unsaved key falls back to default
+    });
+
+    it("ignores a project preferences file", () => {
+      writeGlobalPreferences({ autoLogin: "always" });
+      writeLegacyProjectPreferences({ autoLogin: "never" });
+      expect(resolvePreferences(globalDir).autoLogin).toBe("always");
     });
   });
 
   describe("writePreferences", () => {
-    it("writes global preferences file", () => {
-      writePreferences({ autoLogin: "always" }, "global", globalDir, projectDir);
-      const raw = JSON.parse(fs.readFileSync(path.join(globalDir, "preferences.json"), "utf-8"));
-      expect(raw.version).toBe(1);
-      expect(raw.preferences.autoLogin).toBe("always");
+    it("writes the global preferences file", () => {
+      writePreferences({ autoLogin: "always" }, globalDir);
+      const file = readGlobalPreferencesFile();
+      expect(file.version).toBe(1);
+      expect((file.preferences as Record<string, string>).autoLogin).toBe("always");
     });
 
-    it("writes project preferences file", () => {
-      writePreferences({ defaultExecutionMode: "local" }, "project", globalDir, projectDir);
-      const overridePath = path.join(projectDir, ".muggle-ai", "preferences.json");
-      const raw = JSON.parse(fs.readFileSync(overridePath, "utf-8"));
-      expect(raw.preferences.defaultExecutionMode).toBe("local");
+    it("merges over keys already on disk", () => {
+      writeGlobalPreferences({ verboseOutput: "always" });
+      writePreferences({ autoLogin: "never" }, globalDir);
+      expect(readGlobalPreferencesFile().preferences).toEqual({
+        verboseOutput: "always",
+        autoLogin: "never",
+      });
     });
   });
 
   describe("resetPreference", () => {
     it("removes a single key from global file", () => {
-      fs.writeFileSync(
-        path.join(globalDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { autoLogin: "always", verboseOutput: "never" } }),
-      );
-      resetPreference("autoLogin", "global", globalDir, projectDir);
-      const raw = JSON.parse(fs.readFileSync(path.join(globalDir, "preferences.json"), "utf-8"));
-      expect(raw.preferences.autoLogin).toBeUndefined();
-      expect(raw.preferences.verboseOutput).toBe("never");
+      writeGlobalPreferences({ autoLogin: "always", verboseOutput: "never" });
+      resetPreference("autoLogin", globalDir);
+      const saved = readGlobalPreferencesFile().preferences as Record<string, string>;
+      expect(saved.autoLogin).toBeUndefined();
+      expect(saved.verboseOutput).toBe("never");
     });
 
     it("resets entire file when no key provided", () => {
-      fs.writeFileSync(
-        path.join(globalDir, "preferences.json"),
-        JSON.stringify({ version: 1, preferences: { autoLogin: "always" } }),
-      );
-      resetPreference(undefined, "global", globalDir, projectDir);
-      const raw = JSON.parse(fs.readFileSync(path.join(globalDir, "preferences.json"), "utf-8"));
-      expect(raw.preferences).toEqual({});
+      writeGlobalPreferences({ autoLogin: "always" });
+      resetPreference(undefined, globalDir);
+      expect(readGlobalPreferencesFile().preferences).toEqual({});
+    });
+  });
+
+  describe("reconcileProjectPreferences", () => {
+    it("reports no action when the project has no preferences file", () => {
+      writeGlobalPreferences({ autoLogin: "never" });
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+      expect(report.outcome).toBe(ProjectPreferencesReconcileOutcome.NoAction);
+      expect(report.shadowedKeys).toEqual([]);
+    });
+
+    it("copies the project file forward when no global file exists", () => {
+      writeLegacyProjectPreferences({ autoLogin: "never", verboseOutput: "always" });
+
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+
+      expect(report.outcome).toBe(ProjectPreferencesReconcileOutcome.CopiedToGlobal);
+      expect(report.shadowedKeys).toEqual([]);
+      expect(readGlobalPreferencesFile().preferences).toEqual({
+        autoLogin: "never",
+        verboseOutput: "always",
+      });
+      expect(resolvePreferences(globalDir).autoLogin).toBe("never");
+    });
+
+    it("leaves the project file on disk after copying it forward", () => {
+      writeLegacyProjectPreferences({ autoLogin: "never" });
+      reconcileProjectPreferences(projectDir, globalDir);
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+      expect(fs.existsSync(report.projectFilePath)).toBe(true);
+    });
+
+    it("never merges into an existing global file — it reports the shadowed keys instead", () => {
+      writeGlobalPreferences({ autoLogin: "always" });
+      writeLegacyProjectPreferences({ autoLogin: "never", showElectronBrowser: "never" });
+
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+
+      expect(report.outcome).toBe(ProjectPreferencesReconcileOutcome.KeysShadowed);
+      expect(report.shadowedKeys).toEqual([
+        PreferenceKey.AutoLogin,
+        PreferenceKey.ShowElectronBrowser,
+      ]);
+      expect(readGlobalPreferencesFile().preferences).toEqual({ autoLogin: "always" });
+      expect(resolvePreferences(globalDir).autoLogin).toBe("always");
+    });
+
+    it("omits project keys that already match the resolved global value", () => {
+      writeGlobalPreferences({ autoLogin: "never" });
+      writeLegacyProjectPreferences({
+        autoLogin: "never",
+        autoSelectProject: "always", // equals the default, so nothing changes
+        verboseOutput: "always",
+      });
+
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+
+      expect(report.shadowedKeys).toEqual([PreferenceKey.VerboseOutput]);
+    });
+
+    it("reports no action when every project key already matches", () => {
+      writeGlobalPreferences({ autoLogin: "never" });
+      writeLegacyProjectPreferences({ autoLogin: "never" });
+      const report = reconcileProjectPreferences(projectDir, globalDir);
+      expect(report.outcome).toBe(ProjectPreferencesReconcileOutcome.NoAction);
+      expect(report.shadowedKeys).toEqual([]);
     });
   });
 
@@ -314,17 +358,26 @@ describe("PreferencesSetInputSchema", () => {
     });
     expect(result.key).toBe("autoLogin");
     expect(result.value).toBe("always");
-    expect(result.scope).toBe("global");
   });
 
-  it("accepts project scope", () => {
-    const result = PreferencesSetInputSchema.parse({
-      key: "autoLogin",
-      value: "never",
-      scope: "project",
-      cwd: "/some/path",
-    });
-    expect(result.scope).toBe("project");
+  it("rejects a scope argument left over from the per-project era", () => {
+    // Stripping it would apply a preference the caller scoped to one project
+    // across every project instead — the opposite of what was asked.
+    expect(() =>
+      PreferencesSetInputSchema.parse({
+        key: "autoLogin",
+        value: "never",
+        scope: "project",
+        cwd: "/some/path",
+      }),
+    ).toThrow(/scope and cwd are no longer accepted/);
+  });
+
+  it("still reports a field error against the field, not the object", () => {
+    // The object-level message must not swallow ordinary validation failures.
+    expect(() =>
+      PreferencesSetInputSchema.parse({ key: "autoLogin", value: "banana" }),
+    ).toThrow(/banana|not allowed|expected/i);
   });
 
   it("rejects invalid key", () => {

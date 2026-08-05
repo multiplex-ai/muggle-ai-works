@@ -5,5 +5,5 @@
 3. Footer:
    ```
    Values: always · ask · never (defaultExecutionMode: local/remote/ask)
-   Scope:  global (~/.muggle-ai/) or project (.muggle-ai/ in repo root)
+   Stored: ~/.muggle-ai/preferences.json — applies to every repo
    ```

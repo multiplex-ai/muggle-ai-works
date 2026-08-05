@@ -47,7 +47,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-list-sessions",
   },
   {
-    "description": "Set a Muggle AI user preference. Preferences control automation behavior (auto-login, show browser, suggest test cases, etc.). Values: 'always' (proceed without asking), 'ask' (prompt each time), 'never' (skip without asking). Scope: 'global' writes to ~/.muggle-ai/preferences.json, 'project' writes to .muggle-ai/preferences.json in the repo root.",
+    "description": "Set a Muggle AI user preference. Preferences control automation behavior (auto-login, show browser, suggest test cases, etc.). Values: 'always' (proceed without asking), 'ask' (prompt each time), 'never' (skip without asking). Preferences are user-level: they always write to ~/.muggle-ai/preferences.json and apply to every repo.",
     "name": "muggle-local-preferences-set",
   },
   {

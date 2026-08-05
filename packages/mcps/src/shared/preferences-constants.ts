@@ -9,10 +9,10 @@ import {
   type IPreferenceSchemaEntry,
 } from "./preferences-types.js";
 
-/** Preferences file name (used in both global and per-project paths). */
+/** Preferences file name. */
 export const PREFERENCES_FILE_NAME = "preferences.json";
 
-/** Per-project preferences subdirectory name. */
+/** Repo-local directory holding the legacy per-project preferences file, read only to migrate it. */
 export const PREFERENCES_PROJECT_DIR_NAME = ".muggle-ai";
 
 /** Current schema version. */

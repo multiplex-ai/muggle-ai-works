@@ -22,7 +22,9 @@ import {
   getPlatformKey,
   isElectronAppInstalled,
   isFirstRun,
+  reconcileProjectPreferences,
   PREFERENCES_FILE_NAME,
+  ProjectPreferencesReconcileOutcome,
   verifyFileChecksum,
   writePreferences,
 } from "../../packages/mcps/src/index.js";
@@ -304,11 +306,20 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
   // Ensure Cursor MCP config is up to date regardless of Electron state
   upsertCursorMcpConfig();
 
+  // Runs before the defaults seed below: seeding first would create the global
+  // file and turn a user's only copy of their settings into a shadowed one.
+  const projectPreferencesReconcile = reconcileProjectPreferences(process.cwd());
+  if (projectPreferencesReconcile.outcome === ProjectPreferencesReconcileOutcome.CopiedToGlobal) {
+    console.log(
+      `Preferences are now user-level. Copied ${projectPreferencesReconcile.projectFilePath} to ${path.join(getDataDir(), PREFERENCES_FILE_NAME)}.`,
+    );
+  }
+
   // Initialize default preferences if this is the first run
   if (isFirstRun()) {
-    writePreferences(DEFAULT_PREFERENCES, "global");
+    writePreferences(DEFAULT_PREFERENCES);
     console.log(`Default preferences written to ${path.join(getDataDir(), PREFERENCES_FILE_NAME)}`);
-    console.log("All preferences default to 'ask'. You can customize them anytime by editing the file or telling the agent to change a preference.");
+    console.log("You can customize them anytime by editing the file or telling the agent to change a preference.");
   }
 
   // Check if already installed

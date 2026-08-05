@@ -17,6 +17,11 @@ const mcpsMocks = vi.hoisted(() => ({
   getPlatformKey: vi.fn(() => "win32-x64"),
   isElectronAppInstalled: vi.fn(() => false),
   isFirstRun: vi.fn(() => false),
+  reconcileProjectPreferences: vi.fn(() => ({
+    outcome: "noAction",
+    projectFilePath: "/repo/.muggle-ai/preferences.json",
+    shadowedKeys: [],
+  })),
   verifyFileChecksum: vi.fn(async () => ({ valid: true, expected: "e", actual: "e" })),
   writePreferences: vi.fn(),
   getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
@@ -57,6 +62,11 @@ vi.mock("../../../packages/mcps/src/index.js", () => ({
   ...mcpsMocks,
   DEFAULT_PREFERENCES: { autoLogin: "ask" },
   PREFERENCES_FILE_NAME: "preferences.json",
+  ProjectPreferencesReconcileOutcome: {
+    NoAction: "noAction",
+    CopiedToGlobal: "copiedToGlobal",
+    KeysShadowed: "keysShadowed",
+  },
 }));
 
 import { setupCommand } from "../../cli/setup.js";
@@ -91,6 +101,11 @@ describe("setupCommand", () => {
     osState.home = "/home/u";
     mcpsMocks.isElectronAppInstalled.mockReturnValue(false);
     mcpsMocks.isFirstRun.mockReturnValue(false);
+    mcpsMocks.reconcileProjectPreferences.mockReturnValue({
+      outcome: "noAction",
+      projectFilePath: "/repo/.muggle-ai/preferences.json",
+      shadowedKeys: [],
+    });
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
     mcpsMocks.getChecksumForPlatform.mockReturnValue("expected-archive-sum");
     childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
@@ -119,7 +134,24 @@ describe("setupCommand", () => {
     // executable shows up after extraction so the success path completes
     fsState.existing.add(EXE_PATH);
     await setupCommand({});
-    expect(mcpsMocks.writePreferences).toHaveBeenCalledWith({ autoLogin: "ask" }, "global");
+    expect(mcpsMocks.writePreferences).toHaveBeenCalledWith({ autoLogin: "ask" });
+  });
+
+  it("reports a legacy project preferences file copied forward, and leaves it unseeded", async () => {
+    mcpsMocks.reconcileProjectPreferences.mockReturnValue({
+      outcome: "copiedToGlobal",
+      projectFilePath: "/repo/.muggle-ai/preferences.json",
+      shadowedKeys: [],
+    });
+    fsState.existing.add(EXE_PATH);
+
+    await setupCommand({});
+
+    // The copy-forward already created the global file, so isFirstRun is false
+    // and the defaults seed must not overwrite what was migrated.
+    expect(mcpsMocks.writePreferences).not.toHaveBeenCalled();
+    const logged = logSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("/repo/.muggle-ai/preferences.json");
   });
 
   it("downloads, verifies checksum, extracts, and writes metadata on success", async () => {

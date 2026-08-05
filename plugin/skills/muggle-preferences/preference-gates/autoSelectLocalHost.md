@@ -11,7 +11,7 @@ Cache lives in `~/.muggle-ai/last-host.json`, in the entry keyed on `<cwd>`. The
 
 **Picker 2 — overrides shared template.** Fires after the user picks a URL.
 - Header `Remember this URL?`, question `"Always use {chosenHost} for this repo from now on, without asking?"`
-- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` (`autoSelectLocalHost=always`, global). The cache is already up to date.
+- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` (`autoSelectLocalHost=always`). The cache is already up to date.
 - `Just this once` (sub: `I'll ask again next time.`) → don't save the preference. The cache still updates.
 
 **Silent action**

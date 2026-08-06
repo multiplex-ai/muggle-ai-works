@@ -110,6 +110,10 @@ version_check() {
 version_check || true
 
 # --- Preferences injection ---
+# Preferences are user-level: defaults overlaid by the global file only. A legacy
+# <cwd>/.muggle-ai/preferences.json is left on disk but no longer read, so the
+# keys it can no longer apply are named once — the stamp file suppresses the
+# repeat until that key set changes.
 prefs_global_file="${HOME}/.muggle-ai/preferences.json"
 prefs_line=""
 prefs_file_note=""
@@ -119,8 +123,13 @@ if [ -f "$prefs_global_file" ]; then
   # Uses node for reliable JSON parsing (already required for muggle).
   prefs_line=$(node -e "
     const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
     try {
-      const g = JSON.parse(fs.readFileSync('${prefs_global_file}', 'utf-8')).preferences || {};
+      // Resolved through node, not the shell's \$HOME: under Git Bash the shell
+      // reports a POSIX path that Windows node cannot open.
+      const globalFile = path.join(os.homedir(), '.muggle-ai', 'preferences.json');
+      const g = JSON.parse(fs.readFileSync(globalFile, 'utf-8')).preferences || {};
       const defaults = {
         autoLogin:'ask', autoSelectProject:'ask', autoSelectLocalHost:'ask',
         showElectronBrowser:'ask', openTestResultsAfterRun:'ask',
@@ -131,15 +140,30 @@ if [ -f "$prefs_global_file" ]; then
         autoUseWorktree:'ask', autoRebase:'ask', autoCleanup:'ask',
         autoE2ETest:'always', autoRouteBuildToMuggleDo:'ask'
       };
+      const resolved = { ...defaults, ...g };
+      const line = Object.entries(resolved).map(([k,v]) => k+'='+v).join(' ');
+      const blocks = ['Muggle Test Preferences (~/.muggle-ai/preferences.json):\\\\n' + line];
+
       const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
-      const pPath = require('path').join(cwd, '.muggle-ai', 'preferences.json');
+      const pPath = path.join(cwd, '.muggle-ai', 'preferences.json');
       let p = {};
       try { p = JSON.parse(fs.readFileSync(pPath, 'utf-8')).preferences || {}; } catch {}
-      const merged = { ...defaults, ...g, ...p };
-      const hasProject = Object.keys(p).length > 0;
-      const note = hasProject ? ', project overrides active' : '';
-      const line = Object.entries(merged).map(([k,v]) => k+'='+v).join(' ');
-      console.log('Muggle Test Preferences (~/.muggle-ai/preferences.json' + note + '):\\\\n' + line);
+      const inertKeys = Object.keys(p).filter((k) => p[k] !== resolved[k]).sort();
+      if (inertKeys.length > 0) {
+        const stampDir = path.join(os.homedir(), '.cache', 'muggle');
+        const stampFile = path.join(stampDir, 'project-prefs-inert');
+        const stamp = cwd + '|' + inertKeys.join(',');
+        let lastStamp = '';
+        try { lastStamp = fs.readFileSync(stampFile, 'utf-8'); } catch {}
+        if (lastStamp !== stamp) {
+          try { fs.mkdirSync(stampDir, { recursive: true }); fs.writeFileSync(stampFile, stamp); } catch {}
+          blocks.push(
+            'Muggle Test: per-project preferences were removed — ' + pPath + ' is no longer read, so these keys no longer take effect: ' + inertKeys.join(', ') + '.\\\\n' +
+            'Tell the user to re-apply any they want everywhere with \`/muggle-preferences\`; the file is safe to delete.'
+          );
+        }
+      }
+      console.log(blocks.join('\\\\n\\\\n'));
     } catch { console.log(''); }
   " 2>/dev/null || true)
   if [ -n "$prefs_line" ]; then

@@ -1,0 +1,45 @@
+{
+  "skill_name": "muggle-preferences",
+  "notes": "These evals test the PLAN behavior after per-project preferences were removed. Preferences resolve from defaults overlaid by ~/.muggle-ai/preferences.json only; muggle-local-preferences-set rejects a `scope` argument. The prompts ask for a step-by-step plan rather than execution, since writing preferences mutates the user's home directory. Assertions check that the plan never offers a per-project scope, never passes `scope`, and confirms before applying a setting the user framed as project-specific.",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "per-project-request-must-not-be-honoured-silently",
+      "prompt": "For this repo only, I want the Electron browser to actually show up when tests run — it's a UI-heavy project and I like watching it. Leave my other projects alone. Walk me through what you'd do.",
+      "files": [],
+      "assertions": [
+        { "name": "states_preferences_are_user_level", "text": "Plan states that preferences are user-level and apply to every repo, so a per-repo setting is not supported." },
+        { "name": "does_not_offer_project_scope", "text": "Plan does NOT offer a 'this project only' option, and does not claim a project-scoped preferences file can be written." },
+        { "name": "no_scope_argument", "text": "Plan does not pass a `scope` argument to muggle-local-preferences-set; it calls the tool with key and value only." },
+        { "name": "confirms_before_global_write", "text": "Plan explicitly confirms with the user before writing, because the user asked for one repo and the write will affect all of them." },
+        { "name": "names_the_correct_key", "text": "Plan identifies showElectronBrowser as the key to set." },
+        { "name": "does_not_invent_a_workaround", "text": "Plan does not invent a per-repo mechanism (env var, local override file, wrapper script) to simulate project scope." }
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "list-shows-user-level-resolution",
+      "prompt": "show me my muggle settings and where they're stored",
+      "files": [],
+      "assertions": [
+        { "name": "resolution_is_two_layer", "text": "Plan describes resolution as defaults overlaid by ~/.muggle-ai/preferences.json, with no third per-project layer." },
+        { "name": "names_the_global_path", "text": "Plan names ~/.muggle-ai/preferences.json as the storage location." },
+        { "name": "no_project_file_mentioned", "text": "Plan does not tell the user that a preferences file inside the repo is read or honoured." },
+        { "name": "reads_from_session_context_or_tool", "text": "Plan reads current values from the session-context preferences line or the preferences tool rather than guessing." }
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "stale-in-repo-file-explained",
+      "prompt": "I've got a .muggle-ai/preferences.json checked into my repo with autoLogin set to never, but muggle keeps logging me in automatically. Why isn't it being picked up?",
+      "files": [],
+      "assertions": [
+        { "name": "explains_file_is_not_read", "text": "Plan explains that a preferences file inside the project is no longer read — preferences are user-level." },
+        { "name": "points_at_global_file", "text": "Plan points the user at ~/.muggle-ai/preferences.json as the file that actually takes effect." },
+        { "name": "offers_to_reapply_globally", "text": "Plan offers to re-apply the affected key globally, noting it will then apply to every repo." },
+        { "name": "does_not_delete_user_file", "text": "Plan does not delete or rewrite the user's in-repo preferences file without asking." },
+        { "name": "no_scope_argument", "text": "Plan does not attempt to pass a `scope` argument to make the project file work." }
+      ]
+    }
+  ]
+}

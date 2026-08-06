@@ -29,4 +29,4 @@ Pick the operation, then read its op file for the procedure.
 - **Current values**: session-context line `Muggle Test Preferences key=value …`. Default `ask`.
 - **Per-key files**: `preference-gates/<key>.md`. Key list = `ls preference-gates/*.md` minus `README.md`.
 - **Allowed values**: `always`/`never`/`ask` (or `local`/`remote`/`ask` for `defaultExecutionMode`).
-- **Scope**: `global` default; `project` if user says "for this project" / "just this repo" (pass `cwd`).
+- **Scope**: preferences are user-level. Every write lands in `~/.muggle-ai/preferences.json` and applies to every repo. If the user asks for a per-project setting, say it isn't supported and confirm before setting it everywhere.

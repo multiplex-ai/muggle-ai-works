@@ -11,8 +11,8 @@ which uses `local` / `remote` / `ask`).
 ## Resolution
 
 `SessionStart` injects a `Muggle Test Preferences` line (`key=value` pairs) from
-`~/.muggle-ai/preferences.json` (global) overlaid by
-`<repo>/.muggle-ai/preferences.json` (project). Absent → treat as `ask`.
+`~/.muggle-ai/preferences.json`. Preferences are user-level — there is no
+per-project layer. Absent → treat as `ask`.
 
 ## Gate behavior
 
@@ -48,7 +48,7 @@ Header `Remember this choice?`. Question: `"Always <restate Picker 1 choice in
 plain language> from now on, without asking?"`. Never put the raw key or
 `=` in the user-visible text.
 
-- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` with the value Picker 1 mapped to, `scope: "global"`.
+- `Yes, always` (sub: `You can change this later in muggle preferences.`) → `muggle-local-preferences-set` with the value Picker 1 mapped to.
 - `Just this once` (sub: `I'll ask again next time.`) → don't save.
 
 A few keys override this template (their per-key file says how).

@@ -79,7 +79,7 @@ export enum PreferenceValue {
 export type IPreferences = Record<PreferenceKey, PreferenceValue>;
 
 /**
- * Partial preferences — used for per-project overrides.
+ * Subset of preference keys — the shape actually stored on disk.
  */
 export type IPartialPreferences = Partial<IPreferences>;
 

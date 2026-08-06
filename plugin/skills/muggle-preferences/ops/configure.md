@@ -33,18 +33,17 @@ For each option: label = key name, description = first paragraph of `preference-
 - `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`
 - `multiSelect: false`, `header: "E2E acceptance"` — `autoE2ETest`. Options: `Always run Stage 6 at the end` (`always` — default), `Ask each cycle` (`ask`). No `never` option.
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).
-- `multiSelect: false`, `header: "Scope"` — final scope question. Options: `Global (all repos)` (~/.muggle-ai/), `This project only` (.muggle-ai/ in repo).
 
-`AskUserQuestion` accepts up to 4 questions per call — split into two calls if needed (categories first, scope second).
+`AskUserQuestion` accepts up to 4 questions per call — split across calls.
 
 ## Step 4 — apply selections
 
-For each toggled key (multi-select questions): `muggle-local-preferences-set` with `value: "always"`. For `defaultExecutionMode`: only set if user picked Local/Remote (skip "Ask each time"). Pass `scope` from the scope question; pass `cwd` when scope is `project`.
+For each toggled key (multi-select questions): `muggle-local-preferences-set` with `value: "always"`. For `defaultExecutionMode`: only set if user picked Local/Remote (skip "Ask each time").
 
 ## Step 5 — `never` follow-up
 
-Ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on showElectronBrowser", or say "no".`. For named keys, call `muggle-local-preferences-set` with `value: "never"`, same scope.
+Ask: `Want any of these set to "never" (auto-skip without asking)? Name them, e.g. "never on showElectronBrowser", or say "no".`. For named keys, call `muggle-local-preferences-set` with `value: "never"`.
 
 ## Step 6 — confirm
 
-One-liner summary: `Set autoLogin=always, openTestResultsAfterRun=always (global).`
+One-liner summary: `Set autoLogin=always, openTestResultsAfterRun=always.`

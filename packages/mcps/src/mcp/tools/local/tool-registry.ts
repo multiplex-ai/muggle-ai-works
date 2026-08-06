@@ -33,7 +33,7 @@ import {
   EventTelemetryEmitInputSchema,
 } from "../../local/contracts/index.js";
 import { appendFailureEvent } from "../../../shared/failure-events.js";
-import { writePreferences } from "../../../shared/preferences.js";
+import { writePreferences } from "../../../shared/preferences-service.js";
 import {
   readLastProject,
   writeLastProject,
@@ -176,47 +176,47 @@ const runResultGetTool: ILocalMcpTool = {
 
     const input = RunResultGetInputSchema.parse(ctx.input);
     const storage = getRunResultStorageService();
-    const result = storage.getRunResult(input.runId);
+    const storedRunResult = storage.getRunResult(input.runId);
 
-    if (!result) {
+    if (!storedRunResult) {
       return { content: `Run result not found: ${input.runId}`, isError: true };
     }
 
     const contentParts = [
       "## Run Result Details",
       "",
-      `**ID:** ${result.id}`,
-      `**Type:** ${result.runType}`,
-      `**Status:** ${result.status}`,
-      `**Cloud Test Case:** ${result.cloudTestCaseId}`,
-      `**Duration:** ${result.executionTimeMs ?? 0}ms`,
-      result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
+      `**ID:** ${storedRunResult.id}`,
+      `**Type:** ${storedRunResult.runType}`,
+      `**Status:** ${storedRunResult.status}`,
+      `**Cloud Test Case:** ${storedRunResult.cloudTestCaseId}`,
+      `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
+      storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",
       // The studio publishes the run during execution; these are its returned cloud refs.
-      result.viewUrl ? `**View URL:** ${result.viewUrl}` : "",
-      result.cloudTestScriptId ? `**Cloud Test Script ID:** ${result.cloudTestScriptId}` : "",
-      result.cloudActionScriptId ? `**Cloud Action Script ID:** ${result.cloudActionScriptId}` : "",
+      storedRunResult.viewUrl ? `**View URL:** ${storedRunResult.viewUrl}` : "",
+      storedRunResult.cloudTestScriptId ? `**Cloud Test Script ID:** ${storedRunResult.cloudTestScriptId}` : "",
+      storedRunResult.cloudActionScriptId ? `**Cloud Action Script ID:** ${storedRunResult.cloudActionScriptId}` : "",
     ];
 
     let testScriptSteps: number | undefined;
-    if (result.testScriptId) {
-      const testScript = storage.getTestScript(result.testScriptId);
+    if (storedRunResult.testScriptId) {
+      const testScript = storage.getTestScript(storedRunResult.testScriptId);
       testScriptSteps = testScript?.actionScript?.length;
     }
 
-    if (result.artifactsDir && fs.existsSync(result.artifactsDir)) {
+    if (storedRunResult.artifactsDir && fs.existsSync(storedRunResult.artifactsDir)) {
       contentParts.push(
         "",
         "### Artifacts (view action script + screenshots)",
         "",
-        `**Location:** \`${result.artifactsDir}\``,
+        `**Location:** \`${storedRunResult.artifactsDir}\``,
         "",
       );
 
-      const actionScriptPath = path.join(result.artifactsDir, "action-script.json");
-      const resultsMdPath = path.join(result.artifactsDir, "results.md");
-      const screenshotsDir = path.join(result.artifactsDir, "screenshots");
-      const stdoutLogPath = path.join(result.artifactsDir, "stdout.log");
-      const stderrLogPath = path.join(result.artifactsDir, "stderr.log");
+      const actionScriptPath = path.join(storedRunResult.artifactsDir, "action-script.json");
+      const resultsMdPath = path.join(storedRunResult.artifactsDir, "results.md");
+      const screenshotsDir = path.join(storedRunResult.artifactsDir, "screenshots");
+      const stdoutLogPath = path.join(storedRunResult.artifactsDir, "stdout.log");
+      const stderrLogPath = path.join(storedRunResult.artifactsDir, "stderr.log");
 
       const artifactItems: string[] = [];
       if (fs.existsSync(actionScriptPath)) {
@@ -244,15 +244,15 @@ const runResultGetTool: ILocalMcpTool = {
       "",
       "### Ending state",
       "",
-      `- **Status:** ${result.status}`,
-      `- **Duration:** ${result.executionTimeMs ?? 0}ms`,
+      `- **Status:** ${storedRunResult.status}`,
+      `- **Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       testScriptSteps !== undefined ? `- **Steps generated:** ${testScriptSteps}` : "",
-      result.artifactsDir ? `- **Artifacts path:** \`${result.artifactsDir}\`` : "",
+      storedRunResult.artifactsDir ? `- **Artifacts path:** \`${storedRunResult.artifactsDir}\`` : "",
     );
 
     const content = contentParts.filter(Boolean).join("\n");
 
-    return { content: content, isError: false, data: result };
+    return { content: content, isError: false, data: storedRunResult };
   },
 };
 
@@ -329,7 +329,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
     const showUi = input.showUi !== false;
 
     try {
-      const result = await executeTestGeneration({
+      const generationRun = await executeTestGeneration({
         testCase: input.testCase,
         localUrl: input.localUrl,
         cwd: input.cwd,
@@ -340,20 +340,20 @@ const executeTestGenerationTool: ILocalMcpTool = {
       });
 
       const content = [
-        "## Test Generation " + (result.status === "passed" ? "Successful" : "Failed"),
+        "## Test Generation " + (generationRun.status === "passed" ? "Successful" : "Failed"),
         "",
-        `**Run ID:** ${result.id}`,
-        `**Test Script ID:** ${result.testScriptId}`,
-        `**Status:** ${result.status}`,
-        `**Duration:** ${result.executionTimeMs}ms`,
+        `**Run ID:** ${generationRun.id}`,
+        `**Test Script ID:** ${generationRun.testScriptId}`,
+        `**Status:** ${generationRun.status}`,
+        `**Duration:** ${generationRun.executionTimeMs}ms`,
         `**UI:** ${showUi ? "visible GUI" : "headless"}`,
-        result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
+        generationRun.errorMessage ? `**Error:** ${generationRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
       return {
         content: content,
-        isError: result.status !== "passed",
-        data: result,
+        isError: generationRun.status !== "passed",
+        data: generationRun,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -376,7 +376,7 @@ const executeReplayTool: ILocalMcpTool = {
     const showUi = input.showUi !== false;
 
     try {
-      const result = await executeReplay({
+      const replayRun = await executeReplay({
         testScript: input.testScript,
         actionScript: input.actionScript,
         localUrl: input.localUrl,
@@ -388,20 +388,20 @@ const executeReplayTool: ILocalMcpTool = {
       });
 
       const content = [
-        "## Test Replay " + (result.status === "passed" ? "Successful" : "Failed"),
+        "## Test Replay " + (replayRun.status === "passed" ? "Successful" : "Failed"),
         "",
-        `**Run ID:** ${result.id}`,
-        `**Test Script ID:** ${result.testScriptId}`,
-        `**Status:** ${result.status}`,
-        `**Duration:** ${result.executionTimeMs}ms`,
+        `**Run ID:** ${replayRun.id}`,
+        `**Test Script ID:** ${replayRun.testScriptId}`,
+        `**Status:** ${replayRun.status}`,
+        `**Duration:** ${replayRun.executionTimeMs}ms`,
         `**UI:** ${showUi ? "visible GUI" : "headless"}`,
-        result.errorMessage ? `**Error:** ${result.errorMessage}` : "",
+        replayRun.errorMessage ? `**Error:** ${replayRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
       return {
         content: content,
-        isError: result.status !== "passed",
-        data: result,
+        isError: replayRun.status !== "passed",
+        data: replayRun,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -437,7 +437,7 @@ const preferencesSetTool: ILocalMcpTool = {
   description:
     "Set a Muggle AI user preference. Preferences control automation behavior (auto-login, show browser, suggest test cases, etc.). " +
     "Values: 'always' (proceed without asking), 'ask' (prompt each time), 'never' (skip without asking). " +
-    "Scope: 'global' writes to ~/.muggle-ai/preferences.json, 'project' writes to .muggle-ai/preferences.json in the repo root.",
+    "Preferences are user-level: they always write to ~/.muggle-ai/preferences.json and apply to every repo.",
   inputSchema: PreferencesSetInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -445,15 +445,10 @@ const preferencesSetTool: ILocalMcpTool = {
 
     const input = PreferencesSetInputSchema.parse(ctx.input);
 
-    writePreferences(
-      { [input.key]: input.value },
-      input.scope,
-      undefined,
-      input.cwd,
-    );
+    writePreferences({ [input.key]: input.value });
 
     return {
-      content: `**${input.key}** set to **${input.value}** (${input.scope}).`,
+      content: `**${input.key}** set to **${input.value}**.`,
       isError: false,
     };
   },
@@ -478,7 +473,7 @@ const lastProjectGetTool: ILocalMcpTool = {
       const content = [
         "No cached last-used project for this repo.",
         "",
-        `Looked at: \`~/.muggle-ai/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
+        `Looked at: \`${MUGGLE_HOME_DISPLAY_DIR}/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
         "",
         "The cache is populated when a user picks an existing project AND chooses 'Yes, save it' on the memory picker (the autoSelectProject preference).",
       ].join("\n");
@@ -519,7 +514,7 @@ const lastProjectSetTool: ILocalMcpTool = {
     const content = [
       `Cached **${input.projectName}** as the last-used project for this repo.`,
       "",
-      `Written to: \`~/.muggle-ai/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
+      `Written to: \`${MUGGLE_HOME_DISPLAY_DIR}/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
       "",
       "Skills will silently reuse this project on future runs when `autoSelectProject = always`.",
     ].join("\n");
@@ -543,7 +538,7 @@ const lastProjectClearTool: ILocalMcpTool = {
     const content = [
       "Cleared the cached last-used project for this repo.",
       "",
-      `Path: \`~/.muggle-ai/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
+      `Path: \`${MUGGLE_HOME_DISPLAY_DIR}/${LAST_PROJECT_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
     ].join("\n");
     return { content: content, isError: false };
   },
@@ -568,7 +563,7 @@ const lastHostGetTool: ILocalMcpTool = {
       const content = [
         "No cached last-used host for this repo.",
         "",
-        `Looked at: \`~/.muggle-ai/${LAST_HOST_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
+        `Looked at: \`${MUGGLE_HOME_DISPLAY_DIR}/${LAST_HOST_FILE_NAME}\` (entry for \`${input.cwd}\`)`,
       ].join("\n");
       return { content: content, isError: false };
     }
@@ -745,7 +740,7 @@ export async function executeTool(
     props: { toolName: name, toolSurface: ToolSurface.Local, correlationId: correlationId },
   });
   try {
-    const result = await tool.execute({ input: input, correlationId: correlationId });
+    const toolResult = await tool.execute({ input: input, correlationId: correlationId });
     safeTrack({
       name: EventName.McpToolCompleted,
       props: {
@@ -753,10 +748,10 @@ export async function executeTool(
         toolSurface: ToolSurface.Local,
         correlationId: correlationId,
         durationMs: Date.now() - startTime,
-        outcome: result.isError ? Outcome.Error : Outcome.Success,
+        outcome: toolResult.isError ? Outcome.Error : Outcome.Success,
       },
     });
-    return result;
+    return toolResult;
   } catch (err) {
     safeTrack({
       name: EventName.McpToolCompleted,

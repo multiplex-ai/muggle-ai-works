@@ -42,10 +42,18 @@ This installs:
 - `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
 - `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
 - `/muggle:muggle-test-feature-local` — local quick E2E acceptance testing
+- `/muggle:muggle-test-prepare` — verify and start the dev servers a test run needs
+- `/muggle:muggle-test-import` — import existing Playwright/Cypress specs, PRDs, or feature files
 - `/muggle:muggle-test-regenerate-missing` — bulk-regenerate test scripts for every test case that has no active script
+- `/muggle:muggle-browser-task` — perform a real action on a website from plain English
+- `/muggle:muggle-pr-visual-walkthrough` — post screenshots and a pass/fail summary to a PR
+- `/muggle:muggle-pr-followup` — watch a PR's review thread and address incoming feedback
+- `/muggle:muggle-feedback` — flag a generated action script or step as wrong
+- `/muggle:muggle-preferences` — view, set, or reset Muggle Test preferences
 - `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
 - `/muggle:muggle-repair` — diagnose and fix broken installation
 - `/muggle:muggle-upgrade` — update to the latest version
+- short aliases for every command above — `/m`, `/mdo`, `/mtest`, `/mtestlocal`, `/mtestprep`, `/mimport`, `/mregen`, `/mbt`, `/mpr`, `/mprfollowup`, `/mfeedback`, `/mprefs`, `/mstatus`, `/mrepair`, `/mupgrade`
 - MCP server with 70+ tools (auto-started)
 - Electron browser test runner provisioning (via session hook)
 

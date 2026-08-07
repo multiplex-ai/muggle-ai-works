@@ -63,3 +63,66 @@ describe("post-merge cleanup is link-safe", () => {
     expect(doc).toMatch(/stop on the first failure/);
   });
 });
+
+/**
+ * Each rule below pins a way the cleanup reported success while a step had not
+ * run. All three were observed in one session: a remote branch survived because
+ * the provider's auto-delete was treated as the step, the session slot and
+ * prepare artifacts were never cleared at all, and nothing in the output made
+ * either gap visible.
+ */
+describe("post-merge cleanup verifies rather than assumes", () => {
+  it("treats provider auto-delete as something to detect, not as the step", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/auto-delete[^.]*\bsetting\b[^.]*not a guarantee/i);
+    // The ref must be queried; "it usually gets deleted on merge" is the bug.
+    expect(doc.toLowerCase()).toMatch(/query the ref/);
+  });
+
+  it("explains that -d cannot pass after a squash merge, and gates -D on content", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/squash/i);
+    // A content check replaces the ancestry check `-d` performs.
+    expect(doc).toMatch(/exists at `?origin\/<base>`?|merged content is on the base/i);
+    expect(doc).toMatch(/not reach for `?-D`? on faith|only then `?git branch -D/i);
+  });
+
+  it("clears the session slot from the home directory, and only when terminal", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/~\/\.muggle-ai\/muggle-do\/sessions\//);
+    expect(doc).toMatch(/terminal state/i);
+    // A slot for an open PR is live state a watcher still reads.
+    expect(doc).toMatch(/still-open PR|non-terminal slot/i);
+  });
+
+  it("scopes prepare-artifact deletion to this run", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/only this run/i);
+    expect(doc).toMatch(/another session/i);
+  });
+
+  it("requires a per-step report built from verification, with no omitted rows", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/^## Report$/m);
+    for (const step of [
+      "Worktree removed",
+      "Local branch deleted",
+      "Remote branch deleted",
+      "Session slot cleared",
+      "Prepare artifacts",
+    ]) {
+      expect(doc, `report table missing row: ${step}`).toContain(step);
+    }
+    // A step that did not run must be visible, not dropped.
+    expect(doc).toMatch(/never omitted|Every step gets a row/i);
+    expect(doc).toMatch(/never from the fact that a command was issued/i);
+  });
+
+  it("gives every step an explicit verification", () => {
+    const doc = readCleanupDoc();
+    const stepHeadings = doc.match(/^## \d+\. /gm) ?? [];
+    const verifications = doc.match(/^\*\*Verify:\*\*/gm) ?? [];
+    expect(stepHeadings.length).toBeGreaterThanOrEqual(5);
+    expect(verifications.length).toBe(stepHeadings.length);
+  });
+});

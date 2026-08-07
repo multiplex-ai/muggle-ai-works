@@ -16,9 +16,10 @@ export const DEFAULT_MAX_BODY_BYTES = 60_000;
 
 /**
  * Invisible marker prepended to every rendered section. GitHub hides HTML
- * comments, so reviewers never see it — but the report-format guardrail
- * (src/guardrails/reportGate.ts) reads it to tell a CLI-rendered walkthrough
- * apart from a hand-written one and block the latter.
+ * comments, so reviewers never see it — but the guardrails (see
+ * src/guardrails/prReportPost.ts) read it both to tell a CLI-rendered
+ * walkthrough apart from a hand-written one and block the latter, and to
+ * recognise that a PR already carries a walkthrough.
  */
 export const REPORT_SECTION_SENTINEL = "<!-- muggle-pr-section:v1 -->";
 
@@ -80,9 +81,14 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
   }
   const resolvedReport = await resolveGsScreenshotUrls(report, { stderrWrite: opts.stderrWrite });
   const sentinelCost = Buffer.byteLength(`${REPORT_SECTION_SENTINEL}\n`, "utf-8");
-  const result = buildPrSection(resolvedReport, { maxBodyBytes: opts.maxBodyBytes - sentinelCost });
+  const renderedSection = buildPrSection(resolvedReport, {
+    maxBodyBytes: opts.maxBodyBytes - sentinelCost,
+  });
   opts.stdoutWrite(
-    JSON.stringify({ body: withSentinel(result.body), comment: withSentinel(result.comment) }),
+    JSON.stringify({
+      body: withSentinel(renderedSection.body),
+      comment: withSentinel(renderedSection.comment),
+    }),
   );
   return 0;
 }

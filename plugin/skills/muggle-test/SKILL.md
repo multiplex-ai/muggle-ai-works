@@ -253,6 +253,8 @@ For every run with `status: "failed"` (or any non-passing terminal state) return
 
 Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the `mode` that failed, `testCaseId`, `projectId`, and the execution handle (local: [`execute-local.md`](execute-local.md); remote: [`execute-remote.md`](execute-remote.md)) so a rerun re-enters the same path. Process failures one at a time so the user isn't drowning in pickers.
 
+**This step is not an exit.** Whatever the user picks — feedback, rerun, or skip — control returns to Steps 8 and 9. A failed run is the *highest-value* walkthrough: a reviewer needs the screenshots of what broke far more than confirmation that a passing flow passed. Ending the turn inside this step with results unposted is what the walkthrough Stop gate blocks.
+
 ## Step 8: Open Results in Browser
 
 After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. The studio published every local run during execution, so each run result already carries its `viewUrl` (read it from `muggle-local-run-result-get`). Key off the uniform runs list:
@@ -271,7 +273,7 @@ Tell the user:
 
 ## Step 9: Offer to Post Visual Walkthrough to PR
 
-After reporting results:
+Posts **every** run from Step 7 — failed and inconclusive as readily as passed. After reporting results:
 
 1. Fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md). On skip → Step 9.5.
 2. `gh pr view --json number,title,url 2>/dev/null` — find the PR.
@@ -312,5 +314,6 @@ Each rule below is covered in-step above; these are the ones this skill most oft
 - **Every selection uses `AskUserQuestion`** — never ask the user to type a number; the user picks the project (never auto-select).
 - **Parallelize independent cloud jobs**; the only sequential loop is local Electron execution (one browser).
 - **Read cloud refs off the run result** (the studio published during execution) and delegate PR posting to `muggle-pr-visual-walkthrough` — never inline the walkthrough or call `gh pr comment` here.
+- **Results reach the PR, pass or fail** — Step 7C's debug path never terminates the run; Step 9 posts every run. A Stop gate holds the turn open while an acceptance run has no walkthrough on its PR, so a result that genuinely shouldn't be posted needs `echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"` rather than silence.
 
 Phase→tool map and multi-agent (acceptance-tester) dispatch: [`reference.md`](reference.md).

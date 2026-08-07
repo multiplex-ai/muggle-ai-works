@@ -9,7 +9,7 @@ import {
   applyNextOptionsOffered,
   prTerminalGateDecision,
 } from "./prTerminal.js";
-import { MAX_PR_TERMINAL_BLOCKS, MAX_WATCH_BLOCKS } from "./constants.js";
+import { MAX_PR_TERMINAL_BLOCKS, MAX_WALKTHROUGH_BLOCKS, MAX_WATCH_BLOCKS } from "./constants.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import {
@@ -18,10 +18,22 @@ import {
   isWatchSkipMarker,
   applyWatchSkip,
 } from "./watchArmed.js";
+import {
+  detectWalkthroughPost,
+  isWalkthroughSkipMarker,
+  applyWalkthroughPosted,
+  applyWalkthroughSkip,
+} from "./walkthroughPosted.js";
+import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
-import { PrTerminalGateAction, WatchGateAction, type HookInput } from "./types.js";
+import {
+  PrTerminalGateAction,
+  WalkthroughGateAction,
+  WatchGateAction,
+  type HookInput,
+} from "./types.js";
 
 function readStdin(): HookInput {
   try {
@@ -107,7 +119,9 @@ function recordTests(): string {
     e2eRan: isE2ERun(input),
     e2eSkipped: isE2ESkipMarker(cmd),
   });
-  const next = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+  const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
+  const next = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -157,6 +171,43 @@ function watchGate(): string {
   return blockStop(reason, host);
 }
 
+function walkthroughGate(): string {
+  const state = readState(sessionId);
+  if (
+    state.e2eRun !== true ||
+    state.walkthroughPosted === true ||
+    state.walkthroughSkipped === true
+  ) {
+    return "{}";
+  }
+  const scan = scanForOwedWalkthroughs(state);
+  if (scan.owed.length === 0) {
+    // Cache a walkthrough found on the PR itself, so later turn ends settle from
+    // state and never repeat the provider lookups.
+    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+    return "{}";
+  }
+  const decision = walkthroughGateDecision(state, scan.owed);
+  if (decision.action !== WalkthroughGateAction.Block) return "{}";
+  state.walkthroughBlockCount = decision.blockCount;
+  writeState(state);
+  const prList = decision.owed.join(", ");
+  // Full instruction once; repeats are one line — same rationale as e2eGate.
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough ` +
+        `has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now ` +
+        `via /muggle:muggle-pr-visual-walkthrough — include the failed runs, which are the ones reviewers ` +
+        `most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, ` +
+        `someone else's PR, nothing renderable), tell the user why and run ` +
+        `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
+        `for the rest of the session.`
+      : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): ` +
+        `post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via ` +
+        `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
 function reportGate(): string {
   const reportPostVerdict = evaluateReportPost(input);
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
@@ -185,6 +236,7 @@ const handlers: Record<string, () => string> = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
   "build-router": buildRouter,
 };

@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
 import { isAbsolute, resolve, join } from 'path';
 import { homedir } from 'os';
+import { execFileSync } from 'child_process';
 
 // src/guardrails/cli.ts
 var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
@@ -47,6 +48,8 @@ var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
 var MAX_WATCH_BLOCKS = 3;
+var MAX_WALKTHROUGH_BLOCKS = 3;
+var GH_LOOKUP_TIMEOUT_MS = 1e4;
 var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
 var MUGGLE_TEST_SKILL_NAME = "muggle-test";
 
@@ -204,20 +207,12 @@ function watchGateDecision(state, untrackedPrUrls, maxBlocks = MAX_WATCH_BLOCKS)
     untracked: untrackedPrUrls
   };
 }
-
-// src/guardrails/detectBuildIntent.ts
-var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
-var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
-var QUESTION = /^\s*(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)\b/i;
-function detectBuildIntent(prompt) {
-  const p = (prompt ?? "").trim();
-  if (!p || p.startsWith("/")) return false;
-  if (QUESTION.test(p)) return false;
-  return BUILD.test(p) || DEVCYCLE.test(p);
-}
 var REPORT_SENTINEL = "muggle-pr-section";
-var PR_POST_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
-var defaultReader = (path, cwd) => {
+var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
+var GH_API_CMD = /\bgh\s+api\b/;
+var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
+var PATCH_METHOD = /(?:--method|-X)[=\s]+PATCH\b/;
+var defaultFileReader = (path, cwd) => {
   try {
     const abs = isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path);
     if (!existsSync(abs)) return null;
@@ -233,6 +228,108 @@ function unquote(s) {
   }
   return t;
 }
+function isCommentEditCommand(cmd) {
+  return GH_API_CMD.test(cmd) && ISSUE_COMMENT_PATH.test(cmd) && PATCH_METHOD.test(cmd);
+}
+function isPrReportPostCommand(cmd) {
+  return PR_PROSE_CMD.test(cmd) || isCommentEditCommand(cmd);
+}
+function collectPrPostText(cmd, cwd, read) {
+  let text = cmd;
+  for (const match of cmd.matchAll(/(?:--body-file|--input)[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
+    const path = unquote(match[1]);
+    if (path && path !== "-") {
+      const contents = read(path, cwd);
+      if (contents) text += "\n" + contents;
+    }
+  }
+  for (const match of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
+    const contents = read(unquote(match[1]), cwd);
+    if (contents) text += "\n" + contents;
+  }
+  return text;
+}
+
+// src/guardrails/walkthroughPosted.ts
+var WALKTHROUGH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WALKTHROUGH_SKIP\b/;
+function isWalkthroughSkipMarker(cmd) {
+  return WALKTHROUGH_SKIP_MARKER.test(cmd);
+}
+function detectWalkthroughPost(input2, read = defaultFileReader) {
+  if (input2.tool_name !== "Bash") return false;
+  const cmd = input2.tool_input?.command ?? "";
+  if (!isPrReportPostCommand(cmd)) return false;
+  return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
+}
+function applyWalkthroughPosted(state, posted) {
+  if (!posted || state.walkthroughPosted === true) return state;
+  return { ...state, walkthroughPosted: true };
+}
+function applyWalkthroughSkip(state, skipped) {
+  if (!skipped || state.walkthroughSkipped === true) return state;
+  return { ...state, walkthroughSkipped: true };
+}
+function runGh(args) {
+  try {
+    return execFileSync("gh", args, {
+      encoding: "utf-8",
+      timeout: GH_LOOKUP_TIMEOUT_MS,
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+  } catch {
+    return null;
+  }
+}
+var defaultPrWalkthroughLookup = {
+  branchPrUrl: () => {
+    const url = runGh(["pr", "view", "--json", "url", "-q", ".url"])?.trim();
+    return url && url.startsWith("http") ? url : null;
+  },
+  // Scans the description as well as the comments: muggle-do embeds the
+  // walkthrough in the body at PR-creation time, and a comments-only check
+  // would report that PR as owing one it already carries.
+  prCarriesWalkthrough: (prUrl) => {
+    const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
+    if (rendered === null) return true;
+    return rendered.includes(REPORT_SENTINEL);
+  }
+};
+function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
+  const candidates = new Set(state.prsHandled);
+  const branchPrUrl = lookup.branchPrUrl();
+  if (branchPrUrl) candidates.add(branchPrUrl);
+  const owed = [];
+  const verified = [];
+  for (const prUrl of candidates) {
+    if (lookup.prCarriesWalkthrough(prUrl)) verified.push(prUrl);
+    else owed.push(prUrl);
+  }
+  return { owed, verified };
+}
+function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
+  const blockCount = state.walkthroughBlockCount ?? 0;
+  const alreadySettled = state.walkthroughPosted === true || state.walkthroughSkipped === true || state.e2eRun !== true;
+  if (alreadySettled || owedPrUrls.length === 0) {
+    return { action: "none" /* None */, blockCount, owed: owedPrUrls };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, owed: owedPrUrls };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
+}
+
+// src/guardrails/detectBuildIntent.ts
+var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
+var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
+var QUESTION = /^\s*(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)\b/i;
+function detectBuildIntent(prompt) {
+  const p = (prompt ?? "").trim();
+  if (!p || p.startsWith("/")) return false;
+  if (QUESTION.test(p)) return false;
+  return BUILD.test(p) || DEVCYCLE.test(p);
+}
+
+// src/guardrails/reportGate.ts
 function looksLikeE2EReport(text) {
   const t = text.toLowerCase();
   const statusEmojis = (text.match(/[✅❌⚠]/gu) ?? []).length;
@@ -242,26 +339,11 @@ function looksLikeE2EReport(text) {
   const muggleContext = /\bmuggle\b/.test(t) || /muggle-ai\.com/.test(t) || /\be2e\b/.test(t) || /\bacceptance\b/.test(t);
   return resultsStructure && muggleContext;
 }
-function collectInspectableText(cmd, cwd, read) {
-  let text = cmd;
-  for (const m of cmd.matchAll(/--body-file[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
-    const p = unquote(m[1]);
-    if (p && p !== "-") {
-      const c = read(p, cwd);
-      if (c) text += "\n" + c;
-    }
-  }
-  for (const m of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
-    const c = read(unquote(m[1]), cwd);
-    if (c) text += "\n" + c;
-  }
-  return text;
-}
-function evaluateReportPost(input2, read = defaultReader) {
+function evaluateReportPost(input2, read = defaultFileReader) {
   if (input2.tool_name !== "Bash") return { deny: false };
   const cmd = input2.tool_input?.command ?? "";
-  if (!PR_POST_CMD.test(cmd)) return { deny: false };
-  const text = collectInspectableText(cmd, input2.cwd, read);
+  if (!isPrReportPostCommand(cmd)) return { deny: false };
+  const text = collectPrPostText(cmd, input2.cwd, read);
   if (text.includes(REPORT_SENTINEL)) return { deny: false };
   if (!looksLikeE2EReport(text)) return { deny: false };
   return {
@@ -358,7 +440,9 @@ function recordTests() {
     e2eRan: isE2ERun(input),
     e2eSkipped: isE2ESkipMarker(cmd)
   });
-  const next = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+  const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
+  const next = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -384,6 +468,24 @@ function watchGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 /muggle:muggle-pr-followup ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
+function walkthroughGate() {
+  const state = readState(sessionId);
+  if (state.e2eRun !== true || state.walkthroughPosted === true || state.walkthroughSkipped === true) {
+    return "{}";
+  }
+  const scan = scanForOwedWalkthroughs(state);
+  if (scan.owed.length === 0) {
+    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+    return "{}";
+  }
+  const decision = walkthroughGateDecision(state, scan.owed);
+  if (decision.action !== "block" /* Block */) return "{}";
+  state.walkthroughBlockCount = decision.blockCount;
+  writeState(state);
+  const prList = decision.owed.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via /muggle:muggle-pr-visual-walkthrough \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
 function reportGate() {
   const reportPostVerdict = evaluateReportPost(input);
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
@@ -406,6 +508,7 @@ var handlers = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
   "build-router": buildRouter
 };

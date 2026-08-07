@@ -170,6 +170,57 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("watch-gate", event({ session_id: "no-pr" })).out).toBe("{}");
   });
 
+  // These settle before the gate reaches its provider lookups, so they never
+  // shell out to gh — the lookup paths are covered by walkthroughOwed.test.ts
+  // with an injected lookup, and end-to-end by the stubbed-gh block below.
+  it("walkthrough-gate: silent when no acceptance run happened this session", () => {
+    expect(runHook("walkthrough-gate", event({ session_id: "no-e2e" })).out).toBe("{}");
+  });
+
+  it("record-tests -> walkthrough-gate: a sentinel-carrying post settles the gate", () => {
+    const session = "walkthrough-posted";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: "muggle-test" },
+      }),
+    );
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr comment 7 --body '<!-- muggle-pr-section:v1 --> results'" },
+        tool_response: { stdout: "https://github.com/o/r/pull/7#issuecomment-1" },
+      }),
+    );
+    expect(runHook("walkthrough-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("record-tests -> walkthrough-gate: a MUGGLE_WALKTHROUGH_SKIP marker settles the gate", () => {
+    const session = "walkthrough-skip";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: "muggle-test" },
+      }),
+    );
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: 'echo "MUGGLE_WALKTHROUGH_SKIP: results belong to another PR"' },
+        tool_response: { stdout: "MUGGLE_WALKTHROUGH_SKIP: results belong to another PR" },
+      }),
+    );
+    expect(runHook("walkthrough-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
   // Close+reopen is routine: it re-fires a lost workflow trigger to start checks
   // and re-syncs a head left at the base branch after a force-push through it.
   // The change is open again, so the terminal gate must let the turn end.
@@ -494,6 +545,10 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-watch-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
 
+  it("walkthrough-gate: skips Node when no acceptance run is recorded", () => {
+    expect(runWrapper("guardrail-walkthrough-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
+  });
+
   it("pr-terminal: skips Node on a plain command, spawns it on a merge success line", () => {
     expect(
       runWrapper("guardrail-pr-terminal.sh", event({ tool_name: "Bash", tool_input: { command: "git status" } })),
@@ -551,10 +606,74 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     ]);
   });
 
-  it("runs all three gates on Stop (e2e + post-merge handoff + watcher-arm)", () => {
+  it("runs all four gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough)", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command);
     expect(stop.some((c) => c.includes("guardrail-e2e-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-terminal-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-watch-gate.sh"))).toBe(true);
+    expect(stop.some((c) => c.includes("guardrail-walkthrough-gate.sh"))).toBe(true);
+  });
+});
+
+// The walkthrough gate is the one gate that reads provider state at turn end, so
+// its lookups are exercised against a stubbed `gh` rather than the network.
+// Bash-only, so skipped on win32 (covered by the Linux/macOS platform-compat jobs).
+describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups", () => {
+  const CLI_ENTRY = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
+  const PR_URL = "https://github.com/o/r/pull/5";
+  let binDir: string;
+
+  beforeEach(() => {
+    binDir = mkdtempSync(join(tmpdir(), "gr-gh-"));
+    const stub = join(binDir, "gh");
+    // `--json body,comments` is the walkthrough probe; anything else is the
+    // branch-PR lookup, which prints the url alone.
+    writeFileSync(
+      stub,
+      `#!/usr/bin/env bash\nfor a in "$@"; do\n  if [ "$a" = "body,comments" ]; then printf '%s' "$STUB_PR_CONTENT"; exit 0; fi\ndone\nprintf '%s' "$STUB_PR_URL"\n`,
+    );
+    chmodSync(stub, 0o755);
+  });
+
+  function runGate(sessionId: string, prContent: string, prUrl: string = PR_URL): string {
+    const home = mkdtempSync(join(tmpdir(), "gr-wt-"));
+    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
+    writeFileSync(
+      join(home, ".muggle-ai", "guardrails", `${sessionId}.json`),
+      JSON.stringify({ sessionId: sessionId, prsHandled: [], e2eRun: true }),
+    );
+    const r = spawnSync(process.execPath, ["--import", "tsx", CLI_ENTRY, "walkthrough-gate"], {
+      input: JSON.stringify({ session_id: sessionId }),
+      encoding: "utf-8",
+      env: {
+        ...process.env,
+        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        HOME: home,
+        USERPROFILE: home,
+        STUB_PR_URL: prUrl,
+        STUB_PR_CONTENT: prContent,
+      },
+    });
+    return (r.stdout ?? "").trim();
+  }
+
+  it("blocks when the branch's PR carries no walkthrough", () => {
+    const blocked = JSON.parse(runGate("wt-block", '{"body":"a feature","comments":[]}'));
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain(PR_URL);
+    expect(blocked.reason).toContain("MUGGLE_WALKTHROUGH_SKIP");
+  });
+
+  it("stays silent when the PR already carries a walkthrough comment", () => {
+    expect(runGate("wt-comment", '{"body":"x","comments":[{"body":"<!-- muggle-pr-section:v1 -->"}]}')).toBe("{}");
+  });
+
+  // muggle-do embeds the walkthrough in the description at PR-creation time.
+  it("stays silent when the walkthrough is embedded in the PR description", () => {
+    expect(runGate("wt-body", '{"body":"<!-- muggle-pr-section:v1 -->","comments":[]}')).toBe("{}");
+  });
+
+  it("fails open when no PR can be resolved for the branch", () => {
+    expect(runGate("wt-nopr", "", "")).toBe("{}");
   });
 });

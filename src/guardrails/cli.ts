@@ -11,7 +11,7 @@ import { MAX_PR_TERMINAL_BLOCKS, MAX_WATCH_BLOCKS } from "./constants.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import {
-  findUnarmedHandledPrs,
+  findUntrackedHandledPrs,
   watchGateDecision,
   isWatchSkipMarker,
   applyWatchSkip,
@@ -123,32 +123,33 @@ function e2eGate(): string {
 
 function watchGate(): string {
   const state = readState(sessionId);
-  const owed = findUnarmedHandledPrs(state.prsHandled);
-  const decision = watchGateDecision(state, owed);
+  const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
+  const decision = watchGateDecision(state, untrackedPrUrls);
   if (decision.action === WatchGateAction.None || decision.action === WatchGateAction.Release) {
     return "{}";
   }
   state.watchBlockCount = decision.blockCount;
   writeState(state);
-  const prList = decision.owed.join(", ");
+  const prList = decision.untracked.join(", ");
   // Full instruction once; repeats are one line — same rationale as e2eGate.
   const reason =
     decision.blockCount === 1
-      ? `Do not end the turn yet. A PR was opened this session but has no armed watcher: ${prList}. ` +
-        `muggle-do Stage 8 seeds the watcher slot and arms one watcher per opened PR — arm it now with ` +
-        `/muggle:muggle-pr-followup ${decision.owed[0]} (or reconcile). If this PR should NOT be watched ` +
-        `(autoWatchPR=never, a manually-opened PR, one handed off elsewhere, or already merged/closed), ` +
+      ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. ` +
+        `Seed the slot and hand off per muggle-do Stage 8 — /muggle:muggle-pr-followup ${decision.untracked[0]} ` +
+        `does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start ` +
+        `and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever ` +
+        `picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), ` +
         `tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps ` +
         `this gate quiet for the rest of the session.`
-      : `Watcher hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
-        `arm via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+      : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
+        `seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
 function reportGate(): string {
-  const result = evaluateReportPost(input);
-  if (!result.deny || !result.reason) return "{}";
-  return denyTool(result.reason, host);
+  const reportPostVerdict = evaluateReportPost(input);
+  if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
+  return denyTool(reportPostVerdict.reason, host);
 }
 
 function buildRouter(): string {

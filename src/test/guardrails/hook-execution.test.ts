@@ -101,7 +101,7 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("e2e-gate", event({ session_id: "fresh" })).out).toBe("{}");
   });
 
-  it("pr-opened -> watch-gate: an opened PR with no armed watcher blocks the Stop", () => {
+  it("pr-opened -> watch-gate: an opened PR that no slot tracks blocks the Stop", () => {
     const session = "watch-chain";
     runHook(
       "pr-opened",
@@ -114,13 +114,16 @@ describe("guardrail hook execution (cli entry)", () => {
     );
     const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
     expect(gate.decision).toBe("block");
-    expect(gate.reason).toContain("no armed watcher");
+    expect(gate.reason).toContain("no muggle-do session slot tracks it");
     expect(gate.reason).toContain("https://github.com/o/r/pull/77");
     expect(gate.reason).toContain("MUGGLE_WATCH_SKIP");
   });
 
-  it("watch-gate: silent once a watcher slot is armed for the opened PR", () => {
-    const session = "watch-armed";
+  // Seeding the slot is the hand-off the gate asks for; arming is reconcile's
+  // job from there. A background job legitimately ends seeded-but-unarmed, and
+  // the gate firing on that state pushed the caller into the skip hatch.
+  it("watch-gate: silent once a slot tracks the opened PR, even with no watcher armed", () => {
+    const session = "watch-seeded";
     const url = "https://github.com/o/r/pull/78";
     runHook(
       "pr-opened",
@@ -131,10 +134,11 @@ describe("guardrail hook execution (cli entry)", () => {
         tool_response: { stdout: `${url}\n` },
       }),
     );
+    expect(JSON.parse(runHook("watch-gate", event({ session_id: session })).out).decision).toBe("block");
+
     const slot = join(home, ".muggle-ai", "muggle-do", "sessions", "r-pr78");
     mkdirSync(slot, { recursive: true });
     writeFileSync(join(slot, "prs.json"), JSON.stringify([{ url: url }]));
-    writeFileSync(join(slot, "watch.pid"), String(process.pid));
     expect(runHook("watch-gate", event({ session_id: session })).out).toBe("{}");
   });
 

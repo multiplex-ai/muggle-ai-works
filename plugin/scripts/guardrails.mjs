@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
 import { isAbsolute, resolve, join } from 'path';
 import { homedir } from 'os';
 
@@ -144,7 +144,6 @@ function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
   if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
-var HEARTBEAT_FRESH_MS = 15 * 60 * 1e3;
 var WATCH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WATCH_SKIP\b/;
 function isWatchSkipMarker(cmd) {
   return WATCH_SKIP_MARKER.test(cmd);
@@ -153,38 +152,13 @@ function applyWatchSkip(state, skipped) {
   if (!skipped || state.watchSkipped === true) return state;
   return { ...state, watchSkipped: true };
 }
-function slotHasArmedWatcher(slotDir) {
-  if (existsSync(join(slotDir, "result.md"))) return true;
-  const pidFile = join(slotDir, "watch.pid");
-  if (existsSync(pidFile)) {
-    const pid = Number.parseInt(readFileSync(pidFile, "utf-8").trim(), 10);
-    if (Number.isInteger(pid) && pid > 0) {
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch (err) {
-        if (err.code === "EPERM") return true;
-      }
-    }
-  }
-  const beat = join(slotDir, "watch-heartbeat");
-  if (existsSync(beat)) {
-    try {
-      if (Date.now() - statSync(beat).mtimeMs < HEARTBEAT_FRESH_MS) return true;
-    } catch {
-      return false;
-    }
-  }
-  return false;
-}
-function findUnarmedHandledPrs(handledUrls, sessionsDirOverride) {
+function findUntrackedHandledPrs(handledUrls, sessionsDirOverride) {
   if (handledUrls.length === 0) return [];
   const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
   if (!existsSync(sessionsDir)) return [...handledUrls];
-  const watchedUrls = /* @__PURE__ */ new Set();
+  const trackedUrls = /* @__PURE__ */ new Set();
   for (const slug of readdirSync(sessionsDir)) {
-    const slotDir = join(sessionsDir, slug);
-    const prsFile = join(slotDir, "prs.json");
+    const prsFile = join(sessionsDir, slug, "prs.json");
     if (!existsSync(prsFile)) continue;
     let slotUrl;
     try {
@@ -194,21 +168,23 @@ function findUnarmedHandledPrs(handledUrls, sessionsDirOverride) {
     } catch {
       continue;
     }
-    if (slotUrl && handledUrls.includes(slotUrl) && slotHasArmedWatcher(slotDir)) {
-      watchedUrls.add(slotUrl);
-    }
+    if (slotUrl) trackedUrls.add(slotUrl);
   }
-  return handledUrls.filter((url) => !watchedUrls.has(url));
+  return handledUrls.filter((url) => !trackedUrls.has(url));
 }
-function watchGateDecision(state, owedUrls, maxBlocks = MAX_WATCH_BLOCKS) {
+function watchGateDecision(state, untrackedPrUrls, maxBlocks = MAX_WATCH_BLOCKS) {
   const blockCount = state.watchBlockCount ?? 0;
-  if (state.watchSkipped === true || owedUrls.length === 0) {
-    return { action: "none" /* None */, blockCount, owed: owedUrls };
+  if (state.watchSkipped === true || untrackedPrUrls.length === 0) {
+    return { action: "none" /* None */, blockCount, untracked: untrackedPrUrls };
   }
   if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount, owed: owedUrls };
+    return { action: "release" /* Release */, blockCount, untracked: untrackedPrUrls };
   }
-  return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedUrls };
+  return {
+    action: "block" /* Block */,
+    blockCount: blockCount + 1,
+    untracked: untrackedPrUrls
+  };
 }
 
 // src/guardrails/detectBuildIntent.ts
@@ -372,21 +348,21 @@ function e2eGate() {
 }
 function watchGate() {
   const state = readState(sessionId);
-  const owed = findUnarmedHandledPrs(state.prsHandled);
-  const decision = watchGateDecision(state, owed);
+  const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
+  const decision = watchGateDecision(state, untrackedPrUrls);
   if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) {
     return "{}";
   }
   state.watchBlockCount = decision.blockCount;
   writeState(state);
-  const prList = decision.owed.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but has no armed watcher: ${prList}. muggle-do Stage 8 seeds the watcher slot and arms one watcher per opened PR \u2014 arm it now with /muggle:muggle-pr-followup ${decision.owed[0]} (or reconcile). If this PR should NOT be watched (autoWatchPR=never, a manually-opened PR, one handed off elsewhere, or already merged/closed), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Watcher hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  const prList = decision.untracked.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 /muggle:muggle-pr-followup ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function reportGate() {
-  const result = evaluateReportPost(input);
-  if (!result.deny || !result.reason) return "{}";
-  return denyTool(result.reason, host);
+  const reportPostVerdict = evaluateReportPost(input);
+  if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
+  return denyTool(reportPostVerdict.reason, host);
 }
 function buildRouter() {
   if (!detectBuildIntent(input.prompt ?? "")) return "{}";

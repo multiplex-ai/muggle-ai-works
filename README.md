@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/multiplex-ai-muggle-ai-works-badge.png)](https://mseep.ai/app/multiplex-ai-muggle-ai-works)
+
 # *muggle-ai-works*
 
 **Run real-browser E2E acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.**

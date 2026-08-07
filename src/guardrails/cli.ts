@@ -3,7 +3,9 @@ import { readState, writeState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
+  detectPrReopened,
   applyPrTerminalDetected,
+  applyPrReopened,
   applyNextOptionsOffered,
   prTerminalGateDecision,
 } from "./prTerminal.js";
@@ -48,6 +50,15 @@ function prOpened(): string {
 }
 
 function prTerminal(): string {
+  // Reopen first: it retracts a close, so a close+reopen within one tool output
+  // must settle as open rather than arming a handoff for a live change.
+  const reopenedPrNumber = detectPrReopened(input);
+  if (reopenedPrNumber !== null) {
+    const state = readState(sessionId);
+    const next = applyPrReopened(state, reopenedPrNumber);
+    if (next !== state) writeState(next);
+    return "{}";
+  }
   const terminalEvent = detectPrTerminal(input);
   if (!terminalEvent) return "{}";
   const state = readState(sessionId);

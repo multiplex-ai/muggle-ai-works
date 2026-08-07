@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   detectPrTerminal,
+  detectPrReopened,
   applyPrTerminalDetected,
+  applyPrReopened,
   applyNextOptionsOffered,
   prTerminalGateDecision,
 } from "../../guardrails/prTerminal";
@@ -186,5 +188,68 @@ describe("prTerminalGateDecision", () => {
     expect(afterUnitPass.terminalBlockCount).toBe(2);
     expect(afterUnitPass.terminalPending).toEqual([341]);
     expect(prTerminalGateDecision(afterUnitPass)).toEqual({ action: PrTerminalGateAction.Block, blockCount: 3 });
+  });
+});
+
+describe("detectPrReopened", () => {
+  const bash = (stderr: string): Parameters<typeof detectPrReopened>[0] => ({
+    tool_name: "Bash",
+    tool_response: { stderr: stderr },
+  });
+
+  it("reads the pull-request number off a gh pr reopen success line", () => {
+    expect(detectPrReopened(bash("✓ Reopened pull request multiplex-ai/muggle-ai-works#369 (fix: x)\n"))).toBe(369);
+    expect(detectPrReopened(bash("✓ Reopened pull request #12 (title)\n"))).toBe(12);
+  });
+
+  it("ignores a close, a merge, and a routine status fetch", () => {
+    expect(detectPrReopened(bash("✓ Closed pull request o/r#12 (stale)\n"))).toBeNull();
+    expect(detectPrReopened(bash("✓ Merged pull request #12 (feat)\n"))).toBeNull();
+    expect(detectPrReopened({ tool_name: "Bash", tool_response: { stdout: '{"state":"OPEN"}' } })).toBeNull();
+  });
+
+  it("ignores non-Bash tools", () => {
+    expect(detectPrReopened({ tool_name: "Monitor", tool_response: { stdout: "✓ Reopened pull request #12 (t)" } })).toBeNull();
+  });
+});
+
+describe("applyPrReopened", () => {
+  const base = (over: Partial<GuardrailState> = {}): GuardrailState => ({
+    sessionId: "s",
+    prsHandled: [],
+    ...over,
+  });
+
+  // The transient close: closing and reopening re-fires a lost workflow trigger
+  // and re-syncs a head left at the base branch. The change is open again, so no
+  // post-merge handoff is owed and the Stop gate must not hold the turn.
+  it("drops a reopened number from terminalPending so the gate stops blocking", () => {
+    const pending = base({ terminalPending: [369] });
+    const next = applyPrReopened(pending, 369);
+    expect(next.terminalPending).toEqual([]);
+    expect(prTerminalGateDecision(next).action).toBe(PrTerminalGateAction.None);
+  });
+
+  it("drops it from terminalHandled too, so a later genuine close re-arms", () => {
+    const handled = base({ terminalHandled: [369] });
+    const reopened = applyPrReopened(handled, 369);
+    expect(reopened.terminalHandled).toEqual([]);
+    const closedAgain = applyPrTerminalDetected(reopened, 369);
+    expect(closedAgain.terminalPending).toEqual([369]);
+  });
+
+  it("never rewinds the block counter — only the offer does", () => {
+    const blocked = base({ terminalPending: [369], terminalBlockCount: 2 });
+    expect(applyPrReopened(blocked, 369).terminalBlockCount).toBe(2);
+  });
+
+  it("leaves other PRs' pending state untouched", () => {
+    const twoPending = base({ terminalPending: [341, 369] });
+    expect(applyPrReopened(twoPending, 369).terminalPending).toEqual([341]);
+  });
+
+  it("returns the same reference when the number was never terminal", () => {
+    const state = base({ terminalPending: [341] });
+    expect(applyPrReopened(state, 369)).toBe(state);
   });
 });

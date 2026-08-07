@@ -1,7 +1,7 @@
-// gh success lines: `✓ Merged pull request #12 (title)` — also the
+// gh success lines: `✓ Merged pull request #<n> (title)` — also the
 // "Squashed and merged" / "Rebased and merged" strategy variants — and
-// `✓ Closed pull request owner/repo#12 (title)`. Newer gh prefixes the number
-// with owner/repo, older prints a bare `#12`; the optional [\w./-]* run accepts
+// `✓ Closed pull request owner/repo#<n> (title)`. Newer gh prefixes the number
+// with owner/repo, older prints a bare `#<n>`; the optional [\w./-]* run accepts
 // both. Anchoring on the full verb phrase (never a bare MERGED/CLOSED token) is
 // what keeps `"state":"MERGED"` out: every `gh pr view --json`/API fetch
 // carries that token, and matching it would arm the gate on a routine status
@@ -9,6 +9,14 @@
 // request #N"), which differs by verb tense.
 export const GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
 export const GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
+
+// `gh pr reopen` success line: `✓ Reopened pull request owner/repo#12 (title)`.
+// A reopen retracts a close, and is the only signal that un-does a terminal
+// verdict. Closing and reopening is a routine maneuver — it re-fires a lost
+// workflow trigger to start checks, and re-syncs a head left pointing at the
+// base branch after a force-push through it — so without this the transient
+// close leaves a post-merge handoff owed on a change that is open again.
+export const GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 
 // The pr-followup watch monitor's exit line (e.g. `TERMINAL pr=331: MERGED`),
 // which also surfaces when a monitor event notification is replayed through a

@@ -170,6 +170,48 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("watch-gate", event({ session_id: "no-pr" })).out).toBe("{}");
   });
 
+  // Close+reopen is routine: it re-fires a lost workflow trigger to start checks
+  // and re-syncs a head left at the base branch after a force-push through it.
+  // The change is open again, so the terminal gate must let the turn end.
+  it("pr-terminal -> reopen -> terminal-gate: a transient close does not hold the Stop", () => {
+    const session = "reopen-chain";
+    runHook(
+      "pr-terminal",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr close 369" },
+        tool_response: { stderr: "✓ Closed pull request multiplex-ai/muggle-ai-works#369 (gate fix)\n" },
+      }),
+    );
+    expect(JSON.parse(runHook("terminal-gate", event({ session_id: session })).out).decision).toBe("block");
+
+    runHook(
+      "pr-terminal",
+      event({
+        session_id: session,
+        tool_input: { command: "gh pr reopen 369" },
+        tool_name: "Bash",
+        tool_response: { stderr: "✓ Reopened pull request multiplex-ai/muggle-ai-works#369 (gate fix)\n" },
+      }),
+    );
+    expect(runHook("terminal-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("reopen then a genuine merge re-arms the handoff", () => {
+    const session = "reopen-then-merge";
+    const bashEvent = (stderr: string): string =>
+      event({ session_id: session, tool_name: "Bash", tool_response: { stderr: stderr } });
+    runHook("pr-terminal", bashEvent("✓ Closed pull request o/r#77 (transient)\n"));
+    runHook("pr-terminal", bashEvent("✓ Reopened pull request o/r#77 (transient)\n"));
+    expect(runHook("terminal-gate", event({ session_id: session })).out).toBe("{}");
+
+    runHook("pr-terminal", bashEvent("✓ Squashed and merged pull request o/r#77 (shipped)\n"));
+    const blocked = JSON.parse(runHook("terminal-gate", event({ session_id: session })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("#77");
+  });
+
   it("pr-terminal -> terminal-gate: a merged PR holds the Stop until the AskUserQuestion offer runs", () => {
     const session = "terminal-chain";
     const detect = runHook(

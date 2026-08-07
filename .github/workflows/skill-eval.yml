@@ -522,19 +522,25 @@ jobs:
         run: |
           set -euo pipefail
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          route="$(python internal/skill-routing-eval/router_eval.py \
-            --probe 'test my changes before I open the PR' --repo-root "$CLEAN_CWD")"
-          echo "preflight route=$route"
-          # Any concrete route proves the plugin loaded and routing fired — that
-          # includes short aliases (mtest, mdo, …), which are valid muggle routes
-          # the probe lands on nondeterministically. `none`/empty means the
-          # plugin failed to load or auth was rejected; ERROR/TIMEOUT means the
-          # probe session itself is broken — every chunk probe would fail the
-          # same way, so die here instead of burning the whole eval budget.
-          case "$route" in
-            none|""|ERROR|TIMEOUT|THROTTLED) echo "Preflight failed: got '$route'. Plugin not loaded, auth missing, or probe session broken." >&2; exit 1 ;;
-            *) echo "plugin loaded; routing works (route=$route)" ;;
-          esac
+          # Routing is probabilistic, so one probe is not evidence the harness is
+          # broken — a single unlucky `none` used to fail a 180-minute job and
+          # block every PR that touches a skill description. Probe up to
+          # PREFLIGHT_ATTEMPTS times, passing on the first concrete route; only a
+          # clean sweep of failures means the plugin, auth, or session is down.
+          # A concrete route includes short aliases (mtest, mdo, …), which the
+          # probe lands on nondeterministically.
+          route=""
+          for attempt in $(seq 1 "${PREFLIGHT_ATTEMPTS:-3}"); do
+            route="$(python internal/skill-routing-eval/router_eval.py \
+              --probe 'test my changes before I open the PR' --repo-root "$CLEAN_CWD")"
+            echo "preflight attempt=$attempt route=$route"
+            case "$route" in
+              none|""|ERROR|TIMEOUT|THROTTLED) ;;
+              *) echo "plugin loaded; routing works (route=$route)"; exit 0 ;;
+            esac
+          done
+          echo "Preflight failed: '$route' on all ${PREFLIGHT_ATTEMPTS:-3} attempts. Plugin not loaded, auth missing, or probe session broken." >&2
+          exit 1
 
       - name: Run routing eval
         if: steps.scope.outputs.should_run == 'true'

@@ -3,6 +3,7 @@ import type { GuardrailState, HookInput, PrTerminalEvent, PrTerminalGateDecision
 import {
   GH_PR_MERGED_LINE,
   GH_PR_CLOSED_LINE,
+  GH_PR_REOPENED_LINE,
   PR_MONITOR_TERMINAL_LINE,
   MAX_PR_TERMINAL_BLOCKS,
 } from "./constants.js";
@@ -32,6 +33,37 @@ export function detectPrTerminal(input: HookInput): PrTerminalEvent | null {
     };
   }
   return null;
+}
+
+/** The pull-request number a `gh pr reopen` success line names, or null when the tool output carries no reopen. */
+export function detectPrReopened(input: HookInput): number | null {
+  if (input.tool_name !== "Bash") return null;
+  const response = input.tool_response;
+  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content]
+    .filter((part): part is string => typeof part === "string")
+    .join("\n");
+  const reopenedMatch = haystack.match(GH_PR_REOPENED_LINE);
+  return reopenedMatch ? Number(reopenedMatch[1]) : null;
+}
+
+// Retract a terminal verdict the reopen un-did. Drops the number from BOTH sets:
+// out of `terminalPending` because no post-merge handoff is owed on a change
+// that is open again, and out of `terminalHandled` so a later, genuine close
+// re-arms the gate instead of being swallowed as already-handled.
+//
+// This deliberately does NOT rewind `terminalBlockCount` — only the offer does
+// (applyNextOptionsOffered). Clearing the pending set can only ever reduce
+// nagging, but rewinding the counter here would let a close/reopen cycle hand
+// the gate a fresh budget each time and turn the cap into an unbounded loop.
+export function applyPrReopened(state: GuardrailState, prNumber: number): GuardrailState {
+  const pending = state.terminalPending ?? [];
+  const handled = state.terminalHandled ?? [];
+  if (!pending.includes(prNumber) && !handled.includes(prNumber)) return state;
+  return {
+    ...state,
+    terminalPending: pending.filter((number) => number !== prNumber),
+    terminalHandled: handled.filter((number) => number !== prNumber),
+  };
 }
 
 // Arm the handoff for a newly terminal PR. Returns the same reference when the

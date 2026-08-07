@@ -43,6 +43,7 @@ ${input2.tool_response?.output ?? ""}`;
 // src/guardrails/constants.ts
 var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
 var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
+var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
 var MAX_WATCH_BLOCKS = 3;
@@ -70,6 +71,23 @@ function detectPrTerminal(input2) {
     };
   }
   return null;
+}
+function detectPrReopened(input2) {
+  if (input2.tool_name !== "Bash") return null;
+  const response = input2.tool_response;
+  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
+  const reopenedMatch = haystack.match(GH_PR_REOPENED_LINE);
+  return reopenedMatch ? Number(reopenedMatch[1]) : null;
+}
+function applyPrReopened(state, prNumber) {
+  const pending = state.terminalPending ?? [];
+  const handled = state.terminalHandled ?? [];
+  if (!pending.includes(prNumber) && !handled.includes(prNumber)) return state;
+  return {
+    ...state,
+    terminalPending: pending.filter((number) => number !== prNumber),
+    terminalHandled: handled.filter((number) => number !== prNumber)
+  };
 }
 function applyPrTerminalDetected(state, prNumber) {
   const pending = state.terminalPending ?? [];
@@ -299,6 +317,13 @@ Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its i
   return envelope("PostToolUse", ctx, host);
 }
 function prTerminal() {
+  const reopenedPrNumber = detectPrReopened(input);
+  if (reopenedPrNumber !== null) {
+    const state2 = readState(sessionId);
+    const next2 = applyPrReopened(state2, reopenedPrNumber);
+    if (next2 !== state2) writeState(next2);
+    return "{}";
+  }
   const terminalEvent = detectPrTerminal(input);
   if (!terminalEvent) return "{}";
   const state = readState(sessionId);

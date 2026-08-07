@@ -28,6 +28,12 @@ export const MAX_PR_TERMINAL_BLOCKS = 3;
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;
 
+/** How many times the walkthrough Stop gate blocks a turn end before releasing, so a result that genuinely can't be posted can't trap the session. */
+export const MAX_WALKTHROUGH_BLOCKS = 3;
+
+/** Ceiling on each `gh` lookup the walkthrough gate runs at turn end; a hung call must never hold the turn open. */
+export const GH_LOOKUP_TIMEOUT_MS = 10_000;
+
 // The muggle-test skill's own first-step telemetry emit
 // (mcp__…muggle-local-telemetry-skill-emit with skillName "muggle-test").
 // Registering it as an E2E run covers the clean-SKIP verdict: the skill runs

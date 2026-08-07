@@ -184,6 +184,8 @@ Pass it: the `runId`, the `mode` that failed (replay if the user picked an exist
 
 Skip only when the run passed cleanly — the debug path is by definition about failures.
 
+**This step is not an exit.** Whatever the user picks — feedback, rerun, or skip — control returns to the reporting and walkthrough steps. A failed run is the *highest-value* walkthrough: a reviewer needs the screenshots of what broke far more than confirmation that a passing flow passed. Ending the turn inside this step with results unposted is what the walkthrough Stop gate blocks.
+
 ### 9b. Remind the user to guide the agent (every Electron invocation)
 
 Fires after **every** Electron run, pass or fail. A run can technically pass while still containing steps the user would correct — a misclick, wrong element, or a summary that doesn't match intent. This is the user's chance to flag it before regeneration picks up elsewhere.
@@ -222,6 +224,7 @@ The `/mprfollowup` shortcut starts the same watcher manually at any time.
 ## Non-negotiables
 
 - No silent auth skip.
+- **Results reach the PR, pass or fail** — the debug path never terminates the run, and the walkthrough covers every run. A Stop gate holds the turn open while an acceptance run has no walkthrough on its PR, so a result that genuinely shouldn't be posted needs `echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"` rather than silence.
 - **Never prompt for Electron launch approval** before execution — invoking this skill is the approval. Just run.
 - **Never diagnose a failed run from `execute`'s response stdout tail.** Always call `muggle-local-run-result-get` first; classify only from its structured fields and (when present) the artifacts it names. The execute tail is an excerpt and routinely truncates the failure cause.
 - Satisfy the prerequisite chain (Step 4a) before generating or replaying the target. Read it from `muggle-remote-test-case-ancestors-get` — never infer parents from `precondition` text. Generate any not-ready ancestor test-generation-only, root-first.

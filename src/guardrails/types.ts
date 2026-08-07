@@ -20,11 +20,11 @@ export enum WatchGateAction {
   None = "none",
 }
 
-/** A watcher-arm gate decision: the action, the running block count, and the opened-but-unwatched PR urls that drove it. */
+/** A watcher-arm gate decision: the action, the running block count, and the opened-but-untracked PR urls that drove it. */
 export interface WatchGateDecision {
   action: WatchGateAction;
   blockCount: number;
-  owed: string[];
+  untracked: string[];
 }
 
 export enum PrTerminalVerdict {

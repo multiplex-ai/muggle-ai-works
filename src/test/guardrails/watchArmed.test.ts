@@ -5,7 +5,7 @@ import { join } from "path";
 import {
   isWatchSkipMarker,
   applyWatchSkip,
-  findUnarmedHandledPrs,
+  findUntrackedHandledPrs,
   watchGateDecision,
 } from "../../guardrails/watchArmed.js";
 import { WatchGateAction, type GuardrailState } from "../../guardrails/types.js";
@@ -18,7 +18,7 @@ const base = (over: Partial<GuardrailState> = {}): GuardrailState => ({
 
 describe("isWatchSkipMarker", () => {
   it("matches a leading MUGGLE_WATCH_SKIP echo", () => {
-    expect(isWatchSkipMarker('echo "MUGGLE_WATCH_SKIP: manual PR"')).toBe(true);
+    expect(isWatchSkipMarker('echo "MUGGLE_WATCH_SKIP: handed off"')).toBe(true);
     expect(isWatchSkipMarker("echo MUGGLE_WATCH_SKIP: x")).toBe(true);
   });
   it("ignores a mere mention (grep, commit, skill edit)", () => {
@@ -46,25 +46,25 @@ describe("watchGateDecision", () => {
   it("None when nothing was opened this session", () => {
     expect(watchGateDecision(base(), []).action).toBe(WatchGateAction.None);
   });
-  it("None when a skip was recorded, even with owed PRs", () => {
-    const d = watchGateDecision(base({ watchSkipped: true }), ["https://x/pull/1"]);
-    expect(d.action).toBe(WatchGateAction.None);
+  it("None when a skip was recorded, even with untracked PRs", () => {
+    const decision = watchGateDecision(base({ watchSkipped: true }), ["https://x/pull/1"]);
+    expect(decision.action).toBe(WatchGateAction.None);
   });
-  it("Block and increments the count when a PR is owed", () => {
-    const d = watchGateDecision(base(), ["https://x/pull/1"]);
-    expect(d.action).toBe(WatchGateAction.Block);
-    expect(d.blockCount).toBe(1);
-    expect(d.owed).toEqual(["https://x/pull/1"]);
+  it("Block and increments the count when a PR is untracked", () => {
+    const decision = watchGateDecision(base(), ["https://x/pull/1"]);
+    expect(decision.action).toBe(WatchGateAction.Block);
+    expect(decision.blockCount).toBe(1);
+    expect(decision.untracked).toEqual(["https://x/pull/1"]);
   });
-  it("Release after the block budget is spent, so an un-watchable PR can't trap the session", () => {
-    const d = watchGateDecision(base({ watchBlockCount: 3 }), ["https://x/pull/1"]);
-    expect(d.action).toBe(WatchGateAction.Release);
+  it("Release after the block budget is spent, so an untrackable PR can't trap the session", () => {
+    const decision = watchGateDecision(base({ watchBlockCount: 3 }), ["https://x/pull/1"]);
+    expect(decision.action).toBe(WatchGateAction.Release);
   });
 });
 
-describe("findUnarmedHandledPrs", () => {
+describe("findUntrackedHandledPrs", () => {
   let sessions: string;
-  const seedSlot = (slug: string, url: string, files: Record<string, string>): void => {
+  const seedSlot = (slug: string, url: string, files: Record<string, string> = {}): void => {
     const dir = join(sessions, slug);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "prs.json"), JSON.stringify([{ url: url }]));
@@ -75,41 +75,46 @@ describe("findUnarmedHandledPrs", () => {
     sessions = mkdtempSync(join(tmpdir(), "watch-scan-"));
   });
 
-  it("owes a handled url with no slot at all", () => {
-    expect(findUnarmedHandledPrs(["https://x/pull/1"], sessions)).toEqual(["https://x/pull/1"]);
+  it("reports a handled url with no slot at all", () => {
+    expect(findUntrackedHandledPrs(["https://x/pull/1"], sessions)).toEqual(["https://x/pull/1"]);
   });
 
-  it("owes a slot whose watch.pid is dead and heartbeat absent", () => {
-    seedSlot("s1", "https://x/pull/1", { "watch.pid": "999999999" });
-    expect(findUnarmedHandledPrs(["https://x/pull/1"], sessions)).toEqual(["https://x/pull/1"]);
+  // The seeded-but-not-yet-armed slot is the state a background job legitimately
+  // ends in. Reconcile arms it at the next session start, so the gate must not
+  // fire and push the caller toward the skip hatch.
+  it("accepts a seeded slot with no watcher yet", () => {
+    seedSlot("seeded", "https://x/pull/2");
+    expect(findUntrackedHandledPrs(["https://x/pull/2"], sessions)).toEqual([]);
   });
 
-  it("does not owe a slot with a live watch.pid", () => {
-    seedSlot("s2", "https://x/pull/2", { "watch.pid": String(process.pid) });
-    expect(findUnarmedHandledPrs(["https://x/pull/2"], sessions)).toEqual([]);
+  it("accepts a slot whose watcher died (stale pid, no heartbeat)", () => {
+    seedSlot("dead", "https://x/pull/3", { "watch.pid": "999999999" });
+    expect(findUntrackedHandledPrs(["https://x/pull/3"], sessions)).toEqual([]);
   });
 
-  it("does not owe a terminal slot (result.md present)", () => {
-    seedSlot("s3", "https://x/pull/3", { "result.md": "# done", "watch.pid": "999999999" });
-    expect(findUnarmedHandledPrs(["https://x/pull/3"], sessions)).toEqual([]);
+  it("accepts a live-monitor slot and a terminal slot alike", () => {
+    seedSlot("live", "https://x/pull/4", { "watch.pid": String(process.pid) });
+    seedSlot("done", "https://x/pull/5", { "result.md": "# merged" });
+    expect(findUntrackedHandledPrs(["https://x/pull/4", "https://x/pull/5"], sessions)).toEqual([]);
   });
 
-  it("does not owe a slot with a fresh heartbeat", () => {
-    seedSlot("s4", "https://x/pull/4", { "watch-heartbeat": "" });
-    expect(findUnarmedHandledPrs(["https://x/pull/4"], sessions)).toEqual([]);
-  });
-
-  it("returns only the owed subset across a mix", () => {
-    seedSlot("armed", "https://x/pull/10", { "watch.pid": String(process.pid) });
-    seedSlot("dead", "https://x/pull/11", { "watch.pid": "999999999" });
-    const owed = findUnarmedHandledPrs(
+  it("reports only the urls no slot tracks", () => {
+    seedSlot("tracked", "https://x/pull/10");
+    const untracked = findUntrackedHandledPrs(
       ["https://x/pull/10", "https://x/pull/11", "https://x/pull/12"],
       sessions,
     );
-    expect(owed.sort()).toEqual(["https://x/pull/11", "https://x/pull/12"]);
+    expect(untracked.sort()).toEqual(["https://x/pull/11", "https://x/pull/12"]);
+  });
+
+  it("ignores a slot dir with no prs.json and one with malformed json", () => {
+    mkdirSync(join(sessions, "empty"), { recursive: true });
+    mkdirSync(join(sessions, "broken"), { recursive: true });
+    writeFileSync(join(sessions, "broken", "prs.json"), "{not json");
+    expect(findUntrackedHandledPrs(["https://x/pull/20"], sessions)).toEqual(["https://x/pull/20"]);
   });
 
   it("returns [] for no handled urls without scanning", () => {
-    expect(findUnarmedHandledPrs([], sessions)).toEqual([]);
+    expect(findUntrackedHandledPrs([], sessions)).toEqual([]);
   });
 });

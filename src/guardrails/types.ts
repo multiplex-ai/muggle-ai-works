@@ -11,6 +11,23 @@ export interface GuardrailState {
   terminalBlockCount?: number;
   watchSkipped?: boolean;
   watchBlockCount?: number;
+  walkthroughPosted?: boolean;
+  walkthroughSkipped?: boolean;
+  walkthroughBlockCount?: number;
+}
+
+/** Outcome of the walkthrough-post Stop gate for a turn end. */
+export enum WalkthroughGateAction {
+  Block = "block",
+  Release = "release",
+  None = "none",
+}
+
+/** A walkthrough gate decision: the action, the running block count, and the PR urls still missing a walkthrough. */
+export interface WalkthroughGateDecision {
+  action: WalkthroughGateAction;
+  blockCount: number;
+  owed: string[];
 }
 
 /** Outcome of the watcher-arm Stop gate for a turn end. */

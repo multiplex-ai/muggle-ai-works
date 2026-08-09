@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { looksLikeE2EReport, evaluateReportPost, type FileReader } from "../../guardrails/reportGate";
+import { looksLikeE2EReport, evaluateReportPost } from "../../guardrails/reportGate";
+import type { FileReader } from "../../guardrails/prReportPost";
 import type { HookInput } from "../../guardrails/types";
 
 const bash = (command: string, cwd?: string): HookInput => ({

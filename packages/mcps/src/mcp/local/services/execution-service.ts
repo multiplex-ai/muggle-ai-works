@@ -20,6 +20,7 @@ import {
   getElectronAppVersion,
   resolveElectronAppPathOrNull,
 } from "../../../shared/config.js";
+import { applyLlmEnvOverrides } from "../../../shared/llm-env-service.js";
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
@@ -520,15 +521,20 @@ async function executeElectronAppAsync(params: {
     spawnArgs.push("--fresh-session");
   }
 
+  // Resolved per spawn, not at server start, so an edited preference applies to the next run
+  // instead of waiting for the MCP host to restart.
+  const { env: electronEnv, appliedNames: llmEnvOverrideNames } = applyLlmEnvOverrides({
+    ...process.env,
+  });
+  delete electronEnv.ELECTRON_RUN_AS_NODE;
+
   logger.info("Spawning electron-app for local execution", {
     runId: params.runId,
     mode: mode,
     electronAppPath: electronAppPath,
     spawnArgs: spawnArgs,
+    llmEnvOverrideNames: llmEnvOverrideNames,
   });
-
-  const electronEnv = { ...process.env };
-  delete electronEnv.ELECTRON_RUN_AS_NODE;
 
   const electronCwd = path.dirname(electronAppPath);
   const child = spawn(electronAppPath, spawnArgs, {

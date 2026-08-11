@@ -97,6 +97,11 @@ export interface IPreferencesFile {
   version: number;
   /** The preference key-value pairs. */
   preferences: IPartialPreferences;
+  /**
+   * Environment variables forwarded to the Studio process at spawn (`MUGGLE_LLM_*`). A sibling
+   * of `preferences` because these are free-text, unlike the closed enum of preference values.
+   */
+  llmEnv?: Record<string, string>;
 }
 
 /**

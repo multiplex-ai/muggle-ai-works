@@ -63,11 +63,25 @@ function readPreferencesFile(filePath: string): IPartialPreferences {
 }
 
 function writePreferencesFile(filePath: string, prefs: IPartialPreferences): void {
+  // Preserve sibling top-level blocks (e.g. `llmEnv`); rewriting only `version` + `preferences`
+  // would silently drop them on every preference write.
   const file: IPreferencesFile = {
+    ...readRawPreferencesFile(filePath),
     version: PREFERENCES_VERSION,
     preferences: prefs,
   };
   fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf-8");
+}
+
+function readRawPreferencesFile(filePath: string): Partial<IPreferencesFile> {
+  try {
+    if (!fs.existsSync(filePath)) {
+      return {};
+    }
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as Partial<IPreferencesFile>;
+  } catch {
+    return {};
+  }
 }
 
 /**

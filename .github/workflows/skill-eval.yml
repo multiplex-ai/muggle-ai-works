@@ -518,6 +518,7 @@ jobs:
             || { echo "muggle plugin failed to install/enable" >&2; exit 1; }
 
       - name: Preflight — confirm the plugin actually routes
+        id: preflight
         if: steps.scope.outputs.should_run == 'true'
         run: |
           set -euo pipefail
@@ -525,20 +526,37 @@ jobs:
           # Routing is probabilistic, so one probe is not evidence the harness is
           # broken — a single unlucky `none` used to fail a 180-minute job and
           # block every PR that touches a skill description. Probe up to
-          # PREFLIGHT_ATTEMPTS times, passing on the first concrete route; only a
-          # clean sweep of failures means the plugin, auth, or session is down.
-          # A concrete route includes short aliases (mtest, mdo, …), which the
-          # probe lands on nondeterministically.
+          # PREFLIGHT_ATTEMPTS times and pass on the first concrete route.
+          #
+          # A pass that needed more than one attempt is not reported as a clean
+          # pass: the probe is unstable, and hiding that behind a green check is
+          # what lets flakiness rot silently. It does not block — it surfaces, as
+          # a workflow warning and a banner on the PR's routing comment.
           route=""
+          used=0
           for attempt in $(seq 1 "${PREFLIGHT_ATTEMPTS:-3}"); do
+            used=$attempt
             route="$(python internal/skill-routing-eval/router_eval.py \
               --probe 'run a muggle E2E acceptance test on my web app' --repo-root "$CLEAN_CWD")"
             echo "preflight attempt=$attempt route=$route"
             case "$route" in
               none|""|ERROR|TIMEOUT|THROTTLED) ;;
-              *) echo "plugin loaded; routing works (route=$route)"; exit 0 ;;
+              *)
+                {
+                  echo "route=$route"
+                  echo "attempts_used=$used"
+                  echo "unstable=$([ "$used" -gt 1 ] && echo true || echo false)"
+                } >> "$GITHUB_OUTPUT"
+                if [ "$used" -gt 1 ]; then
+                  echo "::warning title=Routing preflight inconsistently passed::Routed as '$route' only on attempt $used of ${PREFLIGHT_ATTEMPTS:-3} — the probe is unstable. Not blocking, but the routing signal on this run is weaker than a clean pass."
+                  echo "plugin loaded; routing INCONSISTENTLY passed (route=$route on attempt $used)"
+                else
+                  echo "plugin loaded; routing works (route=$route)"
+                fi
+                exit 0 ;;
             esac
           done
+          { echo "route=$route"; echo "attempts_used=$used"; echo "unstable=true"; } >> "$GITHUB_OUTPUT"
           echo "Preflight failed: '$route' on all ${PREFLIGHT_ATTEMPTS:-3} attempts. Plugin not loaded, auth missing, or probe session broken." >&2
           exit 1
 
@@ -576,6 +594,13 @@ jobs:
             md="$(printf '### 🧭 Skill routing eval\n\n%s' "$(head -c 60000 "$f")")"
           else
             md="$(printf '### 🧭 Skill routing eval\n\n_No routing report produced — the run failed before writing combined.md (often the MCP-disconnect / subscription-limit flake; re-run)._')"
+          fi
+          # An inconsistent preflight is not a failure, but the owner must see it:
+          # a green check that needed three tries is a signal, not a pass.
+          if [ "${{ steps.preflight.outputs.unstable }}" = "true" ] && [ -n "${{ steps.preflight.outputs.route }}" ]; then
+            banner="$(printf '> ⚠️ **Routing preflight inconsistently passed** — routed only on attempt %s of %s (`%s`). Not blocking, but the routing signal on this run is weaker than a clean pass.\n' \
+              "${{ steps.preflight.outputs.attempts_used }}" "${PREFLIGHT_ATTEMPTS:-3}" "${{ steps.preflight.outputs.route }}")"
+            md="$(printf '%s\n%s' "$banner" "$md")"
           fi
           printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name }}" = "pull_request" ]; then

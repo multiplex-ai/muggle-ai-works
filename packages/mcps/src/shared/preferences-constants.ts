@@ -48,6 +48,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoRouteBuildToMuggleDo]: PreferenceValue.Always,
   [PreferenceKey.AutoWatchPR]: PreferenceValue.Always,
   [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
+  [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
 };
 
 const ALWAYS_ASK_NEVER = [
@@ -65,6 +66,12 @@ const LOCAL_REMOTE_ASK = [
   PreferenceValue.Local,
   PreferenceValue.Remote,
   PreferenceValue.Ask,
+] as const;
+
+const WATCHER_LIFETIMES = [
+  PreferenceValue.OneDay,
+  PreferenceValue.SevenDays,
+  PreferenceValue.Never,
 ] as const;
 
 /**
@@ -95,6 +102,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoRouteBuildToMuggleDo]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoWatchPR]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.WatcherLifetime]: WATCHER_LIFETIMES,
 };
 
 /** Human-readable schema for each preference — used in setup wizard and validation. */
@@ -164,5 +172,8 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.ReusePreparePlan]: {
     description: "Reuse the saved prepare plan for this stack (skip discovery, jump to check-running + smoke-test) instead of rediscovering from scratch",
+  },
+  [PreferenceKey.WatcherLifetime]: {
+    description: "How long a muggle-pr-followup watch loop polls before retiring itself — 1d, 7d, or never (unbounded, which leaves no time-based reaper for an orphaned loop)",
   },
 };

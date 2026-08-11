@@ -13,6 +13,7 @@ import {
 } from "../shared/preferences-types.js";
 import { ProjectPreferencesReconcileOutcome } from "../shared/project-preferences-reconcile-types.js";
 import { PreferencesSetInputSchema } from "../mcp/local/contracts/preferences-schemas.js";
+import { WATCHER_LIFETIME_SECONDS } from "../shared/watcher-lifetime-constants.js";
 import {
   DEFAULT_PREFERENCES,
   PREFERENCE_ALLOWED_VALUES,
@@ -32,9 +33,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 22 keys", () => {
+  it("has exactly 23 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(22);
+    expect(keys).toHaveLength(23);
   });
 
   it("contains all expected keys", () => {
@@ -64,16 +65,18 @@ describe("PreferenceKey enum", () => {
 });
 
 describe("PreferenceValue enum", () => {
-  it("has exactly 5 values (always/ask/never + local/remote)", () => {
-    expect(Object.values(PreferenceValue)).toHaveLength(5);
+  it("has exactly 7 values (always/ask/never + local/remote + 1d/7d)", () => {
+    expect(Object.values(PreferenceValue)).toHaveLength(7);
   });
 
-  it("contains always, ask, never, local, remote", () => {
+  it("contains always, ask, never, local, remote, 1d, 7d", () => {
     expect(PreferenceValue.Always).toBe("always");
     expect(PreferenceValue.Ask).toBe("ask");
     expect(PreferenceValue.Never).toBe("never");
     expect(PreferenceValue.Local).toBe("local");
     expect(PreferenceValue.Remote).toBe("remote");
+    expect(PreferenceValue.OneDay).toBe("1d");
+    expect(PreferenceValue.SevenDays).toBe("7d");
   });
 });
 
@@ -108,14 +111,14 @@ describe("DEFAULT_PREFERENCES", () => {
     }
   });
 
-  it("defaults to max automation (always) except defaultExecutionMode (local) and verboseOutput (never)", () => {
+  it("defaults to max automation (always) except the keys with their own vocabulary", () => {
+    const exceptions: Partial<Record<string, PreferenceValue>> = {
+      [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Local,
+      [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
+      [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
+    };
     for (const [key, value] of Object.entries(DEFAULT_PREFERENCES)) {
-      const expected =
-        key === PreferenceKey.DefaultExecutionMode
-          ? PreferenceValue.Local
-          : key === PreferenceKey.VerboseOutput
-            ? PreferenceValue.Never
-            : PreferenceValue.Always;
+      const expected = exceptions[key] ?? PreferenceValue.Always;
       expect(value, `DEFAULT_PREFERENCES.${key}`).toBe(expected);
     }
   });
@@ -411,5 +414,36 @@ describe("PreferencesSetInputSchema", () => {
     expect(() =>
       PreferencesSetInputSchema.parse({ key: "autoLogin", value: "local" }),
     ).toThrow();
+  });
+});
+
+describe("watcherLifetime", () => {
+  it("defaults to seven days", () => {
+    expect(DEFAULT_PREFERENCES[PreferenceKey.WatcherLifetime]).toBe(PreferenceValue.SevenDays);
+  });
+
+  it("offers exactly 1d, 7d and never", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.WatcherLifetime]).toEqual([
+      PreferenceValue.OneDay,
+      PreferenceValue.SevenDays,
+      PreferenceValue.Never,
+    ]);
+  });
+
+  it("rejects the general always/ask values, which mean nothing for a duration", () => {
+    expect(validatePreference(PreferenceKey.WatcherLifetime, PreferenceValue.Always)).toBe(false);
+    expect(validatePreference(PreferenceKey.WatcherLifetime, PreferenceValue.Ask)).toBe(false);
+  });
+
+  it("maps every allowed value to seconds for the shell loop", () => {
+    for (const value of PREFERENCE_ALLOWED_VALUES[PreferenceKey.WatcherLifetime]) {
+      expect(WATCHER_LIFETIME_SECONDS[value], `no seconds mapping for ${value}`).toBeTypeOf("number");
+    }
+    expect(WATCHER_LIFETIME_SECONDS[PreferenceValue.OneDay]).toBe(86400);
+    expect(WATCHER_LIFETIME_SECONDS[PreferenceValue.SevenDays]).toBe(604800);
+  });
+
+  it("maps never to 0, the guard library's unbounded sentinel", () => {
+    expect(WATCHER_LIFETIME_SECONDS[PreferenceValue.Never]).toBe(0);
   });
 });

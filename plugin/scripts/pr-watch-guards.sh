@@ -18,7 +18,10 @@
 #                           on its own; reconcile re-arms an open PR inside a live
 #                           session.
 
-MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-21600}"
+# Seconds a watch loop may live. 0 means unbounded — the `never` setting of the
+# watcherLifetime preference, which removes the only time-based reaper for a
+# loop whose session has gone. `watcher_superseded` is then the sole guard.
+MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-604800}"
 MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
 # Consecutive failed fetches before a loop gives up. A watcher must ride through
 # a GitHub / network outage — an observed drop lasted ~8 minutes — not die and
@@ -50,6 +53,9 @@ watcher_superseded() {
 
 watcher_lifetime_exceeded() {
     local started="$1" now="$2" max="${3:-$MUGGLE_PR_WATCH_MAX_LIFETIME}"
+    # 0 is unbounded, not "already expired" — the arithmetic below would other-
+    # wise make every loop exit on its first iteration.
+    [ "$max" -eq 0 ] 2>/dev/null && return 1
     [ $((now - started)) -ge "$max" ]
 }
 

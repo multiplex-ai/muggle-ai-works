@@ -624,6 +624,17 @@ export const AuthLoginInputSchema = z.object({
 });
 
 /**
+ * Auth register input schema.
+ */
+export const AuthRegisterInputSchema = z.object({
+  email: z.string().email().describe("Email address to register the new Muggle AI account under"),
+  password: z
+    .string()
+    .min(8)
+    .describe("Password for the new account, at least 8 characters. Sent once and not stored locally."),
+});
+
+/**
  * Auth poll input schema.
  */
 export const AuthPollInputSchema = z.object({

@@ -107,6 +107,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-auth-poll",
   },
   {
+    "description": "Create a new Muggle AI account from an email and password and start using E2E features on the free plan immediately. No browser and no human step. Use this when there is no account yet; use muggle-remote-auth-login when one already exists. The API key it returns is stored automatically, so remote tools work straight afterwards.",
+    "name": "muggle-remote-auth-register",
+  },
+  {
     "description": "Check current authentication status. Shows if you're logged in and when your session expires.",
     "name": "muggle-remote-auth-status",
   },
@@ -437,6 +441,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-auth-login",
   "muggle-remote-auth-logout",
   "muggle-remote-auth-poll",
+  "muggle-remote-auth-register",
   "muggle-remote-auth-status",
   "muggle-remote-bulk-preview-job-cancel",
   "muggle-remote-bulk-preview-job-get",

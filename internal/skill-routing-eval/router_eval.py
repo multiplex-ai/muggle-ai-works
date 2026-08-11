@@ -70,6 +70,52 @@ def parse_route_from_stream(out: str) -> str:
     return NONE
 
 
+# The preflight probe runs in an empty clean-cwd, where a realistic query like
+# "test my changes before I open the PR" makes the model orient first (pwd/ls/
+# git status) and only then route. Scoring the *first* tool_use there reports
+# `none` for a perfectly healthy plugin, which is what used to fail the gate.
+# The probe therefore gets an extra turn and scans the whole session for a skill
+# invocation; the 391-query eval keeps the strict first-tool-use semantics.
+PROBE_MAX_TURNS = 2
+
+
+def parse_route_probe(out: str) -> str:
+    """Route detection for the CI preflight: any Skill invocation anywhere in the
+    session counts, so an orienting tool call before the route is not a failure."""
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "assistant":
+            continue
+        for ci in event.get("message", {}).get("content", []):
+            if ci.get("type") != "tool_use":
+                continue
+            if ci.get("name") == "Skill":
+                skill = normalize_skill(ci.get("input", {}).get("skill", ""))
+                if skill:
+                    return skill
+            if ci.get("name") == "Read":
+                skill = _route_from_path(ci.get("input", {}).get("file_path", ""))
+                if skill:
+                    return skill
+            # Muggle ships its MCP tools deferred, so a healthy session often
+            # loads them via ToolSearch before invoking anything else. Reaching
+            # for a muggle tool proves the plugin is loaded and routable just as
+            # a Skill call does — scoring it `none` failed the gate on a session
+            # that was working perfectly.
+            name = ci.get("name", "")
+            if name.startswith("mcp__") and "muggle" in name:
+                return "muggle-mcp-tool"
+            if name == "ToolSearch" and "muggle" in str(ci.get("input", {})).lower():
+                return "muggle-tools"
+    return NONE
+
+
 def stream_error_text(out: str) -> str:
     """Text of an `is_error` result event, or "" — a normal result is not an error."""
     for line in out.splitlines():
@@ -85,14 +131,14 @@ def stream_error_text(out: str) -> str:
     return ""
 
 
-def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None) -> tuple[str, str]:
+def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None, max_turns: int = 1) -> tuple[str, str]:
     """One isolated `claude -p` session. Returns (status, stdout) where status is
     OK | TIMEOUT | THROTTLED | ERROR."""
     cmd = [
         "claude", "-p", query,
         "--output-format", "stream-json",
         "--verbose",
-        "--max-turns", "1",
+        "--max-turns", str(max_turns),
     ]
     if model:
         cmd.extend(["--model", model])
@@ -139,11 +185,11 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
     return ("OK", out)
 
 
-def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> str:
+def detect_route(query: str, repo_root: str, timeout: int, model: str | None, probe: bool = False) -> str:
     attempt = 1
     while True:
         THROTTLE_GATE.wait_until_clear()
-        status, out = run_claude_once(query, repo_root, timeout, model)
+        status, out = run_claude_once(query, repo_root, timeout, model, PROBE_MAX_TURNS if probe else 1)
         if status == "THROTTLED" and attempt <= throttle.MAX_THROTTLE_RETRIES:
             backoff = throttle.backoff_seconds(attempt)
             THROTTLE_GATE.report_throttle(backoff)
@@ -154,7 +200,7 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
             attempt += 1
             continue
         if status == "OK":
-            return parse_route_from_stream(out)
+            return parse_route_probe(out) if probe else parse_route_from_stream(out)
         # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
         # strings, so they score exactly like the old silent `none` on negatives
         # while staying attributable in the fired[] lists.
@@ -175,7 +221,7 @@ def main():
     args = ap.parse_args()
 
     if args.probe:
-        print(detect_route(args.probe, args.repo_root, args.timeout, args.model))
+        print(detect_route(args.probe, args.repo_root, args.timeout, args.model, probe=True))
         return
     if not args.eval_set or not args.out:
         ap.error("--eval-set and --out are required unless --probe is given")

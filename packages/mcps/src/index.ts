@@ -19,4 +19,5 @@ export { getQaTools } from "./mcp/e2e/index.js";
 export * from "./shared/preferences-types.js";
 export * from "./shared/project-preferences-reconcile-types.js";
 export * from "./shared/preferences-constants.js";
+export * from "./shared/watcher-lifetime-constants.js";
 export * from "./shared/preferences-service.js";

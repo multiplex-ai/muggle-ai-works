@@ -48,6 +48,8 @@ export enum PreferenceKey {
   AutoRouteBuildToMuggleDo = "autoRouteBuildToMuggleDo",
   /** After a test run opens a PR, start a muggle-pr-followup watcher on it. */
   AutoWatchPR = "autoWatchPR",
+  /** How long a muggle-pr-followup watch loop may poll before retiring itself. */
+  WatcherLifetime = "watcherLifetime",
   /** Reuse the saved prepare plan for this stack instead of rediscovering. */
   ReusePreparePlan = "reusePreparePlan",
 }
@@ -71,6 +73,10 @@ export enum PreferenceValue {
   Local = "local",
   /** For DefaultExecutionMode: always run tests in the Muggle Test cloud. */
   Remote = "remote",
+  /** For WatcherLifetime: retire a PR watch loop after one day. */
+  OneDay = "1d",
+  /** For WatcherLifetime: retire a PR watch loop after seven days. */
+  SevenDays = "7d",
 }
 
 /**

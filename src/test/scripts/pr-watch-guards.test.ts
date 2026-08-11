@@ -62,9 +62,21 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_lifetime_exceeded", () => 
     expect(runGuard("watcher_lifetime_exceeded 1000 21000 21600")).toBe(1);
   });
 
-  it("falls back to the 6h default cap when max is omitted", () => {
-    expect(runGuard("watcher_lifetime_exceeded 0 21600")).toBe(0);
-    expect(runGuard("watcher_lifetime_exceeded 0 21599")).toBe(1);
+  it("falls back to the 7d default cap when max is omitted", () => {
+    expect(runGuard("watcher_lifetime_exceeded 0 604800")).toBe(0);
+    expect(runGuard("watcher_lifetime_exceeded 0 604799")).toBe(1);
+  });
+
+  it("treats a zero cap as unbounded rather than already expired", () => {
+    // `never` exports 0. Read as a cap, the arithmetic would make every loop
+    // exit on its first iteration — the opposite of what the setting means.
+    expect(runGuard("watcher_lifetime_exceeded 0 999999999 0")).toBe(1);
+    expect(runGuard("watcher_lifetime_exceeded 1000 1001 0")).toBe(1);
+  });
+
+  it("lets an explicit env override beat the default", () => {
+    expect(runGuard("watcher_lifetime_exceeded 0 90000 86400")).toBe(0);
+    expect(runGuard("watcher_lifetime_exceeded 0 80000 86400")).toBe(1);
   });
 });
 

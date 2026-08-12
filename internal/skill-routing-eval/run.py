@@ -27,12 +27,13 @@ import subprocess
 import sys
 from pathlib import Path
 
+from scoring import NONE, scored_pass
+
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]  # internal/skill-routing-eval -> repo root
 EVAL_SET = HERE / "eval-set.json"
 ROUTER = HERE / "router_eval.py"
 ANALYZE = HERE / "analyze.py"
-NONE = "none"
 
 
 def find_plugin_cache() -> Path | None:
@@ -174,9 +175,6 @@ def main():
     md_path = out_dir / "combined.md"
     subprocess.run([sys.executable, str(ANALYZE), "report", "--in", str(combined_path), "--out", str(md_path)], check=True)
 
-    def ok(r):
-        # mirror analyze.py's rule: negatives pass when no muggle skill fires
-        return (not r["majority"].startswith("muggle")) if r["expected_skill"] == NONE else (r["majority"] == r["expected_skill"])
     # Suspected-disconnect chunks are inconclusive, not failures. A persistent
     # all-`none` chunk is an MCP-disconnect artifact (the preflight already proved
     # routing works, and genuine description regressions surface as partial recall,
@@ -185,7 +183,7 @@ def main():
     flagged_set = set(flagged)
     verified = [r for r in all_results if r["expected_skill"] not in flagged_set]
     total = len(verified)
-    passed = sum(1 for r in verified if ok(r))
+    passed = sum(1 for r in verified if scored_pass(r["expected_skill"], r["majority"]))
     accuracy = passed / total if total else 0.0
     print(f"\nDone. verified {passed}/{total} = {accuracy:.1%}", file=sys.stderr)
     if flagged:

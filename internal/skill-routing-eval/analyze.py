@@ -16,18 +16,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
-NONE = "none"
-
-
-def is_muggle(route: str) -> bool:
-    return route.startswith("muggle")
-
-
-def scored_pass(expected: str, majority: str) -> bool:
-    """Negative class passes iff no muggle skill fired; positives need an exact match."""
-    if expected == NONE:
-        return not is_muggle(majority)
-    return majority == expected
+from scoring import NONE, is_muggle, scored_pass
 
 
 def load(path):

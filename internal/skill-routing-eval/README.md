@@ -8,6 +8,8 @@ Measures whether each muggle skill's `description` (its "entrance") routes the r
 - `eval-set.json` — labeled queries `{query, expected_skill, note}`. `expected_skill` is `none` for negative/near-miss queries that must not route to any muggle skill.
 - `router_eval.py` — the real-router harness.
 - `analyze.py` — turns a router run into a report and into per-skill signal for the optimizer.
+- `recall-baseline.json` — per-skill recall recorded from a full sweep on master; what the CI gate compares a run against.
+- `regression_gate.py` — the gate: judges a run against that baseline inside a noise band (`gate_types.py`, `gate_constants.py`).
 - `reports/` — generated reports per iteration.
 
 ## Harness
@@ -46,10 +48,51 @@ force the full 391-query sweep anyway (the lever for de-risking a runtime
 refactor that touches no `SKILL.md`).
 
 - `--skills a,b` — run a subset (CI derives it from the PR's changed `plugin/skills/*/SKILL.md`).
-- `--fail-under F` — exit non-zero if accuracy < F, or if a chunk stays 0% (suspected disconnect, unverified). Default `0.0` keeps dev runs informational. CI uses `1.0` on PRs (changed skills must route perfectly) and `0.95` for the nightly full sweep.
+- `--gate` — compare the run against `recall-baseline.json`; exit non-zero on a regression, a collapse, or a sweep where no chunk could be verified. Off by default, so dev runs stay informational. CI passes it in both modes.
+- `--baseline PATH` — the recorded baseline to compare against (default: `recall-baseline.json` beside the runner).
+- `--record-baseline PATH` — write this run's per-skill tallies for a human to promote. Full sweeps only; a scoped run would drop every skill it did not measure.
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
 CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key).
+
+## Regression gate
+
+Routing is stochastic and master is not perfect: the nightly sweep scores 337/391 = 86.2%, per-skill recall spans 29% to 100%, and re-measuring one unchanged description landed its chunk on 19, 20, 20 and 22 of 26 queries across four consecutive CI runs. An absolute pass bar is therefore either unreachable or meaningless, so CI gates on movement instead.
+
+`recall-baseline.json` holds each skill's `{passed, total}` from a full sweep on master. A gated run judges every skill it measured against its entry and fails on:
+
+- **regression** — recall below `baseline - tolerance`;
+- **collapse** — recall below 10% whatever the baseline says, the backstop for a skill with no recorded entry and for a baseline recorded already degraded.
+
+A skill absent from the baseline is reported `unbaselined` and cannot fail on regression; a chunk the disconnect guard flagged is reported `inconclusive` and is not gated at all. The pooled recall of the comparable skills is judged the same way, so several small dips that each stay inside their own band still fail the suite together.
+
+### Tolerance
+
+`tolerance = 2 * sqrt(2) * sqrt(p(1-p)/n)` — `p` is the baseline recall (Laplace-smoothed, so a 24/24 baseline keeps a non-zero band), `n` the query count, and the `sqrt(2)` is there because baseline and run are each one noisy measurement, so their difference carries both variances.
+
+Three independent estimates agree on the width at `n = 26`, `p ~ 0.85`:
+
+| estimate | queries |
+|---|---|
+| binomial 2-sigma of the difference | 5.0 |
+| 2-sigma of the five measured muggle-test scores (23, 20, 22, 20, 19 of 26) | 4.7 |
+| observed spread of those same five runs | 4.0 |
+
+So muggle-test tolerates a drop to 18/26 against its 23/26 baseline and fails at 17/26, while a near-perfect baseline stays tight on its own terms: 24/24 may fall to 22/24, and the 48/48 negative class to 46/48.
+
+A scoped PR run also votes over 5 runs per query rather than the sweep's 3. One chunk is cheap — 26 queries at 6 workers measured 3.1 min at 3 runs, so about 5 min at 5 — and a majority over 5 flips on fewer queries, which is the noise the gate then has to tolerate.
+
+### Baseline refresh
+
+The full sweep writes `reports/run/recall-baseline.candidate.json`, and CI uploads it as the `routing-recall-baseline` artifact. Nothing commits it; a human promotes it:
+
+1. `gh run download <run-id> -n routing-recall-baseline` from a full sweep that finished cleanly.
+2. Copy it over `internal/skill-routing-eval/recall-baseline.json` and read the diff — a skill that moved should have a reason.
+3. Commit it on its own.
+
+Locally the same thing is `python internal/skill-routing-eval/run.py --all --record-baseline internal/skill-routing-eval/recall-baseline.json`.
+
+Re-record after anything that shifts measured accuracy across the board (a harness change to what the router sees, a model change), not after each description edit — that is exactly the movement the gate exists to catch.
 
 ## Optimization loop (per skill)
 

@@ -1,0 +1,6 @@
+# Windows runners check out with core.autocrlf=true. Two file kinds break when
+# they arrive with CRLF: shell scripts, which bash refuses to run, and .mjs
+# modules, which Node parses directly rather than through a transform that would
+# normalize them. Pin both to LF so a Windows checkout matches every other one.
+*.sh text eol=lf
+*.mjs text eol=lf

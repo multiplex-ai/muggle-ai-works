@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { join } from "path";
+import type { GuardrailState } from "../../guardrails/types.js";
 
 // Each bash wrapper re-encodes, in shell, the payloads its guardrails.mjs
 // subcommand acts on. Nothing ties the two together, so a marker a gate's own
@@ -150,32 +151,98 @@ describe("build-router pre-filter reaches every prompt detectBuildIntent accepts
 // two-space indent, and the empty-array form. A renamed field or a changed
 // indent would silently retire the gate rather than break it.
 describe("state-file pre-filters match the state guardrails.mjs writes", () => {
-  const armedState = JSON.stringify(
-    {
-      sessionId: "s",
-      prsHandled: ["https://github.com/o/r/pull/1"],
-      unitTestsGreen: true,
-      e2eRun: true,
-      terminalPending: [7],
-      watchSkipped: true,
-      walkthroughPosted: true,
-      walkthroughSkipped: true,
-    },
-    null,
-    2,
+  // The widest state the type allows — every declared field set, every array
+  // non-empty. Typed Required<GuardrailState> so a field added to the state
+  // fails to compile until it is represented, and re-checked below against the
+  // declaration itself because tsconfig excludes tests from the typecheck.
+  const populatedState: Required<GuardrailState> = {
+    sessionId: "s",
+    prsHandled: ["https://github.com/o/r/pull/1"],
+    unitTestsGreen: true,
+    e2eRun: true,
+    e2eSkipped: true,
+    e2eBlockCount: 1,
+    buildIntentRouted: true,
+    terminalPending: [7],
+    terminalHandled: [7],
+    terminalBlockCount: 1,
+    watchSkipped: true,
+    watchBlockCount: 1,
+    walkthroughPosted: true,
+    walkthroughSkipped: true,
+    walkthroughBlockCount: 1,
+    lastInvokedSkillName: "muggle-do",
+    mandatoryStages: ["stages/plan.md"],
+    stagesRead: ["stages/plan.md"],
+    stageSkipped: true,
+    stageBlockCount: 1,
+    classifiedTestCaseIds: ["tc-1"],
+    classificationSkipped: true,
+    failedRuns: ["run-1"],
+    debuggedRuns: ["run-1"],
+    debugSkipped: true,
+    debugBlockCount: 1,
+  };
+
+  // A gate reads "nothing owed" as an empty array and pre-filters on the
+  // one-line `"<field>": []` form, which only a drained state serializes.
+  const drainedState = Object.fromEntries(
+    Object.entries(populatedState).map(([field, value]) => [field, Array.isArray(value) ? [] : value]),
   );
-  const idleState = JSON.stringify({ sessionId: "s", prsHandled: [], terminalPending: [] }, null, 2);
-  const serializedStates = `${armedState}\n${idleState}`;
+  const serializedStates = [populatedState, drainedState]
+    .map((state) => JSON.stringify(state, null, 2))
+    .join("\n");
+
+  const declaredStateFields = (): string[] => {
+    const declaration = readFileSync(join(GUARDRAIL_SOURCE, "types.ts"), "utf-8").match(
+      /export interface GuardrailState \{([^}]+)\}/,
+    );
+    if (!declaration) throw new Error("GuardrailState is no longer declared in guardrails/types.ts");
+    return [...declaration[1].matchAll(/^\s*(\w+)\??:/gm)].map(([, field]) => field);
+  };
+
+  const gateSourceBodies = readdirSync(GUARDRAIL_SOURCE)
+    .filter((name) => name !== "types.ts")
+    .map((name) => readFileSync(join(GUARDRAIL_SOURCE, name), "utf-8"));
 
   const wrapperScriptNames = readdirSync(SCRIPTS).filter(
     (name) => name.startsWith("guardrail-") && name.endsWith(".sh"),
   );
 
+  const statePrefilterLiterals = (wrapperScriptName: string): string[] =>
+    [...readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8").matchAll(/grep -q '([^']+)'/g)].map(
+      ([, statePattern]) => statePattern.replaceAll("\\[", "[").replaceAll("\\]", "]"),
+    );
+
+  const prefilteredStateField = (literal: string): string => {
+    const field = literal.match(/^"(\w+)"/)?.[1];
+    if (!field) throw new Error(`pre-filter ${literal} names no state field`);
+    return field;
+  };
+
+  // Equality, not superset: padding the fixture with an invented field is how a
+  // typo'd pre-filter would slip through, and a field the state gains has to be
+  // represented here even where the typecheck skips this file.
+  it("holds exactly the fields GuardrailState declares", () => {
+    expect(Object.keys(populatedState).sort()).toEqual(declaredStateFields().sort());
+  });
+
   it.each(wrapperScriptNames)("%s greps only for shapes the state file can hold", (wrapperScriptName) => {
-    const wrapperBody = readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
-    for (const [, statePattern] of wrapperBody.matchAll(/grep -q '([^']+)'/g)) {
-      const literal = statePattern.replaceAll("\\[", "[").replaceAll("\\]", "]");
+    for (const literal of statePrefilterLiterals(wrapperScriptName)) {
       expect(serializedStates, `${wrapperScriptName} greps for ${literal}`).toContain(literal);
+    }
+  });
+
+  // Declaring a field is not writing one. A gate that pre-filters on a field no
+  // guardrail ever touches is the dead-escape-hatch bug in state-file form: the
+  // grep never matches, so the gate silently never fires.
+  it.each(wrapperScriptNames)("%s greps only for fields a gate maintains", (wrapperScriptName) => {
+    for (const literal of statePrefilterLiterals(wrapperScriptName)) {
+      const field = prefilteredStateField(literal);
+      expect(
+        gateSourceBodies.some((body) => body.includes(field)),
+        `${wrapperScriptName} greps for ${field}, which no guardrail writes`,
+      ).toBe(true);
     }
   });
 });

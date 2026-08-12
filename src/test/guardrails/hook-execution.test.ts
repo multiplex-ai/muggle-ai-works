@@ -528,11 +528,39 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     ).toContain(NODE_RAN);
   });
 
-  it("record-tests: spawns Node on an E2E skip marker", () => {
+  // Every Stop gate documents its own marker as the way out, so all three must
+  // survive the pre-filter — a per-token list left two of them unreachable and
+  // the gates blocked users who followed the instruction. hook-prefilter.test.ts
+  // derives the token set from source; these confirm real grep agrees.
+  it.each(["MUGGLE_E2E_SKIP", "MUGGLE_WATCH_SKIP", "MUGGLE_WALKTHROUGH_SKIP"])(
+    "record-tests: spawns Node on the %s marker",
+    (token) => {
+      expect(
+        runWrapper(
+          "guardrail-record-tests.sh",
+          event({ tool_name: "Bash", tool_input: { command: `echo "${token}: reason"` } }),
+        ),
+      ).toContain(NODE_RAN);
+    },
+  );
+
+  it("record-tests: spawns Node on a walkthrough post so it registers without a provider lookup", () => {
     expect(
       runWrapper(
         "guardrail-record-tests.sh",
-        event({ tool_name: "Bash", tool_input: { command: 'echo "MUGGLE_E2E_SKIP: no app"' } }),
+        event({ tool_name: "Bash", tool_input: { command: "gh pr comment 7 --body-file walkthrough.md" } }),
+      ),
+    ).toContain(NODE_RAN);
+  });
+
+  it("report-format: spawns Node on a gh api comment edit", () => {
+    expect(
+      runWrapper(
+        "guardrail-report-format.sh",
+        event({
+          tool_name: "Bash",
+          tool_input: { command: "gh api --method PATCH repos/o/r/issues/comments/1 -f body=@report.md" },
+        }),
       ),
     ).toContain(NODE_RAN);
   });
@@ -563,6 +591,18 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
       runWrapper(
         "guardrail-pr-terminal.sh",
         event({ tool_name: "Bash", tool_response: { stdout: "TERMINAL pr=331: MERGED" } }),
+      ),
+    ).toContain(NODE_RAN);
+  });
+
+  // The reopen retracts a close, so it must reach the detector — while the
+  // pre-filter dropped it, a routine close+reopen left the post-merge handoff
+  // armed on a PR that is open again.
+  it("pr-terminal: spawns Node on a reopen success line", () => {
+    expect(
+      runWrapper(
+        "guardrail-pr-terminal.sh",
+        event({ tool_name: "Bash", tool_response: { stderr: "✓ Reopened pull request o/r#369 (gate fix)" } }),
       ),
     ).toContain(NODE_RAN);
   });

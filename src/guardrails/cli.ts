@@ -9,7 +9,41 @@ import {
   applyNextOptionsOffered,
   prTerminalGateDecision,
 } from "./prTerminal.js";
-import { MAX_PR_TERMINAL_BLOCKS, MAX_WALKTHROUGH_BLOCKS, MAX_WATCH_BLOCKS } from "./constants.js";
+import {
+  MAX_DEBUG_BLOCKS,
+  MAX_PR_TERMINAL_BLOCKS,
+  MAX_STAGE_BLOCKS,
+  MAX_WALKTHROUGH_BLOCKS,
+  MAX_WATCH_BLOCKS,
+} from "./constants.js";
+import {
+  applySkillInvocation,
+  applyStageRead,
+  applyStageSkip,
+  isStageSkipMarker,
+  resolvePluginSkillsRoot,
+  resolveSkillNameFromToolInput,
+  resolveSkillStagePaths,
+  stageGateDecision,
+  stageLabel,
+  unreadMandatoryStages,
+} from "./mandatoryStages.js";
+import {
+  applyClassificationSkip,
+  applyClassifiedTestCase,
+  classificationGateDecision,
+  detectClassifiedTestCaseId,
+  isClassificationSkipMarker,
+} from "./preExecutionClassification.js";
+import {
+  applyDebugEvidence,
+  applyDebugSkip,
+  applyFailedRun,
+  debugGateDecision,
+  detectDebugEvidenceRunIds,
+  detectFailedRunId,
+  undebuggedFailedRuns,
+} from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import {
@@ -29,7 +63,9 @@ import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
 import {
+  DebugGateAction,
   PrTerminalGateAction,
+  StageGateAction,
   WalkthroughGateAction,
   WatchGateAction,
   type HookInput,
@@ -121,9 +157,123 @@ function recordTests(): string {
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
-  const next = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  const failedRunId = detectFailedRunId(input);
+  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
   return "{}";
+}
+
+function skillStages(): string {
+  const skillName = resolveSkillNameFromToolInput(input.tool_input);
+  if (!skillName) return "{}";
+  const state = readState(sessionId);
+  const next = applySkillInvocation(
+    state,
+    skillName,
+    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot()),
+  );
+  if (next !== state) writeState(next);
+  const unread = unreadMandatoryStages(next);
+  if (unread.length === 0) return "{}";
+  // Injected at the moment of use, which is the only moment the requirement is
+  // actionable: by the time the skill's steps are running, the step that needed
+  // the stage file has already been improvised.
+  const ctx =
+    `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. ` +
+    `Read those files now, before working through the skill's steps — they carry mandatory steps ` +
+    `SKILL.md only links to, and treating them as optional elaboration is how those steps get ` +
+    `silently dropped. A Stop gate holds the turn open until they are opened.`;
+  return envelope("PostToolUse", ctx, host);
+}
+
+function recordStageRead(): string {
+  const filePath = input.tool_input?.file_path;
+  if (!filePath) return "{}";
+  const state = readState(sessionId);
+  const next = applyStageRead(state, filePath);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+
+function recordStageSignals(): string {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  const withStageSkip = applyStageSkip(state, isStageSkipMarker(cmd));
+  const withClassificationSkip = applyClassificationSkip(
+    withStageSkip,
+    isClassificationSkipMarker(cmd),
+  );
+  const withDebugSkip = applyDebugSkip(withClassificationSkip, cmd);
+  const classifiedTestCaseId = detectClassifiedTestCaseId(input);
+  const withClassification = classifiedTestCaseId
+    ? applyClassifiedTestCase(withDebugSkip, classifiedTestCaseId)
+    : withDebugSkip;
+  const next = applyDebugEvidence(
+    withClassification,
+    detectDebugEvidenceRunIds(input, undebuggedFailedRuns(withClassification)),
+  );
+  if (next !== state) writeState(next);
+  return "{}";
+}
+
+function classifyGate(): string {
+  const decision = classificationGateDecision(readState(sessionId), input);
+  if (!decision.deny) return "{}";
+  const reason =
+    `Test case ${decision.testCaseId} has no pre-execution classification this session. ` +
+    `Run muggle-test Step 6f for it first: classify replay-vs-regen per ` +
+    `_shared/failure-mode-handling.md §A, then emit one ` +
+    `muggle-local-telemetry-event-emit with eventType "pre-execution-classification" for this ` +
+    `test case. That step is what calls muggle-remote-test-script-list, which is the only place ` +
+    `this run learns the test case has never passed or has failed repeatedly — cheap now, ` +
+    `~5 minutes of browser time to rediscover after the fact. If this execution genuinely has ` +
+    `no classification step (a single user-picked target), say why and run ` +
+    `\`echo "MUGGLE_CLASSIFY_SKIP: <reason>"\` — that records the skip for the rest of the session.`;
+  return denyTool(reason, host);
+}
+
+function stageGate(): string {
+  const state = readState(sessionId);
+  const decision = stageGateDecision(state, unreadMandatoryStages(state));
+  if (decision.action !== StageGateAction.Block) return "{}";
+  state.stageBlockCount = decision.blockCount;
+  writeState(state);
+  const stageList = decision.unread.map(stageLabel).join(", ");
+  // Full instruction once; repeats are one line (same rationale as e2eGate).
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. A skill invoked this session declares mandatory stages that were ` +
+        `never opened: ${stageList}. Read them and carry out what they require — they are steps, ` +
+        `not background reading, and SKILL.md only links to them. If they genuinely do not apply ` +
+        `to this run, say why and run \`echo "MUGGLE_STAGE_SKIP: <reason>"\` — that records the ` +
+        `skip and keeps this gate quiet for the rest of the session.`
+      : `Mandatory stages still unread (reminder ${decision.blockCount}/${MAX_STAGE_BLOCKS}): ${stageList}. ` +
+        `Read them, or record a legitimate skip via \`echo "MUGGLE_STAGE_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
+function debugPathGate(): string {
+  const state = readState(sessionId);
+  const decision = debugGateDecision(state);
+  if (decision.action !== DebugGateAction.Block) return "{}";
+  state.debugBlockCount = decision.blockCount;
+  writeState(state);
+  const runList = decision.undebugged.join(", ");
+  // Full instruction once; repeats are one line (same rationale as e2eGate).
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. These runs failed and never went through the debug path: ${runList}. ` +
+        `muggle-test Step 7C makes that mandatory — route each through _shared/debug-failed-run.md: ` +
+        `gather the attempted steps and the failing screenshot, diagnose the bucket per ` +
+        `_shared/failure-mode-handling.md §B/§C with its classified telemetry emit, and present the ` +
+        `offer in which "give feedback & rerun" is always available. A summarized-and-dropped failure ` +
+        `is the run a reviewer most needs to see. If a run genuinely cannot be debugged, run ` +
+        `\`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\` — that clears just that run.`
+      : `Failed runs still owe the debug path (reminder ${decision.blockCount}/${MAX_DEBUG_BLOCKS}): ${runList}. ` +
+        `Route each through _shared/debug-failed-run.md, or record a legitimate skip via ` +
+        `\`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\`.`;
+  return blockStop(reason, host);
 }
 
 function e2eGate(): string {
@@ -239,5 +389,11 @@ const handlers: Record<string, () => string> = {
   "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
   "build-router": buildRouter,
+  "skill-stages": skillStages,
+  "record-stage-read": recordStageRead,
+  "record-stage-signals": recordStageSignals,
+  "classify-gate": classifyGate,
+  "stage-gate": stageGate,
+  "debug-path-gate": debugPathGate,
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

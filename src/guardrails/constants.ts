@@ -44,3 +44,49 @@ export const GH_LOOKUP_TIMEOUT_MS = 10_000;
 // (never Bash text), so casual mentions of "muggle-test" stay inert.
 export const MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
 export const MUGGLE_TEST_SKILL_NAME = "muggle-test";
+
+/** Optional SKILL.md frontmatter key holding the stage files a skill cannot be executed without. */
+export const MANDATORY_STAGES_FRONTMATTER_KEY = "mandatoryStages";
+
+// The Skill tool's input key for the invoked skill has differed across harness
+// versions (and Cursor's equivalent), so the resolver reads the first of these
+// that carries a string. The bash wrapper builds its extraction from the same
+// list — a key present in one and missing from the other makes the gate dead
+// code for exactly the harness that names it that way.
+export const SKILL_NAME_INPUT_KEYS = ["skill", "skillName", "name", "command"] as const;
+
+/** How many times the mandatory-stage Stop gate blocks a turn end before releasing, so a stage that genuinely can't be read can't trap the session. */
+export const MAX_STAGE_BLOCKS = 3;
+
+/** How many times the debug-path Stop gate blocks a turn end before releasing, so a failure with no reachable evidence can't trap the session. */
+export const MAX_DEBUG_BLOCKS = 3;
+
+// Recorded when a pre-execution-classification event carries no testCaseId.
+// The field is optional in the emit schema, so an otherwise-correct Step 6f
+// would deny the very run it classified; the wildcard makes the gate treat the
+// batch as classified rather than block work that actually followed the step.
+export const ANY_TEST_CASE = "*";
+
+// The local execution tools the classification gate stands in front of, and the
+// pair whose non-passing result owes a debug path. Both burn a real browser run
+// (~5 minutes), which is what makes a pre-flight check worth a hook.
+export const MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
+
+/** The telemetry emit that carries the Step 6f / debug-path decisions the stage gates key on. */
+export const MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
+
+/** The feedback submission that counts as debug-path evidence for the run it names. */
+export const MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+
+/** Step 6f's event type — the classification that calls `muggle-remote-test-script-list` before a run is spent. */
+export const PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";
+
+/** The debug path's own telemetry events (`replay-`/`regen-failure-classified|resolved`), each carrying the runId it diagnosed. */
+export const FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
+
+// A local execute/replay result is markdown the MCP tool renders itself, so the
+// run id and verdict are pinned to that rendering rather than guessed from a
+// JSON shape the hook never sees.
+export const MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
+export const MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
+export const MUGGLE_RUN_PASSED_STATUS = "passed";

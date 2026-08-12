@@ -1,6 +1,7 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
-import { isAbsolute, resolve, join } from 'path';
+import { join, isAbsolute, resolve, dirname } from 'path';
 import { homedir } from 'os';
+import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 
 // src/guardrails/cli.ts
@@ -52,6 +53,19 @@ var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
 var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
 var MUGGLE_TEST_SKILL_NAME = "muggle-test";
+var MANDATORY_STAGES_FRONTMATTER_KEY = "mandatoryStages";
+var SKILL_NAME_INPUT_KEYS = ["skill", "skillName", "name", "command"];
+var MAX_STAGE_BLOCKS = 3;
+var MAX_DEBUG_BLOCKS = 3;
+var ANY_TEST_CASE = "*";
+var MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
+var MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
+var MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+var PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";
+var FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
+var MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
+var MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
+var MUGGLE_RUN_PASSED_STATUS = "passed";
 
 // src/guardrails/prTerminal.ts
 function detectPrTerminal(input2) {
@@ -117,6 +131,207 @@ function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
     return { action: "release" /* Release */, blockCount };
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
+var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
+var FLOW_LIST = /^\s*\[(.*)\]\s*$/;
+var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
+var SKILLS_DIR_NAME = "skills";
+var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
+var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+var unquote = (raw) => raw.trim().replace(/^["']|["']$/g, "").trim();
+function parseDeclaredStages(skillMarkdown) {
+  const frontmatter = FRONTMATTER.exec(skillMarkdown)?.[1];
+  if (!frontmatter) return [];
+  const lines = frontmatter.split(/\r?\n/);
+  const keyIndex = lines.findIndex(
+    (line) => line.startsWith(`${MANDATORY_STAGES_FRONTMATTER_KEY}:`)
+  );
+  if (keyIndex < 0) return [];
+  const inlineValue = lines[keyIndex].slice(MANDATORY_STAGES_FRONTMATTER_KEY.length + 1).trim();
+  const flowEntries = FLOW_LIST.exec(inlineValue)?.[1];
+  if (flowEntries !== void 0) {
+    return flowEntries.split(",").map(unquote).filter((entry) => entry.length > 0);
+  }
+  const declared = [];
+  for (const line of lines.slice(keyIndex + 1)) {
+    const entry = SEQUENCE_ENTRY.exec(line);
+    if (!entry) break;
+    declared.push(unquote(entry[1]));
+  }
+  return declared;
+}
+function normalizeStagePath(filePath) {
+  return filePath.replaceAll("\\", "/").toLowerCase();
+}
+function stageLabel(normalizedStagePath) {
+  const insideSkills = normalizedStagePath.lastIndexOf(SKILLS_PATH_SEGMENT);
+  if (insideSkills < 0) return normalizedStagePath;
+  return normalizedStagePath.slice(insideSkills + SKILLS_PATH_SEGMENT.length);
+}
+function resolvePluginSkillsRoot() {
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || process.env.CURSOR_PLUGIN_ROOT;
+  if (pluginRoot) return join(pluginRoot, SKILLS_DIR_NAME);
+  return join(dirname(dirname(fileURLToPath(import.meta.url))), SKILLS_DIR_NAME);
+}
+function resolveSkillNameFromToolInput(toolInput) {
+  if (!toolInput) return void 0;
+  const indexed = toolInput;
+  for (const inputKey of SKILL_NAME_INPUT_KEYS) {
+    const value = indexed[inputKey];
+    if (typeof value !== "string" || value.trim().length === 0) continue;
+    const skillName = value.trim().split(":").pop()?.replace(/^\//, "") ?? "";
+    return SINGLE_PATH_SEGMENT.test(skillName) ? skillName : void 0;
+  }
+  return void 0;
+}
+function resolveSkillStagePaths(skillName, skillsRootDir) {
+  const skillDir = join(skillsRootDir, skillName);
+  const skillFile = join(skillDir, "SKILL.md");
+  if (!existsSync(skillFile)) return [];
+  const normalizedRoot = normalizeStagePath(skillsRootDir);
+  const staysInsideSkillsTree = (candidate) => normalizeStagePath(candidate).startsWith(`${normalizedRoot}/`);
+  const resolved = [];
+  for (const declared of parseDeclaredStages(readFileSync(skillFile, "utf-8"))) {
+    if (isAbsolute(declared)) continue;
+    const stagePath = [resolve(skillDir, declared), resolve(skillsRootDir, declared)].find(
+      (candidate) => staysInsideSkillsTree(candidate) && existsSync(candidate)
+    );
+    if (!stagePath) continue;
+    const normalized = normalizeStagePath(stagePath);
+    if (!resolved.includes(normalized)) resolved.push(normalized);
+  }
+  return resolved;
+}
+function applySkillInvocation(state, skillName, stagePaths) {
+  const merged = [...state.mandatoryStages ?? []];
+  for (const stagePath of stagePaths) if (!merged.includes(stagePath)) merged.push(stagePath);
+  if (state.lastInvokedSkillName === skillName && merged.length === (state.mandatoryStages?.length ?? 0)) {
+    return state;
+  }
+  return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
+}
+function applyStageRead(state, filePath) {
+  const stagePath = normalizeStagePath(filePath);
+  if ((state.stagesRead ?? []).includes(stagePath)) return state;
+  return { ...state, stagesRead: [...state.stagesRead ?? [], stagePath] };
+}
+function unreadMandatoryStages(state) {
+  const read = new Set(state.stagesRead ?? []);
+  return (state.mandatoryStages ?? []).filter((stagePath) => !read.has(stagePath));
+}
+function isStageSkipMarker(command) {
+  return STAGE_SKIP_MARKER.test(command);
+}
+function applyStageSkip(state, skipped) {
+  if (!skipped || state.stageSkipped === true) return state;
+  return { ...state, stageSkipped: true };
+}
+function stageGateDecision(state, unreadStagePaths, maxBlocks = MAX_STAGE_BLOCKS) {
+  const blockCount = state.stageBlockCount ?? 0;
+  if (state.stageSkipped === true || unreadStagePaths.length === 0) {
+    return { action: "none" /* None */, blockCount, unread: unreadStagePaths };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, unread: unreadStagePaths };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, unread: unreadStagePaths };
+}
+
+// src/guardrails/preExecutionClassification.ts
+var CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
+function detectClassifiedTestCaseId(input2) {
+  if (!MUGGLE_EVENT_EMIT_TOOL.test(input2.tool_name ?? "")) return void 0;
+  if (input2.tool_input?.eventType !== PRE_EXECUTION_CLASSIFICATION_EVENT) return void 0;
+  return input2.tool_input?.testCaseId ?? ANY_TEST_CASE;
+}
+function applyClassifiedTestCase(state, testCaseId) {
+  if ((state.classifiedTestCaseIds ?? []).includes(testCaseId)) return state;
+  return { ...state, classifiedTestCaseIds: [...state.classifiedTestCaseIds ?? [], testCaseId] };
+}
+function resolveExecutionTargetTestCaseId(input2) {
+  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
+  return input2.tool_input?.testCase?.id ?? input2.tool_input?.testScript?.testCaseId;
+}
+function isClassificationSkipMarker(command) {
+  return CLASSIFICATION_SKIP_MARKER.test(command);
+}
+function applyClassificationSkip(state, skipped) {
+  if (!skipped || state.classificationSkipped === true) return state;
+  return { ...state, classificationSkipped: true };
+}
+function classificationGateDecision(state, input2) {
+  if (state.lastInvokedSkillName !== MUGGLE_TEST_SKILL_NAME) return { deny: false };
+  if (state.classificationSkipped === true) return { deny: false };
+  const testCaseId = resolveExecutionTargetTestCaseId(input2);
+  if (!testCaseId) return { deny: false };
+  const classified = state.classifiedTestCaseIds ?? [];
+  if (classified.includes(ANY_TEST_CASE) || classified.includes(testCaseId)) return { deny: false };
+  return { deny: true, testCaseId };
+}
+
+// src/guardrails/debugPath.ts
+var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
+var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
+${JSON.stringify(input2.tool_response ?? {})}`;
+function renderedResult(toolResponse) {
+  const rendered = [];
+  const collect = (value) => {
+    if (typeof value === "string") rendered.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(toolResponse);
+  return rendered.join("\n");
+}
+function detectFailedRunId(input2) {
+  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
+  const rendered = renderedResult(input2.tool_response);
+  const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
+  if (!status || status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS) return void 0;
+  return MUGGLE_RUN_ID_LINE.exec(rendered)?.[1];
+}
+function applyFailedRun(state, runId) {
+  if ((state.failedRuns ?? []).includes(runId)) return state;
+  return { ...state, failedRuns: [...state.failedRuns ?? [], runId] };
+}
+function detectDebugEvidenceRunIds(input2, owedRunIds) {
+  const toolName = input2.tool_name ?? "";
+  const isDiagnosisEmit = MUGGLE_EVENT_EMIT_TOOL.test(toolName) && FAILURE_DIAGNOSIS_EVENT.test(input2.tool_input?.eventType ?? "");
+  if (!isDiagnosisEmit && !MUGGLE_FEEDBACK_CREATE_TOOL.test(toolName)) return [];
+  const payload = serialize(input2);
+  return owedRunIds.filter((runId) => payload.includes(runId));
+}
+function applyDebugEvidence(state, runIds) {
+  const debugged = [...state.debuggedRuns ?? []];
+  for (const runId of runIds) if (!debugged.includes(runId)) debugged.push(runId);
+  if (debugged.length === (state.debuggedRuns ?? []).length) return state;
+  return { ...state, debuggedRuns: debugged };
+}
+function isDebugSkipMarker(command) {
+  return DEBUG_SKIP_MARKER.test(command);
+}
+function applyDebugSkip(state, command) {
+  if (!isDebugSkipMarker(command)) return state;
+  const namedRuns = (state.failedRuns ?? []).filter((runId) => command.includes(runId));
+  if (namedRuns.length > 0) return applyDebugEvidence(state, namedRuns);
+  if (state.debugSkipped === true) return state;
+  return { ...state, debugSkipped: true };
+}
+function undebuggedFailedRuns(state) {
+  const debugged = new Set(state.debuggedRuns ?? []);
+  return (state.failedRuns ?? []).filter((runId) => !debugged.has(runId));
+}
+function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS) {
+  const blockCount = state.debugBlockCount ?? 0;
+  const undebugged = undebuggedFailedRuns(state);
+  if (state.debugSkipped === true || undebugged.length === 0) {
+    return { action: "none" /* None */, blockCount, undebugged };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, undebugged };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, undebugged };
 }
 
 // src/guardrails/testsGreen.ts
@@ -221,7 +436,7 @@ var defaultFileReader = (path, cwd) => {
     return null;
   }
 };
-function unquote(s) {
+function unquote2(s) {
   const t = s.trim();
   if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
     return t.slice(1, -1);
@@ -237,14 +452,14 @@ function isPrReportPostCommand(cmd) {
 function collectPrPostText(cmd, cwd, read) {
   let text = cmd;
   for (const match of cmd.matchAll(/(?:--body-file|--input)[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
-    const path = unquote(match[1]);
+    const path = unquote2(match[1]);
     if (path && path !== "-") {
       const contents = read(path, cwd);
       if (contents) text += "\n" + contents;
     }
   }
   for (const match of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
-    const contents = read(unquote(match[1]), cwd);
+    const contents = read(unquote2(match[1]), cwd);
     if (contents) text += "\n" + contents;
   }
   return text;
@@ -442,9 +657,78 @@ function recordTests() {
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
-  const next = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  const failedRunId = detectFailedRunId(input);
+  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
   return "{}";
+}
+function skillStages() {
+  const skillName = resolveSkillNameFromToolInput(input.tool_input);
+  if (!skillName) return "{}";
+  const state = readState(sessionId);
+  const next = applySkillInvocation(
+    state,
+    skillName,
+    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot())
+  );
+  if (next !== state) writeState(next);
+  const unread = unreadMandatoryStages(next);
+  if (unread.length === 0) return "{}";
+  const ctx = `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;
+  return envelope("PostToolUse", ctx, host);
+}
+function recordStageRead() {
+  const filePath = input.tool_input?.file_path;
+  if (!filePath) return "{}";
+  const state = readState(sessionId);
+  const next = applyStageRead(state, filePath);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+function recordStageSignals() {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  const withStageSkip = applyStageSkip(state, isStageSkipMarker(cmd));
+  const withClassificationSkip = applyClassificationSkip(
+    withStageSkip,
+    isClassificationSkipMarker(cmd)
+  );
+  const withDebugSkip = applyDebugSkip(withClassificationSkip, cmd);
+  const classifiedTestCaseId = detectClassifiedTestCaseId(input);
+  const withClassification = classifiedTestCaseId ? applyClassifiedTestCase(withDebugSkip, classifiedTestCaseId) : withDebugSkip;
+  const next = applyDebugEvidence(
+    withClassification,
+    detectDebugEvidenceRunIds(input, undebuggedFailedRuns(withClassification))
+  );
+  if (next !== state) writeState(next);
+  return "{}";
+}
+function classifyGate() {
+  const decision = classificationGateDecision(readState(sessionId), input);
+  if (!decision.deny) return "{}";
+  const reason = `Test case ${decision.testCaseId} has no pre-execution classification this session. Run muggle-test Step 6f for it first: classify replay-vs-regen per _shared/failure-mode-handling.md \xA7A, then emit one muggle-local-telemetry-event-emit with eventType "pre-execution-classification" for this test case. That step is what calls muggle-remote-test-script-list, which is the only place this run learns the test case has never passed or has failed repeatedly \u2014 cheap now, ~5 minutes of browser time to rediscover after the fact. If this execution genuinely has no classification step (a single user-picked target), say why and run \`echo "MUGGLE_CLASSIFY_SKIP: <reason>"\` \u2014 that records the skip for the rest of the session.`;
+  return denyTool(reason, host);
+}
+function stageGate() {
+  const state = readState(sessionId);
+  const decision = stageGateDecision(state, unreadMandatoryStages(state));
+  if (decision.action !== "block" /* Block */) return "{}";
+  state.stageBlockCount = decision.blockCount;
+  writeState(state);
+  const stageList = decision.unread.map(stageLabel).join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A skill invoked this session declares mandatory stages that were never opened: ${stageList}. Read them and carry out what they require \u2014 they are steps, not background reading, and SKILL.md only links to them. If they genuinely do not apply to this run, say why and run \`echo "MUGGLE_STAGE_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Mandatory stages still unread (reminder ${decision.blockCount}/${MAX_STAGE_BLOCKS}): ${stageList}. Read them, or record a legitimate skip via \`echo "MUGGLE_STAGE_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+function debugPathGate() {
+  const state = readState(sessionId);
+  const decision = debugGateDecision(state);
+  if (decision.action !== "block" /* Block */) return "{}";
+  state.debugBlockCount = decision.blockCount;
+  writeState(state);
+  const runList = decision.undebugged.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. These runs failed and never went through the debug path: ${runList}. muggle-test Step 7C makes that mandatory \u2014 route each through _shared/debug-failed-run.md: gather the attempted steps and the failing screenshot, diagnose the bucket per _shared/failure-mode-handling.md \xA7B/\xA7C with its classified telemetry emit, and present the offer in which "give feedback & rerun" is always available. A summarized-and-dropped failure is the run a reviewer most needs to see. If a run genuinely cannot be debugged, run \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\` \u2014 that clears just that run.` : `Failed runs still owe the debug path (reminder ${decision.blockCount}/${MAX_DEBUG_BLOCKS}): ${runList}. Route each through _shared/debug-failed-run.md, or record a legitimate skip via \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\`.`;
+  return blockStop(reason, host);
 }
 function e2eGate() {
   const state = readState(sessionId);
@@ -510,6 +794,12 @@ var handlers = {
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
-  "build-router": buildRouter
+  "build-router": buildRouter,
+  "skill-stages": skillStages,
+  "record-stage-read": recordStageRead,
+  "record-stage-signals": recordStageSignals,
+  "classify-gate": classifyGate,
+  "stage-gate": stageGate,
+  "debug-path-gate": debugPathGate
 };
 process.stdout.write((handlers[sub] ?? (() => "{}"))());

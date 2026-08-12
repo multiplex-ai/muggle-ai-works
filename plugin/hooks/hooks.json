@@ -36,6 +36,17 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*(execute-test-generation|execute-replay)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -59,6 +70,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-terminal.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       },
@@ -68,6 +85,50 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*(telemetry-event-emit|user-feedback-create)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*telemetry-skill-emit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\"",
+            "async": false,
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-read.sh\"",
             "async": false,
             "timeout": 10
           }
@@ -122,6 +183,18 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-walkthrough-gate.sh\"",
             "async": false,
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-stage-gate.sh\"",
+            "async": false,
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-debug-path-gate.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       }

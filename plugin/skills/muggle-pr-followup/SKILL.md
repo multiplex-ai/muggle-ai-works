@@ -20,7 +20,9 @@ A watcher that babysits one open PR toward **merge-ready** — review threads ad
 
 **Cron lifecycle.** Each tick records its `/loop` cron id to `cron.json` while `CronList` can still see it ([`record-cron-id.md`](record-cron-id.md)), so teardown can delete the cron by id after a session continue / compaction blinds `CronList` to it. Reconcile ([`reconcile.md`](reconcile.md)) sweeps crons whose PR is terminal or whose slot is gone, and re-arms an open slot whose watcher stopped silently — monitor-first, never with a recurring cron.
 
-**Session death.** Monitors and crons are both session-bound — a session that ends or hits its usage limit takes every watch with it. That is by design: nothing polls out of session, because a review is addressed only inside a session that carries the context to address it, never by a headless process replying context-blind. The recovery point is the **next session start** — the `reconcile-stale-watchers.sh` hook nudges [`reconcile`](reconcile.md#triggers), which re-arms every open slot whose watcher is dead. A review landing while no session runs waits until then.
+**Session death.** Monitors and crons are both session-bound — a session that ends or hits its usage limit takes every watch with it. That is by design: nothing polls out of session, because a review is addressed only inside a session that carries the context to address it, never by a headless process replying context-blind.
+
+**A watcher belongs to the session that armed it.** Each slot records its owning session in `owner.json` ([`state-schemas.md`](state-schemas.md#ownerjson)), and recovery is owner-scoped: [`reconcile`](reconcile.md#triggers) re-arms a dead watcher only inside the session that armed it, and reports the rest as orphans it declined to touch. Starting a session therefore picks up nothing new — the same context argument that rules out a headless daemon rules out inheriting a stranger's PR, which would hand review work to a session that never saw the design. A PR whose owning session is gone stays unwatched until the user adopts it by name ([`adopt.md`](adopt.md)).
 
 ## Routing
 
@@ -39,12 +41,13 @@ The skill recognizes its mode by inspecting `$ARGUMENTS` and falling back to on-
 | empty | — | **auto-track** → [`auto-track.md`](auto-track.md) |
 | `help` / `?` | — | **help:** list active loops per [`output-templates/help.md`](output-templates/help.md) |
 | `reconcile` / `sweep` (optional `<slug>`) | — | **reconcile** → [`reconcile.md`](reconcile.md) |
+| `adopt` (optional `<slug>`) | — | **adopt** → [`adopt.md`](adopt.md) — take over a slot owned by a dead session; no slug lists the adoptable ones |
 
 **`--wake=<event>`** is passed only by an event wake's dispatch ([`arm-watcher.md`](arm-watcher.md) step 5) — it asserts the monitor already saw something new, so the tick's poll is justified. Manual invocations never pass it; with a live watcher they get watch-status, because a poll that nothing prompted is a main-session poll wasted. Recovery fires need no flag — a recoverable slot's watcher is dead by definition, so the gate falls through to tick. A stale cron firing against a re-armed slot hits the live-`watch.pid` branch and is absorbed as a status line, no provider calls.
 
-Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session) and re-arms any open slot whose watcher stopped silently (a dropped respawn). Reconcile recovers a watcher that was already running; it never seeds a first watcher for a PR — that is auto-track's / bootstrap's job.
+Auto-track runs **reconcile** first, so a no-arg invocation also finalizes any slot whose PR merged or closed while its watcher was down (expired cron, ended session) and re-arms this session's own open slots whose watcher stopped silently (a dropped respawn). Reconcile recovers a watcher that was already running; it never seeds a first watcher for a PR — that is auto-track's / bootstrap's job — and never re-arms one this session does not own. A no-arg invocation is a request to track *your* PRs, so it can only ever end with the session watching PRs it pushed plus watchers it already had.
 
-**Reconcile also runs at session start** — a `SessionStart` hook ([`../../hooks/README.md`](../../hooks/README.md)) surfaces the sweep when open slots exist, catching a watcher that died with its session (end, or 7-day `/loop` expiry) before a manual sweep would. See [`reconcile.md`](reconcile.md#triggers).
+**Reconcile also runs at session start** — a `SessionStart` hook ([`../../hooks/README.md`](../../hooks/README.md)) surfaces the sweep when open slots exist, catching a watcher that died with its session (end, or 7-day `/loop` expiry) before a manual sweep would. It reports orphaned slots without acting on them; treat that report as inventory, never as a to-do. See [`reconcile.md`](reconcile.md#triggers).
 
 Bootstrap accepts three optional trailing flags:
 

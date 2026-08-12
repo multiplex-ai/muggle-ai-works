@@ -32,10 +32,13 @@ export function applyWatchSkip(state: GuardrailState, skipped: boolean): Guardra
  * A slot's **existence** is the bar, not whether a watcher is live right now.
  * Watchers are session-scoped: the monitor and any recovery cron both die with
  * the session that started them, so "a poller is running" is never the durable
- * guarantee. The slot on disk is — reconcile re-arms every open slot whose
- * poller went silent and finalizes it once the PR goes terminal. So a seeded
- * slot means the PR is followed, while a PR with no slot is the one nothing
- * will ever pick up, and that is what this gate exists to catch. Requiring a
+ * guarantee. The slot on disk is — reconcile re-arms an open slot whose poller
+ * went silent, inside the session that owns it, and finalizes any slot once its
+ * PR goes terminal. Since this gate only ever fires on a PR handled by the
+ * running session, that session is the slot's owner and recovery applies. So a
+ * seeded slot means the PR is followed, while a PR with no slot is the one
+ * nothing will ever pick up, and that is what this gate exists to catch.
+ * Requiring a
  * live poller instead made the gate fire on the seeded-but-not-yet-armed state
  * that a background job legitimately ends in, pushing the caller toward the
  * skip hatch the gate exists to make unnecessary.

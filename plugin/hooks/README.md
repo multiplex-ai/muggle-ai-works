@@ -47,7 +47,9 @@ Each wrapper short-circuits in shell first, so the common case never pays Node c
 
 `SessionStart` (`scripts/reconcile-stale-watchers.sh`) — a standalone advisory, not part of the `guardrails.mjs` decision tree above.
 
-`muggle-pr-followup` watchers are session-only (a monitor or `/loop` cron); they die with their session, leaving open PRs with no live poller. This is by design — a review is addressed only inside a session that carries the context to address it. The skill's [`reconcile`](../skills/muggle-pr-followup/reconcile.md) procedure recovers them at the next session start — finalizes slots whose PR went terminal, sweeps orphan crons, re-arms silently-stopped open watchers — but re-arming needs Claude tools a shell hook can't call. So this hook nudges rather than acts: it scans `~/.muggle-ai/muggle-do/sessions/*/` for open slots (a `prs.json` with no `result.md`) and, **only when one or more exist**, injects `additionalContext` telling the agent to run `/muggle:muggle-pr-followup reconcile`. Zero open slots → it emits nothing. A pure directory scan (no `gh`, no writes), so it's cheap enough for every session start.
+`muggle-pr-followup` watchers are session-only (a monitor or `/loop` cron); they die with their session, leaving open PRs with no live poller. This is by design — a review is addressed only inside a session that carries the context to address it. The skill's [`reconcile`](../skills/muggle-pr-followup/reconcile.md) procedure recovers them at the next session start — finalizes slots whose PR went terminal, sweeps orphan crons, re-arms silently-stopped open watchers — but re-arming needs Claude tools a shell hook can't call. So this hook nudges rather than acts.
+
+The nudge counts only slots **this session owns**, and reports the rest as orphans it will not act on — ownership and the recovery rules it gates are defined in [`reconcile`](../skills/muggle-pr-followup/reconcile.md). Nothing owned and nothing orphaned → it emits nothing. A pure directory scan (no `gh`, no writes), so it's cheap enough for every session start.
 
 ## Session-start state GC
 

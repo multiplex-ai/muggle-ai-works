@@ -1,0 +1,66 @@
+{
+  "recorded_from": "full routing sweep on master",
+  "runs_per_query": 3,
+  "skills": {
+    "muggle": {
+      "passed": 7,
+      "total": 24
+    },
+    "muggle-browser-task": {
+      "passed": 11,
+      "total": 25
+    },
+    "muggle-feedback": {
+      "passed": 17,
+      "total": 24
+    },
+    "muggle-pr-followup": {
+      "passed": 21,
+      "total": 24
+    },
+    "muggle-pr-visual-walkthrough": {
+      "passed": 24,
+      "total": 24
+    },
+    "muggle-preferences": {
+      "passed": 22,
+      "total": 24
+    },
+    "muggle-repair": {
+      "passed": 22,
+      "total": 24
+    },
+    "muggle-status": {
+      "passed": 24,
+      "total": 24
+    },
+    "muggle-test": {
+      "passed": 23,
+      "total": 26
+    },
+    "muggle-test-feature-local": {
+      "passed": 26,
+      "total": 26
+    },
+    "muggle-test-import": {
+      "passed": 23,
+      "total": 24
+    },
+    "muggle-test-prepare": {
+      "passed": 24,
+      "total": 24
+    },
+    "muggle-test-regenerate-missing": {
+      "passed": 19,
+      "total": 24
+    },
+    "muggle-upgrade": {
+      "passed": 26,
+      "total": 26
+    },
+    "none": {
+      "passed": 48,
+      "total": 48
+    }
+  }
+}

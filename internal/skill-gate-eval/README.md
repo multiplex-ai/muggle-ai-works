@@ -79,3 +79,12 @@ for de-risking a refactor that changes how skills run, not their definitions.
 It checks out `muggle-ai-brain` for the scenarios, so
 CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
 `claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).
+
+`CLAUDE_CODE_OAUTH_TOKEN_2` is an optional secret holding a **second
+subscription token**, spare to the one above — `BRAIN_REPO_TOKEN` is repo-read
+auth and unrelated. Every eval job probes the primary before it starts work and
+switches to the spare for that run when the primary is rejected or throttled,
+so one expired token no longer red-lines the suite. The fallback raises a
+workflow warning rather than passing silently — the primary still needs
+regenerating, and nothing rotates back on its own. Leave the secret unset to
+run single-token.

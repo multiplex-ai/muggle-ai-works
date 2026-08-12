@@ -59,9 +59,6 @@ jobs:
     # Budget kept generous — throttling can serialize a run back down.
     timeout-minutes: 180
     env:
-      # Subscription auth, not a pay-per-use API key. Generate with
-      # `claude setup-token` and store as the CLAUDE_CODE_OAUTH_TOKEN secret.
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
       GATE_CONCURRENCY: ${{ inputs.gate_concurrency || '4' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
@@ -73,6 +70,7 @@ jobs:
       # cryptic git-auth error deep in the scenario-repo checkout.
       - name: Require secrets
         env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
         run: |
           : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
@@ -178,25 +176,17 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         run: npm install -g @anthropic-ai/claude-code
 
-      # Prove the subscription token authenticates before the agent-SDK harness
+      # Prove a subscription token authenticates before the agent-SDK harness
       # runs, via the same `claude -p` path skill-routing-eval relies on. A
-      # rejected CLAUDE_CODE_OAUTH_TOKEN and an SDK/harness fault otherwise both
-      # surface only as the SDK's opaque "process exited with code 1"; this
-      # separates them and fails fast with an actionable message.
-      - name: Preflight — confirm subscription auth
+      # rejected token and an SDK/harness fault otherwise both surface only as
+      # the SDK's opaque "process exited with code 1"; resolving here separates
+      # them, and hands off to the spare token when the primary is unusable.
+      - name: Resolve subscription auth
         if: steps.scope.outputs.should_run == 'true'
-        run: |
-          set -euo pipefail
-          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          mkdir -p "$CLAUDE_CONFIG_DIR"
-          if out="$(claude -p 'Respond with exactly: OK' --max-turns 1 2>&1)"; then
-            echo "auth preflight ok"
-          else
-            echo "::error::Subscription auth preflight failed — CLAUDE_CODE_OAUTH_TOKEN is rejected. Regenerate with \`claude setup-token\` and re-set the secret (no trailing newline)." >&2
-            echo "claude output:" >&2
-            echo "$out" >&2
-            exit 1
-          fi
+        uses: ./.github/actions/resolve-claude-token
+        with:
+          primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
 
       - name: Run skill-gate evals (every gate in the scenario repo)
         if: steps.scope.outputs.should_run == 'true'
@@ -278,12 +268,13 @@ jobs:
     # checkout) and small: 2 agents × 3 scenarios × AGENT_RUNS reps.
     timeout-minutes: 90
     env:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
       AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '4' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
       - name: Require secrets
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
 
@@ -337,20 +328,12 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Preflight — confirm subscription auth
+      - name: Resolve subscription auth
         if: steps.scope.outputs.should_run == 'true'
-        run: |
-          set -euo pipefail
-          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          mkdir -p "$CLAUDE_CONFIG_DIR"
-          if out="$(claude -p 'Respond with exactly: OK' --max-turns 1 2>&1)"; then
-            echo "auth preflight ok"
-          else
-            echo "::error::Subscription auth preflight failed — CLAUDE_CODE_OAUTH_TOKEN is rejected. Regenerate with \`claude setup-token\` and re-set the secret (no trailing newline)." >&2
-            echo "claude output:" >&2
-            echo "$out" >&2
-            exit 1
-          fi
+        uses: ./.github/actions/resolve-claude-token
+        with:
+          primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
 
       - name: Run agent-gate evals (every scenario file)
         if: steps.scope.outputs.should_run == 'true'
@@ -423,8 +406,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
-      # Subscription auth, not a pay-per-use API key (see skill-gate-eval above).
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
       # A scoped run measures one chunk, so it can afford a wider majority
       # vote than the 391-query sweep: this is what damps the per-query flips
@@ -510,6 +491,15 @@ jobs:
       - name: Install Claude Code CLI
         if: steps.scope.outputs.should_run == 'true'
         run: npm install -g @anthropic-ai/claude-code
+
+      # Resolved ahead of the plugin install so every `claude` call in this job,
+      # marketplace and probe alike, runs on the token that actually works.
+      - name: Resolve subscription auth
+        if: steps.scope.outputs.should_run == 'true'
+        uses: ./.github/actions/resolve-claude-token
+        with:
+          primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
 
       # Install the plugin from THIS checkout (not GitHub master) so the eval
       # tests the PR's skill descriptions. Fresh CLAUDE_CONFIG_DIR + a clean cwd

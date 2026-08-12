@@ -1,0 +1,85 @@
+name: Resolve Claude subscription token
+description: >-
+  Probe the primary subscription token and fall back to the secondary when it is
+  rejected, exporting the one that authenticated as CLAUDE_CODE_OAUTH_TOKEN for
+  every later step in the job.
+
+inputs:
+  primary-token:
+    description: Preferred subscription token, from the CLAUDE_CODE_OAUTH_TOKEN secret.
+    required: true
+  fallback-token:
+    description: >-
+      Token used when the primary is rejected, from the CLAUDE_CODE_OAUTH_TOKEN_2
+      secret. Leave unset to run single-token — resolution then behaves exactly
+      like the primary-only preflight it replaces.
+    required: false
+    default: ""
+
+outputs:
+  slot:
+    description: "Which token authenticated: `primary` or `fallback`."
+    value: ${{ steps.probe.outputs.slot }}
+
+runs:
+  using: composite
+  steps:
+    - id: probe
+      shell: bash
+      env:
+        PRIMARY_TOKEN: ${{ inputs.primary-token }}
+        FALLBACK_TOKEN: ${{ inputs.fallback-token }}
+      run: |
+        set -uo pipefail
+        : "${CLAUDE_CONFIG_DIR:?the calling job must set CLAUDE_CONFIG_DIR to a writable path}"
+        mkdir -p "$CLAUDE_CONFIG_DIR"
+        # A pay-per-use key outranks the subscription token, so leaving one set
+        # would bill the API and make the probe pass on the wrong credential.
+        unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+
+        # Any non-zero exit counts as unusable, not just a rejected token:
+        # a throttled primary should hand off to the fallback the same way an
+        # expired one does, and both are indistinguishable from this side.
+        probe_token() {
+          CLAUDE_CODE_OAUTH_TOKEN="$1" claude -p 'Respond with exactly: OK' --max-turns 1 2>&1
+        }
+
+        select_token() {
+          echo "slot=$1" >> "$GITHUB_OUTPUT"
+          echo "CLAUDE_CODE_OAUTH_TOKEN=$2" >> "$GITHUB_ENV"
+        }
+
+        if [ -z "$PRIMARY_TOKEN" ]; then
+          echo "::error::No CLAUDE_CODE_OAUTH_TOKEN repo secret is set. Generate one with \`claude setup-token\` and add it before running skill evals." >&2
+          exit 1
+        fi
+
+        if primary_output="$(probe_token "$PRIMARY_TOKEN")"; then
+          echo "auth ok on the primary token"
+          select_token primary "$PRIMARY_TOKEN"
+          exit 0
+        fi
+
+        if [ -z "$FALLBACK_TOKEN" ]; then
+          echo "::error::Subscription auth failed — CLAUDE_CODE_OAUTH_TOKEN is rejected and no CLAUDE_CODE_OAUTH_TOKEN_2 is configured. Regenerate with \`claude setup-token\` and re-set the secret (no trailing newline)." >&2
+          echo "claude output:" >&2
+          echo "$primary_output" >&2
+          exit 1
+        fi
+
+        if fallback_output="$(probe_token "$FALLBACK_TOKEN")"; then
+          # Surfaced loudly rather than silently absorbed: the run is healthy,
+          # but the primary needs regenerating before the fallback expires too.
+          echo "::warning title=Primary Claude token rejected::Fell back to CLAUDE_CODE_OAUTH_TOKEN_2. This run is unaffected, but regenerate CLAUDE_CODE_OAUTH_TOKEN with \`claude setup-token\` — the next expiry leaves no spare."
+          echo "primary token output:"
+          echo "$primary_output"
+          select_token fallback "$FALLBACK_TOKEN"
+          exit 0
+        fi
+
+        echo "::error::Subscription auth failed on both tokens. Regenerate each with \`claude setup-token\` and re-set the secrets (no trailing newline)." >&2
+        echo "primary token output:" >&2
+        echo "$primary_output" >&2
+        echo "fallback token output:" >&2
+        echo "$fallback_output" >&2
+        exit 1

@@ -53,7 +53,7 @@ refactor that touches no `SKILL.md`).
 - `--record-baseline PATH` — write this run's per-skill tallies for a human to promote. Full sweeps only; a scoped run would drop every skill it did not measure.
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
-CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key).
+CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key). Set the optional `CLAUDE_CODE_OAUTH_TOKEN_2` secret to a spare token and the job falls back to it for that run when the primary is rejected or throttled, with a workflow warning.
 
 ## Regression gate
 

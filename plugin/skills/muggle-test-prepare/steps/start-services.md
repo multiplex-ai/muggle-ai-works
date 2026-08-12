@@ -11,7 +11,9 @@ Capture the PID. Write all service entries to `/tmp/muggle-test-prepare.json`.
 
 **Startup verification** — confirm PID alive (`kill -0 <pid> 2>/dev/null`), then run the two-stage readiness probe per [`../../_shared/dev-server-readiness.md`](../../_shared/dev-server-readiness.md) against the log. Cap log-tail at 60 s. Halt on whatever surfaces.
 
-If a PID dies immediately, show the last 20 log lines:
+A boot that takes most of the 60 s cap but keeps making progress is a property of this stack, not a fault — record it per [record-resolution](./record-resolution.md) so the next run expects the wait instead of treating it as a hang.
+
+If a PID dies immediately, consult the recipe's recorded resolutions for this service first; apply a match without asking. Otherwise show the last 20 log lines:
 
 > "**backend-api** exited right after starting. Here's the tail of its log:"
 

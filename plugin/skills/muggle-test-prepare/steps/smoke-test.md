@@ -12,7 +12,9 @@ Use the primitives in `dev-server-readiness.md`. Don't re-implement.
 
 ## Diagnose-and-fix loop
 
-On failure, show the concrete signal (HTTP code, sniff hit, or log line) and `AskUserQuestion`:
+**Consult the recipe first.** When a recorded resolution matches this signal on this service, apply it without asking, per [record-resolution](./record-resolution.md). The user already answered this question once.
+
+Otherwise show the concrete signal (HTTP code, sniff hit, or log line) and `AskUserQuestion`:
 
 > "**<service-name>** isn't healthy: `<signal>`. How do you want to proceed?"
 
@@ -22,5 +24,7 @@ On failure, show the concrete signal (HTTP code, sniff hit, or log line) and `As
 - Option 4: **Skip** — append to `excluded_services` with reason, continue
 
 Loop per service until pass or skip. Cap at **3 iterations** — then force a manual-intervention pause.
+
+Whatever cleared the failure is a resolution: capture the signal, the service, and the fix per [record-resolution](./record-resolution.md), so the next run applies it silently instead of asking again. A service skipped instead of fixed is recorded as an exclusion with its reason, not as a resolution.
 
 For `external: true`, only Options 3 and 4 apply.

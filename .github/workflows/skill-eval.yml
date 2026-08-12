@@ -26,8 +26,11 @@ on:
         description: "skill-gate-eval: parallel reps per gate"
         default: "4"
       routing_runs:
-        description: "skill-routing-eval: runs per query"
+        description: "skill-routing-eval: runs per query (full sweep)"
         default: "3"
+      routing_runs_scoped:
+        description: "skill-routing-eval: runs per query (scoped PR run)"
+        default: "5"
       routing_workers:
         description: "skill-routing-eval: parallel sessions per chunk"
         default: "6"
@@ -423,11 +426,16 @@ jobs:
       # Subscription auth, not a pay-per-use API key (see skill-gate-eval above).
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
+      # A scoped run measures one chunk, so it can afford a wider majority
+      # vote than the 391-query sweep: this is what damps the per-query flips
+      # that used to decide a PR's verdict.
+      ROUTING_RUNS_SCOPED: ${{ inputs.routing_runs_scoped || '5' }}
       # Safe above the old default of 3 now that router_eval retries throttled
       # runs with a pool-wide backoff instead of scoring them as `none`.
       ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
+      BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run/recall-baseline.candidate.json
     steps:
       - name: Checkout works
         uses: actions/checkout@v6
@@ -612,20 +620,34 @@ jobs:
         run: |
           set -euo pipefail
           unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
-          # A full sweep (nightly, dispatch, or the run-full-eval label) scores the
-          # whole 391-query set at the nightly 0.95 bar — it carries known-flaky
-          # tail queries. A scoped PR run demands 1.0: the skills it changed must
-          # route perfectly.
+          # Both modes gate against internal/skill-routing-eval/recall-baseline.json: a
+          # skill fails when it lands below its own recorded recall by more than
+          # routing noise, or when it collapses toward zero. An absolute bar
+          # cannot work here: routing is stochastic and master itself sits at
+          # 86%, so any bar is either unreachable or meaningless.
+          # Only the full sweep measures every skill, so only it can propose the
+          # next baseline; the candidate is published for a human to review.
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py \
               --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" --fail-under 0.95
+              --repo-root "$CLEAN_CWD" --gate \
+              --record-baseline "$BASELINE_CANDIDATE"
           else
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \
-              --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" --fail-under 1.0
+              --runs "$ROUTING_RUNS_SCOPED" --workers "$ROUTING_WORKERS" \
+              --repo-root "$CLEAN_CWD" --gate
           fi
+
+      # Only a human promotes a measurement to the baseline: the sweep publishes
+      # its tallies as an artifact and stops there.
+      - name: Upload baseline candidate
+        if: always() && steps.scope.outputs.should_run == 'true' && steps.scope.outputs.full == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: routing-recall-baseline
+          path: ${{ env.BASELINE_CANDIDATE }}
+          if-no-files-found: warn
 
       # Post the routing report (reports/run/combined.md) to the job summary and,
       # on a PR, a sticky comment. `always()` so a flaked/failed sweep still

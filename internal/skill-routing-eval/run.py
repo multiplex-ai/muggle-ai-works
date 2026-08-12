@@ -27,11 +27,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from gate_constants import BASELINE_FILENAME, BASELINE_SOURCE_FULL_SWEEP
+from regression_gate import build_baseline, format_gate_report, gate_failures, judge_run, load_baseline, skill_tally
 from scoring import NONE, scored_pass
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]  # internal/skill-routing-eval -> repo root
 EVAL_SET = HERE / "eval-set.json"
+BASELINE = HERE / BASELINE_FILENAME
 ROUTER = HERE / "router_eval.py"
 ANALYZE = HERE / "analyze.py"
 
@@ -75,11 +78,9 @@ def run_chunk(items: list[dict], out_file: Path, repo_root: Path, runs: int, wor
 
 
 def recall(report: dict, skill: str) -> float:
-    rows = [r for r in report["results"] if r["expected_skill"] == skill]
-    if not rows:
-        return 1.0
-    correct = sum(1 for r in rows if r["majority"] == skill)
-    return correct / len(rows)
+    """Share of one skill's queries that routed correctly in a chunk report."""
+    passed, total = skill_tally(report["results"], skill)
+    return passed / total if total else 1.0
 
 
 def has_no_coverage(skills: list[str], by_skill: dict) -> bool:
@@ -98,10 +99,15 @@ def main():
     ap.add_argument("--out-dir", default=str(HERE / "reports" / "run"))
     ap.add_argument("--repo-root", default=str(REPO_ROOT))
     ap.add_argument("--sync-cache", action="store_true", help="copy working-tree descriptions into the installed plugin cache first")
-    # CI gate: exit non-zero when accuracy < threshold or a chunk stays 0% (suspected disconnect).
-    # Default 0.0 leaves dev runs informational, never failing the process.
-    ap.add_argument("--fail-under", type=float, default=0.0, help="CI gate: exit 1 if overall accuracy is below this, or if any chunk is flagged suspected-disconnect")
+    # Off by default, so dev runs stay informational and never fail the process.
+    ap.add_argument("--gate", action="store_true", help="CI gate: exit 1 if a skill regressed against the recorded baseline or collapsed")
+    ap.add_argument("--baseline", default=str(BASELINE), help="recorded per-skill baseline the gate compares against")
+    ap.add_argument("--record-baseline", help="write this run's per-skill tallies to PATH as a baseline candidate (full sweeps only)")
     args = ap.parse_args()
+
+    if args.record_baseline and (args.skill or args.skills):
+        print("--record-baseline needs a full sweep; a scoped run would drop every skill it did not measure", file=sys.stderr)
+        sys.exit(2)
 
     repo_root = Path(args.repo_root).resolve()
     out_dir = Path(args.out_dir)
@@ -190,15 +196,31 @@ def main():
         print(f"Inconclusive (suspected-disconnect, excluded — re-run to verify): {', '.join(flagged)}", file=sys.stderr)
     print(f"Report: {md_path}", file=sys.stderr)
 
-    if args.fail_under > 0.0:
-        if total == 0:
-            print("GATE FAILED: no chunk could be verified (all suspected-disconnect) — infra failure, re-run", file=sys.stderr)
-            sys.exit(1)
-        if accuracy < args.fail_under:
-            print(f"GATE FAILED: verified accuracy {accuracy:.1%} below --fail-under {args.fail_under:.0%}", file=sys.stderr)
-            sys.exit(1)
-        if flagged:
-            print(f"GATE PASSED (verified {accuracy:.1%}); {len(flagged)} chunk(s) inconclusive — re-run to verify them.", file=sys.stderr)
+    if args.record_baseline:
+        # Inconclusive chunks would be recorded as a 0% baseline that every later
+        # run then trivially beats, so record only what was actually measured.
+        candidate = build_baseline(verified, args.runs, BASELINE_SOURCE_FULL_SWEEP)
+        Path(args.record_baseline).write_text(json.dumps(candidate, indent=2) + "\n", encoding="utf-8")
+        print(f"Baseline candidate: {args.record_baseline}", file=sys.stderr)
+
+    if not args.gate:
+        return
+
+    baseline_path = Path(args.baseline)
+    if not baseline_path.exists():
+        print(f"GATE FAILED: no recorded baseline at {baseline_path} — nothing to compare this run against", file=sys.stderr)
+        sys.exit(1)
+    if total == 0:
+        print("GATE FAILED: no chunk could be verified (all suspected-disconnect) — infra failure, re-run", file=sys.stderr)
+        sys.exit(1)
+
+    run_verdict = judge_run(all_results, load_baseline(baseline_path), flagged_set)
+    for line in format_gate_report(run_verdict):
+        print(line, file=sys.stderr)
+    if flagged:
+        print(f"{len(flagged)} chunk(s) inconclusive and ungated — re-run to verify them.", file=sys.stderr)
+    if gate_failures(run_verdict) or run_verdict.overall_regressed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

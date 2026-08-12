@@ -1,5 +1,5 @@
 ---
-description: Run change-driven E2E acceptance tests on your changes (alias for /muggle-test)
+description: Real-browser E2E on your changes — no Playwright code, screenshots on the PR (alias for /muggle-test)
 argument-hint: [optional context, e.g. "on staging"]
 allowed-tools: [Skill]
 ---

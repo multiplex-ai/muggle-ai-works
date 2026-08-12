@@ -59,8 +59,11 @@ describe("stage contract", () => {
     expect(read(STAGE_DOC)).toMatch(/~\/\.muggle-ai\/e2e-instructions\//);
   });
 
-  it("runs after service identification, when the service set is known", () => {
-    expect(read(STAGE_DOC)).toMatch(/after\s+\[identify-services\]/i);
+  it("declares its dependency on the resolved service list", () => {
+    // The prerequisite is the data, not a slot in the running order.
+    const doc = read(STAGE_DOC);
+    expect(doc).toMatch(/\[identify-services\]/);
+    expect(doc).toMatch(/service (list|set)/i);
   });
 
   it("forbids restating a start command owned by the prepare plan", () => {
@@ -161,10 +164,10 @@ describe("reuse rides the existing prepare-plan gate", () => {
 
 describe("workflow wiring", () => {
   it("the Decide-phase table lists the stage", () => {
-    // Pinned to presence, not position: inserting a stage renumbers the table
-    // without changing the contract this test exists to protect.
+    // Presence only. The table carries no ordinal column, so asserting one would
+    // re-introduce the positional coupling the steps were just freed from.
     expect(read(PREPARE_SKILL_DOC)).toMatch(
-      /\|\s*\d+\s*\|\s*\[e2e-instructions\]\(\.\/steps\/e2e-instructions\.md\)/,
+      /\|\s*\[e2e-instructions\]\(\.\/steps\/e2e-instructions\.md\)\s*\|/,
     );
   });
 
@@ -195,7 +198,7 @@ describe("no dependency cycle back into muggle-test-prepare", () => {
 describe("prepare learns once, then replays", () => {
   const STEPS = path.join(PREPARE_DIR, "steps");
   const replayOrLearn = path.join(STEPS, "replay-or-learn.md");
-  const scanStructure = path.join(STEPS, "scan-structure.md");
+  const deriveServiceGraph = path.join(STEPS, "derive-service-graph.md");
   const confirmRecipe = path.join(STEPS, "confirm-recipe.md");
   const recordResolution = path.join(STEPS, "record-resolution.md");
 
@@ -220,8 +223,31 @@ describe("prepare learns once, then replays", () => {
     expect(doc).toMatch(/transient/i);
   });
 
+  it("no step file encodes its position in the sequence", () => {
+    // A title that names its slot ("Stage 5", "Final stage") is wrong the moment
+    // a stage is inserted — which already happened once. Steps state what they
+    // need, never where they sit.
+    for (const entry of fs.readdirSync(STEPS)) {
+      if (!entry.endsWith(".md")) continue;
+      const title = read(path.join(STEPS, entry)).split(/\r?\n/)[0];
+      expect(title, `${entry} pins itself to a position: ${title}`).not.toMatch(
+        /^#\s*(Stage\s*\d+|Final stage|Step\s*\d+)/i,
+      );
+    }
+  });
+
+  it("states prerequisites as data, not as position", () => {
+    // "Runs after X" breaks on reorder; "needs X's output" stays true.
+    for (const entry of fs.readdirSync(STEPS)) {
+      if (!entry.endsWith(".md")) continue;
+      expect(read(path.join(STEPS, entry)), `${entry} couples to run order`).not.toMatch(
+        /^Runs after /m,
+      );
+    }
+  });
+
   it("asks permission before reading any code", () => {
-    const doc = read(scanStructure);
+    const doc = read(deriveServiceGraph);
     // Reading a user's repo is granted, never assumed.
     expect(doc).toMatch(/Nothing is read until the user says where/i);
     expect(doc).toMatch(/I'll list them/);
@@ -231,13 +257,13 @@ describe("prepare learns once, then replays", () => {
   });
 
   it("confines reading to the granted scope", () => {
-    const doc = read(scanStructure);
+    const doc = read(deriveServiceGraph);
     expect(doc).toMatch(/only inside the folder the user granted/i);
     expect(read(PREPARE_SKILL_DOC)).toMatch(/granted, never assumed/i);
   });
 
   it("scans the workspace instead of only listing folder names", () => {
-    const doc = read(scanStructure);
+    const doc = read(deriveServiceGraph);
     expect(doc).toMatch(/pnpm-workspace|workspaces|turbo\.json/);
     expect(doc).toMatch(/docker-compose|Procfile/);
     // What the scan settles must not be asked again.
@@ -247,7 +273,7 @@ describe("prepare learns once, then replays", () => {
   });
 
   it("never guesses a port the workspace didn't declare", () => {
-    expect(read(scanStructure)).toMatch(/never a framework default|undeclared port is unknown/i);
+    expect(read(deriveServiceGraph)).toMatch(/never a framework default|undeclared port is unknown/i);
   });
 
   it("gates persistence behind exactly one end-of-run confirmation", () => {

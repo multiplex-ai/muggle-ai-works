@@ -2,7 +2,7 @@
 
 > Skipped entirely on a replay run — the recipe supplies the service list and startup mode. See [replay-or-learn](./replay-or-learn.md).
 
-**Start from the scan.** [scan-structure](./scan-structure.md) has already derived services, directories, start commands and ports from the workspace's own manifests. Present that graph for confirmation and ask only about what the scan listed as undetermined — which services this user actually needs, what can't run locally, ordering no manifest declares, and steps that happen by hand. Re-asking something the scan established wastes the scan.
+**Start from the scan.** [derive-service-graph](./derive-service-graph.md) has already derived services, directories, start commands and ports from the workspace's own manifests. Present that graph for confirmation and ask only about what the scan listed as undetermined — which services this user actually needs, what can't run locally, ordering no manifest declares, and steps that happen by hand. Re-asking something the scan established wastes the scan.
 
 When the scan found nothing (no workspace manifests, an unfamiliar layout), fall back to listing folder names in the **parent directory** of the current working directory:
 

@@ -1,8 +1,8 @@
-# Final stage — Confirm the recipe
+# Confirm the recipe
 
 The one gate of a learning run. Everything the run discovered is held until here, so the user makes a single decision instead of approving facts one at a time.
 
-Runs after the environment is verified ready — a recipe for a preparation that did not work is worth nothing.
+Needs a verified-ready environment — a recipe for a preparation that did not work is worth nothing.
 
 ## Show what was done
 

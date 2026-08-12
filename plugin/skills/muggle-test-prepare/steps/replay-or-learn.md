@@ -1,4 +1,4 @@
-# Stage 0 — Replay or learn
+# Replay or learn
 
 One decision, made before anything else: does a prepare recipe already exist for this stack?
 

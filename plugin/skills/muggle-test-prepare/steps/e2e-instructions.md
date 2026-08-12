@@ -1,8 +1,8 @@
-# Stage 5 — E2E run instructions
+# E2E run instructions
 
 Capture what `prepare-plan.json` cannot express: the order services must come up in, steps that aren't a single command, and the local gotchas that make a healthy stack look broken. Persisted under `~/.muggle-ai/e2e-instructions/` and reused on later runs.
 
-Runs after [identify-services](./identify-services.md) — startup order and per-service gotchas are unanswerable until the service set is known.
+Needs the resolved service list from [identify-services](./identify-services.md): startup order and per-service gotchas are unanswerable until the service set is known.
 
 ## Scope boundary
 

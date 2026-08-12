@@ -18,7 +18,7 @@ The skill runs in two phases because a dispatched agent has no channel back to t
 
 This skill touches the user's local machine — processes, ports, directories outside the current repo. Every action is explicit and confirmed.
 
-- **Reading is granted, never assumed.** [scan-structure](./steps/scan-structure.md) asks first: scan a folder the user names, to a depth they set, or skip the scan and take their list of paths and services instead. The granted scope is recorded with the recipe so later runs reuse the permission rather than re-asking; widening it needs a fresh ask.
+- **Reading is granted, never assumed.** [derive-service-graph](./steps/derive-service-graph.md) asks first: scan a folder the user names, to a depth they set, or skip the scan and take their list of paths and services instead. The granted scope is recorded with the recipe so later runs reuse the permission rather than re-asking; widening it needs a fresh ask.
 - **Outside the granted scope, names only.** You may list directory names to offer them as candidates, but never read inside one the user hasn't named. Once they name it, its top-level indicator files (`package.json`, `Makefile`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `docker-compose.yml`) are readable to determine the start command.
 - **Never traverse upward more than one level** from the current working directory to list folders.
 
@@ -73,23 +73,21 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 ## Workflow
 
-**The skill learns once, then replays.** [replay-or-learn](./steps/replay-or-learn.md) decides which, before anything else.
+**The skill learns once, then replays.** [replay-or-learn](./steps/replay-or-learn.md) decides which, and owns what each mode may do.
 
-**Replay run — a recipe exists.** Skip the Decide stages entirely and execute the recipe: recorded services, recorded order, recorded commands. No scan, no interview, no prompts. A failed step consults the recipe's recorded resolutions before anything else, so a problem solved before is solved the same way again. Only a [hard block](./steps/confirm-recipe.md#hard-block) may deviate or ask.
+A **replay** executes the saved recipe and asks nothing. A **learning run** works through the Decide stages below, then the execute phase, then a single gate — [confirm-recipe](./steps/confirm-recipe.md) — which is the only thing that persists anything.
 
-**Learning run — no recipe.** Run these stages in order; read each detail file when you reach it:
+Decide stages, in order; read each detail file when you reach it:
 
-| # | Stage | Summary |
-|:--|:------|:--------|
-| 0 | [replay-or-learn](./steps/replay-or-learn.md) | Recipe exists → replay; none → learn (gated) |
-| 1 | [scan-structure](./steps/scan-structure.md) | Derive the service graph from workspace manifests |
-| 2 | [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
-| 3 | [scope](./steps/scope.md) | Frontend / backend / full stack |
-| 4 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
-| 5 | [identify-services](./steps/identify-services.md) | Confirm the scan; fill only what it couldn't determine |
-| 6 | [e2e-instructions](./steps/e2e-instructions.md) | Capture startup order, manual steps, local gotchas |
-
-Then the execute phase, then one gate: [confirm-recipe](./steps/confirm-recipe.md) asks whether to remember what the run actually did. Nothing is persisted before it.
+| Stage | Summary |
+|:------|:--------|
+| [replay-or-learn](./steps/replay-or-learn.md) | Replay the saved recipe, or learn a new one |
+| [derive-service-graph](./steps/derive-service-graph.md) | Derive services from workspace manifests |
+| [rebase-check](./steps/rebase-check.md) | Rebase onto default branch |
+| [scope](./steps/scope.md) | Frontend / backend / full stack |
+| [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
+| [identify-services](./steps/identify-services.md) | Confirm the derived graph; fill the gaps |
+| [e2e-instructions](./steps/e2e-instructions.md) | Startup order, manual steps, local gotchas |
 
 The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
 

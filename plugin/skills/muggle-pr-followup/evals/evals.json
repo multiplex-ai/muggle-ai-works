@@ -280,6 +280,31 @@
         { "name": "adopts_only_the_named_slot", "text": "Plan adopts exactly muggle-ai-ui-pr601 and does not sweep, list-and-take, or adopt any other orphaned slot in the same run." },
         { "name": "refuses_a_stopped_slot", "text": "Plan would refuse the adoption outright if the slot were named <slug>.stopped, since stop is the owner's kill switch and adoption is not a way around it." }
       ]
+    },
+    {
+      "id": 23,
+      "eval_name": "arm-runs-the-shipped-loop-never-authors-one",
+      "prompt": "Arm the watch for muggle-ai-works-pr600 600 after a clean drain. The slot has no watch.pid. Walk me through exactly how you start the monitor, including the command you run.",
+      "files": [],
+      "assertions": [
+        { "name": "runs_the_shipped_loop", "text": "Plan starts the shipped scripts/pr-watch-loop.sh, passing --slot, --repo and --pr, with the script path resolved to an absolute path under CLAUDE_PLUGIN_ROOT." },
+        { "name": "does_not_author_a_watch_sh", "text": "Plan does NOT write, generate, or hand-author a per-slot watch.sh, and does NOT copy one from another slot." },
+        { "name": "persistent_labeled_monitor", "text": "Plan starts it as a persistent background monitor labeled 'PR #<n> — <title>', one per PR." },
+        { "name": "claims_owner_first", "text": "Plan writes owner.json with this session's $CLAUDE_CODE_SESSION_ID before starting the monitor." }
+      ]
+    },
+    {
+      "id": 24,
+      "eval_name": "monitor-wakes-on-branch-merely-behind-base",
+      "prompt": "A watch is running on muggle-ai-works-pr383 383. Its base branch advances by two commits. The PR reports mergeable=MERGEABLE (no conflict) and mergeStateStatus=BLOCKED because a review is still required. The base requires branches to be up to date before merging. Should the watch loop wake, and how does it decide?",
+      "files": [],
+      "assertions": [
+        { "name": "wakes_on_behind_not_only_conflict", "text": "The loop DOES wake. A branch that is merely behind reports MERGEABLE, so the conflict signal alone never fires for it — behind_by > 0 is its own wake condition." },
+        { "name": "does_not_rely_on_mergestatestatus", "text": "The decision does NOT come from mergeStateStatus: it is a single enum with precedence, and BLOCKED (review required) masks BEHIND on a PR still awaiting approval." },
+        { "name": "measures_behind_via_compare", "text": "Behind-ness is measured with a compare call (behind_by), not inferred from the PR's mergeable/mergeStateStatus fields." },
+        { "name": "keys_on_the_head_base_pair", "text": "The floor is the rebase_key <head_sha>..<base_tip_sha>, so the wake fires once per newly-due pair and re-arms when the base advances again under an unchanged head." },
+        { "name": "condition_lives_in_shipped_file", "text": "The wake condition is defined in the shipped scripts/pr-watch-events.sh (watch_wake_rebase), not re-derived per arm." }
+      ]
     }
   ]
 }

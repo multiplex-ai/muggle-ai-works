@@ -222,6 +222,30 @@ describe("pr-followup session-start reconcile nudge", () => {
       expect(autoTrack).toMatch(/recover, never widen/i);
     });
 
+    // The loop used to be re-authored from this prose on every arm, and the
+    // derivations disagreed — two of four slots on one machine lacked the
+    // behind-base wake, leaving their PRs unmergeable under a healthy-looking
+    // watcher. Arming must run the shipped loop, never write one.
+    it("arm-watcher.md runs the shipped loop instead of authoring a per-slot watch.sh", () => {
+      const armWatcher = read(path.join(SKILL_DIR, "arm-watcher.md"));
+      expect(armWatcher).toMatch(/pr-watch-loop\.sh/);
+      expect(armWatcher).toMatch(/Never author a per-slot `watch\.sh`/i);
+    });
+
+    it("the shipped loop and its wake conditions exist as real files", () => {
+      const scriptsDir = path.join(REPO_ROOT, "plugin", "scripts");
+      expect(fs.existsSync(path.join(scriptsDir, "pr-watch-loop.sh"))).toBe(true);
+      expect(fs.existsSync(path.join(scriptsDir, "pr-watch-events.sh"))).toBe(true);
+    });
+
+    it("the shipped rebase wake covers behind, not just conflict", () => {
+      const events = read(path.join(REPO_ROOT, "plugin", "scripts", "pr-watch-events.sh"));
+      expect(events).toMatch(/behind_count/);
+      expect(events).toMatch(/CONFLICTING/);
+      // Both halves in one function: dropping either is what regressed before.
+      expect(events).toMatch(/watch_wake_rebase\(\)/);
+    });
+
     it("hooks README documents the nudge script", () => {
       expect(readme).toMatch(/reconcile-stale-watchers\.sh/);
     });

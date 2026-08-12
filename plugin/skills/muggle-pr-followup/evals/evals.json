@@ -1,6 +1,6 @@
 {
   "skill_name": "muggle-pr-followup",
-  "notes": "These evals test the TICK DECISION behavior plus the recovery/stop substrate. A real tick needs live GitHub state and the Cron tools, so each prompt hands the model a concrete slot + provider state and asks for the step-by-step plan it would execute; assertions check the plan takes the branch the contract mandates. Cases 0–10 cover per-tick dispatch/idle decisions; cases 11–17 cover cron-delivered ticks handing back to the token-free monitor, the owner stop switch, and the stopped-slot / kill-file absorb that makes an unreachable orphaned cron inert; cases 8 and 18–19 cover the monitor's own wake signals (settled-red CI, branch-behind/conflicting, and blocked-resume on any CI-digest move). Run via skill-creator's eval runner — CI does not execute these (ci.yml gates on vitest/check-skill-deps; skill-eval.yml runs gate scenarios sourced from muggle-ai-brain and the routing eval).",
+  "notes": "These evals test the TICK DECISION behavior plus the recovery/stop substrate. A real tick needs live GitHub state and the Cron tools, so each prompt hands the model a concrete slot + provider state and asks for the step-by-step plan it would execute; assertions check the plan takes the branch the contract mandates. Cases 0–10 cover per-tick dispatch/idle decisions; cases 11–17 cover cron-delivered ticks handing back to the token-free monitor, the owner stop switch, and the stopped-slot / kill-file absorb that makes an unreachable orphaned cron inert; cases 8 and 18–19 cover the monitor's own wake signals (settled-red CI, branch-behind/conflicting, and blocked-resume on any CI-digest move); cases 20–22 cover session ownership — reconcile re-arms only slots the running session armed, fails closed when it cannot identify itself, and a dead session's slot changes hands only through an explicit single-slug adopt. Run via skill-creator's eval runner — CI does not execute these (ci.yml gates on vitest/check-skill-deps; skill-eval.yml runs gate scenarios sourced from muggle-ai-brain and the routing eval).",
   "evals": [
     {
       "id": 0,
@@ -242,6 +242,43 @@
         { "name": "wakes_on_any_digest_move_not_just_red", "text": "While blocked, the loop wakes on ANY change to the head's CI digest away from BLOCKED_CIDIGEST — a green pass, a rerun, or an external deploy check — not only on a settled-red transition." },
         { "name": "digest_matches_fingerprint_definition", "text": "The digest the loop computes is the same bucket-plus-sorted-name/conclusion signature the blocked fingerprint's ci_digest uses, so the loop and the tick's Step 2.5 resume gate agree by construction." },
         { "name": "resume_is_the_tick_job", "text": "The loop only wakes on the digest move; clearing last_seen.blocked and re-evaluating belongs to the tick's Step 2.5 fingerprint gate, and the blocked-tick flag/resume path is what maintains BLOCKED_CIDIGEST — the loop never writes it." }
+      ]
+    },
+    {
+      "id": 20,
+      "eval_name": "reconcile-never-rearms-another-sessions-slot",
+      "prompt": "Run reconcile. $CLAUDE_CODE_SESSION_ID is session-AAA. On disk: muggle-ai-works-pr600 is open, owner.json says session-AAA, heartbeat 3 hours old. muggle-ai-ui-pr601 is open, owner.json says session-BBB, heartbeat 3 hours old. muggle-ai-brain-pr602 is open with no owner.json at all, heartbeat 3 hours old. muggle-ai-works-pr603 has owner.json session-BBB and its PR is now MERGED. Walk me through the plan for this sweep.",
+      "files": [],
+      "assertions": [
+        { "name": "partitions_by_owner_session_id", "text": "Plan splits the slots by owner.json session_id against $CLAUDE_CODE_SESSION_ID before deciding anything — pr600 owned, pr601/pr602/pr603 foreign." },
+        { "name": "rearms_only_the_owned_slot", "text": "Plan re-arms ONLY muggle-ai-works-pr600. It does not re-arm pr601 or pr602 despite their stale heartbeats." },
+        { "name": "missing_owner_is_foreign_not_adoptable", "text": "Plan treats muggle-ai-brain-pr602's absent owner.json as foreign and never re-arms or backfills an owner for it." },
+        { "name": "finalizes_terminal_regardless_of_owner", "text": "Plan finalizes muggle-ai-works-pr603 even though session-BBB owns it, because finalizing needs no context — it writes result.md and cancels the cron." },
+        { "name": "reports_orphans_without_offering", "text": "Plan reports pr601 and pr602 as orphaned with the adopt command, and does NOT offer to adopt them, prompt about them, or pick one to take." }
+      ]
+    },
+    {
+      "id": 21,
+      "eval_name": "reconcile-fails-closed-without-a-session-id",
+      "prompt": "Run reconcile in an environment where $CLAUDE_CODE_SESSION_ID is unset. Three open slots exist, all with stale heartbeats: two carry owner.json with different session ids, one carries none. Walk me through the plan.",
+      "files": [],
+      "assertions": [
+        { "name": "treats_every_slot_as_foreign", "text": "Plan treats ALL three slots as foreign because the running session cannot identify itself — it does not match the unset id against anything." },
+        { "name": "rearms_nothing", "text": "Plan re-arms zero watchers." },
+        { "name": "still_finalizes_and_reports", "text": "Plan still refreshes live state, finalizes any slot whose PR went terminal, and reports the open ones as orphans — it degrades to finalize-and-report rather than aborting." }
+      ]
+    },
+    {
+      "id": 22,
+      "eval_name": "adopt-is-explicit-and-single-slot",
+      "prompt": "The user runs: /muggle:muggle-pr-followup adopt muggle-ai-ui-pr601. That slot is open, its owner.json names a different session, and its PR is still open on GitHub. Walk me through the plan.",
+      "files": [],
+      "assertions": [
+        { "name": "claims_owner_before_arming", "text": "Plan overwrites owner.json with this session's $CLAUDE_CODE_SESSION_ID and a fresh claimed_at BEFORE arming the monitor." },
+        { "name": "warns_about_the_context_gap", "text": "Plan states that this session lacks the original session's context for the PR, so cycles work from the PR and diff alone." },
+        { "name": "arms_with_a_drain_tick", "text": "Plan arms per arm-watcher — a drain tick first, then the persistent monitor — rather than resuming from the previous owner's watermark alone." },
+        { "name": "adopts_only_the_named_slot", "text": "Plan adopts exactly muggle-ai-ui-pr601 and does not sweep, list-and-take, or adopt any other orphaned slot in the same run." },
+        { "name": "refuses_a_stopped_slot", "text": "Plan would refuse the adoption outright if the slot were named <slug>.stopped, since stop is the owner's kill switch and adoption is not a way around it." }
       ]
     }
   ]

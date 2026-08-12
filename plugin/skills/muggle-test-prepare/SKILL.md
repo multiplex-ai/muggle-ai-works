@@ -18,8 +18,8 @@ The skill runs in two phases because a dispatched agent has no channel back to t
 
 This skill touches the user's local machine — processes, ports, directories outside the current repo. Every action is explicit and confirmed.
 
-- **Folder names are public.** You may list directory names in a parent folder to discover sibling services.
-- **File contents are private until confirmed.** Never read files inside a directory the user hasn't explicitly identified as a service to start. Once confirmed, you may inspect only top-level project indicator files (`package.json`, `Makefile`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `docker-compose.yml`) to determine the start command.
+- **Reading is granted, never assumed.** [derive-service-graph](./steps/derive-service-graph.md) asks first: scan a folder the user names, to a depth they set, or skip the scan and take their list of paths and services instead. The granted scope is recorded with the recipe so later runs reuse the permission rather than re-asking; widening it needs a fresh ask.
+- **Outside the granted scope, names only.** You may list directory names to offer them as candidates, but never read inside one the user hasn't named. Once they name it, its top-level indicator files (`package.json`, `Makefile`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `docker-compose.yml`) are readable to determine the start command.
 - **Never traverse upward more than one level** from the current working directory to list folders.
 
 ## PID Tracking
@@ -73,22 +73,29 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 ## Workflow
 
-**Decide (in-session).** Run these stages in order; read each detail file when you reach it:
+**The skill learns once, then replays.** [replay-or-learn](./steps/replay-or-learn.md) decides which, and owns what each mode may do.
 
-| # | Stage | Summary |
-|:--|:------|:--------|
-| 0 | [reuse-plan](./steps/reuse-plan.md) | Reuse saved prepare plan (gated); on reuse, skip straight to dispatch |
-| 1 | [rebase-check](./steps/rebase-check.md) | Rebase onto default branch (gated) |
-| 2 | [scope](./steps/scope.md) | Frontend / backend / full stack |
-| 3 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
-| 4 | [identify-services](./steps/identify-services.md) | Pick required services + startup mode |
-| 5 | [e2e-instructions](./steps/e2e-instructions.md) | Capture startup order, manual steps, local gotchas (gated); persisted for reuse |
+A **replay** executes the saved recipe and asks nothing. A **learning run** works through the Decide stages below, then the execute phase, then a single gate — [confirm-recipe](./steps/confirm-recipe.md) — which is the only thing that persists anything.
+
+Decide stages, in order; read each detail file when you reach it:
+
+| Stage | Summary |
+|:------|:--------|
+| [replay-or-learn](./steps/replay-or-learn.md) | Replay the saved recipe, or learn a new one |
+| [derive-service-graph](./steps/derive-service-graph.md) | Derive services from workspace manifests |
+| [rebase-check](./steps/rebase-check.md) | Rebase onto default branch |
+| [scope](./steps/scope.md) | Frontend / backend / full stack |
+| [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
+| [identify-services](./steps/identify-services.md) | Confirm the derived graph; fill the gaps |
+| [e2e-instructions](./steps/e2e-instructions.md) | Startup order, manual steps, local gotchas |
 
 The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
 
 **Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan; it returns `READY` / `DEGRADED` plus the readiness table. The agent's own definition lists its stage files; in a harness with no agent/subagent facility, run the execute-phase stages ([check-running](./steps/check-running.md) through [readiness-report](./steps/readiness-report.md)) inline instead.
 
-Relay the readiness table to the user or calling skill verbatim. A `needs-input:` line from the agent names an unresolved decision — resolve it here (asking the user if needed) and re-dispatch; the agent never asks.
+Relay the readiness table to the user or calling skill verbatim. A `needs-input:` line from the agent names an unresolved decision — resolve it here (asking the user if needed) and re-dispatch; the agent never asks. That path is also how a problem hit mid-preparation reaches the user when it can't be resolved autonomously, per [record-resolution](./steps/record-resolution.md).
+
+The agent also returns the problems it hit and what cleared them. On a learning run those feed [confirm-recipe](./steps/confirm-recipe.md); on a replay they are already in the recipe and are applied without asking.
 
 ## Cleanup
 

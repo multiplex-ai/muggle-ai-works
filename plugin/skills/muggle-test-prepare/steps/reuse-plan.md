@@ -1,6 +1,8 @@
-# Stage 0 — reuse saved plan (or fall through)
+# Resolving the saved plan
 
-A previously saved **prepare plan** is the durable recipe for this stack. Distinct from the ephemeral `/tmp/muggle-test-prepare.json` tracker — that file holds live PIDs/logs and is rebuilt every run.
+How [replay-or-learn](./replay-or-learn.md) finds the machine-readable half of the recipe. A previously saved **prepare plan** is the durable recipe for this stack, paired with the prose half in `~/.muggle-ai/e2e-instructions/<key>.md`. Distinct from the ephemeral `/tmp/muggle-test-prepare.json` tracker — that file holds live PIDs/logs and is rebuilt every run.
+
+Finding a plan means this is a **replay run**: execute it, ask nothing. Finding none means a **learning run**.
 
 ## Resolve
 

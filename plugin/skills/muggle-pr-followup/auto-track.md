@@ -20,6 +20,8 @@ Auto-track discovers the PRs you pushed or opened during this Claude Code sessio
 
 Run [`reconcile.md`](reconcile.md) first. A no-arg invocation is the natural moment to finalize any slot whose PR merged or closed while its watcher was down — an expired `/loop` cron or an ended session leaves termination un-run (see reconcile's rationale). Then continue discovering new PRs below.
 
+**Reconcile here can only recover, never widen.** It re-arms watchers this session already owns and finalizes terminal slots; a slot owned by another session is reported and left alone. That boundary matters most at this call site: auto-track is invoked with no arguments, so the user named no PR, and a sweep that adopted every open slot on disk would turn "track what I pushed" into "watch everything on this machine". Whatever the sweep reports as orphaned is **not** a candidate for Step 1 — this session did not push those.
+
 ### Step 1 — Discover candidate PRs from session context
 
 A PR counts as **pushed this session** if, earlier in this conversation, you:

@@ -30,6 +30,24 @@ A list of one entry. (Historical: the file is an array for forward-compat with t
 - `state` is the **observed** state from the last `gh pr view`. The watcher refreshes it each tick.
 - Terminal states (`merged`, `closed`) are sticky — once set, the watcher writes `result.md` and exits without rescheduling.
 
+## `owner.json`
+
+The Claude Code session that owns this slot's watch. Written when a session arms the slot ([`arm-watcher.md`](arm-watcher.md)) or deliberately takes it over ([`adopt.md`](adopt.md)); read by [`reconcile.md`](reconcile.md) to decide whether the running session may re-arm a dead watcher.
+
+```json
+{
+  "session_id": "<claude-code-session-id>",
+  "claimed_at": "<ISO-8601>"
+}
+```
+
+- `session_id`: `$CLAUDE_CODE_SESSION_ID` as the arming session observes it. It survives compaction and resume, so a session that continues its own work keeps its watchers; a genuinely new session gets a new id and therefore owns nothing it did not arm.
+- `claimed_at`: when the current owner took the slot. Rewritten on every claim, so an adopted slot records the adopting session rather than the original one.
+
+**Absent ⇒ unowned.** Slots written before this file existed carry no owner, and every recovery path reads that as *not mine*: an unowned slot is still finalized when its PR goes terminal, but never re-armed. There is no backfill — inferring an owner would guess at exactly the thing this file exists to record.
+
+Distinct from [`watch.pid`](#watchpid), and the two are not interchangeable. `watch.pid` leases the slot to one OS **process** so two loops never poll it at once; `owner.json` leases it to one **session** so a foreign session never revives a watch it has no context for. A dead PID marks a watcher to recover; a foreign `session_id` marks one to leave alone. Reconcile consults both, in that order.
+
 ## `cron.json`
 
 A durable, on-disk handle to this slot's watcher cron. Its whole reason to exist: `CronList` goes **blind to crons that outlive a session continue / compaction** (the watcher's `/loop` cron survives, but the tool can no longer enumerate it), so a teardown that can only find crons through `CronList` can never delete the orphan — it re-fires until the 7-day `/loop` expiry. A cron id recorded to disk **while the cron was still visible** stays a valid `CronDelete` target afterward. See [`record-cron-id.md`](record-cron-id.md) (who writes it) and [`cancel-cron.md`](cancel-cron.md) (who deletes by it).

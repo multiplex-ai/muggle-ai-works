@@ -231,7 +231,7 @@ describe("prepare learns once, then replays", () => {
       if (!entry.endsWith(".md")) continue;
       const title = read(path.join(STEPS, entry)).split(/\r?\n/)[0];
       expect(title, `${entry} pins itself to a position: ${title}`).not.toMatch(
-        /^#\s*(Stage\s*\d+|Final stage|Step\s*\d+)/i,
+        /^#\s*(Stage\s*\d+|Final stage|Step\s*\d+)/i,
       );
     }
   });

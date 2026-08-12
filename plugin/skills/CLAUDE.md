@@ -20,6 +20,22 @@ When you feel the urge to link "up" to a caller, that is the smell — restructu
 
 `plugin/skills/skill-deps.config.json` declares support dirs grouped into their owning skill (`do/` → `muggle-do`), shared namespaces exploded to per-file nodes (`_shared`), and `knownReverseDeps` — pre-existing violations grandfathered so CI stays green. That list is debt: fix each link and delete its entry. A new reverse dependency is blocked whether or not it is on the list.
 
+## Mandatory stages
+
+A `SKILL.md` links out to the files that carry its steps, and nothing forces those links open. Read as a single page, a skill silently loses whatever its stage files required — the step is improvised instead of skipped visibly.
+
+Declare the files a skill cannot be run without in its frontmatter, paths relative to the skill directory:
+
+```yaml
+mandatoryStages:
+  - ../_shared/failure-mode-handling.md
+  - ../_shared/debug-failed-run.md
+```
+
+Invoking the skill names those files as required reading, and a Stop gate holds the turn open until each is opened (`guardrail-skill-stages.sh` / `guardrail-stage-gate.sh`, see [`../hooks/README.md`](../hooks/README.md)). The declaration is explicit rather than inferred from the prose: a gate guessing which links matter blocks on the wrong ones.
+
+The bar is "must be **read** before the skill runs", not "must be executed". A failure protocol qualifies: by the time a run fails, a skill that never read it is already improvising. What does not qualify is a file only one branch consults for its content — the gate cannot tell that the branch was not taken, so it would block work that legitimately never needed it. Aliases declare nothing; they invoke the canonical skill, which carries the declaration.
+
 ## Model tiers
 
 Each skill sets a `model:` in its `SKILL.md` frontmatter sized to its cognitive load. `model:` is a native Claude Code field — the override applies while the skill is active and reverts to the session model when it exits. Cheaper, faster models run the mechanical skills; the default (Opus) is reserved for the ones that actually reason. Cost and latency scale with the model, and these skills run often (the watcher fires every minute), so the tier is a real lever, not cosmetics.

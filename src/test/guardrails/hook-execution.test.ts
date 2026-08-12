@@ -625,14 +625,15 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly three observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal)", () => {
+  it("fires exactly four observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals)", () => {
     const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
-    expect(cmds).toHaveLength(3);
+    expect(cmds).toHaveLength(4);
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-tests.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-pr-terminal.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-record-stage-signals.sh"))).toBe(true);
   });
 
   it("fires the offer observer on AskUserQuestion and the terminal detector on Monitor", () => {

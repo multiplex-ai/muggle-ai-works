@@ -25,7 +25,7 @@ MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-604800}"
 MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
 # Consecutive failed fetches before a loop gives up. A watcher must ride through
 # a GitHub / network outage — an observed drop lasted ~8 minutes — not die and
-# leave the PR unwatched until the next session start. With the backoff below, 60
+# leave the PR unwatched until its owning session next starts. With the backoff, 60
 # spans hours; only a genuinely persistent unreachable slot (deleted repo,
 # revoked auth) exhausts it.
 MUGGLE_PR_WATCH_MAX_FETCH_FAILURES="${MUGGLE_PR_WATCH_MAX_FETCH_FAILURES:-60}"

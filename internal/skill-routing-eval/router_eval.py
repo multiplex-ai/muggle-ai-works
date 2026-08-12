@@ -23,11 +23,29 @@ from pathlib import Path
 from threading import Lock
 
 import throttle
-
-NONE = "none"
+from scoring import NONE, scored_pass
 
 # Shared across the worker pool: one rate-limited run pauses new starts for all.
 THROTTLE_GATE = throttle.ThrottleGate()
+
+PROGRESS_QUERY_CHARS = 140
+
+
+def format_run_progress(done: int, total: int, query: str, route: str, expected: str) -> str:
+    """One live progress line, naming the query that produced `route`.
+
+    Runs complete out of order across the worker pool, so each line has to carry
+    its own query — a bare route belongs to whichever of N parallel sessions
+    happened to finish. The marker scores this single run against the query's
+    label; reported accuracy still scores the majority route across its runs.
+
+    Output shape: `  12/78 MISS route=none :: test my changes before I open the PR`
+    """
+    marker = "ok  " if scored_pass(expected, route) else "MISS"
+    shown = " ".join(query.split())
+    if len(shown) > PROGRESS_QUERY_CHARS:
+        shown = shown[: PROGRESS_QUERY_CHARS - 3] + "..."
+    return f"  {done}/{total} {marker} route={route} :: {shown}"
 
 
 def normalize_skill(raw: str) -> str:
@@ -248,9 +266,14 @@ def main():
         for fut in as_completed(futs):
             i, route = fut.result()
             results[i] = route
+            qi, query = jobs[i]
+            expected = eval_set[qi].get("expected_skill", NONE)
             with lock:
                 done += 1
-                print(f"  {done}/{len(jobs)} runs done (last route={route})", file=sys.stderr, flush=True)
+                print(
+                    format_run_progress(done, len(jobs), query, route, expected),
+                    file=sys.stderr, flush=True,
+                )
 
     fired: dict[int, list[str]] = {}
     for i, route in enumerate(results):
@@ -264,13 +287,7 @@ def main():
         counts = Counter(runs)
         majority = counts.most_common(1)[0][0] if counts else NONE
         expected = item.get("expected_skill", NONE)
-        if expected == NONE:
-            # Negative class: pass iff NO muggle skill fired. An appropriate
-            # non-muggle skill (systematic-debugging, review, brainstorming...)
-            # winning is correct — it means no muggle skill over-triggered.
-            ok = not majority.startswith("muggle")
-        else:
-            ok = (majority == expected)
+        ok = scored_pass(expected, majority)
         passed += int(ok)
         out.append({
             "query": item["query"],

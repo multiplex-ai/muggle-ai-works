@@ -43,5 +43,43 @@ class TestStreamErrorText(unittest.TestCase):
         self.assertEqual(router_eval.stream_error_text(out), "")
 
 
+class TestFormatRunProgress(unittest.TestCase):
+    def test_line_carries_the_query(self):
+        line = router_eval.format_run_progress(12, 78, "test before I merge", "muggle-test", "muggle-test")
+        self.assertIn("test before I merge", line)
+        self.assertIn("12/78", line)
+
+    def test_matching_route_is_marked_ok(self):
+        line = router_eval.format_run_progress(1, 3, "q", "muggle-test", "muggle-test")
+        self.assertIn("ok", line)
+        self.assertNotIn("MISS", line)
+
+    def test_wrong_route_is_marked_miss(self):
+        line = router_eval.format_run_progress(1, 3, "q", "none", "muggle-test")
+        self.assertIn("MISS", line)
+
+    def test_negative_query_passes_on_a_non_muggle_route(self):
+        line = router_eval.format_run_progress(1, 3, "q", "systematic-debugging", router_eval.NONE)
+        self.assertIn("ok", line)
+
+    def test_negative_query_misses_when_a_muggle_skill_fires(self):
+        line = router_eval.format_run_progress(1, 3, "q", "muggle-test", router_eval.NONE)
+        self.assertIn("MISS", line)
+
+    def test_long_query_is_truncated_to_one_line(self):
+        line = router_eval.format_run_progress(1, 3, "x" * 400, "none", "none")
+        self.assertLessEqual(len(line), 200)
+        self.assertTrue(line.endswith("..."))
+
+    def test_whitespace_is_collapsed_so_one_run_is_one_line(self):
+        line = router_eval.format_run_progress(1, 3, "a\n  b\tc", "none", "none")
+        self.assertIn("a b c", line)
+        self.assertNotIn("\n", line)
+
+    def test_line_is_ascii_so_windows_consoles_can_encode_it(self):
+        line = router_eval.format_run_progress(1, 3, "q", "none", "none")
+        line.encode("ascii")
+
+
 if __name__ == "__main__":
     unittest.main()

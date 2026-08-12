@@ -27,14 +27,7 @@ If a comment has no associated change in either source (e.g. the comment was a q
 
 For each comment id with a description, post the reply with the resolved provider:
 
-- **`github`** — nested reply on the line comment:
-
-  ```bash
-  gh api --method POST \
-    -H "Accept: application/vnd.github+json" \
-    repos/<owner>/<repo>/pulls/<n>/comments/<comment-id>/replies \
-    -f body="<reply-body>"
-  ```
+- **`github`** — nested reply on the line comment, one per actionable comment, per [`../_shared/vcs/github/reply-line-comment.md`](../_shared/vcs/github/reply-line-comment.md).
 
 - **`gitlab`** — one threaded note per actionable discussion per [`../_shared/vcs/gitlab/reply-discussion.md`](../_shared/vcs/gitlab/reply-discussion.md) (the discussion id stands in for the comment id), then resolve each fully-addressed thread per [`../_shared/vcs/gitlab/resolve-discussion.md`](../_shared/vcs/gitlab/resolve-discussion.md). The loop-marked reply is the addressed signal; the resolve is GitLab's equivalent of a reviewer closing the thread, which the loop can do directly. Resolving folds the discussion out of the next tick's actionable set, so no separate resolve-reminder nudge is needed for it.
 
@@ -42,12 +35,9 @@ Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-
 
 ```
 Addressed in <short-sha>: <one-line summary of the change made for THIS comment>.
-
-<!-- muggle-do:bot -->
-🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
-`<short-sha>` is the first 7 chars of `new_sha`; the body must contain that substring so the resolve-reminder stage knows which push addressed the thread. The trailing signature block is mandatory — its `<!-- muggle-do:bot -->` marker is what identifies the reply as loop-authored (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)).
+`<short-sha>` is the first 7 chars of `new_sha`; the body must contain that substring so the resolve-reminder stage knows which push addressed the thread. Write the content only — the posting recipe signs it with `--mode loop`, which appends the `<!-- muggle-do:bot -->` marker that identifies the reply as loop-authored (see [`../_shared/pr-followup-helpers/loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)).
 
 ### Step 3 — Handle review-body-only comments (GitHub only)
 
@@ -58,9 +48,6 @@ If an actionable review has a non-empty `body` and **zero** line comments, GitHu
 
 ```
 Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
-
-<!-- muggle-do:bot -->
-🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
 Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.

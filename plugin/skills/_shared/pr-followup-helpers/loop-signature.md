@@ -1,18 +1,16 @@
 # Loop comment signature
 
-Every GitHub comment `/muggle-do` posts — inline thread replies, top-level reference comments, resolve-reminders — **must** end with the signature block below. It is the only reliable way to tell loop-authored comments from human comments: in single-account workflows the loop posts under the PR author's own identity, so `author.login` cannot distinguish them. Echo-protection and addressed-by-loop classification both depend on this marker.
+Every GitHub comment `/muggle-do` posts — inline thread replies, top-level reference comments, resolve-reminders — **must** carry the loop marker. It is the only reliable way to tell loop-authored comments from human comments: in single-account workflows the loop posts under the PR author's own identity, so `author.login` cannot distinguish them. Echo-protection and addressed-by-loop classification both depend on this marker.
 
-## The signature
-
-Append these two lines as the end of every loop-posted comment body:
+## The marker
 
 ```
 <!-- muggle-do:bot -->
-🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_
 ```
 
-- `<!-- muggle-do:bot -->` — hidden HTML marker; GitHub renders it invisibly and humans never type it. This is the **detection token**. It must stay exactly as written — echo-protection and addressed-by-loop classification read this literal string.
-- The visible line is the shared Muggle Works signature ([`../vcs/post-signature.md`](../vcs/post-signature.md)) with `/muggle-do` as the command. It links a reader back to the tool and names the command that posted the comment.
+Hidden HTML: GitHub renders it invisibly and humans never type it. It must stay exactly as written — echo-protection and addressed-by-loop classification read this literal string.
+
+Signing a body with `--mode loop` ([`../vcs/post-signature.md`](../vcs/post-signature.md)) emits the marker above the visible Muggle Works line. Never hand-write either one; a body assembled by hand is the one that silently ships without them.
 
 ## Detection
 

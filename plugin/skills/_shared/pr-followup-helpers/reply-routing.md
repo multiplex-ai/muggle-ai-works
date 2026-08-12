@@ -7,21 +7,25 @@ GitHub's PR APIs are not uniform across comment types. Route by parent type.
 A comment attached to a specific file:line that belongs to a review thread.
 
 ```bash
+body="$(printf 'Done in %s — renamed `fooBar` to `foo_bar`.\n' "$(git rev-parse --short HEAD)" \
+  | bash "${CLAUDE_PLUGIN_ROOT}/scripts/sign-body.sh" --command /muggle-do --mode loop)"
 gh api \
   --method POST \
   -H "Accept: application/vnd.github+json" \
   /repos/<owner>/<repo>/pulls/<number>/comments/<comment_id>/replies \
-  -f body="Done in $(git rev-parse --short HEAD) — renamed \`fooBar\` to \`foo_bar\`."
+  -f body="$body"
 ```
 
-The reply lands in the same review thread with `in_reply_to_id = <comment_id>`.
+The reply lands in the same review thread with `in_reply_to_id = <comment_id>`. Signing is not optional — see [`../vcs/post-signature.md`](../vcs/post-signature.md).
 
 ## Review body (CHANGES_REQUESTED with no inline comments)
 
 A reviewer left a summary review with `state: CHANGES_REQUESTED` and a body, but **no** inline comments. GitHub has no "reply to review body" endpoint — post a top-level PR comment that references the review:
 
 ```bash
-gh pr comment <number> --repo <owner>/<repo> --body "Re: review #<review_id> — done in $(git rev-parse --short HEAD)."
+body="$(printf 'Re: review #<review_id> — done in %s.\n' "$(git rev-parse --short HEAD)" \
+  | bash "${CLAUDE_PLUGIN_ROOT}/scripts/sign-body.sh" --command /muggle-do --mode loop)"
+gh pr comment <number> --repo <owner>/<repo> --body "$body"
 ```
 
 ## Failing CI check

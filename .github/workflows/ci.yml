@@ -69,6 +69,23 @@ jobs:
       - name: Check skill dependency direction
         run: node scripts/check-skill-deps.mjs
 
+  # Enforces the signing rule (plugin/skills/_shared/vcs/post-signature.md).
+  # An unsigned post still succeeds, so nothing at runtime reveals the drift —
+  # only this job does. Zero-dep Node script, so no install step.
+  post-signatures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Check posted bodies are signed
+        run: node scripts/check-post-signatures.mjs
+
   # Type check with different TypeScript versions
   typecheck:
     runs-on: ubuntu-latest

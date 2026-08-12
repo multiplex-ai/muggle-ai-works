@@ -77,7 +77,18 @@ Run `pnpm db:migrate` once after a fresh clone; the dev servers don't migrate on
 - First build after a clean install takes ~4 min. It is not hung.
 - UI is on :3999, not the Next.js default :3000.
 - Auth0 dev tenant rate-limits past ~20 logins/hour.
+
+## Resolutions
+
+Observed by prepare runs. Each is a signal that occurred and the fix that cleared it, applied automatically when the same signal recurs.
+
+- **ui** — HTTP 500 on `/dashboard` while api was still booting
+  → start api first and wait for its ready signal *(user-directed, 2026-08-04)*
+- **worker** — exited immediately, `.env.local` absent
+  → copy `.env.example`, user supplies `QUEUE_URL` *(user-directed, 2026-08-04)*
 ```
+
+The sections above the Resolutions heading are the user's own words and are never rewritten by a run. Resolutions are what the machine observed, kept separate so the user can tell which is which and delete either with confidence.
 
 ### Sentinel
 

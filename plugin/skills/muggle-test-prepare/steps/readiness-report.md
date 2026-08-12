@@ -27,7 +27,9 @@ Cleanup: say "stop services" or re-invoke this skill.
 
 ## Save the plan
 
-If this run came through discovery (i.e. Stage 0 [reuse-plan](./reuse-plan.md) did **not** short-circuit), persist the plan so the next run can skip the questions.
+Only on a learning run, and only once the user has accepted the gate in [confirm-recipe](./confirm-recipe.md). Nothing is persisted before that — a recipe the user didn't agree to is a recipe they'll have to undo, and a recipe for a preparation that failed is worse than none.
+
+A replay run writes nothing here; it already has the recipe.
 
 Build the JSON from the in-memory tracking file, dropping runtime fields:
 

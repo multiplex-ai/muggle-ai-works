@@ -7,14 +7,18 @@ set -uo pipefail
 # deterministic renderer.
 #
 # This must stay synchronous (only a sync PreToolUse hook can deny), and it fires
-# before every Bash call. A keyword pre-filter for the three PR-posting commands
+# before every Bash call. A keyword pre-filter for the PR-publishing commands
 # keeps Node off the hot path: a plain `ls`/`git status`/build command returns {}
-# in-shell and never pays cold-start. Only a `gh pr comment|create|edit` reaches
-# guardrails.mjs, which reads the body (incl. --body-file) and decides. Degrades
-# to {} so it never blocks an unrelated command.
+# in-shell and never pays cold-start. Only a `gh pr comment|create|edit` or a
+# `gh api` comment edit reaches guardrails.mjs, which reads the body (incl.
+# --body-file) and decides. The comment-edit arm matters as much as the post
+# arm: guardrails.mjs gates that path precisely so a sanctioned walkthrough
+# can't be overwritten with hand-written markdown afterwards, and a pre-filter
+# on `gh pr` alone left that bypass wide open. Degrades to {} so it never blocks
+# an unrelated command.
 payload="$(cat)"
 
-if ! grep -Eiq 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)' <<<"$payload"; then
+if ! grep -Eiq 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]' <<<"$payload"; then
   printf '{}'
   exit 0
 fi

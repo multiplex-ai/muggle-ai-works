@@ -9,10 +9,14 @@ set -uo pipefail
 # AskUserQuestion offer runs. Decision logic lives in the bundled guardrails.mjs.
 #
 # Fires after every Bash call, so a keyword pre-filter for the terminal output
-# shapes keeps Node off the hot path. Degrades to {} so it never blocks.
+# shapes keeps Node off the hot path. The reopen line belongs here too: it is
+# the one signal that retracts a terminal verdict, and while the pre-filter
+# dropped it a close+reopen — routine, to re-fire a lost workflow trigger — left
+# the handoff armed on a change that is open again. Degrades to {} so it never
+# blocks.
 payload="$(cat)"
 
-if ! grep -Eiq 'merged pull request|closed pull request|TERMINAL pr=' <<<"$payload"; then
+if ! grep -Eiq '(merged|closed|reopened) pull request|TERMINAL pr=' <<<"$payload"; then
   printf '{}'
   exit 0
 fi

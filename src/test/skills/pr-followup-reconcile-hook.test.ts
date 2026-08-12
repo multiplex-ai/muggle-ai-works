@@ -4,7 +4,13 @@
  * nothing to notice; a SessionStart hook closes that gap by nudging reconcile
  * when open slots exist. This test locks the wiring — the hook is registered and
  * points at the script, and the script nudges only when a non-terminal slot
- * exists (never when clean). It reads the files; it does not run the hook.
+ * exists (never when clean).
+ *
+ * It also locks the nudge's **scope**: only slots this session owns count as
+ * recoverable, since re-arming a watcher armed by a different session hands PR
+ * review work to a session with no context for it. Behavioral coverage of the
+ * partition lives in `../scripts/reconcile-stale-watchers.test.ts`; this file
+ * reads the files and does not run the hook.
  */
 
 import { describe, it, expect } from "vitest";
@@ -84,7 +90,9 @@ describe("pr-followup session-start reconcile nudge", () => {
     });
 
     it("emits nothing when no open slot exists — the empty-state exit precedes any context emission", () => {
-      const emptyGuard = script.search(/stale_count["'}]?\s*-eq\s*0/);
+      const emptyGuard = script.search(
+        /owned_count["'}]?\s*-eq\s*0\s*\]\s*&&\s*\[\s*["'$]*orphan_count["'}]?\s*-eq\s*0/,
+      );
       const emit = script.indexOf("additionalContext");
       expect(emptyGuard, "no zero-slot guard found").toBeGreaterThan(-1);
       expect(emit, "no additionalContext emission found").toBeGreaterThan(-1);
@@ -92,6 +100,23 @@ describe("pr-followup session-start reconcile nudge", () => {
         emptyGuard,
         "the zero-slot exit must come before any nudge is printed",
       ).toBeLessThan(emit);
+    });
+
+    it("skips *.stopped slots — the owner's kill switch keeps its prs.json", () => {
+      expect(script).toMatch(/\*\.stopped/);
+    });
+
+    it("partitions slots by owner.json against the payload's session_id", () => {
+      expect(script).toMatch(/owner\.json/);
+      expect(script).toMatch(/session_id/);
+      // The equality gate: a slot counts as owned only on an exact id match.
+      expect(script).toMatch(/"\$slot_owner"\s*=\s*"\$current_session_id"/);
+    });
+
+    it("fails closed — an unidentifiable session owns nothing", () => {
+      // A non-empty current id is required before any slot can be called owned,
+      // so a payload with no session_id yields zero owned and re-arms nothing.
+      expect(script).toMatch(/-n\s+"\$current_session_id"\s*\]\s*&&/);
     });
 
     it("emits the SessionStart additionalContext contract when slots exist", () => {
@@ -156,10 +181,69 @@ describe("pr-followup session-start reconcile nudge", () => {
       }
     });
 
-    it("reconcile.md documents session-scoped recovery — session down, watchers down; session up, re-armed", () => {
+    it("reconcile.md documents session-scoped recovery — session down, watchers down; owning session up, re-armed", () => {
       expect(reconcile).toMatch(/session-scoped/i);
-      expect(reconcile).toMatch(/next session start/i);
       expect(reconcile).toMatch(/context to address it/i);
+      expect(reconcile).toMatch(/owner\.json/);
+    });
+
+    // The defect this gate exists to prevent: a fresh session running reconcile
+    // (directly, via auto-track's Step 0, or from the session-start nudge) used
+    // to adopt every open slot on disk, so it polled and pushed to PRs it had no
+    // context for. Recovery is bounded by ownership, and only an explicit adopt
+    // moves a slot between sessions.
+    it("reconcile.md re-arms only what the running session owns, and never adopts", () => {
+      expect(reconcile).toMatch(/Never adopts/i);
+      expect(reconcile).toMatch(/\$CLAUDE_CODE_SESSION_ID/);
+      expect(reconcile).toMatch(/foreign/i);
+      expect(reconcile).toMatch(/adopt\.md/);
+    });
+
+    it("reconcile.md still finalizes terminal slots regardless of owner", () => {
+      expect(reconcile).toMatch(/owned or foreign alike/i);
+      expect(reconcile).toMatch(/ownership-free/i);
+    });
+
+    it("adopt.md exists and is explicit, single-slot, and stop-respecting", () => {
+      const adopt = read(path.join(SKILL_DIR, "adopt.md"));
+      expect(adopt).toMatch(/Explicit only/i);
+      expect(adopt).toMatch(/One slot per invocation/i);
+      expect(adopt).toMatch(/\.stopped/);
+      expect(adopt).toMatch(/owner\.json/);
+    });
+
+    it("SKILL.md routes adopt and states watchers belong to the arming session", () => {
+      expect(skill).toMatch(/adopt\.md/);
+      expect(skill).toMatch(/owner\.json/);
+    });
+
+    it("auto-track.md's reconcile step cannot widen what the session watches", () => {
+      const autoTrack = read(path.join(SKILL_DIR, "auto-track.md"));
+      expect(autoTrack).toMatch(/recover, never widen/i);
+    });
+
+    // The loop used to be re-authored from this prose on every arm, and the
+    // derivations disagreed — two of four slots on one machine lacked the
+    // behind-base wake, leaving their PRs unmergeable under a healthy-looking
+    // watcher. Arming must run the shipped loop, never write one.
+    it("arm-watcher.md runs the shipped loop instead of authoring a per-slot watch.sh", () => {
+      const armWatcher = read(path.join(SKILL_DIR, "arm-watcher.md"));
+      expect(armWatcher).toMatch(/pr-watch-loop\.sh/);
+      expect(armWatcher).toMatch(/Never author a per-slot `watch\.sh`/i);
+    });
+
+    it("the shipped loop and its wake conditions exist as real files", () => {
+      const scriptsDir = path.join(REPO_ROOT, "plugin", "scripts");
+      expect(fs.existsSync(path.join(scriptsDir, "pr-watch-loop.sh"))).toBe(true);
+      expect(fs.existsSync(path.join(scriptsDir, "pr-watch-events.sh"))).toBe(true);
+    });
+
+    it("the shipped rebase wake covers behind, not just conflict", () => {
+      const events = read(path.join(REPO_ROOT, "plugin", "scripts", "pr-watch-events.sh"));
+      expect(events).toMatch(/behind_count/);
+      expect(events).toMatch(/CONFLICTING/);
+      // Both halves in one function: dropping either is what regressed before.
+      expect(events).toMatch(/watch_wake_rebase\(\)/);
     });
 
     it("hooks README documents the nudge script", () => {

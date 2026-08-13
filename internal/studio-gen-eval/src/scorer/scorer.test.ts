@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyRun, isTerminal, passRate, summariseCase } from "./scorer.js";
+import { classifyRun, isRunSettled, isTerminal, passRate, summariseCase } from "./scorer.js";
 import {
   type BackendRunData,
   FailureBucket,
@@ -110,5 +110,39 @@ describe("summariseCase", () => {
     expect(s).toMatchObject({ reps: 3, passes: 1, fails: 1, errors: 1, passRate: 0.5 });
     expect(s.buckets[FailureBucket.ElementIndexDrift]).toBe(1);
     expect(s.buckets[FailureBucket.AccountLockout]).toBe(1);
+  });
+});
+
+describe("isRunSettled", () => {
+  it("is not settled while the runtime is restarting after cancellation", () => {
+    const restarting = run({
+      status: WorkflowRunStatus.Failed,
+      lastMessage: "Restarting workflow runtime after cancellation.",
+    });
+
+    expect(isRunSettled(restarting)).toBe(false);
+  });
+
+  it("is settled once a restarted run reports a studio verdict", () => {
+    const restartedAndDone = run({
+      status: WorkflowRunStatus.Failed,
+      lastMessage: "Restarting workflow runtime after cancellation.",
+      studioReturnedResult: { status: StudioResultStatus.Success, summary: "done" },
+    });
+
+    expect(isRunSettled(restartedAndDone)).toBe(true);
+    expect(classifyRun(restartedAndDone).outcome).toBe(OutcomeClass.Pass);
+  });
+
+  it("is settled for a genuine failure with no restart in flight", () => {
+    expect(isRunSettled(run({ status: WorkflowRunStatus.Failed, error: "boom" }))).toBe(true);
+  });
+
+  it("is settled for a completed run", () => {
+    expect(isRunSettled(run({ status: WorkflowRunStatus.Completed }))).toBe(true);
+  });
+
+  it("is not settled for a still-running run", () => {
+    expect(isRunSettled(run({ status: WorkflowRunStatus.Running }))).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { FAILURE_KEYWORDS, TERMINAL_WORKFLOW_STATES } from "../domain/constants.js";
+import { FAILURE_KEYWORDS, RESTARTING_RUNTIME_MESSAGE, TERMINAL_WORKFLOW_STATES } from "../domain/constants.js";
 import {
   type BackendRunData,
   type CaseSummary,
@@ -15,6 +15,26 @@ import {
 /** A run is done when its workflow status is terminal. */
 export function isTerminal(status: string | undefined): boolean {
   return status !== undefined && TERMINAL_WORKFLOW_STATES.has(status);
+}
+
+/**
+ * Whether a run has actually settled and is safe to classify.
+ *
+ * A terminal status alone is not enough. When a workflow runtime is cancelled
+ * the backend restarts it, and during that window the run reports `FAILED`
+ * with no verdict — polling stops there and a generation that goes on to
+ * succeed seconds later is discarded as an infrastructure error. A run that
+ * announces a restart is therefore unsettled until it carries a studio verdict.
+ */
+export function isRunSettled (run: BackendRunData): boolean {
+  if (run.studioReturnedResult?.status) return true;
+
+  const isRestarting = (run.lastMessage ?? "")
+    .toLowerCase()
+    .includes(RESTARTING_RUNTIME_MESSAGE);
+  if (isRestarting) return false;
+
+  return isTerminal(typeof run.status === "string" ? run.status : undefined);
 }
 
 function bucketFromText(text: string): FailureBucket {

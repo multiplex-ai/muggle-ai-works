@@ -34,6 +34,12 @@ export interface BackendRunData {
   workflowRuntimeId?: string;
   status?: WorkflowRunStatus | string;
   error?: string;
+  /**
+   * Backend progress line. A cancelled runtime that is being restarted reports
+   * the restart here while `status` still reads `FAILED`, so this is the only
+   * signal distinguishing a transient failure from a settled one.
+   */
+  lastMessage?: string;
   studioReturnedResult?: {
     summary?: string;
     status?: StudioResultStatus | string;

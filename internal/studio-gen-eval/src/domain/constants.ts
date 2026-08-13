@@ -14,6 +14,13 @@ export const TERMINAL_WORKFLOW_STATES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Fragment of the backend progress line emitted while a cancelled workflow
+ * runtime is being restarted. Such a run reports `FAILED` but is not settled —
+ * the restart usually completes with a real studio verdict seconds later.
+ */
+export const RESTARTING_RUNTIME_MESSAGE = "restarting workflow runtime";
+
+/**
  * Keyword → bucket map for classifying a studio failure's free-text reason.
  * Heuristic and order-sensitive: first match wins. Extend as new recurring
  * reasons are recognised.

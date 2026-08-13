@@ -1,0 +1,425 @@
+{
+  "batchId": "gen-eval-2026-08-13T00-03-03",
+  "recordedAt": "2026-08-13T00:03:03.019Z",
+  "sourceProjectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+  "runsPerCase": 5,
+  "flags": {},
+  "overallPassRate": 1,
+  "scoredReps": 38,
+  "infraErrors": 2,
+  "buckets": {
+    "crash": 2
+  },
+  "cases": [
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "title": "Click on radio button label to select",
+      "reps": 5,
+      "passes": 4,
+      "fails": 0,
+      "errors": 1,
+      "passRate": 1,
+      "buckets": {
+        "crash": 1
+      }
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "title": "User clears textarea content",
+      "reps": 5,
+      "passes": 4,
+      "fails": 0,
+      "errors": 1,
+      "passRate": 1,
+      "buckets": {
+        "crash": 1
+      }
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "title": "Confirm Color Selection",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "title": "User toggles checkbox by clicking on label",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "title": "Select a New Color",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "title": "User checks the terms and conditions checkbox",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "title": "User enters text in textarea",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "title": "Select a radio button option",
+      "reps": 5,
+      "passes": 5,
+      "fails": 0,
+      "errors": 0,
+      "passRate": 1,
+      "buckets": {}
+    }
+  ],
+  "reps": [
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "c2fc23d1-b730-471b-9ac2-af9967057dcd",
+      "runId": "89ef3365-1aae-40f1-8750-b874d35acdfe",
+      "durationMs": 59378
+    },
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "18e1cb4b-1c64-4837-85b3-150dae176d88",
+      "runId": "8091282d-532b-4c04-a1c6-19cebaecfe7a",
+      "durationMs": 59461
+    },
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "rep": 4,
+      "outcome": "error",
+      "bucket": "crash",
+      "reason": "completed without a studio verdict",
+      "runtimeId": "007b3274-c9b4-4e61-9e01-4204142eed1b",
+      "runId": "15a77546-d0aa-40a6-b98f-d53c2001d37e",
+      "durationMs": 54221
+    },
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "20c910b5-dd0e-4e61-b8c1-5b1e55af8d48",
+      "runId": "d8c94d3f-6cf5-4f34-b8ff-210708d46b15",
+      "durationMs": 59429
+    },
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "5314319b-181f-47e2-8b7b-fbc956ace3da",
+      "runId": "c1a6880f-6473-4731-80d0-91a9695437b5",
+      "durationMs": 59084
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "298abc15-1c3c-4e73-9468-d9a2865b3716",
+      "runId": "ccc874b2-f127-4861-87b1-45b895494054",
+      "durationMs": 64322
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "2ad35770-f096-466e-9d9b-2f1b5ab04ad0",
+      "runId": "cd8e8f05-435c-4f2f-827b-3b33c27aff69",
+      "durationMs": 69676
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "31ff4cf0-e411-483d-8e84-9e67fe31a6f2",
+      "runId": "3292cead-2f44-4d8a-9170-e126e63579de",
+      "durationMs": 64415
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "rep": 5,
+      "outcome": "error",
+      "bucket": "crash",
+      "reason": "completed without a studio verdict",
+      "runtimeId": "3acb3a8b-c793-4a4a-879f-3da27c484168",
+      "runId": "c4c83dd0-c766-4aca-bac2-b08dcdee1543",
+      "durationMs": 64391
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "3589eb31-fb20-44e6-8092-12f86e8625a0",
+      "runId": "45506503-f350-4380-85b7-4c8bc1aeda34",
+      "durationMs": 69638
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "5af7fe52-d6b8-40f2-92f8-883c6bac0e18",
+      "runId": "6431dc9b-90ba-4c68-8ccf-4209a24f89bc",
+      "durationMs": 65185
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "7d85c813-ac30-4172-b3b3-a6f45a7cd970",
+      "runId": "fbdf00ac-156a-4ccf-8ca1-9251e5eb9489",
+      "durationMs": 70576
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "8ac7cd0a-70df-48d1-84a1-31d610964336",
+      "runId": "d7ea40e6-3281-4348-995c-2adf6eec7271",
+      "durationMs": 64396
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "6d75ebb2-6bca-480e-92a1-c0d99595161d",
+      "runId": "ff092202-9208-4fcb-b0af-ba60e7ad2a28",
+      "durationMs": 64297
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "cebad309-a12b-4ca6-82ba-1817aeebcaa2",
+      "runId": "758315e9-69c8-41c2-bd69-4a5b234d08ca",
+      "durationMs": 64819
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "b3ca8206-460e-49a1-a375-ddadd23e663e",
+      "runId": "0f4e0f43-9eb9-4fe8-b164-1565bf0ffe86",
+      "durationMs": 75025
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "d739eb15-aaa3-4944-a305-dd6e20733401",
+      "runId": "8bb5c7af-7ea7-4bcd-8532-5c096f32ef84",
+      "durationMs": 64796
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "5f6b1965-a667-4fc1-87ab-f6b5231ee84c",
+      "runId": "fe2b1cc0-766b-4994-adab-4f5739704f05",
+      "durationMs": 80171
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "e3a45d59-2c03-466b-955d-09eaac5883ed",
+      "runId": "8c611eb4-35b9-4df9-8a34-1115b84c08c8",
+      "durationMs": 54302
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "e15cf76a-26ac-4de7-b47e-c4f1b12922e0",
+      "runId": "c3f633a8-4fbc-402e-bdc9-654f551e4448",
+      "durationMs": 64846
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "956e1e6f-e952-451e-b048-378a1a66531d",
+      "runId": "bee7950f-72f8-49cb-8af7-d825ca29c723",
+      "durationMs": 54703
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "f8204771-43b3-4819-890f-96c19af4e7c4",
+      "runId": "d9cd25fc-4f94-4857-9f8b-94d838fd3d0a",
+      "durationMs": 64639
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "d8900ed4-8bf0-4c3d-b451-a559e37e53f4",
+      "runId": "139c879b-91c9-4b95-81b9-53ba66a361e7",
+      "durationMs": 53808
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "6bb71f50-4cfc-465e-b267-300216d9109e",
+      "runId": "7c7382e6-5e92-43eb-bd99-e825a59bae98",
+      "durationMs": 59093
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "e2813652-5f21-4198-9c45-6921730946b4",
+      "runId": "99f322cd-8e11-4fb3-9d86-20b9efa5dc25",
+      "durationMs": 54041
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "9268ba49-9abc-40e2-8a3d-9b881e5eb6ef",
+      "runId": "252c2706-049b-4514-9575-1a5f15940b66",
+      "durationMs": 53966
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "dc8016f2-c6f8-4ec3-9368-c72ff1c3e912",
+      "runId": "3eba55fe-9557-4506-9071-ffbd6791a3f3",
+      "durationMs": 54027
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "c0f21672-0bfc-4465-8d46-32c3449474f1",
+      "runId": "f7829d23-f58c-4212-add7-03f9951879fe",
+      "durationMs": 53945
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "66b84977-01b4-43df-85b0-eb0185bc316a",
+      "runId": "01f911e6-54b2-4f53-80e8-2a2b0e6c5622",
+      "durationMs": 53752
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "76d362fc-6e0e-43d1-8f05-edb0d62ab99b",
+      "runId": "cbe1c47c-27a8-4e93-a01d-9a488478a89c",
+      "durationMs": 53668
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "d84da54f-2c22-4e2f-b823-6a8c5f9d9e71",
+      "runId": "98bb449d-b2b7-4137-842f-8f7a889d5142",
+      "durationMs": 59035
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "a5ee3c6c-13d1-4bf4-bbd8-3289002d0900",
+      "runId": "cafe5c4e-fcd9-476a-af7a-87e08f19e27e",
+      "durationMs": 54259
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "a1a64a07-6be5-495f-b2ee-8abc5117e870",
+      "runId": "94c5b528-6a29-4efd-87e0-811895f6ed71",
+      "durationMs": 58919
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "b69632a5-5782-4387-8a5e-36309619aa00",
+      "runId": "9b219eb0-150a-4d49-b86f-c245054d940c",
+      "durationMs": 58746
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "83b007da-8a94-49b3-8bca-f4f82ab01456",
+      "runId": "4c72e957-8f1e-440f-a0ca-8e155df1b2b0",
+      "durationMs": 59309
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "rep": 1,
+      "outcome": "pass",
+      "runtimeId": "5b897690-b506-4f5a-adf5-d81dffe0a072",
+      "runId": "dda21f50-0af6-42e3-b283-f6765fa38095",
+      "durationMs": 69499
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "rep": 2,
+      "outcome": "pass",
+      "runtimeId": "a5b9f353-4607-444b-ae7b-a2f0f347fb5d",
+      "runId": "f974a802-ae0b-4453-950d-f94b592a6a4d",
+      "durationMs": 69531
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "rep": 3,
+      "outcome": "pass",
+      "runtimeId": "1bef1938-c913-46b2-9157-ef5bd3b382fc",
+      "runId": "418e49ae-2905-4f73-ab8c-c448c9c00443",
+      "durationMs": 69620
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "rep": 4,
+      "outcome": "pass",
+      "runtimeId": "21b71118-0b73-4bb0-8696-2ea63053001f",
+      "runId": "31f20dd8-4022-43cc-8ded-d0caa87fed68",
+      "durationMs": 69368
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "rep": 5,
+      "outcome": "pass",
+      "runtimeId": "4190df1f-8a63-4ea4-800d-8160791de402",
+      "runId": "d753fd50-4b17-4c69-8f9c-8d166118175e",
+      "durationMs": 69578
+    }
+  ]
+}

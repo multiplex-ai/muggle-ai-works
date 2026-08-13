@@ -49,6 +49,14 @@ const HELPERS_DIR = path.join(
   "_shared",
   "pr-followup-helpers",
 );
+const GITHUB_VCS_DIR = path.join(
+  REPO_ROOT,
+  "plugin",
+  "skills",
+  "_shared",
+  "vcs",
+  "github",
+);
 
 function read(...segments: string[]): string {
   return fs.readFileSync(path.join(...segments), "utf8");
@@ -478,9 +486,12 @@ describe("Edge case — comment kinds (file/line comments vs PR/body-only review
       contract.indexOf("### Step 4"),
     );
     expect(actionableStep).toMatch(/unresolved review threads/i);
-    // The reply is a nested reply on the line comment, in context.
+    // The reply is a nested reply on the line comment, in context. The endpoint
+    // itself lives in the shared recipe the step delegates to.
     expect(perCommentReplies).toMatch(/nested reply on the line comment/i);
-    expect(perCommentReplies).toMatch(/comments\/<comment-id>\/replies/);
+    expect(read(GITHUB_VCS_DIR, "reply-line-comment.md")).toMatch(
+      /comments\/<comment-id>\/replies/,
+    );
   });
 
   it("PR/body-only reviews are gated by the narrow watermark and answered via a top-level reference", () => {

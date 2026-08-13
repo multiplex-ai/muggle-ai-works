@@ -5,6 +5,7 @@ Provider-agnostic seam for the watcher and dev-cycle skills. A caller resolves o
 ## Index
 
 - [`detect-vcs.md`](detect-vcs.md) — resolve `github` | `gitlab` from a URL argument or the origin remote.
+- [`post-signature.md`](post-signature.md) — sign every posted body through `scripts/sign-body.sh`; provider-agnostic, required by every recipe below that writes a body.
 - [`github.md`](github.md) — `gh` / `git` recipe TOC; per-recipe files in [`github/`](github/).
 - [`gitlab.md`](gitlab.md) — `glab` / `git` recipe TOC; per-recipe files in [`gitlab/`](gitlab/).
 - `common/` — provider-agnostic entry points (`ci-rollup`, `branch-standing`, `push-to-branch`, `verify-working-tree`), indexed by both provider TOCs.

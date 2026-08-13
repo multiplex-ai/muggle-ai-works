@@ -23,6 +23,7 @@
     "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
     "verify:contracts": "node scripts/verify-compatibility-contracts.mjs",
     "verify:skill-deps": "node scripts/check-skill-deps.mjs",
+    "verify:signatures": "node scripts/check-post-signatures.mjs",
     "smoke:cli": "node scripts/smoke-cli.mjs",
     "verify:electron-release-checksums": "node scripts/verify-electron-release-checksums.mjs",
     "verify:upgrade-experience": "node scripts/verify-upgrade-experience.mjs",

@@ -31,10 +31,10 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - `## Changes` — summary of what changed in this repo.
    - `## Validation` — one line: link to E2E report, `unit-only`, or `skip — <reason>`.
    - **Walkthrough block** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, omit this block. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B and embed the returned `body` verbatim. No report → skip the block.
-   - **Signature** — end the body with the Muggle Works signature, editable-body form (the `<!-- muggle-works:signature -->` marker + line, command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). It is the last thing in the body, after the walkthrough block.
+   - **Signature** — write the assembled body to a file and sign it with `--command /muggle-do --mode editable` per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). The signature lands last, after the walkthrough block; `editable` is the mode a description carries so later refreshes replace it instead of stacking.
 
 4. **Create:** resolve the provider per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md).
-   - `github` → `gh pr create --title "..." --body "..." --head <branch>`. Capture the PR URL and number.
+   - `github` → `gh pr create --title "..." --body-file <signed-file> --head <branch>`, passing the file signed in Step 3. Capture the PR URL and number.
    - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
 
 5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 4 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.

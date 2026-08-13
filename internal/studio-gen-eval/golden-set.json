@@ -1,0 +1,102 @@
+{
+  "sourceProjectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+  "importedAt": "2026-08-12T22:51:05.900Z",
+  "cases": [
+    {
+      "testCaseId": "9027ffde-227e-47c2-8e17-cfe4a43e24ad",
+      "useCaseId": "59900b70-8bbc-4048-ab32-0acc5301e5bf",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "Click on radio button label to select",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure that the label click functionality works as intended for selecting radio buttons.",
+      "precondition": "User is on the test page with radio buttons and their labels displayed.",
+      "instructions": "Verify that clicking on the label text of a radio button selects the associated radio button.",
+      "expectedResult": "The associated radio button becomes selected when its label is clicked.",
+      "bodyHash": "5ebe74e50af03234"
+    },
+    {
+      "testCaseId": "345daf46-a776-4330-b714-1b1b952bea73",
+      "useCaseId": "1eb4c73b-fb17-4c4a-8239-82ce68358a33",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "User clears textarea content",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure that the textarea can be cleared of all content by the user.",
+      "precondition": "User is on the test page with the Textarea section visible and the textarea contains text.",
+      "instructions": "This test case verifies that when a user selects all text in the textarea and deletes it, the textarea becomes empty as expected.",
+      "expectedResult": "The textarea becomes empty after all text is selected and deleted.",
+      "bodyHash": "48158116ae9b10b4"
+    },
+    {
+      "testCaseId": "7749d360-0839-45d0-b3b7-87ffa5430c60",
+      "useCaseId": "a2144369-facf-4dc2-b8a5-ac646082d445",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "Confirm Color Selection",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure the color picker field reflects the confirmed color selection.",
+      "precondition": "User has selected a new color in the color picker dialog.",
+      "instructions": "Verify that when a user confirms their color selection, the color picker field updates to show the selected color value.",
+      "expectedResult": "The color picker field updates to show the selected color value.",
+      "bodyHash": "e4ef8afe5788b187"
+    },
+    {
+      "testCaseId": "c0bcd700-45a9-4429-8975-34f6c58c2d47",
+      "useCaseId": "4dc528ed-bae8-4a1b-b825-36f11e8b7a71",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "User toggles checkbox by clicking on label",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure that clicking on the label toggles the checkbox state.",
+      "precondition": "User is on the test page with the Checkbox section visible and the checkbox is in either checked or unchecked state.",
+      "instructions": "This test case verifies that when the user clicks on the label associated with the checkbox, it toggles the state of the checkbox (checked to unchecked or vice versa).",
+      "expectedResult": "The state of the checkbox changes after clicking on its associated label.",
+      "bodyHash": "02e6c1a81d6a87bc"
+    },
+    {
+      "testCaseId": "e0976e74-2c37-4ea7-a5ac-d668139bdb64",
+      "useCaseId": "a2144369-facf-4dc2-b8a5-ac646082d445",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "Select a New Color",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure the color picker updates to reflect the selected color.",
+      "precondition": "User has opened the color picker dialog.",
+      "instructions": "Verify that when a user selects a different color from the color picker dialog, the picker updates to display the newly selected color.",
+      "expectedResult": "The color picker displays the newly selected color.",
+      "bodyHash": "15b3efd4da2ecb86"
+    },
+    {
+      "testCaseId": "96c1c893-ca5d-4333-84af-fd93931f0167",
+      "useCaseId": "4dc528ed-bae8-4a1b-b825-36f11e8b7a71",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "User checks the terms and conditions checkbox",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure the checkbox can be checked by the user.",
+      "precondition": "User is on the test page with the Checkbox section visible and the checkbox is initially unchecked.",
+      "instructions": "This test case verifies that when the user clicks on the checkbox labeled 'I agree to the terms and conditions', the checkbox changes its state from unchecked to checked.",
+      "expectedResult": "The checkbox becomes checked after the user clicks on it.",
+      "bodyHash": "4d7d751a8cabd0fb"
+    },
+    {
+      "testCaseId": "f17c6242-d4e1-4fdc-8013-d1f11d067fe7",
+      "useCaseId": "1eb4c73b-fb17-4c4a-8239-82ce68358a33",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "User enters text in textarea",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure that text entered by the user is displayed in the textarea.",
+      "precondition": "User is on the test page with the Textarea section visible.",
+      "instructions": "This test case verifies that when a user clicks on the textarea labeled 'Enter some text' and types any text, the text is displayed within the textarea field as expected.",
+      "expectedResult": "The text entered by the user is displayed within the textarea field.",
+      "bodyHash": "7b694df5b20616db"
+    },
+    {
+      "testCaseId": "53ff1773-f39b-4cd1-be3c-3d48c94492ef",
+      "useCaseId": "59900b70-8bbc-4048-ab32-0acc5301e5bf",
+      "projectId": "301f55a9-64c0-404d-a8fa-7e28513a4b6e",
+      "title": "Select a radio button option",
+      "url": "https://firebasestorage.googleapis.com/v0/b/muggle-ai-action-script-uswest1/o/public%2Ftestpage_20260224.html?alt=media&token=f9aeae2d-53d6-493e-98c3-439207aa3dee",
+      "goal": "Ensure that the selected radio button reflects the user's choice.",
+      "precondition": "User is on the test page with the Radio Buttons section visible containing three radio options.",
+      "instructions": "Verify that when a user clicks on one of the three radio buttons (Radio25, Radio27, Radio29), that specific radio button becomes selected.",
+      "expectedResult": "The clicked radio button is selected and visually indicated as such.",
+      "bodyHash": "fb8bd1e6794e2bf4"
+    }
+  ]
+}

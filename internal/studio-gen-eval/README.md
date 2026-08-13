@@ -72,3 +72,31 @@ deliberately out of scope for now.
 `--flags` are forwarded on the generation request's `workflowParams.featureFlags`.
 Whether a given flag changes studio behaviour depends on backend support for that
 flag; the tool threads them through but does not itself guarantee an effect.
+
+## Regression baseline
+
+`golden-set.json` is committed, so a batch is reproducible and comparable over
+time. The baseline below is the reference point: re-run the batch after any
+change that could touch generation, and compare both numbers.
+
+- **Batch:** `gen-eval-2026-08-13T00-03-03` (2026-08-13)
+- **Golden set:** 8 cases from project `301f55a9-64c0-404d-a8fa-7e28513a4b6e`
+  ("Firebasestorage v0 Testing") — two each of radio, textarea, checkbox and
+  colour-picker, every case pinned to one frozen static test page so the
+  fixture cannot rot underneath the baseline.
+- **Runs per case:** 5 (40 reps), concurrency 2
+- **Overall pass-rate: 100.0%** over **38 scored reps**
+- **Infrastructure errors: 2** (bucket `crash`)
+
+Report: `reports/baseline-gen-eval-2026-08-13T00-03-03.md`.
+
+**Read the denominator, not just the rate.** Errors are excluded from the
+pass-rate, so a harness that drops reps still reports a healthy percentage — it
+just reports it over less evidence. A batch that scores well below 38 is a
+broken instrument, not a passing run, and must be investigated before its
+pass-rate is trusted. The first attempt at this baseline scored 11/40 and
+reported the same 100.0%; the missing 27 reps were generations the poll loop
+abandoned mid-restart.
+
+Keep `--concurrency` at 2. Higher fan-out trips the account lockout that shows
+up as `account-lockout` buckets and poisons the baseline.

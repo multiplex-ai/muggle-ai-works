@@ -40,6 +40,7 @@ describe("llm env overrides", () => {
         MUGGLE_LLM_BASE_URL: "http://localhost:11434/v1",
         MUGGLE_LLM_MODEL: "llava",
         MUGGLE_LLM_MAX_TOKENS: 4096,
+        MUGGLE_LLM_TOP_P: 0.9,
       },
     });
 
@@ -48,6 +49,7 @@ describe("llm env overrides", () => {
       MUGGLE_LLM_BASE_URL: "http://localhost:11434/v1",
       MUGGLE_LLM_MODEL: "llava",
       MUGGLE_LLM_MAX_TOKENS: "4096",
+      MUGGLE_LLM_TOP_P: "0.9",
     });
   });
 

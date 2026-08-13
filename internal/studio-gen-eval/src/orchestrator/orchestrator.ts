@@ -1,5 +1,5 @@
 import { POLL_INTERVAL_MS } from "../domain/constants.js";
-import { classifyRun, isTerminal } from "../scorer/scorer.js";
+import { classifyRun, isRunSettled } from "../scorer/scorer.js";
 import {
   type BackendClient,
   type BackendRunData,
@@ -59,10 +59,7 @@ async function pollToTerminal (
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const run = await client.getLatestRun(runtimeId);
-    if (run !== null) {
-      const status = typeof run.status === "string" ? run.status : undefined;
-      if (isTerminal(status) || run.studioReturnedResult?.status) return run;
-    }
+    if (run !== null && isRunSettled(run)) return run;
     if (Date.now() >= deadline) return "timeout";
     await sleep(POLL_INTERVAL_MS);
   }
@@ -151,9 +148,9 @@ export async function runBatch (
       const i = next++;
       if (i >= tasks.length) return;
       const task = tasks[i];
-      const result = await runOne(client, task.c, task.rep, config);
-      results.push(result);
-      hooks.onRepDone?.(result);
+      const repResult = await runOne(client, task.c, task.rep, config);
+      results.push(repResult);
+      hooks.onRepDone?.(repResult);
     }
   };
   const workers = Math.max(1, Math.min(config.concurrency, tasks.length));

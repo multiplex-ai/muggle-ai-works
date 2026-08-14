@@ -181,8 +181,17 @@ while :; do
         continue
     fi
 
-    IFS=$'\t' read -r pr_state head_sha base_sha mergeable latest_review latest_comment \
-        unresolved_threads pending_checks failed_checks ci_digest <<< "$state_line"
+    mapfile -t state_fields < <(watch_split_state "$state_line")
+    pr_state="${state_fields[0]-}"
+    head_sha="${state_fields[1]-}"
+    base_sha="${state_fields[2]-}"
+    mergeable="${state_fields[3]-}"
+    latest_review="${state_fields[4]-}"
+    latest_comment="${state_fields[5]-}"
+    unresolved_threads="${state_fields[6]-}"
+    pending_checks="${state_fields[7]-}"
+    failed_checks="${state_fields[8]-}"
+    ci_digest="${state_fields[9]-}"
 
     if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
         echo "TERMINAL pr=$pr_number state=$pr_state"

@@ -10,6 +10,18 @@ import { fileURLToPath } from "url";
 
 import { getDataDir as getSharedDataDir } from "./data-dir.js";
 import { readReleaseManifest } from "./release_manifest.js";
+import { DEFAULT_AUTH0_SCOPE, DEFAULT_WEB_SERVICE_URL } from "./runtime-target-constants.js";
+import {
+  resolveActiveProfile,
+  resolveActiveReleaseStream,
+  resolveActiveReleaseTagPrefix,
+  resolveRuntimeTarget,
+} from "./runtime-target.js";
+import {
+  ElectronAppReleaseStream,
+  RuntimeTarget,
+  type IRuntimeTargetProfile,
+} from "./runtime-target-types.js";
 import type {
   IAuth0Config,
   IConfig,
@@ -19,53 +31,17 @@ import type {
   IE2eConfig,
 } from "./types.js";
 
-/** Default prompt service URL (cloud API). */
-const DEFAULT_PROMPT_SERVICE_PRODUCTION_URL = "https://promptservice.muggle-ai.com";
-
-/** Default prompt service URL for local development usage. */
-const DEFAULT_PROMPT_SERVICE_DEV_URL = "http://localhost:5050";
-
-/** Default web-service URL (local test execution). */
-const DEFAULT_WEB_SERVICE_URL = "http://localhost:3001";
-
 /** Subdirectory for downloaded electron-app binaries. */
 const ELECTRON_APP_DIR = "electron-app";
 
-/** Prefix for electron-app release tags. */
-const ELECTRON_APP_RELEASE_TAG_PREFIX = "electron-app-v";
-
 /** API key storage file name. */
 const API_KEY_FILE = "api-key.json";
-
-/** Default Auth0 domain (custom domain for production). */
-const DEFAULT_AUTH0_PRODUCTION_DOMAIN = "login.muggle-ai.com";
-
-/** Default Auth0 client ID (Native app with Device Code grant) for production. */
-const DEFAULT_AUTH0_PRODUCTION_CLIENT_ID = "UgG5UjoyLksxMciWWKqVpwfWrJ4rFvtT";
-
-/** Default Auth0 audience for production. */
-const DEFAULT_AUTH0_PRODUCTION_AUDIENCE = "https://muggleai.us.auth0.com/api/v2/";
-
-/** Default Auth0 domain for local development. */
-const DEFAULT_AUTH0_DEV_DOMAIN = "dev-po4mxmz0rd8a0w8w.us.auth0.com";
-
-/** Default Auth0 client ID for local development. */
-const DEFAULT_AUTH0_DEV_CLIENT_ID = "GBvkMdTbCI80XJXnJ90MmbEvXwcWGUtw";
-
-/** Default Auth0 audience for local development. */
-const DEFAULT_AUTH0_DEV_AUDIENCE = "https://dev-po4mxmz0rd8a0w8w.us.auth0.com/api/v2/";
-
-/** Default Auth0 scopes. */
-const DEFAULT_AUTH0_SCOPE = "openid profile email offline_access";
 
 /** Cached configuration instance. */
 let configInstance: IConfig | null = null;
 
 /** Cached muggle config from package.json. */
 let muggleConfigCache: IMuggleConfig | null = null;
-
-/** Allowed runtime targets for PromptService defaults. */
-type PromptServiceRuntimeTarget = "production" | "dev";
 
 /**
  * Resolve the package root directory from the current module location.
@@ -89,8 +65,10 @@ function getPackageRoot(): string {
   }
 
   if (currentDir.includes(path.join("src", "shared"))) {
-    // Navigate up from src/shared to package root (2 levels)
-    return path.resolve(currentDir, "..", "..");
+    // packages/mcps/src/shared -> repository root (4 levels). The nested
+    // packages/mcps/package.json carries no muggleConfig, so stopping short
+    // makes every config read fail outside a bundled build.
+    return path.resolve(currentDir, "..", "..", "..", "..");
   }
 
   return path.dirname(currentDir);
@@ -153,16 +131,17 @@ function getMuggleConfig(): IMuggleConfig {
     );
   }
 
+  const runtimeTargetDefault = config.runtimeTargetDefault as RuntimeTarget | undefined;
+
   if (
-    config.runtimeTargetDefault !== undefined &&
-    config.runtimeTargetDefault !== "production" &&
-    config.runtimeTargetDefault !== "dev"
+    runtimeTargetDefault !== undefined &&
+    !Object.values(RuntimeTarget).includes(runtimeTargetDefault)
   ) {
     throw new Error(
       `Invalid muggleConfig.runtimeTargetDefault in package.json.\n` +
         `  Path: ${packageJsonPath}\n` +
         `  Value: ${JSON.stringify(config.runtimeTargetDefault)}\n` +
-        `  Expected: "production" or "dev"\n` +
+        `  Expected one of: ${Object.values(RuntimeTarget).join(", ")}\n` +
         `  This is a bug - please report it.`,
     );
   }
@@ -170,8 +149,9 @@ function getMuggleConfig(): IMuggleConfig {
   muggleConfigCache = {
     electronAppVersion: config.electronAppVersion,
     downloadBaseUrl: config.downloadBaseUrl,
-    checksums: (config.checksums as IMuggleConfigChecksums) || {},
-    runtimeTargetDefault: config.runtimeTargetDefault as PromptServiceRuntimeTarget | undefined,
+    checksumsByStream:
+      (config.checksumsByStream as IMuggleConfig["checksumsByStream"]) || {},
+    runtimeTargetDefault: runtimeTargetDefault,
   };
 
   return muggleConfigCache;
@@ -317,81 +297,19 @@ function parseInteger(value: string | undefined, defaultValue: number): number {
 }
 
 /**
- * Resolve runtime target for prompt-service defaults.
- * Priority order:
- * 1. MUGGLE_MCP_PROMPT_SERVICE_TARGET env var ("production" | "dev")
- * 2. muggleConfig.runtimeTargetDefault from package.json
- * 3. Default fallback -> "dev"
- * @returns Prompt service runtime target.
+ * Get the runtime target this harness build is pointing at.
+ * @returns The active runtime target.
  */
-function getPromptServiceRuntimeTarget(): PromptServiceRuntimeTarget {
-  const runtimeTargetFromEnv = process.env.MUGGLE_MCP_PROMPT_SERVICE_TARGET;
-
-  if (runtimeTargetFromEnv) {
-    if (runtimeTargetFromEnv === "production" || runtimeTargetFromEnv === "dev") {
-      return runtimeTargetFromEnv;
-    }
-
-    throw new Error(
-      `Invalid MUGGLE_MCP_PROMPT_SERVICE_TARGET value: '${runtimeTargetFromEnv}'. ` +
-        "Expected 'production' or 'dev'.",
-    );
-  }
-
-  const muggleConfig = getMuggleConfig();
-  if (muggleConfig.runtimeTargetDefault) {
-    return muggleConfig.runtimeTargetDefault;
-  }
-
-  return "dev";
+export function getActiveRuntimeTarget(): RuntimeTarget {
+  return resolveRuntimeTarget(getMuggleConfig().runtimeTargetDefault);
 }
 
 /**
- * Get default prompt-service URL based on runtime target.
- * @returns Default prompt-service URL.
+ * Get the configuration profile for the active runtime target.
+ * @returns The active target's profile.
  */
-function getDefaultPromptServiceUrl(): string {
-  const runtimeTarget = getPromptServiceRuntimeTarget();
-  if (runtimeTarget === "dev") {
-    return DEFAULT_PROMPT_SERVICE_DEV_URL;
-  }
-  return DEFAULT_PROMPT_SERVICE_PRODUCTION_URL;
-}
-
-/**
- * Get default Auth0 domain based on runtime target.
- * @returns Default Auth0 domain.
- */
-function getDefaultAuth0Domain(): string {
-  const runtimeTarget = getPromptServiceRuntimeTarget();
-  if (runtimeTarget === "dev") {
-    return DEFAULT_AUTH0_DEV_DOMAIN;
-  }
-  return DEFAULT_AUTH0_PRODUCTION_DOMAIN;
-}
-
-/**
- * Get default Auth0 client ID based on runtime target.
- * @returns Default Auth0 client ID.
- */
-function getDefaultAuth0ClientId(): string {
-  const runtimeTarget = getPromptServiceRuntimeTarget();
-  if (runtimeTarget === "production") {
-    return DEFAULT_AUTH0_PRODUCTION_CLIENT_ID;
-  }
-  return DEFAULT_AUTH0_DEV_CLIENT_ID;
-}
-
-/**
- * Get default Auth0 audience based on runtime target.
- * @returns Default Auth0 audience.
- */
-function getDefaultAuth0Audience(): string {
-  const runtimeTarget = getPromptServiceRuntimeTarget();
-  if (runtimeTarget === "dev") {
-    return DEFAULT_AUTH0_DEV_AUDIENCE;
-  }
-  return DEFAULT_AUTH0_PRODUCTION_AUDIENCE;
+function getActiveProfile(): IRuntimeTargetProfile {
+  return resolveActiveProfile(getMuggleConfig().runtimeTargetDefault);
 }
 
 /**
@@ -399,14 +317,12 @@ function getDefaultAuth0Audience(): string {
  * @returns Auth0 configuration.
  */
 function buildAuth0Config(): IAuth0Config {
-  const defaultAuth0Domain = getDefaultAuth0Domain();
-  const defaultAuth0ClientId = getDefaultAuth0ClientId();
-  const defaultAuth0Audience = getDefaultAuth0Audience();
+  const activeProfile = getActiveProfile();
 
   return {
-    domain: process.env.AUTH0_DOMAIN ?? defaultAuth0Domain,
-    clientId: process.env.AUTH0_CLIENT_ID ?? defaultAuth0ClientId,
-    audience: process.env.AUTH0_AUDIENCE ?? defaultAuth0Audience,
+    domain: process.env.AUTH0_DOMAIN ?? activeProfile.auth0Domain,
+    clientId: process.env.AUTH0_CLIENT_ID ?? activeProfile.auth0ClientId,
+    audience: process.env.AUTH0_AUDIENCE ?? activeProfile.auth0Audience,
     scope: process.env.AUTH0_SCOPE ?? DEFAULT_AUTH0_SCOPE,
   };
 }
@@ -416,10 +332,9 @@ function buildAuth0Config(): IAuth0Config {
  * @returns Cloud E2E acceptance gateway configuration.
  */
 function buildE2eConfig(): IE2eConfig {
-  const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
-
   return {
-    promptServiceBaseUrl: process.env.PROMPT_SERVICE_BASE_URL ?? defaultPromptServiceUrl,
+    promptServiceBaseUrl:
+      process.env.PROMPT_SERVICE_BASE_URL ?? getActiveProfile().promptServiceBaseUrl,
     requestTimeoutMs: parseInteger(process.env.REQUEST_TIMEOUT_MS, 30000),
     workflowTimeoutMs: parseInteger(process.env.WORKFLOW_TIMEOUT_MS, 120000),
   };
@@ -432,14 +347,11 @@ function buildE2eConfig(): IE2eConfig {
 function buildLocalQaConfig(): ILocalQaConfig {
   const dataDir = getDataDir();
   const auth0Scopes = (process.env.AUTH0_SCOPE ?? DEFAULT_AUTH0_SCOPE).split(" ");
-  const defaultPromptServiceUrl = getDefaultPromptServiceUrl();
-  const defaultAuth0Domain = getDefaultAuth0Domain();
-  const defaultAuth0ClientId = getDefaultAuth0ClientId();
-  const defaultAuth0Audience = getDefaultAuth0Audience();
+  const activeProfile = getActiveProfile();
 
   return {
     webServiceUrl: process.env.WEB_SERVICE_URL ?? DEFAULT_WEB_SERVICE_URL,
-    promptServiceUrl: process.env.PROMPT_SERVICE_BASE_URL ?? defaultPromptServiceUrl,
+    promptServiceUrl: process.env.PROMPT_SERVICE_BASE_URL ?? activeProfile.promptServiceBaseUrl,
     dataDir: dataDir,
     sessionsDir: path.join(dataDir, "sessions"),
     projectsDir: path.join(dataDir, "projects"),
@@ -449,9 +361,9 @@ function buildLocalQaConfig(): ILocalQaConfig {
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),
     auth0: {
-      domain: process.env.AUTH0_DOMAIN ?? defaultAuth0Domain,
-      clientId: process.env.AUTH0_CLIENT_ID ?? defaultAuth0ClientId,
-      audience: process.env.AUTH0_AUDIENCE ?? defaultAuth0Audience,
+      domain: process.env.AUTH0_DOMAIN ?? activeProfile.auth0Domain,
+      clientId: process.env.AUTH0_CLIENT_ID ?? activeProfile.auth0ClientId,
+      audience: process.env.AUTH0_AUDIENCE ?? activeProfile.auth0Audience,
       scopes: auth0Scopes,
     },
   };
@@ -574,12 +486,28 @@ export function getDownloadBaseUrl(): string {
 }
 
 /**
+ * Get the electron-app release stream the active runtime target installs from.
+ * @returns The active release stream.
+ */
+export function getActiveElectronAppReleaseStream(): ElectronAppReleaseStream {
+  return resolveActiveReleaseStream(getMuggleConfig().runtimeTargetDefault);
+}
+
+/**
+ * Get the electron-app release tag prefix for the active runtime target.
+ * @returns Release tag prefix (for example, "electron-app-v").
+ */
+export function getElectronAppReleaseTagPrefix(): string {
+  return resolveActiveReleaseTagPrefix(getMuggleConfig().runtimeTargetDefault);
+}
+
+/**
  * Build electron-app release tag from a version string.
  * @param version - Version string (for example, "1.0.28").
  * @returns Release tag (for example, "electron-app-v1.0.28").
  */
 export function buildElectronAppReleaseTag(version: string): string {
-  return `${ELECTRON_APP_RELEASE_TAG_PREFIX}${version}`;
+  return `${getElectronAppReleaseTagPrefix()}${version}`;
 }
 
 /**
@@ -606,11 +534,15 @@ export function buildElectronAppChecksumsUrl(version: string): string {
 }
 
 /**
- * Get the checksums for electron-app binaries.
- * @returns Checksums map by platform, or undefined if not configured.
+ * Get the checksums for the active electron-app release stream.
+ *
+ * Keyed by stream rather than by runtime target because dev and production
+ * install the same studio binary; keying by target would leave dev with no
+ * recorded hashes and silently skip verification.
+ * @returns Checksums map by platform, or undefined when the stream records none.
  */
 export function getElectronAppChecksums(): IMuggleConfigChecksums | undefined {
-  return getMuggleConfig().checksums;
+  return getMuggleConfig().checksumsByStream?.[getActiveElectronAppReleaseStream()];
 }
 
 /**

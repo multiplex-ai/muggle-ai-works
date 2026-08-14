@@ -3,7 +3,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 const getAuthStatus = vi.fn();
 
 vi.mock("../../../packages/mcps/src/index.js", () => ({
+  assertDeviceCodeClientProvisioned: vi.fn(),
+  getActiveRuntimeTarget: vi.fn(() => "production"),
   getAuthService: vi.fn(() => ({ getAuthStatus })),
+  getConfig: vi.fn(() => ({ e2e: { promptServiceBaseUrl: "https://promptservice.muggle-ai.com" } })),
   getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
   hasApiKey: vi.fn(),
   performLogin: vi.fn(),

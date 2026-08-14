@@ -40,6 +40,55 @@ function wake(call: string): string {
   }
 }
 
+/**
+ * Splits a state line and returns the fields. Deliberately not trimmed — a
+ * trailing empty field is exactly what a trimming helper would hide.
+ */
+function splitState(line: string): string[] {
+  const stdout = execFileSync("bash", ["-c", `source "$SCRIPT"; watch_split_state "$LINE"`], {
+    env: { ...process.env, SCRIPT: scriptPath, LINE: line },
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  return stdout.split("\n").slice(0, -1);
+}
+
+describe.skipIf(!hasBash)("watch_split_state", () => {
+  it("preserves an empty field instead of collapsing it", () => {
+    // `IFS=$'\t' read` returns ["a","b"] here: tab is IFS whitespace, so the two
+    // adjacent tabs collapse into one delimiter and "b" shifts into slot 1.
+    expect(splitState("a\t\tb")).toEqual(["a", "", "b"]);
+  });
+
+  it("keeps every later field in place when the thread list is empty", () => {
+    // The production shape, with no unresolved thread. Field 6 is the thread
+    // list; the shift used to put pending_checks (2) there and fire a thread
+    // wake for a PR with no threads, while the digest landed in failed_checks.
+    const fields = splitState(
+      ["OPEN", "headsha", "basesha", "MERGEABLE", "0", "0", "", "2", "1", "build:PENDING"].join(
+        "\t",
+      ),
+    );
+    expect(fields).toHaveLength(10);
+    expect(fields[6]).toBe("");
+    expect(fields[7]).toBe("2");
+    expect(fields[8]).toBe("1");
+    expect(fields[9]).toBe("build:PENDING");
+  });
+
+  it("preserves runs of empty fields and a trailing empty field", () => {
+    expect(splitState("a\t\t\tb\t")).toEqual(["a", "", "", "b", ""]);
+  });
+
+  it("keeps a populated thread list intact", () => {
+    const fields = splitState(
+      ["OPEN", "h", "b", "MERGEABLE", "5", "6", "PRRT_a;PRRT_b", "0", "0", "d"].join("\t"),
+    );
+    expect(fields[6]).toBe("PRRT_a;PRRT_b");
+    expect(fields[9]).toBe("d");
+  });
+});
+
 describe.skipIf(!hasBash)("watch_wake_rebase", () => {
   // The regression this whole file exists for.
   it("wakes on a branch that is merely behind, which reports MERGEABLE", () => {

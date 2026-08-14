@@ -97,6 +97,82 @@ class TestParseRouteFromSession(unittest.TestCase):
         self.assertEqual(router_eval.parse_route_from_session(out), router_eval.NONE)
 
 
+class TestRealRouteOutranksToolSignal(unittest.TestCase):
+    def test_muggle_toolsearch_before_the_skill_scores_the_skill(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "select:muggle-remote-project-list"}),
+            assistant_event("Skill", {"skill": "muggle:muggle-test"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-test")
+
+    def test_muggle_mcp_tool_before_the_skill_scores_the_skill(self):
+        out = session(
+            assistant_event("mcp__plugin_muggle_muggle__muggle-remote-project-list", {}),
+            assistant_event("Skill", {"skill": "muggle-do"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-do")
+
+    def test_muggle_toolsearch_before_a_skill_md_read_scores_the_skill(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "select:muggle-remote-project-list"}),
+            assistant_event("Read", {"file_path": "C:\repo\plugin\skills\muggle-status\SKILL.md"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-status")
+
+    def test_tool_signal_and_skill_in_one_turn_score_the_skill(self):
+        out = json.dumps({
+            "type": "assistant",
+            "message": {"content": [
+                {"type": "tool_use", "name": "ToolSearch", "input": {"query": "muggle"}},
+                {"type": "tool_use", "name": "Skill", "input": {"skill": "muggle-test"}},
+            ]},
+        })
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-test")
+
+    def test_muggle_toolsearch_with_no_skill_anywhere_still_falls_back(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "select:muggle-remote-project-list"}),
+            assistant_event("Bash", {"command": "ls"}),
+            json.dumps({"type": "result", "result": "answered directly"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-tools")
+
+    def test_muggle_mcp_tool_with_no_skill_anywhere_still_falls_back(self):
+        out = session(
+            assistant_event("mcp__plugin_muggle_muggle__muggle-remote-project-list", {}),
+            assistant_event("Bash", {"command": "ls"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-mcp-tool")
+
+    def test_first_of_two_skill_invocations_wins(self):
+        out = session(
+            assistant_event("Skill", {"skill": "muggle-test"}),
+            assistant_event("Skill", {"skill": "muggle-do"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-test")
+
+    def test_a_skill_md_read_beats_a_later_skill_invocation(self):
+        out = session(
+            assistant_event("Read", {"file_path": "C:\repo\plugin\skills\muggle-status\SKILL.md"}),
+            assistant_event("Skill", {"skill": "muggle-test"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-status")
+
+    def test_first_tool_signal_wins_when_the_session_never_routes(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "select:muggle-remote-project-list"}),
+            assistant_event("mcp__plugin_muggle_muggle__muggle-remote-project-list", {}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-tools")
+
+    def test_session_touching_nothing_muggle_is_none(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "notebook jupyter"}),
+            assistant_event("Bash", {"command": "ls"}),
+        )
+        self.assertEqual(router_eval.parse_route_from_session(out), router_eval.NONE)
+
+
 class TestToolRoutesAgainstScoring(unittest.TestCase):
     def test_tool_routes_fail_the_negative_class(self):
         self.assertFalse(scored_pass(router_eval.NONE, "muggle-mcp-tool"))
@@ -113,6 +189,13 @@ class TestToolRoutesAgainstScoring(unittest.TestCase):
         )
         route = router_eval.parse_route_from_session(out)
         self.assertFalse(scored_pass(router_eval.NONE, route))
+
+    def test_a_skill_after_a_tool_signal_passes_its_positive_query(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "select:muggle-remote-project-list"}),
+            assistant_event("Skill", {"skill": "muggle-test"}),
+        )
+        self.assertTrue(scored_pass("muggle-test", router_eval.parse_route_from_session(out)))
 
     def test_a_non_muggle_skill_still_passes_the_negative_class(self):
         out = session(

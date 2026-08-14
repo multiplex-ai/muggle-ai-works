@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  # Superseded PR pushes are dead work. Master runs are per-commit history, so
+  # they always run to completion.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest

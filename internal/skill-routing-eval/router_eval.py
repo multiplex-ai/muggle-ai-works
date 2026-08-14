@@ -67,15 +67,8 @@ def _route_from_path(path: str) -> str:
     return normalize_skill(m.group(1)) if m else ""
 
 
-def parse_route_from_session(out: str) -> str:
-    """First route reached anywhere in the session, or NONE if it never routed.
-
-    A realistic query makes the model orient (`git status`, `ls`) before it
-    routes, so a scan that stops at the first tool_use scores a healthy session
-    as a miss.
-
-    Output shape: `"muggle-test"`
-    """
+def _iter_tool_calls(out: str):
+    """Yields `(tool_name, tool_input)` for every tool_use block, in stream order."""
     for line in out.splitlines():
         line = line.strip()
         if not line:
@@ -89,27 +82,49 @@ def parse_route_from_session(out: str) -> str:
         for content_block in event.get("message", {}).get("content", []):
             if content_block.get("type") != "tool_use":
                 continue
-            tool_name = content_block.get("name", "")
-            tool_input = content_block.get("input") or {}
-            if tool_name == "Skill":
-                skill = normalize_skill(tool_input.get("skill", ""))
-                if skill:
-                    return skill
-            if tool_name == "Read":
-                skill = _route_from_path(tool_input.get("file_path", ""))
-                if skill:
-                    return skill
-            # Muggle ships its MCP tools deferred, so a healthy session often
-            # loads them via ToolSearch before invoking anything else. Reaching
-            # for a muggle tool proves the plugin is loaded and routable just as
-            # a Skill call does. Both spellings start with "muggle", so they miss
-            # a positive query expecting a named skill and correctly fail the
-            # negative class, which passes only when nothing muggle fires.
-            if tool_name.startswith("mcp__") and "muggle" in tool_name:
-                return "muggle-mcp-tool"
-            if tool_name == "ToolSearch" and "muggle" in str(tool_input).lower():
-                return "muggle-tools"
-    return NONE
+            yield content_block.get("name", ""), content_block.get("input") or {}
+
+
+def _route_from_tool_call(tool_name: str, tool_input: dict) -> str:
+    """Skill named by an invocation or by a SKILL.md read, or "" when the call is not a route."""
+    if tool_name == "Skill":
+        return normalize_skill(tool_input.get("skill", ""))
+    if tool_name == "Read":
+        return _route_from_path(tool_input.get("file_path", ""))
+    return ""
+
+
+def _muggle_tool_signal(tool_name: str, tool_input: dict) -> str:
+    """`"muggle-mcp-tool"` or `"muggle-tools"` when the call reaches for muggle tooling, else ""."""
+    if tool_name.startswith("mcp__") and "muggle" in tool_name:
+        return "muggle-mcp-tool"
+    if tool_name == "ToolSearch" and "muggle" in str(tool_input).lower():
+        return "muggle-tools"
+    return ""
+
+
+def parse_route_from_session(out: str) -> str:
+    """First route reached anywhere in the session, or NONE if it never routed.
+
+    A realistic query makes the model orient (`git status`, `ls`) before it
+    routes, so a scan that stops at the first tool_use scores a healthy session
+    as a miss. Muggle ships its MCP tools deferred, so a healthy session often
+    loads them via ToolSearch before invoking anything else; that proves the
+    plugin is loaded but not which skill won, so it only stands in when the whole
+    session invoked no skill. Both of its spellings start with "muggle", so they
+    miss a positive query expecting a named skill and correctly fail the negative
+    class, which passes only when nothing muggle fires.
+
+    Output shape: `"muggle-test"`
+    """
+    muggle_tool_signal = ""
+    for tool_name, tool_input in _iter_tool_calls(out):
+        route = _route_from_tool_call(tool_name, tool_input)
+        if route:
+            return route
+        if not muggle_tool_signal:
+            muggle_tool_signal = _muggle_tool_signal(tool_name, tool_input)
+    return muggle_tool_signal or NONE
 
 
 def stream_error_text(out: str) -> str:

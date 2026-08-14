@@ -16,6 +16,21 @@
 # Each caller owns its own floor and advances it only on a real wake, so one
 # occurrence fires exactly once.
 
+# Splits the tab-separated state line into its fields, one per line, preserving
+# empty ones. Not a wake, but every wake below reads its arguments out of this.
+#
+# `IFS=$'\t' read` cannot do it: tab is an IFS *whitespace* character, so bash
+# collapses runs of tabs into a single delimiter, and the two adjacent tabs an
+# empty field produces silently shift every later field left. With no unresolved
+# thread — the common case, and also what a push leaves behind once its thread
+# goes outdated — the thread field is empty, so the pending-check count lands in
+# unresolved_threads and fires a thread wake for a PR with no threads, while the
+# check digest lands in failed_checks and leaves red-CI detection reading a
+# string where it expects a count. awk with an explicit FS does not collapse.
+watch_split_state() {
+    printf '%s\n' "$1" | awk -F'\t' '{for (i = 1; i <= NF; i++) print $i}'
+}
+
 # A submitted review newer than the floor. Monotonic ids, so `>` is the whole
 # test. PENDING (unsubmitted) reviews are excluded by the caller's query — they
 # are the reviewer's own drafts and are not feedback until submitted.

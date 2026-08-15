@@ -1,10 +1,20 @@
 import json
 import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import router_eval
 from scoring import scored_pass
+
+SKILL_FIXTURE_TEMPLATE = '''---
+name: {name}
+description: {description}
+---
+
+# {name}
+'''
 
 
 def assistant_event(tool_name: str, tool_input: dict) -> str:
@@ -284,6 +294,106 @@ class TestFormatRunProgress(unittest.TestCase):
     def test_line_is_ascii_so_windows_consoles_can_encode_it(self):
         line = router_eval.format_run_progress(1, 3, "q", "none", "none")
         line.encode("ascii")
+
+
+class TestAliasRoutesResolveToCanonical(unittest.TestCase):
+    def test_alias_skill_invocation_scores_the_canonical_skill(self):
+        out = assistant_event("Skill", {"skill": "muggle:mfeedback"})
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-feedback")
+
+    def test_bare_alias_name_scores_the_canonical_skill(self):
+        out = assistant_event("Skill", {"skill": "mupgrade"})
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-upgrade")
+
+    def test_canonical_skill_invocation_passes_through(self):
+        out = assistant_event("Skill", {"skill": "muggle:muggle-test"})
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-test")
+
+    def test_non_muggle_skill_passes_through(self):
+        out = assistant_event("Skill", {"skill": "superpowers:brainstorming"})
+        self.assertEqual(router_eval.parse_route_from_session(out), "brainstorming")
+
+    def test_a_name_that_is_no_alias_passes_through(self):
+        self.assertEqual(router_eval.resolve_alias_route("mnevershipped"), "mnevershipped")
+        self.assertEqual(router_eval.resolve_alias_route(""), "")
+
+    def test_read_of_an_alias_skill_md_scores_the_canonical_skill(self):
+        out = assistant_event("Read", {"file_path": "/repo/plugin/skills/mtestlocal/SKILL.md"})
+        self.assertEqual(router_eval.parse_route_from_session(out), "muggle-test-feature-local")
+
+    def test_alias_after_orienting_still_scores_the_canonical_skill(self):
+        out = session(
+            assistant_event("Bash", {"command": "git status"}),
+            assistant_event("Skill", {"skill": "muggle:mregen"}),
+        )
+        self.assertEqual(
+            router_eval.parse_route_from_session(out), "muggle-test-regenerate-missing"
+        )
+
+    def test_every_shipped_alias_targets_a_canonical_muggle_skill(self):
+        self.assertTrue(router_eval.ALIAS_TO_CANONICAL)
+        for alias, canonical in router_eval.ALIAS_TO_CANONICAL.items():
+            self.assertTrue(canonical.startswith("muggle"), alias)
+            self.assertNotIn(canonical, router_eval.ALIAS_TO_CANONICAL)
+
+
+class TestAliasRoutesAgainstScoring(unittest.TestCase):
+    def test_alias_route_passes_its_canonical_positive_query(self):
+        out = assistant_event("Skill", {"skill": "muggle:mfeedback"})
+        self.assertTrue(scored_pass("muggle-feedback", router_eval.parse_route_from_session(out)))
+
+    def test_alias_route_fails_the_negative_class(self):
+        out = assistant_event("Skill", {"skill": "muggle:mfeedback"})
+        route = router_eval.parse_route_from_session(out)
+        self.assertFalse(scored_pass(router_eval.NONE, route))
+
+    def test_alias_route_is_marked_a_miss_on_a_negative_query(self):
+        out = assistant_event("Skill", {"skill": "muggle:mtest"})
+        route = router_eval.parse_route_from_session(out)
+        self.assertIn("MISS", router_eval.format_run_progress(1, 3, "q", route, router_eval.NONE))
+
+
+class TestBuildAliasToCanonical(unittest.TestCase):
+    def _write_skill(self, skills_dir, name, description):
+        skill_dir = skills_dir / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            SKILL_FIXTURE_TEMPLATE.format(name=name, description=description),
+            encoding="utf-8",
+        )
+
+    def test_map_is_derived_from_frontmatter_declarations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            skills_dir = Path(tmp)
+            self._write_skill(
+                skills_dir,
+                "xshort",
+                "Explicit short alias for the `example-canonical` skill. ONLY invoke when"
+                " the user explicitly types `xshort`.",
+            )
+            self._write_skill(
+                skills_dir, "example-canonical", "Does the real work and delegates to nothing."
+            )
+            self.assertEqual(
+                router_eval.build_alias_to_canonical(skills_dir),
+                {"xshort": "example-canonical"},
+            )
+
+    def test_declaration_outside_the_description_is_not_an_alias(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            skills_dir = Path(tmp)
+            self._write_skill(skills_dir, "example-canonical", "Does the real work.")
+            body = skills_dir / "example-canonical" / "SKILL.md"
+            body.write_text(
+                body.read_text(encoding="utf-8")
+                + "Users may reach this via an alias for the `example-canonical` skill.",
+                encoding="utf-8",
+            )
+            self.assertEqual(router_eval.build_alias_to_canonical(skills_dir), {})
+
+    def test_missing_skills_dir_yields_an_empty_map(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(router_eval.build_alias_to_canonical(Path(tmp) / "absent"), {})
 
 
 if __name__ == "__main__":

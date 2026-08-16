@@ -14,7 +14,9 @@ Measures whether each muggle skill's `description` (its "entrance") routes the r
 
 ## Harness
 
-For each query it runs `claude -p "<query>" --max-turns 1` inside this repo, where the muggle plugin is active and all skills compete. It parses the streamed events for the first tool call: if Claude invokes the `Skill` tool, the chosen skill name is the route; otherwise the route is `none`. `--max-turns 1` stops execution right after the routing decision, so no skill body ever runs — there are no side effects. Every query runs N times (default 3) and the majority route is scored against `expected_skill`.
+For each query it runs `claude -p "<query>"` inside this repo, where the muggle plugin is active and all skills compete, capped at `SESSION_MAX_TURNS` turns. It scans the whole session and takes the first route it reaches — a `Skill` invocation, or a `Read` of a skill's `SKILL.md` — because a realistic query makes the model orient (`git status`, `ls`) before it routes, and scoring only the first tool call reports a healthy session as `none`. A route naming one of the thin alias skills (`mfeedback`, `mupgrade`, …) resolves to the canonical skill it delegates to. Failing that, a muggle MCP call or a muggle `ToolSearch` counts as a coarse `muggle-*` signal; otherwise the route is `none`. Every query runs N times (default 3) and the majority route is scored against `expected_skill`.
+
+The turn cap is what bounds side effects, and it is a budget rather than a guarantee: one turn is spent routing, so a skill body can begin on the turn that follows. Runs are cheap to keep contained — point `--repo-root` at a throwaway directory, as CI does.
 
 This is faithful in a way isolated single-skill triggering tests are not: it catches cross-skill collisions (two skills both plausibly match, the wrong one wins), which are the dominant failure mode for a family of sibling skills.
 
@@ -57,7 +59,7 @@ CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GI
 
 ## Regression gate
 
-Routing is stochastic and master is not perfect: the nightly sweep scores 337/391 = 86.2%, per-skill recall spans 29% to 100%, and re-measuring one unchanged description landed its chunk on 19, 20, 20 and 22 of 26 queries across four consecutive CI runs. An absolute pass bar is therefore either unreachable or meaningless, so CI gates on movement instead.
+Routing is stochastic and master is not perfect: the nightly sweep scored 337/391 = 86.2% when this gate was written, per-skill recall spans roughly 30% to 100%, and re-measuring one unchanged description landed its chunk on 19, 20, 20 and 22 of 26 queries across four consecutive CI runs. An absolute pass bar is therefore either unreachable or meaningless, so CI gates on movement instead.
 
 `recall-baseline.json` holds each skill's `{passed, total}` from a full sweep on master. A gated run judges every skill it measured against its entry and fails on:
 

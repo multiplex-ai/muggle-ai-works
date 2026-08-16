@@ -35,6 +35,54 @@ PROGRESS_QUERY_CHARS = 140
 # before the route ever reaches the stream.
 SESSION_MAX_TURNS = 2
 
+# The plugin tree sits beside `internal/` in the checkout, so the map is anchored
+# to this file: `--repo-root` points at a throwaway clean cwd in CI, not here.
+PLUGIN_SKILLS_DIR = Path(__file__).resolve().parents[2] / "plugin" / "skills"
+
+ALIAS_TARGET_PATTERN = re.compile(
+    r"^description:.*\balias for the `([^`]+)` skill", re.MULTILINE
+)
+
+
+def build_alias_to_canonical(skills_dir: Path) -> dict[str, str]:
+    """Alias skill name to the canonical skill it delegates to, read from SKILL.md frontmatter.
+
+    Derived from the tree rather than listed here, so an alias added later is
+    resolved without touching the eval. A missing or unreadable skills tree
+    yields an empty map, leaving routes unresolved rather than ending the run.
+
+    Output shape: `{"mfeedback": "muggle-feedback", "mtestlocal": "muggle-test-feature-local"}`
+    """
+    alias_to_canonical: dict[str, str] = {}
+    try:
+        skill_files = sorted(skills_dir.glob("*/SKILL.md"))
+    except OSError:
+        return alias_to_canonical
+    for skill_file in skill_files:
+        try:
+            declaration = skill_file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        target = ALIAS_TARGET_PATTERN.search(declaration)
+        if target:
+            alias_to_canonical[skill_file.parent.name] = target.group(1)
+    return alias_to_canonical
+
+
+ALIAS_TO_CANONICAL = build_alias_to_canonical(PLUGIN_SKILLS_DIR)
+
+
+def resolve_alias_route(route: str) -> str:
+    """Canonical skill behind an alias route; every other route passes through unchanged.
+
+    Routing through an alias reaches exactly the canonical skill, so scoring the
+    bare alias name counts a correct route as a miss — and hides it from the
+    negative class, which only rejects routes starting with "muggle".
+
+    Output shape: `"mfeedback"` -> `"muggle-feedback"`
+    """
+    return ALIAS_TO_CANONICAL.get(route, route)
+
 
 def format_run_progress(done: int, total: int, query: str, route: str, expected: str) -> str:
     """One live progress line, naming the query that produced `route`.
@@ -113,7 +161,8 @@ def parse_route_from_session(out: str) -> str:
     plugin is loaded but not which skill won, so it only stands in when the whole
     session invoked no skill. Both of its spellings start with "muggle", so they
     miss a positive query expecting a named skill and correctly fail the negative
-    class, which passes only when nothing muggle fires.
+    class, which passes only when nothing muggle fires. A route that names an
+    alias skill is reported as the canonical skill it delegates to.
 
     Output shape: `"muggle-test"`
     """
@@ -121,7 +170,7 @@ def parse_route_from_session(out: str) -> str:
     for tool_name, tool_input in _iter_tool_calls(out):
         route = _route_from_tool_call(tool_name, tool_input)
         if route:
-            return route
+            return resolve_alias_route(route)
         if not muggle_tool_signal:
             muggle_tool_signal = _muggle_tool_signal(tool_name, tool_input)
     return muggle_tool_signal or NONE

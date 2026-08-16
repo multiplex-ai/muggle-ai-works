@@ -43,13 +43,18 @@ on:
           - minor
           - major
       channel:
-        description: "Release channel. production publishes to the latest dist-tag; staging publishes a pre-release under the staging dist-tag."
+        # Defaults to staging so a hand-run of this workflow cannot move the
+        # latest dist-tag by accident. Publishing to production is a deliberate
+        # selection. A `v*` tag push carries no input and still resolves to
+        # production — pushing a version tag is already an explicit release act,
+        # and a tag cannot mean a pre-release version that contradicts it.
+        description: "Release channel. staging publishes a pre-release under the staging dist-tag; production publishes to the latest dist-tag."
         required: false
         type: choice
-        default: production
+        default: staging
         options:
-          - production
           - staging
+          - production
 
 env:
   # Opt into Node.js 22 for GitHub Actions

@@ -75,6 +75,8 @@
         "stream": "staging",
         "releaseTagPrefix": "electron-app-staging-v"
       }
-    ]
+    ],
+    "defaultChannel": "staging",
+    "tagPushChannel": "production"
   }
 }

@@ -478,6 +478,43 @@ class TestClassifyNoneReason(unittest.TestCase):
         out = assistant_event("Bash", {})
         self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
 
+    def test_a_chained_diff_survey_is_the_oriented_reason(self):
+        out = assistant_event(
+            "Bash", {"command": 'cd /x && git diff --stat && echo "---" && git diff'}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_semicolon_separated_survey_is_the_oriented_reason(self):
+        out = assistant_event("Bash", {"command": 'git remote -v; echo "x"; ls -a'})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_probing_for_a_cli_with_powershell_is_the_oriented_reason(self):
+        out = assistant_event("PowerShell", {"command": (
+            '(Get-Command aws -ErrorAction SilentlyContinue).Source;'
+            ' Test-Path "$env:USERPROFILE\\.aws\\config"'
+        )})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_piped_cmdlet_is_the_oriented_reason(self):
+        out = assistant_event(
+            "PowerShell", {"command": "Get-ChildItem | Select-Object -First 5"}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_discarded_stream_is_not_a_write(self):
+        out = assistant_event(
+            "Bash", {"command": 'ls -a .github/workflows 2>/dev/null; cat netlify.toml 2>&1'}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_destructive_segment_in_a_read_only_chain_counts_as_work(self):
+        out = assistant_event("Bash", {"command": "git status && rm -rf build"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+
+    def test_a_checkout_in_a_read_only_chain_counts_as_work(self):
+        out = assistant_event("PowerShell", {"command": "git status; git checkout -b fix"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+
 
 class TestNoneReasonLeavesScoringAlone(unittest.TestCase):
     SESSIONS_BY_REASON = {

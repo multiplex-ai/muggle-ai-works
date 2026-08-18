@@ -26,6 +26,8 @@ from threading import Lock
 
 import throttle
 from route_constants import (
+    COMMAND_VERB_EDGE_CHARS,
+    DISCARDED_REDIRECT,
     INSPECTION_COMMANDS,
     INSPECTION_TOOL_NAMES,
     MAX_COMMAND_VERB_TOKENS,
@@ -55,6 +57,8 @@ ALIAS_TARGET_PATTERN = re.compile(
 )
 
 COMMAND_SEGMENT_PATTERN = re.compile(r"&&|\|\||[;|\n]")
+
+DISCARDED_REDIRECT_PATTERN = re.compile(DISCARDED_REDIRECT, re.IGNORECASE)
 
 
 def build_alias_to_canonical(skills_dir: Path) -> dict[str, str]:
@@ -205,9 +209,9 @@ def _is_inspection_command(command: str) -> bool:
     if not segments:
         return False
     for segment in segments:
-        if OUTPUT_REDIRECT in segment:
+        if OUTPUT_REDIRECT in DISCARDED_REDIRECT_PATTERN.sub("", segment):
             return False
-        tokens = [token.lower() for token in segment.split()]
+        tokens = [token.strip(COMMAND_VERB_EDGE_CHARS).lower() for token in segment.split()]
         verbs = {" ".join(tokens[:n]) for n in range(1, MAX_COMMAND_VERB_TOKENS + 1)}
         if not verbs & INSPECTION_COMMANDS:
             return False

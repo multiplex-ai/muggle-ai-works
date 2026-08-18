@@ -41,10 +41,12 @@ INSPECTION_COMMANDS = frozenset({
     "git show",
     "git status",
     "get-childitem",
+    "get-command",
     "get-content",
     "get-item",
     "get-location",
     "grep",
+    "measure-object",
     "head",
     "less",
     "ls",
@@ -52,6 +54,7 @@ INSPECTION_COMMANDS = frozenset({
     "pwd",
     "resolve-path",
     "rg",
+    "select-object",
     "select-string",
     "stat",
     "tail",
@@ -59,6 +62,7 @@ INSPECTION_COMMANDS = frozenset({
     "tree",
     "type",
     "wc",
+    "where-object",
     "which",
     "whoami",
 })
@@ -69,3 +73,11 @@ MAX_COMMAND_VERB_TOKENS = 3
 
 # A redirect writes a file whatever the verb in front of it reads.
 OUTPUT_REDIRECT = ">"
+
+# `2>/dev/null`, `2>$null` and `2>&1` discard or merge a stream rather than write
+# one, and they are ordinary punctuation on the end of an orienting command.
+DISCARDED_REDIRECT = r"\d*>&?\s*(?:/dev/null|\$null|nul\b|\d)"
+
+# A grouped or piped-into cmdlet arrives as `(Get-Command …).Source`, so the verb
+# carries the grouping punctuation into the token that has to be recognized.
+COMMAND_VERB_EDGE_CHARS = "(){}"

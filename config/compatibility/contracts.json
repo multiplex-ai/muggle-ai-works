@@ -52,23 +52,18 @@
     ]
   },
   "release": {
-    "sharedBuildWorkflow": "publish-works-to-npm-reusable.yml",
     "channels": [
       {
         "channel": "production",
-        "workflow": "publish-works-to-npm.yml",
         "runtimeTarget": "production",
         "distTag": "latest",
-        "prerelease": false,
-        "tagPushTrigger": true
+        "prerelease": false
       },
       {
         "channel": "staging",
-        "workflow": "staging-publish-works-to-npm.yml",
         "runtimeTarget": "staging",
         "distTag": "staging",
-        "prerelease": true,
-        "tagPushTrigger": false
+        "prerelease": true
       }
     ],
     "electronAppReleaseStreams": [
@@ -80,6 +75,8 @@
         "stream": "staging",
         "releaseTagPrefix": "electron-app-staging-v"
       }
-    ]
+    ],
+    "defaultChannel": "staging",
+    "tagPushChannel": "production"
   }
 }

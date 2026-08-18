@@ -1,13 +1,11 @@
 name: Publish Works to npm
 
 # -----------------------------------------------------------------------------
-# This is the PRODUCTION publish pipeline. Its filename and `name:` are load-
-# bearing — do not rename either, and do not move the publish job below into the
-# shared workflow:
+# If you rename this file or change the workflow `name:` above, publishing may
+# silently fail (e.g. ENEEDAUTH) until auth is updated elsewhere:
 # - npmjs.com → package → Access → Trusted Publishing / automation: the allowed
-#   GitHub workflow is tied to the workflow *filename* (and sometimes display
-#   name). npm matches the calling workflow, so the publish job must stay here
-#   rather than in publish-works-to-npm-reusable.yml, which both channels share.
+#   GitHub workflow is often tied to the workflow *filename* (and sometimes
+#   display name). Update it to match after a rename.
 # - GitHub → Settings → Environments → `npm-publish`: confirm the environment
 #   exists and OIDC trusted publishing is configured on npmjs.com.
 #   Auth is handled via OIDC (id-token: write), not via NPM_TOKEN.
@@ -15,9 +13,6 @@ name: Publish Works to npm
 #   Node 22 images ship npm 10.x; trusted publishing / OIDC needs npm >= 11.5.1.
 #   Corepack doesn't manage npm (only yarn/pnpm), so we use `npm install -g npm@11.5.1`.
 #   See: https://docs.npmjs.com/trusted-publishers
-#
-# Everything before publishing — verify, package audit, smoke install — lives in
-# publish-works-to-npm-reusable.yml and is shared with the staging pipeline.
 # -----------------------------------------------------------------------------
 
 run-name: >-
@@ -47,24 +42,264 @@ on:
           - patch
           - minor
           - major
+      channel:
+        # Defaults to staging so a hand-run of this workflow cannot move the
+        # latest dist-tag by accident. Publishing to production is a deliberate
+        # selection. A `v*` tag push carries no input and still resolves to
+        # production — pushing a version tag is already an explicit release act,
+        # and a tag cannot mean a pre-release version that contradicts it.
+        description: "Release channel. staging publishes a pre-release under the staging dist-tag; production publishes to the latest dist-tag."
+        required: false
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
 
 env:
   # Opt into Node.js 22 for GitHub Actions
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE22: true
 
 jobs:
-  build:
-    uses: ./.github/workflows/publish-works-to-npm-reusable.yml
-    secrets: inherit
-    with:
-      version: ${{ inputs.version }}
-      bump: ${{ inputs.bump || 'patch' }}
-      channel: production
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint
+        run: pnpm run lint:check
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Verify electron release checksums
+        run: pnpm run verify:electron-release-checksums
+
+  package-audit:
+    runs-on: ubuntu-latest
+    needs:
+      - verify
+    outputs:
+      package_tarball: ${{ steps.pack.outputs.package_tarball }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          RELEASE_BUILD_ID: run-${{ github.run_number }}-${{ github.run_attempt }}
+          RELEASE_COMMIT_SHA: ${{ github.sha }}
+          RELEASE_TIME: ${{ github.event.repository.updated_at }}
+          # Inlined into dist/ at build time by tsup `define`. Sourced from the
+          # repo secret. Without this, client telemetry from the published
+          # package is a silent no-op on every end-user machine.
+          APPLICATIONINSIGHTS_CONNECTION_STRING: ${{ secrets.APPLICATIONINSIGHTS_CONNECTION_STRING }}
+        run: pnpm run build
+
+      - name: Verify telemetry connection string was inlined
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+          // tsup `define` can place the substituted literal into any chunk
+          // reachable from the entrypoints, so scan all JS files under dist/.
+          function walk(dir) {
+            const out = [];
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+              const full = path.join(dir, entry.name);
+              if (entry.isDirectory()) out.push(...walk(full));
+              else if (entry.isFile() && entry.name.endsWith(".js")) out.push(full);
+            }
+            return out;
+          }
+          const files = walk("dist");
+          const hit = files.some((f) => fs.readFileSync(f, "utf-8").includes("IngestionEndpoint="));
+          if (!hit) {
+            throw new Error(
+              "AppInsights connection string was not inlined into dist/. " +
+              "Set the APPLICATIONINSIGHTS_CONNECTION_STRING repository secret " +
+              "and re-run. Without it, the published package emits no client telemetry."
+            );
+          }
+          NODE
+
+      - name: Extract version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        id: extract_version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set package version (tag trigger)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          VERSION: ${{ steps.extract_version.outputs.version }}
+        run: |
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$CURRENT" != "$VERSION" ]; then
+            npm version "$VERSION" --no-git-tag-version
+          else
+            echo "Version already at $VERSION, skipping"
+          fi
+
+      - name: Set package version (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            CURRENT=$(node -p "require('./package.json').version")
+            if [ "$CURRENT" != "$INPUT_VERSION" ]; then
+              npm version "$INPUT_VERSION" --no-git-tag-version
+            else
+              echo "package.json already at $INPUT_VERSION, skipping npm version"
+            fi
+          else
+            npm version "$INPUT_BUMP" --no-git-tag-version
+          fi
+
+      - name: Apply staging pre-release version
+        if: ${{ inputs.channel == 'staging' }}
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          BASE=$(node -p "require('./package.json').version")
+          npm version "${BASE%%-*}-staging.${RUN_NUMBER}" --no-git-tag-version
+
+      - name: Set runtime target to match the channel
+        env:
+          CHANNEL: ${{ inputs.channel || 'production' }}
+        run: npm pkg set muggleConfig.runtimeTargetDefault="$CHANNEL"
+
+      - name: Fail on stale mcp folder references
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const files = ["package.json", "pnpm-lock.yaml"];
+          for (const file of files) {
+            const text = fs.readFileSync(file, "utf-8");
+            if (text.includes("file:packages/mcp\"") || text.includes("link:packages/mcp\"") || text.includes("\"packages/mcp\"")) {
+              throw new Error(`Found stale packages/mcp reference in ${file}`);
+            }
+          }
+          NODE
+
+      - name: Pack npm package
+        id: pack
+        run: |
+          npm pkg delete scripts.prepare
+          npm pkg delete devDependencies.@muggleai/telemetry
+          npm pack --json > pack-result.json
+          PACKAGE_TARBALL=$(node -e "const output=require('./pack-result.json');if(!Array.isArray(output)||output.length!==1){throw new Error('Unexpected npm pack output');}process.stdout.write(output[0].filename);")
+          echo "package_tarball=$PACKAGE_TARBALL" >> "$GITHUB_OUTPUT"
+          echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
+
+      - name: Validate package contents
+        run: |
+          node <<'NODE'
+          const cp = require("child_process");
+          const fs = require("fs");
+          const tarball = process.env.PACKAGE_TARBALL;
+          const listing = cp.execSync(`tar -tf ${tarball}`, { encoding: "utf-8" }).split("\n").filter(Boolean);
+          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/scripts/postinstall.mjs", "package/plugin/.claude-plugin/plugin.json", "package/plugin/.cursor-plugin/plugin.json"];
+          for (const entry of required) {
+            if (!listing.includes(entry)) {
+              throw new Error(`Missing ${entry} in ${tarball}`);
+            }
+          }
+          const cliBin = fs.readFileSync("bin/muggle.js", "utf-8");
+          if (!cliBin.includes("../dist/cli.js")) {
+            throw new Error("bin/muggle.js must import ../dist/cli.js");
+          }
+          NODE
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-package
+          path: ${{ steps.pack.outputs.package_tarball }}
+          if-no-files-found: error
+
+  smoke-install:
+    needs:
+      - package-audit
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Download package artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-package
+
+      - name: Install tarball globally
+        shell: bash
+        run: |
+          PACKAGE_TARBALL="${{ needs.package-audit.outputs.package_tarball }}"
+          npm install -g "./${PACKAGE_TARBALL}"
+
+      - name: Verify CLI is executable
+        shell: bash
+        run: |
+          muggle --version
+          muggle doctor
+
+      # A staging-targeted tarball reaching the latest dist-tag points every
+      # ordinary install at a backend the user has no account on, and nothing
+      # about the failure says why. Catch it before publish, not after.
+      - name: Assert the baked runtime target matches the channel
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel || 'production' }}
+        run: |
+          ACTUAL=$(muggle status | sed -n 's/^Runtime target: //p')
+          if [ "$ACTUAL" != "$CHANNEL" ]; then
+            echo "Baked runtime target '$ACTUAL' does not match requested channel '$CHANNEL'."
+            exit 1
+          fi
+          echo "Runtime target '$ACTUAL' matches channel '$CHANNEL'."
+
+  # Publishes via OIDC trusted publishing — see top-of-file note when renaming
+  # this workflow or the workflow display name.
   publish:
     runs-on: ubuntu-latest
     needs:
-      - build
+      - package-audit
+      - smoke-install
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     environment: npm-publish
     permissions:
@@ -90,8 +325,14 @@ jobs:
 
       - name: Publish to npm (with provenance via OIDC)
         env:
-          PACKAGE_TARBALL: ${{ needs.build.outputs.package_tarball }}
-        run: npm publish "$PACKAGE_TARBALL" --access public --provenance
+          CHANNEL: ${{ inputs.channel || 'production' }}
+          PACKAGE_TARBALL: ${{ needs.package-audit.outputs.package_tarball }}
+        run: |
+          if [ "$CHANNEL" = "staging" ]; then
+            npm publish "$PACKAGE_TARBALL" --access public --provenance --tag staging
+          else
+            npm publish "$PACKAGE_TARBALL" --access public --provenance
+          fi
 
   # TODO: Add publish-mcp-registry job when mcp-publisher CLI is publicly available.
   # The official MCP registry (modelcontextprotocol.io) is in preview and the CLI
@@ -102,9 +343,11 @@ jobs:
   notify-on-failure:
     runs-on: ubuntu-latest
     needs:
-      - build
+      - verify
+      - package-audit
+      - smoke-install
       - publish
     if: failure()
     steps:
       - name: Notify failure
-        run: echo "Works production publish failed. Check the workflow logs."
+        run: echo "Works publish failed. Check the workflow logs."

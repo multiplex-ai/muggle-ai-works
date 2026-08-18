@@ -229,9 +229,12 @@ def classify_none_reason(out: str) -> NoneReason:
     """Why a session that reached no skill never routed, read off its tool calls.
 
     A bare `none` reads the same whether the model answered the query outright,
-    oriented and stopped, or worked the task by hand — and those want different
-    fixes (a mislabelled query, a description that never won, a description the
-    model never looked for), so the route carries the reason alongside it.
+    oriented and stopped, or reached for a tool that could act — and those want
+    different fixes (a mislabelled query, a description that never won, a
+    description the model never looked for), so the route carries the reason
+    alongside it. The acting bucket is decided by what the stream can prove: a
+    call is `ACTED_WITHOUT_ROUTING` when it is not provably read-only — an
+    unrecognized command verb, a real output redirect, or a writing tool.
 
     Output shape: `NoneReason.ORIENTED_ONLY`
     """
@@ -239,7 +242,7 @@ def classify_none_reason(out: str) -> NoneReason:
     for tool_name, tool_input in _iter_tool_calls(out):
         called_a_tool = True
         if not _is_inspection_call(tool_name, tool_input):
-            return NoneReason.WORKED_BY_HAND
+            return NoneReason.ACTED_WITHOUT_ROUTING
     return NoneReason.ORIENTED_ONLY if called_a_tool else NoneReason.NO_TOOL_CALL
 
 

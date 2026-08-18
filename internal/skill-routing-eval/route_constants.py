@@ -3,7 +3,7 @@
 REPORT_NONE_REASONS_FIELD = "none_reasons"
 
 # Tools that can only look. A session spending every call here oriented itself
-# and stopped, which needs a different fix from one that did the work by hand.
+# and stopped, which needs a different fix from one that acted instead.
 INSPECTION_TOOL_NAMES = frozenset({
     "Glob",
     "Grep",
@@ -39,7 +39,9 @@ INSPECTION_COMMANDS = frozenset({
     "git remote",
     "git rev-parse",
     "git show",
+    "git stash list",
     "git status",
+    "git worktree list",
     "get-childitem",
     "get-command",
     "get-content",
@@ -60,6 +62,7 @@ INSPECTION_COMMANDS = frozenset({
     "tail",
     "test-path",
     "tree",
+    "true",
     "type",
     "wc",
     "where-object",

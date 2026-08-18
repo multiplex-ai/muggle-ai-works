@@ -447,36 +447,47 @@ class TestClassifyNoneReason(unittest.TestCase):
         )
         self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
 
-    def test_doing_the_task_by_hand_is_the_worked_reason(self):
+    def test_running_the_task_itself_is_the_acting_reason(self):
         out = session(
             assistant_event("Bash", {"command": "npm install"}),
             assistant_event("Read", {"file_path": "C:\\repo\\src\\index.ts"}),
             assistant_event("Bash", {"command": "npx playwright test"}),
         )
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
-    def test_writing_a_file_after_orienting_is_the_worked_reason(self):
+    def test_a_long_read_only_investigation_is_still_the_oriented_reason(self):
+        out = session(
+            assistant_event("Bash", {"command": 'git status --short && git diff --stat'}),
+            assistant_event("Bash", {"command": "git diff"}),
+            assistant_event("Bash", {"command": 'ls -a && git log --oneline -5 --stat'}),
+            assistant_event("Read", {"file_path": "C:\\repo\\package.json"}),
+            assistant_event("Read", {"file_path": "C:\\repo\\index.html"}),
+            assistant_event("Bash", {"command": "git stash list || true; git worktree list"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_writing_a_file_after_orienting_is_the_acting_reason(self):
         out = session(
             assistant_event("Bash", {"command": "git status"}),
             assistant_event("Write", {"file_path": "checkout.spec.ts"}),
         )
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
-    def test_one_acting_segment_makes_the_whole_command_work(self):
+    def test_one_acting_segment_makes_the_whole_command_acting(self):
         out = assistant_event("Bash", {"command": "git status && npm install"})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
     def test_a_redirect_writes_whatever_the_verb_reads(self):
         out = assistant_event("Bash", {"command": "cat template.md > spec.md"})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
-    def test_an_unrecognized_command_counts_as_work(self):
+    def test_an_unrecognized_command_counts_as_acting(self):
         out = assistant_event("Bash", {"command": "./scripts/seed-database.sh"})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
-    def test_a_shell_call_carrying_no_command_counts_as_work(self):
+    def test_a_shell_call_carrying_no_command_counts_as_acting(self):
         out = assistant_event("Bash", {})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
     def test_a_chained_diff_survey_is_the_oriented_reason(self):
         out = assistant_event(
@@ -507,20 +518,20 @@ class TestClassifyNoneReason(unittest.TestCase):
         )
         self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
 
-    def test_a_destructive_segment_in_a_read_only_chain_counts_as_work(self):
+    def test_a_destructive_segment_in_a_read_only_chain_counts_as_acting(self):
         out = assistant_event("Bash", {"command": "git status && rm -rf build"})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
-    def test_a_checkout_in_a_read_only_chain_counts_as_work(self):
+    def test_a_checkout_in_a_read_only_chain_counts_as_acting(self):
         out = assistant_event("PowerShell", {"command": "git status; git checkout -b fix"})
-        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.WORKED_BY_HAND)
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
 
 
 class TestNoneReasonLeavesScoringAlone(unittest.TestCase):
     SESSIONS_BY_REASON = {
         NoneReason.NO_TOOL_CALL: json.dumps({"type": "result", "result": "answered directly"}),
         NoneReason.ORIENTED_ONLY: assistant_event("Bash", {"command": "git status"}),
-        NoneReason.WORKED_BY_HAND: assistant_event("Bash", {"command": "npm install"}),
+        NoneReason.ACTED_WITHOUT_ROUTING: assistant_event("Bash", {"command": "npm install"}),
     }
 
     def test_every_reason_still_parses_as_the_literal_none_route(self):

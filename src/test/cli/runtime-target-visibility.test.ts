@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { resetConfig } from "../../../packages/mcps/src/shared/config.js";
 import { RUNTIME_TARGET_ENV_VAR } from "../../../packages/mcps/src/shared/runtime-target-constants.js";
-import { loginCommand, statusCommand } from "../../cli/login.js";
+import { statusCommand } from "../../cli/login.js";
 
 afterEach(() => {
   delete process.env[RUNTIME_TARGET_ENV_VAR];
@@ -50,10 +50,29 @@ describe("statusCommand", () => {
 });
 
 describe("loginCommand", () => {
+  // The guard is driven by a stub rather than by a real unprovisioned target.
+  // Every shipped target now has a client, so pinning this to one of them would
+  // both fail and — worse — let the command reach a live device-code request.
   it("refuses a target with no provisioned device code client", async () => {
-    process.env[RUNTIME_TARGET_ENV_VAR] = "staging";
+    vi.resetModules();
+    vi.doMock("../../../packages/mcps/src/index.js", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("../../../packages/mcps/src/index.js")>();
+      return {
+        ...actual,
+        assertDeviceCodeClientProvisioned: () => {
+          throw new Error(
+            "Runtime target 'staging' has no Auth0 device code client provisioned.",
+          );
+        },
+      };
+    });
+
+    const { loginCommand: gatedLoginCommand } = await import("../../cli/login.js");
     vi.spyOn(console, "log").mockImplementation(() => undefined);
 
-    await expect(loginCommand({})).rejects.toThrow(/no Auth0 device code client/);
+    await expect(gatedLoginCommand({})).rejects.toThrow(/no Auth0 device code client/);
+
+    vi.doUnmock("../../../packages/mcps/src/index.js");
+    vi.resetModules();
   });
 });

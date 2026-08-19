@@ -18,7 +18,7 @@
     "staging": {
       "promptServiceBaseUrl": "https://staging.promptservice.muggle-ai.com",
       "auth0Domain": "login.staging.muggle-ai.com",
-      "auth0ClientId": "",
+      "auth0ClientId": "C6rmJN3FeX3EuGZdY8qbHpbJVRadxsly",
       "auth0Audience": "https://staging-muggleai.us.auth0.com/api/v2/",
       "electronAppReleaseStream": "staging"
     },

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { RUNTIME_TARGET_ENV_VAR } from "../shared/runtime-target-constants.js";
 import {
@@ -50,14 +50,45 @@ describe("resolveActiveProfile", () => {
 });
 
 describe("assertDeviceCodeClientProvisioned", () => {
-  it("passes for a target with a provisioned client", () => {
-    expect(() => assertDeviceCodeClientProvisioned(RuntimeTarget.Production)).not.toThrow();
+  it("passes for every shipped target", () => {
+    for (const target of Object.values(RuntimeTarget)) {
+      expect(() => assertDeviceCodeClientProvisioned(target)).not.toThrow();
+    }
   });
 
-  it("rejects a target whose Auth0 client is not provisioned, naming the target", () => {
-    expect(() => assertDeviceCodeClientProvisioned(RuntimeTarget.Staging)).toThrow(/staging/);
-    expect(() => assertDeviceCodeClientProvisioned(RuntimeTarget.Staging)).toThrow(
-      /no Auth0 device code client/,
+  // Asserted against a stubbed profile rather than a real target: every shipped
+  // target now has a client, and pinning this to whichever one happened to lack
+  // it made provisioning that tenant fail the suite.
+  it("rejects a target whose Auth0 client is not provisioned, naming the target", async () => {
+    // resetModules first: runtime-target.js is already cached from this file's
+    // top-level import, so without it the dynamic import below returns the
+    // unmocked copy and the guard never sees the stubbed profile.
+    vi.resetModules();
+    vi.doMock("../shared/runtime-target-constants.js", async (importOriginal) => {
+      const actual = await importOriginal<
+        typeof import("../shared/runtime-target-constants.js")
+      >();
+      const realProfiles = actual.getRuntimeTargetProfiles();
+      return {
+        ...actual,
+        getRuntimeTargetProfiles: () => ({
+          ...realProfiles,
+          [RuntimeTarget.Staging]: {
+            ...realProfiles[RuntimeTarget.Staging],
+            auth0ClientId: "",
+          },
+        }),
+      };
+    });
+
+    const { assertDeviceCodeClientProvisioned: assertWithStub } = await import(
+      "../shared/runtime-target.js"
     );
+
+    expect(() => assertWithStub(RuntimeTarget.Staging)).toThrow(/staging/);
+    expect(() => assertWithStub(RuntimeTarget.Staging)).toThrow(/no Auth0 device code client/);
+
+    vi.doUnmock("../shared/runtime-target-constants.js");
+    vi.resetModules();
   });
 });

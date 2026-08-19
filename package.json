@@ -12,7 +12,8 @@
     "dist",
     "plugin",
     "bin/muggle.js",
-    "scripts/postinstall.mjs"
+    "scripts/postinstall.mjs",
+    "config/runtime-targets.json"
   ],
   "scripts": {
     "clean": "rimraf dist",
@@ -52,11 +53,14 @@
     "electronAppVersion": "1.9.0",
     "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
     "runtimeTargetDefault": "dev",
-    "checksums": {
-      "darwin-arm64": "1baa38bde71b74984705bcac3e5a42a7a158a7b0574dab496f3e240846c0ac65",
-      "darwin-x64": "098cc2db6f32c7857bd933512320524d213804b378dc8bf0ade791396f058041",
-      "linux-x64": "d434a88a087c7410785a443cfe03102322fa7a295b77600f5ed92e2113e271c2",
-      "win32-x64": "0aecbc01010ab0a268137ed31bcaaa05fe9215daa9f4c0e4871b07554d28c0c8"
+    "checksumsByStream": {
+      "production": {
+        "darwin-arm64": "1baa38bde71b74984705bcac3e5a42a7a158a7b0574dab496f3e240846c0ac65",
+        "darwin-x64": "098cc2db6f32c7857bd933512320524d213804b378dc8bf0ade791396f058041",
+        "linux-x64": "d434a88a087c7410785a443cfe03102322fa7a295b77600f5ed92e2113e271c2",
+        "win32-x64": "0aecbc01010ab0a268137ed31bcaaa05fe9215daa9f4c0e4871b07554d28c0c8"
+      },
+      "staging": {}
     }
   },
   "dependencies": {

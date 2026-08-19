@@ -3,6 +3,8 @@
  */
 
 export * from "./shared/types.js";
+export * from "./shared/runtime-target-types.js";
+export * from "./shared/runtime-target.js";
 export * from "./shared/checksum.js";
 export * from "./shared/logger.js";
 export * from "./shared/open-browser.js";

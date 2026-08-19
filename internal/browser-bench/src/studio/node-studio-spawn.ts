@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import { BROWSER_PROFILE_DIR_ENV_VAR, STDERR_TAIL_LIMIT } from "./constants";
+import { STDERR_TAIL_LIMIT } from "./constants";
 import { buildStudioArgv } from "./studio-invocation";
 import { type StudioExitReport, type StudioInvocation, type StudioProcess } from "./types";
 
@@ -29,7 +29,7 @@ const killProcessTree = (pid: number | undefined): void => {
  */
 export const spawnStudioProcess = (invocation: StudioInvocation): StudioProcess => {
   const child = spawn(invocation.studioBinPath, buildStudioArgv(invocation), {
-    env: { ...process.env, [BROWSER_PROFILE_DIR_ENV_VAR]: invocation.browserProfileDir },
+
     stdio: ["ignore", "ignore", "pipe"],
     windowsHide: true,
   });

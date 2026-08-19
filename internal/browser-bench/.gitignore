@@ -1,0 +1,3 @@
+# Run artifacts: trajectories, browser profiles, partial logs, rendered reports.
+# Commit a report deliberately (git add -f) when a number is worth keeping.
+reports/

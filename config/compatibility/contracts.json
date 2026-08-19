@@ -50,5 +50,33 @@
         "status": "supported"
       }
     ]
+  },
+  "release": {
+    "channels": [
+      {
+        "channel": "production",
+        "runtimeTarget": "production",
+        "distTag": "latest",
+        "prerelease": false
+      },
+      {
+        "channel": "staging",
+        "runtimeTarget": "staging",
+        "distTag": "staging",
+        "prerelease": true
+      }
+    ],
+    "electronAppReleaseStreams": [
+      {
+        "stream": "production",
+        "releaseTagPrefix": "electron-app-v"
+      },
+      {
+        "stream": "staging",
+        "releaseTagPrefix": "electron-app-staging-v"
+      }
+    ],
+    "defaultChannel": "staging",
+    "tagPushChannel": "production"
   }
 }

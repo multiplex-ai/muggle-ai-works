@@ -2,6 +2,8 @@
  * Shared type definitions for @muggleai/works.
  */
 
+import { ElectronAppReleaseStream, RuntimeTarget } from "./runtime-target-types.js";
+
 /**
  * Checksums for electron-app binaries by platform.
  */
@@ -24,10 +26,10 @@ export interface IMuggleConfig {
   electronAppVersion: string;
   /** Download base URL for electron-app binaries. */
   downloadBaseUrl: string;
-  /** SHA256 checksums for each platform binary. */
-  checksums?: IMuggleConfigChecksums;
+  /** SHA256 checksums for each platform binary, keyed by electron-app release stream. */
+  checksumsByStream?: Partial<Record<ElectronAppReleaseStream, IMuggleConfigChecksums>>;
   /** Default runtime target baked into the package at build/publish time. */
-  runtimeTargetDefault?: "production" | "dev";
+  runtimeTargetDefault?: RuntimeTarget;
 }
 
 /**

@@ -8,6 +8,7 @@ const currentFilePath = fileURLToPath(import.meta.url);
 const scriptsDirectoryPath = dirname(currentFilePath);
 const repositoryRootPath = join(scriptsDirectoryPath, "..");
 const packageJsonPath = join(repositoryRootPath, "package.json");
+const runtimeTargetsPath = join(repositoryRootPath, "config", "runtime-targets.json");
 
 verifyElectronReleaseChecksums().catch((error) => {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -33,8 +34,6 @@ async function verifyElectronReleaseChecksums() {
         message: "package.json muggleConfig.downloadBaseUrl must be defined.",
     });
 
-    const releaseTag = `electron-app-v${bundledVersion}`;
-    const checksumsUrl = `${downloadBaseUrl}/${releaseTag}/checksums.txt`;
     const requiredAssetFileNames = [
         "MuggleAI-darwin-arm64.zip",
         "MuggleAI-darwin-x64.zip",
@@ -42,25 +41,40 @@ async function verifyElectronReleaseChecksums() {
         "MuggleAI-win32-x64.zip",
     ];
 
-    console.log(`Verifying checksums asset: ${checksumsUrl}`);
-    const response = await fetch(checksumsUrl);
-    assertValue({
-        condition: response.ok,
-        message: `checksums.txt not available for ${releaseTag} (${response.status} ${response.statusText}).`,
-    });
+    const { streams } = readJsonFile(runtimeTargetsPath);
+    const checksumsByStream = packageJson?.muggleConfig?.checksumsByStream ?? {};
 
-    const checksumsContent = await response.text();
-    for (const requiredAssetFileName of requiredAssetFileNames) {
+    for (const [releaseStream, stream] of Object.entries(streams)) {
+        // A stream that records no checksums has not published a release yet.
+        // Failing here would block every publish until an unrelated stream exists.
+        if (Object.keys(checksumsByStream[releaseStream] ?? {}).length === 0) {
+            console.log(`Skipping ${releaseStream}: no checksums recorded.`);
+            continue;
+        }
+
+        const releaseTag = `${stream.electronAppReleaseTagPrefix}${bundledVersion}`;
+        const checksumsUrl = `${downloadBaseUrl}/${releaseTag}/checksums.txt`;
+
+        console.log(`Verifying checksums asset: ${checksumsUrl}`);
+        const response = await fetch(checksumsUrl);
         assertValue({
-            condition: hasValidChecksumEntry({
-                checksumsContent: checksumsContent,
-                assetFileName: requiredAssetFileName,
-            }),
-            message: `checksums.txt missing valid SHA256 entry for ${requiredAssetFileName}.`,
+            condition: response.ok,
+            message: `checksums.txt not available for ${releaseTag} (${response.status} ${response.statusText}).`,
         });
-    }
 
-    console.log(`checksums.txt verified for ${releaseTag}.`);
+        const checksumsContent = await response.text();
+        for (const requiredAssetFileName of requiredAssetFileNames) {
+            assertValue({
+                condition: hasValidChecksumEntry({
+                    checksumsContent: checksumsContent,
+                    assetFileName: requiredAssetFileName,
+                }),
+                message: `checksums.txt missing valid SHA256 entry for ${requiredAssetFileName} in ${releaseTag}.`,
+            });
+        }
+
+        console.log(`checksums.txt verified for ${releaseTag}.`);
+    }
 }
 
 /**

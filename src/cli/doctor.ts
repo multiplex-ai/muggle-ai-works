@@ -7,6 +7,7 @@ import { homedir } from "os";
 import { join } from "path";
 
 import {
+  getActiveRuntimeTarget,
   getAuthService,
   getBundledElectronAppVersion,
   getConfig,
@@ -123,7 +124,7 @@ function verifyElectronAppInstallation(): IInstallVerification {
   const executablePath = getExpectedExecutablePath(versionDir);
   const metadataPath = path.join(versionDir, ".install-metadata.json");
 
-  const result: IInstallVerification = {
+  const installVerification: IInstallVerification = {
     valid: false,
     versionDir: versionDir,
     executablePath: executablePath,
@@ -135,8 +136,8 @@ function verifyElectronAppInstallation(): IInstallVerification {
 
   // Check if version directory exists
   if (!fs.existsSync(versionDir)) {
-    result.errorDetail = "Version directory does not exist";
-    return result;
+    installVerification.errorDetail = "Version directory does not exist";
+    return installVerification;
   }
 
   // Check for partial archive (incomplete download)
@@ -145,7 +146,7 @@ function verifyElectronAppInstallation(): IInstallVerification {
     const files = fs.readdirSync(versionDir);
     for (const file of files) {
       if (archivePatterns.some((pattern) => file.startsWith(pattern)) && (file.endsWith(".zip") || file.endsWith(".tar.gz"))) {
-        result.hasPartialArchive = true;
+        installVerification.hasPartialArchive = true;
         break;
       }
     }
@@ -154,36 +155,36 @@ function verifyElectronAppInstallation(): IInstallVerification {
   }
 
   // Check if executable exists
-  result.executableExists = fs.existsSync(executablePath);
+  installVerification.executableExists = fs.existsSync(executablePath);
 
-  if (!result.executableExists) {
-    if (result.hasPartialArchive) {
-      result.errorDetail = "Download incomplete: archive found but not extracted";
+  if (!installVerification.executableExists) {
+    if (installVerification.hasPartialArchive) {
+      installVerification.errorDetail = "Download incomplete: archive found but not extracted";
     } else {
-      result.errorDetail = "Executable not found at expected path";
+      installVerification.errorDetail = "Executable not found at expected path";
     }
-    return result;
+    return installVerification;
   }
 
   // Check if executable is a real file (handles broken symlinks)
   try {
     const stats = fs.statSync(executablePath);
-    result.executableIsFile = stats.isFile();
-    if (!result.executableIsFile) {
-      result.errorDetail = "Executable path exists but is not a file";
-      return result;
+    installVerification.executableIsFile = stats.isFile();
+    if (!installVerification.executableIsFile) {
+      installVerification.errorDetail = "Executable path exists but is not a file";
+      return installVerification;
     }
   } catch {
-    result.errorDetail = "Cannot stat executable (broken symlink?)";
-    return result;
+    installVerification.errorDetail = "Cannot stat executable (broken symlink?)";
+    return installVerification;
   }
 
   // Check metadata file
-  result.metadataExists = fs.existsSync(metadataPath);
+  installVerification.metadataExists = fs.existsSync(metadataPath);
 
   // All checks passed
-  result.valid = true;
-  return result;
+  installVerification.valid = true;
+  return installVerification;
 }
 
 /**
@@ -373,7 +374,7 @@ function runDiagnostics (): ICheckResult[] {
   results.push({
     name: "Prompt Service URL",
     passed: !!config.e2e.promptServiceBaseUrl,
-    description: config.e2e.promptServiceBaseUrl,
+    description: `${getActiveRuntimeTarget()} — ${config.e2e.promptServiceBaseUrl}`,
   });
 
   // Check 7: Web service URL (for local testing)
@@ -423,8 +424,8 @@ export async function doctorCommand (): Promise<void> {
 
   const results = runDiagnostics();
 
-  for (const result of results) {
-    console.log(formatCheckResult(result));
+  for (const checkResult of results) {
+    console.log(formatCheckResult(checkResult));
   }
 
   console.log("");

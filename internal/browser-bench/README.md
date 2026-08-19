@@ -43,7 +43,7 @@ skipped and its results are folded back into the report in task-file order.
 The harness spawns one process per task:
 
 ```
-<studio-binary> --benchmark-task <path/to/task.json> --out <path/to/result.json>
+<studio-binary> --benchmark-task <path/to/task.json>
 ```
 
 The harness writes `task.json`:
@@ -54,9 +54,14 @@ The harness writes `task.json`:
   "instruction": "Provide a recipe for vegetarian lasagna…",
   "startUrl": "https://www.allrecipes.com/",
   "maxSteps": 15,
-  "trajectoryDir": "<out>/trajectories/Allrecipes--0"
+  "trajectoryDir": "<out>/trajectories/Allrecipes--0",
+  "outputFilePath": "<out>/trajectories/Allrecipes--0/result.json"
 }
 ```
+
+Where the result goes travels in the task rather than as a second flag: it is
+part of the task, and neither could ever be passed without the other. Studio
+rejects a task file missing any of these fields.
 
 Studio writes `result.json`:
 
@@ -83,13 +88,14 @@ infrastructure error instead, which is excluded from the pass-rate denominator.
 | Variable | Default | Meaning |
 | :--- | :------ | :------ |
 | `MUGGLE_STUDIO_BIN` | `muggle-studio` on `PATH` | The studio binary to spawn |
-| `MUGGLE_STUDIO_BROWSER_PROFILE_DIR` | set per task by the harness | The empty browser profile studio must use |
 
 Set `MUGGLE_STUDIO_BIN` to a local build; the default resolves on `PATH` because
-a machine-specific path must never be committed. The profile directory travels
-by environment because the spawn contract's two flags are fixed and neither
-names one — studio must honour it, or state leaks between tasks and the scores
-stop meaning anything.
+a machine-specific path must never be committed.
+
+Per-task browser isolation needs nothing from the harness: studio's benchmark
+mode sets `freshSession` itself, clearing cookies and local storage when the
+webview attaches. Isolation is a property of benchmark mode rather than
+something a caller can forget to pass.
 
 ## Task data
 

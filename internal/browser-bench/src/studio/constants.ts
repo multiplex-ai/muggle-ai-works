@@ -4,18 +4,8 @@ export const STUDIO_BIN_ENV_VAR = "MUGGLE_STUDIO_BIN";
 /** Resolved on `PATH` when `MUGGLE_STUDIO_BIN` is unset — set the env var to a build output instead. */
 export const DEFAULT_STUDIO_BIN = "muggle-studio";
 
-/**
- * Carries the per-task browser profile to studio. The spawn contract's two
- * flags are fixed and neither names a profile, so the environment is the only
- * seam left for it.
- */
-export const BROWSER_PROFILE_DIR_ENV_VAR = "MUGGLE_STUDIO_BROWSER_PROFILE_DIR";
-
 /** Names the studio flag that points at the task file. */
 export const BENCHMARK_TASK_FLAG = "--benchmark-task";
-
-/** Names the studio flag that points at the result file studio must write. */
-export const BENCHMARK_OUT_FLAG = "--out";
 
 /** The harness writes the task file here, inside the task's own trajectory directory. */
 export const STUDIO_TASK_FILENAME = "task.json";

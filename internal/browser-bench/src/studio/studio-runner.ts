@@ -82,6 +82,7 @@ export const runStudioTaskAsync = async ({
     task: task,
     maxSteps: maxSteps,
     trajectoryDir: trajectoryDir,
+    resultFilePath: resultFilePath,
   });
   await fileSystem.writeTextAsync(taskFilePath, `${JSON.stringify(studioTaskFile, null, 2)}\n`);
 

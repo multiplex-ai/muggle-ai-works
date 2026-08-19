@@ -120,6 +120,7 @@ describe("runStudioTaskAsync", () => {
       startUrl: "https://www.allrecipes.com/",
       maxSteps: MAX_STEPS_PER_TASK,
       trajectoryDir: trajectoryDir,
+      outputFilePath: path.join(trajectoryDir, "result.json"),
     });
   });
 

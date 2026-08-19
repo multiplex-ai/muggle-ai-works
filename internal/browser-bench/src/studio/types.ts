@@ -5,6 +5,12 @@ export interface StudioTaskFile {
   startUrl: string;
   maxSteps: number;
   trajectoryDir: string;
+  /**
+   * Where studio writes its result. Carried in the task rather than as a second
+   * command-line flag: where a task's result goes is part of the task, and
+   * neither could be passed without the other.
+   */
+  outputFilePath: string;
 }
 
 /** The `result.json` studio writes when an attempt completes. */

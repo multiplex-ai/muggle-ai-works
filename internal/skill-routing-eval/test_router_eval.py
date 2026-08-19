@@ -1,11 +1,16 @@
+import io
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
 import router_eval
+from route_constants import REPORT_NONE_REASONS_FIELD
+from route_types import NoneReason
 from scoring import scored_pass
 
 SKILL_FIXTURE_TEMPLATE = '''---
@@ -295,6 +300,19 @@ class TestFormatRunProgress(unittest.TestCase):
         line = router_eval.format_run_progress(1, 3, "q", "none", "none")
         line.encode("ascii")
 
+    def test_a_miss_names_why_nothing_routed(self):
+        line = router_eval.format_run_progress(
+            1, 3, "q", "none", "muggle-test", NoneReason.ORIENTED_ONLY
+        )
+        self.assertIn("MISS", line)
+        self.assertIn("route=none (oriented_only)", line)
+
+    def test_a_routed_run_carries_no_reason(self):
+        line = router_eval.format_run_progress(1, 3, "q", "muggle-test", "muggle-test")
+        self.assertIn("route=muggle-test ::", line)
+        for reason in NoneReason:
+            self.assertNotIn(reason.value, line)
+
 
 class TestAliasRoutesResolveToCanonical(unittest.TestCase):
     def test_alias_skill_invocation_scores_the_canonical_skill(self):
@@ -394,6 +412,240 @@ class TestBuildAliasToCanonical(unittest.TestCase):
     def test_missing_skills_dir_yields_an_empty_map(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(router_eval.build_alias_to_canonical(Path(tmp) / "absent"), {})
+
+
+class TestClassifyNoneReason(unittest.TestCase):
+    def test_an_answer_with_no_tool_call_is_the_no_tool_reason(self):
+        out = json.dumps({"type": "result", "result": "here is what muggle can do"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.NO_TOOL_CALL)
+
+    def test_an_empty_stream_is_the_no_tool_reason(self):
+        self.assertEqual(router_eval.classify_none_reason(""), NoneReason.NO_TOOL_CALL)
+
+    def test_orienting_shell_calls_are_the_oriented_reason(self):
+        out = session(
+            assistant_event("Bash", {"command": "git status && git diff"}),
+            assistant_event("Bash", {"command": "ls"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_powershell_orienting_is_the_oriented_reason(self):
+        out = assistant_event("PowerShell", {"command": "git status; Get-ChildItem"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_hunting_for_a_tool_is_the_oriented_reason(self):
+        out = session(
+            assistant_event("ToolSearch", {"query": "booking reservation"}),
+            assistant_event("ToolSearch", {"query": "restaurant table"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_reading_and_searching_is_the_oriented_reason(self):
+        out = session(
+            assistant_event("Grep", {"pattern": "login"}),
+            assistant_event("Read", {"file_path": "C:\\repo\\src\\index.ts"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_running_the_task_itself_is_the_acting_reason(self):
+        out = session(
+            assistant_event("Bash", {"command": "npm install"}),
+            assistant_event("Read", {"file_path": "C:\\repo\\src\\index.ts"}),
+            assistant_event("Bash", {"command": "npx playwright test"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_a_long_read_only_investigation_is_still_the_oriented_reason(self):
+        out = session(
+            assistant_event("Bash", {"command": 'git status --short && git diff --stat'}),
+            assistant_event("Bash", {"command": "git diff"}),
+            assistant_event("Bash", {"command": 'ls -a && git log --oneline -5 --stat'}),
+            assistant_event("Read", {"file_path": "C:\\repo\\package.json"}),
+            assistant_event("Read", {"file_path": "C:\\repo\\index.html"}),
+            assistant_event("Bash", {"command": "git stash list || true; git worktree list"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_writing_a_file_after_orienting_is_the_acting_reason(self):
+        out = session(
+            assistant_event("Bash", {"command": "git status"}),
+            assistant_event("Write", {"file_path": "checkout.spec.ts"}),
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_one_acting_segment_makes_the_whole_command_acting(self):
+        out = assistant_event("Bash", {"command": "git status && npm install"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_a_redirect_writes_whatever_the_verb_reads(self):
+        out = assistant_event("Bash", {"command": "cat template.md > spec.md"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_an_unrecognized_command_counts_as_acting(self):
+        out = assistant_event("Bash", {"command": "./scripts/seed-database.sh"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_a_shell_call_carrying_no_command_counts_as_acting(self):
+        out = assistant_event("Bash", {})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_a_chained_diff_survey_is_the_oriented_reason(self):
+        out = assistant_event(
+            "Bash", {"command": 'cd /x && git diff --stat && echo "---" && git diff'}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_semicolon_separated_survey_is_the_oriented_reason(self):
+        out = assistant_event("Bash", {"command": 'git remote -v; echo "x"; ls -a'})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_probing_for_a_cli_with_powershell_is_the_oriented_reason(self):
+        out = assistant_event("PowerShell", {"command": (
+            '(Get-Command aws -ErrorAction SilentlyContinue).Source;'
+            ' Test-Path "$env:USERPROFILE\\.aws\\config"'
+        )})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_piped_cmdlet_is_the_oriented_reason(self):
+        out = assistant_event(
+            "PowerShell", {"command": "Get-ChildItem | Select-Object -First 5"}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_discarded_stream_is_not_a_write(self):
+        out = assistant_event(
+            "Bash", {"command": 'ls -a .github/workflows 2>/dev/null; cat netlify.toml 2>&1'}
+        )
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ORIENTED_ONLY)
+
+    def test_a_destructive_segment_in_a_read_only_chain_counts_as_acting(self):
+        out = assistant_event("Bash", {"command": "git status && rm -rf build"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+    def test_a_checkout_in_a_read_only_chain_counts_as_acting(self):
+        out = assistant_event("PowerShell", {"command": "git status; git checkout -b fix"})
+        self.assertEqual(router_eval.classify_none_reason(out), NoneReason.ACTED_WITHOUT_ROUTING)
+
+
+class TestNoneReasonLeavesScoringAlone(unittest.TestCase):
+    SESSIONS_BY_REASON = {
+        NoneReason.NO_TOOL_CALL: json.dumps({"type": "result", "result": "answered directly"}),
+        NoneReason.ORIENTED_ONLY: assistant_event("Bash", {"command": "git status"}),
+        NoneReason.ACTED_WITHOUT_ROUTING: assistant_event("Bash", {"command": "npm install"}),
+    }
+
+    def test_every_reason_still_parses_as_the_literal_none_route(self):
+        for reason, out in self.SESSIONS_BY_REASON.items():
+            self.assertEqual(router_eval.parse_route_from_session(out), "none", reason)
+            self.assertEqual(router_eval.classify_none_reason(out), reason)
+
+    def test_the_negative_class_still_passes_whatever_the_reason(self):
+        for reason, out in self.SESSIONS_BY_REASON.items():
+            route = router_eval.parse_route_from_session(out)
+            self.assertTrue(scored_pass(router_eval.NONE, route), reason)
+
+    def test_a_positive_query_still_misses_whatever_the_reason(self):
+        for reason, out in self.SESSIONS_BY_REASON.items():
+            route = router_eval.parse_route_from_session(out)
+            self.assertFalse(scored_pass("muggle-test", route), reason)
+
+    def test_the_reason_never_leaks_into_the_scored_route(self):
+        for reason, out in self.SESSIONS_BY_REASON.items():
+            self.assertNotIn(reason.value, router_eval.parse_route_from_session(out))
+
+
+class TestDetectRouteOutcome(unittest.TestCase):
+    def _detect_from_stream(self, stdout: str):
+        finished = subprocess.CompletedProcess(
+            args=[], returncode=0, stdout=stdout.encode("utf-8"), stderr=b"",
+        )
+        with mock.patch("subprocess.run", return_value=finished):
+            return router_eval.detect_route("q", ".", 10, None)
+
+    def test_a_session_with_no_tool_call_scores_none_and_names_the_reason(self):
+        outcome = self._detect_from_stream(json.dumps({"type": "result", "result": "answered directly"}))
+        self.assertEqual(outcome.route, "none")
+        self.assertEqual(outcome.none_reason, NoneReason.NO_TOOL_CALL)
+        self.assertTrue(scored_pass(router_eval.NONE, outcome.route))
+
+    def test_a_session_that_only_oriented_scores_none_and_names_the_reason(self):
+        outcome = self._detect_from_stream(session(
+            assistant_event("Bash", {"command": "git status"}),
+            assistant_event("Bash", {"command": "git diff"}),
+        ))
+        self.assertEqual(outcome.route, "none")
+        self.assertEqual(outcome.none_reason, NoneReason.ORIENTED_ONLY)
+        self.assertFalse(scored_pass("muggle-browser-task", outcome.route))
+
+    def test_a_routed_session_carries_no_reason(self):
+        outcome = self._detect_from_stream(assistant_event("Skill", {"skill": "muggle:muggle-test"}))
+        self.assertEqual(outcome.route, "muggle-test")
+        self.assertIsNone(outcome.none_reason)
+
+    def test_a_timed_out_session_carries_no_reason(self):
+        expired = subprocess.TimeoutExpired(cmd="claude", timeout=1)
+        with mock.patch("subprocess.run", side_effect=expired):
+            outcome = router_eval.detect_route("q", ".", 1, None)
+        self.assertEqual(outcome.route, "TIMEOUT")
+        self.assertIsNone(outcome.none_reason)
+
+
+class TestReportCarriesNoneReasons(unittest.TestCase):
+    def _report_for(self, eval_set: list[dict], outcomes_by_query: dict) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            eval_set_path = Path(tmp) / "eval-set.json"
+            eval_set_path.write_text(json.dumps(eval_set), encoding="utf-8")
+            report_path = Path(tmp) / "report.json"
+            scripted = {q: iter(outcomes) for q, outcomes in outcomes_by_query.items()}
+
+            def scripted_detect(query, repo_root, timeout, model):
+                return next(scripted[query])
+
+            argv = [
+                "router_eval.py",
+                "--eval-set", str(eval_set_path),
+                "--out", str(report_path),
+                "--runs", "3",
+                "--workers", "1",
+            ]
+            with mock.patch.object(router_eval, "detect_route", scripted_detect), \
+                    mock.patch.object(sys, "argv", argv), redirect_stderr(io.StringIO()):
+                router_eval.main()
+            return json.loads(report_path.read_text(encoding="utf-8"))
+
+    def test_reasons_are_aggregated_across_a_query_runs(self):
+        report = self._report_for(
+            [{"query": "book me a table", "expected_skill": "muggle-browser-task"}],
+            {"book me a table": [
+                router_eval.RouteOutcome("none", NoneReason.NO_TOOL_CALL),
+                router_eval.RouteOutcome("none", NoneReason.ORIENTED_ONLY),
+                router_eval.RouteOutcome("none", NoneReason.ORIENTED_ONLY),
+            ]},
+        )
+        entry = report["results"][0]
+        self.assertEqual(entry[REPORT_NONE_REASONS_FIELD], {"no_tool_call": 1, "oriented_only": 2})
+        self.assertEqual(entry["fired"], ["none", "none", "none"])
+        self.assertEqual(entry["majority"], "none")
+        self.assertFalse(entry["pass"])
+
+    def test_a_query_that_routed_carries_no_reasons(self):
+        report = self._report_for(
+            [{"query": "test my changes", "expected_skill": "muggle-test"}],
+            {"test my changes": [router_eval.RouteOutcome("muggle-test", None)] * 3},
+        )
+        entry = report["results"][0]
+        self.assertEqual(entry[REPORT_NONE_REASONS_FIELD], {})
+        self.assertTrue(entry["pass"])
+
+    def test_a_negative_query_that_never_routed_still_passes(self):
+        report = self._report_for(
+            [{"query": "what can muggle do", "expected_skill": "none"}],
+            {"what can muggle do": [router_eval.RouteOutcome("none", NoneReason.NO_TOOL_CALL)] * 3},
+        )
+        entry = report["results"][0]
+        self.assertEqual(entry["majority"], "none")
+        self.assertTrue(entry["pass"])
+        self.assertEqual(entry[REPORT_NONE_REASONS_FIELD], {"no_tool_call": 3})
 
 
 if __name__ == "__main__":

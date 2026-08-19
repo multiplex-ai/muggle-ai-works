@@ -16,7 +16,16 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from route_constants import REPORT_NONE_REASONS_FIELD
 from scoring import NONE, is_muggle, scored_pass
+
+
+def none_reasons_of(row: dict) -> dict:
+    """Why one query's runs reached no skill, counted by reason.
+
+    Output shape: `{"oriented_only": 2, "no_tool_call": 1}`
+    """
+    return row.get(REPORT_NONE_REASONS_FIELD) or {}
 
 
 def load(path):
@@ -118,8 +127,16 @@ def per_skill_report(report):
     misses = [r for r in rows_all if not r["_pass"]]
     if not misses:
         lines.append("None — all pass.")
+    missed_reasons = Counter()
     for r in misses:
-        lines.append(f"- expected `{r['expected_skill']}` got `{r['majority']}` — {r['query'][:75]}  (fired: {dict(Counter(r['fired']))})")
+        missed_reasons.update(none_reasons_of(r))
+    if missed_reasons:
+        lines.append(f"- runs that reached no skill, by reason: {dict(missed_reasons.most_common())}")
+        lines.append("")
+    for r in misses:
+        reasons = none_reasons_of(r)
+        reason_note = f"  (no route: {reasons})" if reasons else ""
+        lines.append(f"- expected `{r['expected_skill']}` got `{r['majority']}` — {r['query'][:75]}  (fired: {dict(Counter(r['fired']))}){reason_note}")
     lines.append("")
     return "\n".join(lines)
 

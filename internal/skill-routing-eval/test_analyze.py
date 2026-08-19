@@ -2,6 +2,7 @@ import unittest
 
 import analyze
 import run
+from route_constants import REPORT_NONE_REASONS_FIELD
 
 
 class PerSkillReportEmptyInput(unittest.TestCase):
@@ -23,6 +24,32 @@ class PerSkillReportEmptyInput(unittest.TestCase):
         out = analyze.per_skill_report(report)
         # q1 exact match + q3 negative-clean pass; q2 misses → 2 of 3.
         self.assertIn("2/3", out)
+
+
+class GenuineMissesNameWhyNothingRouted(unittest.TestCase):
+    def _report_with(self, miss_entry):
+        return {"model": "m", "runs_per_query": 3, "results": [miss_entry]}
+
+    def test_miss_line_carries_the_reason_breakdown(self):
+        out = analyze.per_skill_report(self._report_with({
+            "query": "book me a table",
+            "expected_skill": "muggle-browser-task",
+            "majority": "none",
+            "fired": ["none", "none", "none"],
+            REPORT_NONE_REASONS_FIELD: {"oriented_only": 2, "no_tool_call": 1},
+        }))
+        self.assertIn("oriented_only", out)
+        self.assertIn("no_tool_call", out)
+
+    def test_an_entry_without_reasons_still_renders(self):
+        out = analyze.per_skill_report(self._report_with({
+            "query": "book me a table",
+            "expected_skill": "muggle-browser-task",
+            "majority": "muggle-test",
+            "fired": ["muggle-test"],
+        }))
+        self.assertIn("Genuine misses", out)
+        self.assertNotIn("no route:", out)
 
 
 class NoCoverageDetection(unittest.TestCase):

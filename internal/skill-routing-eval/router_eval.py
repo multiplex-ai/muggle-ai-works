@@ -8,7 +8,9 @@ once the route is made, so the routed skill never runs anything.
 
 Each query is labeled with the skill we expect to fire (or "none"). Every query
 runs N times; we report, per query, the distribution of skills that fired plus a
-majority-vote pass/fail against the expected label.
+majority-vote pass/fail against the expected label. A run that reached no skill
+also records why it never routed — diagnostic data alongside the route, scored
+as nothing.
 """
 
 import argparse
@@ -23,6 +25,17 @@ from pathlib import Path
 from threading import Lock
 
 import throttle
+from route_constants import (
+    COMMAND_VERB_EDGE_CHARS,
+    DISCARDED_REDIRECT,
+    INSPECTION_COMMANDS,
+    INSPECTION_TOOL_NAMES,
+    MAX_COMMAND_VERB_TOKENS,
+    OUTPUT_REDIRECT,
+    REPORT_NONE_REASONS_FIELD,
+    SHELL_TOOL_NAMES,
+)
+from route_types import NoneReason, RouteOutcome
 from scoring import NONE, scored_pass
 
 # Shared across the worker pool: one rate-limited run pauses new starts for all.
@@ -42,6 +55,10 @@ PLUGIN_SKILLS_DIR = Path(__file__).resolve().parents[2] / "plugin" / "skills"
 ALIAS_TARGET_PATTERN = re.compile(
     r"^description:.*\balias for the `([^`]+)` skill", re.MULTILINE
 )
+
+COMMAND_SEGMENT_PATTERN = re.compile(r"&&|\|\||[;|\n]")
+
+DISCARDED_REDIRECT_PATTERN = re.compile(DISCARDED_REDIRECT, re.IGNORECASE)
 
 
 def build_alias_to_canonical(skills_dir: Path) -> dict[str, str]:
@@ -84,21 +101,31 @@ def resolve_alias_route(route: str) -> str:
     return ALIAS_TO_CANONICAL.get(route, route)
 
 
-def format_run_progress(done: int, total: int, query: str, route: str, expected: str) -> str:
+def format_run_progress(
+    done: int,
+    total: int,
+    query: str,
+    route: str,
+    expected: str,
+    none_reason: NoneReason | None = None,
+) -> str:
     """One live progress line, naming the query that produced `route`.
 
     Runs complete out of order across the worker pool, so each line has to carry
     its own query — a bare route belongs to whichever of N parallel sessions
     happened to finish. The marker scores this single run against the query's
-    label; reported accuracy still scores the majority route across its runs.
+    label; reported accuracy still scores the majority route across its runs. A
+    run that reached no skill also names why, so the CI log is diagnosable
+    without re-running the query by hand.
 
-    Output shape: `  12/78 MISS route=none :: test my changes before I open the PR`
+    Output shape: `  12/78 MISS route=none (oriented_only) :: test my changes before I open the PR`
     """
     marker = "ok  " if scored_pass(expected, route) else "MISS"
+    reason_note = f" ({none_reason.value})" if none_reason else ""
     shown = " ".join(query.split())
     if len(shown) > PROGRESS_QUERY_CHARS:
         shown = shown[: PROGRESS_QUERY_CHARS - 3] + "..."
-    return f"  {done}/{total} {marker} route={route} :: {shown}"
+    return f"  {done}/{total} {marker} route={route}{reason_note} :: {shown}"
 
 
 def normalize_skill(raw: str) -> str:
@@ -176,6 +203,49 @@ def parse_route_from_session(out: str) -> str:
     return muggle_tool_signal or NONE
 
 
+def _is_inspection_command(command: str) -> bool:
+    """True when every segment of a shell command reports state without changing it."""
+    segments = [seg for seg in COMMAND_SEGMENT_PATTERN.split(command) if seg.strip()]
+    if not segments:
+        return False
+    for segment in segments:
+        if OUTPUT_REDIRECT in DISCARDED_REDIRECT_PATTERN.sub("", segment):
+            return False
+        tokens = [token.strip(COMMAND_VERB_EDGE_CHARS).lower() for token in segment.split()]
+        verbs = {" ".join(tokens[:n]) for n in range(1, MAX_COMMAND_VERB_TOKENS + 1)}
+        if not verbs & INSPECTION_COMMANDS:
+            return False
+    return True
+
+
+def _is_inspection_call(tool_name: str, tool_input: dict) -> bool:
+    """True when a tool call looked at the repo rather than acting on it."""
+    if tool_name in SHELL_TOOL_NAMES:
+        return _is_inspection_command(str(tool_input.get("command", "")))
+    return tool_name in INSPECTION_TOOL_NAMES
+
+
+def classify_none_reason(out: str) -> NoneReason:
+    """Why a session that reached no skill never routed, read off its tool calls.
+
+    A bare `none` reads the same whether the model answered the query outright,
+    oriented and stopped, or reached for a tool that could act — and those want
+    different fixes (a mislabelled query, a description that never won, a
+    description the model never looked for), so the route carries the reason
+    alongside it. The acting bucket is decided by what the stream can prove: a
+    call is `ACTED_WITHOUT_ROUTING` when it is not provably read-only — an
+    unrecognized command verb, a real output redirect, or a writing tool.
+
+    Output shape: `NoneReason.ORIENTED_ONLY`
+    """
+    called_a_tool = False
+    for tool_name, tool_input in _iter_tool_calls(out):
+        called_a_tool = True
+        if not _is_inspection_call(tool_name, tool_input):
+            return NoneReason.ACTED_WITHOUT_ROUTING
+    return NoneReason.ORIENTED_ONLY if called_a_tool else NoneReason.NO_TOOL_CALL
+
+
 def stream_error_text(out: str) -> str:
     """Text of an `is_error` result event, or "" — a normal result is not an error."""
     for line in out.splitlines():
@@ -245,7 +315,11 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
     return ("OK", out)
 
 
-def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> str:
+def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> RouteOutcome:
+    """One query's route, carrying why it never routed when the route is `none`.
+
+    Output shape: `RouteOutcome(route="none", none_reason=NoneReason.ORIENTED_ONLY)`
+    """
     attempt = 1
     while True:
         THROTTLE_GATE.wait_until_clear()
@@ -260,11 +334,13 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
             attempt += 1
             continue
         if status == "OK":
-            return parse_route_from_session(out)
+            route = parse_route_from_session(out)
+            reason = classify_none_reason(out) if route == NONE else None
+            return RouteOutcome(route, reason)
         # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
         # strings, so they score exactly like the old silent `none` on negatives
         # while staying attributable in the fired[] lists.
-        return status
+        return RouteOutcome(status, None)
 
 
 def main():
@@ -281,7 +357,12 @@ def main():
     args = ap.parse_args()
 
     if args.probe:
-        print(detect_route(args.probe, args.repo_root, args.timeout, args.model))
+        outcome = detect_route(args.probe, args.repo_root, args.timeout, args.model)
+        if outcome.none_reason:
+            # The preflight reads stdout as the bare route, so a failed probe can
+            # only explain itself on stderr.
+            print(f"  no route: {outcome.none_reason.value}", file=sys.stderr)
+        print(outcome.route)
         return
     if not args.eval_set or not args.out:
         ap.error("--eval-set and --out are required unless --probe is given")
@@ -306,21 +387,26 @@ def main():
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(work, i) for i in range(len(jobs))]
         for fut in as_completed(futs):
-            i, route = fut.result()
-            results[i] = route
+            i, outcome = fut.result()
+            results[i] = outcome
             qi, query = jobs[i]
             expected = eval_set[qi].get("expected_skill", NONE)
             with lock:
                 done += 1
                 print(
-                    format_run_progress(done, len(jobs), query, route, expected),
+                    format_run_progress(
+                        done, len(jobs), query, outcome.route, expected, outcome.none_reason
+                    ),
                     file=sys.stderr, flush=True,
                 )
 
     fired: dict[int, list[str]] = {}
-    for i, route in enumerate(results):
+    none_reasons: dict[int, Counter] = {}
+    for i, outcome in enumerate(results):
         qi = jobs[i][0]
-        fired.setdefault(qi, []).append(route)
+        fired.setdefault(qi, []).append(outcome.route)
+        if outcome.none_reason:
+            none_reasons.setdefault(qi, Counter())[outcome.none_reason.value] += 1
 
     out = []
     passed = 0
@@ -335,6 +421,7 @@ def main():
             "query": item["query"],
             "expected_skill": expected,
             "fired": runs,
+            REPORT_NONE_REASONS_FIELD: dict(none_reasons.get(qi, Counter())),
             "majority": majority,
             "pass": ok,
             "note": item.get("note", ""),

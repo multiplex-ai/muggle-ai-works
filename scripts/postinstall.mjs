@@ -573,6 +573,59 @@ async function verifyExistingInstall({
 }
 
 /**
+ * Resolve the runtime target this installed package points at.
+ *
+ * Mirrors the precedence the harness itself applies: the environment override,
+ * then the target baked in at publish time, then dev.
+ * @param {{ runtimeTargetDefault?: string }} config - The package's muggleConfig.
+ * @returns {string} The resolved runtime target name.
+ */
+function resolveRuntimeTarget(config) {
+    return process.env.MUGGLE_MCP_PROMPT_SERVICE_TARGET || config.runtimeTargetDefault || "dev";
+}
+
+/**
+ * Get the electron-app release stream a runtime target installs its studio from.
+ *
+ * Downloading the wrong stream yields a binary that talks to the wrong backend
+ * and fails checksum verification against the stream's recorded hashes.
+ * @param {string} runtimeTarget - Resolved runtime target name.
+ * @returns {string} Release stream name, for example "production".
+ */
+function getReleaseStream(runtimeTarget) {
+    const { targets } = require("../config/runtime-targets.json");
+    const profile = targets[runtimeTarget];
+
+    if (!profile) {
+        throw new Error(
+            `Unknown runtime target '${runtimeTarget}'. ` +
+                `Expected one of: ${Object.keys(targets).join(", ")}.`,
+        );
+    }
+
+    return profile.electronAppReleaseStream;
+}
+
+/**
+ * Get the release tag prefix for an electron-app release stream.
+ * @param {string} releaseStream - Release stream name.
+ * @returns {string} Release tag prefix, for example "electron-app-v".
+ */
+function getReleaseTagPrefix(releaseStream) {
+    const { streams } = require("../config/runtime-targets.json");
+    const stream = streams[releaseStream];
+
+    if (!stream) {
+        throw new Error(
+            `Unknown electron-app release stream '${releaseStream}'. ` +
+                `Expected one of: ${Object.keys(streams).join(", ")}.`,
+        );
+    }
+
+    return stream.electronAppReleaseTagPrefix;
+}
+
+/**
  * Download and extract the Electron app.
  */
 async function downloadElectronApp() {
@@ -583,11 +636,15 @@ async function downloadElectronApp() {
         const version = config.electronAppVersion || "1.0.0";
         const baseUrl = config.downloadBaseUrl || "https://github.com/multiplex-ai/muggle-ai-works/releases/download";
 
+        const runtimeTarget = resolveRuntimeTarget(config);
+        const releaseStream = getReleaseStream(runtimeTarget);
+        const releaseTagPrefix = getReleaseTagPrefix(releaseStream);
+
         const binaryName = getBinaryName();
-        const checksums = config.checksums || {};
+        const checksums = (config.checksumsByStream || {})[releaseStream] || {};
         const platformKey = getPlatformKey();
         const expectedChecksum = checksums[platformKey] || "";
-        const downloadUrl = `${baseUrl}/electron-app-v${version}/${binaryName}`;
+        const downloadUrl = `${baseUrl}/${releaseTagPrefix}${version}/${binaryName}`;
 
         const appDir = getElectronAppDir();
         const versionDir = join(appDir, version);

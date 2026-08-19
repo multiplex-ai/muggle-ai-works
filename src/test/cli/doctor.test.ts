@@ -12,6 +12,7 @@ const fsState = vi.hoisted(() => ({
 const platformState = vi.hoisted(() => ({ value: "win32", home: "/home/u" }));
 
 const mcpsMocks = vi.hoisted(() => ({
+  getActiveRuntimeTarget: vi.fn(() => "production"),
   getAuthService: vi.fn(() => ({ getAuthStatus: vi.fn(() => ({ authenticated: true, email: "u@e.com" })) })),
   getBundledElectronAppVersion: vi.fn(() => "1.0.4"),
   getConfig: vi.fn(() => ({

@@ -3,7 +3,10 @@
  */
 
 import {
+  assertDeviceCodeClientProvisioned,
+  getActiveRuntimeTarget,
   getAuthService,
+  getConfig,
   getLogger,
   hasApiKey,
   performLogin,
@@ -30,21 +33,25 @@ export async function loginCommand (options: ILoginOptions): Promise<void> {
   console.log("\nMuggle AI Login");
   console.log("===============\n");
 
+  // Fail before contacting Auth0: an unprovisioned client comes back as an
+  // opaque 403 that says nothing about which target is misconfigured.
+  assertDeviceCodeClientProvisioned(getActiveRuntimeTarget());
+
   const expiry = (options.keyExpiry || "90d") as "30d" | "90d" | "1y" | "never";
 
   console.log("Starting device code authentication...");
   console.log("A browser window will open for you to complete login.\n");
 
-  const result = await performLogin(options.keyName, expiry);
+  const loginResult = await performLogin(options.keyName, expiry);
 
-  if (result.success) {
+  if (loginResult.success) {
     console.log("✓ Login successful!");
 
-    if (result.credentials?.email) {
-      console.log(`  Logged in as: ${result.credentials.email}`);
+    if (loginResult.credentials?.email) {
+      console.log(`  Logged in as: ${loginResult.credentials.email}`);
     }
 
-    if (result.credentials?.apiKey) {
+    if (loginResult.credentials?.apiKey) {
       console.log("  API key created and stored for future use.");
     }
 
@@ -52,14 +59,14 @@ export async function loginCommand (options: ILoginOptions): Promise<void> {
   } else {
     console.error("✗ Login failed");
 
-    if (result.error) {
-      console.error(`  Error: ${result.error}`);
+    if (loginResult.error) {
+      console.error(`  Error: ${loginResult.error}`);
     }
 
-    if (result.deviceCodeResponse) {
+    if (loginResult.deviceCodeResponse) {
       console.log("\nIf browser didn't open, visit:");
-      console.log(`  ${result.deviceCodeResponse.verificationUriComplete}`);
-      console.log(`  Code: ${result.deviceCodeResponse.userCode}`);
+      console.log(`  ${loginResult.deviceCodeResponse.verificationUriComplete}`);
+      console.log(`  Code: ${loginResult.deviceCodeResponse.userCode}`);
     }
 
     process.exit(1);
@@ -84,6 +91,9 @@ export async function logoutCommand (): Promise<void> {
 export async function statusCommand (): Promise<void> {
   console.log("\nAuthentication Status");
   console.log("=====================\n");
+
+  console.log(`Runtime target: ${getActiveRuntimeTarget()}`);
+  console.log(`Backend: ${getConfig().e2e.promptServiceBaseUrl}\n`);
 
   const authService = getAuthService();
   const status = authService.getAuthStatus();

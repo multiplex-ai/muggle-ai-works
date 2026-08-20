@@ -44,7 +44,7 @@ describe("buildStudioTaskFile", () => {
 });
 
 describe("buildStudioArgv", () => {
-  it("pins the single-flag spawn contract", () => {
+  it("pins the run mode plus single-flag spawn contract", () => {
     expect(
       buildStudioArgv({
         studioBinPath: "/bin/muggle-studio",
@@ -52,7 +52,21 @@ describe("buildStudioArgv", () => {
         resultFilePath: "/out/trajectories/Allrecipes--0/result.json",
         browserProfileDir: "/out/profiles/Allrecipes--0",
       }),
-    ).toEqual(["--benchmark-task", "/out/trajectories/Allrecipes--0/task.json"]);
+    ).toEqual(["explore", "--benchmark-task", "/out/trajectories/Allrecipes--0/task.json"]);
+  });
+
+  it("leads with the positional run mode, which studio reads as argv[1]", () => {
+    // Studio resolves the run mode positionally before scanning flags. Omit it
+    // and "--benchmark-task" lands in the mode slot: the process exits with
+    // "Unsupported run mode --benchmark-task" before the agent loop is reached.
+    const argv = buildStudioArgv({
+      studioBinPath: "/bin/muggle-studio",
+      taskFilePath: "/out/task.json",
+      resultFilePath: "/out/result.json",
+      browserProfileDir: "/out/profiles/x",
+    });
+
+    expect(argv[0]).toBe("explore");
   });
 
   it("does not pass --out; studio reads the result path from the task file", () => {

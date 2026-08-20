@@ -166,6 +166,33 @@ export function getDataDir(): string {
 }
 
 /**
+ * Build the install directory name for an electron-app version.
+ *
+ * Both release streams publish the same version deliberately, so a version
+ * alone does not identify a binary. Without the stream in the path, installing
+ * a staging harness on a machine that already has the production studio finds
+ * the directory present, skips the download, and runs the production studio
+ * against the staging backend — and no checksum catches it, because
+ * verification only happens on download.
+ *
+ * The production stream keeps the bare version so existing installs are not
+ * orphaned and nobody re-downloads on upgrade.
+ * @param params - Directory parameters.
+ * @param params.version - Electron app version.
+ * @param params.releaseStream - Release stream the binary came from.
+ * @returns Directory name, for example "1.9.0" or "1.9.0-staging".
+ */
+function buildElectronAppDirName(params: {
+  version: string;
+  releaseStream: ElectronAppReleaseStream;
+}): string {
+  if (params.releaseStream === ElectronAppReleaseStream.Production) {
+    return params.version;
+  }
+  return `${params.version}-${params.releaseStream}`;
+}
+
+/**
  * Get the path to the downloaded electron-app binary for the current platform.
  * Uses the effective version (env -> override -> bundled) to match where
  * setup/upgrade actually installs the binary.
@@ -175,7 +202,14 @@ function getDownloadedElectronAppPath(): string | null {
   const platformName = os.platform();
   const version = getElectronAppVersion();
 
-  const baseDir = path.join(getDataDir(), ELECTRON_APP_DIR, version);
+  const baseDir = path.join(
+    getDataDir(),
+    ELECTRON_APP_DIR,
+    buildElectronAppDirName({
+      version: version,
+      releaseStream: getActiveElectronAppReleaseStream(),
+    }),
+  );
 
   let binaryPath: string;
 
@@ -560,5 +594,12 @@ export function isElectronAppInstalled(): boolean {
  */
 export function getElectronAppDir(version?: string): string {
   const resolvedVersion = version ?? getElectronAppVersion();
-  return path.join(getDataDir(), ELECTRON_APP_DIR, resolvedVersion);
+  return path.join(
+    getDataDir(),
+    ELECTRON_APP_DIR,
+    buildElectronAppDirName({
+      version: resolvedVersion,
+      releaseStream: getActiveElectronAppReleaseStream(),
+    }),
+  );
 }

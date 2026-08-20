@@ -60,7 +60,12 @@
         "linux-x64": "d434a88a087c7410785a443cfe03102322fa7a295b77600f5ed92e2113e271c2",
         "win32-x64": "0aecbc01010ab0a268137ed31bcaaa05fe9215daa9f4c0e4871b07554d28c0c8"
       },
-      "staging": {}
+      "staging": {
+        "darwin-x64": "754bbdaa9ccb0f10bfd92c0f5efd7877c4635708b8a7dde8bbf76bc6c74598b1",
+        "darwin-arm64": "8f8854788769971af4ad5c83531d595951f3c0306d3ddcc9b6b8cb5a5ccd375d",
+        "linux-x64": "929396f628a05f001782d48524cd9f76fdbb59216658982a5a3909dfe413cbea",
+        "win32-x64": "a8b5b46b97ed788030be84982a3e8d463abbfa7f3e8bc795692ccbffc82bfa92"
+      }
     }
   },
   "dependencies": {

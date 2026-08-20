@@ -1,5 +1,5 @@
 import { type BenchmarkTask } from "../domain/types";
-import { BENCHMARK_TASK_FLAG } from "./constants";
+import { BENCHMARK_TASK_FLAG, STUDIO_RUN_MODE } from "./constants";
 import { type StudioInvocation, type StudioTaskFile } from "./types";
 
 /**
@@ -31,12 +31,13 @@ export const buildStudioTaskFile = ({
 
 /**
  * Builds studio's argument list. The contract is fixed on both sides — studio
- * reads exactly this one flag — so it is pinned here rather than assembled
- * inline at the spawn site.
+ * reads a positional run mode and then this one flag — so it is pinned here
+ * rather than assembled inline at the spawn site.
  *
- * Output shape: `["--benchmark-task", "…/task.json"]`
+ * Output shape: `["explore", "--benchmark-task", "…/task.json"]`
  */
 export const buildStudioArgv = (invocation: StudioInvocation): string[] => [
+  STUDIO_RUN_MODE,
   BENCHMARK_TASK_FLAG,
   invocation.taskFilePath,
 ];

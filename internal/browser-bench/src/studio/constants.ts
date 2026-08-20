@@ -18,3 +18,12 @@ export const STUDIO_STATUS_SUCCESS = "success";
 
 /** How much studio stderr to keep for an error message — enough for a stack, short of a log dump. */
 export const STDERR_TAIL_LIMIT = 4_000;
+
+/**
+ * Studio's run mode, passed positionally as the first argument. Studio reads
+ * `argv[1]` as the mode before scanning for flags, so omitting it makes the
+ * benchmark flag itself land in the mode slot and the process exits with
+ * "Unsupported run mode --benchmark-task". Benchmark mode is explore plus the
+ * task-file marker, never a mode of its own.
+ */
+export const STUDIO_RUN_MODE = "explore";

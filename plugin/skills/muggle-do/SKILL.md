@@ -20,9 +20,10 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 | 5 | Unit tests | [`../do/unit-tests.md`](../do/unit-tests.md) |
 | 6 | E2E acceptance | [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) |
 | 7 | Create or update PR | [`../do/open-prs.md`](../do/open-prs.md) |
+| 7.5 | E2E repair loop | [`../do/e2e-repair.md`](../do/e2e-repair.md) |
 | 8 | Hand off to watcher | [`../muggle-pr-followup/SKILL.md`](../muggle-pr-followup/SKILL.md) |
 
-Stage 7 dispatches one watcher per opened PR as its last action.
+Stage 7 dispatches one watcher per opened PR as its last action, gated on Stage 7.5's clearance — a cycle with unrepaired E2E failures never reaches a watcher.
 
 ## Execution protocol (non-negotiable)
 
@@ -31,12 +32,12 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Bootstrap before any code, in order:**
 1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
-3. `TodoWrite` one item per stage 1–8 — these stages are the checklist; never swap in your own decomposition.
+3. `TodoWrite` one item per stage 1–8, Stage 7.5 included — these stages are the checklist; never swap in your own decomposition.
 
 **Per stage:** read the file → execute it → append a marker to `iterations/<NNN>.md` citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
-Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, or the watcher hand-off. Run the whole pipeline silently — never a shortcut.
+Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision collapses, into an automatic waive. Run the whole pipeline silently — never a shortcut.
 
 ### Definition of Done — gate before Stage 7
 Do not create or update a PR until each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver):
@@ -81,7 +82,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 ## Guardrails
 
-- Stage 1 is the only user-facing forward stage. Stages 2–7 don't ask mid-cycle; blocker → pre-flight bug.
+- Stage 1 and Stage 7.5's user decision are the only user-facing forward stages. Stages 2–7 don't ask mid-cycle; blocker → pre-flight bug.
 - Same stage failing 3× → escalate.
-- 3 cycle iterations reach E2E with failures → ship with `[E2E FAILING]`.
+- 3 repair iterations reach E2E with failures → waive, ship with `[E2E FAILING]`, and hand to the watcher.
 - Address-reviews escalation (ambiguous or design-adjustment) does not block the watcher; user resolves on GitHub.

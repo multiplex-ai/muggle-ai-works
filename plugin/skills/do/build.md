@@ -56,3 +56,12 @@ The address-reviews orchestrator ([`address-reviews.md`](address-reviews.md)) in
 - Continue on the existing branch — do not re-create the worktree.
 - After this stage, the orchestrator runs unit-tests → ONE E2E pass → create-or-update PR (push to the existing branch; refresh title/desc if state changed) → per-comment inline replies → resolve-reminder → respawn the watcher.
 - If the requested work cannot be implemented without rethinking design (e.g. a load-bearing invariant must change), return `failed: design-adjustment` and let the orchestrator escalate via the design-adjustment terminal message. Do not partially implement.
+
+## Re-entry from the E2E repair loop
+
+[`e2e-repair.md`](e2e-repair.md) invokes this stage when a failing acceptance run root-causes to a product defect the change introduced. When re-entered:
+
+- The loop passes the named defects — failing step, expected-versus-actual, and the implicated code path — as the requirements amendment for this iteration. Treat them as additions to the goal/AC.
+- Continue on the existing branch; the worktree and the PR already exist.
+- After this stage, the loop runs unit-tests → a re-run scoped to the affected test cases → `open-prs/update.md`. Impact analysis does not re-run.
+- If the defect can't be fixed without rethinking design, return `failed: design-adjustment`. The loop routes it to its user decision instead of burning an iteration on it.

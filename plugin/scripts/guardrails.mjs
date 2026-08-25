@@ -66,6 +66,9 @@ var FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 var MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
 var MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
 var MUGGLE_RUN_PASSED_STATUS = "passed";
+var GITHUB_RESOLVE_THREAD_MUTATION = /\bresolveReviewThread\b/;
+var GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved=true/i;
+var PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;
 
 // src/guardrails/prTerminal.ts
 function detectPrTerminal(input2) {
@@ -567,6 +570,21 @@ function evaluateReportPost(input2, read = defaultFileReader) {
   };
 }
 
+// src/guardrails/reviewThreadResolve.ts
+function detectResolveCall(command) {
+  if (!PROVIDER_API_INVOCATION.test(command)) return null;
+  if (GITHUB_RESOLVE_THREAD_MUTATION.test(command)) return "github" /* GitHub */;
+  if (GITLAB_RESOLVE_DISCUSSION_CALL.test(command)) return "gitlab" /* GitLab */;
+  return null;
+}
+var RESOLVE_DENIAL = "Blocked: resolving a review thread is the reviewer's call, not the loop's. Reply to the thread instead \u2014 the `<!-- muggle-do:bot -->` marker on that reply is what retires it (a thread is actionable only while it is unresolved AND its newest comment is unmarked), so resolving buys no echo protection and costs the reviewer their record of what is still unverified. The loop has twice hidden threads carrying fixes that were partly wrong. If a thread genuinely warrants resolving, say so and let the reviewer close it in the UI; to nudge, run the resolve-reminder stage, which lists addressed-but-open threads without touching them.";
+function evaluateReviewThreadResolve(input2) {
+  if (input2.tool_name !== "Bash") return { deny: false };
+  const provider = detectResolveCall(input2.tool_input?.command ?? "");
+  if (!provider) return { deny: false };
+  return { deny: true, reason: RESOLVE_DENIAL };
+}
+
 // src/guardrails/emit.ts
 function envelope(eventName, context, host2) {
   if (!context) return "{}";
@@ -775,6 +793,11 @@ function reportGate() {
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
   return denyTool(reportPostVerdict.reason, host);
 }
+function resolveGate() {
+  const resolveVerdict = evaluateReviewThreadResolve(input);
+  if (!resolveVerdict.deny || !resolveVerdict.reason) return "{}";
+  return denyTool(resolveVerdict.reason, host);
+}
 function buildRouter() {
   if (!detectBuildIntent(input.prompt ?? "")) return "{}";
   const state = readState(sessionId);
@@ -794,6 +817,7 @@ var handlers = {
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
+  "resolve-gate": resolveGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,
   "record-stage-read": recordStageRead,

@@ -15,4 +15,6 @@ Walk each unresolved thread's `notes[]` in `created_at` order and classify by th
 - **Unaddressed human comment** — the newest note lacks the marker and is newer than the thread's newest loop-marked note (or the thread has none yet). → actionable: the round should address it.
 - **Not addressed** — indeterminate (e.g. no notes).
 
-Each thread carries its `id` (the `discussion_id`) — the watcher collects this from an actionable thread to build its dispatch list and to target the resolve call later.
+Each thread carries its `id` (the `discussion_id`) — the watcher collects this from an actionable thread to build its dispatch list.
+
+Marking a discussion resolved is the reviewer's act, never the loop's: the marker classification above already retires an addressed thread, so a resolve would only hide it. A `PreToolUse` guardrail denies the call.

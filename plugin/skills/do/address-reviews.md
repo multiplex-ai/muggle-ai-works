@@ -97,7 +97,7 @@ Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + exis
 
 #### 4f. Post per-comment inline replies
 
-Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions) and the new SHA. One reply per comment, in its own thread, describing what was done for it; on `gitlab` the same step also resolves each fully-addressed discussion.
+Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions) and the new SHA. One reply per comment, in its own thread, describing what was done for it. The reply is the whole of it — neither provider's threads get resolved by the loop.
 
 (The resolve-reminder runs once per round in Step 5.5 below — not only after a push — so a round that pushed nothing still nudges addressed-but-unresolved threads.)
 

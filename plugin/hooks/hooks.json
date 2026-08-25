@@ -34,6 +34,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-report-format.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-resolve-gate.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       },

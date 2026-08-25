@@ -18,7 +18,6 @@ Skills assume a working `glab auth status`. Auth errors surface verbatim from `g
 | [`unresolved-discussions`](gitlab/unresolved-discussions.md) | Unresolved-discussion state — watcher's dispatch trigger + resolve-reminder. |
 | [`reply-discussion`](gitlab/reply-discussion.md) | POST a threaded reply on a discussion. |
 | [`mr-note`](gitlab/mr-note.md) | POST a top-level MR note — resolve-reminder + overflow. |
-| [`resolve-discussion`](gitlab/resolve-discussion.md) | Mark a discussion thread resolved. |
 | [`mr-edit`](gitlab/mr-edit.md) | Refresh title or description when address-reviews mode flips state. |
 | [`mr-create`](gitlab/mr-create.md) | Open an MR + capture its URL for handoff. |
 | [`loop-user-identity`](gitlab/loop-user-identity.md) | Resolve the GitLab username of the loop user. |

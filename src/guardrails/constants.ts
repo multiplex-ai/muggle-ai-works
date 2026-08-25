@@ -90,3 +90,17 @@ export const FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 export const MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
 export const MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
 export const MUGGLE_RUN_PASSED_STATUS = "passed";
+
+// GitHub's GraphQL mutation that closes a review thread. The `\b` prefix is
+// load-bearing: `unresolveReviewThread` re-opens a thread — the opposite act,
+// and one a reviewer may legitimately want — so it must not match here.
+export const GITHUB_RESOLVE_THREAD_MUTATION = /\bresolveReviewThread\b/;
+
+// GitLab's REST equivalent: a PUT on a discussion carrying `resolved=true`.
+// `resolved=false` re-opens and stays allowed, mirroring the GitHub arm.
+export const GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved=true/i;
+
+// Only a real API invocation is a resolve. Without this, the gate would also
+// deny greps, doc reads, and the skill files that name the mutation to forbid
+// it — including the very tests that assert this guardrail works.
+export const PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;

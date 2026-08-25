@@ -110,6 +110,12 @@ export interface PrTerminalGateDecision {
   blockCount: number;
 }
 
+/** The forge whose review-thread resolve call a Bash command was about to make. */
+export enum ReviewThreadProvider {
+  GitHub = "github",
+  GitLab = "gitlab",
+}
+
 export interface HookInput {
   session_id?: string;
   cwd?: string;

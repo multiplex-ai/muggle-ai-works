@@ -147,6 +147,8 @@ For each test case:
 
 **Overall:** PASS | FAIL | PARTIAL | INCONCLUSIVE | BLOCKED | SKIPPED — see [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F for the canonical taxonomy.
 
+A non-passing verdict does not end the cycle. [`e2e-repair.md`](e2e-repair.md) consumes this report at Stage 7.5 and root-causes every Failed and Inconclusive entry before a watcher is armed, so write those blocks in full — the bucket, failing step, and `artifactsDir` recorded here are that stage's entire input.
+
 Failed runs use the same evidence + diagnosis assembly as the interactive debug path ([`../_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) Steps 1–2) — write that evidence into the **Failed** block above. This stage is autonomous, so it skips Step 3's interactive offer.
 
 ## Hard constraints

@@ -41,9 +41,13 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 6. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 
+## Stage 7.5 gate
+
+The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once this stage has created the PR and posted the walkthrough, and before the handoff below. Proceed only on its `green`, `waived`, or `iteration-cap` clearance — handing a red run to a watcher puts it in front of reviewers with nobody looking at the failures. When Stage 6 recorded `PASS` or `SKIPPED` the loop clears in its own Step 0 at no cost, so there is never a reason to skip it.
+
 ## Stage 8 handoff
 
-After every repo is processed, build the watcher manifest and dispatch one watcher loop per opened PR. The dispatches are the LAST action this stage takes.
+After every repo is processed and Stage 7.5 has cleared, build the watcher manifest and dispatch one watcher loop per opened PR. The dispatches are the LAST action this stage takes.
 
 Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
 
@@ -64,7 +68,7 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; PR creation per non-skipped repo; walkthrough block via Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); `/loop` dispatch is the last action.
+- Branch synced with its base before the push, never after; PR creation per non-skipped repo; walkthrough block via Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before the dispatch; `/loop` dispatch is the last action.
 
 ## Output
 
@@ -72,6 +76,7 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 **PRs Created:** repo → URL
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Overflow comments posted:** repo → PR #
+**Stage 7.5:** `green` | `waived — <reason>` | `iteration-cap`
 **Stage 8:** `Watching <N> PR(s) — one /loop 1m /muggle:muggle-pr-followup <slug> <pr#> per PR` | `No PRs to watch — stage 8 not dispatched`
 **Errors:** repo → message
 

@@ -1,6 +1,6 @@
 # Open PR — forward mode
 
-Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 4 — then seeds session state and dispatches the first watcher.
+Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 5 — then seeds session state and dispatches the first watcher.
 
 ## Turn preamble
 
@@ -18,14 +18,16 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.
 
-1. **Push:** Execute per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md) — the tool-agnostic instruction for pushing commits (handles the signing gate and directs to provider-specific recipes).
+1. **Sync with the base:** run [`../../_shared/sync-branch-with-base.md`](../../_shared/sync-branch-with-base.md) with `base` set to the PR target recorded in `state.md` — gated by [`autoRebase`](../../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. The branch is not on the remote yet, so the rebase lands without a force-push. Sync here rather than trusting stage 6: a `unit-only` or `skip` run never reaches the E2E stage's sync at all, and on a run that does, the base moves freely while stages 3–6 build and test. If the sync escalates — conflicts under `autoResolveConflicts=never`, or a resolution that fails the verify-or-rollback gate — stop and report; never open a PR on a tree that did not verify.
 
-2. **Title** (under 70 chars):
+2. **Push:** Execute per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md) — the tool-agnostic instruction for pushing commits (handles the signing gate and directs to provider-specific recipes).
+
+3. **Title** (under 70 chars):
    - E2E report exists and has failures → `[E2E FAILING] <goal>`
    - No E2E report (validation was `unit-only` or `skip`) → `[UNVERIFIED] <goal>` or `[UNIT-ONLY] <goal>` to match the validation strategy
    - Otherwise → `<goal>`
 
-3. **Body** — assemble in order:
+4. **Body** — assemble in order:
    - `## Goal` — from requirements.
    - `## Acceptance Criteria` — bulleted; omit if empty.
    - `## Changes` — summary of what changed in this repo.
@@ -33,11 +35,11 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - **Walkthrough block** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, omit this block. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B and embed the returned `body` verbatim. No report → skip the block.
    - **Signature** — write the assembled body to a file and sign it with `--command /muggle-do --mode editable` per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). The signature lands last, after the walkthrough block; `editable` is the mode a description carries so later refreshes replace it instead of stacking.
 
-4. **Create:** resolve the provider per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md).
-   - `github` → `gh pr create --title "..." --body-file <signed-file> --head <branch>`, passing the file signed in Step 3. Capture the PR URL and number.
+5. **Create:** resolve the provider per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md).
+   - `github` → `gh pr create --title "..." --body-file <signed-file> --head <branch>`, passing the file signed in Step 4. Capture the PR URL and number.
    - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
 
-5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 4 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
+6. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 
 ## Stage 8 handoff
 
@@ -62,10 +64,11 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 
 ## Invariants
 
-- PR creation per non-skipped repo; walkthrough block via Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); `/loop` dispatch is the last action.
+- Branch synced with its base before the push, never after; PR creation per non-skipped repo; walkthrough block via Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); `/loop` dispatch is the last action.
 
 ## Output
 
+**Synced with base:** repo → `rebased onto <base> (<n> behind)` | `already up to date` | `skipped (autoRebase)`
 **PRs Created:** repo → URL
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Overflow comments posted:** repo → PR #

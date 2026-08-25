@@ -22,7 +22,7 @@ The local URL only changes where the browser opens; it does not change the remot
 Three gates apply, each per the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md):
 
 - `autoUseWorktree` at pre-flight (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
-- `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)).
+- `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md)).
 - `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
 ## Local environment prerequisites
@@ -48,7 +48,7 @@ Gates run per `preference-gates/README.md`.
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 | `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
 | `autoUseWorktree` | 0 (pre-flight) | Isolate dev work in a worktree (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)) |
-| `autoRebase` | 0 (pre-flight) | Rebase onto `origin/<default>` before Step 7 (Execute) (see [`_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)) |
+| `autoRebase` | 0 (pre-flight) | Rebase onto `origin/<default>` before Step 7 (Execute) (see [`_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md)) |
 | `showElectronBrowser` | 7 | Show Electron browser window during local E2E tests |
 | `openTestResultsAfterRun` | 8 | Open results page on Muggle Test dashboard after run |
 | `postPRVisualWalkthrough` | 10 | Post visual walkthrough to PR after results |

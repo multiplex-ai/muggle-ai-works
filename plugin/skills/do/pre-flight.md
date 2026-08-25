@@ -32,7 +32,7 @@ Before asking anything, gather every fact you can resolve without the user:
 6. **Candidate Muggle Test projects.** Call `muggle-remote-project-list` and rank by semantic match against the task description and the repo's dev URL.
 7. **Existing test-user secrets.** For each candidate Muggle Test project, call `muggle-remote-secret-list` and note whether `managed_profile_email` / `managed_profile_password` exist.
 8. **Auth0 tenant in use for local dev.** Grep the repo's env file for `*AUTH0_DOMAIN*`; record the tenant. This tells the user whether the staging-tenant test user will work or not.
-9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md), [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md)):
+9. **Branch hygiene signals** for the `autoUseWorktree` and `autoRebase` gates (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md), [`../_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md)):
    - Is the current checkout already a worktree? `git -C <repo> rev-parse --is-inside-work-tree` plus `git -C <repo> worktree list`.
    - How many commits behind `origin/<default>`? `git -C <repo> fetch origin && git -C <repo> rev-list --count "HEAD..origin/$(git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short | sed 's|origin/||')"`.
 10. **`autoE2ETest` preference.** Read the session-context preferences line. Unset → treat as `always` (this gate's default — opposite of the system-wide `ask` default). `ask` → surface in Q13. `always` → no question; stage 6 runs.
@@ -56,7 +56,7 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 9. **PR target branch** — default: the repo's default branch. "Use default" / "Target a different branch".
 10. **Re-auth Muggle Test MCP?** — only if auth was missing/expired. "Log in now" / "Abort".
 11. **Worktree for this change?** — gate: [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md). Options: create a dedicated worktree (per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)), or work in the current checkout.
-12. **Rebase onto `origin/<default>` first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. Options: rebase before stage 6, or run as-is.
+12. **Sync onto the base branch first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. The answer governs every sync this cycle, not just one: before the dev server / E2E, and again immediately before stage 7 pushes. Options: sync with the base, or run as-is.
 13. **Run E2E at the end of every cycle?** — gate: [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md), only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.

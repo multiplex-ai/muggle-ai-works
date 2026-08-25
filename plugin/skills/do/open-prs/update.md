@@ -22,7 +22,13 @@ Skip `autoCreatePR` (it gates creation, not update). The PR's title is left inta
 
 Resolve the provider once per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md). Wherever Steps 3–4 below edit title/description: `github` uses `gh pr edit` per [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md); `gitlab` uses `glab mr update --title --description` per [`../../_shared/vcs/gitlab/mr-edit.md`](../../_shared/vcs/gitlab/mr-edit.md).
 
-1. **Push:** per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md). Capture the new SHA.
+0. **Sync with the base:** `git fetch origin`, then count `behind` against the base branch recorded in `state.md`. [`../address-reviews.md`](../address-reviews.md) syncs at the top of the cycle, but stages 3–6 build, test, and run E2E in between — by the time this stage pushes, that sync is old and the PR can land behind its base.
+
+   When `behind > 0`, run Steps 2–3 of [`../resolve-conflicts.md`](../resolve-conflicts.md) — rebase onto the base, then the verify-or-rollback gate — and force-push in Step 1, since the rebase rewrote commits the remote already has. Borrow that mode's procedure only; do not dispatch the mode itself, which force-pushes and respawns the watcher on its own, and the address-reviews orchestrator already owns the respawn for this cycle.
+
+   If the rebase escalates — conflicts under `autoResolveConflicts=never`, or a resolution that fails verification — stop without pushing and let the orchestrator escalate. A PR sitting behind its base is recoverable: the watcher re-detects it and dispatches the rebase mode properly. A force-pushed unverified tree is not.
+
+1. **Push:** per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md), with `git push --force-with-lease` when Step 0 rebased. Capture the new SHA.
 
 2. **Append new SHA** to `last_seen.json[<key>].pushed_shas` (the resolve-reminder stage uses this to recognize threads addressed by the loop). Set `last_seen.last_pushed_sha` to the new SHA too. Both are whole-file rewrites (Read → change field → Write) per [`../../_shared/session-state-writes.md`](../../_shared/session-state-writes.md) — never the Edit tool.
 
@@ -44,11 +50,12 @@ Return control to `/muggle-do`'s address-reviews orchestrator. The orchestrator 
 
 ## Invariants
 
-- Push; new SHA appended to `pushed_shas`; title/body refreshed only on state change; walkthrough comment via Mode A.
+- Branch synced with its base before the push, never after; push; new SHA appended to `pushed_shas`; title/body refreshed only on state change; walkthrough comment via Mode A.
 - No `gh pr create`, no `/loop` dispatch.
 
 ## Output
 
+**Synced with base:** `rebased onto <base> (<n> behind, force-pushed)` | `already up to date` | `skipped (autoRebase)`
 **PR updated:** URL (new SHA: `<short-sha>`)
 **Title refreshed:** yes | no
 **Body refreshed:** yes | no

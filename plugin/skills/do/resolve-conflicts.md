@@ -24,7 +24,7 @@ Materialize the PR branch in its worktree per [`../_shared/pr-branch-worktree.md
 
 ### Step 2 — Rebase onto base (resolve conflicts if any)
 
-Run the rebase from [`../_shared/rebase-before-e2e.md`](../_shared/rebase-before-e2e.md) against the base branch, taking its `always` path unconditionally — this programmatic mode never asks, so skip the `autoRebase` prompt (the watcher already decided a rebase is due).
+Run the rebase from [`../_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md) against the base branch, taking its `always` path unconditionally — this programmatic mode never asks, so skip the `autoRebase` prompt (the watcher already decided a rebase is due).
 
 - **Clean replay** — a behind-only branch (and any rebase that hits no conflicts) replays without intervention. Proceed to Step 3.
 - **Conflicts** — handle per [`autoResolveConflicts`](../muggle-preferences/preference-gates/autoResolveConflicts.md):

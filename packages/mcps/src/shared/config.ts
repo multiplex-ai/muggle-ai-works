@@ -37,6 +37,9 @@ const ELECTRON_APP_DIR = "electron-app";
 /** API key storage file name. */
 const API_KEY_FILE = "api-key.json";
 
+/** OAuth session file name for the production runtime target. */
+const OAUTH_SESSION_FILE = "oauth-session.json";
+
 /** Cached configuration instance. */
 let configInstance: IConfig | null = null;
 
@@ -190,6 +193,27 @@ function buildElectronAppDirName(params: {
     return params.version;
   }
   return `${params.version}-${params.releaseStream}`;
+}
+
+/**
+ * Build the OAuth session file name for a runtime target.
+ *
+ * Tokens are tenant-specific: a token minted for one target is rejected by
+ * every other target's backend. Sharing one file means logging into either ring
+ * destroys the other ring's session, and reports whichever token was written
+ * last as the active one no matter which ring is running.
+ *
+ * The production target keeps the bare name so an existing login survives the
+ * upgrade.
+ * @param params - File name parameters.
+ * @param params.runtimeTarget - Target whose session is being stored.
+ * @returns File name, for example "oauth-session.json" or "oauth-session-staging.json".
+ */
+function buildOAuthSessionFileName(params: { runtimeTarget: RuntimeTarget }): string {
+  if (params.runtimeTarget === RuntimeTarget.Production) {
+    return OAUTH_SESSION_FILE;
+  }
+  return `oauth-session-${params.runtimeTarget}.json`;
 }
 
 /**
@@ -391,7 +415,10 @@ function buildLocalQaConfig(): ILocalQaConfig {
     projectsDir: path.join(dataDir, "projects"),
     tempDir: path.join(dataDir, "temp"),
     apiKeyFilePath: path.join(dataDir, API_KEY_FILE),
-    oauthSessionFilePath: path.join(dataDir, "oauth-session.json"),
+    oauthSessionFilePath: path.join(
+      dataDir,
+      buildOAuthSessionFileName({ runtimeTarget: getActiveRuntimeTarget() }),
+    ),
     webServicePath: resolveWebServicePath(),
     webServicePidFile: path.join(dataDir, "web-service.pid"),
     auth0: {

@@ -6,7 +6,7 @@
 import * as fs from "fs";
 import * as path from "path";
 
-import { getConfig } from "../../../shared/config.js";
+import { getActiveRuntimeTarget, getConfig } from "../../../shared/config.js";
 import { getLogger } from "../../../shared/logger.js";
 import { openBrowserUrl } from "../../../shared/open-browser.js";
 import type {
@@ -17,6 +17,7 @@ import type {
   ITokenResponse,
 } from "../types/index.js";
 import { DeviceCodePollStatus } from "../types/index.js";
+import { isStoredAuthForRuntimeTarget } from "./stored-auth-target.js";
 
 /** Default timeout for waiting on browser login completion. */
 const DEFAULT_LOGIN_WAIT_TIMEOUT_MS = 120000;
@@ -458,6 +459,7 @@ export class AuthService {
       expiresAt: expiresAt,
       email: email,
       userId: userId,
+      runtimeTarget: getActiveRuntimeTarget(),
     };
 
     const dir = path.dirname(this.oauthSessionFilePath);
@@ -474,7 +476,8 @@ export class AuthService {
   }
 
   /**
-   * Load stored authentication.
+   * Load stored authentication for the active runtime target.
+   * @returns Stored auth, or null when it is absent, unreadable, or was issued for another target.
    */
   loadStoredAuth(): IStoredAuth | null {
     const logger = getLogger();
@@ -485,7 +488,23 @@ export class AuthService {
 
     try {
       const content = fs.readFileSync(this.oauthSessionFilePath, "utf-8");
-      return JSON.parse(content) as IStoredAuth;
+      const storedAuth = JSON.parse(content) as IStoredAuth;
+      const activeRuntimeTarget = getActiveRuntimeTarget();
+
+      if (
+        !isStoredAuthForRuntimeTarget({
+          storedRuntimeTarget: storedAuth.runtimeTarget,
+          activeRuntimeTarget: activeRuntimeTarget,
+        })
+      ) {
+        logger.warn("Ignoring stored auth issued for a different runtime target", {
+          storedRuntimeTarget: storedAuth.runtimeTarget ?? "unrecorded",
+          activeRuntimeTarget: activeRuntimeTarget,
+        });
+        return null;
+      }
+
+      return storedAuth;
     } catch (error) {
       logger.error("Failed to load stored auth", {
         error: error instanceof Error ? error.message : String(error),
@@ -591,6 +610,7 @@ export class AuthService {
         expiresAt: newExpiresAt,
         email: storedAuth.email,
         userId: storedAuth.userId,
+        runtimeTarget: storedAuth.runtimeTarget ?? getActiveRuntimeTarget(),
       };
 
       const dir = path.dirname(this.oauthSessionFilePath);

@@ -24,7 +24,7 @@ This is faithful in a way isolated single-skill triggering tests are not: it cat
 
 ## Run it
 
-One command — chunks per skill, guards against MCP disconnects, aggregates, and writes the report:
+One command — one pooled sweep, guards against MCP disconnects, aggregates, and writes the report:
 
 ```bash
 python internal/skill-routing-eval/run.py --all          # full set
@@ -32,11 +32,11 @@ python internal/skill-routing-eval/run.py --skill muggle-status   # one skill
 python internal/skill-routing-eval/run.py --all --sync-cache      # see below
 ```
 
-Output lands in `reports/run/` (`combined.json` + `combined.md`, plus per-skill `chunk_*.json`). `run.py` runs each skill's queries as a separate `claude -p` batch so an MCP disconnect can only spoil one chunk, not the whole sweep; a positive chunk that comes back all-`none` (the disconnect signature) is re-run once and flagged if it stays empty. Within a chunk, a run that fails with a rate-limit signature retries up to 3× with exponential backoff shared across the worker pool (`throttle.py`), and exhausted retries score as `THROTTLED` rather than a silent `none` — which is what makes `--workers` above the old default of 3 safe (CI uses 6).
+Output lands in `reports/run/` (`combined.json` + `combined.md`, plus `chunk_pooled.json` and a per-skill `chunk_*.json` for any skill the guard re-ran). `run.py` plans every selected skill's queries into **one** `claude -p` batch `--workers` wide, so no worker idles while a skill's tail drains — the sequential per-skill batches this replaced left the pool draining once per skill. Skill identity is carried on each result row, so grouping and the guard are a partition of the pooled run. A positive skill that comes back all-`none` (the disconnect signature) is re-run alone in a fresh subprocess up to 3× and flagged inconclusive if it stays empty; isolating the retry is what makes a pooled sweep as recoverable as per-skill batches were. A run that fails with a rate-limit signature retries up to 3× with exponential backoff shared across the worker pool (`throttle.py`), and exhausted retries score as `THROTTLED` rather than a silent `none` — which is what makes the default of 12 workers safe. Pooling also makes that backoff genuinely global: a separate subprocess per skill previously gave each chunk its own gate.
 
 **`--sync-cache`:** the harness routes via the *installed* muggle plugin, not the working tree. When you've edited a `SKILL.md` description but not reinstalled, `claude -p` sees both the cached copy and the bare-name working-tree skill and results are unreliable. `--sync-cache` copies `plugin/skills/*/SKILL.md` over the installed cache first (auto-detected from `~/.claude/plugins/installed_plugins.json`) so the eval tests your edits. Always pass it when validating a description change.
 
-### Lower-level (single set, no chunking)
+### Lower-level (single set, no guard)
 
 ```bash
 python internal/skill-routing-eval/router_eval.py --eval-set <set.json> --repo-root "$(pwd)" --runs 3 --workers 5 --timeout 180 --out <report.json>

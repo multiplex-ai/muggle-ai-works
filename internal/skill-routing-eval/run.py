@@ -2,10 +2,11 @@
 """One-command runner for the skill-routing eval.
 
 Wraps router_eval.py + analyze.py with the operational lessons learned running
-this by hand: per-skill chunking (so an MCP disconnect can't silently crater a
-whole sweep), a disconnect guard (re-run a positive chunk that comes back
-all-`none`), aggregation, and report generation — plus an optional cache sync so
-`claude -p` tests the working-tree descriptions rather than the installed copy.
+this by hand: one pooled sweep across every selected skill (so no worker idles
+through a chunk's tail), a disconnect guard (re-run a positive skill that comes
+back all-`none` in a fresh subprocess), aggregation, and report generation —
+plus an optional cache sync so `claude -p` tests the working-tree descriptions
+rather than the installed copy.
 
 Usage:
     python internal/skill-routing-eval/run.py --all
@@ -28,7 +29,9 @@ import sys
 from pathlib import Path
 
 from gate_constants import BASELINE_FILENAME, BASELINE_SOURCE_FULL_SWEEP
-from regression_gate import build_baseline, format_gate_report, gate_failures, judge_run, load_baseline, skill_tally
+from pool_constants import DEFAULT_ROUTING_WORKERS, MAX_DISCONNECT_ATTEMPTS
+from pooling import partition_results_by_skill, plan_pooled_items, resolve_disconnect_retries
+from regression_gate import build_baseline, format_gate_report, gate_failures, judge_run, load_baseline
 from scoring import NONE, scored_pass
 
 HERE = Path(__file__).resolve().parent
@@ -77,12 +80,6 @@ def run_chunk(items: list[dict], out_file: Path, repo_root: Path, runs: int, wor
     return json.loads(out_file.read_text(encoding="utf-8"))
 
 
-def recall(report: dict, skill: str) -> float:
-    """Share of one skill's queries that routed correctly in a chunk report."""
-    passed, total = skill_tally(report["results"], skill)
-    return passed / total if total else 1.0
-
-
 def has_no_coverage(skills: list[str], by_skill: dict) -> bool:
     return not any(by_skill.get(s) for s in skills)
 
@@ -94,7 +91,7 @@ def main():
     g.add_argument("--skill", help="run only this expected_skill chunk")
     g.add_argument("--skills", help="comma-separated subset of expected_skills to run (e.g. the skills changed in a PR)")
     ap.add_argument("--runs", type=int, default=3)
-    ap.add_argument("--workers", type=int, default=3, help="parallel claude sessions per chunk; router_eval's per-run throttle retry + shared backoff make higher values safe (CI uses 6)")
+    ap.add_argument("--workers", type=int, default=DEFAULT_ROUTING_WORKERS, help="parallel claude sessions across the pooled sweep; router_eval's per-run throttle retry + shared backoff make higher values safe")
     ap.add_argument("--timeout", type=int, default=200)
     ap.add_argument("--out-dir", default=str(HERE / "reports" / "run"))
     ap.add_argument("--repo-root", default=str(REPO_ROOT))
@@ -151,29 +148,35 @@ def main():
         print(f"Report: {out_dir / 'combined.md'}", file=sys.stderr)
         return
 
-    all_results = []
-    flagged = []
+    for uncovered in [s for s in skills if not by_skill.get(s)]:
+        print(f"!! no queries for '{uncovered}'", file=sys.stderr)
 
-    for skill in skills:
-        items = by_skill.get(skill, [])
-        if not items:
-            print(f"!! no queries for '{skill}'", file=sys.stderr)
-            continue
-        print(f"== {skill} ({len(items)} queries) ==", file=sys.stderr)
-        rep = run_chunk(items, out_dir / f"chunk_{skill}.json", repo_root, args.runs, args.workers, args.timeout)
-        # disconnect guard: a positive-skill chunk that comes back entirely `none`
-        # is almost certainly a mid-chunk MCP disconnect, not a real 0% — the
-        # preflight already proved routing works. Retry in fresh subprocesses
-        # (which usually reconnect); only flag as unverified if it never recovers.
-        attempts = 1
-        while skill != NONE and recall(rep, skill) == 0.0 and attempts < 3:
-            attempts += 1
-            print(f"   {skill} came back 0% — retry {attempts}/3 (suspected MCP disconnect)", file=sys.stderr)
-            rep = run_chunk(items, out_dir / f"chunk_{skill}.json", repo_root, args.runs, args.workers, args.timeout)
-        if skill != NONE and recall(rep, skill) == 0.0:
-            flagged.append(skill)
-            print(f"   {skill} still 0% after {attempts} tries — flagged suspected-disconnect (inconclusive)", file=sys.stderr)
-        all_results.extend(rep["results"])
+    planned = plan_pooled_items(skills, by_skill)
+    print(
+        f"== pooled sweep: {len(planned)} queries x {args.runs} runs, {args.workers} workers ==",
+        file=sys.stderr,
+    )
+    pooled = run_chunk(planned, out_dir / "chunk_pooled.json", repo_root, args.runs, args.workers, args.timeout)
+
+    def rerun_skill(skill: str) -> list[dict]:
+        """One skill's queries alone, in a fresh subprocess that usually reconnects."""
+        rep = run_chunk(by_skill[skill], out_dir / f"chunk_{skill}.json", repo_root, args.runs, args.workers, args.timeout)
+        return rep["results"]
+
+    def announce_retry(skill: str, attempt: int, limit: int) -> None:
+        print(f"   {skill} came back 0% — retry {attempt}/{limit} (suspected MCP disconnect)", file=sys.stderr)
+
+    grouped, flagged = resolve_disconnect_retries(
+        partition_results_by_skill(pooled["results"], skills),
+        rerun_skill,
+        on_retry=announce_retry,
+    )
+    for skill in flagged:
+        print(
+            f"   {skill} still 0% after {MAX_DISCONNECT_ATTEMPTS} tries — flagged suspected-disconnect (inconclusive)",
+            file=sys.stderr,
+        )
+    all_results = [row for skill in skills for row in grouped.get(skill, [])]
 
     combined = {"model": "claude (run.py)", "runs_per_query": args.runs, "results": all_results}
     combined_path = out_dir / "combined.json"

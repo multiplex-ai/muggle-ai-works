@@ -134,3 +134,16 @@ export const SESSION_STATE_LOCK_WAIT_MS = 250;
 
 /** How often a waiter re-probes a lock it could not take. */
 export const LOCK_POLL_INTERVAL_MS = 10;
+
+// Signals that a tool call was rejected rather than performed. Anchored tightly
+// because the bodies these recorders inspect legitimately contain "error" and
+// "failed" — a walkthrough reports failing tests, and `gh api` echoes that body
+// back in its response. Matching those words loosely would withhold a recording
+// on a call that plainly succeeded.
+export const CALL_FAILURE_SIGNALS = [
+  /\bgh:\s/,
+  /\bglab:\s/,
+  /\bHTTP\s(?:4|5)\d\d\b/,
+  /"status"\s*:\s*"?(?:4|5)\d\d/,
+  /"isError"\s*:\s*true/,
+];

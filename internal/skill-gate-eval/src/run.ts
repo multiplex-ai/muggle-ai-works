@@ -10,7 +10,7 @@
  *     --runs 10 \
  *     [--brain-dir ../muggle-ai-brain] \
  *     [--model claude-sonnet-4-6] \
- *     [--concurrency 4]           # parallel reps; SKILL_GATE_EVAL_CONCURRENCY env also works
+ *     [--concurrency 8]           # parallel reps; SKILL_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]   # only run scenarios whose name contains this
  *     [--verbose]                 # dump per-run trace to stderr
  */

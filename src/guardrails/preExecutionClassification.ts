@@ -6,6 +6,7 @@ import {
   PRE_EXECUTION_CLASSIFICATION_EVENT,
 } from "./constants.js";
 import type { ClassificationGateDecision, GuardrailState, HookInput } from "./types.js";
+import { callFailed } from "./callOutcome.js";
 
 // muggle-test Step 6f classifies each selected test case replay-vs-regen before
 // anything executes, and that classification is what calls
@@ -19,6 +20,7 @@ const CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
 export function detectClassifiedTestCaseId(input: HookInput): string | undefined {
   if (!MUGGLE_EVENT_EMIT_TOOL.test(input.tool_name ?? "")) return undefined;
   if (input.tool_input?.eventType !== PRE_EXECUTION_CLASSIFICATION_EVENT) return undefined;
+  if (callFailed(input)) return undefined;
   return input.tool_input?.testCaseId ?? ANY_TEST_CASE;
 }
 

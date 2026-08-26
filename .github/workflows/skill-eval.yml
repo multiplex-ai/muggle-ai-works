@@ -24,7 +24,7 @@ on:
         default: "10"
       gate_concurrency:
         description: "skill-gate-eval: parallel reps per gate"
-        default: "4"
+        default: "8"
       routing_runs:
         description: "skill-routing-eval: runs per query (full sweep)"
         default: "3"
@@ -32,14 +32,14 @@ on:
         description: "skill-routing-eval: runs per query (scoped PR run)"
         default: "5"
       routing_workers:
-        description: "skill-routing-eval: parallel sessions per chunk"
-        default: "6"
+        description: "skill-routing-eval: parallel sessions across the pooled sweep"
+        default: "12"
       agent_runs:
         description: "agent-gate-eval: runs per scenario"
         default: "5"
       agent_concurrency:
         description: "agent-gate-eval: parallel reps per agent"
-        default: "4"
+        default: "8"
 
 concurrency:
   group: skill-eval-${{ github.ref }}
@@ -60,7 +60,7 @@ jobs:
     timeout-minutes: 180
     env:
       GATE_RUNS: ${{ inputs.gate_runs || '10' }}
-      GATE_CONCURRENCY: ${{ inputs.gate_concurrency || '4' }}
+      GATE_CONCURRENCY: ${{ inputs.gate_concurrency || '8' }}
       MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
       # Fresh, writable config dir for the headless Claude Code CLI (same as
       # skill-routing-eval) — avoids first-run state in an unwritable HOME.
@@ -269,7 +269,7 @@ jobs:
     timeout-minutes: 90
     env:
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
-      AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '4' }}
+      AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '8' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
       - name: Require secrets
@@ -413,7 +413,7 @@ jobs:
       ROUTING_RUNS_SCOPED: ${{ inputs.routing_runs_scoped || '5' }}
       # Safe above the old default of 3 now that router_eval retries throttled
       # runs with a pool-wide backoff instead of scoring them as `none`.
-      ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
+      ROUTING_WORKERS: ${{ inputs.routing_workers || '12' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
       BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run/recall-baseline.candidate.json

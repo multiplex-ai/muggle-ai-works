@@ -9,7 +9,7 @@
  *     [--runs 5] \
  *     [--agents-dir plugin/agents] \
  *     [--scenarios-dir internal/agent-gate-eval/scenarios] \
- *     [--concurrency 4]           # parallel reps; AGENT_GATE_EVAL_CONCURRENCY env also works
+ *     [--concurrency 8]           # parallel reps; AGENT_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]    # only run scenarios whose name contains this
  *     [--verbose]                 # dump per-run trace to stderr
  *

@@ -202,3 +202,38 @@ jobs:
 
       - name: Smoke-test the built CLI
         run: pnpm run smoke:cli
+
+  # Every green master build publishes a staging pre-release, so the staging
+  # channel always reflects what is on master rather than whatever someone last
+  # dispatched by hand.
+  #
+  # Dispatches the publish workflow rather than triggering it on `workflow_run`:
+  # that workflow resolves its channel from `inputs.channel || 'production'` in
+  # three places, so a trigger carrying no inputs would silently resolve to
+  # production and move the `latest` dist-tag. Dispatching states the channel
+  # outright and leaves that logic untouched.
+  staging-release:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs:
+      - lint-and-test
+      - harness-unit-tests
+      - skill-deps
+      - post-signatures
+      - typecheck
+      - node-compat
+      - platform-compat
+      - verify-compatibility
+    permissions:
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Publish a staging pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run publish-works-to-npm.yml \
+            --ref master \
+            -f channel=staging

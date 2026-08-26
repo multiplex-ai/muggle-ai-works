@@ -186,13 +186,50 @@ jobs:
             npm version "$INPUT_BUMP" --no-git-tag-version
           fi
 
+      # The base comes from what is published, never from package.json. That
+      # file drifts behind the registry — it sat at 5.11.0 while `latest` was
+      # 5.11.1 and `staging` was 5.12.0 — so a base computed from it lands below
+      # the current staging tag and publishing moves that tag *backwards*,
+      # downgrading everyone tracking it. One minor above `latest` cannot do
+      # that, and advances on its own after each production release.
       - name: Apply staging pre-release version
         if: ${{ inputs.channel == 'staging' }}
         env:
           RUN_NUMBER: ${{ github.run_number }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          BASE=$(node -p "require('./package.json').version")
-          npm version "${BASE%%-*}-staging.${RUN_NUMBER}" --no-git-tag-version
+          set -euo pipefail
+          if [ -n "$INPUT_VERSION" ]; then
+            BASE="${INPUT_VERSION%%-*}"
+          else
+            LATEST=$(timeout 60 npm view "$(node -p "require('./package.json').name")" version 2>/dev/null || true)
+            if [ -z "$LATEST" ]; then
+              echo "Could not read the published latest version; refusing to guess a staging base." >&2
+              exit 1
+            fi
+            BASE=$(node -e 'const [major, minor] = process.argv[1].split("-")[0].split(".").map(Number); console.log(major + "." + (minor + 1) + ".0");' "$LATEST")
+          fi
+          CANDIDATE="${BASE}-staging.${RUN_NUMBER}"
+
+          # The invariant this whole step exists for, asserted rather than assumed.
+          CURRENT=$(timeout 60 npm view "$(node -p "require('./package.json').name")" version --tag staging 2>/dev/null || true)
+          if [ -n "$CURRENT" ]; then
+            node -e '
+              const parse = (version) => {
+                const [core, prerelease] = version.split("-staging.");
+                return [...core.split(".").map(Number), Number(prerelease ?? 0)];
+              };
+              const candidate = parse(process.argv[1]);
+              const current = parse(process.argv[2]);
+              const firstDifference = candidate.findIndex((part, index) => part !== current[index]);
+              if (firstDifference === -1 || candidate[firstDifference] < current[firstDifference]) {
+                console.error("Refusing to publish " + process.argv[1] + ": not greater than the current staging tag " + process.argv[2] + ".");
+                process.exit(1);
+              }
+            ' "$CANDIDATE" "$CURRENT"
+          fi
+
+          npm version "$CANDIDATE" --no-git-tag-version
 
       - name: Set runtime target to match the channel
         env:

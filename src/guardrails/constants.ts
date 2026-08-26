@@ -104,3 +104,30 @@ export const GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved
 // deny greps, doc reads, and the skill files that name the mutation to forbid
 // it — including the very tests that assert this guardrail works.
 export const PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;
+
+// The hidden marker `sign-body.sh --mode loop` prefixes onto every comment the
+// loop posts (plugin/skills/_shared/pr-followup-helpers/loop-signature.md). It
+// is the only reliable loop-vs-human signal — under a shared account the author
+// login is ambiguous — so the reply gate classifies threads by it, exactly as
+// the unresolved-thread recipes do.
+export const LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
+
+// The unresolved-thread fetches a review round works from: GitHub's
+// `reviewThreads` GraphQL query and GitLab's MR discussions listing. Their
+// responses are the only place the round sees which threads still await an
+// answer, which makes them the gate's owed-reply source.
+export const REVIEW_THREAD_FETCH_COMMAND = /reviewThreads|merge_requests\/\d+\/discussions/;
+
+// The threaded-reply POSTs, each carrying the id it answers: GitHub's
+// `/pulls/<n>/comments/<id>/replies` and GitLab's `/discussions/<id>/notes`.
+export const THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/([\w-]+)\/notes/g;
+
+// What counts as having acted on the review: the push that carries the change.
+// Both paths qualify — a local `git push` and the remote `createCommitOnBranch`
+// mutation the signed-commits recipe routes through when local signing is
+// broken — because a gate that only knew one would go quiet for whichever half
+// of the fleet uses the other.
+export const REVIEW_WORK_PUSH_COMMAND = /\bgit\s[^\n]*\bpush\b|\bcreateCommitOnBranch\b/;
+
+/** How many times the comment-reply Stop gate blocks a turn end before releasing, so a thread that genuinely cannot be answered can't trap the session. */
+export const MAX_REPLY_BLOCKS = 3;

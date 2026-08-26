@@ -69,6 +69,11 @@ var MUGGLE_RUN_PASSED_STATUS = "passed";
 var GITHUB_RESOLVE_THREAD_MUTATION = /\bresolveReviewThread\b/;
 var GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved=true/i;
 var PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;
+var LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
+var REVIEW_THREAD_FETCH_COMMAND = /reviewThreads|merge_requests\/\d+\/discussions/;
+var THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/([\w-]+)\/notes/g;
+var REVIEW_WORK_PUSH_COMMAND = /\bgit\s[^\n]*\bpush\b|\bcreateCommitOnBranch\b/;
+var MAX_REPLY_BLOCKS = 3;
 
 // src/guardrails/prTerminal.ts
 function detectPrTerminal(input2) {
@@ -536,6 +541,126 @@ function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
 }
 
+// src/guardrails/commentReply.ts
+var REPLY_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_REPLY_SKIP\b/;
+function parsedResponse(input2) {
+  for (const rendered of [input2.tool_response?.stdout, input2.tool_response?.output]) {
+    if (!rendered) continue;
+    try {
+      return JSON.parse(rendered);
+    } catch {
+      continue;
+    }
+  }
+  return void 0;
+}
+function collectThreads(value, found) {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectThreads(entry, found));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  const thread = value;
+  if (Array.isArray(thread.comments?.nodes) || Array.isArray(thread.notes)) {
+    found.push(thread);
+    return;
+  }
+  Object.values(value).forEach((nested) => collectThreads(nested, found));
+}
+function newestComment(comments) {
+  const timestampOf = (comment) => comment.createdAt ?? comment.created_at;
+  if (comments.every((comment) => timestampOf(comment) !== void 0)) {
+    return [...comments].sort(
+      (earlier, later) => (timestampOf(earlier) ?? "").localeCompare(timestampOf(later) ?? "")
+    )[comments.length - 1];
+  }
+  return comments[comments.length - 1];
+}
+function unansweredIdOf(thread) {
+  if (thread.isResolved === true) return void 0;
+  const githubComments = thread.comments?.nodes;
+  if (Array.isArray(githubComments)) {
+    const newest2 = newestComment(githubComments);
+    if (!newest2 || (newest2.body ?? "").includes(LOOP_REPLY_MARKER)) return void 0;
+    return newest2.databaseId === void 0 ? void 0 : String(newest2.databaseId);
+  }
+  const notes = thread.notes ?? [];
+  if (!notes.some((note) => note.resolved === false)) return void 0;
+  const newest = newestComment(notes);
+  if (!newest || (newest.body ?? "").includes(LOOP_REPLY_MARKER)) return void 0;
+  return thread.id;
+}
+function detectUnansweredCommentIds(input2) {
+  if (input2.tool_name !== "Bash") return [];
+  if (!REVIEW_THREAD_FETCH_COMMAND.test(input2.tool_input?.command ?? "")) return [];
+  const threads = [];
+  collectThreads(parsedResponse(input2), threads);
+  const unanswered = threads.map(unansweredIdOf).filter((id) => id !== void 0);
+  return [...new Set(unanswered)];
+}
+function detectRepliedCommentIds(input2) {
+  if (input2.tool_name !== "Bash") return [];
+  const command = input2.tool_input?.command ?? "";
+  return [...command.matchAll(THREADED_REPLY_TARGET)].map(
+    ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId
+  );
+}
+function isReviewWorkPush(command) {
+  return REVIEW_WORK_PUSH_COMMAND.test(command);
+}
+function applyUnansweredComments(state, commentIds) {
+  const owed = [...state.commentRepliesOwed ?? []];
+  for (const commentId of commentIds) if (!owed.includes(commentId)) owed.push(commentId);
+  if (owed.length === (state.commentRepliesOwed ?? []).length) return state;
+  return { ...state, commentRepliesOwed: owed };
+}
+function applyPostedReplies(state, commentIds) {
+  const posted = [...state.commentRepliesPosted ?? []];
+  for (const commentId of commentIds) if (!posted.includes(commentId)) posted.push(commentId);
+  if (posted.length === (state.commentRepliesPosted ?? []).length) return state;
+  return { ...state, commentRepliesPosted: posted };
+}
+function applyReviewWorkPush(state, pushed) {
+  if (!pushed || state.reviewWorkPushed === true) return state;
+  return { ...state, reviewWorkPushed: true };
+}
+function isReplySkipMarker(command) {
+  return REPLY_SKIP_MARKER.test(command);
+}
+function applyReplySkip(state, command) {
+  if (!isReplySkipMarker(command)) return state;
+  const namedComments = (state.commentRepliesOwed ?? []).filter(
+    (commentId) => command.includes(commentId)
+  );
+  if (namedComments.length > 0) return applyPostedReplies(state, namedComments);
+  if (state.commentReplySkipped === true) return state;
+  return { ...state, commentReplySkipped: true };
+}
+function unansweredComments(state) {
+  const posted = new Set(state.commentRepliesPosted ?? []);
+  return (state.commentRepliesOwed ?? []).filter((commentId) => !posted.has(commentId));
+}
+function commentReplyGateDecision(state, maxBlocks = MAX_REPLY_BLOCKS) {
+  const blockCount = state.commentReplyBlockCount ?? 0;
+  const unanswered = unansweredComments(state);
+  const settled = state.commentReplySkipped === true || state.reviewWorkPushed !== true || unanswered.length === 0;
+  if (settled) {
+    return { action: "none" /* None */, blockCount, unanswered };
+  }
+  if (blockCount >= maxBlocks) {
+    return {
+      action: "release" /* Release */,
+      blockCount,
+      unanswered
+    };
+  }
+  return {
+    action: "block" /* Block */,
+    blockCount: blockCount + 1,
+    unanswered
+  };
+}
+
 // src/guardrails/detectBuildIntent.ts
 var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
 var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
@@ -788,6 +913,26 @@ function walkthroughGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via /muggle:muggle-pr-visual-walkthrough \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
+function recordCommentReplies() {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  const withOwed = applyUnansweredComments(state, detectUnansweredCommentIds(input));
+  const withPosted = applyPostedReplies(withOwed, detectRepliedCommentIds(input));
+  const withPush = applyReviewWorkPush(withPosted, isReviewWorkPush(cmd));
+  const next = applyReplySkip(withPush, cmd);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+function commentReplyGate() {
+  const state = readState(sessionId);
+  const decision = commentReplyGateDecision(state);
+  if (decision.action !== "block" /* Block */) return "{}";
+  state.commentReplyBlockCount = decision.blockCount;
+  writeState(state);
+  const commentList = decision.unanswered.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. The change addressing these review comments was pushed, but they carry no threaded reply: ${commentList}. Post one reply per comment in its own thread per muggle-do do/per-comment-replies.md \u2014 "Addressed in <short-sha>: <what changed for THIS comment>", signed via sign-body.sh --mode loop. A silent push leaves the reviewer with no answer in the thread, and the loop marker that reply carries is the only thing that stops the watcher re-dispatching the same thread next tick. If a comment was escalated to the user instead of answered, say why and run \`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\` \u2014 that clears just that comment.` : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ${commentList}. Reply per do/per-comment-replies.md, or record a legitimate skip via \`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\`.`;
+  return blockStop(reason, host);
+}
 function reportGate() {
   const reportPostVerdict = evaluateReportPost(input);
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
@@ -816,6 +961,8 @@ var handlers = {
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
+  "record-comment-replies": recordCommentReplies,
+  "comment-reply-gate": commentReplyGate,
   "report-gate": reportGate,
   "resolve-gate": resolveGate,
   "build-router": buildRouter,

@@ -12,6 +12,7 @@ import {
 import {
   MAX_DEBUG_BLOCKS,
   MAX_PR_TERMINAL_BLOCKS,
+  MAX_REPLY_BLOCKS,
   MAX_STAGE_BLOCKS,
   MAX_WALKTHROUGH_BLOCKS,
   MAX_WATCH_BLOCKS,
@@ -59,11 +60,22 @@ import {
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
 import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
+import {
+  applyPostedReplies,
+  applyReplySkip,
+  applyReviewWorkPush,
+  applyUnansweredComments,
+  commentReplyGateDecision,
+  detectRepliedCommentIds,
+  detectUnansweredCommentIds,
+  isReviewWorkPush,
+} from "./commentReply.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
 import {
+  CommentReplyGateAction,
   DebugGateAction,
   PrTerminalGateAction,
   StageGateAction,
@@ -359,6 +371,41 @@ function walkthroughGate(): string {
   return blockStop(reason, host);
 }
 
+function recordCommentReplies(): string {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  const withOwed = applyUnansweredComments(state, detectUnansweredCommentIds(input));
+  const withPosted = applyPostedReplies(withOwed, detectRepliedCommentIds(input));
+  const withPush = applyReviewWorkPush(withPosted, isReviewWorkPush(cmd));
+  const next = applyReplySkip(withPush, cmd);
+  if (next !== state) writeState(next);
+  return "{}";
+}
+
+function commentReplyGate(): string {
+  const state = readState(sessionId);
+  const decision = commentReplyGateDecision(state);
+  if (decision.action !== CommentReplyGateAction.Block) return "{}";
+  state.commentReplyBlockCount = decision.blockCount;
+  writeState(state);
+  const commentList = decision.unanswered.join(", ");
+  // Full instruction once; repeats are one line (same rationale as e2eGate).
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. The change addressing these review comments was pushed, but they ` +
+        `carry no threaded reply: ${commentList}. Post one reply per comment in its own thread per ` +
+        `muggle-do do/per-comment-replies.md — "Addressed in <short-sha>: <what changed for THIS ` +
+        `comment>", signed via sign-body.sh --mode loop. A silent push leaves the reviewer with no ` +
+        `answer in the thread, and the loop marker that reply carries is the only thing that stops ` +
+        `the watcher re-dispatching the same thread next tick. If a comment was escalated to the ` +
+        `user instead of answered, say why and run \`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\` ` +
+        `— that clears just that comment.`
+      : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ` +
+        `${commentList}. Reply per do/per-comment-replies.md, or record a legitimate skip via ` +
+        `\`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
 function reportGate(): string {
   const reportPostVerdict = evaluateReportPost(input);
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
@@ -394,6 +441,8 @@ const handlers: Record<string, () => string> = {
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
+  "record-comment-replies": recordCommentReplies,
+  "comment-reply-gate": commentReplyGate,
   "report-gate": reportGate,
   "resolve-gate": resolveGate,
   "build-router": buildRouter,

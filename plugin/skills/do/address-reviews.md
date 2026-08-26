@@ -62,6 +62,7 @@ Build two sets: `actionable_review_ids` and `ambiguous_review_ids`. Their union 
 For each id in `ambiguous_review_ids`:
 
 1. Append it to `last_seen.escalated_review_ids` so the watcher won't re-dispatch it.
+2. Run `echo "MUGGLE_REPLY_SKIP: <comment-id> deferred to the user"` for each of its comment ids (`gitlab`: discussion ids). An escalated thread is deferred, not answered, so the reply gate in [`per-comment-replies.md`](per-comment-replies.md) would otherwise hold the turn open waiting on a reply that is not coming. Emit one marker per id, each as its own Bash call — a batched block registers only the first.
 
 Emit **one** terminal escalation message (not one per ambiguous review) per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (ambiguous template). The message lists every ambiguous review and its comments inline. Emit an event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
 

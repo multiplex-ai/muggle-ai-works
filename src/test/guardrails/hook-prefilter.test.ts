@@ -150,6 +150,45 @@ describe("pr-opened pre-filter reaches every command the detector acts on", () =
   });
 });
 
+describe("record-comment-replies pre-filter reaches every payload the recorder acts on", () => {
+  const prefilter = payloadPrefilter("guardrail-record-comment-replies.sh");
+  const reaching: Array<[string, string]> = [
+    [
+      "the github unresolved-threads query",
+      commandPayload("gh api graphql -f query='{ reviewThreads(first: 100) { nodes { id } } }'"),
+    ],
+    [
+      "the gitlab discussions listing",
+      commandPayload("glab api projects/:id/merge_requests/12/discussions --paginate"),
+    ],
+    [
+      "a github threaded reply",
+      commandPayload("gh api --method POST repos/o/r/pulls/7/comments/11/replies -f body=x"),
+    ],
+    [
+      "a gitlab discussion note",
+      commandPayload("glab api --method POST projects/:id/merge_requests/12/discussions/a1b2/notes -f body=x"),
+    ],
+    ["a push", commandPayload("git push origin users/stan4/fix")],
+    [
+      "the remote signed-commit path",
+      commandPayload("gh api graphql -f query='mutation { createCommitOnBranch(input: $i) { url } }'"),
+    ],
+  ];
+
+  it.each(reaching)("spawns Node for %s", (_label, payload) => {
+    expect(prefilter.test(payload)).toBe(true);
+  });
+
+  it("spawns Node for the reply skip marker", () => {
+    expect(prefilter.test(commandPayload('echo "MUGGLE_REPLY_SKIP: 11 escalated"'))).toBe(true);
+  });
+
+  it("short-circuits an unrelated command", () => {
+    expect(prefilter.test(commandPayload("ls -la"))).toBe(false);
+  });
+});
+
 describe("build-router pre-filter reaches every prompt detectBuildIntent accepts", () => {
   const prefilter = payloadPrefilter("guardrail-build-router.sh");
   const reaching: Array<[string, string]> = [
@@ -204,6 +243,11 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     debuggedRuns: ["run-1"],
     debugSkipped: true,
     debugBlockCount: 1,
+    commentRepliesOwed: ["2101993355"],
+    commentRepliesPosted: ["2101993355"],
+    commentReplySkipped: true,
+    commentReplyBlockCount: 1,
+    reviewWorkPushed: true,
   };
 
   // A gate reads "nothing owed" as an empty array and pre-filters on the

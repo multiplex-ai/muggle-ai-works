@@ -411,6 +411,108 @@ describe("guardrail hook execution (cli entry)", () => {
   });
 
   // Never-block guarantee at the entry: a hook must never crash the turn.
+  it("record-comment-replies -> comment-reply-gate: a pushed round with an unanswered thread blocks until it replies", () => {
+    const sid = "s-reply";
+    const threadsResponse = JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: [
+                {
+                  id: "PRRT_1",
+                  isResolved: false,
+                  comments: {
+                    nodes: [
+                      { databaseId: 11, body: "this leaks a handle", createdAt: "2026-08-01T00:00:00Z" },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
+        tool_response: { stdout: threadsResponse },
+      }),
+    );
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: "git push origin users/stan4/fix" },
+      }),
+    );
+    const blocked = JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("11");
+
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: "gh api --method POST repos/o/r/pulls/7/comments/11/replies -f body=x" },
+      }),
+    );
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
+  it("record-comment-replies -> comment-reply-gate: a MUGGLE_REPLY_SKIP marker clears the comment it names", () => {
+    const sid = "s-reply-skip";
+    const threadsResponse = JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: [
+                {
+                  id: "PRRT_1",
+                  isResolved: false,
+                  comments: {
+                    nodes: [{ databaseId: 11, body: "rethink this", createdAt: "2026-08-01T00:00:00Z" }],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
+        tool_response: { stdout: threadsResponse },
+      }),
+    );
+    runHook(
+      "record-comment-replies",
+      event({ session_id: sid, tool_name: "Bash", tool_input: { command: "git push origin fix" } }),
+    );
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: 'echo "MUGGLE_REPLY_SKIP: 11 escalated to the user"' },
+      }),
+    );
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
   it("degrades to {} on malformed stdin", () => {
     const { status, out } = runHook("pr-opened", "this is not json");
     expect(status).toBe(0);
@@ -625,15 +727,16 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly four observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals)", () => {
+  it("fires exactly five observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
     const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
-    expect(cmds).toHaveLength(4);
+    expect(cmds).toHaveLength(5);
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-tests.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-pr-terminal.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-stage-signals.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-record-comment-replies.sh"))).toBe(true);
   });
 
   it("stands both Bash PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
@@ -655,12 +758,13 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     ]);
   });
 
-  it("runs all four gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough)", () => {
+  it("runs all five gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough + comment-reply)", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command);
     expect(stop.some((c) => c.includes("guardrail-e2e-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-terminal-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-watch-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-walkthrough-gate.sh"))).toBe(true);
+    expect(stop.some((c) => c.includes("guardrail-comment-reply-gate.sh"))).toBe(true);
   });
 });
 

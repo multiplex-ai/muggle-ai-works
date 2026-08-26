@@ -288,3 +288,24 @@ export function commentReplyGateDecision(
     unanswered: unanswered,
   };
 }
+
+/** A thread and the comments in it a deferral marker named. */
+export interface DeferredThread {
+  threadId: string;
+  commentIds: string[];
+}
+
+/**
+ * The ledger comments a `MUGGLE_REPLY_SKIP` declaration names, grouped by thread.
+ *
+ * Only comments the ledger already tracks count, so a typo cannot silently
+ * settle an obligation that was never recorded.
+ */
+export function deferredCommentIds(ledger: Ledger, command: string): DeferredThread[] {
+  const deferred: DeferredThread[] = [];
+  for (const [threadId, entry] of Object.entries(ledger.threads)) {
+    const named = uncoveredComments(entry).filter((commentId) => command.includes(commentId));
+    if (named.length > 0) deferred.push({ threadId: threadId, commentIds: named });
+  }
+  return deferred;
+}

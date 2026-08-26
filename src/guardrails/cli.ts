@@ -68,6 +68,7 @@ import {
   overdueThreads,
   resolveSlotForPr,
   threadForReplyTarget,
+  deferredCommentIds,
 } from "./commentReply.js";
 import { commitThread, readLedger } from "./ledger/store.js";
 import { claimThread, coverComments, refreshHumanComments, uncoveredComments } from "./ledger/obligations.js";
@@ -384,12 +385,24 @@ function slotForSession(state: GuardrailState): string | undefined {
 function recordCommentReplies(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  if (isReplySkipMarker(cmd)) {
-    updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
-    return "{}";
-  }
   const slotPath = slotForSession(state);
   if (!slotPath) return "{}";
+
+  if (isReplySkipMarker(cmd)) {
+    // A deferral is recorded in the ledger, not in session state, so a thread
+    // the round handed back to the user stays settled after this session ends.
+    // Naming no known comment falls back to a session-wide skip, so a round with
+    // no usable id still has a way out.
+    const deferred = deferredCommentIds(readLedger(slotPath), cmd);
+    if (deferred.length === 0) {
+      updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+      return "{}";
+    }
+    for (const { threadId, commentIds } of deferred) {
+      commitThread(slotPath, threadId, (entry) => coverComments(entry, commentIds, null));
+    }
+    return "{}";
+  }
 
   for (const thread of detectUnansweredThreads(input)) {
     commitThread(slotPath, thread.threadId, (entry) =>

@@ -59,9 +59,14 @@ Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/
 
 ## Enforcement
 
-A Stop-hook guardrail (`guardrail-comment-reply-gate.sh`) holds the turn open when the round pushed its change and a thread it pulled in still carries no loop-marked reply. It settles from signals this cycle already produces — the unresolved-thread fetch Step 1 runs and the reply calls Step 2 makes — so running this step is what clears it; nothing extra is owed.
+A Stop-hook guardrail (`guardrail-comment-reply-gate.sh`) holds the turn open when this session claimed a review thread and left it unanswered. It settles from signals this cycle already produces — the unresolved-thread fetch [`address-reviews.md`](address-reviews.md) Step 1 runs, which claims each thread, and the reply calls Step 2 makes — so running this step is what clears it; nothing extra is owed.
 
-A thread the round deferred to the user instead of answering (the ambiguous escalation in [`address-reviews.md`](address-reviews.md) Step 3) is cleared with `echo "MUGGLE_REPLY_SKIP: <comment-id> <reason>"`, one per deferred id. Naming no id degrades to a session-wide skip.
+Two properties worth knowing while writing replies:
+
+- **A comment is answered only when the provider confirms the reply.** A reply that fails leaves the obligation open, which is why the failure mode above says to log and continue rather than assume the thread is settled.
+- **One reply may answer several comments.** A thread carrying three consecutive questions is three obligations; a single reply that addresses all three settles all three, while a reply addressing only the newest leaves the other two open and named.
+
+A thread the round deferred to the user instead of answering (the ambiguous escalation in [`address-reviews.md`](address-reviews.md) Step 3) is cleared with `echo "MUGGLE_REPLY_SKIP: <comment-id> <reason>"`. The deferral is recorded durably against those comments, so it survives the session; naming no tracked comment degrades to a session-wide skip.
 
 ## Invariants
 

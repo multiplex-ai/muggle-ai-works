@@ -10,6 +10,7 @@ import {
   overdueThreads,
   resolveSlotForPr,
   threadForReplyTarget,
+  deferredCommentIds,
 } from "../../guardrails/commentReply.js";
 import { commitThread, newThreadEntry, readLedger } from "../../guardrails/ledger/store.js";
 import { claimThread, coverComments, refreshHumanComments } from "../../guardrails/ledger/obligations.js";
@@ -312,5 +313,36 @@ describe("commentReplyGateDecision", () => {
   it("releases after the block ceiling so an unanswerable thread cannot trap the session", () => {
     const spent = { ...baseState(), commentReplyBlockCount: MAX_REPLY_BLOCKS };
     expect(commentReplyGateDecision(spent, overdue).action).toBe(CommentReplyGateAction.Release);
+  });
+});
+
+describe("deferredCommentIds", () => {
+  const ledger = {
+    version: 1,
+    threads: {
+      T1: { ...newThreadEntry(LedgerProvider.GitHub), humanCommentIds: ["11", "12"] },
+      T2: { ...newThreadEntry(LedgerProvider.GitHub), humanCommentIds: ["21"] },
+    },
+  };
+
+  it("groups the comments a marker names by their thread", () => {
+    expect(deferredCommentIds(ledger, 'echo "MUGGLE_REPLY_SKIP: 12 21 deferred"')).toEqual([
+      { threadId: "T1", commentIds: ["12"] },
+      { threadId: "T2", commentIds: ["21"] },
+    ]);
+  });
+
+  // Only comments the ledger tracks count, so a typo cannot settle an
+  // obligation that was never recorded.
+  it("names nothing when the marker cites an unknown comment", () => {
+    expect(deferredCommentIds(ledger, 'echo "MUGGLE_REPLY_SKIP: 999 deferred"')).toEqual([]);
+  });
+
+  it("ignores comments already covered", () => {
+    const covered = {
+      version: 1,
+      threads: { T1: { ...ledger.threads.T1, coveredCommentIds: ["11", "12"] } },
+    };
+    expect(deferredCommentIds(covered, 'echo "MUGGLE_REPLY_SKIP: 12 deferred"')).toEqual([]);
   });
 });

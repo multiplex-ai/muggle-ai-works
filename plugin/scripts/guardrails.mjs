@@ -853,6 +853,14 @@ function commentReplyGateDecision(state, overdue, maxBlocks = MAX_REPLY_BLOCKS) 
     unanswered
   };
 }
+function deferredCommentIds(ledger, command) {
+  const deferred = [];
+  for (const [threadId, entry] of Object.entries(ledger.threads)) {
+    const named = uncoveredComments(entry).filter((commentId) => command.includes(commentId));
+    if (named.length > 0) deferred.push({ threadId, commentIds: named });
+  }
+  return deferred;
+}
 
 // src/guardrails/detectBuildIntent.ts
 var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
@@ -1116,12 +1124,19 @@ function slotForSession(state) {
 function recordCommentReplies() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  if (isReplySkipMarker(cmd)) {
-    updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
-    return "{}";
-  }
   const slotPath = slotForSession(state);
   if (!slotPath) return "{}";
+  if (isReplySkipMarker(cmd)) {
+    const deferred = deferredCommentIds(readLedger(slotPath), cmd);
+    if (deferred.length === 0) {
+      updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+      return "{}";
+    }
+    for (const { threadId, commentIds } of deferred) {
+      commitThread(slotPath, threadId, (entry) => coverComments(entry, commentIds, null));
+    }
+    return "{}";
+  }
   for (const thread of detectUnansweredThreads(input)) {
     commitThread(
       slotPath,

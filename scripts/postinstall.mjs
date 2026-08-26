@@ -25,6 +25,11 @@ import { dirname, join } from "path";
 import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
+import {
+    SIGNATURE_BUNDLE_SUFFIX,
+    resolveIntegrityPolicy,
+    verifyReleaseSignature,
+} from "./release-integrity/index.mjs";
 
 const require = createRequire(import.meta.url);
 const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
@@ -728,7 +733,35 @@ async function downloadElectronApp() {
             clearTimeout(streamTimer);
         }
 
-        log("Download complete, verifying checksum...");
+        log("Download complete, verifying integrity...");
+
+        const integrityPolicy = resolveIntegrityPolicy({
+            version: version,
+            signedFromVersion: config.electronAppSignedFromVersion || "",
+            expectedChecksum: expectedChecksum,
+        });
+
+        if (integrityPolicy.unverifiableReason) {
+            rmSync(versionDir, { recursive: true, force: true });
+            throw new Error("Refusing to install an unverifiable download: " + integrityPolicy.unverifiableReason);
+        }
+
+        if (integrityPolicy.requiresSignature) {
+            const signatureResult = await verifyReleaseSignature({
+                artifactPath: tempFile,
+                bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
+                signerIdentityUri: config.signerIdentityUri || "",
+            });
+
+            if (!signatureResult.valid) {
+                rmSync(versionDir, { recursive: true, force: true });
+                throw new Error(
+                    "Signature verification failed, refusing to install: " + signatureResult.reason,
+                );
+            }
+
+            log("Signature verified successfully.");
+        }
 
         // Verify checksum
         const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
@@ -743,9 +776,7 @@ async function downloadElectronApp() {
             );
         }
 
-        if (checksumResult.skipped) {
-            log("Warning: No checksum configured, skipping verification.");
-        } else {
+        if (!checksumResult.skipped) {
             log("Checksum verified successfully.");
         }
 

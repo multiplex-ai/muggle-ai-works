@@ -13,6 +13,7 @@
     "plugin",
     "bin/muggle.js",
     "scripts/postinstall.mjs",
+    "scripts/release-integrity",
     "config/runtime-targets.json"
   ],
   "scripts": {
@@ -66,7 +67,9 @@
         "linux-x64": "929396f628a05f001782d48524cd9f76fdbb59216658982a5a3909dfe413cbea",
         "win32-x64": "a8b5b46b97ed788030be84982a3e8d463abbfa7f3e8bc795692ccbffc82bfa92"
       }
-    }
+    },
+    "electronAppSignedFromVersion": "1.10.0",
+    "signerIdentityUri": "https://github.com/multiplex-ai/muggle-ai-teaching-service/.github/workflows/release-electron-app-reusable.yml@refs/heads/master"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.3",
@@ -74,6 +77,7 @@
     "axios": "^1.7.9",
     "commander": "^14.0.3",
     "open": "^11.0.0",
+    "sigstore": "^5.0.0",
     "ulid": "^3.0.2",
     "uuid": "^14.0.0",
     "winston": "^3.17.0",

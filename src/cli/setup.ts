@@ -17,8 +17,10 @@ import {
   getDataDir,
   getElectronAppChecksums,
   getElectronAppDir,
+  getElectronAppSignedFromVersion,
   getElectronAppVersion,
   getLogger,
+  getReleaseSignerIdentityUri,
   getPlatformKey,
   isElectronAppInstalled,
   isFirstRun,
@@ -28,6 +30,11 @@ import {
   verifyFileChecksum,
   writePreferences,
 } from "../../packages/mcps/src/index.js";
+import {
+  SIGNATURE_BUNDLE_SUFFIX,
+  resolveIntegrityPolicy,
+  verifyReleaseSignature,
+} from "../../scripts/release-integrity/index.mjs";
 
 const logger = getLogger();
 
@@ -349,11 +356,37 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
 
     // Download with retry
     await downloadWithRetry(downloadUrl, tempFile);
-    console.log("Download complete, verifying checksum...");
+    console.log("Download complete, verifying integrity...");
 
     // Verify checksum
     const checksums = getElectronAppChecksums();
     const expectedChecksum = getChecksumForPlatform(checksums);
+    const integrityPolicy = resolveIntegrityPolicy({
+      version: version,
+      signedFromVersion: getElectronAppSignedFromVersion(),
+      expectedChecksum: expectedChecksum ?? "",
+    });
+
+    if (integrityPolicy.unverifiableReason) {
+      cleanupFailedInstall(versionDir);
+      throw new Error("Refusing to install an unverifiable download: " + integrityPolicy.unverifiableReason);
+    }
+
+    if (integrityPolicy.requiresSignature) {
+      const signatureResult = await verifyReleaseSignature({
+        artifactPath: tempFile,
+        bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
+        signerIdentityUri: getReleaseSignerIdentityUri(),
+      });
+
+      if (!signatureResult.valid) {
+        cleanupFailedInstall(versionDir);
+        throw new Error("Signature verification failed, refusing to install: " + signatureResult.reason);
+      }
+
+      console.log("Signature verified successfully.");
+    }
+
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
 
     if (!checksumResult.valid && expectedChecksum) {
@@ -368,8 +401,6 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
 
     if (expectedChecksum) {
       console.log("Checksum verified successfully.");
-    } else {
-      console.log("Warning: No checksum configured, skipping verification.");
     }
 
     console.log("Extracting...");

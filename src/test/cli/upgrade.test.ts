@@ -18,6 +18,10 @@ const mcpsMocks = vi.hoisted(() => ({
   getDataDir: vi.fn(() => "/data"),
   getElectronAppDir: vi.fn((v: string) => `/data/electron-app/${v}`),
   getElectronAppVersion: vi.fn(() => "1.0.5"),
+  getElectronAppSignedFromVersion: vi.fn(() => "1.10.0"),
+  getReleaseSignerIdentityUri: vi.fn(
+    () => "https://github.com/multiplex-ai/muggle-ai-teaching-service/.github/workflows/release-electron-app-reusable.yml@refs/heads/master",
+  ),
   getPlatformKey: vi.fn(() => "win32-x64"),
   getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
   verifyFileChecksum: vi.fn(async () => ({ valid: true, expected: "e", actual: "e" })),
@@ -84,6 +88,20 @@ function releasesResponse(tags: string[]): Record<string, unknown> {
 function downloadResponse(): Record<string, unknown> {
   return { ok: true, status: 200, statusText: "OK", body: { kind: "body" } };
 }
+
+/** checksums.txt covering every published asset name, so any mocked platform resolves. */
+const checksumsResponse = () => ({
+  ok: true,
+  status: 200,
+  statusText: "OK",
+  text: async () =>
+    [
+      "MuggleAI-win32-x64.zip",
+      "MuggleAI-darwin-x64.zip",
+      "MuggleAI-darwin-arm64.zip",
+      "MuggleAI-linux-x64.zip",
+    ].map((name) => "a".repeat(64) + "  " + name).join("\n"),
+});
 
 describe("getEffectiveElectronAppVersion", () => {
   // getEffectiveElectronAppVersion reads the override via require("fs"), which
@@ -184,7 +202,7 @@ describe("upgradeCommand", () => {
     stubFetchSequence([
       releasesResponse(["v1.0.6"]),
       downloadResponse(),
-      { ok: true, status: 200, statusText: "OK", text: async () => "" },
+      checksumsResponse(),
     ]);
 
     await upgradeCommand({});
@@ -198,17 +216,29 @@ describe("upgradeCommand", () => {
   });
 
   it("installs a specific --version using the parameterized download URL", async () => {
+    fsState.existing.add(join("/data/electron-app/1.0.9", "MuggleAI.exe"));
+    stubFetchSequence([
+      downloadResponse(),
+      checksumsResponse(),
+    ]);
+    await upgradeCommand({ version: "1.0.9" });
+    expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalledWith({
+      version: "1.0.9",
+      assetFileName: "MuggleAI-win32-x64.zip",
+    });
+    expect(fsState.written.has(join("/data/electron-app/1.0.9", ".install-metadata.json"))).toBe(true);
+  });
+
+  it("refuses a --version at or above the signed-from version when its signature does not verify", async () => {
     fsState.existing.add(join("/data/electron-app/3.1.4", "MuggleAI.exe"));
     stubFetchSequence([
       downloadResponse(),
-      { ok: true, status: 200, statusText: "OK", text: async () => "" },
+      checksumsResponse(),
+      { ok: false, status: 404, statusText: "Not Found" },
     ]);
     await upgradeCommand({ version: "3.1.4" });
-    expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalledWith({
-      version: "3.1.4",
-      assetFileName: "MuggleAI-win32-x64.zip",
-    });
-    expect(fsState.written.has(join("/data/electron-app/3.1.4", ".install-metadata.json"))).toBe(true);
+    expect(childProcessMock.execFile).not.toHaveBeenCalled();
+    expect(fsState.written.has(join("/data/electron-app/3.1.4", ".install-metadata.json"))).toBe(false);
   });
 
   it("verifies a checksum parsed from checksums.txt", async () => {
@@ -249,7 +279,7 @@ describe("upgradeCommand", () => {
     stubFetchSequence([
       releasesResponse(["v1.0.6"]),
       downloadResponse(),
-      { ok: true, status: 200, statusText: "OK", text: async () => "" },
+      checksumsResponse(),
     ]);
     await upgradeCommand({});
     expect(exitSpy).toHaveBeenCalledWith(1);
@@ -260,7 +290,7 @@ describe("upgradeCommand", () => {
     stubFetchSequence([
       releasesResponse(["v1.0.5"]),
       downloadResponse(),
-      { ok: true, status: 200, statusText: "OK", text: async () => "" },
+      checksumsResponse(),
     ]);
     await upgradeCommand({ force: true });
     expect(streamMock.pipeline).toHaveBeenCalledOnce();
@@ -291,7 +321,7 @@ describe("upgradeCommand", () => {
             ],
           };
         }
-        return { ok: true, status: 200, statusText: "OK", text: async () => "" };
+        return checksumsResponse();
       }),
     );
     await upgradeCommand({ check: true });
@@ -299,15 +329,14 @@ describe("upgradeCommand", () => {
     expect(out).toContain("Latest version:  1.0.7");
   });
 
-  it("warns and skips verification when the checksums file is absent", async () => {
-    fsState.existing.add(EXE_106);
+  it("refuses to install when the checksums file is absent and the release predates signing", async () => {
     stubFetchSequence([
       releasesResponse(["v1.0.6"]),
       downloadResponse(),
       { ok: false, status: 404, statusText: "Not Found" },
     ]);
     await upgradeCommand({});
-    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("No checksum available");
+    expect(childProcessMock.execFile).not.toHaveBeenCalled();
   });
 
   it("exits 1 when the download response is not ok", async () => {
@@ -328,7 +357,7 @@ describe("upgradeCommand", () => {
     stubFetchSequence([
       releasesResponse(["v1.0.6"]),
       downloadResponse(),
-      { ok: true, status: 200, statusText: "OK", text: async () => "" },
+      checksumsResponse(),
     ]);
     await upgradeCommand({});
     expect(childProcessMock.execFile.mock.calls[0][0]).toBe("unzip");

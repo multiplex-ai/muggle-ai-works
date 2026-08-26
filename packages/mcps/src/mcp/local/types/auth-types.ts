@@ -2,6 +2,7 @@
  * Auth types for local E2E acceptance module.
  */
 
+import type { RuntimeTarget } from "../../../shared/runtime-target-types.js";
 import type { DeviceCodePollStatus } from "./enums.js";
 
 /**
@@ -100,4 +101,6 @@ export interface IStoredAuth {
   email?: string;
   /** User ID. */
   userId?: string;
+  /** Runtime target whose identity tenant issued these tokens. Absent on sessions stored before targets were recorded. */
+  runtimeTarget?: RuntimeTarget;
 }

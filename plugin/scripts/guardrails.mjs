@@ -1,46 +1,10 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, renameSync, readdirSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
 import { join, isAbsolute, resolve, dirname } from 'path';
-import { homedir } from 'os';
+import { homedir, hostname } from 'os';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
 
 // src/guardrails/cli.ts
-var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
-var fileFor = (sessionId2, override) => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
-function readState(sessionId2, dirOverride) {
-  const f = fileFor(sessionId2, dirOverride);
-  if (!existsSync(f)) return { sessionId: sessionId2, prsHandled: [] };
-  try {
-    const raw = JSON.parse(readFileSync(f, "utf-8"));
-    return { ...raw, sessionId: sessionId2, prsHandled: raw.prsHandled ?? [] };
-  } catch {
-    return { sessionId: sessionId2, prsHandled: [] };
-  }
-}
-function writeState(state, dirOverride) {
-  mkdirSync(baseDir(dirOverride), { recursive: true });
-  writeFileSync(fileFor(state.sessionId, dirOverride), JSON.stringify(state, null, 2));
-}
-function markPrHandled(sessionId2, prUrl, dirOverride) {
-  const state = readState(sessionId2, dirOverride);
-  if (!state.prsHandled.includes(prUrl)) state.prsHandled.push(prUrl);
-  writeState(state, dirOverride);
-}
-
-// src/guardrails/prOpened.ts
-var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
-var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
-var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
-var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
-function detectPrOpened(input2) {
-  if (input2.tool_name !== "Bash") return null;
-  const cmd = input2.tool_input?.command ?? "";
-  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
-  const out = `${input2.tool_response?.stdout ?? ""}
-${input2.tool_response?.output ?? ""}`;
-  const m = out.match(PR_URL) ?? out.match(MR_URL);
-  return m ? m[0] : null;
-}
 
 // src/guardrails/constants.ts
 var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
@@ -69,6 +33,129 @@ var MUGGLE_RUN_PASSED_STATUS = "passed";
 var GITHUB_RESOLVE_THREAD_MUTATION = /\bresolveReviewThread\b/;
 var GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved=true/i;
 var PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;
+var LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
+var REVIEW_THREAD_FETCH_COMMAND = /reviewThreads|merge_requests\/\d+\/discussions/;
+var THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/([\w-]+)\/notes/g;
+var MAX_REPLY_BLOCKS = 3;
+var SESSION_STATE_LOCK_WAIT_MS = 250;
+var LOCK_POLL_INTERVAL_MS = 10;
+
+// src/guardrails/store/fileLock.ts
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+function recordedHolder(lockPath) {
+  try {
+    return JSON.parse(readFileSync(lockPath, "utf-8"));
+  } catch {
+    return void 0;
+  }
+}
+function breakLockIfHolderIsDead(lockPath) {
+  const holder = recordedHolder(lockPath);
+  if (!holder) return;
+  if (holder.host !== hostname() || isProcessAlive(holder.pid)) return;
+  try {
+    unlinkSync(lockPath);
+  } catch {
+    return;
+  }
+}
+function pauseBetweenAttempts() {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCK_POLL_INTERVAL_MS);
+}
+function withFileLock(lockPath, waitMs, run) {
+  const deadline = Date.now() + waitMs;
+  for (; ; ) {
+    let lockFileDescriptor;
+    try {
+      lockFileDescriptor = openSync(lockPath, "wx");
+      writeSync(
+        lockFileDescriptor,
+        JSON.stringify({
+          pid: process.pid,
+          host: hostname(),
+          acquiredAt: (/* @__PURE__ */ new Date()).toISOString()
+        })
+      );
+    } catch {
+      breakLockIfHolderIsDead(lockPath);
+      if (Date.now() >= deadline) return void 0;
+      pauseBetweenAttempts();
+      continue;
+    }
+    try {
+      return run();
+    } finally {
+      closeSync(lockFileDescriptor);
+      try {
+        unlinkSync(lockPath);
+      } catch {
+      }
+    }
+  }
+}
+
+// src/guardrails/sessionState.ts
+var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
+var fileFor = (sessionId2, override) => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+function readState(sessionId2, dirOverride) {
+  const f = fileFor(sessionId2, dirOverride);
+  if (!existsSync(f)) return { sessionId: sessionId2, prsHandled: [] };
+  try {
+    const raw = JSON.parse(readFileSync(f, "utf-8"));
+    return { ...raw, sessionId: sessionId2, prsHandled: raw.prsHandled ?? [] };
+  } catch {
+    return { sessionId: sessionId2, prsHandled: [] };
+  }
+}
+function writeState(state, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const target = fileFor(state.sessionId, dirOverride);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, JSON.stringify(state, null, 2));
+  renameSync(staging, target);
+}
+function updateState(sessionId2, mutate, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const committed = withFileLock(
+    `${fileFor(sessionId2, dirOverride)}.lock`,
+    SESSION_STATE_LOCK_WAIT_MS,
+    () => {
+      const current = readState(sessionId2, dirOverride);
+      const next = mutate(current);
+      if (next === current) return true;
+      writeState({ ...next, generation: (current.generation ?? 0) + 1 }, dirOverride);
+      return true;
+    }
+  );
+  return committed === true;
+}
+function markPrHandled(sessionId2, prUrl, dirOverride) {
+  const state = readState(sessionId2, dirOverride);
+  if (!state.prsHandled.includes(prUrl)) state.prsHandled.push(prUrl);
+  writeState(state, dirOverride);
+}
+
+// src/guardrails/prOpened.ts
+var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
+var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
+var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
+var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
+function detectPrOpened(input2) {
+  if (input2.tool_name !== "Bash") return null;
+  const cmd = input2.tool_input?.command ?? "";
+  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
+  const out = `${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`;
+  const m = out.match(PR_URL) ?? out.match(MR_URL);
+  return m ? m[0] : null;
+}
 
 // src/guardrails/prTerminal.ts
 function detectPrTerminal(input2) {
@@ -536,6 +623,245 @@ function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
 }
 
+// src/guardrails/ledger/constants.ts
+var LEDGER_FILE_NAME = "comment-ledger.json";
+var LEDGER_VERSION = 1;
+var LEDGER_LOCK_WAIT_MS = 3e4;
+var LEDGER_COMMIT_ATTEMPTS = 5;
+var FOREIGN_CLAIM_EXPIRY_MS = 6 * 60 * 60 * 1e3;
+
+// src/guardrails/ledger/store.ts
+var ledgerPath = (slotPath) => join(slotPath, LEDGER_FILE_NAME);
+function newThreadEntry(provider) {
+  return {
+    provider,
+    generation: 0,
+    humanCommentIds: [],
+    coveredCommentIds: [],
+    claim: null,
+    lastClaimedBySessionId: null,
+    lastReplySha: null,
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+function readLedger(slotPath) {
+  const path = ledgerPath(slotPath);
+  if (!existsSync(path)) return { version: LEDGER_VERSION, threads: {} };
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf-8"));
+    return { version: parsed.version ?? LEDGER_VERSION, threads: parsed.threads ?? {} };
+  } catch {
+    return { version: LEDGER_VERSION, threads: {} };
+  }
+}
+function writeLedger(slotPath, ledger) {
+  const target = ledgerPath(slotPath);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, JSON.stringify(ledger, null, 2));
+  renameSync(staging, target);
+}
+function commitThread(slotPath, threadId, mutate) {
+  mkdirSync(slotPath, { recursive: true });
+  for (let attempt = 0; attempt < LEDGER_COMMIT_ATTEMPTS; attempt += 1) {
+    const committed = withFileLock(`${ledgerPath(slotPath)}.lock`, LEDGER_LOCK_WAIT_MS, () => {
+      const ledger = readLedger(slotPath);
+      const current = ledger.threads[threadId] ?? newThreadEntry("github" /* GitHub */);
+      const next = mutate(current);
+      ledger.threads[threadId] = {
+        ...next,
+        generation: current.generation + 1,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      writeLedger(slotPath, ledger);
+      return true;
+    });
+    if (committed === true) return true;
+  }
+  return false;
+}
+function isClaimLive(claim, now = Date.now()) {
+  if (!claim) return false;
+  if (claim.host !== hostname()) {
+    return now - Date.parse(claim.claimedAt) < FOREIGN_CLAIM_EXPIRY_MS;
+  }
+  return isProcessAlive(claim.pid);
+}
+function uncoveredComments(entry) {
+  const covered = new Set(entry.coveredCommentIds);
+  return entry.humanCommentIds.filter((commentId) => !covered.has(commentId));
+}
+function threadState(entry, now = Date.now()) {
+  if (uncoveredComments(entry).length === 0) return "processed" /* Processed */;
+  if (isClaimLive(entry.claim, now)) return "processing" /* Processing */;
+  return "unprocessed" /* Unprocessed */;
+}
+function claimThread(entry, sessionId2) {
+  return {
+    ...entry,
+    claim: {
+      sessionId: sessionId2,
+      pid: process.pid,
+      host: hostname(),
+      claimedAt: (/* @__PURE__ */ new Date()).toISOString()
+    },
+    lastClaimedBySessionId: sessionId2
+  };
+}
+function coverComments(entry, commentIds, replySha) {
+  const covered = [...entry.coveredCommentIds];
+  for (const commentId of commentIds) if (!covered.includes(commentId)) covered.push(commentId);
+  return { ...entry, coveredCommentIds: covered, lastReplySha: replySha ?? entry.lastReplySha };
+}
+function refreshHumanComments(entry, humanCommentIds) {
+  return { ...entry, humanCommentIds: [...humanCommentIds] };
+}
+
+// src/guardrails/commentReply.ts
+var REPLY_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_REPLY_SKIP\b/;
+var REPLY_SHA_CITATION = /Addressed in ([0-9a-f]{7,40})/;
+function parsedResponse(input2) {
+  for (const rendered of [input2.tool_response?.stdout, input2.tool_response?.output]) {
+    if (!rendered) continue;
+    try {
+      return JSON.parse(rendered);
+    } catch {
+      continue;
+    }
+  }
+  return void 0;
+}
+function collectThreads(value, found) {
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectThreads(entry, found));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  const thread = value;
+  if (Array.isArray(thread.comments?.nodes) || Array.isArray(thread.notes)) {
+    found.push(thread);
+    return;
+  }
+  Object.values(value).forEach((nested) => collectThreads(nested, found));
+}
+var commentTimestamp = (comment) => comment.createdAt ?? comment.created_at ?? "";
+function inChronologicalOrder(comments) {
+  if (comments.some((comment) => commentTimestamp(comment) === "")) return comments;
+  return [...comments].sort(
+    (earlier, later) => commentTimestamp(earlier).localeCompare(commentTimestamp(later))
+  );
+}
+var isLoopAuthored = (comment) => (comment.body ?? "").includes(LOOP_REPLY_MARKER);
+function commentsAwaitingReply(comments) {
+  const ordered = inChronologicalOrder(comments);
+  let lastLoopIndex = -1;
+  ordered.forEach((comment, index) => {
+    if (isLoopAuthored(comment)) lastLoopIndex = index;
+  });
+  return ordered.slice(lastLoopIndex + 1).filter((comment) => !isLoopAuthored(comment));
+}
+function githubThread(thread) {
+  if (thread.isResolved === true || !thread.id) return void 0;
+  const awaiting = commentsAwaitingReply(thread.comments?.nodes ?? []);
+  const humanCommentIds = awaiting.map((comment) => comment.databaseId).filter((databaseId) => databaseId !== void 0).map(String);
+  if (humanCommentIds.length === 0) return void 0;
+  return {
+    threadId: thread.id,
+    provider: "github" /* GitHub */,
+    humanCommentIds
+  };
+}
+function gitlabThread(thread) {
+  const notes = thread.notes ?? [];
+  if (!notes.some((note) => note.resolved === false) || !thread.id) return void 0;
+  const humanCommentIds = commentsAwaitingReply(notes).map((note) => note.id).filter((noteId) => noteId !== void 0).map(String);
+  if (humanCommentIds.length === 0) return void 0;
+  return {
+    threadId: thread.id,
+    provider: "gitlab" /* GitLab */,
+    humanCommentIds
+  };
+}
+function detectUnansweredThreads(input2) {
+  if (input2.tool_name !== "Bash") return [];
+  if (!REVIEW_THREAD_FETCH_COMMAND.test(input2.tool_input?.command ?? "")) return [];
+  const threads = [];
+  collectThreads(parsedResponse(input2), threads);
+  return threads.map((thread) => Array.isArray(thread.notes) ? gitlabThread(thread) : githubThread(thread)).filter((thread) => thread !== void 0);
+}
+function detectConfirmedReplies(input2) {
+  if (input2.tool_name !== "Bash") return [];
+  const command = input2.tool_input?.command ?? "";
+  const targets = [...command.matchAll(THREADED_REPLY_TARGET)].map(
+    ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId
+  );
+  if (targets.length === 0) return [];
+  const created = parsedResponse(input2);
+  if (created?.id === void 0) return [];
+  const replySha = REPLY_SHA_CITATION.exec(created.body ?? "")?.[1] ?? null;
+  return targets.map((targetId) => ({ targetId, replySha }));
+}
+function isReplySkipMarker(command) {
+  return REPLY_SKIP_MARKER.test(command);
+}
+function threadForReplyTarget(ledger, targetId) {
+  if (ledger.threads[targetId]) return targetId;
+  for (const [threadId, entry] of Object.entries(ledger.threads)) {
+    if (entry.humanCommentIds.includes(targetId)) return threadId;
+  }
+  return void 0;
+}
+function resolveSlotForPr(prUrl, sessionsDirOverride) {
+  const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  if (!existsSync(sessionsDir)) return void 0;
+  for (const slug of readdirSync(sessionsDir)) {
+    const slotPath = join(sessionsDir, slug);
+    try {
+      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8"));
+      const slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
+      if (slotPr?.url === prUrl) return slotPath;
+    } catch {
+      continue;
+    }
+  }
+  return void 0;
+}
+function overdueThreads(slotPath, sessionId2) {
+  const overdue = [];
+  for (const [threadId, entry] of Object.entries(readLedger(slotPath).threads)) {
+    if (entry.lastClaimedBySessionId !== sessionId2) continue;
+    if (threadState(entry) === "processed" /* Processed */) continue;
+    overdue.push({ threadId, uncovered: uncoveredComments(entry) });
+  }
+  return overdue;
+}
+function commentReplyGateDecision(state, overdue, maxBlocks = MAX_REPLY_BLOCKS) {
+  const blockCount = state.commentReplyBlockCount ?? 0;
+  const unanswered = overdue.flatMap((thread) => thread.uncovered);
+  if (state.commentReplySkipped === true || unanswered.length === 0) {
+    return { action: "none" /* None */, blockCount, unanswered };
+  }
+  if (blockCount >= maxBlocks) {
+    return {
+      action: "release" /* Release */,
+      blockCount,
+      unanswered
+    };
+  }
+  return {
+    action: "block" /* Block */,
+    blockCount: blockCount + 1,
+    unanswered
+  };
+}
+function deferredCommentIds(ledger, command) {
+  const deferred = [];
+  for (const [threadId, entry] of Object.entries(ledger.threads)) {
+    const named = uncoveredComments(entry).filter((commentId) => command.includes(commentId));
+    if (named.length > 0) deferred.push({ threadId, commentIds: named });
+  }
+  return deferred;
+}
+
 // src/guardrails/detectBuildIntent.ts
 var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
 var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
@@ -788,6 +1114,62 @@ function walkthroughGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via /muggle:muggle-pr-visual-walkthrough \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
+function slotForSession(state) {
+  for (const prUrl of state.prsHandled) {
+    const slotPath = resolveSlotForPr(prUrl);
+    if (slotPath) return slotPath;
+  }
+  return void 0;
+}
+function recordCommentReplies() {
+  const cmd = input.tool_input?.command ?? "";
+  const state = readState(sessionId);
+  const slotPath = slotForSession(state);
+  if (!slotPath) return "{}";
+  if (isReplySkipMarker(cmd)) {
+    const deferred = deferredCommentIds(readLedger(slotPath), cmd);
+    if (deferred.length === 0) {
+      updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+      return "{}";
+    }
+    for (const { threadId, commentIds } of deferred) {
+      commitThread(slotPath, threadId, (entry) => coverComments(entry, commentIds, null));
+    }
+    return "{}";
+  }
+  for (const thread of detectUnansweredThreads(input)) {
+    commitThread(
+      slotPath,
+      thread.threadId,
+      (entry) => claimThread(
+        refreshHumanComments({ ...entry, provider: thread.provider }, thread.humanCommentIds),
+        sessionId
+      )
+    );
+  }
+  const confirmed = detectConfirmedReplies(input);
+  if (confirmed.length > 0) {
+    const ledger = readLedger(slotPath);
+    for (const reply of confirmed) {
+      const threadId = threadForReplyTarget(ledger, reply.targetId);
+      if (!threadId) continue;
+      const covered = threadId === reply.targetId ? uncoveredComments(ledger.threads[threadId]) : [reply.targetId];
+      commitThread(slotPath, threadId, (entry) => coverComments(entry, covered, reply.replySha));
+    }
+  }
+  return "{}";
+}
+function commentReplyGate() {
+  const state = readState(sessionId);
+  const slotPath = slotForSession(state);
+  if (!slotPath) return "{}";
+  const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
+  if (decision.action !== "block" /* Block */) return "{}";
+  updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
+  const commentList = decision.unanswered.join(", ");
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took these review comments as work and never answered them: ${commentList}. Post one reply per comment in its own thread per muggle-do do/per-comment-replies.md \u2014 "Addressed in <short-sha>: <what changed for THIS comment>", signed via sign-body.sh --mode loop. A silent round leaves the reviewer with no answer in the thread, and the loop marker that reply carries is the only thing that stops the watcher re-dispatching the same thread next tick. If a comment was escalated to the user instead of answered, record it as deferred rather than replying.` : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ${commentList}. Reply per do/per-comment-replies.md, or record the deferral.`;
+  return blockStop(reason, host);
+}
 function reportGate() {
   const reportPostVerdict = evaluateReportPost(input);
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
@@ -816,6 +1198,8 @@ var handlers = {
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
+  "record-comment-replies": recordCommentReplies,
+  "comment-reply-gate": commentReplyGate,
   "report-gate": reportGate,
   "resolve-gate": resolveGate,
   "build-router": buildRouter,

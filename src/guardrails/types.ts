@@ -1,5 +1,6 @@
 export interface GuardrailState {
   sessionId: string;
+  generation?: number;
   prsHandled: string[];
   unitTestsGreen?: boolean;
   e2eRun?: boolean;
@@ -25,6 +26,8 @@ export interface GuardrailState {
   debuggedRuns?: string[];
   debugSkipped?: boolean;
   debugBlockCount?: number;
+  commentReplySkipped?: boolean;
+  commentReplyBlockCount?: number;
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */
@@ -114,6 +117,20 @@ export interface PrTerminalGateDecision {
 export enum ReviewThreadProvider {
   GitHub = "github",
   GitLab = "gitlab",
+}
+
+/** Outcome of the comment-reply Stop gate for a turn end. */
+export enum CommentReplyGateAction {
+  Block = "block",
+  Release = "release",
+  None = "none",
+}
+
+/** A comment-reply gate decision: the action, the running block count, and the review comments still awaiting a threaded reply. */
+export interface CommentReplyGateDecision {
+  action: CommentReplyGateAction;
+  blockCount: number;
+  unanswered: string[];
 }
 
 export interface HookInput {

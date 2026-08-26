@@ -411,6 +411,121 @@ describe("guardrail hook execution (cli entry)", () => {
   });
 
   // Never-block guarantee at the entry: a hook must never crash the turn.
+  const PR_URL = "https://github.com/o/r/pull/7";
+
+  // The gate reads obligations from the per-PR ledger in the muggle-do slot, so
+  // a flow test has to stand up both: the slot the PR maps to, and the session
+  // state naming that PR as handled.
+  function seedSlot(sid: string): string {
+    const slotPath = join(home, ".muggle-ai", "muggle-do", "sessions", "slug");
+    mkdirSync(slotPath, { recursive: true });
+    writeFileSync(join(slotPath, "prs.json"), JSON.stringify([{ url: PR_URL }]));
+    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
+    writeFileSync(
+      join(home, ".muggle-ai", "guardrails", `${sid}.json`),
+      JSON.stringify({ sessionId: sid, prsHandled: [PR_URL] }),
+    );
+    return slotPath;
+  }
+
+  const threadFetchEvent = (sid: string, comments: Array<{ databaseId: number; body: string; createdAt: string }>) =>
+    event({
+      session_id: sid,
+      tool_name: "Bash",
+      tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
+      tool_response: {
+        stdout: JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [{ id: "T1", isResolved: false, comments: { nodes: comments } }],
+                },
+              },
+            },
+          },
+        }),
+      },
+    });
+
+  const replyEvent = (sid: string, commentId: string, response: unknown) =>
+    event({
+      session_id: sid,
+      tool_name: "Bash",
+      tool_input: { command: `gh api --method POST repos/o/r/pulls/7/comments/${commentId}/replies -f body=x` },
+      tool_response: { stdout: JSON.stringify(response) },
+    });
+
+  const humanComment = { databaseId: 11, body: "this leaks a handle", createdAt: "2026-08-01T00:00:00Z" };
+  const createdReply = { id: 999, body: "<!-- muggle-do:bot --> Addressed in c88acd5: fixed." };
+
+  it("record-comment-replies -> comment-reply-gate: a claimed thread blocks until the reply is confirmed", () => {
+    const sid = "s-reply";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+
+    const blocked = JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("11");
+
+    runHook("record-comment-replies", replyEvent(sid, "11", createdReply));
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
+  // per-comment-replies.md expects individual replies to fail and logs them, so
+  // a rejected reply must leave the obligation open rather than closing it.
+  it("record-comment-replies: a rejected reply does not clear the obligation", () => {
+    const sid = "s-reply-rejected";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+    runHook("record-comment-replies", replyEvent(sid, "11", { message: "Validation Failed" }));
+    const blocked = JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("11");
+  });
+
+  it("record-comment-replies -> comment-reply-gate: a MUGGLE_REPLY_SKIP marker settles the gate", () => {
+    const sid = "s-reply-skip";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: 'echo "MUGGLE_REPLY_SKIP: 11 escalated to the user"' },
+      }),
+    );
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
+  it("comment-reply-gate: stays silent when no slot tracks the PR", () => {
+    const sid = "s-reply-noslot";
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
+  // The gate runs on every turn end, so its write budget is the thing to pin: it
+  // writes only to bump the block count, which the ceiling caps, and a released
+  // gate must go inert rather than rewrite state for the rest of the session.
+  it("comment-reply-gate: writes only while blocking, at most 3 times, then goes inert", () => {
+    const sid = "s-reply-cap";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+
+    const stateFile = join(home, ".muggle-ai", "guardrails", `${sid}.json`);
+    for (const expectedBlock of [1, 2, 3]) {
+      expect(JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out).decision).toBe(
+        "block",
+      );
+      expect(JSON.parse(readFileSync(stateFile, "utf-8")).commentReplyBlockCount).toBe(expectedBlock);
+    }
+
+    const settled = readFileSync(stateFile, "utf-8");
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+    expect(readFileSync(stateFile, "utf-8")).toBe(settled);
+  });
+
   it("degrades to {} on malformed stdin", () => {
     const { status, out } = runHook("pr-opened", "this is not json");
     expect(status).toBe(0);
@@ -625,15 +740,16 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly four observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals)", () => {
+  it("fires exactly five observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
     const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
-    expect(cmds).toHaveLength(4);
+    expect(cmds).toHaveLength(5);
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-tests.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-pr-terminal.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-stage-signals.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-record-comment-replies.sh"))).toBe(true);
   });
 
   it("stands both Bash PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
@@ -655,12 +771,13 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     ]);
   });
 
-  it("runs all four gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough)", () => {
+  it("runs all five gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough + comment-reply)", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command);
     expect(stop.some((c) => c.includes("guardrail-e2e-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-terminal-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-watch-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-walkthrough-gate.sh"))).toBe(true);
+    expect(stop.some((c) => c.includes("guardrail-comment-reply-gate.sh"))).toBe(true);
   });
 });
 

@@ -46,6 +46,8 @@ Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-
 
 Group (a) and (b) into one combined batch.
 
+**Claim each thread in the batch.** Claiming is what records that this round took the thread as work; the reply gate settles from claims, not from whether a push happened. Release the claims when the round ends. A claim whose holder died is not a claim — the entry reads unprocessed again and the next round re-claims it — so a crashed round leaves nothing to clean up.
+
 **`gitlab`** — single source (no review-id watermark; discussion state is the sole authority). Fetch unresolved discussions per [`../_shared/vcs/gitlab/unresolved-discussions.md`](../_shared/vcs/gitlab/unresolved-discussions.md) (drop to [`../_shared/vcs/gitlab/mr-discussions.md`](../_shared/vcs/gitlab/mr-discussions.md) for raw notes where classification needs them). The input ids are discussion ids; the batch is every discussion classified **unaddressed human comment** — newest note lacks the marker and post-dates the loop's last marked note. **Exclude** discussions whose id is in `last_seen.escalated_review_ids`. A discussion is the unit of work in place of GitHub's review + line-comment pair.
 
 ### Step 2 — Classify each review
@@ -62,6 +64,7 @@ Build two sets: `actionable_review_ids` and `ambiguous_review_ids`. Their union 
 For each id in `ambiguous_review_ids`:
 
 1. Append it to `last_seen.escalated_review_ids` so the watcher won't re-dispatch it.
+2. Run `echo "MUGGLE_REPLY_SKIP: <comment-id> deferred to the user"` naming its comment ids (`gitlab`: discussion ids). An escalated thread is deferred, not answered, so the reply gate in [`per-comment-replies.md`](per-comment-replies.md) would otherwise hold the turn open waiting on a reply that is not coming. The deferral is recorded against those comments durably, so it still holds after this session ends; a marker naming no tracked comment falls back to a session-wide skip.
 
 Emit **one** terminal escalation message (not one per ambiguous review) per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (ambiguous template). The message lists every ambiguous review and its comments inline. Emit an event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
 

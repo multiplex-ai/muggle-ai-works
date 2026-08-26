@@ -82,6 +82,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-comment-replies.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       },
@@ -189,6 +195,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-walkthrough-gate.sh\"",
             "async": false,
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-comment-reply-gate.sh\"",
+            "async": false,
+            "timeout": 10
           },
           {
             "type": "command",

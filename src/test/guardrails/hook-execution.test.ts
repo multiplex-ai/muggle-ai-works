@@ -636,6 +636,14 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-record-stage-signals.sh"))).toBe(true);
   });
 
+  it("stands both Bash PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
+    const bash = hooks.PreToolUse.find((g) => g.matcher === "Bash");
+    expect(bash).toBeDefined();
+    const cmds = bash!.hooks.map((h) => h.command);
+    expect(cmds.some((c) => c.includes("guardrail-report-format.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-resolve-gate.sh"))).toBe(true);
+  });
+
   it("fires the offer observer on AskUserQuestion and the terminal detector on Monitor", () => {
     const ask = hooks.PostToolUse.find((g) => g.matcher === "AskUserQuestion");
     expect(ask!.hooks.map((h) => h.command)).toEqual([

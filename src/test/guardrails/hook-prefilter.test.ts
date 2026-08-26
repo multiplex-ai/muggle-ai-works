@@ -110,6 +110,28 @@ describe("report-format pre-filter reaches every command the gate can deny", () 
   });
 });
 
+describe("resolve-gate pre-filter reaches every command the gate can deny", () => {
+  const prefilter = payloadPrefilter("guardrail-resolve-gate.sh");
+  const reaching: Array<[string, string]> = [
+    [
+      "a GitHub thread resolve",
+      commandPayload(`gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"T"}){thread{id}}}'`),
+    ],
+    [
+      "a GitLab discussion resolve",
+      commandPayload("glab api --method PUT 'projects/1/merge_requests/2/discussions/a?resolved=true'"),
+    ],
+  ];
+
+  it.each(reaching)("spawns Node for %s", (_label, payload) => {
+    expect(prefilter.test(payload)).toBe(true);
+  });
+
+  it("short-circuits an unrelated command", () => {
+    expect(prefilter.test(commandPayload("git status"))).toBe(false);
+  });
+});
+
 describe("pr-opened pre-filter reaches every command the detector acts on", () => {
   const prefilter = payloadPrefilter("guardrail-pr-opened.sh");
   const reaching: Array<[string, string]> = [

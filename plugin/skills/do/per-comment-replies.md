@@ -29,7 +29,7 @@ For each comment id with a description, post the reply with the resolved provide
 
 - **`github`** — nested reply on the line comment, one per actionable comment, per [`../_shared/vcs/github/reply-line-comment.md`](../_shared/vcs/github/reply-line-comment.md).
 
-- **`gitlab`** — one threaded note per actionable discussion per [`../_shared/vcs/gitlab/reply-discussion.md`](../_shared/vcs/gitlab/reply-discussion.md) (the discussion id stands in for the comment id), then resolve each fully-addressed thread per [`../_shared/vcs/gitlab/resolve-discussion.md`](../_shared/vcs/gitlab/resolve-discussion.md). The loop-marked reply is the addressed signal; the resolve is GitLab's equivalent of a reviewer closing the thread, which the loop can do directly. Resolving folds the discussion out of the next tick's actionable set, so no separate resolve-reminder nudge is needed for it.
+- **`gitlab`** — one threaded note per actionable discussion per [`../_shared/vcs/gitlab/reply-discussion.md`](../_shared/vcs/gitlab/reply-discussion.md) (the discussion id stands in for the comment id). Reply only: **never resolve the discussion.** GitLab classifies by the same `<!-- muggle-do:bot -->` marker GitHub does ([`../_shared/vcs/gitlab/unresolved-discussions.md`](../_shared/vcs/gitlab/unresolved-discussions.md)), so the marked note alone folds it out of the next tick's actionable set — the resolve adds nothing the reply has not already done, and MRs that gate merging on "all threads resolved" would have the loop clearing its own merge gate.
 
 Reply body uses the template in [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md):
 
@@ -60,4 +60,5 @@ Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/
 ## Invariants
 
 - One reply per line comment (`gitlab`: per discussion). No per-review summary reply anywhere.
+- The loop never resolves a review thread, on either provider. A `PreToolUse` guardrail denies both calls.
 - Every reply body contains the new SHA's 7-char prefix (which push addressed it) and ends with the loop signature block — the `<!-- muggle-do:bot -->` marker, not the author login, is what identifies loop-authored comments.

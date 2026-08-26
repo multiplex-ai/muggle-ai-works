@@ -37,3 +37,5 @@ Filter client-side to `isResolved == false`. Walk each thread's comments in `cre
 Each comment exposes its owning review as `pullRequestReview.databaseId` — the watcher collects this from an actionable thread's newest comment to build its dispatch list.
 
 A loop comment also cites a `<short-sha>` from `last_seen.pushed_shas[]` in its body, which tells *which* push addressed the thread.
+
+Resolving a thread is the reviewer's act, never the loop's: the marker classification above already retires an addressed thread, so a `resolveReviewThread` mutation would only hide it before the reviewer has verified the fix. A `PreToolUse` guardrail denies the call.

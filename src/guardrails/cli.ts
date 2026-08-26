@@ -61,6 +61,7 @@ import {
 import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
+import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
 import {
   DebugGateAction,
@@ -364,6 +365,12 @@ function reportGate(): string {
   return denyTool(reportPostVerdict.reason, host);
 }
 
+function resolveGate(): string {
+  const resolveVerdict = evaluateReviewThreadResolve(input);
+  if (!resolveVerdict.deny || !resolveVerdict.reason) return "{}";
+  return denyTool(resolveVerdict.reason, host);
+}
+
 function buildRouter(): string {
   if (!detectBuildIntent(input.prompt ?? "")) return "{}";
   const state = readState(sessionId);
@@ -388,6 +395,7 @@ const handlers: Record<string, () => string> = {
   "watch-gate": watchGate,
   "walkthrough-gate": walkthroughGate,
   "report-gate": reportGate,
+  "resolve-gate": resolveGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,
   "record-stage-read": recordStageRead,

@@ -131,3 +131,9 @@ export const REVIEW_WORK_PUSH_COMMAND = /\bgit\s[^\n]*\bpush\b|\bcreateCommitOnB
 
 /** How many times the comment-reply Stop gate blocks a turn end before releasing, so a thread that genuinely cannot be answered can't trap the session. */
 export const MAX_REPLY_BLOCKS = 3;
+
+/** How long a session-state write waits for the lock before dropping itself. The store sits in the critical path of every tool call, so a guardrail must never stall the harness on contention. */
+export const SESSION_STATE_LOCK_WAIT_MS = 250;
+
+/** How often a waiter re-probes a lock it could not take. */
+export const LOCK_POLL_INTERVAL_MS = 10;

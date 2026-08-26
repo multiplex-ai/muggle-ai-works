@@ -75,6 +75,7 @@ import {
 import { commitThread, readLedger } from "./ledger/store.js";
 import { claimThread, coverComments, refreshHumanComments, uncoveredComments } from "./ledger/obligations.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
+import { callFailed } from "./callOutcome.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
@@ -228,6 +229,8 @@ function skillStages(): string {
 function recordStageRead(): string {
   const filePath = input.tool_input?.file_path;
   if (!filePath) return "{}";
+  // A Read that errored opened nothing, so the stage it names is still unread.
+  if (callFailed(input)) return "{}";
   const state = readState(sessionId);
   const next = applyStageRead(state, filePath);
   if (next !== state) writeState(next);

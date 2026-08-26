@@ -311,3 +311,38 @@ describe("forge lines are only evidence when this call produced them", () => {
     ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
   });
 });
+
+describe("the monitor's terminal line is provenance-checked too", () => {
+  // The forge-line fix left this exempt because the line is machine-generated
+  // and often arrives with no command. But a Bash call that prints it — the
+  // same grep-of-a-fixture that caused the original false positive — was still
+  // taken at face value.
+  it("ignores a monitor line a grep merely printed", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "grep -rn 'TERMINAL pr=' src/test/" },
+        tool_response: { stdout: "src/test/x.ts:91:  TERMINAL pr=331: MERGED" },
+      }),
+    ).toBeNull();
+  });
+
+  it("accepts it from the watch loop itself", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "bash /p/scripts/pr-watch-loop.sh --slot /s --repo o/r --pr 331" },
+        tool_response: { stdout: "TERMINAL pr=331: MERGED" },
+      }),
+    ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
+  });
+
+  it("accepts it from a Monitor event, which carries no command", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Monitor",
+        tool_response: { stdout: "TERMINAL pr=45: CLOSED" },
+      }),
+    ).toEqual({ prNumber: 45, verdict: PrTerminalVerdict.Closed });
+  });
+});

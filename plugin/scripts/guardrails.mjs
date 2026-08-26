@@ -48,6 +48,7 @@ var CALL_FAILURE_SIGNALS = [
   /"isError"\s*:\s*true/
 ];
 var FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
+var WATCH_LOOP_CMD = /pr-watch-loop\.sh/;
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -169,8 +170,11 @@ ${input2.tool_response?.output ?? ""}`;
 // src/guardrails/prTerminal.ts
 function terminalProvenance(input2) {
   const command = input2.tool_input?.command;
-  if (command === void 0) return { acceptsForgeLine: true };
-  return { acceptsForgeLine: FORGE_TERMINAL_CMD.test(command) };
+  if (command === void 0) return { acceptsForgeLine: true, acceptsMonitorLine: true };
+  return {
+    acceptsForgeLine: FORGE_TERMINAL_CMD.test(command),
+    acceptsMonitorLine: WATCH_LOOP_CMD.test(command)
+  };
 }
 function detectPrTerminal(input2) {
   if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
@@ -185,7 +189,7 @@ function detectPrTerminal(input2) {
   if (closedMatch) {
     return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
   }
-  const monitorMatch = haystack.match(PR_MONITOR_TERMINAL_LINE);
+  const monitorMatch = provenance.acceptsMonitorLine ? haystack.match(PR_MONITOR_TERMINAL_LINE) : null;
   if (monitorMatch) {
     return {
       prNumber: Number(monitorMatch[1]),
@@ -1101,6 +1105,7 @@ function skillStages() {
 function recordStageRead() {
   const filePath = input.tool_input?.file_path;
   if (!filePath) return "{}";
+  if (callFailed(input)) return "{}";
   const state = readState(sessionId);
   const next = applyStageRead(state, filePath);
   if (next !== state) writeState(next);

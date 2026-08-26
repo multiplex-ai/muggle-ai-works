@@ -4,3 +4,6 @@
 # normalize them. Pin both to LF so a Windows checkout matches every other one.
 *.sh text eol=lf
 *.mjs text eol=lf
+# The watch projection is read verbatim into a jq program; a CR would land
+# inside the filter source.
+*.jq text eol=lf

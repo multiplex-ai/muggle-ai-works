@@ -45,6 +45,12 @@ for lib in pr-watch-guards.sh pr-watch-events.sh; do
     . "${script_dir}/${lib}"
 done
 
+# Same reasoning as the guards: a missing projection means the plugin moved or
+# upgraded underneath this loop, so step down rather than poll with no state to
+# compare against.
+[ -f "${script_dir}/pr-watch-state.jq" ] || exit 0
+state_projection="$(cat "${script_dir}/pr-watch-state.jq")"
+
 echo "$$" > "${slot}/watch.pid"
 started=$(date +%s)
 fails=0
@@ -88,39 +94,18 @@ query($owner: String!, $name: String!, $number: Int!) {
           }
         }
       }
-      reviews(last: 20, states: [COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED]) { nodes { databaseId } }
+      reviews(last: 20, states: [COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED]) { nodes { databaseId body } }
       reviewThreads(first: 100) {
         nodes {
           id
           isResolved
           isOutdated
-          comments(last: 1) { nodes { databaseId pullRequestReview { state } } }
+          comments(last: 1) { nodes { databaseId body pullRequestReview { databaseId state } } }
         }
       }
     }
   }
-}' --jq '
-.data.repository.pullRequest as $pr
-| (($pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes) // []) as $contexts
-| ($contexts | map(
-    if .__typename == "CheckRun"
-    then {name: .name, verdict: (if .status != "COMPLETED" then "PENDING" else (.conclusion // "NEUTRAL") end)}
-    else {name: .context, verdict: (.state // "PENDING")}
-    end)) as $checks
-| [
-    $pr.state,
-    $pr.headRefOid,
-    $pr.baseRefOid,
-    $pr.mergeable,
-    (([$pr.reviews.nodes[].databaseId] | max) // 0),
-    (([$pr.reviewThreads.nodes[] | select(.isResolved == false) | .comments.nodes[]
-       | select((.pullRequestReview.state // "SUBMITTED") != "PENDING") | .databaseId] | max) // 0),
-    ([$pr.reviewThreads.nodes[] | select(.isResolved == false) | select(.isOutdated == false)
-      | select((.comments.nodes[0].pullRequestReview.state // "SUBMITTED") != "PENDING") | .id] | join(";")),
-    ($checks | map(select(.verdict == "PENDING")) | length),
-    ($checks | map(select(.verdict == "FAILURE" or .verdict == "ERROR" or .verdict == "TIMED_OUT" or .verdict == "STARTUP_FAILURE")) | length),
-    ($checks | sort_by(.name) | map(.name + ":" + .verdict) | join(","))
-  ] | @tsv' 2>>"${slot}/watch-fetch.log"
+}' --jq "$state_projection" 2>>"${slot}/watch-fetch.log"
 }
 
 # behind_by needs its own call — see watch_wake_rebase for why no field on the

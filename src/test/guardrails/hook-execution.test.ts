@@ -513,6 +513,76 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
   });
 
+  // The gate runs on every turn end, so its write budget is the thing to pin:
+  // it writes only to bump the block count, which the ceiling caps, and a
+  // released gate must go inert rather than rewrite state for the rest of the
+  // session.
+  it("comment-reply-gate: writes only while blocking, at most 3 times, then goes inert", () => {
+    const sid = "s-reply-cap";
+    const threadsResponse = JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            reviewThreads: {
+              nodes: [
+                {
+                  id: "PRRT_1",
+                  isResolved: false,
+                  comments: {
+                    nodes: [{ databaseId: 11, body: "unanswerable", createdAt: "2026-08-01T00:00:00Z" }],
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    runHook(
+      "record-comment-replies",
+      event({
+        session_id: sid,
+        tool_name: "Bash",
+        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
+        tool_response: { stdout: threadsResponse },
+      }),
+    );
+    runHook(
+      "record-comment-replies",
+      event({ session_id: sid, tool_name: "Bash", tool_input: { command: "git push origin fix" } }),
+    );
+
+    const stateFile = join(home, ".muggle-ai", "guardrails", `${sid}.json`);
+    for (const expectedBlock of [1, 2, 3]) {
+      expect(JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out).decision).toBe(
+        "block",
+      );
+      expect(JSON.parse(readFileSync(stateFile, "utf-8")).commentReplyBlockCount).toBe(expectedBlock);
+    }
+
+    const settled = readFileSync(stateFile, "utf-8");
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+    expect(readFileSync(stateFile, "utf-8")).toBe(settled);
+  });
+
+  // The observer runs on every Bash call, so a payload that changes nothing
+  // must not rewrite the state file.
+  it("record-comment-replies: a repeated payload leaves the state file untouched", () => {
+    const sid = "s-reply-idempotent";
+    const push = event({
+      session_id: sid,
+      tool_name: "Bash",
+      tool_input: { command: "git push origin fix" },
+    });
+    runHook("record-comment-replies", push);
+    const stateFile = join(home, ".muggle-ai", "guardrails", `${sid}.json`);
+    const afterFirst = readFileSync(stateFile, "utf-8");
+    runHook("record-comment-replies", push);
+    runHook("record-comment-replies", push);
+    expect(readFileSync(stateFile, "utf-8")).toBe(afterFirst);
+  });
+
   it("degrades to {} on malformed stdin", () => {
     const { status, out } = runHook("pr-opened", "this is not json");
     expect(status).toBe(0);

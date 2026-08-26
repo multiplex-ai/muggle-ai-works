@@ -16,10 +16,11 @@ export const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 /**
  * Reps are isolated agent sessions sharing one subscription token, so the
- * ceiling is the token's rate budget, not CPU. 4 keeps a healthy sweep fast
- * while leaving headroom before the throttle gate starts firing.
+ * ceiling is the token's rate budget, not CPU. 8 halves a healthy sweep's wall
+ * clock; the throttle gate absorbs the overshoot when the budget does bind,
+ * pausing new starts pool-wide rather than failing the run.
  */
-export const DEFAULT_GATE_EVAL_CONCURRENCY = 4;
+export const DEFAULT_GATE_EVAL_CONCURRENCY = 8;
 
 export const THROTTLE_MAX_RETRIES = 3;
 export const THROTTLE_BACKOFF_BASE_MS = 15_000;

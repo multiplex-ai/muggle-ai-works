@@ -25,6 +25,7 @@ from pathlib import Path
 from threading import Lock
 
 import throttle
+from pool_constants import DEFAULT_ROUTING_WORKERS
 from route_constants import (
     COMMAND_VERB_EDGE_CHARS,
     DISCARDED_REDIRECT,
@@ -349,7 +350,7 @@ def main():
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("--model", default=None)
     ap.add_argument("--runs", type=int, default=3)
-    ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--workers", type=int, default=DEFAULT_ROUTING_WORKERS)
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--out")
     ap.add_argument("--limit", type=int, default=0)

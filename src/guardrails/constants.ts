@@ -152,3 +152,10 @@ export const CALL_FAILURE_SIGNALS = [
 // line. A tool call that merely prints the phrase — a grep, a log tail, a diff
 // of a test fixture — is not evidence that a pull request went terminal.
 export const FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
+
+// The watch loop's own invocation. Its TERMINAL line is machine-generated, so
+// it is trusted with no command at all (a Monitor event, or a replayed
+// notification) — but when a Bash command *is* present, only the loop itself
+// may produce it. Anything else printing the line is an echo, the same way a
+// grep of a fixture echoes a forge merge line.
+export const WATCH_LOOP_CMD = /pr-watch-loop\.sh/;

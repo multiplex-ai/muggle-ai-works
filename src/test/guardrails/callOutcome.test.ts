@@ -105,3 +105,25 @@ describe("recorders withhold on a rejected call", () => {
     ).toBe("tc-1");
   });
 });
+
+describe("a failed Read does not mark a stage read", () => {
+  it("sees a Read that errored", () => {
+    expect(
+      callFailed({
+        tool_name: "Read",
+        tool_input: { file_path: "/p/skills/_shared/missing.md" },
+        tool_response: { stdout: '{"isError":true,"content":"File does not exist"}' },
+      }),
+    ).toBe(true);
+  });
+
+  it("stays quiet on a Read that returned content", () => {
+    expect(
+      callFailed({
+        tool_name: "Read",
+        tool_input: { file_path: "/p/skills/_shared/debug-failed-run.md" },
+        tool_response: { stdout: "# Debug a failed run\n\nStep 1 ..." },
+      }),
+    ).toBe(false);
+  });
+});

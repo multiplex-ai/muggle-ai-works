@@ -14,6 +14,10 @@ const mcpsMocks = vi.hoisted(() => ({
   getElectronAppChecksums: vi.fn(() => ({})),
   getElectronAppDir: vi.fn((v: string) => `/data/electron-app/${v}`),
   getElectronAppVersion: vi.fn(() => "1.0.5"),
+  getElectronAppSignedFromVersion: vi.fn(() => "1.10.0"),
+  getReleaseSignerIdentityUri: vi.fn(
+    () => "https://github.com/multiplex-ai/muggle-ai-teaching-service/.github/workflows/release-electron-app-reusable.yml@refs/heads/master",
+  ),
   getPlatformKey: vi.fn(() => "win32-x64"),
   isElectronAppInstalled: vi.fn(() => false),
   isFirstRun: vi.fn(() => false),
@@ -108,6 +112,7 @@ describe("setupCommand", () => {
     });
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
     mcpsMocks.getChecksumForPlatform.mockReturnValue("expected-archive-sum");
+    mcpsMocks.getElectronAppVersion.mockReturnValue("1.0.5");
     childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -166,11 +171,18 @@ describe("setupCommand", () => {
     expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Checksum verified");
   });
 
-  it("warns and skips verification when no checksum is configured", async () => {
+  it("refuses to install when neither a signature nor a checksum can verify the download", async () => {
     mcpsMocks.getChecksumForPlatform.mockReturnValue("");
-    fsState.existing.add(EXE_PATH);
     await setupCommand({ force: true });
-    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("No checksum configured");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(childProcessMock.execFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a release at the signed-from version whose signature does not verify", async () => {
+    mcpsMocks.getElectronAppVersion.mockReturnValue("1.10.0");
+    await setupCommand({ force: true });
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(childProcessMock.execFile).not.toHaveBeenCalled();
   });
 
   it("exits 1 when checksum verification fails", async () => {

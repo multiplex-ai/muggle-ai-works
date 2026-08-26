@@ -30,6 +30,10 @@ export interface IMuggleConfig {
   checksumsByStream?: Partial<Record<ElectronAppReleaseStream, IMuggleConfigChecksums>>;
   /** Default runtime target baked into the package at build/publish time. */
   runtimeTargetDefault?: RuntimeTarget;
+  /** First electron-app version published with a Sigstore signature. */
+  electronAppSignedFromVersion?: string;
+  /** Certificate subject a release signature must carry to be trusted. */
+  signerIdentityUri?: string;
 }
 
 /**

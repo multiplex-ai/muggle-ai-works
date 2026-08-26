@@ -15,11 +15,19 @@ import {
   calculateFileChecksum,
   getDataDir,
   getElectronAppDir,
+  getElectronAppSignedFromVersion,
   getElectronAppVersion,
   getLogger,
   getPlatformKey,
+  getReleaseSignerIdentityUri,
   verifyFileChecksum,
 } from "../../packages/mcps/src/index.js";
+import {
+  SIGNATURE_BUNDLE_SUFFIX,
+  compareVersions,
+  resolveIntegrityPolicy,
+  verifyReleaseSignature,
+} from "../../scripts/release-integrity/index.mjs";
 import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();
@@ -218,31 +226,6 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
 }
 
 /**
- * Compare two semver versions.
- * @param a - First version.
- * @param b - Second version.
- * @returns 1 if a > b, -1 if a < b, 0 if equal.
- */
-function compareVersions(a: string, b: string): number {
-  const partsA = a.split(".").map(Number);
-  const partsB = b.split(".").map(Number);
-
-  for (let i = 0; i < 3; i++) {
-    const partA = partsA[i] || 0;
-    const partB = partsB[i] || 0;
-
-    if (partA > partB) {
-      return 1;
-    }
-    if (partA < partB) {
-      return -1;
-    }
-  }
-
-  return 0;
-}
-
-/**
  * Get the expected executable path after extraction.
  * @param versionDir - Version directory path.
  * @returns Path to the expected executable.
@@ -434,12 +417,38 @@ async function downloadAndInstall(
 
   await pipeline(response.body as unknown as NodeJS.ReadableStream, fileStream);
 
-  console.log("Download complete, verifying checksum...");
+  console.log("Download complete, verifying integrity...");
 
   // Get checksum (from parameter or fetch from release)
   let expectedChecksum = checksum;
   if (!expectedChecksum) {
     expectedChecksum = await fetchChecksumFromRelease(version);
+  }
+
+  const integrityPolicy = resolveIntegrityPolicy({
+    version: version,
+    signedFromVersion: getElectronAppSignedFromVersion(),
+    expectedChecksum: expectedChecksum ?? "",
+  });
+
+  if (integrityPolicy.unverifiableReason) {
+    rmSync(versionDir, { recursive: true, force: true });
+    throw new Error("Refusing to install an unverifiable download: " + integrityPolicy.unverifiableReason);
+  }
+
+  if (integrityPolicy.requiresSignature) {
+    const signatureResult = await verifyReleaseSignature({
+      artifactPath: tempFile,
+      bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
+      signerIdentityUri: getReleaseSignerIdentityUri(),
+    });
+
+    if (!signatureResult.valid) {
+      rmSync(versionDir, { recursive: true, force: true });
+      throw new Error("Signature verification failed, refusing to install: " + signatureResult.reason);
+    }
+
+    console.log("Signature verified successfully.");
   }
 
   // Verify checksum
@@ -457,8 +466,6 @@ async function downloadAndInstall(
 
   if (expectedChecksum) {
     console.log("Checksum verified successfully.");
-  } else {
-    console.log("Warning: No checksum available, skipping verification.");
   }
 
   console.log("Extracting...");

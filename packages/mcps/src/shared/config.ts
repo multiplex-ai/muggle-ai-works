@@ -607,6 +607,25 @@ export function getElectronAppChecksums(): IMuggleConfigChecksums | undefined {
 }
 
 /**
+ * Get the first electron-app version published with a Sigstore signature.
+ *
+ * Releases below this version predate signing and are verified by checksum
+ * alone, so the pin is what stops an attacker downgrading to an unsigned one.
+ * @returns The pinned version, or empty string when signing is not configured.
+ */
+export function getElectronAppSignedFromVersion(): string {
+  return getMuggleConfig().electronAppSignedFromVersion ?? "";
+}
+
+/**
+ * Get the certificate subject a release signature must carry to be trusted.
+ * @returns The signer identity URI, or empty string when none is configured.
+ */
+export function getReleaseSignerIdentityUri(): string {
+  return getMuggleConfig().signerIdentityUri ?? "";
+}
+
+/**
  * Check if the electron-app binary is installed for the expected version.
  * @returns True if the binary is installed and accessible.
  */

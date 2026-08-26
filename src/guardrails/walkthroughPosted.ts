@@ -1,4 +1,5 @@
 import type { GuardrailState, HookInput } from "./types.js";
+import { callFailed } from "./callOutcome.js";
 import {
   REPORT_SENTINEL,
   collectPrPostText,
@@ -35,6 +36,10 @@ export function detectWalkthroughPost(
   if (input.tool_name !== "Bash") return false;
   const cmd = input.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return false;
+  // A publish the provider rejected posted nothing, so it must not settle the
+  // gate — the PR would be left with no walkthrough and no reminder that it is
+  // owed one.
+  if (callFailed(input)) return false;
   return collectPrPostText(cmd, input.cwd, read).includes(REPORT_SENTINEL);
 }
 

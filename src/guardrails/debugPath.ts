@@ -9,6 +9,7 @@ import {
   MUGGLE_RUN_STATUS_LINE,
 } from "./constants.js";
 import { DebugGateAction, type DebugGateDecision, type GuardrailState, type HookInput } from "./types.js";
+import { callFailed } from "./callOutcome.js";
 
 // muggle-test Step 7C routes every non-passing run through the debug path —
 // evidence, diagnosis, and a guaranteed "give feedback & rerun" offer. It is
@@ -70,6 +71,9 @@ export function detectDebugEvidenceRunIds(input: HookInput, owedRunIds: string[]
     MUGGLE_EVENT_EMIT_TOOL.test(toolName) &&
     FAILURE_DIAGNOSIS_EVENT.test(input.tool_input?.eventType ?? "");
   if (!isDiagnosisEmit && !MUGGLE_FEEDBACK_CREATE_TOOL.test(toolName)) return [];
+  // The run id is in the request, so a rejected call would otherwise count as
+  // its own evidence and retire the failure it never diagnosed.
+  if (callFailed(input)) return [];
   const payload = serialize(input);
   return owedRunIds.filter((runId) => payload.includes(runId));
 }

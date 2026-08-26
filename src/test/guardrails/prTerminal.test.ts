@@ -253,3 +253,61 @@ describe("applyPrReopened", () => {
     expect(applyPrReopened(state, 369)).toBe(state);
   });
 });
+
+describe("forge lines are only evidence when this call produced them", () => {
+  const MERGE_LINE = "91:  [\"a merge success line\", outputPayload(\"[ok] Merged pull request o/r#341 (feat: thing)\")],";
+
+  // This is not hypothetical: grepping a test fixture for the phrase armed a
+  // post-merge handoff for PR #341 twice while this very change was being
+  // written, and held the turn open until the state was edited by hand.
+  it("ignores a merge line a grep merely printed", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "grep -n 'Merged' src/test/guardrails/hook-execution.test.ts" },
+        tool_response: { stdout: MERGE_LINE.replace("[ok]", "✓") },
+      }),
+    ).toBeNull();
+  });
+
+  it("ignores a close line a file read merely printed", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "sed -n '1,50p' src/test/guardrails/prTerminal.test.ts" },
+        tool_response: { stdout: "✓ Closed pull request o/r#12 (stale)" },
+      }),
+    ).toBeNull();
+  });
+
+  it("ignores a reopen line a grep merely printed", () => {
+    expect(
+      detectPrReopened({
+        tool_name: "Bash",
+        tool_input: { command: "cat src/guardrails/constants.ts" },
+        tool_response: { stdout: "✓ Reopened pull request o/r#369 (gate fix)" },
+      }),
+    ).toBeNull();
+  });
+
+  it("still accepts the line from the command that produced it", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 341 --squash" },
+        tool_response: { stderr: "✓ Merged pull request o/r#341 (feat: thing)" },
+      }),
+    ).toEqual({ prNumber: 341, verdict: PrTerminalVerdict.Merged });
+  });
+
+  // The watcher's own exit line is machine-generated and reaches the session
+  // through the monitor, not a command the model chose to run.
+  it("still accepts the monitor's terminal line, which carries no command", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Monitor",
+        tool_response: { stdout: "TERMINAL pr=331: MERGED" },
+      }),
+    ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
+  });
+});

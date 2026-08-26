@@ -213,6 +213,12 @@
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-debug-path-gate.sh\"",
             "async": false,
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-capability-claim.sh\"",
+            "async": false,
+            "timeout": 10
           }
         ]
       }

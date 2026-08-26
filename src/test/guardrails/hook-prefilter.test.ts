@@ -259,6 +259,7 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     debugBlockCount: 1,
     commentReplySkipped: true,
     commentReplyBlockCount: 1,
+    capabilityClaimNudged: true,
   };
 
   // A gate reads "nothing owed" as an empty array and pre-filters on the

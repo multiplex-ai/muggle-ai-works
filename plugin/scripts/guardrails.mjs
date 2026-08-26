@@ -37,6 +37,7 @@ var LOOP_REPLY_MARKER = "<!-- muggle-do:bot -->";
 var REVIEW_THREAD_FETCH_COMMAND = /reviewThreads|merge_requests\/\d+\/discussions/;
 var THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/([\w-]+)\/notes/g;
 var MAX_REPLY_BLOCKS = 3;
+var CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES = 64e3;
 var SESSION_STATE_LOCK_WAIT_MS = 250;
 var LOCK_POLL_INTERVAL_MS = 10;
 
@@ -221,6 +222,39 @@ function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
     return { action: "release" /* Release */, blockCount };
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+
+// src/guardrails/capabilityClaim.ts
+var SENTENCE = /[^.!?\n]+/g;
+var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
+var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential)/i;
+var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
+var GENUINELY_UNSUPPORTED = /\b(?:sms|text message|phone (?:number|call)|authenticator app|google authenticator|authy|totp)\b/i;
+function detectFalseCapabilityClaim(text) {
+  const sentences = (text ?? "").match(SENTENCE) ?? [];
+  return sentences.some(
+    (sentence) => IMPOSSIBILITY.test(sentence) && MUGGLE_CLEARS.test(sentence) && TESTING_CONTEXT.test(sentence) && !GENUINELY_UNSUPPORTED.test(sentence)
+  );
+}
+function lastAssistantText(transcriptJsonl) {
+  const lines = (transcriptJsonl ?? "").split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (!line) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry.type !== "assistant") continue;
+    const content = entry.message?.content;
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) continue;
+    const prose = content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
+    if (prose) return prose;
+  }
+  return "";
 }
 var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
 var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
@@ -1189,8 +1223,28 @@ function buildRouter() {
   const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through /muggle-do \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }
+function capabilityClaimGate() {
+  const state = readState(sessionId);
+  if (state.capabilityClaimNudged) return "{}";
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return "{}";
+  let transcriptTail;
+  try {
+    transcriptTail = readFileSync(transcriptPath, "utf-8").slice(
+      -CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES
+    );
+  } catch {
+    return "{}";
+  }
+  if (!detectFalseCapabilityClaim(lastAssistantText(transcriptTail))) return "{}";
+  state.capabilityClaimNudged = true;
+  writeState(state);
+  const reason = `Do not end the turn yet. This turn tells the user that an email- or login-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor; stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. If the real blocker is SMS/phone OTP, authenticator-app TOTP, or OAuth-only social login, those limits are genuine \u2014 name the one that applies and move on.`;
+  return blockStop(reason, host);
+}
 var handlers = {
   "pr-opened": prOpened,
+  "capability-claim-gate": capabilityClaimGate,
   "pr-terminal": prTerminal,
   "offer-ran": offerRan,
   "record-tests": recordTests,

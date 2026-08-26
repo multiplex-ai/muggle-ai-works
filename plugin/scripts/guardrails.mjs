@@ -982,6 +982,13 @@ var host = process.env.CURSOR_PLUGIN_ROOT ? "cursor" : "claude";
 var sub = process.argv[2];
 var input = readStdin();
 var sessionId = input.session_id ?? "unknown";
+function releaseGate(field) {
+  updateState(
+    sessionId,
+    (current) => current[field] === true ? current : { ...current, [field]: true }
+  );
+  return "{}";
+}
 function prOpened() {
   const url = detectPrOpened(input);
   if (!url) return "{}";
@@ -1018,6 +1025,7 @@ function offerRan() {
 function terminalGate() {
   const state = readState(sessionId);
   const decision = prTerminalGateDecision(state);
+  if (decision.action === "release" /* Release */) return releaseGate("terminalReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.terminalBlockCount = decision.blockCount;
   writeState(state);
@@ -1091,6 +1099,7 @@ function classifyGate() {
 function stageGate() {
   const state = readState(sessionId);
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
+  if (decision.action === "release" /* Release */) return releaseGate("stageReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.stageBlockCount = decision.blockCount;
   writeState(state);
@@ -1101,6 +1110,7 @@ function stageGate() {
 function debugPathGate() {
   const state = readState(sessionId);
   const decision = debugGateDecision(state);
+  if (decision.action === "release" /* Release */) return releaseGate("debugReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.debugBlockCount = decision.blockCount;
   writeState(state);
@@ -1111,7 +1121,8 @@ function debugPathGate() {
 function e2eGate() {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) return "{}";
+  if (decision.action === "release" /* Release */) return releaseGate("e2eReleased");
+  if (decision.action === "none" /* None */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
@@ -1121,9 +1132,8 @@ function watchGate() {
   const state = readState(sessionId);
   const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
   const decision = watchGateDecision(state, untrackedPrUrls);
-  if (decision.action === "none" /* None */ || decision.action === "release" /* Release */) {
-    return "{}";
-  }
+  if (decision.action === "release" /* Release */) return releaseGate("watchReleased");
+  if (decision.action === "none" /* None */) return "{}";
   state.watchBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.untracked.join(", ");
@@ -1141,6 +1151,7 @@ function walkthroughGate() {
     return "{}";
   }
   const decision = walkthroughGateDecision(state, scan.owed);
+  if (decision.action === "release" /* Release */) return releaseGate("walkthroughReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
@@ -1198,6 +1209,7 @@ function commentReplyGate() {
   const slotPath = slotForSession(state);
   if (!slotPath) return "{}";
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
+  if (decision.action === "release" /* Release */) return releaseGate("commentReplyReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
   const commentList = decision.unanswered.join(", ");

@@ -520,7 +520,13 @@ describe("guardrail hook execution (cli entry)", () => {
       expect(JSON.parse(readFileSync(stateFile, "utf-8")).commentReplyBlockCount).toBe(expectedBlock);
     }
 
+    // Releasing writes once, to stamp the release the wrapper pre-filters on.
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
     const settled = readFileSync(stateFile, "utf-8");
+    expect(JSON.parse(settled).commentReplyReleased).toBe(true);
+    expect(JSON.parse(settled).commentReplyBlockCount).toBe(3);
+
+    // Every turn end after that is inert.
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
     expect(readFileSync(stateFile, "utf-8")).toBe(settled);
@@ -778,6 +784,31 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(stop.some((c) => c.includes("guardrail-watch-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-walkthrough-gate.sh"))).toBe(true);
     expect(stop.some((c) => c.includes("guardrail-comment-reply-gate.sh"))).toBe(true);
+  });
+
+  // A gate that spends its block budget and releases keeps cold-starting Node
+  // on every remaining turn end to answer "{}" — and the walkthrough gate keeps
+  // making provider calls to do it — unless the release is stamped for its
+  // wrapper to pre-filter on. Derived from source rather than hand-listed, so a
+  // release-capable gate added later is covered the moment it exists. Gates with
+  // no block budget (the capability-claim nudge) never release and need no flag.
+  it("every release-capable gate stamps a flag, and every flag is pre-filtered on", () => {
+    const cliBody = readFileSync(fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url)), "utf-8");
+    const stampedFlags = [...cliBody.matchAll(/releaseGate\("(\w+)"\)/g)].map(([, field]) => field);
+    const releaseBranches = [...cliBody.matchAll(/Action\.Release/g)].length;
+
+    expect(stampedFlags.length).toBeGreaterThanOrEqual(7);
+    expect(releaseBranches, "a gate reaches Release without stamping it").toBe(stampedFlags.length);
+
+    const stopWrapperBodies = hooks.Stop[0].hooks
+      .map((h) => h.command.match(/guardrail-[a-z0-9-]+\.sh/)?.[0])
+      .filter((name): name is string => name !== undefined)
+      .map((name) => readFileSync(join(SCRIPTS, name), "utf-8"));
+
+    for (const field of stampedFlags) {
+      const greped = stopWrapperBodies.filter((body) => body.includes(`"${field}": true`));
+      expect(greped, `${field} is stamped but no Stop wrapper pre-filters on it`).toHaveLength(1);
+    }
   });
 });
 

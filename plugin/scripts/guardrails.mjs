@@ -47,6 +47,7 @@ var CALL_FAILURE_SIGNALS = [
   /"status"\s*:\s*"?(?:4|5)\d\d/,
   /"isError"\s*:\s*true/
 ];
+var FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -166,15 +167,21 @@ ${input2.tool_response?.output ?? ""}`;
 }
 
 // src/guardrails/prTerminal.ts
+function terminalProvenance(input2) {
+  const command = input2.tool_input?.command;
+  if (command === void 0) return { acceptsForgeLine: true };
+  return { acceptsForgeLine: FORGE_TERMINAL_CMD.test(command) };
+}
 function detectPrTerminal(input2) {
   if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
   const response = input2.tool_response;
+  const provenance = terminalProvenance(input2);
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
-  const mergedMatch = haystack.match(GH_PR_MERGED_LINE);
+  const mergedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_MERGED_LINE) : null;
   if (mergedMatch) {
     return { prNumber: Number(mergedMatch[1]), verdict: "merged" /* Merged */ };
   }
-  const closedMatch = haystack.match(GH_PR_CLOSED_LINE);
+  const closedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_CLOSED_LINE) : null;
   if (closedMatch) {
     return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
   }
@@ -189,6 +196,7 @@ function detectPrTerminal(input2) {
 }
 function detectPrReopened(input2) {
   if (input2.tool_name !== "Bash") return null;
+  if (!terminalProvenance(input2).acceptsForgeLine) return null;
   const response = input2.tool_response;
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
   const reopenedMatch = haystack.match(GH_PR_REOPENED_LINE);

@@ -147,3 +147,8 @@ export const CALL_FAILURE_SIGNALS = [
   /"status"\s*:\s*"?(?:4|5)\d\d/,
   /"isError"\s*:\s*true/,
 ];
+
+// The commands that can legitimately produce a forge merge/close/reopen success
+// line. A tool call that merely prints the phrase — a grep, a log tail, a diff
+// of a test fixture — is not evidence that a pull request went terminal.
+export const FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;

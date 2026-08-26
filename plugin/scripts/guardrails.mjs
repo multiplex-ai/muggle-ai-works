@@ -40,6 +40,13 @@ var MAX_REPLY_BLOCKS = 3;
 var CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES = 64e3;
 var SESSION_STATE_LOCK_WAIT_MS = 250;
 var LOCK_POLL_INTERVAL_MS = 10;
+var CALL_FAILURE_SIGNALS = [
+  /\bgh:\s/,
+  /\bglab:\s/,
+  /\bHTTP\s(?:4|5)\d\d\b/,
+  /"status"\s*:\s*"?(?:4|5)\d\d/,
+  /"isError"\s*:\s*true/
+];
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -362,11 +369,28 @@ function stageGateDecision(state, unreadStagePaths, maxBlocks = MAX_STAGE_BLOCKS
   return { action: "block" /* Block */, blockCount: blockCount + 1, unread: unreadStagePaths };
 }
 
+// src/guardrails/callOutcome.ts
+function renderedResponse(toolResponse) {
+  const rendered = [];
+  const collect = (value) => {
+    if (typeof value === "string") rendered.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(toolResponse);
+  return rendered.join("\n");
+}
+function callFailed(input2) {
+  const rendered = renderedResponse(input2.tool_response);
+  return CALL_FAILURE_SIGNALS.some((signal) => signal.test(rendered));
+}
+
 // src/guardrails/preExecutionClassification.ts
 var CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
 function detectClassifiedTestCaseId(input2) {
   if (!MUGGLE_EVENT_EMIT_TOOL.test(input2.tool_name ?? "")) return void 0;
   if (input2.tool_input?.eventType !== PRE_EXECUTION_CLASSIFICATION_EVENT) return void 0;
+  if (callFailed(input2)) return void 0;
   return input2.tool_input?.testCaseId ?? ANY_TEST_CASE;
 }
 function applyClassifiedTestCase(state, testCaseId) {
@@ -423,6 +447,7 @@ function detectDebugEvidenceRunIds(input2, owedRunIds) {
   const toolName = input2.tool_name ?? "";
   const isDiagnosisEmit = MUGGLE_EVENT_EMIT_TOOL.test(toolName) && FAILURE_DIAGNOSIS_EVENT.test(input2.tool_input?.eventType ?? "");
   if (!isDiagnosisEmit && !MUGGLE_FEEDBACK_CREATE_TOOL.test(toolName)) return [];
+  if (callFailed(input2)) return [];
   const payload = serialize(input2);
   return owedRunIds.filter((runId) => payload.includes(runId));
 }
@@ -598,6 +623,7 @@ function detectWalkthroughPost(input2, read = defaultFileReader) {
   if (input2.tool_name !== "Bash") return false;
   const cmd = input2.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return false;
+  if (callFailed(input2)) return false;
   return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
 }
 function applyWalkthroughPosted(state, posted) {

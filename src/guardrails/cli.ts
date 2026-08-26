@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { readState, writeState, markPrHandled } from "./sessionState.js";
+import { readState, writeState, updateState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
@@ -61,20 +61,22 @@ import {
 } from "./walkthroughPosted.js";
 import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
 import {
-  applyPostedReplies,
-  applyReplySkip,
-  applyReviewWorkPush,
-  applyUnansweredComments,
   commentReplyGateDecision,
-  detectRepliedCommentIds,
-  detectUnansweredCommentIds,
-  isReviewWorkPush,
+  detectConfirmedReplies,
+  detectUnansweredThreads,
+  isReplySkipMarker,
+  overdueThreads,
+  resolveSlotForPr,
+  threadForReplyTarget,
 } from "./commentReply.js";
+import { commitThread, readLedger } from "./ledger/store.js";
+import { claimThread, coverComments, refreshHumanComments, uncoveredComments } from "./ledger/obligations.js";
 import { detectBuildIntent } from "./detectBuildIntent.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, type Host } from "./emit.js";
 import {
+  type GuardrailState,
   CommentReplyGateAction,
   DebugGateAction,
   PrTerminalGateAction,
@@ -371,38 +373,71 @@ function walkthroughGate(): string {
   return blockStop(reason, host);
 }
 
+function slotForSession(state: GuardrailState): string | undefined {
+  for (const prUrl of state.prsHandled) {
+    const slotPath = resolveSlotForPr(prUrl);
+    if (slotPath) return slotPath;
+  }
+  return undefined;
+}
+
 function recordCommentReplies(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  const withOwed = applyUnansweredComments(state, detectUnansweredCommentIds(input));
-  const withPosted = applyPostedReplies(withOwed, detectRepliedCommentIds(input));
-  const withPush = applyReviewWorkPush(withPosted, isReviewWorkPush(cmd));
-  const next = applyReplySkip(withPush, cmd);
-  if (next !== state) writeState(next);
+  if (isReplySkipMarker(cmd)) {
+    updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+    return "{}";
+  }
+  const slotPath = slotForSession(state);
+  if (!slotPath) return "{}";
+
+  for (const thread of detectUnansweredThreads(input)) {
+    commitThread(slotPath, thread.threadId, (entry) =>
+      claimThread(
+        refreshHumanComments({ ...entry, provider: thread.provider }, thread.humanCommentIds),
+        sessionId,
+      ),
+    );
+  }
+
+  const confirmed = detectConfirmedReplies(input);
+  if (confirmed.length > 0) {
+    const ledger = readLedger(slotPath);
+    for (const reply of confirmed) {
+      const threadId = threadForReplyTarget(ledger, reply.targetId);
+      if (!threadId) continue;
+      // A GitLab note answers the whole discussion, so its target is the thread
+      // itself and every comment still open in it is what the reply covered.
+      const covered =
+        threadId === reply.targetId
+          ? uncoveredComments(ledger.threads[threadId])
+          : [reply.targetId];
+      commitThread(slotPath, threadId, (entry) => coverComments(entry, covered, reply.replySha));
+    }
+  }
   return "{}";
 }
 
 function commentReplyGate(): string {
   const state = readState(sessionId);
-  const decision = commentReplyGateDecision(state);
+  const slotPath = slotForSession(state);
+  if (!slotPath) return "{}";
+  const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
   if (decision.action !== CommentReplyGateAction.Block) return "{}";
-  state.commentReplyBlockCount = decision.blockCount;
-  writeState(state);
+  updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
   const commentList = decision.unanswered.join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
     decision.blockCount === 1
-      ? `Do not end the turn yet. The change addressing these review comments was pushed, but they ` +
-        `carry no threaded reply: ${commentList}. Post one reply per comment in its own thread per ` +
+      ? `Do not end the turn yet. This session took these review comments as work and never ` +
+        `answered them: ${commentList}. Post one reply per comment in its own thread per ` +
         `muggle-do do/per-comment-replies.md — "Addressed in <short-sha>: <what changed for THIS ` +
-        `comment>", signed via sign-body.sh --mode loop. A silent push leaves the reviewer with no ` +
+        `comment>", signed via sign-body.sh --mode loop. A silent round leaves the reviewer with no ` +
         `answer in the thread, and the loop marker that reply carries is the only thing that stops ` +
         `the watcher re-dispatching the same thread next tick. If a comment was escalated to the ` +
-        `user instead of answered, say why and run \`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\` ` +
-        `— that clears just that comment.`
+        `user instead of answered, record it as deferred rather than replying.`
       : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ` +
-        `${commentList}. Reply per do/per-comment-replies.md, or record a legitimate skip via ` +
-        `\`echo "MUGGLE_REPLY_SKIP: <commentId> <reason>"\`.`;
+        `${commentList}. Reply per do/per-comment-replies.md, or record the deferral.`;
   return blockStop(reason, host);
 }
 

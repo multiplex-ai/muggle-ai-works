@@ -1,10 +1,15 @@
+import { existsSync, readFileSync, readdirSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
 import {
   LOOP_REPLY_MARKER,
   MAX_REPLY_BLOCKS,
   REVIEW_THREAD_FETCH_COMMAND,
-  REVIEW_WORK_PUSH_COMMAND,
   THREADED_REPLY_TARGET,
 } from "./constants.js";
+import { readLedger } from "./ledger/store.js";
+import { threadState, uncoveredComments } from "./ledger/obligations.js";
+import { LedgerProvider, ThreadState, type Ledger } from "./ledger/types.js";
 import {
   CommentReplyGateAction,
   type CommentReplyGateDecision,
@@ -19,6 +24,11 @@ import {
 // marker that would have retired it was never posted.
 const REPLY_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_REPLY_SKIP\b/;
 
+// The short revision a loop reply cites, which records which push addressed the
+// thread. Read back from the created comment so the ledger stores what actually
+// shipped rather than what the round intended to say.
+const REPLY_SHA_CITATION = /Addressed in ([0-9a-f]{7,40})/;
+
 /** One unresolved thread as either provider renders it: GitHub nests comments under `comments.nodes`, GitLab keeps notes flat under `notes`. */
 interface UnresolvedThread {
   id?: string;
@@ -29,10 +39,30 @@ interface UnresolvedThread {
 
 interface ThreadComment {
   databaseId?: number;
+  id?: number | string;
   body?: string;
   resolved?: boolean;
   createdAt?: string;
   created_at?: string;
+}
+
+/** A thread the round pulled in, with the comments in it still awaiting an answer. */
+export interface UnansweredThread {
+  threadId: string;
+  provider: LedgerProvider;
+  humanCommentIds: string[];
+}
+
+/** A threaded reply the provider confirmed, and the revision its body cites. */
+export interface ConfirmedReply {
+  targetId: string;
+  replySha: string | null;
+}
+
+/** A thread the running session took and left unanswered, with the comments still owed a reply. */
+export interface OverdueThread {
+  threadId: string;
+  uncovered: string[];
 }
 
 function parsedResponse(input: HookInput): unknown {
@@ -66,97 +96,111 @@ function collectThreads(value: unknown, found: UnresolvedThread[]): void {
   Object.values(value).forEach((nested) => collectThreads(nested, found));
 }
 
-// The recipes classify by the thread's newest comment, so ordering is
-// load-bearing. Both APIs return ascending already; sorting when every entry
-// carries a timestamp keeps a jq reshuffle in the round's own command from
-// inverting the verdict.
-function newestComment(comments: ThreadComment[]): ThreadComment | undefined {
-  const timestampOf = (comment: ThreadComment): string | undefined =>
-    comment.createdAt ?? comment.created_at;
-  if (comments.every((comment) => timestampOf(comment) !== undefined)) {
-    return [...comments].sort((earlier, later) =>
-      (timestampOf(earlier) ?? "").localeCompare(timestampOf(later) ?? ""),
-    )[comments.length - 1];
-  }
-  return comments[comments.length - 1];
+const commentTimestamp = (comment: ThreadComment): string =>
+  comment.createdAt ?? comment.created_at ?? "";
+
+// The recipes classify in createdAt order, so ordering is load-bearing. Both
+// APIs return ascending already; sorting when every entry carries a timestamp
+// keeps a jq reshuffle in the round's own command from inverting the verdict.
+function inChronologicalOrder(comments: ThreadComment[]): ThreadComment[] {
+  if (comments.some((comment) => commentTimestamp(comment) === "")) return comments;
+  return [...comments].sort((earlier, later) =>
+    commentTimestamp(earlier).localeCompare(commentTimestamp(later)),
+  );
 }
 
-function unansweredIdOf(thread: UnresolvedThread): string | undefined {
-  if (thread.isResolved === true) return undefined;
-  const githubComments = thread.comments?.nodes;
-  if (Array.isArray(githubComments)) {
-    const newest = newestComment(githubComments);
-    if (!newest || (newest.body ?? "").includes(LOOP_REPLY_MARKER)) return undefined;
-    return newest.databaseId === undefined ? undefined : String(newest.databaseId);
-  }
+const isLoopAuthored = (comment: ThreadComment): boolean =>
+  (comment.body ?? "").includes(LOOP_REPLY_MARKER);
+
+/**
+ * The comments in a thread that post-date its newest loop reply.
+ *
+ * Anything older was already answered — by this loop in an earlier round, or
+ * before the ledger existed at all — so counting it would resurrect obligations
+ * that were met. This is the same rule the unresolved-thread recipes classify by.
+ */
+function commentsAwaitingReply(comments: ThreadComment[]): ThreadComment[] {
+  const ordered = inChronologicalOrder(comments);
+  let lastLoopIndex = -1;
+  ordered.forEach((comment, index) => {
+    if (isLoopAuthored(comment)) lastLoopIndex = index;
+  });
+  return ordered.slice(lastLoopIndex + 1).filter((comment) => !isLoopAuthored(comment));
+}
+
+function githubThread(thread: UnresolvedThread): UnansweredThread | undefined {
+  if (thread.isResolved === true || !thread.id) return undefined;
+  const awaiting = commentsAwaitingReply(thread.comments?.nodes ?? []);
+  const humanCommentIds = awaiting
+    .map((comment) => comment.databaseId)
+    .filter((databaseId): databaseId is number => databaseId !== undefined)
+    .map(String);
+  if (humanCommentIds.length === 0) return undefined;
+  return {
+    threadId: thread.id,
+    provider: LedgerProvider.GitHub,
+    humanCommentIds: humanCommentIds,
+  };
+}
+
+function gitlabThread(thread: UnresolvedThread): UnansweredThread | undefined {
   const notes = thread.notes ?? [];
   // A GitLab discussion is unresolved only while some note says so; the MR
   // description and system notes carry no resolved field at all and must not be
   // mistaken for threads awaiting an answer.
-  if (!notes.some((note) => note.resolved === false)) return undefined;
-  const newest = newestComment(notes);
-  if (!newest || (newest.body ?? "").includes(LOOP_REPLY_MARKER)) return undefined;
-  return thread.id;
+  if (!notes.some((note) => note.resolved === false) || !thread.id) return undefined;
+  const humanCommentIds = commentsAwaitingReply(notes)
+    .map((note) => note.id)
+    .filter((noteId): noteId is number | string => noteId !== undefined)
+    .map(String);
+  if (humanCommentIds.length === 0) return undefined;
+  return {
+    threadId: thread.id,
+    provider: LedgerProvider.GitLab,
+    humanCommentIds: humanCommentIds,
+  };
 }
 
 /**
- * The review comments this fetch shows still waiting on an answer.
+ * The threads this fetch shows still waiting on an answer, with the comments in each.
  *
- * Reads the unresolved-thread fetch the round works from and keeps the threads
- * whose newest comment lacks the loop marker — the rule the unresolved-thread
- * recipes under `_shared/vcs` classify by, so the gate and the round share one
- * definition of a thread that still owes a reply. Keyed on GitHub by the newest
- * comment's `databaseId` and on GitLab by the discussion id, which is what each
- * provider's threaded-reply call targets.
+ * Keyed on the thread rather than a single comment: the thread is the unit both
+ * providers resolve, and it is what the reply endpoint threads under. Each
+ * thread carries every comment that post-dates its newest loop reply, so three
+ * consecutive questions are three obligations rather than one.
  *
- * Output shape: `["2101993355", "a1b2c3d4"]`
+ * Output shape: `[{ threadId: "PRRT_1", provider: "github", humanCommentIds: ["11", "12"] }]`
  */
-export function detectUnansweredCommentIds(input: HookInput): string[] {
+export function detectUnansweredThreads(input: HookInput): UnansweredThread[] {
   if (input.tool_name !== "Bash") return [];
   if (!REVIEW_THREAD_FETCH_COMMAND.test(input.tool_input?.command ?? "")) return [];
   const threads: UnresolvedThread[] = [];
   collectThreads(parsedResponse(input), threads);
-  const unanswered = threads.map(unansweredIdOf).filter((id): id is string => id !== undefined);
-  return [...new Set(unanswered)];
+  return threads
+    .map((thread) => (Array.isArray(thread.notes) ? gitlabThread(thread) : githubThread(thread)))
+    .filter((thread): thread is UnansweredThread => thread !== undefined);
 }
 
-/** The comment ids this call posted a threaded reply to, on either provider. */
-export function detectRepliedCommentIds(input: HookInput): string[] {
+/**
+ * The threaded replies this call posted and the provider confirmed.
+ *
+ * Confirmation is the created comment id in the response, never the request:
+ * `per-comment-replies.md` expects individual replies to fail and logs them, so
+ * recording from the command alone would close an obligation the provider
+ * rejected. `targetId` is a comment id on GitHub and a discussion id on GitLab —
+ * whichever the reply call addressed.
+ */
+export function detectConfirmedReplies(input: HookInput): ConfirmedReply[] {
   if (input.tool_name !== "Bash") return [];
   const command = input.tool_input?.command ?? "";
-  return [...command.matchAll(THREADED_REPLY_TARGET)].map(
+  const targets = [...command.matchAll(THREADED_REPLY_TARGET)].map(
     ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId,
   );
-}
-
-/** Whether a Bash command pushed the change that acts on the reviews — the signal that turns owed replies into overdue ones. */
-export function isReviewWorkPush(command: string): boolean {
-  return REVIEW_WORK_PUSH_COMMAND.test(command);
-}
-
-/** Record threads awaiting a reply, returning the same reference when nothing changed so the caller can skip a redundant write. */
-export function applyUnansweredComments(
-  state: GuardrailState,
-  commentIds: string[],
-): GuardrailState {
-  const owed = [...(state.commentRepliesOwed ?? [])];
-  for (const commentId of commentIds) if (!owed.includes(commentId)) owed.push(commentId);
-  if (owed.length === (state.commentRepliesOwed ?? []).length) return state;
-  return { ...state, commentRepliesOwed: owed };
-}
-
-/** Record threaded replies, returning the same reference when nothing changed so the caller can skip a redundant write. */
-export function applyPostedReplies(state: GuardrailState, commentIds: string[]): GuardrailState {
-  const posted = [...(state.commentRepliesPosted ?? [])];
-  for (const commentId of commentIds) if (!posted.includes(commentId)) posted.push(commentId);
-  if (posted.length === (state.commentRepliesPosted ?? []).length) return state;
-  return { ...state, commentRepliesPosted: posted };
-}
-
-/** Record that the round pushed its change, returning the same reference when it was already recorded. */
-export function applyReviewWorkPush(state: GuardrailState, pushed: boolean): GuardrailState {
-  if (!pushed || state.reviewWorkPushed === true) return state;
-  return { ...state, reviewWorkPushed: true };
+  if (targets.length === 0) return [];
+  const created = parsedResponse(input) as { id?: number | string; body?: string } | undefined;
+  if (created?.id === undefined) return [];
+  const replySha = REPLY_SHA_CITATION.exec(created.body ?? "")?.[1] ?? null;
+  return targets.map((targetId) => ({ targetId: targetId, replySha: replySha }));
 }
 
 /** Whether a Bash command is the explicit comment-reply skip declaration. */
@@ -165,48 +209,70 @@ export function isReplySkipMarker(command: string): boolean {
 }
 
 /**
- * Apply a `MUGGLE_REPLY_SKIP: <commentId> <reason>` declaration.
+ * The thread a confirmed reply belongs to.
  *
- * The marker clears the comments it names — the escalation path, where a round
- * defers a thread to the user instead of answering it, leaves exactly those
- * threads owed. When it names none it degrades to a session-wide skip, so a
- * round that never saw a usable comment id still has a way out.
+ * GitLab addresses the discussion directly, so its target already is the thread
+ * id. GitHub addresses one comment inside the thread, so the ledger's own
+ * comment lists are what map it back.
  */
-export function applyReplySkip(state: GuardrailState, command: string): GuardrailState {
-  if (!isReplySkipMarker(command)) return state;
-  const namedComments = (state.commentRepliesOwed ?? []).filter((commentId) =>
-    command.includes(commentId),
-  );
-  if (namedComments.length > 0) return applyPostedReplies(state, namedComments);
-  if (state.commentReplySkipped === true) return state;
-  return { ...state, commentReplySkipped: true };
+export function threadForReplyTarget(ledger: Ledger, targetId: string): string | undefined {
+  if (ledger.threads[targetId]) return targetId;
+  for (const [threadId, entry] of Object.entries(ledger.threads)) {
+    if (entry.humanCommentIds.includes(targetId)) return threadId;
+  }
+  return undefined;
 }
 
-/** The review comments with no threaded reply yet. */
-export function unansweredComments(state: GuardrailState): string[] {
-  const posted = new Set(state.commentRepliesPosted ?? []);
-  return (state.commentRepliesOwed ?? []).filter((commentId) => !posted.has(commentId));
+/** The muggle-do slot tracking a PR, found by joining on the url the slot records. */
+export function resolveSlotForPr(prUrl: string, sessionsDirOverride?: string): string | undefined {
+  const sessionsDir = sessionsDirOverride ?? join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  if (!existsSync(sessionsDir)) return undefined;
+  for (const slug of readdirSync(sessionsDir)) {
+    const slotPath = join(sessionsDir, slug);
+    try {
+      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8")) as unknown;
+      const slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
+      if ((slotPr as { url?: string } | undefined)?.url === prUrl) return slotPath;
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
 }
 
 /**
- * Decide what the Stop hook does about review comments the round acted on but never answered.
+ * The threads this session claimed that are still unprocessed.
  *
- * - `None`    — nothing owed, every thread answered, no push happened (reading
- *               reviews is not acting on them), or a skip recorded.
- * - `Block`   — the change was pushed and a thread it addressed carries no
- *               reply; hold the turn open.
+ * Scoped to the running session's own claims: another session's unfinished
+ * obligation is re-claimed by the next round that reads it, and must never hold
+ * a turn open in a session that has no context for it.
+ */
+export function overdueThreads(slotPath: string, sessionId: string): OverdueThread[] {
+  const overdue: OverdueThread[] = [];
+  for (const [threadId, entry] of Object.entries(readLedger(slotPath).threads)) {
+    if (entry.lastClaimedBySessionId !== sessionId) continue;
+    if (threadState(entry) === ThreadState.Processed) continue;
+    overdue.push({ threadId: threadId, uncovered: uncoveredComments(entry) });
+  }
+  return overdue;
+}
+
+/**
+ * Decide what the Stop hook does about review comments the round took and never answered.
+ *
+ * - `None`    — nothing overdue, or a skip recorded.
+ * - `Block`   — a thread this session claimed carries no reply; hold the turn open.
  * - `Release` — blocked `maxBlocks` times already, so a thread that genuinely
  *               cannot be answered can't trap the session.
  */
 export function commentReplyGateDecision(
   state: GuardrailState,
+  overdue: OverdueThread[],
   maxBlocks: number = MAX_REPLY_BLOCKS,
 ): CommentReplyGateDecision {
   const blockCount = state.commentReplyBlockCount ?? 0;
-  const unanswered = unansweredComments(state);
-  const settled =
-    state.commentReplySkipped === true || state.reviewWorkPushed !== true || unanswered.length === 0;
-  if (settled) {
+  const unanswered = overdue.flatMap((thread) => thread.uncovered);
+  if (state.commentReplySkipped === true || unanswered.length === 0) {
     return { action: CommentReplyGateAction.None, blockCount: blockCount, unanswered: unanswered };
   }
   if (blockCount >= maxBlocks) {

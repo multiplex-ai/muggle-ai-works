@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# acted-on-review → threaded-reply gate (Stop). When a round pushed the change
-# that addresses review comments and one of those comments still carries no
-# reply, block the turn end until it does or a skip is declared.
+# claimed-review-thread → threaded-reply gate (Stop). When a round claimed a
+# review thread and left it unanswered, block the turn end until it replies or
+# the deferral is recorded.
 #
 # This must stay synchronous (only a sync Stop hook can block the turn end), and
-# it fires on EVERY turn end. There is no command payload to key off, so the
-# pre-filter reads the same per-session state file guardrails.mjs uses and only
-# spawns Node when the gate could actually fire — i.e. a push is recorded, some
-# comment was seen awaiting an answer, and no skip settled it. On the
-# overwhelming majority of turns (no review round this session) the state file
-# is absent or those fields are unset, so we return {} in-shell and never pay
-# Node cold-start. Degrades to {}.
+# it fires on EVERY turn end. The obligation lives in the per-PR ledger rather
+# than the session state file, so the pre-filter keys on a ledger existing at
+# all: with no ledger anywhere there is nothing this gate could owe, and we
+# return {} in-shell without paying Node cold-start. Degrades to {}.
 payload="$(cat)"
 
 raw_sid="$(printf '%s' "$payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')"
@@ -28,11 +25,11 @@ if [ ! -d "$home/.muggle-ai" ] && command -v cygpath >/dev/null 2>&1 && [ -n "${
 fi
 
 state_file="$home/.muggle-ai/guardrails/$sid.json"
-if [ ! -f "$state_file" ] \
-  || ! grep -q '"reviewWorkPushed": true' "$state_file" \
-  || ! grep -q '"commentRepliesOwed"' "$state_file" \
-  || grep -q '"commentRepliesOwed": \[\]' "$state_file" \
-  || grep -q '"commentReplySkipped": true' "$state_file"; then
+if ! ls "$home"/.muggle-ai/muggle-do/sessions/*/comment-ledger.json >/dev/null 2>&1; then
+  printf '{}'
+  exit 0
+fi
+if [ -f "$state_file" ] && grep -q '"commentReplySkipped": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

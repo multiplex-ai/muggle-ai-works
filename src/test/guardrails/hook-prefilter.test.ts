@@ -181,11 +181,6 @@ describe("record-comment-replies pre-filter reaches every payload the recorder a
       "a gitlab discussion note",
       commandPayload("glab api --method POST projects/:id/merge_requests/12/discussions/a1b2/notes -f body=x"),
     ],
-    ["a push", commandPayload("git push origin users/stan4/fix")],
-    [
-      "the remote signed-commit path",
-      commandPayload("gh api graphql -f query='mutation { createCommitOnBranch(input: $i) { url } }'"),
-    ],
   ];
 
   it.each(reaching)("spawns Node for %s", (_label, payload) => {
@@ -198,6 +193,12 @@ describe("record-comment-replies pre-filter reaches every payload the recorder a
 
   it("short-circuits an unrelated command", () => {
     expect(prefilter.test(commandPayload("ls -la"))).toBe(false);
+  });
+
+  // The claim marks a thread as taken, so a push carries no signal any more and
+  // spawning Node on one would be pure waste.
+  it("short-circuits a push", () => {
+    expect(prefilter.test(commandPayload("git push origin users/stan4/fix"))).toBe(false);
   });
 });
 
@@ -256,11 +257,8 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     debuggedRuns: ["run-1"],
     debugSkipped: true,
     debugBlockCount: 1,
-    commentRepliesOwed: ["2101993355"],
-    commentRepliesPosted: ["2101993355"],
     commentReplySkipped: true,
     commentReplyBlockCount: 1,
-    reviewWorkPushed: true,
   };
 
   // A gate reads "nothing owed" as an empty array and pre-filters on the

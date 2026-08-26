@@ -122,12 +122,6 @@ export const REVIEW_THREAD_FETCH_COMMAND = /reviewThreads|merge_requests\/\d+\/d
 // `/pulls/<n>/comments/<id>/replies` and GitLab's `/discussions/<id>/notes`.
 export const THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/([\w-]+)\/notes/g;
 
-// What counts as having acted on the review: the push that carries the change.
-// Both paths qualify — a local `git push` and the remote `createCommitOnBranch`
-// mutation the signed-commits recipe routes through when local signing is
-// broken — because a gate that only knew one would go quiet for whichever half
-// of the fleet uses the other.
-export const REVIEW_WORK_PUSH_COMMAND = /\bgit\s[^\n]*\bpush\b|\bcreateCommitOnBranch\b/;
 
 /** How many times the comment-reply Stop gate blocks a turn end before releasing, so a thread that genuinely cannot be answered can't trap the session. */
 export const MAX_REPLY_BLOCKS = 3;

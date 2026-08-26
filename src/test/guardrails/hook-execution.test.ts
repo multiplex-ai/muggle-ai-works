@@ -411,97 +411,83 @@ describe("guardrail hook execution (cli entry)", () => {
   });
 
   // Never-block guarantee at the entry: a hook must never crash the turn.
-  it("record-comment-replies -> comment-reply-gate: a pushed round with an unanswered thread blocks until it replies", () => {
-    const sid = "s-reply";
-    const threadsResponse = JSON.stringify({
-      data: {
-        repository: {
-          pullRequest: {
-            reviewThreads: {
-              nodes: [
-                {
-                  id: "PRRT_1",
-                  isResolved: false,
-                  comments: {
-                    nodes: [
-                      { databaseId: 11, body: "this leaks a handle", createdAt: "2026-08-01T00:00:00Z" },
-                    ],
-                  },
+  const PR_URL = "https://github.com/o/r/pull/7";
+
+  // The gate reads obligations from the per-PR ledger in the muggle-do slot, so
+  // a flow test has to stand up both: the slot the PR maps to, and the session
+  // state naming that PR as handled.
+  function seedSlot(sid: string): string {
+    const slotPath = join(home, ".muggle-ai", "muggle-do", "sessions", "slug");
+    mkdirSync(slotPath, { recursive: true });
+    writeFileSync(join(slotPath, "prs.json"), JSON.stringify([{ url: PR_URL }]));
+    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
+    writeFileSync(
+      join(home, ".muggle-ai", "guardrails", `${sid}.json`),
+      JSON.stringify({ sessionId: sid, prsHandled: [PR_URL] }),
+    );
+    return slotPath;
+  }
+
+  const threadFetchEvent = (sid: string, comments: Array<{ databaseId: number; body: string; createdAt: string }>) =>
+    event({
+      session_id: sid,
+      tool_name: "Bash",
+      tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
+      tool_response: {
+        stdout: JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: [{ id: "T1", isResolved: false, comments: { nodes: comments } }],
                 },
-              ],
+              },
             },
           },
-        },
+        }),
       },
     });
-    runHook(
-      "record-comment-replies",
-      event({
-        session_id: sid,
-        tool_name: "Bash",
-        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
-        tool_response: { stdout: threadsResponse },
-      }),
-    );
-    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
 
-    runHook(
-      "record-comment-replies",
-      event({
-        session_id: sid,
-        tool_name: "Bash",
-        tool_input: { command: "git push origin users/stan4/fix" },
-      }),
-    );
+  const replyEvent = (sid: string, commentId: string, response: unknown) =>
+    event({
+      session_id: sid,
+      tool_name: "Bash",
+      tool_input: { command: `gh api --method POST repos/o/r/pulls/7/comments/${commentId}/replies -f body=x` },
+      tool_response: { stdout: JSON.stringify(response) },
+    });
+
+  const humanComment = { databaseId: 11, body: "this leaks a handle", createdAt: "2026-08-01T00:00:00Z" };
+  const createdReply = { id: 999, body: "<!-- muggle-do:bot --> Addressed in c88acd5: fixed." };
+
+  it("record-comment-replies -> comment-reply-gate: a claimed thread blocks until the reply is confirmed", () => {
+    const sid = "s-reply";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+
     const blocked = JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out);
     expect(blocked.decision).toBe("block");
     expect(blocked.reason).toContain("11");
 
-    runHook(
-      "record-comment-replies",
-      event({
-        session_id: sid,
-        tool_name: "Bash",
-        tool_input: { command: "gh api --method POST repos/o/r/pulls/7/comments/11/replies -f body=x" },
-      }),
-    );
+    runHook("record-comment-replies", replyEvent(sid, "11", createdReply));
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
   });
 
-  it("record-comment-replies -> comment-reply-gate: a MUGGLE_REPLY_SKIP marker clears the comment it names", () => {
+  // per-comment-replies.md expects individual replies to fail and logs them, so
+  // a rejected reply must leave the obligation open rather than closing it.
+  it("record-comment-replies: a rejected reply does not clear the obligation", () => {
+    const sid = "s-reply-rejected";
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
+    runHook("record-comment-replies", replyEvent(sid, "11", { message: "Validation Failed" }));
+    const blocked = JSON.parse(runHook("comment-reply-gate", event({ session_id: sid })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("11");
+  });
+
+  it("record-comment-replies -> comment-reply-gate: a MUGGLE_REPLY_SKIP marker settles the gate", () => {
     const sid = "s-reply-skip";
-    const threadsResponse = JSON.stringify({
-      data: {
-        repository: {
-          pullRequest: {
-            reviewThreads: {
-              nodes: [
-                {
-                  id: "PRRT_1",
-                  isResolved: false,
-                  comments: {
-                    nodes: [{ databaseId: 11, body: "rethink this", createdAt: "2026-08-01T00:00:00Z" }],
-                  },
-                },
-              ],
-            },
-          },
-        },
-      },
-    });
-    runHook(
-      "record-comment-replies",
-      event({
-        session_id: sid,
-        tool_name: "Bash",
-        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
-        tool_response: { stdout: threadsResponse },
-      }),
-    );
-    runHook(
-      "record-comment-replies",
-      event({ session_id: sid, tool_name: "Bash", tool_input: { command: "git push origin fix" } }),
-    );
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
     runHook(
       "record-comment-replies",
       event({
@@ -513,44 +499,18 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
   });
 
-  // The gate runs on every turn end, so its write budget is the thing to pin:
-  // it writes only to bump the block count, which the ceiling caps, and a
-  // released gate must go inert rather than rewrite state for the rest of the
-  // session.
+  it("comment-reply-gate: stays silent when no slot tracks the PR", () => {
+    const sid = "s-reply-noslot";
+    expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
+  });
+
+  // The gate runs on every turn end, so its write budget is the thing to pin: it
+  // writes only to bump the block count, which the ceiling caps, and a released
+  // gate must go inert rather than rewrite state for the rest of the session.
   it("comment-reply-gate: writes only while blocking, at most 3 times, then goes inert", () => {
     const sid = "s-reply-cap";
-    const threadsResponse = JSON.stringify({
-      data: {
-        repository: {
-          pullRequest: {
-            reviewThreads: {
-              nodes: [
-                {
-                  id: "PRRT_1",
-                  isResolved: false,
-                  comments: {
-                    nodes: [{ databaseId: 11, body: "unanswerable", createdAt: "2026-08-01T00:00:00Z" }],
-                  },
-                },
-              ],
-            },
-          },
-        },
-      },
-    });
-    runHook(
-      "record-comment-replies",
-      event({
-        session_id: sid,
-        tool_name: "Bash",
-        tool_input: { command: "gh api graphql -f query='{ reviewThreads { nodes { id } } }'" },
-        tool_response: { stdout: threadsResponse },
-      }),
-    );
-    runHook(
-      "record-comment-replies",
-      event({ session_id: sid, tool_name: "Bash", tool_input: { command: "git push origin fix" } }),
-    );
+    seedSlot(sid);
+    runHook("record-comment-replies", threadFetchEvent(sid, [humanComment]));
 
     const stateFile = join(home, ".muggle-ai", "guardrails", `${sid}.json`);
     for (const expectedBlock of [1, 2, 3]) {
@@ -564,23 +524,6 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
     expect(runHook("comment-reply-gate", event({ session_id: sid })).out).toBe("{}");
     expect(readFileSync(stateFile, "utf-8")).toBe(settled);
-  });
-
-  // The observer runs on every Bash call, so a payload that changes nothing
-  // must not rewrite the state file.
-  it("record-comment-replies: a repeated payload leaves the state file untouched", () => {
-    const sid = "s-reply-idempotent";
-    const push = event({
-      session_id: sid,
-      tool_name: "Bash",
-      tool_input: { command: "git push origin fix" },
-    });
-    runHook("record-comment-replies", push);
-    const stateFile = join(home, ".muggle-ai", "guardrails", `${sid}.json`);
-    const afterFirst = readFileSync(stateFile, "utf-8");
-    runHook("record-comment-replies", push);
-    runHook("record-comment-replies", push);
-    expect(readFileSync(stateFile, "utf-8")).toBe(afterFirst);
   });
 
   it("degrades to {} on malformed stdin", () => {

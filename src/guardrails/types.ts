@@ -26,11 +26,8 @@ export interface GuardrailState {
   debuggedRuns?: string[];
   debugSkipped?: boolean;
   debugBlockCount?: number;
-  commentRepliesOwed?: string[];
-  commentRepliesPosted?: string[];
   commentReplySkipped?: boolean;
   commentReplyBlockCount?: number;
-  reviewWorkPushed?: boolean;
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */

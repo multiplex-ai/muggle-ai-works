@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# comment-reply observer (PostToolUse/Bash). Records the three things the reply
-# gate settles from: the unresolved-thread fetch a review round works from
-# (which names the comments still awaiting an answer), the threaded-reply POSTs
-# that answer them, and the push that makes an unanswered thread overdue rather
-# than merely pending. Emits no directive — the Stop gate reads the state.
+# comment-reply observer (PostToolUse/Bash). Records the two things the reply
+# gate settles from: the unresolved-thread fetch a review round works from,
+# which claims each thread it names, and the threaded-reply POSTs that cover the
+# comments in them. Emits no directive — the Stop gate reads the ledger.
 #
 # Fires after every Bash call, so a keyword pre-filter keeps Node off the hot
-# path: only a thread fetch, a reply POST, a push, or a skip marker reaches
-# guardrails.mjs, which then parses the provider response and updates state.
+# path: only a thread fetch, a reply POST, or a skip marker reaches
+# guardrails.mjs, which then parses the provider response and updates the ledger.
+# The claim is what marks a thread as taken, so a push is no longer a signal and
+# spawning Node on one would be pure waste.
 #
 # The marker arm matches the MUGGLE_<GATE>_SKIP shape, never one token, for the
 # same reason the other observers do: a gate whose marker is missing from a
@@ -18,7 +19,7 @@ set -uo pipefail
 # Degrades to {}.
 payload="$(cat)"
 
-if ! grep -Eiq 'reviewThreads|merge_requests/[0-9]+/discussions|comments/[0-9]+/replies|discussions/[A-Za-z0-9_-]+/notes|git[[:space:]][^|;&]*push|createCommitOnBranch|MUGGLE_[A-Z0-9_]+_SKIP' <<<"$payload"; then
+if ! grep -Eiq 'reviewThreads|merge_requests/[0-9]+/discussions|comments/[0-9]+/replies|discussions/[A-Za-z0-9_-]+/notes|MUGGLE_[A-Z0-9_]+_SKIP' <<<"$payload"; then
   printf '{}'
   exit 0
 fi

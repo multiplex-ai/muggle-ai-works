@@ -1,5 +1,6 @@
 export interface GuardrailState {
   sessionId: string;
+  generation?: number;
   prsHandled: string[];
   unitTestsGreen?: boolean;
   e2eRun?: boolean;

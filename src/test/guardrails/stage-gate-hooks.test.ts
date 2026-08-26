@@ -13,6 +13,19 @@ import { MUGGLE_EXECUTION_TOOL, SKILL_NAME_INPUT_KEYS } from "../../guardrails/c
 const SCRIPTS = fileURLToPath(new URL("../../../plugin/scripts", import.meta.url));
 const HOOKS = fileURLToPath(new URL("../../../plugin/hooks/hooks.json", import.meta.url));
 const GUARDRAIL_SOURCE = fileURLToPath(new URL("../../guardrails", import.meta.url));
+
+// src/guardrails/ groups related units into purpose folders, so a scan that
+// only reads top-level entries goes blind to anything nested — and a skip
+// marker the gates advertise but the scan cannot see is the dead-escape-hatch
+// bug these assertions exist to catch.
+function guardrailSourceFiles(dir: string = GUARDRAIL_SOURCE): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? guardrailSourceFiles(join(dir, entry.name))
+      : [join(dir, entry.name)],
+  );
+}
+
 const CLI = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
 
 function wrapperBody(wrapperScriptName: string): string {
@@ -78,9 +91,8 @@ describe("stage-signal pre-filter reaches every payload the recorder acts on", (
   // user to run must reach the recorder the moment the gate defines it.
   it("spawns Node for every skip marker the guardrails define", () => {
     const markerTokens = new Set(
-      readdirSync(GUARDRAIL_SOURCE).flatMap(
-        (name) =>
-          readFileSync(join(GUARDRAIL_SOURCE, name), "utf-8").match(/MUGGLE_[A-Z0-9_]+_SKIP/g) ?? [],
+      guardrailSourceFiles().flatMap(
+        (path) => readFileSync(path, "utf-8").match(/MUGGLE_[A-Z0-9_]+_SKIP/g) ?? [],
       ),
     );
     expect(markerTokens.size).toBeGreaterThanOrEqual(6);

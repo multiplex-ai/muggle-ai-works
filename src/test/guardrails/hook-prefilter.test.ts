@@ -13,6 +13,19 @@ import type { GuardrailState } from "../../guardrails/types.js";
 const SCRIPTS = fileURLToPath(new URL("../../../plugin/scripts", import.meta.url));
 const GUARDRAIL_SOURCE = fileURLToPath(new URL("../../guardrails", import.meta.url));
 
+// src/guardrails/ groups related units into purpose folders, so a scan that
+// only reads top-level entries goes blind to anything nested — and a skip
+// marker the gates advertise but the scan cannot see is the dead-escape-hatch
+// bug these assertions exist to catch.
+function guardrailSourceFiles(dir: string = GUARDRAIL_SOURCE): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory()
+      ? guardrailSourceFiles(join(dir, entry.name))
+      : [join(dir, entry.name)],
+  );
+}
+
+
 function payloadPrefilter(wrapperScriptName: string): RegExp {
   const wrapperBody = readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
   const prefilter = wrapperBody.match(/grep -Eiq '([^']+)'/);
@@ -54,9 +67,8 @@ describe("record-tests pre-filter reaches every payload the recorder acts on", (
   // the pre-filter came to know only MUGGLE_E2E_SKIP.
   it("spawns Node for every skip marker the guardrails define", () => {
     const markerTokens = new Set(
-      readdirSync(GUARDRAIL_SOURCE).flatMap(
-        (name) =>
-          readFileSync(join(GUARDRAIL_SOURCE, name), "utf-8").match(/MUGGLE_[A-Z0-9_]+_SKIP/g) ?? [],
+      guardrailSourceFiles().flatMap(
+        (path) => readFileSync(path, "utf-8").match(/MUGGLE_[A-Z0-9_]+_SKIP/g) ?? [],
       ),
     );
     expect(markerTokens.size).toBeGreaterThanOrEqual(3);
@@ -218,6 +230,7 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
   // declaration itself because tsconfig excludes tests from the typecheck.
   const populatedState: Required<GuardrailState> = {
     sessionId: "s",
+    generation: 1,
     prsHandled: ["https://github.com/o/r/pull/1"],
     unitTestsGreen: true,
     e2eRun: true,
@@ -267,9 +280,9 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     return [...declaration[1].matchAll(/^\s*(\w+)\??:/gm)].map(([, field]) => field);
   };
 
-  const gateSourceBodies = readdirSync(GUARDRAIL_SOURCE)
-    .filter((name) => name !== "types.ts")
-    .map((name) => readFileSync(join(GUARDRAIL_SOURCE, name), "utf-8"));
+  const gateSourceBodies = guardrailSourceFiles()
+    .filter((path) => !path.endsWith("types.ts"))
+    .map((path) => readFileSync(path, "utf-8"));
 
   const wrapperScriptNames = readdirSync(SCRIPTS).filter(
     (name) => name.startsWith("guardrail-") && name.endsWith(".sh"),

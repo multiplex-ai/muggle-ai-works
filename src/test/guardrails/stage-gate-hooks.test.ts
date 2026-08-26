@@ -165,6 +165,14 @@ describe("stop-gate state pre-filters match the state the recorders write", () =
     null,
     2,
   );
+  // A gate that has spent its block budget stamps its release, which is what
+  // lets the wrapper fall through in shell instead of cold-starting Node on
+  // every remaining turn end.
+  const releasedState = JSON.stringify(
+    { sessionId: "s", prsHandled: [], stageReleased: true, debugReleased: true },
+    null,
+    2,
+  );
 
   it.each(["guardrail-stage-gate.sh", "guardrail-debug-path-gate.sh"])(
     "%s greps only for shapes the state file can hold",
@@ -174,7 +182,7 @@ describe("stop-gate state pre-filters match the state the recorders write", () =
       for (const [, statePattern] of patterns) {
         const literal = statePattern.replaceAll("\\[", "[").replaceAll("\\]", "]");
         expect(
-          `${armedState}\n${idleState}\n${skippedState}`,
+          `${armedState}\n${idleState}\n${skippedState}\n${releasedState}`,
           `${wrapperScriptName} greps for ${literal}`,
         ).toContain(literal);
       }

@@ -29,6 +29,13 @@ export interface GuardrailState {
   commentReplySkipped?: boolean;
   commentReplyBlockCount?: number;
   capabilityClaimNudged?: boolean;
+  e2eReleased?: boolean;
+  terminalReleased?: boolean;
+  watchReleased?: boolean;
+  walkthroughReleased?: boolean;
+  commentReplyReleased?: boolean;
+  stageReleased?: boolean;
+  debugReleased?: boolean;
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */

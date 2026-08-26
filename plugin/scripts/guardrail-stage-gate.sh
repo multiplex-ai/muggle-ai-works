@@ -34,7 +34,7 @@ state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"mandatoryStages"' "$state_file" \
   || grep -q '"mandatoryStages": \[\]' "$state_file" \
-  || grep -q '"stageSkipped": true' "$state_file"; then
+  || grep -q '"stageReleased": true' "$state_file" \n  || grep -q '"stageSkipped": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

@@ -32,7 +32,7 @@ state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"e2eRun": true' "$state_file" \
   || grep -q '"walkthroughPosted": true' "$state_file" \
-  || grep -q '"walkthroughSkipped": true' "$state_file"; then
+  || grep -q '"walkthroughReleased": true' "$state_file" \n  || grep -q '"walkthroughSkipped": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

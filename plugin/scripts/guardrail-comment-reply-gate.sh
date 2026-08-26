@@ -33,6 +33,10 @@ if [ -f "$state_file" ] && grep -q '"commentReplySkipped": true' "$state_file"; 
   printf '{}'
   exit 0
 fi
+if [ -f "$state_file" ] && grep -q '"commentReplyReleased": true' "$state_file"; then
+  printf '{}'
+  exit 0
+fi
 
 root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
 printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" comment-reply-gate 2>/dev/null || printf '{}'

@@ -29,7 +29,7 @@ fi
 state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"terminalPending"' "$state_file" \
-  || grep -q '"terminalPending": \[\]' "$state_file"; then
+  || grep -q '"terminalReleased": true' "$state_file"   || grep -q '"terminalPending": \[\]' "$state_file"; then
   printf '{}'
   exit 0
 fi

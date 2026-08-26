@@ -102,6 +102,25 @@ const sub = process.argv[2];
 const input = readStdin();
 const sessionId = input.session_id ?? "unknown";
 
+/**
+ * Record that a Stop gate has spent its block budget.
+ *
+ * Every gate runs on every turn end and pre-filters on the session state file.
+ * Nothing in that file changes when a gate releases, so a released gate keeps
+ * cold-starting Node for the rest of the session — and the walkthrough gate
+ * keeps making provider calls — to return "{}" every time. Stamping the release
+ * is what lets the pre-filter fall through in shell instead.
+ */
+function releaseGate(field: keyof GuardrailState): string {
+  // Same reference when already stamped: the wrapper pre-filter short-circuits
+  // from the next turn on, but a handler invoked directly must not keep
+  // rewriting state — that is the churn this stamp exists to end.
+  updateState(sessionId, (current) =>
+    current[field] === true ? current : { ...current, [field]: true },
+  );
+  return "{}";
+}
+
 function prOpened(): string {
   const url = detectPrOpened(input);
   if (!url) return "{}";
@@ -149,6 +168,7 @@ function offerRan(): string {
 function terminalGate(): string {
   const state = readState(sessionId);
   const decision = prTerminalGateDecision(state);
+  if (decision.action === PrTerminalGateAction.Release) return releaseGate("terminalReleased");
   if (decision.action !== PrTerminalGateAction.Block) return "{}";
   state.terminalBlockCount = decision.blockCount;
   writeState(state);
@@ -254,6 +274,7 @@ function classifyGate(): string {
 function stageGate(): string {
   const state = readState(sessionId);
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
+  if (decision.action === StageGateAction.Release) return releaseGate("stageReleased");
   if (decision.action !== StageGateAction.Block) return "{}";
   state.stageBlockCount = decision.blockCount;
   writeState(state);
@@ -274,6 +295,7 @@ function stageGate(): string {
 function debugPathGate(): string {
   const state = readState(sessionId);
   const decision = debugGateDecision(state);
+  if (decision.action === DebugGateAction.Release) return releaseGate("debugReleased");
   if (decision.action !== DebugGateAction.Block) return "{}";
   state.debugBlockCount = decision.blockCount;
   writeState(state);
@@ -297,7 +319,8 @@ function debugPathGate(): string {
 function e2eGate(): string {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === E2eGateAction.None || decision.action === E2eGateAction.Release) return "{}";
+  if (decision.action === E2eGateAction.Release) return releaseGate("e2eReleased");
+  if (decision.action === E2eGateAction.None) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
   // Full instruction once; repeats are one line. The first block already
@@ -318,9 +341,8 @@ function watchGate(): string {
   const state = readState(sessionId);
   const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
   const decision = watchGateDecision(state, untrackedPrUrls);
-  if (decision.action === WatchGateAction.None || decision.action === WatchGateAction.Release) {
-    return "{}";
-  }
+  if (decision.action === WatchGateAction.Release) return releaseGate("watchReleased");
+  if (decision.action === WatchGateAction.None) return "{}";
   state.watchBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.untracked.join(", ");
@@ -356,6 +378,7 @@ function walkthroughGate(): string {
     return "{}";
   }
   const decision = walkthroughGateDecision(state, scan.owed);
+  if (decision.action === WalkthroughGateAction.Release) return releaseGate("walkthroughReleased");
   if (decision.action !== WalkthroughGateAction.Block) return "{}";
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
@@ -438,6 +461,7 @@ function commentReplyGate(): string {
   const slotPath = slotForSession(state);
   if (!slotPath) return "{}";
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
+  if (decision.action === CommentReplyGateAction.Release) return releaseGate("commentReplyReleased");
   if (decision.action !== CommentReplyGateAction.Block) return "{}";
   updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
   const commentList = decision.unanswered.join(", ");

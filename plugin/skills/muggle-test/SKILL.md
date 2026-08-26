@@ -4,6 +4,7 @@ description: "Change-driven E2E acceptance testing: detects the user's recent ch
 mandatoryStages:
   - ../_shared/failure-mode-handling.md
   - ../_shared/debug-failed-run.md
+  - ../_shared/identity-and-inbox.md
 ---
 
 # Muggle Test — Change-Driven E2E Acceptance Router

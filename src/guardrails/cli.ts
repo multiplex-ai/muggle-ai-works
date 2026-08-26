@@ -10,6 +10,7 @@ import {
   prTerminalGateDecision,
 } from "./prTerminal.js";
 import {
+  CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES,
   MAX_DEBUG_BLOCKS,
   MAX_PR_TERMINAL_BLOCKS,
   MAX_REPLY_BLOCKS,
@@ -17,6 +18,7 @@ import {
   MAX_WALKTHROUGH_BLOCKS,
   MAX_WATCH_BLOCKS,
 } from "./constants.js";
+import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
   applySkillInvocation,
   applyStageRead,
@@ -480,8 +482,37 @@ function buildRouter(): string {
   return envelope("UserPromptSubmit", ctx, host);
 }
 
+function capabilityClaimGate(): string {
+  const state = readState(sessionId);
+  if (state.capabilityClaimNudged) return "{}";
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return "{}";
+  let transcriptTail: string;
+  try {
+    transcriptTail = readFileSync(transcriptPath, "utf-8").slice(
+      -CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES,
+    );
+  } catch {
+    return "{}";
+  }
+  if (!detectFalseCapabilityClaim(lastAssistantText(transcriptTail))) return "{}";
+  state.capabilityClaimNudged = true;
+  writeState(state);
+  const reason =
+    `Do not end the turn yet. This turn tells the user that an email- or login-gated flow cannot be ` +
+    `tested, reached, or verified — the one class of blocker Muggle clears. Every managed login profile ` +
+    `owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, ` +
+    `verification mail, and password resets run end to end with no mail stub and no test-only backdoor; ` +
+    `stored credentials and CAPTCHA solving are covered too. Re-read ` +
+    `plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. If the real ` +
+    `blocker is SMS/phone OTP, authenticator-app TOTP, or OAuth-only social login, those limits are ` +
+    `genuine — name the one that applies and move on.`;
+  return blockStop(reason, host);
+}
+
 const handlers: Record<string, () => string> = {
   "pr-opened": prOpened,
+  "capability-claim-gate": capabilityClaimGate,
   "pr-terminal": prTerminal,
   "offer-ran": offerRan,
   "record-tests": recordTests,

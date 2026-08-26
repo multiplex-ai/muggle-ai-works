@@ -28,6 +28,7 @@ export interface GuardrailState {
   debugBlockCount?: number;
   commentReplySkipped?: boolean;
   commentReplyBlockCount?: number;
+  capabilityClaimNudged?: boolean;
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */
@@ -142,6 +143,9 @@ export interface HookInput {
   // array of typed parts, not a string. Readers must narrow rather than assume.
   tool_response?: { stdout?: string; stderr?: string; output?: string; content?: unknown };
   prompt?: string;
+  // Stop hooks carry no message payload, so a gate that judges what the user was
+  // actually told has to read the turn back out of the JSONL transcript.
+  transcript_path?: string;
 }
 
 /** The subset of tool inputs the guardrails read. Indexed because the Skill tool's skill-name key differs by harness version (see SKILL_NAME_INPUT_KEYS). */

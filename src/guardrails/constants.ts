@@ -126,6 +126,9 @@ export const THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discu
 /** How many times the comment-reply Stop gate blocks a turn end before releasing, so a thread that genuinely cannot be answered can't trap the session. */
 export const MAX_REPLY_BLOCKS = 3;
 
+/** How much of the transcript tail the capability-claim gate parses. Only the closing turn is under judgment, and a session transcript grows to megabytes. */
+export const CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES = 64_000;
+
 /** How long a session-state write waits for the lock before dropping itself. The store sits in the critical path of every tool call, so a guardrail must never stall the harness on contention. */
 export const SESSION_STATE_LOCK_WAIT_MS = 250;
 

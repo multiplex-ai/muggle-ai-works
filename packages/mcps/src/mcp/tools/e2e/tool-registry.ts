@@ -29,14 +29,14 @@ const projectTools: IQaToolDefinition[] = [
     description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests.",
     inputSchema: schemas.ProjectCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectCreateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
         body: {
-          name: data.projectName,
-          description: data.description,
-          url: data.url,
+          name: toolInput.projectName,
+          description: toolInput.description,
+          url: toolInput.url,
         },
       };
     },
@@ -46,10 +46,10 @@ const projectTools: IQaToolDefinition[] = [
     description: "Get details of a specific project by ID.",
     inputSchema: schemas.ProjectGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}`,
       };
     },
   },
@@ -58,14 +58,14 @@ const projectTools: IQaToolDefinition[] = [
     description: "Update an existing project's details.",
     inputSchema: schemas.ProjectUpdateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: data.projectId };
-      if (data.projectName !== undefined) body.name = data.projectName;
-      if (data.description !== undefined) body.description = data.description;
-      if (data.url !== undefined) body.url = data.url;
+      const toolInput = input as z.infer<typeof schemas.ProjectUpdateInputSchema>;
+      const body: Record<string, unknown> = { id: toolInput.projectId };
+      if (toolInput.projectName !== undefined) body.name = toolInput.projectName;
+      if (toolInput.description !== undefined) body.description = toolInput.description;
+      if (toolInput.url !== undefined) body.url = toolInput.url;
       return {
         method: "PUT",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}`,
         body: body,
       };
     },
@@ -76,15 +76,15 @@ const projectTools: IQaToolDefinition[] = [
       "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.ProjectListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
         queryParams: {
-          page: data.page,
-          pageSize: data.pageSize,
-          sortBy: data.sortBy,
-          sortOrder: data.sortOrder,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
         },
       };
     },
@@ -94,10 +94,10 @@ const projectTools: IQaToolDefinition[] = [
     description: "Delete a project and all associated entities. This is a soft delete.",
     inputSchema: schemas.ProjectDeleteInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectDeleteInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectDeleteInputSchema>;
       return {
         method: "DELETE",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}`,
       };
     },
   },
@@ -109,10 +109,10 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Get the use case discovery memory for a project, including all discovered use case candidates.",
     inputSchema: schemas.UseCaseDiscoveryMemoryGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseDiscoveryMemoryGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseDiscoveryMemoryGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-case-discovery-memory`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-case-discovery-memory`,
       };
     },
   },
@@ -121,11 +121,11 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Approve (graduate) selected use case candidates into actual use cases.",
     inputSchema: schemas.UseCaseCandidatesApproveInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseCandidatesApproveInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseCandidatesApproveInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-case-discovery-memory/graduate`,
-        body: { approveIds: data.approvedCandidateIds },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-case-discovery-memory/graduate`,
+        body: { approveIds: toolInput.approvedCandidateIds },
       };
     },
   },
@@ -135,16 +135,16 @@ const useCaseTools: IQaToolDefinition[] = [
       "List use cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.UseCaseListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/use-cases`,
         queryParams: {
-          projectId: data.projectId,
-          page: data.page,
-          pageSize: data.pageSize,
-          sortBy: data.sortBy,
-          sortOrder: data.sortOrder,
+          projectId: toolInput.projectId,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
         },
       };
     },
@@ -154,10 +154,10 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Get details of a specific use case by ID.",
     inputSchema: schemas.UseCaseGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/use-cases/${data.useCaseId}`,
+        path: `${MUGGLE_TEST_PREFIX}/use-cases/${toolInput.useCaseId}`,
       };
     },
   },
@@ -166,11 +166,11 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Preview a use case generated from a natural language instruction without saving.",
     inputSchema: schemas.UseCasePromptPreviewInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCasePromptPreviewInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCasePromptPreviewInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/prompt/preview`,
-        body: { instruction: data.instruction },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/prompt/preview`,
+        body: { instruction: toolInput.instruction },
       };
     },
   },
@@ -179,13 +179,13 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Create one or more use cases from natural language instructions.",
     inputSchema: schemas.UseCaseCreateFromPromptsInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseCreateFromPromptsInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseCreateFromPromptsInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/prompts/bulk`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/prompts/bulk`,
         body: {
-          projectId: data.projectId,
-          prompts: data.instructions.map((instruction) => ({ instruction })),
+          projectId: toolInput.projectId,
+          prompts: toolInput.instructions.map((instruction) => ({ instruction })),
         },
       };
     },
@@ -195,11 +195,11 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Update an existing use case by regenerating its fields from a new instruction.",
     inputSchema: schemas.UseCaseUpdateFromPromptInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseUpdateFromPromptInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseUpdateFromPromptInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/${data.useCaseId}/prompt`,
-        body: { instruction: data.instruction },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/${toolInput.useCaseId}/prompt`,
+        body: { instruction: toolInput.instruction },
       };
     },
   },
@@ -208,20 +208,20 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: changing title, description, or url triggers background regeneration of dependent test cases on the server.",
     inputSchema: schemas.UseCaseUpdateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: data.useCaseId };
-      if (data.title !== undefined) body.title = data.title;
-      if (data.description !== undefined) body.description = data.description;
-      if (data.userStory !== undefined) body.userStory = data.userStory;
-      if (data.url !== undefined) body.url = data.url;
-      if (data.useCaseBreakdown !== undefined) body.useCaseBreakdown = data.useCaseBreakdown;
-      if (data.status !== undefined) body.status = data.status;
-      if (data.priority !== undefined) body.priority = data.priority;
-      if (data.source !== undefined) body.source = data.source;
-      if (data.category !== undefined) body.category = data.category;
+      const toolInput = input as z.infer<typeof schemas.UseCaseUpdateInputSchema>;
+      const body: Record<string, unknown> = { id: toolInput.useCaseId };
+      if (toolInput.title !== undefined) body.title = toolInput.title;
+      if (toolInput.description !== undefined) body.description = toolInput.description;
+      if (toolInput.userStory !== undefined) body.userStory = toolInput.userStory;
+      if (toolInput.url !== undefined) body.url = toolInput.url;
+      if (toolInput.useCaseBreakdown !== undefined) body.useCaseBreakdown = toolInput.useCaseBreakdown;
+      if (toolInput.status !== undefined) body.status = toolInput.status;
+      if (toolInput.priority !== undefined) body.priority = toolInput.priority;
+      if (toolInput.source !== undefined) body.source = toolInput.source;
+      if (toolInput.category !== undefined) body.category = toolInput.category;
       return {
         method: "PUT",
-        path: `${MUGGLE_TEST_PREFIX}/use-cases/${data.useCaseId}`,
+        path: `${MUGGLE_TEST_PREFIX}/use-cases/${toolInput.useCaseId}`,
         body: body,
       };
     },
@@ -231,21 +231,21 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Create a single use case from a fully-specified payload. Use this to persist use cases returned by muggle-remote-use-case-bulk-preview-submit — no LLM is invoked.",
     inputSchema: schemas.UseCaseCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UseCaseCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UseCaseCreateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/use-cases`,
         body: {
-          projectId: data.projectId,
-          title: data.title,
-          description: data.description,
-          userStory: data.userStory,
-          url: data.url,
-          useCaseBreakdown: data.useCaseBreakdown,
-          status: data.status,
-          priority: data.priority,
-          source: data.source,
-          category: data.category,
+          projectId: toolInput.projectId,
+          title: toolInput.title,
+          description: toolInput.description,
+          userStory: toolInput.userStory,
+          url: toolInput.url,
+          useCaseBreakdown: toolInput.useCaseBreakdown,
+          status: toolInput.status,
+          priority: toolInput.priority,
+          source: toolInput.source,
+          category: toolInput.category,
         },
       };
     },
@@ -255,11 +255,11 @@ const useCaseTools: IQaToolDefinition[] = [
     description: "Submit an async bulk-preview job that uses the OpenAI Batch API to generate use cases from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-use-case-create.",
     inputSchema: schemas.BulkPreviewSubmitUseCaseInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.BulkPreviewSubmitUseCaseInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.BulkPreviewSubmitUseCaseInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/prompts/bulk-preview`,
-        body: { prompts: data.prompts },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/prompts/bulk-preview`,
+        body: { prompts: toolInput.prompts },
       };
     },
   },
@@ -284,16 +284,16 @@ const testCaseTools: IQaToolDefinition[] = [
       "List test cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestCaseListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-cases`,
         queryParams: {
-          projectId: data.projectId,
-          page: data.page,
-          pageSize: data.pageSize,
-          sortBy: data.sortBy,
-          sortOrder: data.sortOrder,
+          projectId: toolInput.projectId,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
         },
       };
     },
@@ -303,10 +303,10 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Get details of a specific test case.",
     inputSchema: schemas.TestCaseGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/test-cases/${data.testCaseId}`,
+        path: `${MUGGLE_TEST_PREFIX}/test-cases/${toolInput.testCaseId}`,
       };
     },
   },
@@ -316,10 +316,10 @@ const testCaseTools: IQaToolDefinition[] = [
       "Resolve a test case's prerequisite chain from the project's test-plan graph. Returns { testCaseId, ancestors, orphan } where `ancestors` is an array of test case IDs ordered immediate-parent → root (empty when the case is a graph root). `orphan: true` means the case has no graph node, so it has no prerequisites. Call this before generating or replaying a script to ensure every prerequisite test case already has a ready script.",
     inputSchema: schemas.TestCaseAncestorsGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseAncestorsGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseAncestorsGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/test-plan-graph/test-cases/${data.testCaseId}/ancestors`,
+        path: `${MUGGLE_TEST_PREFIX}/test-plan-graph/test-cases/${toolInput.testCaseId}/ancestors`,
       };
     },
   },
@@ -328,10 +328,10 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "List test cases for a specific use case.",
     inputSchema: schemas.TestCaseListByUseCaseInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseListByUseCaseInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseListByUseCaseInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/use-cases/${data.useCaseId}/test-cases`,
+        path: `${MUGGLE_TEST_PREFIX}/use-cases/${toolInput.useCaseId}/test-cases`,
       };
     },
   },
@@ -340,11 +340,11 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Generate E2E acceptance test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
     inputSchema: schemas.TestCaseGenerateFromPromptInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseGenerateFromPromptInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseGenerateFromPromptInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/${data.useCaseId}/test-cases/prompt/preview`,
-        body: { instruction: data.instruction },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/${toolInput.useCaseId}/test-cases/prompt/preview`,
+        body: { instruction: toolInput.instruction },
       };
     },
   },
@@ -353,24 +353,24 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Create a new test case for a use case.",
     inputSchema: schemas.TestCaseCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestCaseCreateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/test-cases`,
         body: {
-          projectId: data.projectId,
-          useCaseId: data.useCaseId,
-          title: data.title,
-          description: data.description,
-          goal: data.goal,
-          precondition: data.precondition,
-          expectedResult: data.expectedResult,
-          url: data.url,
-          status: data.status || "DRAFT",
-          priority: data.priority || "MEDIUM",
-          tags: data.tags || [],
-          category: data.category || "Functional",
-          automated: data.automated ?? true,
+          projectId: toolInput.projectId,
+          useCaseId: toolInput.useCaseId,
+          title: toolInput.title,
+          description: toolInput.description,
+          goal: toolInput.goal,
+          precondition: toolInput.precondition,
+          expectedResult: toolInput.expectedResult,
+          url: toolInput.url,
+          status: toolInput.status || "DRAFT",
+          priority: toolInput.priority || "MEDIUM",
+          tags: toolInput.tags || [],
+          category: toolInput.category || "Functional",
+          automated: toolInput.automated ?? true,
         },
       };
     },
@@ -380,22 +380,22 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     inputSchema: schemas.TestCaseUpdateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: data.testCaseId };
-      if (data.title !== undefined) body.title = data.title;
-      if (data.description !== undefined) body.description = data.description;
-      if (data.goal !== undefined) body.goal = data.goal;
-      if (data.precondition !== undefined) body.precondition = data.precondition;
-      if (data.expectedResult !== undefined) body.expectedResult = data.expectedResult;
-      if (data.url !== undefined) body.url = data.url;
-      if (data.status !== undefined) body.status = data.status;
-      if (data.priority !== undefined) body.priority = data.priority;
-      if (data.tags !== undefined) body.tags = data.tags;
-      if (data.category !== undefined) body.category = data.category;
-      if (data.automated !== undefined) body.automated = data.automated;
+      const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
+      const body: Record<string, unknown> = { id: toolInput.testCaseId };
+      if (toolInput.title !== undefined) body.title = toolInput.title;
+      if (toolInput.description !== undefined) body.description = toolInput.description;
+      if (toolInput.goal !== undefined) body.goal = toolInput.goal;
+      if (toolInput.precondition !== undefined) body.precondition = toolInput.precondition;
+      if (toolInput.expectedResult !== undefined) body.expectedResult = toolInput.expectedResult;
+      if (toolInput.url !== undefined) body.url = toolInput.url;
+      if (toolInput.status !== undefined) body.status = toolInput.status;
+      if (toolInput.priority !== undefined) body.priority = toolInput.priority;
+      if (toolInput.tags !== undefined) body.tags = toolInput.tags;
+      if (toolInput.category !== undefined) body.category = toolInput.category;
+      if (toolInput.automated !== undefined) body.automated = toolInput.automated;
       return {
         method: "PUT",
-        path: `${MUGGLE_TEST_PREFIX}/test-cases/${data.testCaseId}`,
+        path: `${MUGGLE_TEST_PREFIX}/test-cases/${toolInput.testCaseId}`,
         body: body,
       };
     },
@@ -405,11 +405,11 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Submit an async bulk-preview job that uses the OpenAI Batch API to generate test cases for a single use case from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-test-case-create. Note: one input prompt may fan out to 1–5 test cases.",
     inputSchema: schemas.BulkPreviewSubmitTestCaseInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.BulkPreviewSubmitTestCaseInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.BulkPreviewSubmitTestCaseInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/use-cases/${data.useCaseId}/test-cases/prompts/bulk-preview`,
-        body: { prompts: data.prompts },
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/use-cases/${toolInput.useCaseId}/test-cases/prompts/bulk-preview`,
+        body: { prompts: toolInput.prompts },
       };
     },
   },
@@ -433,10 +433,10 @@ const bulkPreviewTools: IQaToolDefinition[] = [
     description: "Get the current status and (when terminal) results of a bulk-preview job. Poll this after submitting a bulk-preview job — every 10–15 seconds is fine. Terminal statuses: succeeded, partial, failed, cancelled, expired.",
     inputSchema: schemas.BulkPreviewJobGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.BulkPreviewJobGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.BulkPreviewJobGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs/${data.jobId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/bulk-preview-jobs/${toolInput.jobId}`,
       };
     },
   },
@@ -445,15 +445,15 @@ const bulkPreviewTools: IQaToolDefinition[] = [
     description: "List bulk-preview jobs for a project, optionally filtered by status or kind.",
     inputSchema: schemas.BulkPreviewJobListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.BulkPreviewJobListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.BulkPreviewJobListInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/bulk-preview-jobs`,
         queryParams: {
-          status: data.status?.join(","),
-          kind: data.kind,
-          limit: data.limit,
-          cursor: data.cursor,
+          status: toolInput.status?.join(","),
+          kind: toolInput.kind,
+          limit: toolInput.limit,
+          cursor: toolInput.cursor,
         },
       };
     },
@@ -463,10 +463,10 @@ const bulkPreviewTools: IQaToolDefinition[] = [
     description: "Request cancellation of a bulk-preview job. Cancellation is cooperative — the harvester picks it up on its next tick and moves the job to status=cancelled.",
     inputSchema: schemas.BulkPreviewJobCancelInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.BulkPreviewJobCancelInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.BulkPreviewJobCancelInputSchema>;
       return {
         method: "DELETE",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/bulk-preview-jobs/${data.jobId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/bulk-preview-jobs/${toolInput.jobId}`,
       };
     },
   },
@@ -479,18 +479,18 @@ const testScriptTools: IQaToolDefinition[] = [
       "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestScriptListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestScriptListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestScriptListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/test-scripts`,
         queryParams: {
-          projectId: data.projectId,
-          testCaseId: data.testCaseId,
-          runEnvironmentType: data.runEnvironmentType,
-          page: data.page,
-          pageSize: data.pageSize,
-          sortBy: data.sortBy,
-          sortOrder: data.sortOrder,
+          projectId: toolInput.projectId,
+          testCaseId: toolInput.testCaseId,
+          runEnvironmentType: toolInput.runEnvironmentType,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
         },
       };
     },
@@ -500,10 +500,10 @@ const testScriptTools: IQaToolDefinition[] = [
     description: "Get details of a specific test script.",
     inputSchema: schemas.TestScriptGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.TestScriptGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestScriptGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/test-scripts/${data.testScriptId}`,
+        path: `${MUGGLE_TEST_PREFIX}/test-scripts/${toolInput.testScriptId}`,
       };
     },
   },
@@ -527,10 +527,10 @@ const actionScriptTools: IQaToolDefinition[] = [
     description: "Get the full action script content by ID. Use actionScriptId from a test script to fetch the complete script with all steps and element labels needed for replay.",
     inputSchema: schemas.ActionScriptGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ActionScriptGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ActionScriptGetInputSchema>;
       return {
         method: "GET",
-        path: `/v1/protected/actionScript/${data.actionScriptId}`,
+        path: `/v1/protected/actionScript/${toolInput.actionScriptId}`,
       };
     },
   },
@@ -554,16 +554,16 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Scan a website to automatically discover testable user flows and UI interactions. Crawls the site and identifies use cases like signup, login, search, checkout, form submissions, and navigation patterns. Use this when setting up E2E acceptance testing for a site without predefined test cases.",
     inputSchema: schemas.WorkflowStartWebsiteScanInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartWebsiteScanInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartWebsiteScanInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/website-scan`,
         body: {
-          projectId: data.projectId,
-          url: data.url,
-          description: data.description,
-          archiveUnapproved: data.archiveUnapproved,
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          url: toolInput.url,
+          description: toolInput.description,
+          archiveUnapproved: toolInput.archiveUnapproved,
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -574,11 +574,11 @@ const workflowTools: IQaToolDefinition[] = [
     description: "List website scan workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/website-scan/workflowRuntimes`,
-        queryParams: { projectId: data.projectId },
+        queryParams: { projectId: toolInput.projectId },
       };
     },
   },
@@ -587,10 +587,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest run status for a website scan workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/website-scan/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/website-scan/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -599,17 +599,17 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a test case detection workflow to generate test cases from use cases.",
     inputSchema: schemas.WorkflowStartTestCaseDetectionInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartTestCaseDetectionInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartTestCaseDetectionInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-case/test-case-detection`,
         body: {
-          projectId: data.projectId,
-          useCaseId: data.useCaseId,
-          name: data.name,
-          description: data.description,
-          url: data.url,
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          useCaseId: toolInput.useCaseId,
+          name: toolInput.name,
+          description: toolInput.description,
+          url: toolInput.url,
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -620,11 +620,11 @@ const workflowTools: IQaToolDefinition[] = [
     description: "List test case detection workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-case/test-case-detection/workflowRuntimes`,
-        queryParams: { projectId: data.projectId },
+        queryParams: { projectId: toolInput.projectId },
       };
     },
   },
@@ -633,10 +633,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest run status for a test case detection workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-case/test-case-detection/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-case/test-case-detection/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -645,22 +645,22 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a test script generation workflow.",
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation`,
         body: {
-          projectId: data.projectId,
-          testCaseId: data.testCaseId,
-          useCaseId: data.useCaseId,
-          name: data.name,
-          url: data.url,
-          goal: data.goal,
-          precondition: data.precondition,
-          instructions: data.instructions,
-          expectedResult: data.expectedResult,
-          ...(data.runEnvironmentType && { runEnvironmentType: data.runEnvironmentType }),
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          testCaseId: toolInput.testCaseId,
+          useCaseId: toolInput.useCaseId,
+          name: toolInput.name,
+          url: toolInput.url,
+          goal: toolInput.goal,
+          precondition: toolInput.precondition,
+          instructions: toolInput.instructions,
+          expectedResult: toolInput.expectedResult,
+          ...(toolInput.runEnvironmentType && { runEnvironmentType: toolInput.runEnvironmentType }),
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -671,15 +671,15 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a bulk test script generation workflow to generate scripts for multiple test cases in a single request.",
     inputSchema: schemas.WorkflowStartTestScriptGenerationBulkInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationBulkInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationBulkInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/bulk`,
         body: {
-          projectId: data.projectId,
-          name: data.name,
-          ...(data.testCaseIds && { testCaseIds: data.testCaseIds }),
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          name: toolInput.name,
+          ...(toolInput.testCaseIds && { testCaseIds: toolInput.testCaseIds }),
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -690,10 +690,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest run status for a test script generation workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -702,10 +702,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest test script generation runtime for a specific test case.",
     inputSchema: schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestScriptGenByTestCaseInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/testcases/${data.testCaseId}/runtime/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-generation/testcases/${toolInput.testCaseId}/runtime/latest`,
       };
     },
   },
@@ -714,17 +714,17 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a test script replay workflow to execute a single test script.",
     inputSchema: schemas.WorkflowStartTestScriptReplayInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay`,
         body: {
-          projectId: data.projectId,
-          useCaseId: data.useCaseId,
-          testCaseId: data.testCaseId,
-          testScriptId: data.testScriptId,
-          name: data.name,
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          useCaseId: toolInput.useCaseId,
+          testCaseId: toolInput.testCaseId,
+          testScriptId: toolInput.testScriptId,
+          name: toolInput.name,
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -735,10 +735,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest run status for a test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -747,20 +747,20 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a bulk test script replay workflow to execute multiple test scripts.",
     inputSchema: schemas.WorkflowStartTestScriptReplayBulkInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayBulkInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayBulkInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/workflowRuntimes`,
         body: {
-          projectId: data.projectId,
-          name: data.name,
-          intervalSec: data.intervalSec,
-          useCaseId: data.useCaseId,
-          namePrefix: data.namePrefix,
-          limit: data.limit,
-          testCaseIds: data.testCaseIds,
-          repeatPerTestCase: data.repeatPerTestCase,
-          ...(data.workflowParams && { workflowParams: data.workflowParams }),
+          projectId: toolInput.projectId,
+          name: toolInput.name,
+          intervalSec: toolInput.intervalSec,
+          useCaseId: toolInput.useCaseId,
+          namePrefix: toolInput.namePrefix,
+          limit: toolInput.limit,
+          testCaseIds: toolInput.testCaseIds,
+          repeatPerTestCase: toolInput.repeatPerTestCase,
+          ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -771,11 +771,11 @@ const workflowTools: IQaToolDefinition[] = [
     description: "List bulk test script replay workflow runtimes.",
     inputSchema: schemas.WorkflowListRuntimesInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowListRuntimesInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/workflowRuntimes`,
-        queryParams: { projectId: data.projectId },
+        queryParams: { projectId: toolInput.projectId },
       };
     },
   },
@@ -784,10 +784,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the latest run status for a bulk test script replay workflow runtime.",
     inputSchema: schemas.WorkflowGetLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -796,10 +796,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Get the summary of a bulk replay run batch.",
     inputSchema: schemas.WorkflowGetReplayBulkBatchSummaryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowGetReplayBulkBatchSummaryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetReplayBulkBatchSummaryInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/run-batch/${data.runBatchId}/summary`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/bulk/run-batch/${toolInput.runBatchId}/summary`,
       };
     },
   },
@@ -808,10 +808,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Cancel a running workflow run.",
     inputSchema: schemas.WorkflowCancelRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowCancelRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowCancelRunInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/runs/${data.workflowRunId}/cancel`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/runs/${toolInput.workflowRunId}/cancel`,
       };
     },
   },
@@ -820,10 +820,10 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Cancel a workflow runtime and all its runs.",
     inputSchema: schemas.WorkflowCancelRuntimeInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WorkflowCancelRuntimeInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowCancelRuntimeInputSchema>;
       return {
         method: "POST",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/runtimes/${data.workflowRuntimeId}/cancel`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/runtimes/${toolInput.workflowRuntimeId}/cancel`,
       };
     },
   },
@@ -832,32 +832,32 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Upload a locally executed run (generation/replay) to cloud workflow records.",
     inputSchema: schemas.LocalRunUploadInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.LocalRunUploadInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.LocalRunUploadInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/local-run/upload`,
         body: {
-          projectId: data.projectId,
-          useCaseId: data.useCaseId,
-          testCaseId: data.testCaseId,
-          runType: data.runType,
-          ...(data.runEnvironmentType && { runEnvironmentType: data.runEnvironmentType }),
-          productionUrl: data.productionUrl,
+          projectId: toolInput.projectId,
+          useCaseId: toolInput.useCaseId,
+          testCaseId: toolInput.testCaseId,
+          runType: toolInput.runType,
+          ...(toolInput.runEnvironmentType && { runEnvironmentType: toolInput.runEnvironmentType }),
+          productionUrl: toolInput.productionUrl,
           localExecutionContext: {
-            originalUrl: data.localExecutionContext.originalUrl,
-            productionUrl: data.localExecutionContext.productionUrl,
-            runByUserId: data.localExecutionContext.runByUserId,
-            machineHostname: data.localExecutionContext.machineHostname,
-            osInfo: data.localExecutionContext.osInfo,
-            electronAppVersion: data.localExecutionContext.electronAppVersion,
-            mcpServerVersion: data.localExecutionContext.mcpServerVersion,
-            localExecutionCompletedAt: data.localExecutionContext.localExecutionCompletedAt,
-            uploadedAt: data.localExecutionContext.uploadedAt,
+            originalUrl: toolInput.localExecutionContext.originalUrl,
+            productionUrl: toolInput.localExecutionContext.productionUrl,
+            runByUserId: toolInput.localExecutionContext.runByUserId,
+            machineHostname: toolInput.localExecutionContext.machineHostname,
+            osInfo: toolInput.localExecutionContext.osInfo,
+            electronAppVersion: toolInput.localExecutionContext.electronAppVersion,
+            mcpServerVersion: toolInput.localExecutionContext.mcpServerVersion,
+            localExecutionCompletedAt: toolInput.localExecutionContext.localExecutionCompletedAt,
+            uploadedAt: toolInput.localExecutionContext.uploadedAt,
           },
-          actionScript: data.actionScript,
-          status: data.status,
-          executionTimeMs: data.executionTimeMs,
-          errorMessage: data.errorMessage,
+          actionScript: toolInput.actionScript,
+          status: toolInput.status,
+          executionTimeMs: toolInput.executionTimeMs,
+          errorMessage: toolInput.errorMessage,
         },
       };
     },
@@ -870,10 +870,10 @@ const reportTools: IQaToolDefinition[] = [
     description: "Get a summary of test results for a project.",
     inputSchema: schemas.ProjectTestResultsSummaryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectTestResultsSummaryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectTestResultsSummaryInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/testResults`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/testResults`,
       };
     },
   },
@@ -882,10 +882,10 @@ const reportTools: IQaToolDefinition[] = [
     description: "Get a summary of test scripts for a project.",
     inputSchema: schemas.ProjectTestScriptsSummaryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectTestScriptsSummaryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectTestScriptsSummaryInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/test-scripts/summary`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/test-scripts/summary`,
       };
     },
   },
@@ -895,15 +895,15 @@ const reportTools: IQaToolDefinition[] = [
       "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { page, pageSize, totalCount, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). `totalCount` is the project-wide total after the replay-status filter; `runs` is the page slice. Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-case-get / muggle-remote-wf-get-ts-replay-latest-run for full per-run detail.",
     inputSchema: schemas.ProjectTestRunsSummaryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ProjectTestRunsSummaryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ProjectTestRunsSummaryInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/test-runs/summary/paginated`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/test-runs/summary/paginated`,
         queryParams: {
-          page: data.page,
-          pageSize: data.pageSize,
-          sortBy: data.sortBy,
-          sortOrder: data.sortOrder,
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
         },
       };
     },
@@ -914,11 +914,11 @@ const reportTools: IQaToolDefinition[] = [
     description: "Get report statistics summary for a project.",
     inputSchema: schemas.ReportStatsSummaryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ReportStatsSummaryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ReportStatsSummaryInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/report/stats-summary`,
-        queryParams: { projectId: data.projectId },
+        queryParams: { projectId: toolInput.projectId },
       };
     },
   },
@@ -927,16 +927,16 @@ const reportTools: IQaToolDefinition[] = [
     description: "Query cost/usage data for a project over a date range.",
     inputSchema: schemas.ReportCostQueryInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ReportCostQueryInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ReportCostQueryInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/report/cost/query`,
         body: {
-          projectId: data.projectId,
-          startDateKey: data.startDateKey,
-          endDateKey: data.endDateKey,
-          filterType: data.filterType,
-          filterIds: data.filterIds,
+          projectId: toolInput.projectId,
+          startDateKey: toolInput.startDateKey,
+          endDateKey: toolInput.endDateKey,
+          filterType: toolInput.filterType,
+          filterIds: toolInput.filterIds,
         },
       };
     },
@@ -946,17 +946,17 @@ const reportTools: IQaToolDefinition[] = [
     description: "Update report delivery preferences for a project.",
     inputSchema: schemas.ReportPreferencesUpsertInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ReportPreferencesUpsertInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ReportPreferencesUpsertInputSchema>;
       return {
         method: "PUT",
         path: `${MUGGLE_TEST_PREFIX}/report/preferences`,
         body: {
-          projectId: data.projectId,
-          channels: data.channels,
-          emails: data.emails,
-          phones: data.phones,
-          webhookUrl: data.webhookUrl,
-          defaultExportFormat: data.defaultExportFormat,
+          projectId: toolInput.projectId,
+          channels: toolInput.channels,
+          emails: toolInput.emails,
+          phones: toolInput.phones,
+          webhookUrl: toolInput.webhookUrl,
+          defaultExportFormat: toolInput.defaultExportFormat,
         },
       };
     },
@@ -966,13 +966,13 @@ const reportTools: IQaToolDefinition[] = [
     description: "Generate a final test report for a project.",
     inputSchema: schemas.ReportFinalGenerateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ReportFinalGenerateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ReportFinalGenerateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/report/final/generate`,
         body: {
-          projectId: data.projectId,
-          exportFormat: data.exportFormat,
+          projectId: toolInput.projectId,
+          exportFormat: toolInput.exportFormat,
         },
         timeoutMs: getWorkflowTimeoutMs(),
       };
@@ -986,11 +986,11 @@ const secretTools: IQaToolDefinition[] = [
     description: "List all secrets for a project. Secret values are not returned for security.",
     inputSchema: schemas.SecretListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.SecretListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.SecretListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/secrets`,
-        queryParams: { projectId: data.projectId },
+        queryParams: { projectId: toolInput.projectId },
       };
     },
   },
@@ -999,16 +999,16 @@ const secretTools: IQaToolDefinition[] = [
     description: "Create a new secret (credential) for a project.",
     inputSchema: schemas.SecretCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.SecretCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.SecretCreateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/secrets`,
         body: {
-          projectId: data.projectId,
-          secretName: data.name,
-          value: data.value,
-          description: data.description,
-          source: data.source,
+          projectId: toolInput.projectId,
+          secretName: toolInput.name,
+          value: toolInput.value,
+          description: toolInput.description,
+          source: toolInput.source,
         },
       };
     },
@@ -1018,10 +1018,10 @@ const secretTools: IQaToolDefinition[] = [
     description: "Get details of a specific secret. The secret value is not returned for security.",
     inputSchema: schemas.SecretGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.SecretGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.SecretGetInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/secrets/${data.secretId}`,
+        path: `${MUGGLE_TEST_PREFIX}/secrets/${toolInput.secretId}`,
       };
     },
   },
@@ -1030,14 +1030,14 @@ const secretTools: IQaToolDefinition[] = [
     description: "Update an existing secret.",
     inputSchema: schemas.SecretUpdateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.SecretUpdateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.SecretUpdateInputSchema>;
       const body: Record<string, unknown> = {};
-      if (data.name !== undefined) body.name = data.name;
-      if (data.value !== undefined) body.value = data.value;
-      if (data.description !== undefined) body.description = data.description;
+      if (toolInput.name !== undefined) body.name = toolInput.name;
+      if (toolInput.value !== undefined) body.value = toolInput.value;
+      if (toolInput.description !== undefined) body.description = toolInput.description;
       return {
         method: "PUT",
-        path: `${MUGGLE_TEST_PREFIX}/secrets/${data.secretId}`,
+        path: `${MUGGLE_TEST_PREFIX}/secrets/${toolInput.secretId}`,
         body: body,
       };
     },
@@ -1047,10 +1047,10 @@ const secretTools: IQaToolDefinition[] = [
     description: "Delete a secret from a project.",
     inputSchema: schemas.SecretDeleteInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.SecretDeleteInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.SecretDeleteInputSchema>;
       return {
         method: "DELETE",
-        path: `${MUGGLE_TEST_PREFIX}/secrets/${data.secretId}`,
+        path: `${MUGGLE_TEST_PREFIX}/secrets/${toolInput.secretId}`,
       };
     },
   },
@@ -1062,15 +1062,15 @@ const prdFileTools: IQaToolDefinition[] = [
     description: "Upload a PRD file to a project. File content should be base64-encoded.",
     inputSchema: schemas.PrdFileUploadInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.PrdFileUploadInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.PrdFileUploadInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/prd-file-upload`,
         multipartFormData: {
           fileFieldName: "file",
-          fileName: data.fileName,
-          contentType: data.contentType || "application/octet-stream",
-          fileBase64: data.contentBase64,
+          fileName: toolInput.fileName,
+          contentType: toolInput.contentType || "application/octet-stream",
+          fileBase64: toolInput.contentBase64,
         },
       };
     },
@@ -1080,10 +1080,10 @@ const prdFileTools: IQaToolDefinition[] = [
     description: "List all PRD files associated with a project.",
     inputSchema: schemas.PrdFileListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.PrdFileListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.PrdFileListInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/prd-files`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/prd-files`,
       };
     },
   },
@@ -1092,10 +1092,10 @@ const prdFileTools: IQaToolDefinition[] = [
     description: "Delete a PRD file from a project.",
     inputSchema: schemas.PrdFileDeleteInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.PrdFileDeleteInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.PrdFileDeleteInputSchema>;
       return {
         method: "DELETE",
-        path: `${MUGGLE_TEST_PREFIX}/projects/${data.projectId}/prd-files/${data.prdFileId}`,
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/prd-files/${toolInput.prdFileId}`,
       };
     },
   },
@@ -1104,19 +1104,19 @@ const prdFileTools: IQaToolDefinition[] = [
     description: "Start a PRD file processing workflow to extract use cases.",
     inputSchema: schemas.PrdFileProcessStartInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.PrdFileProcessStartInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.PrdFileProcessStartInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/prd-file-process`,
         body: {
-          projectId: data.projectId,
-          name: data.name,
-          description: data.description,
-          prdFilePath: data.prdFilePath,
-          originalFileName: data.originalFileName,
-          url: data.url,
-          contentChecksum: data.contentChecksum,
-          fileSize: data.fileSize,
+          projectId: toolInput.projectId,
+          name: toolInput.name,
+          description: toolInput.description,
+          prdFilePath: toolInput.prdFilePath,
+          originalFileName: toolInput.originalFileName,
+          url: toolInput.url,
+          contentChecksum: toolInput.contentChecksum,
+          fileSize: toolInput.fileSize,
         },
       };
     },
@@ -1126,10 +1126,10 @@ const prdFileTools: IQaToolDefinition[] = [
     description: "Get the latest run status of a PRD file processing workflow.",
     inputSchema: schemas.PrdFileProcessLatestRunInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.PrdFileProcessLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.PrdFileProcessLatestRunInputSchema>;
       return {
         method: "GET",
-        path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/prd-file-process/${data.workflowRuntimeId}/run/latest`,
+        path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/prd-file-process/${toolInput.workflowRuntimeId}/run/latest`,
       };
     },
   },
@@ -1141,14 +1141,14 @@ const walletTools: IQaToolDefinition[] = [
     description: "Create a Stripe checkout session to purchase a token package.",
     inputSchema: schemas.WalletTopUpInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WalletTopUpInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WalletTopUpInputSchema>;
       return {
         method: "POST",
         path: "/v1/protected/wallet/topup",
         body: {
-          packageId: data.packageId,
-          checkoutSuccessCallback: data.checkoutSuccessCallback,
-          checkoutCancelCallback: data.checkoutCancelCallback,
+          packageId: toolInput.packageId,
+          checkoutSuccessCallback: toolInput.checkoutSuccessCallback,
+          checkoutCancelCallback: toolInput.checkoutCancelCallback,
         },
       };
     },
@@ -1158,13 +1158,13 @@ const walletTools: IQaToolDefinition[] = [
     description: "Create a Stripe setup session to add a payment method.",
     inputSchema: schemas.WalletPaymentMethodCreateSetupSessionInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WalletPaymentMethodCreateSetupSessionInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WalletPaymentMethodCreateSetupSessionInputSchema>;
       return {
         method: "POST",
         path: "/v1/protected/wallet/payment-methods/setup",
         body: {
-          checkoutSuccessCallback: data.checkoutSuccessCallback,
-          checkoutCancelCallback: data.checkoutCancelCallback,
+          checkoutSuccessCallback: toolInput.checkoutSuccessCallback,
+          checkoutCancelCallback: toolInput.checkoutCancelCallback,
         },
       };
     },
@@ -1174,11 +1174,11 @@ const walletTools: IQaToolDefinition[] = [
     description: "Set the saved payment method used by wallet auto top-up.",
     inputSchema: schemas.WalletAutoTopUpSetPaymentMethodInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WalletAutoTopUpSetPaymentMethodInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WalletAutoTopUpSetPaymentMethodInputSchema>;
       return {
         method: "PUT",
         path: "/v1/protected/wallet/auto-topup/payment-method",
-        body: { paymentMethodId: data.paymentMethodId },
+        body: { paymentMethodId: toolInput.paymentMethodId },
       };
     },
   },
@@ -1198,14 +1198,14 @@ const walletTools: IQaToolDefinition[] = [
     description: "Update wallet auto-topup settings.",
     inputSchema: schemas.WalletAutoTopUpUpdateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.WalletAutoTopUpUpdateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WalletAutoTopUpUpdateInputSchema>;
       return {
         method: "PUT",
         path: "/v1/protected/wallet/auto-topup",
         body: {
-          enabled: data.enabled,
-          topUpTriggerTokenThreshold: data.topUpTriggerTokenThreshold,
-          packageId: data.packageId,
+          enabled: toolInput.enabled,
+          topUpTriggerTokenThreshold: toolInput.topUpTriggerTokenThreshold,
+          packageId: toolInput.packageId,
         },
       };
     },
@@ -1275,8 +1275,8 @@ const recommendationTools: IQaToolDefinition[] = [
       throw new Error("RECOMMENDATION_ONLY");
     },
     localHandler: async (input) => {
-      const data = input as z.infer<typeof schemas.RecommendCicdSetupInputSchema>;
-      const provider = data?.repositoryProvider || "github";
+      const toolInput = input as z.infer<typeof schemas.RecommendCicdSetupInputSchema>;
+      const provider = toolInput?.repositoryProvider || "github";
 
       const recommendations = [];
 
@@ -1330,18 +1330,18 @@ const apiKeyTools: IQaToolDefinition[] = [
     description: "Create a new API key for the authenticated user. Requires existing authentication.",
     inputSchema: schemas.ApiKeyCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ApiKeyCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ApiKeyCreateInputSchema>;
       return {
         method: "POST",
         path: API_KEY_PREFIX,
         body: {
-          name: data.name || "MCP Gateway Key",
-          expiry: data.expiry || "90d",
+          name: toolInput.name || "MCP Gateway Key",
+          expiry: toolInput.expiry || "90d",
         },
       };
     },
     mapFromUpstream: (response) => {
-      const data = response.data as {
+      const toolInput = response.data as {
         id: string;
         key: string;
         name: string | null;
@@ -1352,21 +1352,21 @@ const apiKeyTools: IQaToolDefinition[] = [
         expiresAt: number | null;
       };
 
-      const maskedKey = `${data.prefix}...${data.lastFour}`;
-      const expiresAt = data.expiresAt
-        ? new Date(data.expiresAt).toISOString()
+      const maskedKey = `${toolInput.prefix}...${toolInput.lastFour}`;
+      const expiresAt = toolInput.expiresAt
+        ? new Date(toolInput.expiresAt).toISOString()
         : "never";
 
       return {
         success: true,
         message: "API key created.",
         apiKey: {
-          id: data.id,
-          key: data.key,
+          id: toolInput.id,
+          key: toolInput.key,
           hint: maskedKey,
-          name: data.name,
-          status: data.status,
-          createdAt: new Date(data.createdAt).toISOString(),
+          name: toolInput.name,
+          status: toolInput.status,
+          createdAt: new Date(toolInput.createdAt).toISOString(),
           expiresAt: expiresAt,
         },
         note: "The full API key is returned only once. Store it securely.",
@@ -1415,10 +1415,10 @@ const apiKeyTools: IQaToolDefinition[] = [
     description: "Get details of a specific API key by ID.",
     inputSchema: schemas.ApiKeyGetInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ApiKeyGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ApiKeyGetInputSchema>;
       return {
         method: "GET",
-        path: `${API_KEY_PREFIX}/${data.apiKeyId}`,
+        path: `${API_KEY_PREFIX}/${toolInput.apiKeyId}`,
       };
     },
     mapFromUpstream: (response) => {
@@ -1452,10 +1452,10 @@ const apiKeyTools: IQaToolDefinition[] = [
     description: "Revoke an API key. The key will immediately stop working. Use muggle-remote-auth-api-key-list to find the key ID first.",
     inputSchema: schemas.ApiKeyRevokeInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.ApiKeyRevokeInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.ApiKeyRevokeInputSchema>;
       return {
         method: "DELETE",
-        path: `${API_KEY_PREFIX}/${data.apiKeyId}`,
+        path: `${API_KEY_PREFIX}/${toolInput.apiKeyId}`,
       };
     },
     mapFromUpstream: () => {
@@ -1474,14 +1474,14 @@ const userFeedbackTools: IQaToolDefinition[] = [
       "Submit user feedback on a generated action script — either the whole script (targetType='actionScript', targetId=actionScriptId) or a specific step (targetType='step', targetId=`${actionScriptId}:${stepIndex}` with 0-based stepIndex). Persists the feedback and triggers an async feedback-analysis workflow that may regenerate the script. The response includes the saved feedback and, when the analysis workflow was started, a feedbackAnalysisWorkflowRuntimeId for polling.",
     inputSchema: schemas.UserFeedbackCreateInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UserFeedbackCreateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UserFeedbackCreateInputSchema>;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/user-feedback`,
         body: {
-          projectId: data.projectId,
-          target: data.target,
-          feedbackText: data.feedbackText,
+          projectId: toolInput.projectId,
+          target: toolInput.target,
+          feedbackText: toolInput.feedbackText,
         },
       };
     },
@@ -1492,18 +1492,18 @@ const userFeedbackTools: IQaToolDefinition[] = [
       "List active user feedback entries for a project. Optionally narrow by exactly one of actionScriptId / testScriptId / testCaseId / useCaseId — the typical query is 'show me feedback on this test case (or test script, or use case).' Supports limit/offset pagination. Response: { feedback: IUserFeedback[], total: number, hasMore: boolean }.",
     inputSchema: schemas.UserFeedbackListInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UserFeedbackListInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UserFeedbackListInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/user-feedback`,
         queryParams: {
-          projectId: data.projectId,
-          actionScriptId: data.actionScriptId,
-          testScriptId: data.testScriptId,
-          testCaseId: data.testCaseId,
-          useCaseId: data.useCaseId,
-          limit: data.limit,
-          offset: data.offset,
+          projectId: toolInput.projectId,
+          actionScriptId: toolInput.actionScriptId,
+          testScriptId: toolInput.testScriptId,
+          testCaseId: toolInput.testCaseId,
+          useCaseId: toolInput.useCaseId,
+          limit: toolInput.limit,
+          offset: toolInput.offset,
         },
       };
     },
@@ -1513,10 +1513,10 @@ const userFeedbackTools: IQaToolDefinition[] = [
     description: "Soft-delete a user feedback entry by ID. Returns 204 on success.",
     inputSchema: schemas.UserFeedbackDeleteInputSchema,
     mapToUpstream: (input) => {
-      const data = input as z.infer<typeof schemas.UserFeedbackDeleteInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.UserFeedbackDeleteInputSchema>;
       return {
         method: "DELETE",
-        path: `${MUGGLE_TEST_PREFIX}/user-feedback/${data.feedbackId}`,
+        path: `${MUGGLE_TEST_PREFIX}/user-feedback/${toolInput.feedbackId}`,
       };
     },
   },
@@ -1560,13 +1560,13 @@ const authTools: IQaToolDefinition[] = [
       throw new Error("LOCAL_HANDLER_ONLY");
     },
     localHandler: async (input) => {
-      const data = input as z.infer<typeof schemas.AuthLoginInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.AuthLoginInputSchema>;
       const authService = getAuthService();
 
       const deviceCodeResponse = await authService.startDeviceCodeFlow({
-        forceNewSession: data.forceNewSession,
+        forceNewSession: toolInput.forceNewSession,
       });
-      const waitForCompletion = data.waitForCompletion ?? true;
+      const waitForCompletion = toolInput.waitForCompletion ?? true;
 
       if (!waitForCompletion) {
         return {
@@ -1582,7 +1582,7 @@ const authTools: IQaToolDefinition[] = [
       const pollResult = await authService.waitForDeviceCodeAuthorization({
         deviceCode: deviceCodeResponse.deviceCode,
         intervalSeconds: deviceCodeResponse.interval,
-        timeoutMs: data.timeoutMs,
+        timeoutMs: toolInput.timeoutMs,
       });
 
       if (pollResult.status === DeviceCodePollStatus.Complete) {
@@ -1609,10 +1609,10 @@ const authTools: IQaToolDefinition[] = [
       throw new Error("LOCAL_HANDLER_ONLY");
     },
     localHandler: async (input) => {
-      const data = input as z.infer<typeof schemas.AuthPollInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.AuthPollInputSchema>;
       const authService = getAuthService();
 
-      const deviceCode = data.deviceCode ?? authService.getPendingDeviceCode();
+      const deviceCode = toolInput.deviceCode ?? authService.getPendingDeviceCode();
 
       if (!deviceCode) {
         return {
@@ -1690,7 +1690,7 @@ export function getQaToolByName(name: string): IQaToolDefinition | undefined {
 /**
  * Default response mapper.
  * @param response - Upstream response.
- * @returns Response data.
+ * @returns Response toolInput.
  */
 function defaultResponseMapper(response: IUpstreamResponse): unknown {
   return response.data;

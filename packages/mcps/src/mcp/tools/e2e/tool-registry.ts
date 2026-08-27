@@ -1621,20 +1621,20 @@ const authTools: IQaToolDefinition[] = [
         };
       }
 
-      const result = await authService.pollDeviceCode(deviceCode);
+      const devicePollOutcome = await authService.pollDeviceCode(deviceCode);
 
-      if (result.status === DeviceCodePollStatus.Complete) {
+      if (devicePollOutcome.status === DeviceCodePollStatus.Complete) {
         return {
           status: "complete",
           success: true,
-          email: result.email,
+          email: devicePollOutcome.email,
           message: "Login complete. You are now authenticated.",
         };
       }
 
       return {
-        status: result.status,
-        message: result.message,
+        status: devicePollOutcome.status,
+        message: devicePollOutcome.message,
       };
     },
   },
@@ -1648,9 +1648,9 @@ const authTools: IQaToolDefinition[] = [
     },
     localHandler: async () => {
       const authService = getAuthService();
-      const result = authService.logout();
+      const didLogout = authService.logout();
 
-      if (result) {
+      if (didLogout) {
         return { success: true, message: "Successfully logged out." };
       }
 
@@ -1732,9 +1732,9 @@ export async function executeQaTool(
 
     // Check if tool has a local handler
     if (tool.localHandler) {
-      const result = await tool.localHandler(validatedInput);
+      const localHandlerOutput = await tool.localHandler(validatedInput);
       return {
-        content: JSON.stringify(result, null, 2),
+        content: JSON.stringify(localHandlerOutput, null, 2),
         isError: false,
       };
     }
@@ -1750,19 +1750,19 @@ export async function executeQaTool(
 
       // Map response
       const mapper = tool.mapFromUpstream || defaultResponseMapper;
-      const result = mapper(response, validatedInput);
+      const mappedResponse = mapper(response, validatedInput);
 
       return {
-        content: JSON.stringify(result, null, 2),
+        content: JSON.stringify(mappedResponse, null, 2),
         isError: false,
       };
     } catch (error) {
       if (error instanceof Error && error.message === "RECOMMENDATION_ONLY") {
         // This is a recommendation tool, return static response
         const mapper = tool.mapFromUpstream || defaultResponseMapper;
-        const result = mapper({ statusCode: 200, data: {}, headers: {} }, validatedInput);
+        const mappedResponse = mapper({ statusCode: 200, data: {}, headers: {} }, validatedInput);
         return {
-          content: JSON.stringify(result, null, 2),
+          content: JSON.stringify(mappedResponse, null, 2),
           isError: false,
         };
       }

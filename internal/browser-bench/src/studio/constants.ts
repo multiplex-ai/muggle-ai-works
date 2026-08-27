@@ -27,3 +27,12 @@ export const STDERR_TAIL_LIMIT = 4_000;
  * task-file marker, never a mode of its own.
  */
 export const STUDIO_RUN_MODE = "explore";
+
+/** Filename for the profile studio reads as its positional auth argument. */
+export const STUDIO_AUTH_FILENAME = "studio-auth.json";
+
+/**
+ * The muggle session `muggle login` writes, and the source of the identity the
+ * benchmark hands studio.
+ */
+export const MUGGLE_SESSION_PATH_SEGMENTS = [".muggle-ai", "oauth-session.json"];

@@ -16,6 +16,7 @@ import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
+import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 
 /** Muggle Test API prefix. */
 const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
@@ -879,15 +880,23 @@ const reportTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-test-scripts-summary-get",
-    description: "Get a summary of test scripts for a project.",
+    description:
+      "Get a paginated, slimmed script-generation summary for a project. One row per TEST CASE, not per script: a test case with no script yet still gets a row, with `testScriptId` absent and a status such as TEST_CASE_DRAFTED. Row count is therefore a test-case count — do not read it as a number of scripts, and do not infer from a row's presence that a script exists. Response shape: { page, pageSize, totalCount, totalPages, hasMore, scripts: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, testScriptId, lastRunAt, error }] }. Returns 20 rows per page by default (max 100). Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-script-get for full per-script detail.",
     inputSchema: schemas.ProjectTestScriptsSummaryInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectTestScriptsSummaryInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/test-scripts/summary`,
+        queryParams: {
+          page: toolInput.page,
+          pageSize: toolInput.pageSize,
+          sortBy: toolInput.sortBy,
+          sortOrder: toolInput.sortOrder,
+        },
       };
     },
+    mapFromUpstream: mapTestScriptsSummary,
   },
   {
     name: "muggle-remote-project-test-runs-summary-get",

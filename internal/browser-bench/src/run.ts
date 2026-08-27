@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,7 +28,6 @@ import { judgeTaskAsync } from "./judge/judge";
 import { applyJudgeVerdict, resolveTrajectoryScreenshotPaths } from "./judge/judged-result";
 import {
   DEFAULT_STUDIO_BIN,
-  MUGGLE_SESSION_PATH_SEGMENTS,
   STUDIO_BIN_ENV_VAR,
 } from "./studio/constants";
 import {
@@ -37,6 +35,7 @@ import {
   writeStudioAuthFile,
 } from "./studio/studio-auth";
 import { nodeTaskFileSystem } from "./studio/node-file-system";
+import { resolveBenchmarkSessionPath } from "./studio/benchmark-session";
 import { spawnStudioProcess } from "./studio/node-studio-spawn";
 import { runStudioTaskAsync } from "./studio/studio-runner";
 import { loadWebVoyagerTasks } from "./task-source/webvoyager-source";
@@ -100,9 +99,7 @@ const mainAsync = async (): Promise<void> => {
   // One profile for the whole batch. Studio authenticates with its own client
   // credentials and reads this only for identity, so there is nothing per-task
   // about it — and one short-lived file beats one per task.
-  const authFilePath = writeStudioAuthFile(
-    path.join(os.homedir(), ...MUGGLE_SESSION_PATH_SEGMENTS),
-  );
+  const authFilePath = writeStudioAuthFile(resolveBenchmarkSessionPath(process.env));
 
   process.stdout.write(
     `browser-bench: ${pendingTasks.length} task(s) to run, ${resumedResults.length} resumed, ` +

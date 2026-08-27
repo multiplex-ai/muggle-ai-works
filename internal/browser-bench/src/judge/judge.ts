@@ -7,7 +7,11 @@ const SUCCESS_PATTERN = /Status:\s*SUCCESS\b/i;
  * Scores one task attempt by WebVoyager's judge protocol: the judge model reads
  * the instruction, the agent's answer, and the trailing screenshots, and returns
  * a binary verdict. Model invocation is injected so the protocol stays testable
- * without a network call; call the judge at temperature 0 so verdicts reproduce.
+ * without a network call.
+ *
+ * Verdicts are not bit-reproducible: the judge model rejects `temperature`
+ * outright, so a re-judged batch can move by a task or two. Re-judging is
+ * therefore a new measurement, not a replay of the old one.
  *
  * A response the judge protocol cannot parse counts as a failure, never an
  * error — infrastructure classification belongs to the orchestrator, and

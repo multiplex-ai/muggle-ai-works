@@ -1,3 +1,4 @@
+import Anthropic from "@anthropic-ai/sdk";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -19,6 +20,13 @@ import {
   serializePartialLogEntry,
 } from "./partial-log/partial-log";
 import { renderReport } from "./report/report";
+import {
+  JUDGE_API_KEY_ENV_VAR,
+  TRAJECTORY_MANIFEST_FILENAME,
+} from "./judge/constants";
+import { createClaudeJudgeInvoker } from "./judge/claude-judge";
+import { judgeTaskAsync } from "./judge/judge";
+import { applyJudgeVerdict, resolveTrajectoryScreenshotPaths } from "./judge/judged-result";
 import {
   DEFAULT_STUDIO_BIN,
   MUGGLE_SESSION_PATH_SEGMENTS,
@@ -78,6 +86,17 @@ const mainAsync = async (): Promise<void> => {
   });
   const studioBinPath = process.env[STUDIO_BIN_ENV_VAR] ?? DEFAULT_STUDIO_BIN;
 
+  // Checked before the first task rather than at the first verdict: a batch that
+  // runs every task and only then finds it cannot score them has spent the whole
+  // run to produce nothing.
+  if (!process.env[JUDGE_API_KEY_ENV_VAR]) {
+    throw new Error(
+      `${JUDGE_API_KEY_ENV_VAR} is unset, so no attempt could be scored. ` +
+        `Export it before running the benchmark.`,
+    );
+  }
+  const invokeJudgeAsync = createClaudeJudgeInvoker({ client: new Anthropic() });
+
   // One profile for the whole batch. Studio authenticates with its own client
   // credentials and reads this only for identity, so there is nothing per-task
   // about it — and one short-lived file beats one per task.
@@ -96,7 +115,7 @@ const mainAsync = async (): Promise<void> => {
       tasks: pendingTasks,
       concurrency: options.concurrency,
       runTaskAsync: async (task) => {
-        const taskResult = await runStudioTaskAsync({
+        const studioTaskResult = await runStudioTaskAsync({
           task: task,
           outDir: options.outDir,
           studioBinPath: studioBinPath,
@@ -106,6 +125,23 @@ const mainAsync = async (): Promise<void> => {
           spawnStudio: spawnStudioProcess,
           fileSystem: nodeTaskFileSystem,
         });
+
+        const taskResult = applyJudgeVerdict({
+          taskResult: studioTaskResult,
+          verdict: await judgeTaskAsync({
+            instruction: task.instruction,
+            finalAnswer: studioTaskResult.finalAnswer,
+            screenshotPaths: resolveTrajectoryScreenshotPaths({
+              trajectoryDir: studioTaskResult.trajectoryDir,
+              manifestContent: fs.readFileSync(
+                path.join(studioTaskResult.trajectoryDir, TRAJECTORY_MANIFEST_FILENAME),
+                "utf8",
+              ),
+            }),
+            invokeJudgeAsync: invokeJudgeAsync,
+          }),
+        });
+
         appendPartialLogEntry(taskResult);
         return taskResult;
       },

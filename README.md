@@ -265,6 +265,7 @@ Use Cases (muggle-remote-use-case-*)
 | `muggle-remote-use-case-prompt-preview`        | Preview before creating                                  |
 | `muggle-remote-use-case-update-from-prompt`    | Regenerate from new prompt                               |
 | `muggle-remote-use-case-bulk-preview-submit`   | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
+| `muggle-remote-use-case-delete`                | Delete use case (cascades to its test cases + scripts)   |
 
 
 Test Cases (muggle-remote-test-case-*)
@@ -278,6 +279,7 @@ Test Cases (muggle-remote-test-case-*)
 | `muggle-remote-test-case-create`               | Create test case                                         |
 | `muggle-remote-test-case-generate-from-prompt` | Generate from prompt                                     |
 | `muggle-remote-test-case-bulk-preview-submit`  | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
+| `muggle-remote-test-case-delete`               | Delete test case                                         |
 
 
 Bulk Preview Jobs (muggle-remote-bulk-preview-job-*)
@@ -300,6 +302,8 @@ Test Scripts and Workflows (muggle-remote-workflow-*)
 | ------------------------------------------------------ | ----------------------- |
 | `muggle-remote-test-script-list`                       | List test scripts       |
 | `muggle-remote-test-script-get`                        | Get script details      |
+| `muggle-remote-test-script-delete`                     | Delete test script      |
+| `muggle-remote-action-script-delete`                   | Delete action script (permanent) |
 | `muggle-remote-workflow-start-website-scan`            | Scan site for use cases |
 | `muggle-remote-workflow-start-test-case-detection`     | Generate test cases     |
 | `muggle-remote-workflow-start-test-script-generation`  | Generate scripts        |

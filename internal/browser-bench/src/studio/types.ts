@@ -26,6 +26,8 @@ export interface StudioResultFile {
 /** Everything one studio process needs to attempt one task. */
 export interface StudioInvocation {
   studioBinPath: string;
+  /** Studio's positional auth file, carrying the user profile it identifies the run by. */
+  authFilePath: string;
   taskFilePath: string;
   resultFilePath: string;
   browserProfileDir: string;
@@ -52,4 +54,23 @@ export interface TaskFileSystem {
   recreateDirAsync: (dirPath: string) => Promise<void>;
   writeTextAsync: (filePath: string, content: string) => Promise<void>;
   readTextAsync: (filePath: string) => Promise<string>;
+}
+
+/** The local muggle session on disk, as written by `muggle login`. */
+export interface MuggleSession {
+  userId: string;
+  email: string;
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+}
+
+/** Studio's `UserProfile`, supplied as the positional auth file. */
+export interface StudioUserProfile {
+  userId: string;
+  nickname: string;
+  email: string;
+  sessionId: string;
+  firebaseSessionToken: string;
+  accessToken: string;
 }

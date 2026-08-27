@@ -56,6 +56,7 @@ export const runStudioTaskAsync = async ({
   task,
   outDir,
   studioBinPath,
+  authFilePath,
   maxSteps,
   taskTimeoutMs,
   spawnStudio,
@@ -64,6 +65,7 @@ export const runStudioTaskAsync = async ({
   task: BenchmarkTask;
   outDir: string;
   studioBinPath: string;
+  authFilePath: string;
   maxSteps: number;
   taskTimeoutMs: number;
   spawnStudio: SpawnStudio;
@@ -88,6 +90,7 @@ export const runStudioTaskAsync = async ({
 
   const studioProcess = spawnStudio({
     studioBinPath: studioBinPath,
+    authFilePath: authFilePath,
     taskFilePath: taskFilePath,
     resultFilePath: resultFilePath,
     browserProfileDir: browserProfileDir,

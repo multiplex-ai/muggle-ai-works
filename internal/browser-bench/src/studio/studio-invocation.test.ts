@@ -48,11 +48,19 @@ describe("buildStudioArgv", () => {
     expect(
       buildStudioArgv({
         studioBinPath: "/bin/muggle-studio",
+        authFilePath: "/tmp/studio-auth.json",
         taskFilePath: "/out/trajectories/Allrecipes--0/task.json",
         resultFilePath: "/out/trajectories/Allrecipes--0/result.json",
         browserProfileDir: "/out/profiles/Allrecipes--0",
       }),
-    ).toEqual(["explore", "--benchmark-task", "/out/trajectories/Allrecipes--0/task.json"]);
+    ).toEqual([
+      "explore",
+      "",
+      "",
+      "/tmp/studio-auth.json",
+      "--benchmark-task",
+      "/out/trajectories/Allrecipes--0/task.json",
+    ]);
   });
 
   it("leads with the positional run mode, which studio reads as argv[1]", () => {
@@ -61,6 +69,7 @@ describe("buildStudioArgv", () => {
     // "Unsupported run mode --benchmark-task" before the agent loop is reached.
     const argv = buildStudioArgv({
       studioBinPath: "/bin/muggle-studio",
+        authFilePath: "/tmp/studio-auth.json",
       taskFilePath: "/out/task.json",
       resultFilePath: "/out/result.json",
       browserProfileDir: "/out/profiles/x",
@@ -69,9 +78,25 @@ describe("buildStudioArgv", () => {
     expect(argv[0]).toBe("explore");
   });
 
+  it("puts the auth file in studio's fourth positional slot", () => {
+    // Studio reads mode, script, mutation params, auth file positionally. The
+    // benchmark has no script or mutation params, so those slots must still be
+    // present as empty strings or the auth file lands in the wrong one.
+    const argv = buildStudioArgv({
+      studioBinPath: "/bin/muggle-studio",
+      authFilePath: "/tmp/studio-auth.json",
+      taskFilePath: "/out/task.json",
+      resultFilePath: "/out/result.json",
+      browserProfileDir: "/out/profiles/x",
+    });
+
+    expect(argv[3]).toBe("/tmp/studio-auth.json");
+  });
+
   it("does not pass --out; studio reads the result path from the task file", () => {
     const argv = buildStudioArgv({
       studioBinPath: "/bin/muggle-studio",
+        authFilePath: "/tmp/studio-auth.json",
       taskFilePath: "/out/task.json",
       resultFilePath: "/out/result.json",
       browserProfileDir: "/out/profiles/x",

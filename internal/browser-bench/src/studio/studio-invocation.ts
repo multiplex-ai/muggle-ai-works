@@ -31,13 +31,18 @@ export const buildStudioTaskFile = ({
 
 /**
  * Builds studio's argument list. The contract is fixed on both sides — studio
- * reads a positional run mode and then this one flag — so it is pinned here
- * rather than assembled inline at the spawn site.
+ * reads four positional slots — mode, script, mutation params, auth file —
+ * before it scans for flags. The benchmark has no script or mutation params, so
+ * those slots are empty strings, which studio normalises to undefined. Pinned
+ * here rather than assembled inline at the spawn site.
  *
- * Output shape: `["explore", "--benchmark-task", "…/task.json"]`
+ * Output shape: `["explore", "", "", "…/studio-auth.json", "--benchmark-task", "…/task.json"]`
  */
 export const buildStudioArgv = (invocation: StudioInvocation): string[] => [
   STUDIO_RUN_MODE,
+  "",
+  "",
+  invocation.authFilePath,
   BENCHMARK_TASK_FLAG,
   invocation.taskFilePath,
 ];

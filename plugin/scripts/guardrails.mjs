@@ -246,9 +246,9 @@ function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
 // src/guardrails/capabilityClaim.ts
 var SENTENCE = /[^.!?\n]+/g;
 var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
-var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential)/i;
+var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential|sms|text message|texted code|authenticator app|google authenticator|authy|totp)/i;
 var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
-var GENUINELY_UNSUPPORTED = /\b(?:sms|text message|phone (?:number|call)|authenticator app|google authenticator|authy|totp)\b/i;
+var GENUINELY_UNSUPPORTED = /\b(?:phone call|voice call|oauth|social (?:login|sign[- ]?in)|sign in with (?:google|github|apple|facebook)|no (?:phone )?number (?:is )?provisioned|no provisioned (?:phone )?number)\b/i;
 function detectFalseCapabilityClaim(text) {
   const sentences = (text ?? "").match(SENTENCE) ?? [];
   return sentences.some(
@@ -1290,7 +1290,7 @@ function capabilityClaimGate() {
   if (!detectFalseCapabilityClaim(lastAssistantText(transcriptTail))) return "{}";
   state.capabilityClaimNudged = true;
   writeState(state);
-  const reason = `Do not end the turn yet. This turn tells the user that an email- or login-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor; stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. If the real blocker is SMS/phone OTP, authenticator-app TOTP, or OAuth-only social login, those limits are genuine \u2014 name the one that applies and move on.`;
+  const reason = `Do not end the turn yet. This turn tells the user that a login- or code-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor. An SMS code is read from the profile's provisioned number, an authenticator code is derived offline from its stored TOTP secret, and stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. Genuine limits stay sayable: a voice call, an OAuth-only provider, or an account with no phone number provisioned (the runner cannot mint one) \u2014 name the one that applies and move on.`;
   return blockStop(reason, host);
 }
 var handlers = {

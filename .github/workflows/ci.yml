@@ -3,8 +3,22 @@ name: CI
 on:
   push:
     branches: [master]
+    # docs/ and ops/ are unreachable from every job below: nothing in src/,
+    # test/, or scripts/ references them, eslint lints only ts/mts/js/mjs/cjs,
+    # and neither ships in package.json `files`. internal/ and scripts/ look
+    # equally inert but are not — internal/**/*.test.ts matches the vitest
+    # include and src/test/scripts/ covers scripts/. Actions has no YAML
+    # anchors, so pull_request repeats the list.
+    paths-ignore:
+      - "docs/**"
+      - "ops/**"
+      - "README.md"
   pull_request:
     branches: [master]
+    paths-ignore:
+      - "docs/**"
+      - "ops/**"
+      - "README.md"
 
 concurrency:
   # Superseded PR pushes are dead work. Master runs are per-commit history, so

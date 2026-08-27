@@ -46,11 +46,17 @@ npm view @muggleai/works version 2>&1 | sed 's/^/npm latest: /'
 
 ```bash
 LAST_RELEASE_SHA=$(git log --grep='chore(release)' --format='%H' -1)
+NON_SHIPPING=(':(exclude)internal/' ':(exclude)docs/' ':(exclude)ops/' ':(exclude)test/' ':(exclude).github/' ':(exclude).claude/' ':(exclude).cursor/' ':(exclude)README.md' ':(exclude)eslint.config.js' ':(exclude)vitest.config.ts')
 git log --oneline "$LAST_RELEASE_SHA..HEAD"
+git diff --name-only "$LAST_RELEASE_SHA..HEAD" -- . "${NON_SHIPPING[@]}"
 ```
 
-- If the log is **empty**, tell the user there is **nothing to ship** and **stop** (no branch, no bump, no PR).
-- If non-empty, present commits as a short table (subject; PR number from title/body if present).
+The log is for reading; the **diff decides**. `NON_SHIPPING` drops paths that cannot reach the npm tarball — the shipping surface is `package.json` → `files`, plus the sources `dist/` is built from (`src/`, `packages/`, `tsup.config.ts`) and the lockfile pinning what gets bundled. The gate is a diff rather than a pathspec'd `git log` because path filtering makes `git log` simplify merge commits out of the range, which a tree-to-tree diff cannot do.
+
+`NON_SHIPPING` is a denylist on purpose: a new top-level path counts as shipping until someone proves it inert, so the gate errs toward releasing rather than silently swallowing a fix.
+
+- If the **diff** is **empty**, tell the user there is **nothing to ship** and **stop** (no branch, no bump, no PR) — name the non-shipping commits that were skipped, so the decision is visible.
+- If non-empty, present the commits as a short table (subject; PR number from title/body if present).
 
 ---
 

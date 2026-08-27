@@ -75,6 +75,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-test-script-list",
   },
   {
+    "description": "Permanently delete an action script by ID. Unlike the other delete tools this is a hard delete and cannot be undone, and any test script referencing it keeps an orphaned actionScriptId. Only the owner or a super user may call it.",
+    "name": "muggle-remote-action-script-delete",
+  },
+  {
     "description": "Get the full action script content by ID. Use actionScriptId from a test script to fetch the complete script with all steps and element labels needed for replay.",
     "name": "muggle-remote-action-script-get",
   },
@@ -227,6 +231,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-create",
   },
   {
+    "description": "Delete a test case by ID. This is a soft delete.",
+    "name": "muggle-remote-test-case-delete",
+  },
+  {
     "description": "Generate E2E acceptance test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
     "name": "muggle-remote-test-case-generate-from-prompt",
   },
@@ -245,6 +253,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     "name": "muggle-remote-test-case-update",
+  },
+  {
+    "description": "Delete a test script by ID. This is a soft delete; the test case it belongs to is not affected.",
+    "name": "muggle-remote-test-script-delete",
   },
   {
     "description": "Get details of a specific test script.",
@@ -269,6 +281,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "Create one or more use cases from natural language instructions.",
     "name": "muggle-remote-use-case-create-from-prompts",
+  },
+  {
+    "description": "Delete a use case by ID. Soft delete, and it cascades: the use case's test cases and their test scripts are deleted with it.",
+    "name": "muggle-remote-use-case-delete",
   },
   {
     "description": "Get the use case discovery memory for a project, including all discovered use case candidates.",
@@ -429,6 +445,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-local-telemetry-skill-emit",
   "muggle-local-test-script-get",
   "muggle-local-test-script-list",
+  "muggle-remote-action-script-delete",
   "muggle-remote-action-script-get",
   "muggle-remote-auth-api-key-create",
   "muggle-remote-auth-api-key-get",
@@ -467,17 +484,20 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-test-case-ancestors-get",
   "muggle-remote-test-case-bulk-preview-submit",
   "muggle-remote-test-case-create",
+  "muggle-remote-test-case-delete",
   "muggle-remote-test-case-generate-from-prompt",
   "muggle-remote-test-case-get",
   "muggle-remote-test-case-list",
   "muggle-remote-test-case-list-by-use-case",
   "muggle-remote-test-case-update",
+  "muggle-remote-test-script-delete",
   "muggle-remote-test-script-get",
   "muggle-remote-test-script-list",
   "muggle-remote-use-case-bulk-preview-submit",
   "muggle-remote-use-case-candidates-approve",
   "muggle-remote-use-case-create",
   "muggle-remote-use-case-create-from-prompts",
+  "muggle-remote-use-case-delete",
   "muggle-remote-use-case-discovery-memory-get",
   "muggle-remote-use-case-get",
   "muggle-remote-use-case-list",

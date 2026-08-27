@@ -193,6 +193,10 @@ export const UseCaseGetInputSchema = z.object({
   useCaseId: IdSchema.describe("Use case ID (UUID) to retrieve"),
 });
 
+export const UseCaseDeleteInputSchema = z.object({
+  useCaseId: IdSchema.describe("Use case ID (UUID) to delete"),
+});
+
 export const UseCasePromptPreviewInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to generate use case for"),
   instruction: z.string().min(1).describe("Natural language instruction describing the use case (e.g., 'As a logged-in user, I can add items to cart')"),
@@ -312,6 +316,10 @@ export const TestCaseGetInputSchema = z.object({
   testCaseId: IdSchema.describe("Test case ID (UUID) to retrieve"),
 });
 
+export const TestCaseDeleteInputSchema = z.object({
+  testCaseId: IdSchema.describe("Test case ID (UUID) to delete"),
+});
+
 export const TestCaseAncestorsGetInputSchema = z.object({
   testCaseId: IdSchema.describe("Test case ID (UUID) to resolve the test-plan-graph ancestor chain for"),
 });
@@ -374,8 +382,16 @@ export const TestScriptGetInputSchema = z.object({
   testScriptId: IdSchema.describe("Test script ID (UUID) to retrieve"),
 });
 
+export const TestScriptDeleteInputSchema = z.object({
+  testScriptId: IdSchema.describe("Test script ID (UUID) to delete"),
+});
+
 export const ActionScriptGetInputSchema = z.object({
   actionScriptId: IdSchema.describe("Action script ID (UUID) to retrieve"),
+});
+
+export const ActionScriptDeleteInputSchema = z.object({
+  actionScriptId: IdSchema.describe("Action script ID (UUID) to delete"),
 });
 
 export const WorkflowStartWebsiteScanInputSchema = z.object({

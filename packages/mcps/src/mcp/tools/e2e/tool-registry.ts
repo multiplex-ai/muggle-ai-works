@@ -263,6 +263,18 @@ const useCaseTools: IQaToolDefinition[] = [
       };
     },
   },
+  {
+    name: "muggle-remote-use-case-delete",
+    description: "Delete a use case by ID. Soft delete, and it cascades: the use case's test cases and their test scripts are deleted with it.",
+    inputSchema: schemas.UseCaseDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const useCaseDeleteInput = input as z.infer<typeof schemas.UseCaseDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/use-cases/${useCaseDeleteInput.useCaseId}`,
+      };
+    },
+  },
 ];
 
 const testCaseTools: IQaToolDefinition[] = [
@@ -401,6 +413,18 @@ const testCaseTools: IQaToolDefinition[] = [
       };
     },
   },
+  {
+    name: "muggle-remote-test-case-delete",
+    description: "Delete a test case by ID. This is a soft delete.",
+    inputSchema: schemas.TestCaseDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const testCaseDeleteInput = input as z.infer<typeof schemas.TestCaseDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/test-cases/${testCaseDeleteInput.testCaseId}`,
+      };
+    },
+  },
 ];
 
 const bulkPreviewTools: IQaToolDefinition[] = [
@@ -483,6 +507,18 @@ const testScriptTools: IQaToolDefinition[] = [
       };
     },
   },
+  {
+    name: "muggle-remote-test-script-delete",
+    description: "Delete a test script by ID. This is a soft delete; the test case it belongs to is not affected.",
+    inputSchema: schemas.TestScriptDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const testScriptDeleteInput = input as z.infer<typeof schemas.TestScriptDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/test-scripts/${testScriptDeleteInput.testScriptId}`,
+      };
+    },
+  },
 ];
 
 const actionScriptTools: IQaToolDefinition[] = [
@@ -495,6 +531,18 @@ const actionScriptTools: IQaToolDefinition[] = [
       return {
         method: "GET",
         path: `/v1/protected/actionScript/${data.actionScriptId}`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-action-script-delete",
+    description: "Permanently delete an action script by ID. Unlike the other delete tools this is a hard delete and cannot be undone, and any test script referencing it keeps an orphaned actionScriptId. Only the owner or a super user may call it.",
+    inputSchema: schemas.ActionScriptDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const actionScriptDeleteInput = input as z.infer<typeof schemas.ActionScriptDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `/v1/protected/actionScript/${actionScriptDeleteInput.actionScriptId}`,
       };
     },
   },

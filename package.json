@@ -48,7 +48,8 @@
     "test:watch": "vitest",
     "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts",
     "test:agents:behavioral": "tsx internal/agent-gate-eval/src/run.ts",
-    "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts"
+    "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts",
+    "typecheck:browser-bench": "tsc --noEmit -p internal/browser-bench/tsconfig.json"
   },
   "muggleConfig": {
     "electronAppVersion": "1.9.0",
@@ -85,6 +86,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.133",
+    "@anthropic-ai/sdk": "^0.121.0",
     "@eslint/js": "^10.0.1",
     "@muggleai/mcp": "file:packages/mcps",
     "@muggleai/telemetry": "0.3.2",

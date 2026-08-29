@@ -483,6 +483,22 @@ export const ProjectTestResultsSummaryInputSchema = z.object({
 
 export const ProjectTestScriptsSummaryInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to get test scripts summary for"),
+  page: z.number().int().positive().default(1).describe("Page number, 1-based. Defaults to 1."),
+  pageSize: z
+    .number()
+    .int()
+    .positive()
+    .max(100)
+    .default(20)
+    .describe("Number of rows per page. Defaults to 20, max 100."),
+  sortBy: z
+    .enum(["createdAt", "updatedAt"])
+    .default("createdAt")
+    .describe("Sort field for the page. Defaults to createdAt (stable under concurrent writes)."),
+  sortOrder: z
+    .enum(["asc", "desc"])
+    .default("desc")
+    .describe("Sort direction. Defaults to desc (newest first)."),
 });
 
 export const ProjectTestRunsSummaryInputSchema = z.object({

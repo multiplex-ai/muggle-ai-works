@@ -32,7 +32,7 @@ export const STUDIO_RUN_MODE = "explore";
 export const STUDIO_AUTH_FILENAME = "studio-auth.json";
 
 /**
- * The muggle session `muggle login` writes, and the source of the identity the
- * benchmark hands studio.
+ * Names the muggle session file the batch runs under. Required: a batch bills the
+ * wallet of whichever identity it runs as, so it must never inherit a personal login.
  */
-export const MUGGLE_SESSION_PATH_SEGMENTS = [".muggle-ai", "oauth-session.json"];
+export const BENCHMARK_SESSION_ENV_VAR = "MUGGLE_BENCHMARK_SESSION";

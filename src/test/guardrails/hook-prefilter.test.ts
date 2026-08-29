@@ -330,4 +330,19 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
       ).toBe(true);
     }
   });
+
+  // A continuation backslash has to end its line. Written as an escaped "n" it
+  // still parses, so bash -n and CI stay green while the trailing `n` becomes an
+  // extra operand on the preceding grep: the gate then searches a file named `n`
+  // in the working directory alongside the state file, and any match there
+  // satisfies the pre-filter and silences the gate.
+  const BOTCHED_CONTINUATION = /\\n\s*(?:\|\||&&)/;
+
+  it.each(wrapperScriptNames)("%s continues its conditions with a real newline", (wrapperScriptName) => {
+    const wrapperBody = readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
+    const offending = wrapperBody
+      .split("\n")
+      .filter((line) => BOTCHED_CONTINUATION.test(line));
+    expect(offending, `${wrapperScriptName} escapes a line continuation as \\n`).toEqual([]);
+  });
 });

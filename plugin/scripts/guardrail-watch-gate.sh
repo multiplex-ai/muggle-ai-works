@@ -31,7 +31,8 @@ state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"prsHandled"' "$state_file" \
   || grep -q '"prsHandled": \[\]' "$state_file" \
-  || grep -q '"watchReleased": true' "$state_file" \n  || grep -q '"watchSkipped": true' "$state_file"; then
+  || grep -q '"watchReleased": true' "$state_file" \
+  || grep -q '"watchSkipped": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

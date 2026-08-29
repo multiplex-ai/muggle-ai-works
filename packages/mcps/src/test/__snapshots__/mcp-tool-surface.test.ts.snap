@@ -167,7 +167,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-project-test-runs-summary-get",
   },
   {
-    "description": "Get a summary of test scripts for a project.",
+    "description": "Get a paginated, slimmed script-generation summary for a project. One row per TEST CASE, not per script: a test case with no script yet still gets a row, with \`testScriptId\` absent and a status such as TEST_CASE_DRAFTED. Row count is therefore a test-case count — do not read it as a number of scripts, and do not infer from a row's presence that a script exists. Response shape: { page, pageSize, totalCount, totalPages, hasMore, scripts: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, testScriptId, lastRunAt, error }] }. Returns 20 rows per page by default (max 100). Check \`hasMore\` to decide whether to fetch additional pages. Use muggle-remote-test-script-get for full per-script detail.",
     "name": "muggle-remote-project-test-scripts-summary-get",
   },
   {

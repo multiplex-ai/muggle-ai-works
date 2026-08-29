@@ -32,7 +32,8 @@ state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"failedRuns"' "$state_file" \
   || grep -q '"failedRuns": \[\]' "$state_file" \
-  || grep -q '"debugReleased": true' "$state_file" \n  || grep -q '"debugSkipped": true' "$state_file"; then
+  || grep -q '"debugReleased": true' "$state_file" \
+  || grep -q '"debugSkipped": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

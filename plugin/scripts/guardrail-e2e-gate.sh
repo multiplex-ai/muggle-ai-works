@@ -29,7 +29,8 @@ fi
 state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
   || ! grep -q '"unitTestsGreen": true' "$state_file" \
-  || grep -q '"e2eReleased": true' "$state_file" \n  || grep -q '"e2eRun": true' "$state_file"; then
+  || grep -q '"e2eReleased": true' "$state_file" \
+  || grep -q '"e2eRun": true' "$state_file"; then
   printf '{}'
   exit 0
 fi

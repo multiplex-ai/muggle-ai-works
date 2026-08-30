@@ -19,6 +19,10 @@ const filterPath = toBash(
 );
 const loopPath = fileURLToPath(new URL("../../../plugin/scripts/pr-watch-loop.sh", import.meta.url));
 
+const fetchPath = fileURLToPath(new URL("../../../plugin/scripts/pr-watch-fetch.sh", import.meta.url));
+
+const armPath = fileURLToPath(new URL("../../../plugin/scripts/pr-watch-arm.sh", import.meta.url));
+
 let hasJq = false;
 try {
   execFileSync("jq", ["--version"], { stdio: "ignore" });
@@ -219,9 +223,22 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
     expect(fields).toHaveLength(10);
   });
 
-  it("is the filter the loop actually loads", () => {
+  // The read moved into pr-watch-fetch.sh so the arm step and the loop see the
+  // PR through one projection. A watermark seeded through a different shape than
+  // the one it is later compared against is worse than no watermark at all.
+  it("is the filter the shared fetch actually loads", () => {
+    const fetchBody = execFileSync("cat", [toBash(fetchPath)], { encoding: "utf8" });
+    expect(fetchBody).toContain('--jq "$state_projection"');
+  });
+
+  it("is loaded by both readers through that one library", () => {
     const loopBody = execFileSync("cat", [toBash(loopPath)], { encoding: "utf8" });
-    expect(loopBody).toContain("pr-watch-state.jq");
-    expect(loopBody).toContain('--jq "$state_projection"');
+    const armBody = execFileSync("cat", [toBash(armPath)], { encoding: "utf8" });
+
+    [loopBody, armBody].forEach((body) => {
+      expect(body).toContain("pr-watch-state.jq");
+      expect(body).toContain("pr-watch-fetch.sh");
+      expect(body).toContain("watch_fetch_state");
+    });
   });
 });

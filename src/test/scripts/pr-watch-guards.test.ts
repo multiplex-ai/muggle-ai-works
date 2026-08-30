@@ -113,3 +113,31 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_fetch_backoff", () => {
     expect(runGuard('[ "$(watcher_fetch_backoff 100)" = "300" ]')).toBe(0);
   });
 });
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_unseeded_too_long", () => {
+  // A slot with no watch-watermark.env cannot evaluate a single wake condition,
+  // so the loop reports nothing and never reaches its terminal check — while
+  // still holding the PID lease and touching the heartbeat that reconcile reads
+  // as proof of health. The cap is what turns that silent no-op into a failure.
+  it("is false while the arming session still has time to seed", () => {
+    expect(runGuard("watcher_unseeded_too_long 60")).toBe(1);
+  });
+
+  it("is true once the wait passes the cap", () => {
+    expect(runGuard("watcher_unseeded_too_long 180")).toBe(0);
+  });
+
+  it("takes an explicit cap over the default", () => {
+    expect(runGuard("watcher_unseeded_too_long 30 20")).toBe(0);
+  });
+
+  // 0 is unbounded, matching watcher_lifetime_exceeded, rather than "already
+  // expired" — which would kill every loop on its first pass.
+  it("treats a cap of 0 as unbounded", () => {
+    expect(runGuard("watcher_unseeded_too_long 99999 0")).toBe(1);
+  });
+
+  it("defaults to 180 seconds", () => {
+    expect(runGuard('[ "$MUGGLE_PR_WATCH_MAX_UNSEEDED" = "180" ]')).toBe(0);
+  });
+});

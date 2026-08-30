@@ -30,6 +30,15 @@ MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
 # revoked auth) exhausts it.
 MUGGLE_PR_WATCH_MAX_FETCH_FAILURES="${MUGGLE_PR_WATCH_MAX_FETCH_FAILURES:-60}"
 
+# Seconds a loop will wait for the arming session to write watch-watermark.env
+# before giving up. The loop cannot evaluate a single wake condition without it,
+# so an unseeded slot is a watcher that will never report anything — and one that
+# looks perfectly healthy while it does nothing, because it still holds its PID
+# lease and still touches its heartbeat. Arming writes the file in the same turn
+# it starts the loop, so anything past a couple of minutes means the arming
+# sequence was not followed and the watch is inert.
+MUGGLE_PR_WATCH_MAX_UNSEEDED="${MUGGLE_PR_WATCH_MAX_UNSEEDED:-180}"
+
 # Seconds to sleep after `fails` consecutive failed fetches: the poll interval,
 # then a linear back-off capped at 5 minutes so a sustained outage is retried
 # calmly rather than hammered every 60s.
@@ -57,6 +66,15 @@ watcher_lifetime_exceeded() {
     # wise make every loop exit on its first iteration.
     [ "$max" -eq 0 ] 2>/dev/null && return 1
     [ $((now - started)) -ge "$max" ]
+}
+
+# True when the slot has gone unseeded longer than the cap allows. 0 is
+# unbounded, matching `watcher_lifetime_exceeded`, for a caller that seeds the
+# watermark out of band.
+watcher_unseeded_too_long() {
+    local waited="$1" max="${2:-$MUGGLE_PR_WATCH_MAX_UNSEEDED}"
+    [ "$max" -eq 0 ] 2>/dev/null && return 1
+    [ "$waited" -ge "$max" ]
 }
 
 # True when pid names a running process. `kill -0` sends no signal; EPERM means

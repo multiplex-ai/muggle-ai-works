@@ -54,6 +54,7 @@ state_projection="$(cat "${script_dir}/pr-watch-state.jq")"
 echo "$$" > "${slot}/watch.pid"
 started=$(date +%s)
 fails=0
+unseeded=0
 
 # In-memory floors, above the on-disk watermark. The watermark is advanced by
 # the session after it handles a wave; these stop the loop re-reporting an event
@@ -137,11 +138,24 @@ while :; do
     touch "${slot}/watch-heartbeat" 2>/dev/null
 
     # No watermark yet means the arming session has not finished seeding. Wait
-    # rather than treat every floor as zero, which would fire the whole backlog.
+    # rather than treat every floor as zero, which would fire the whole backlog —
+    # but not forever. Every wake condition below is evaluated against a floor
+    # read from this file, so a loop that never gets one polls nothing, reports
+    # nothing and never reaches the terminal check, while still holding its PID
+    # lease and touching its heartbeat. That combination is the worst kind of
+    # broken: reconcile reads the live lease and fresh beacon as healthy and
+    # declines to re-arm, so the PR is silently unwatched for as long as the
+    # session lives. Fail loudly instead.
     if [ ! -f "${slot}/watch-watermark.env" ]; then
+        unseeded=$((unseeded + MUGGLE_PR_WATCH_POLL_INTERVAL))
+        if watcher_unseeded_too_long "$unseeded"; then
+            echo "WATCH-FAIL pr=$pr_number no watch-watermark.env after ${unseeded}s — arming never seeded it, so this watch can detect nothing (arm-watcher.md steps 1-2)"
+            exit 1
+        fi
         sleep "$MUGGLE_PR_WATCH_POLL_INTERVAL"
         continue
     fi
+    unseeded=0
 
     watermark_review=$(read_watermark_value REV)
     watermark_comment=$(read_watermark_value COM)

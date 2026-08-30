@@ -39,7 +39,7 @@ fi
 # gone. Guards missing means the plugin moved or upgraded underneath this loop —
 # a newer version's watcher owns the slot now, so step down rather than run on
 # without the supersede check.
-for lib in pr-watch-guards.sh pr-watch-events.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh; do
     [ -f "${script_dir}/${lib}" ] || exit 0
     # shellcheck source=/dev/null
     . "${script_dir}/${lib}"
@@ -71,51 +71,6 @@ floor_blocked_digest=""
 pinned_token="$(gh auth token 2>/dev/null)"
 [ -n "$pinned_token" ] && export GH_TOKEN="$pinned_token"
 
-fetch_pr_state() {
-    gh api graphql -F owner="${repo%%/*}" -F name="${repo##*/}" -F number="$pr_number" -f query='
-query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) {
-      state
-      headRefOid
-      baseRefOid
-      mergeable
-      commits(last: 1) {
-        nodes {
-          commit {
-            statusCheckRollup {
-              contexts(first: 100) {
-                nodes {
-                  __typename
-                  ... on CheckRun { name status conclusion }
-                  ... on StatusContext { context state }
-                }
-              }
-            }
-          }
-        }
-      }
-      reviews(last: 20, states: [COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED]) { nodes { databaseId body } }
-      reviewThreads(first: 100) {
-        nodes {
-          id
-          isResolved
-          isOutdated
-          comments(last: 1) { nodes { databaseId body pullRequestReview { databaseId state } } }
-        }
-      }
-    }
-  }
-}' --jq "$state_projection" 2>>"${slot}/watch-fetch.log"
-}
-
-# behind_by needs its own call — see watch_wake_rebase for why no field on the
-# PR carries it. Made only when the head/base pair moved, so the steady state
-# stays one request per iteration.
-fetch_behind_count() {
-    local head_sha="$1"
-    gh api "repos/${repo}/compare/${base_branch}...${head_sha}" --jq '.behind_by' 2>>"${slot}/watch-fetch.log"
-}
 
 read_watermark_value() {
     local key="$1" line value=""
@@ -164,10 +119,10 @@ while :; do
     watermark_rebase=$(read_watermark_value REBASED)
     watermark_blocked_digest=$(read_watermark_value BLOCKED_CIDIGEST)
 
-    state_line=$(fetch_pr_state)
+    state_line=$(watch_fetch_state "$repo" "$pr_number" "$slot" "$state_projection")
     # One quick retry before counting a strike: a single flaky call should not
     # advance the failure budget.
-    [ -z "$state_line" ] && { sleep 3; state_line=$(fetch_pr_state); }
+    [ -z "$state_line" ] && { sleep 3; state_line=$(watch_fetch_state "$repo" "$pr_number" "$slot" "$state_projection"); }
 
     if [ -z "$state_line" ]; then
         fails=$((fails + 1))
@@ -234,7 +189,7 @@ while :; do
 
     rebase_key="${head_sha}..${base_sha}"
     if [ "$rebase_key" != "$watermark_rebase" ] && [ "$rebase_key" != "$floor_rebase" ]; then
-        behind_count=$(fetch_behind_count "$head_sha")
+        behind_count=$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")
         if watch_wake_rebase "$pr_number" "$mergeable" "$behind_count" "$rebase_key" ""; then
             floor_rebase="$rebase_key"
         fi

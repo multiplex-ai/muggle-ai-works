@@ -2,7 +2,7 @@
 
 How an orchestrating session starts the watch on one PR. Every arming point runs this same sequence: [`bootstrap.md`](bootstrap.md) Step 8, [`auto-track.md`](auto-track.md) Step 6, and the executor's post-cycle settle.
 
-**Run [`../../scripts/pr-watch-arm.sh`](../../scripts/pr-watch-arm.sh); do not perform the steps by hand.** It reads the PR once, prints what is already outstanding as `DRAIN` lines, seeds the watermark from that same read, and execs the loop:
+**Run [`../../scripts/pr-watch-arm.sh`](../../scripts/pr-watch-arm.sh); do not perform the steps by hand.** It performs the drain of [`contract.md`](contract.md) — reading the PR once and printing what is already outstanding as `DRAIN` lines — then seeds the watermark from that same read and starts the loop:
 
 ```sh
 bash "<abs>/scripts/pr-watch-arm.sh" --slot "<slot>" --repo "<owner>/<repo>" --pr <n> --base <base-branch>

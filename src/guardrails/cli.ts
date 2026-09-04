@@ -526,14 +526,15 @@ function capabilityClaimGate(): string {
   state.capabilityClaimNudged = true;
   writeState(state);
   const reason =
-    `Do not end the turn yet. This turn tells the user that an email- or login-gated flow cannot be ` +
+    `Do not end the turn yet. This turn tells the user that a login- or code-gated flow cannot be ` +
     `tested, reached, or verified — the one class of blocker Muggle clears. Every managed login profile ` +
     `owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, ` +
-    `verification mail, and password resets run end to end with no mail stub and no test-only backdoor; ` +
-    `stored credentials and CAPTCHA solving are covered too. Re-read ` +
-    `plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. If the real ` +
-    `blocker is SMS/phone OTP, authenticator-app TOTP, or OAuth-only social login, those limits are ` +
-    `genuine — name the one that applies and move on.`;
+    `verification mail, and password resets run end to end with no mail stub and no test-only backdoor. ` +
+    `An SMS code is read from the profile's provisioned number, an authenticator code is derived offline ` +
+    `from its stored TOTP secret, and stored credentials and CAPTCHA solving are covered too. Re-read ` +
+    `plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. Genuine limits ` +
+    `stay sayable: a voice call, an OAuth-only provider, or an account with no phone number provisioned ` +
+    `(the runner cannot mint one) — name the one that applies and move on.`;
   return blockStop(reason, host);
 }
 

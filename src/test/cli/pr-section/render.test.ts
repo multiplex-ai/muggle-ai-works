@@ -11,6 +11,14 @@ import {
 import type { E2eReport, FailedTest, InconclusiveTest, PassedTest } from "../../../cli/pr-section/types.js";
 
 const PROJECT_ID = "p1";
+const CHECKOUT_USE_CASE = "Checkout";
+const OVERVIEW_ORDINAL = /\*\*\d+\.\*\*/g;
+const DETAILS_ORDINAL = /<b>\d+\. <\/b>/g;
+
+/** Pull the rendered test ordinals out of a markdown chunk, in document order. */
+function ordinalsFrom (markdown: string, pattern: RegExp): number[] {
+  return (markdown.match(pattern) ?? []).map((token) => Number(token.replace(/[^0-9]/g, "")));
+}
 
 const passedWithDesc: PassedTest = {
   name: "User creates a new project with valid URL",
@@ -107,6 +115,51 @@ const inconclusiveWithSteps: InconclusiveTest = {
   steps: [
     { stepIndex: 0, action: "Open cart", screenshotUrl: "https://cdn/7-0.png" },
     { stepIndex: 1, action: "Hit cookie banner", screenshotUrl: "https://cdn/7-1.png" },
+  ],
+};
+
+// A failed run and its rerun carry the same testCaseId: the ordinary shape of a
+// report assembled after a retry.
+const rerunFirstAttempt: FailedTest = {
+  name: "Checkout completes with a saved card",
+  testCaseId: "tc-8",
+  runId: "run-8a",
+  viewUrl: "https://www.muggle-ai.com/x/run-8a",
+  status: "failed",
+  failureStepIndex: 2,
+  error: "Timed out waiting for the confirmation banner",
+  steps: [
+    { stepIndex: 0, action: "Open cart", screenshotUrl: "https://cdn/8a-0.png" },
+    { stepIndex: 1, action: "Pay", screenshotUrl: "https://cdn/8a-1.png" },
+    { stepIndex: 2, action: "Await confirmation", screenshotUrl: "https://cdn/8a-2.png" },
+  ],
+};
+
+const rerunSecondAttempt: PassedTest = {
+  name: "Checkout completes with a saved card (rerun)",
+  testCaseId: "tc-8",
+  runId: "run-8b",
+  viewUrl: "https://www.muggle-ai.com/x/run-8b",
+  status: "passed",
+  steps: [
+    { stepIndex: 0, action: "Open cart", screenshotUrl: "https://cdn/8b-0.png" },
+    { stepIndex: 1, action: "Pay", screenshotUrl: "https://cdn/8b-1.png" },
+    { stepIndex: 2, action: "Await confirmation", screenshotUrl: "https://cdn/8b-2.png" },
+  ],
+};
+
+const flatRerunReport: E2eReport = {
+  projectId: PROJECT_ID,
+  tests: [passedNoMeta, rerunFirstAttempt, rerunSecondAttempt, failedNoMeta],
+};
+
+const groupedRerunReport: E2eReport = {
+  projectId: PROJECT_ID,
+  tests: [
+    passedWithDesc,
+    { ...rerunFirstAttempt, useCaseName: CHECKOUT_USE_CASE },
+    { ...rerunSecondAttempt, useCaseName: CHECKOUT_USE_CASE },
+    passedAuthGroup,
   ],
 };
 
@@ -354,5 +407,26 @@ describe("renderComment", () => {
     expect(comment).toContain("## E2E acceptance evidence (overflow)");
     const detailsCount = (comment.match(/<details>/g) ?? []).length;
     expect(detailsCount).toBe(2);
+  });
+});
+
+describe("numbering when one testCaseId appears twice", () => {
+  it("numbers a failed run and its rerun consecutively in a flat list", () => {
+    const md = renderOverview(flatRerunReport);
+    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3, 4]);
+    const lines = md.split("\n");
+    expect(lines.find((l) => l.endsWith("Checkout completes with a saved card"))!).toContain("**2.**");
+    expect(lines.find((l) => l.endsWith("(rerun)"))!).toContain("**3.**");
+  });
+
+  it("numbers a failed run and its rerun consecutively inside a use-case group", () => {
+    const md = renderOverview(groupedRerunReport);
+    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("gives the overview the same ordinals as the details blocks", () => {
+    const [overview, details] = renderBody(flatRerunReport, { inlineDetails: true }).split("\n---\n");
+    expect(ordinalsFrom(details, DETAILS_ORDINAL)).toEqual([1, 2, 3, 4]);
+    expect(ordinalsFrom(overview, OVERVIEW_ORDINAL)).toEqual(ordinalsFrom(details, DETAILS_ORDINAL));
   });
 });

@@ -137,14 +137,16 @@ function safeInlineCode (s: string): string {
 }
 
 /**
- * Build a `Map<testCaseId, testNumber>` so both the overview and the per-test
- * details use the same 1-based numbering regardless of grouping. Tests without
- * a testCaseId (shouldn't happen — schema requires it) are silently skipped.
+ * Assign each entry its 1-based position in `report.tests`, keyed by the test
+ * object rather than its testCaseId. A report legitimately repeats an id when a
+ * failed run is followed by its rerun, and keying by id would collapse that pair
+ * onto one number, leaving the overview out of step with the details blocks —
+ * which number by array index. Object identity is unique within a render pass.
  */
-function buildTestNumbering (report: E2eReport): Map<string, number> {
-  const map = new Map<string, number>();
+function buildTestNumbering (report: E2eReport): Map<TestResult, number> {
+  const map = new Map<TestResult, number>();
   report.tests.forEach((t, i) => {
-    map.set(t.testCaseId, i + 1);
+    map.set(t, i + 1);
   });
   return map;
 }
@@ -172,7 +174,7 @@ export function renderOverview (report: E2eReport): string {
   const anyGrouped = report.tests.some((t) => Boolean(t.useCaseName));
   if (!anyGrouped) {
     for (const t of report.tests) {
-      lines.push(`- **${numbering.get(t.testCaseId)}.** ${statusEmoji(t)} ${t.name}`);
+      lines.push(`- **${numbering.get(t)}.** ${statusEmoji(t)} ${t.name}`);
     }
     return lines.join("\n");
   }
@@ -199,11 +201,11 @@ export function renderOverview (report: E2eReport): string {
   }
   for (const entry of flat) {
     if (entry.type === "test") {
-      lines.push(`- **${numbering.get(entry.test.testCaseId)}.** ${statusEmoji(entry.test)} ${entry.test.name}`);
+      lines.push(`- **${numbering.get(entry.test)}.** ${statusEmoji(entry.test)} ${entry.test.name}`);
     } else {
       lines.push(`- **${entry.key}**`);
       for (const t of groups.get(entry.key)!) {
-        lines.push(`  - **${numbering.get(t.testCaseId)}.** ${statusEmoji(t)} ${t.name}`);
+        lines.push(`  - **${numbering.get(t)}.** ${statusEmoji(t)} ${t.name}`);
       }
     }
   }

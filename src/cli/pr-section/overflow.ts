@@ -16,6 +16,11 @@ import type { E2eReport } from "./types.js";
 export interface ISplitOptions {
   /** Maximum UTF-8 byte length of the rendered body. */
   maxBodyBytes: number;
+  /**
+   * Dashboard projects base for the ring this run happened on. Omitted falls
+   * back to production, so a caller that never resolved a target is unchanged.
+   */
+  dashboardBaseUrl?: string;
 }
 
 export interface ISplitResult {
@@ -38,7 +43,7 @@ export function splitWithOverflow (
   report: E2eReport,
   opts: ISplitOptions,
 ): ISplitResult {
-  const inlineBody = renderBody(report, { inlineDetails: true });
+  const inlineBody = renderBody(report, { inlineDetails: true, dashboardBaseUrl: opts.dashboardBaseUrl });
   const inlineBytes = Buffer.byteLength(inlineBody, "utf-8");
   if (inlineBytes <= opts.maxBodyBytes) {
     return { body: inlineBody, comment: null };
@@ -47,8 +52,8 @@ export function splitWithOverflow (
     // Nothing to spill. Return as-is; the caller decides how to handle the budget.
     return { body: inlineBody, comment: null };
   }
-  const spilledBody = renderBody(report, { inlineDetails: false });
-  const comment = renderComment(report);
+  const spilledBody = renderBody(report, { inlineDetails: false, dashboardBaseUrl: opts.dashboardBaseUrl });
+  const comment = renderComment(report, { dashboardBaseUrl: opts.dashboardBaseUrl });
   return {
     body: spilledBody,
     comment: comment.length > 0 ? comment : null,

@@ -28,6 +28,9 @@ export const MAX_PR_TERMINAL_BLOCKS = 3;
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;
 
+/** Stop-hook reminders about an unanswered build request before the gate releases the session. */
+export const MAX_BUILD_BLOCKS = 3;
+
 /** How many times the walkthrough Stop gate blocks a turn end before releasing, so a result that genuinely can't be posted can't trap the session. */
 export const MAX_WALKTHROUGH_BLOCKS = 3;
 

@@ -192,6 +192,12 @@
           },
           {
             "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-followthrough-gate.sh\"",
+            "async": false,
+            "timeout": 10
+          },
+          {
+            "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-walkthrough-gate.sh\"",
             "async": false,
             "timeout": 15

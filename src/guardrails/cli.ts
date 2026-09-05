@@ -17,6 +17,7 @@ import {
   MAX_STAGE_BLOCKS,
   MAX_WALKTHROUGH_BLOCKS,
   MAX_WATCH_BLOCKS,
+  MAX_BUILD_BLOCKS,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
@@ -56,6 +57,11 @@ import {
   applyWatchSkip,
 } from "./watchArmed.js";
 import {
+  buildFollowthroughDecision,
+  isBuildSkipMarker,
+  applyBuildSkip,
+} from "./buildFollowthrough.js";
+import {
   detectWalkthroughPost,
   isWalkthroughSkipMarker,
   applyWalkthroughPosted,
@@ -87,6 +93,7 @@ import {
   StageGateAction,
   WalkthroughGateAction,
   WatchGateAction,
+  BuildFollowthroughAction,
   type HookInput,
 } from "./types.js";
 
@@ -195,7 +202,8 @@ function recordTests(): string {
     e2eSkipped: isE2ESkipMarker(cmd),
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
+  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
   const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
@@ -361,6 +369,28 @@ function watchGate(): string {
         `this gate quiet for the rest of the session.`
       : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
         `seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
+function buildFollowthroughGate(): string {
+  const state = readState(sessionId);
+  const decision = buildFollowthroughDecision(state);
+  if (decision.action === BuildFollowthroughAction.Release) return releaseGate("buildSkipped");
+  if (decision.action === BuildFollowthroughAction.None) return "{}";
+  state.buildBlockCount = decision.blockCount;
+  writeState(state);
+  // Full instruction once; repeats are one line — same rationale as e2eGate.
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. ` +
+        `A root cause written into the transcript ships nothing — once the session ends it is gone, and the ` +
+        `watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ` +
+        `/muggle-do, which runs requirements → build → impact → unit tests → E2E → PR → watcher. ` +
+        `If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was ` +
+        `advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` — ` +
+        `that records the skip and keeps this gate quiet for the rest of the session.`
+      : `Build request still unanswered — no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): ` +
+        `carry it to a PR via /muggle-do, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -546,6 +576,7 @@ const handlers: Record<string, () => string> = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "build-followthrough-gate": buildFollowthroughGate,
   "walkthrough-gate": walkthroughGate,
   "record-comment-replies": recordCommentReplies,
   "comment-reply-gate": commentReplyGate,

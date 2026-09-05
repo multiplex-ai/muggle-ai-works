@@ -243,6 +243,8 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     terminalBlockCount: 1,
     watchSkipped: true,
     watchBlockCount: 1,
+    buildSkipped: true,
+    buildBlockCount: 1,
     walkthroughPosted: true,
     walkthroughSkipped: true,
     walkthroughBlockCount: 1,

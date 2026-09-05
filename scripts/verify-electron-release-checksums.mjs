@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, readFileSync } from "fs";
-import { dirname, join } from "path";
+import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -10,14 +10,31 @@ const repositoryRootPath = join(scriptsDirectoryPath, "..");
 const packageJsonPath = join(repositoryRootPath, "package.json");
 const runtimeTargetsPath = join(repositoryRootPath, "config", "runtime-targets.json");
 
-verifyElectronReleaseChecksums().catch((error) => {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`Electron release checksum verification failed: ${errorMessage}`);
-    process.exit(1);
-});
+/**
+ * Release asset file name to the `checksumsByStream` platform key it is pinned under.
+ * The pin map is keyed by platform, the release by asset name; this is the only bridge.
+ */
+const PLATFORM_KEY_BY_ASSET_FILE_NAME = {
+    "MuggleAI-darwin-arm64.zip": "darwin-arm64",
+    "MuggleAI-darwin-x64.zip": "darwin-x64",
+    "MuggleAI-linux-x64.zip": "linux-x64",
+    "MuggleAI-win32-x64.zip": "win32-x64",
+};
+
+const isDirectInvocation =
+    Boolean(process.argv[1]) && resolve(process.argv[1]) === resolve(currentFilePath);
+
+if (isDirectInvocation) {
+    verifyElectronReleaseChecksums().catch((error) => {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`Electron release checksum verification failed: ${errorMessage}`);
+        process.exit(1);
+    });
+}
 
 /**
- * Verify checksums.txt exists and includes all required platform artifacts.
+ * Verify checksums.txt exists, includes all required platform artifacts, and agrees
+ * with the checksums pinned in package.json.
  * @returns {Promise<void>}
  */
 async function verifyElectronReleaseChecksums() {
@@ -34,12 +51,7 @@ async function verifyElectronReleaseChecksums() {
         message: "package.json muggleConfig.downloadBaseUrl must be defined.",
     });
 
-    const requiredAssetFileNames = [
-        "MuggleAI-darwin-arm64.zip",
-        "MuggleAI-darwin-x64.zip",
-        "MuggleAI-linux-x64.zip",
-        "MuggleAI-win32-x64.zip",
-    ];
+    const requiredAssetFileNames = Object.keys(PLATFORM_KEY_BY_ASSET_FILE_NAME);
 
     const { streams } = readJsonFile(runtimeTargetsPath);
     const checksumsByStream = packageJson?.muggleConfig?.checksumsByStream ?? {};
@@ -73,16 +85,58 @@ async function verifyElectronReleaseChecksums() {
             });
         }
 
+        assertPinnedChecksumsMatchPublished({
+            pinnedChecksums: checksumsByStream[releaseStream],
+            checksumsContent: checksumsContent,
+            releaseStream: releaseStream,
+            releaseTag: releaseTag,
+        });
+
         console.log(`checksums.txt verified for ${releaseTag}.`);
     }
 }
 
 /**
- * Check whether checksums content has a valid sha256 line for an asset.
- * @param {{ checksumsContent: string, assetFileName: string }} params
- * @returns {boolean}
+ * Assert every pinned checksum equals the one the release actually published.
+ *
+ * Well-formedness alone cannot catch a pin left behind by an earlier electron-app
+ * version: the pin map is keyed by stream and platform with no version dimension, so a
+ * stale value stays syntactically valid and ships green. Comparing against the release
+ * is what turns that into a build failure.
+ *
+ * @param {{ pinnedChecksums: Record<string, string>, checksumsContent: string, releaseStream: string, releaseTag: string }} params
+ * @returns {void}
+ * @throws {Error} When a pinned checksum differs from the published one, or is absent.
  */
-function hasValidChecksumEntry({ checksumsContent, assetFileName }) {
+function assertPinnedChecksumsMatchPublished({ pinnedChecksums, checksumsContent, releaseStream, releaseTag }) {
+    for (const [assetFileName, platformKey] of Object.entries(PLATFORM_KEY_BY_ASSET_FILE_NAME)) {
+        const pinnedChecksum = pinnedChecksums?.[platformKey];
+        if (!pinnedChecksum) {
+            continue;
+        }
+
+        const publishedChecksum = findPublishedChecksum({
+            checksumsContent: checksumsContent,
+            assetFileName: assetFileName,
+        });
+
+        assertValue({
+            condition: pinnedChecksum.toLowerCase() === publishedChecksum?.toLowerCase(),
+            message:
+                `Pinned checksum is stale for ${releaseStream}/${platformKey} in ${releaseTag}.\n` +
+                `  pinned (package.json muggleConfig.checksumsByStream.${releaseStream}.${platformKey}): ${pinnedChecksum}\n` +
+                `  published (${assetFileName} in checksums.txt): ${publishedChecksum ?? "absent"}\n` +
+                `Update the pin to the published value before publishing.`,
+        });
+    }
+}
+
+/**
+ * Read the published SHA256 for one asset out of checksums.txt content.
+ * @param {{ checksumsContent: string, assetFileName: string }} params
+ * @returns {string | null} The checksum, or null when the asset has no valid entry.
+ */
+function findPublishedChecksum({ checksumsContent, assetFileName }) {
     const outputLines = checksumsContent.split("\n");
     const checksumPattern = /^[a-fA-F0-9]{64}$/;
 
@@ -101,11 +155,23 @@ function hasValidChecksumEntry({ checksumsContent, assetFileName }) {
         const fileNameValue = parts.slice(1).join(" ").replace(/^\*?/, "");
 
         if (fileNameValue === assetFileName && checksumPattern.test(checksumValue)) {
-            return true;
+            return checksumValue;
         }
     }
 
-    return false;
+    return null;
+}
+
+/**
+ * Check whether checksums content has a valid sha256 line for an asset.
+ * @param {{ checksumsContent: string, assetFileName: string }} params
+ * @returns {boolean}
+ */
+function hasValidChecksumEntry({ checksumsContent, assetFileName }) {
+    return findPublishedChecksum({
+        checksumsContent: checksumsContent,
+        assetFileName: assetFileName,
+    }) !== null;
 }
 
 /**
@@ -131,3 +197,10 @@ function assertValue({ condition, message }) {
         throw new Error(message);
     }
 }
+
+export {
+    PLATFORM_KEY_BY_ASSET_FILE_NAME,
+    assertPinnedChecksumsMatchPublished,
+    findPublishedChecksum,
+    hasValidChecksumEntry,
+};

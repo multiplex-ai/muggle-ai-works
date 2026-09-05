@@ -390,16 +390,29 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
 
     if (!checksumResult.valid && expectedChecksum) {
-      cleanupFailedInstall(versionDir);
-      throw new Error(
-        `Checksum verification failed!\n` +
-        `Expected: ${checksumResult.expected}\n` +
-        `Actual:   ${checksumResult.actual}\n` +
-        `The downloaded file may be corrupted or tampered with.`,
-      );
+      // A verified signature is the stronger control, and the policy already declares
+      // the checksum non-required once it applies. Failing here anyway would let a pin
+      // left behind by an earlier electron-app version block an artifact whose
+      // provenance was just proven — while accusing it of being tampered with.
+      if (!integrityPolicy.requiresChecksum) {
+        console.warn(
+          `Pinned checksum does not match this download, but its signature verified.\n` +
+          `Expected: ${checksumResult.expected}\n` +
+          `Actual:   ${checksumResult.actual}\n` +
+          `The pin in package.json muggleConfig.checksumsByStream is stale for this release; continuing on the signature.`,
+        );
+      } else {
+        cleanupFailedInstall(versionDir);
+        throw new Error(
+          `Checksum verification failed!\n` +
+          `Expected: ${checksumResult.expected}\n` +
+          `Actual:   ${checksumResult.actual}\n` +
+          `The downloaded file may be corrupted or tampered with.`,
+        );
+      }
     }
 
-    if (expectedChecksum) {
+    if (expectedChecksum && checksumResult.valid) {
       console.log("Checksum verified successfully.");
     }
 

@@ -13,6 +13,7 @@ var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
 var MAX_WATCH_BLOCKS = 3;
+var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
 var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
@@ -583,6 +584,25 @@ function watchGateDecision(state, untrackedPrUrls, maxBlocks = MAX_WATCH_BLOCKS)
     untracked: untrackedPrUrls
   };
 }
+
+// src/guardrails/buildFollowthrough.ts
+var BUILD_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_BUILD_SKIP\b/;
+function isBuildSkipMarker(cmd) {
+  return BUILD_SKIP_MARKER.test(cmd);
+}
+function applyBuildSkip(state, skipped) {
+  if (!skipped || state.buildSkipped === true) return state;
+  return { ...state, buildSkipped: true };
+}
+function buildFollowthroughDecision(state, maxBlocks = MAX_BUILD_BLOCKS) {
+  const blockCount = state.buildBlockCount ?? 0;
+  const owed = state.buildIntentRouted === true && state.buildSkipped !== true && state.prsHandled.length === 0;
+  if (!owed) return { action: "none" /* None */, blockCount };
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
 var REPORT_SENTINEL = "muggle-pr-section";
 var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
 var GH_API_CMD = /\bgh\s+api\b/;
@@ -1080,7 +1100,8 @@ function recordTests() {
     e2eSkipped: isE2ESkipMarker(cmd)
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withWatchSkip, detectWalkthroughPost(input));
+  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
   const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
@@ -1177,6 +1198,16 @@ function watchGate() {
   writeState(state);
   const prList = decision.untracked.join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 /muggle:muggle-pr-followup ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+function buildFollowthroughGate() {
+  const state = readState(sessionId);
+  const decision = buildFollowthroughDecision(state);
+  if (decision.action === "release" /* Release */) return releaseGate("buildSkipped");
+  if (decision.action === "none" /* None */) return "{}";
+  state.buildBlockCount = decision.blockCount;
+  writeState(state);
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via /muggle-do, which runs requirements \u2192 build \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via /muggle-do, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function walkthroughGate() {
@@ -1302,6 +1333,7 @@ var handlers = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "build-followthrough-gate": buildFollowthroughGate,
   "walkthrough-gate": walkthroughGate,
   "record-comment-replies": recordCommentReplies,
   "comment-reply-gate": commentReplyGate,

@@ -12,6 +12,8 @@ export interface GuardrailState {
   terminalBlockCount?: number;
   watchSkipped?: boolean;
   watchBlockCount?: number;
+  buildSkipped?: boolean;
+  buildBlockCount?: number;
   walkthroughPosted?: boolean;
   walkthroughSkipped?: boolean;
   walkthroughBlockCount?: number;
@@ -91,6 +93,17 @@ export enum WatchGateAction {
   Block = "block",
   Release = "release",
   None = "none",
+}
+
+export enum BuildFollowthroughAction {
+  Block = "block",
+  Release = "release",
+  None = "none",
+}
+
+export interface BuildFollowthroughDecision {
+  action: BuildFollowthroughAction;
+  blockCount: number;
 }
 
 /** A watcher-arm gate decision: the action, the running block count, and the opened-but-untracked PR urls that drove it. */

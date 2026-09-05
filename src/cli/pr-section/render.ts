@@ -11,6 +11,13 @@
 
 import type { E2eReport, Step, TestResult } from "./types.js";
 
+/**
+ * Dashboard projects base used when the caller supplies none.
+ *
+ * Production, because a report rendered without a resolved runtime target is
+ * overwhelmingly a production run. A caller on another ring passes its own base
+ * so the link lands on the environment the run actually happened in.
+ */
 export const DASHBOARD_URL_BASE =
   "https://www.muggle-ai.com/muggleTestV0/dashboard/projects";
 
@@ -218,10 +225,15 @@ export function renderOverview (report: E2eReport): string {
  * `testNumber` is the 1-based index used to prefix the collapsible summary line
  * so it lines up with the numbered list in the overview section.
  */
-export function renderTestDetails (test: TestResult, projectId: string, testNumber: number): string {
+export function renderTestDetails (
+  test: TestResult,
+  projectId: string,
+  testNumber: number,
+  dashboardBaseUrl: string = DASHBOARD_URL_BASE,
+): string {
   const summary = renderSummaryLine(test, testNumber);
   const frameBlock = renderEndingFrame(test);
-  const resultLines = renderResultSummary(test, projectId);
+  const resultLines = renderResultSummary(test, projectId, dashboardBaseUrl);
   const body: string[] = ["", "<br>", ""];
   if (frameBlock) {
     body.push(...frameBlock, "");
@@ -257,8 +269,8 @@ function renderEndingFrame (test: TestResult): string[] | null {
   ];
 }
 
-function renderResultSummary (test: TestResult, projectId: string): string[] {
-  const dashboardUrl = `${DASHBOARD_URL_BASE}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
+function renderResultSummary (test: TestResult, projectId: string, dashboardBaseUrl: string): string[] {
+  const dashboardUrl = `${dashboardBaseUrl}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
   const lines: string[] = [];
   if (test.status === "passed") {
     lines.push(`**Result:** ✅ PASSED`);
@@ -274,8 +286,20 @@ function renderResultSummary (test: TestResult, projectId: string): string[] {
   return lines;
 }
 
+/** Options shared by both render entry points. */
+export interface IDashboardLinkOptions {
+  /**
+   * Dashboard projects base for the ring this run happened on, without a
+   * trailing slash. Omitted falls back to production.
+   */
+  dashboardBaseUrl?: string;
+}
+
+/** Options for renderComment. */
+export type IRenderCommentOptions = IDashboardLinkOptions;
+
 /** Options for renderBody. */
-export interface IRenderBodyOptions {
+export interface IRenderBodyOptions extends IDashboardLinkOptions {
   /**
    * When true, the per-test `<details>` blocks are included inline in the body.
    * When false, a single pointer line is written instead and the details are expected
@@ -299,7 +323,8 @@ export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string
       "_Full per-test details in the comment below — the PR description was too large to inline them._",
     ].join("\n");
   }
-  const detailBlocks = report.tests.map((t, i) => renderTestDetails(t, report.projectId, i + 1));
+  const detailBlocks = report.tests.map((t, i) =>
+    renderTestDetails(t, report.projectId, i + 1, opts.dashboardBaseUrl ?? DASHBOARD_URL_BASE));
   return [
     overview,
     "",
@@ -310,11 +335,12 @@ export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string
 }
 
 /** Render the overflow comment body. Returns empty string if there are no tests. */
-export function renderComment (report: E2eReport): string {
+export function renderComment (report: E2eReport, opts: IRenderCommentOptions = {}): string {
   if (report.tests.length === 0) {
     return "";
   }
-  const detailBlocks = report.tests.map((t, i) => renderTestDetails(t, report.projectId, i + 1));
+  const detailBlocks = report.tests.map((t, i) =>
+    renderTestDetails(t, report.projectId, i + 1, opts.dashboardBaseUrl ?? DASHBOARD_URL_BASE));
   return [
     "## E2E acceptance evidence (overflow)",
     "",

@@ -9,6 +9,7 @@
 import { ZodError } from "zod";
 
 import { buildPrSection, E2eReportSchema } from "./pr-section/index.js";
+import { DASHBOARD_URL_BASE } from "./pr-section/render.js";
 import { resolveGsScreenshotUrls } from "./pr-section/resolve-urls.js";
 
 /** Default UTF-8 byte budget for the PR description. */
@@ -25,6 +26,28 @@ export const REPORT_SECTION_SENTINEL = "<!-- muggle-pr-section:v1 -->";
 
 const withSentinel = <T extends string | null>(s: T): T =>
   (s ? (`${REPORT_SECTION_SENTINEL}\n${s}` as T) : s);
+
+/**
+ * Dashboard projects base for the ring this CLI is pointed at.
+ *
+ * A staging run's evidence must link into the staging dashboard; emitting the
+ * production host sends reviewers to a different environment than the one the
+ * run happened in. Falls back to the renderer's production default when the
+ * target cannot be resolved, so rendering never fails over a link.
+ * @param stderrWrite - Sink for the fallback warning.
+ * @returns Base URL ending in `/dashboard/projects`, without a trailing slash.
+ */
+async function resolveDashboardBaseUrl (stderrWrite: (s: string) => void): Promise<string> {
+  try {
+    const mcps = await import("../../packages/mcps/src/index.js");
+    return `${mcps.resolveActiveProfile().uiBaseUrl}/dashboard/projects`;
+  } catch (err) {
+    stderrWrite(
+      `build-pr-section: could not resolve the runtime target, linking to production: ${errMsg(err)}\n`,
+    );
+    return DASHBOARD_URL_BASE;
+  }
+}
 
 interface IRunOptions {
   stdin: NodeJS.ReadableStream;
@@ -83,6 +106,7 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
   const sentinelCost = Buffer.byteLength(`${REPORT_SECTION_SENTINEL}\n`, "utf-8");
   const renderedSection = buildPrSection(resolvedReport, {
     maxBodyBytes: opts.maxBodyBytes - sentinelCost,
+    dashboardBaseUrl: await resolveDashboardBaseUrl(opts.stderrWrite),
   });
   opts.stdoutWrite(
     JSON.stringify({

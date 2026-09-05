@@ -10,6 +10,7 @@
   "targets": {
     "production": {
       "promptServiceBaseUrl": "https://promptservice.muggle-ai.com",
+      "uiBaseUrl": "https://www.muggle-ai.com/muggleTestV0",
       "auth0Domain": "login.muggle-ai.com",
       "auth0ClientId": "UgG5UjoyLksxMciWWKqVpwfWrJ4rFvtT",
       "auth0Audience": "https://muggleai.us.auth0.com/api/v2/",
@@ -17,6 +18,7 @@
     },
     "staging": {
       "promptServiceBaseUrl": "https://staging.promptservice.muggle-ai.com",
+      "uiBaseUrl": "https://staging.muggle-ai.com/muggleTestV0",
       "auth0Domain": "login.staging.muggle-ai.com",
       "auth0ClientId": "C6rmJN3FeX3EuGZdY8qbHpbJVRadxsly",
       "auth0Audience": "https://staging-muggleai.us.auth0.com/api/v2/",
@@ -24,6 +26,7 @@
     },
     "dev": {
       "promptServiceBaseUrl": "http://localhost:5050",
+      "uiBaseUrl": "http://localhost:3999/muggleTestV0",
       "auth0Domain": "dev-po4mxmz0rd8a0w8w.us.auth0.com",
       "auth0ClientId": "GBvkMdTbCI80XJXnJ90MmbEvXwcWGUtw",
       "auth0Audience": "https://dev-po4mxmz0rd8a0w8w.us.auth0.com/api/v2/",

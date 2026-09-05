@@ -274,8 +274,29 @@ describe("renderTestDetails", () => {
     expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
     expect(md).toContain("**Result:** ✅ PASSED");
     expect(md).toContain("**Steps:** 3");
-    expect(md).toContain(`${DASHBOARD_URL_BASE}/p1/scripts?modal=script-details&testCaseId=tc-1`);
+    expect(md).toContain(
+      "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-1",
+    );
     expect(md).toContain("</details>");
+  });
+
+  it("links into the ring the run happened on when a base is supplied", () => {
+    const md = renderTestDetails(
+      passedWithDesc,
+      PROJECT_ID,
+      1,
+      "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
+    );
+    expect(md).toContain(
+      "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-1",
+    );
+    // A staging run must not send reviewers to production.
+    expect(md).not.toContain("https://www.muggle-ai.com");
+  });
+
+  it("falls back to production when no base is supplied", () => {
+    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
+    expect(md).toContain(DASHBOARD_URL_BASE);
   });
 
   it("renders a passed test without description (no em-dash, no description text)", () => {
@@ -338,7 +359,9 @@ describe("renderTestDetails", () => {
     // No ending-screen block when there are zero steps.
     expect(md).not.toContain("**📸 Ending screen");
     // Dashboard link still works — that's what makes per-TC navigation possible.
-    expect(md).toContain(`${DASHBOARD_URL_BASE}/p1/scripts?modal=script-details&testCaseId=tc-6`);
+    expect(md).toContain(
+      "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-6",
+    );
   });
 
   it("renders an inconclusive test with steps using a 'cut short' caption", () => {

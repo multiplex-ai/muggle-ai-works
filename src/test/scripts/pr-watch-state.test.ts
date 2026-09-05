@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
@@ -227,13 +228,13 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
   // PR through one projection. A watermark seeded through a different shape than
   // the one it is later compared against is worse than no watermark at all.
   it("is the filter the shared fetch actually loads", () => {
-    const fetchBody = execFileSync("cat", [toBash(fetchPath)], { encoding: "utf8" });
+    const fetchBody = readFileSync(fetchPath, "utf8");
     expect(fetchBody).toContain('--jq "$state_projection"');
   });
 
   it("is loaded by both readers through that one library", () => {
-    const loopBody = execFileSync("cat", [toBash(loopPath)], { encoding: "utf8" });
-    const armBody = execFileSync("cat", [toBash(armPath)], { encoding: "utf8" });
+    const loopBody = readFileSync(loopPath, "utf8");
+    const armBody = readFileSync(armPath, "utf8");
 
     [loopBody, armBody].forEach((body) => {
       expect(body).toContain("pr-watch-state.jq");

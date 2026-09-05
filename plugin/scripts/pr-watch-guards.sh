@@ -85,3 +85,33 @@ watcher_pid_alive() {
     [ -n "$pid" ] || return 1
     kill -0 "$pid" 2>/dev/null
 }
+
+# True when the slot's lease is held by a live loop that no longer belongs to the
+# session arming now — the deaf-orphan case.
+#
+# A live PID proves the loop is running; it never proves anything is listening.
+# On Windows a detached loop outlives the session that launched it, keeps
+# polling, and keeps touching its heartbeat, while its stdout is the dead
+# session's monitor pipe. Every liveness signal reads healthy and the events
+# reach nobody. Because arming skipped on a live PID alone, that corpse blocked
+# a live session from arming the PR for the whole lifetime cap — seven days
+# since the default moved off six hours.
+#
+# Deliberately narrow. It answers only "is this lease held on behalf of some
+# other session", which is decidable from state already on disk. It says nothing
+# about a loop orphaned by its own session's monitor dying, where the owner still
+# matches; that one needs a signal from the reader, which no file here carries.
+#
+# Conservative on every unknown — no watch.pid, a dead PID, no owner.json, or no
+# current session id all answer false, so a slot is never reclaimed on a guess.
+watcher_lease_is_foreign() {
+    local slot="$1" current_session="$2" owner_pid owner_session
+    [ -n "$current_session" ] || return 1
+    [ -f "${slot}/watch.pid" ] || return 1
+    owner_pid=$(tr -d ' \r\n' < "${slot}/watch.pid" 2>/dev/null)
+    watcher_pid_alive "$owner_pid" || return 1
+    [ -f "${slot}/owner.json" ] || return 1
+    owner_session=$(sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${slot}/owner.json" | head -1)
+    [ -n "$owner_session" ] || return 1
+    [ "$owner_session" != "$current_session" ]
+}

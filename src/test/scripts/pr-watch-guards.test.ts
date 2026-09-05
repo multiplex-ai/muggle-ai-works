@@ -35,6 +35,37 @@ function runGuard(snippet: string, pidFile?: string): number {
   }
 }
 
+// Same as runGuard, plus an owner.json — the lease-ownership guard reads both.
+//
+// `livePid` writes the pid from *inside* bash rather than passing Node's
+// `process.pid`. Under Git Bash `kill -0` resolves MSYS pids, not Win32 ones, so
+// a Node pid is reported dead there and the guard would never see a live lease.
+function runLeaseGuard(
+  currentSession: string,
+  pid: "live" | "dead" | "absent",
+  ownerSession?: string,
+): number {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  if (pid === "dead") writeFileSync(join(slot, "watch.pid"), "999999999");
+  if (ownerSession !== undefined) {
+    writeFileSync(join(slot, "owner.json"), JSON.stringify({ session_id: ownerSession }, null, 2));
+  }
+  const seedLivePid = pid === "live" ? 'echo $$ > "$SLOT/watch.pid"; ' : "";
+  try {
+    execFileSync(
+      "bash",
+      ["-c", `source "$SCRIPT"; ${seedLivePid}watcher_lease_is_foreign "$SLOT" "$CURRENT"`],
+      {
+        env: { ...process.env, SCRIPT: scriptPath, SLOT: toBash(slot), CURRENT: currentSession },
+        stdio: "ignore",
+      },
+    );
+    return 0;
+  } catch (e: unknown) {
+    return (e as { status?: number }).status ?? 1;
+  }
+}
+
 describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_superseded", () => {
   it("is false when no watch.pid exists (loop not yet claimed)", () => {
     expect(runGuard('watcher_superseded "$SLOT" 111')).toBe(1);
@@ -139,5 +170,34 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_unseeded_too_long", () => 
 
   it("defaults to 180 seconds", () => {
     expect(runGuard('[ "$MUGGLE_PR_WATCH_MAX_UNSEEDED" = "180" ]')).toBe(0);
+  });
+});
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_lease_is_foreign", () => {
+  // A live PID belonging to a dead session is the deaf orphan: still polling,
+  // still touching its heartbeat, writing into a monitor pipe nobody reads.
+  it("is true when a live lease belongs to another session", () => {
+    expect(runLeaseGuard("mine", "live", "theirs")).toBe(0);
+  });
+
+  it("is false when the live lease belongs to the arming session", () => {
+    expect(runLeaseGuard("mine", "live", "mine")).toBe(1);
+  });
+
+  // Every unknown answers false: a slot is never reclaimed on a guess.
+  it("is false when the PID is dead, whoever owns it", () => {
+    expect(runLeaseGuard("mine", "dead", "theirs")).toBe(1);
+  });
+
+  it("is false when no owner.json records who armed it", () => {
+    expect(runLeaseGuard("mine", "live")).toBe(1);
+  });
+
+  it("is false when no watch.pid exists", () => {
+    expect(runLeaseGuard("mine", "absent", "theirs")).toBe(1);
+  });
+
+  it("is false when the arming session has no id to compare", () => {
+    expect(runLeaseGuard("", "live", "theirs")).toBe(1);
   });
 });

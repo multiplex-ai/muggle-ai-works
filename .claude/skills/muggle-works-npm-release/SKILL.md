@@ -169,27 +169,45 @@ Prefer **explicit version** (not “auto bump”):
 
 ```bash
 gh workflow run publish-works-to-npm.yml --repo multiplex-ai/muggle-ai-works --ref master \
-  --field "version=<VERSION>" --field "bump=patch"
+  --field "version=<VERSION>" --field "channel=production"
 ```
 
-The `bump=patch` field is a harmless placeholder when `version` is set; the workflow prefers the explicit `version` input.
+**`channel=production` is required and easy to miss.** The input defaults to `staging`, deliberately — so a hand-run cannot move the `latest` dist-tag by accident. Omit it and the run publishes `<VERSION>-staging.<run-number>` under the `staging` tag, **every job reports success**, and `latest` never moves. The release looks shipped and is not.
 
-**Or** **`git tag "v<VERSION>"`** && **`git push origin "v<VERSION>"`** only if that tag **does not** already exist on the remote; if the tag exists, use **`workflow_dispatch`** with **`version`**.
+`bump` is read only when `version` is empty, so it is unnecessary alongside an explicit version.
+
+**Or** **`git tag "v<VERSION>"`** && **`git push origin "v<VERSION>"`** only if that tag **does not** already exist on the remote; if the tag exists, use **`workflow_dispatch`** with **`version`**. A tag push carries no inputs and still resolves to production — pushing a version tag is already an explicit release act.
 
 Watch the run and confirm jobs succeed:
 
 ```bash
-gh run list --repo multiplex-ai/muggle-ai-works --workflow=publish-works-to-npm.yml --limit 1
 gh run watch <RUN_ID> --repo multiplex-ai/muggle-ai-works --exit-status
+echo "exit=$?"
 ```
 
-Verify the registry:
+**Never pipe `gh run watch`.** `gh run watch … | tail` reports the *pipe’s* exit status, not the run’s, so a failed run reads as green. Redirect to a file when you need the output.
+
+### Verify against the registry
+
+A green run is not evidence the release shipped. Read the dist-tags, which expose a staging publish that `npm view <pkg> version` hides:
 
 ```bash
-npm view @muggleai/works version
+npm view @muggleai/works dist-tags --json
 ```
 
-Give the user the **Actions run URL**. If npm lags, wait ~60s and retry.
+`latest` must equal **`<VERSION>`**. If the run succeeded and `latest` did not move, the publish went to `staging` — re-dispatch with `channel=production`. Never read an unmoved `latest` as registry lag.
+
+Give the user the **Actions run URL**.
+
+### Staging guard is not a reason to re-cut
+
+Under `channel=staging` only, `package-audit` derives `<VERSION>-staging.<run-number>` and refuses a candidate not greater than the current `staging` tag:
+
+```
+Refusing to publish 5.12.1-staging.90: not greater than the current staging tag 5.13.0-staging.89.
+```
+
+Auto-staging publishes a pre-release on every green master build, deriving its base as `major.(minor+1).0` from `latest` — so the `staging` tag normally sits a minor **ahead** of the version being released. That refusal means the **channel** is wrong, not the version. Fix the channel; never bump the release version to climb over a staging tag.
 
 ---
 

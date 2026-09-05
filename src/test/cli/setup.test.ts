@@ -31,6 +31,20 @@ const mcpsMocks = vi.hoisted(() => ({
   getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
 }));
 
+// Only the signature check is stubbed; resolveIntegrityPolicy stays real because the
+// checksum's advisory-vs-required behaviour is exactly what these tests exercise.
+const releaseIntegrityMocks = vi.hoisted(() => ({
+  verifyReleaseSignature: vi.fn(async () => ({ valid: false, reason: "no signature bundle" })),
+}));
+
+vi.mock("../../../scripts/release-integrity/index.mjs", async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    verifyReleaseSignature: releaseIntegrityMocks.verifyReleaseSignature,
+  };
+});
+
 const childProcessMock = vi.hoisted(() => ({
   execFile: vi.fn((_cmd: string, _args: string[], cb: (e: Error | null) => void) => cb(null)),
 }));
@@ -94,6 +108,7 @@ function fetchOk(): void {
 describe("setupCommand", () => {
   let logSpy: ReturnType<typeof vi.spyOn>;
   let errSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
   let exitSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -114,8 +129,13 @@ describe("setupCommand", () => {
     mcpsMocks.getChecksumForPlatform.mockReturnValue("expected-archive-sum");
     mcpsMocks.getElectronAppVersion.mockReturnValue("1.0.5");
     childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
+    releaseIntegrityMocks.verifyReleaseSignature.mockResolvedValue({
+      valid: false,
+      reason: "no signature bundle",
+    });
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     exitSpy = vi.spyOn(process, "exit").mockImplementation(((): never => undefined as never));
     fetchOk();
   });
@@ -123,6 +143,7 @@ describe("setupCommand", () => {
   afterEach(() => {
     logSpy.mockRestore();
     errSpy.mockRestore();
+    warnSpy.mockRestore();
     exitSpy.mockRestore();
     vi.unstubAllGlobals();
   });
@@ -190,6 +211,33 @@ describe("setupCommand", () => {
     await setupCommand({ force: true });
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(errSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Failed to download");
+  });
+
+  it("installs a signature-verified release even when its pinned checksum is stale", async () => {
+    // At/above the signed-from version the signature is the required control, so a pin
+    // left behind by an earlier electron-app version must not block the install.
+    const signedVersion = "1.10.3";
+    mcpsMocks.getElectronAppVersion.mockReturnValue(signedVersion);
+    releaseIntegrityMocks.verifyReleaseSignature.mockResolvedValue({ valid: true, reason: "" });
+    mcpsMocks.verifyFileChecksum.mockResolvedValue({
+      valid: false,
+      expected: "stale-pin-from-an-older-release",
+      actual: "hash-of-what-was-actually-published",
+    });
+    fsState.existing.add(join(`/data/electron-app/${signedVersion}`, "MuggleAI.exe"));
+
+    await setupCommand({ force: true });
+
+    expect(exitSpy).not.toHaveBeenCalledWith(1);
+    expect(childProcessMock.execFile).toHaveBeenCalled();
+
+    const warned = warnSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(warned).toContain("stale");
+    expect(warned).toContain("stale-pin-from-an-older-release");
+    expect(warned).toContain("hash-of-what-was-actually-published");
+    // The scary wording belongs only to a genuinely unverifiable download.
+    expect(warned).not.toContain("tampered with");
+    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).not.toContain("Checksum verified");
   });
 
   it("exits 1 when the extracted executable is missing", async () => {

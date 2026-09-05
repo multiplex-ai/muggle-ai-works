@@ -88,13 +88,16 @@ The log is for reading; the **diff decides**. `NON_SHIPPING` drops paths that ca
 
 ### Electron bump decision
 
-If **`latestElectronVersion`** ≠ current **`electronAppVersion`**, ask: **bump** Electron + all four **`muggleConfig.checksums`** to **`latestElectronVersion`**, or **keep** current.
+If **`latestElectronVersion`** ≠ current **`electronAppVersion`**, ask: **bump** Electron + every **`muggleConfig.checksumsByStream`** entry to **`latestElectronVersion`**, or **keep** current.
 
-If bumping, checksums from:
+If bumping, take checksums from **both** release streams — that is **eight** values, four per stream, and a stream left behind is exactly how a stale pin ships:
 
-`https://github.com/multiplex-ai/muggle-ai-works/releases/download/electron-app-vVERSION/checksums.txt`
+- production → `https://github.com/multiplex-ai/muggle-ai-works/releases/download/electron-app-vVERSION/checksums.txt`
+- staging → `https://github.com/multiplex-ai/muggle-ai-works/releases/download/electron-app-staging-vVERSION/checksums.txt`
 
-Map zip artifacts → **`darwin-arm64`**, **`darwin-x64`**, **`win32-x64`**, **`linux-x64`** (same mapping rules as today).
+Map zip artifacts → **`darwin-arm64`**, **`darwin-x64`**, **`win32-x64`**, **`linux-x64`** under each stream (same mapping rules as today).
+
+`pnpm run verify:electron-release-checksums` fails on any pin that disagrees with its published release, so run it after editing rather than eyeballing the values.
 
 **Stop again:** user must **confirm** the full plan (**`nextNpmVersion`** + Electron choice). If they cancel, **do not** branch, merge, or dispatch CI.
 
@@ -111,7 +114,7 @@ npm version "<VERSION>" --no-git-tag-version
 
 Replace **`<VERSION>`** with **`nextNpmVersion`** (dots in the branch name are fine, e.g. `chore/release-4.8.0`).
 
-- If Electron bump agreed: set **`muggleConfig.electronAppVersion`** and all four **`muggleConfig.checksums`** in **`package.json`**.
+- If Electron bump agreed: set **`muggleConfig.electronAppVersion`** and every **`muggleConfig.checksumsByStream`** entry — all eight, both streams — in **`package.json`**.
 
 ### 2. Propagate versions (do not hand-edit manifests)
 

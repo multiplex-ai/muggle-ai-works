@@ -114,7 +114,6 @@ version_check || true
 # <cwd>/.muggle-ai/preferences.json is left on disk but no longer read, so the
 # keys it can no longer apply are named once — the stamp file suppresses the
 # repeat until that key set changes.
-prefs_global_file="${HOME}/.muggle-ai/preferences.json"
 prefs_line=""
 prefs_file_note=""
 
@@ -122,13 +121,15 @@ prefs_file_note=""
 # resolve a preference the same way. Hardcoding them here drifted once already.
 prefs_hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 prefs_defaults_file="${prefs_hook_dir}/../config/preference-defaults.json"
+prefs_limits_file="${prefs_hook_dir}/../config/onboarding-limits.json"
 
 onboarding_directive='Muggle Test first-run setup has not been run on this machine. Before acting on the user request, acknowledge what they asked for, then offer them the one-time setup walkthrough (the `onboard` operation of the muggle-preferences skill) which explains how Muggle Test works and saves their preferences. Accepting the recommended defaults takes one keystroke. If they decline, record the skip and carry on with their request using defaults.'
 
-if [ -f "$prefs_global_file" ]; then
-  # Extract preferences object keys and values into a compact one-liner.
-  # Uses node for reliable JSON parsing (already required for muggle).
-  prefs_line=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ONBOARDING_DIRECTIVE="$onboarding_directive" node -e "
+# A missing preferences file is not a special case: the resolver below falls back to
+# the shipped defaults, which is exactly what the code will use until setup seeds them.
+# Extract preferences object keys and values into a compact one-liner.
+# Uses node for reliable JSON parsing (already required for muggle).
+prefs_line=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ONBOARDING_LIMITS_FILE="$prefs_limits_file" MUGGLE_ONBOARDING_DIRECTIVE="$onboarding_directive" node -e "
     const fs = require('fs');
     const os = require('os');
     const path = require('path');
@@ -136,7 +137,8 @@ if [ -f "$prefs_global_file" ]; then
       // Resolved through node, not the shell's \$HOME: under Git Bash the shell
       // reports a POSIX path that Windows node cannot open.
       const globalFile = path.join(os.homedir(), '.muggle-ai', 'preferences.json');
-      const file = JSON.parse(fs.readFileSync(globalFile, 'utf-8'));
+      let file = {};
+      try { file = JSON.parse(fs.readFileSync(globalFile, 'utf-8')); } catch {}
       const g = file.preferences || {};
       let defaults = {};
       try { defaults = JSON.parse(fs.readFileSync(process.env.MUGGLE_PREFERENCE_DEFAULTS_FILE, 'utf-8')); } catch {}
@@ -146,7 +148,18 @@ if [ -f "$prefs_global_file" ]; then
 
       const onboardedAt = file.onboardingCompletedAt;
       if (typeof onboardedAt !== 'string' || onboardedAt.length === 0) {
-        blocks.push(process.env.MUGGLE_ONBOARDING_DIRECTIVE);
+        // The offer is capped here rather than only in the skip path: a user who never
+        // engages would otherwise be re-asked every session forever.
+        let maxOffers = 0;
+        try { maxOffers = JSON.parse(fs.readFileSync(process.env.MUGGLE_ONBOARDING_LIMITS_FILE, 'utf-8')).maxOffers; } catch {}
+        const offersDir = path.join(os.homedir(), '.cache', 'muggle');
+        const offersFile = path.join(offersDir, 'onboarding-offers');
+        let offers = 0;
+        try { offers = parseInt(fs.readFileSync(offersFile, 'utf-8'), 10) || 0; } catch {}
+        if (maxOffers > 0 && offers < maxOffers) {
+          try { fs.mkdirSync(offersDir, { recursive: true }); fs.writeFileSync(offersFile, String(offers + 1)); } catch {}
+          blocks.push(process.env.MUGGLE_ONBOARDING_DIRECTIVE);
+        }
       }
 
       const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
@@ -171,11 +184,8 @@ if [ -f "$prefs_global_file" ]; then
       console.log(blocks.join('\\\\n\\\\n'));
     } catch { console.log(''); }
   " 2>/dev/null || true)
-  if [ -n "$prefs_line" ]; then
-    prefs_file_note="\\n\\n${prefs_line}"
-  fi
-else
-  prefs_file_note="\\n\\n${onboarding_directive}"
+if [ -n "$prefs_line" ]; then
+  prefs_file_note="\\n\\n${prefs_line}"
 fi
 
 # --- Last-used cache injection ---

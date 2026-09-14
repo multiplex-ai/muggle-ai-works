@@ -4,21 +4,23 @@ One file per key in this directory — `ls preference-gates/*.md` is the
 authoritative key list. Skills load this contract + only the gates they
 actually fire.
 
-Default allowed values: `always` / `never` / `ask`. Per-key overrides
-are noted in their own file (currently only `defaultExecutionMode`,
-which uses `local` / `remote` / `ask`).
+Default allowed values: `always` / `never` / `ask`. Per-key overrides are noted
+in their own file: `defaultExecutionMode` (`local` / `remote` / `ask`),
+`autoE2ETest` (`always` / `ask`), and `watcherLifetime` (`1d` / `7d` / `never`).
 
 ## Resolution
 
 `SessionStart` injects a `Muggle Test Preferences` line (`key=value` pairs) from
 `~/.muggle-ai/preferences.json`. Preferences are user-level — there is no
-per-project layer. Absent → treat as `ask`.
+per-project layer. The line carries every key, already resolved against the
+shipped defaults in `${CLAUDE_PLUGIN_ROOT}/config/preference-defaults.json`, so a
+key is never absent.
 
 ## Gate behavior
 
 - `always` → take the pro-action, then **always** print the silent footer.
 - `never` → take the skip-action, then **always** print the silent footer.
-- `ask` (or absent) → run Picker 1 (per-key file) → Picker 2 (below).
+- `ask` → run Picker 1 (per-key file) → Picker 2 (below).
 
 `defaultExecutionMode` uses `local`/`remote` instead of `always`/`never`.
 

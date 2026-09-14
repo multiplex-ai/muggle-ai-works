@@ -156,6 +156,13 @@ describe("resolveTogglePreferences", () => {
     expect(prefs[PreferenceKey.AutoCleanup]).toBe(PreferenceValue.Ask);
     expect(Object.keys(prefs).sort()).toEqual([...getOnboardingToggleKeys()].sort());
   });
+
+  it("leaves an ungated knob on its own default rather than an unrepresentable ask", () => {
+    const prefs = resolveTogglePreferences([]);
+
+    expect(DEFAULT_PREFERENCES[PreferenceKey.VerboseOutput]).toBe(PreferenceValue.Never);
+    expect(prefs[PreferenceKey.VerboseOutput]).toBe(PreferenceValue.Never);
+  });
 });
 
 describe("resolveOnboardingAnswers", () => {

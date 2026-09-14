@@ -12,7 +12,7 @@ Use this as the top-level Muggle Test command router.
 
 ## Preferences
 
-User preferences are injected by the SessionStart hook into a `Muggle Test Preferences` line in session context (key=value pairs). Resolution: defaults → `~/.muggle-ai/preferences.json`. Preferences are user-level and apply to every repo. Treat absent prefs as `ask`.
+User preferences are injected by the SessionStart hook into a `Muggle Test Preferences` line in session context (key=value pairs). Resolution: shipped defaults → `~/.muggle-ai/preferences.json`. Preferences are user-level and apply to every repo. The line carries every key already resolved, so a key is never absent.
 
 This router skill itself does not gate any decision on a preference — it just routes user intent to a downstream skill. Each downstream skill consults its own preferences. For example, `checkForUpdates` is consulted by `muggle-status` (Check 4), not here.
 

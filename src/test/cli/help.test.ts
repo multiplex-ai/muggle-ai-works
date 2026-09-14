@@ -1,10 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-import {
-  getPostInstallGuidance,
-  getHelpGuidance,
-  helpCommand,
-} from "../../cli/help.js";
+import { getHelpGuidance, helpCommand } from "../../cli/help.js";
 
 const RESET = "\x1b[0m";
 
@@ -21,9 +17,8 @@ describe("help guidance", () => {
 
   it("colorizes output when NO_COLOR is unset", () => {
     delete process.env.NO_COLOR;
-    const out = getPostInstallGuidance();
+    const out = getHelpGuidance();
     expect(out).toContain(RESET);
-    expect(out).toContain("Installation Complete");
     expect(out).toContain("muggle help");
   });
 

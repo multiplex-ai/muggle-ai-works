@@ -17,7 +17,7 @@ Load the prose companion per [e2e-instructions](./e2e-instructions.md) — `~/.m
 
 ## Gate `reusePreparePlan`
 
-Per [`muggle-preferences/preference-gates/README.md`](../../muggle-preferences/preference-gates/README.md). Read the current value from the `Muggle Test Preferences` session-context line; absent → `ask`.
+Per [`muggle-preferences/preference-gates/README.md`](../../muggle-preferences/preference-gates/README.md). Read the current value from the `Muggle Test Preferences` session-context line, which carries every key already resolved.
 
 - `always` → silently take the **reuse path** (below). Print the silent footer (substitute `{services}` with the comma-separated names from the loaded plan).
 - `never` → take the **rediscover path**: exit this step; continue at [rebase-check](./rebase-check.md).

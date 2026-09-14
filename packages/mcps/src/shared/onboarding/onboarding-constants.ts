@@ -29,9 +29,9 @@ export const ONBOARDING_PRIMER_BULLETS: readonly string[] = [
 export const ONBOARDING_MAX_OFFERS = 3;
 
 /**
- * Value written for a toggle entry the user leaves off. `ask` rather than
- * `never`, because declining to automate something means "check with me",
- * not "disable this feature permanently".
+ * Value written for a toggle entry the user leaves off, where the key has a gate to
+ * prompt at. `ask` rather than `never`, because declining to automate something means
+ * "check with me", not "disable this feature permanently".
  */
 export const ONBOARDING_UNSELECTED_TOGGLE_VALUE = PreferenceValue.Ask;
 
@@ -41,8 +41,8 @@ export const ONBOARDING_TOGGLE_PROMPT =
 
 /**
  * Multi-key groups whose members are each toggled on (`always`) or left off.
- * Mirrors the grouping the `/mprefs` configure picker already uses so both
- * surfaces ask the same questions in the same order.
+ * Extends the grouping the `/mprefs` configure picker uses, which reaches 19 of the
+ * 23 keys, so first-run setup covers every knob without inventing new headings.
  */
 export const ONBOARDING_TOGGLE_GROUPS: readonly IOnboardingGroupLayout[] = [
   {

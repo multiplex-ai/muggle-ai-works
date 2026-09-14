@@ -120,6 +120,19 @@ export function resolveBlanketPreferences(choice: OnboardingBlanketChoice): IPar
 }
 
 /**
+ * What a toggle the user left off resolves to.
+ *
+ * Normally `ask` — declining to automate something means "check with me". A key whose
+ * recommended value is already `never` is the exception: it has no gate to prompt at,
+ * so `ask` would be unrepresentable, and its default is the quiet one either way.
+ */
+function resolveUnselectedValue(key: PreferenceKey): PreferenceValue {
+  return DEFAULT_PREFERENCES[key] === PreferenceValue.Never
+    ? PreferenceValue.Never
+    : ONBOARDING_UNSELECTED_TOGGLE_VALUE;
+}
+
+/**
  * Resolve toggle-group selections into preferences.
  *
  * @param selectedKeys - Keys the user toggled on; every other toggle key is set to `ask`.
@@ -129,7 +142,7 @@ export function resolveTogglePreferences(selectedKeys: readonly PreferenceKey[])
   const prefs: IPartialPreferences = {};
 
   for (const key of getOnboardingToggleKeys()) {
-    prefs[key] = selected.has(key) ? PreferenceValue.Always : ONBOARDING_UNSELECTED_TOGGLE_VALUE;
+    prefs[key] = selected.has(key) ? PreferenceValue.Always : resolveUnselectedValue(key);
   }
 
   return prefs;

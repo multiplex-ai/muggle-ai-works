@@ -26,13 +26,14 @@ you can tell me which (if any) should instead be set to `never`.
 For each option: label = key name, description = first paragraph of `preference-gates/<key>.md`. Multi-select question text = `Which of these should auto-proceed (set to "always")?`; selected = `always`.
 
 - `multiSelect: true`, `header: "Auth & session"` — `autoLogin`, `autoSelectProject`, `checkForUpdates`, `verboseOutput`
-- `multiSelect: true`, `header: "Test setup"` — `autoSelectLocalHost`, `autoDetectChanges`, `autoReuseValidationContext`
+- `multiSelect: true`, `header: "Test setup"` — `autoSelectLocalHost`, `autoDetectChanges`, `autoReuseValidationContext`, `reusePreparePlan`
 - `multiSelect: true`, `header: "Test run"` — `showElectronBrowser`, `openTestResultsAfterRun`
 - `multiSelect: true`, `header: "Suggestions"` — `suggestRelatedUseCases`, `suggestRelatedTestCases`
-- `multiSelect: true`, `header: "PR"` — `postPRVisualWalkthrough`, `autoCreatePR`, `autoWatchPR`
-- `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`
+- `multiSelect: true`, `header: "PR"` — `postPRVisualWalkthrough`, `autoCreatePR`, `autoWatchPR`, `autoRouteBuildToMuggleDo`
+- `multiSelect: true`, `header: "Branch hygiene"` — `autoUseWorktree`, `autoRebase`, `autoCleanup`, `autoResolveConflicts`
 - `multiSelect: false`, `header: "E2E acceptance"` — `autoE2ETest`. Options: `Always run Stage 6 at the end` (`always` — default), `Ask each cycle` (`ask`). No `never` option.
 - `multiSelect: false`, `header: "Default mode"` — `defaultExecutionMode`. Options: `Local — run on my computer` (`local`), `Remote — run in the Muggle Test cloud` (`remote`), `Ask each time` (don't change).
+- `multiSelect: false`, `header: "PR watcher"` — `watcherLifetime`. Options: `Retire after 1 day` (`1d`), `Retire after 7 days` (`7d` — default), `Never retire` (`never`).
 
 `AskUserQuestion` accepts up to 4 questions per call — split across calls.
 

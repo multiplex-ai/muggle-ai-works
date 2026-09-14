@@ -5,6 +5,7 @@
     "mcpName": "io.github.multiplex-ai/muggle",
     "requiredCommands": [
       "serve",
+      "init",
       "setup",
       "upgrade",
       "cleanup",

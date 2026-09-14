@@ -13,6 +13,7 @@
     "plugin",
     "bin/muggle.js",
     "scripts/postinstall.mjs",
+    "scripts/onboarding-backfill.mjs",
     "scripts/release-integrity",
     "config/runtime-targets.json"
   ],

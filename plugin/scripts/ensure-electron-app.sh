@@ -118,10 +118,17 @@ prefs_global_file="${HOME}/.muggle-ai/preferences.json"
 prefs_line=""
 prefs_file_note=""
 
+# Defaults ship as data next to this hook so the context line and the MCP tools
+# resolve a preference the same way. Hardcoding them here drifted once already.
+prefs_hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+prefs_defaults_file="${prefs_hook_dir}/../config/preference-defaults.json"
+
+onboarding_directive='Muggle Test first-run setup has not been run on this machine. Before acting on the user request, acknowledge what they asked for, then offer them the one-time setup walkthrough (the `onboard` operation of the muggle-preferences skill) which explains how Muggle Test works and saves their preferences. Accepting the recommended defaults takes one keystroke. If they decline, record the skip and carry on with their request using defaults.'
+
 if [ -f "$prefs_global_file" ]; then
   # Extract preferences object keys and values into a compact one-liner.
   # Uses node for reliable JSON parsing (already required for muggle).
-  prefs_line=$(node -e "
+  prefs_line=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ONBOARDING_DIRECTIVE="$onboarding_directive" node -e "
     const fs = require('fs');
     const os = require('os');
     const path = require('path');
@@ -129,20 +136,18 @@ if [ -f "$prefs_global_file" ]; then
       // Resolved through node, not the shell's \$HOME: under Git Bash the shell
       // reports a POSIX path that Windows node cannot open.
       const globalFile = path.join(os.homedir(), '.muggle-ai', 'preferences.json');
-      const g = JSON.parse(fs.readFileSync(globalFile, 'utf-8')).preferences || {};
-      const defaults = {
-        autoLogin:'ask', autoSelectProject:'ask', autoSelectLocalHost:'ask',
-        showElectronBrowser:'ask', openTestResultsAfterRun:'ask',
-        defaultExecutionMode:'ask',
-        suggestRelatedUseCases:'ask', suggestRelatedTestCases:'ask', autoDetectChanges:'ask',
-        postPRVisualWalkthrough:'ask', autoCreatePR:'ask',
-        checkForUpdates:'ask', verboseOutput:'ask',
-        autoUseWorktree:'ask', autoRebase:'ask', autoCleanup:'ask',
-        autoE2ETest:'always', autoRouteBuildToMuggleDo:'ask'
-      };
+      const file = JSON.parse(fs.readFileSync(globalFile, 'utf-8'));
+      const g = file.preferences || {};
+      let defaults = {};
+      try { defaults = JSON.parse(fs.readFileSync(process.env.MUGGLE_PREFERENCE_DEFAULTS_FILE, 'utf-8')); } catch {}
       const resolved = { ...defaults, ...g };
       const line = Object.entries(resolved).map(([k,v]) => k+'='+v).join(' ');
       const blocks = ['Muggle Test Preferences (~/.muggle-ai/preferences.json):\\\\n' + line];
+
+      const onboardedAt = file.onboardingCompletedAt;
+      if (typeof onboardedAt !== 'string' || onboardedAt.length === 0) {
+        blocks.push(process.env.MUGGLE_ONBOARDING_DIRECTIVE);
+      }
 
       const cwd = process.env.CLAUDE_CWD || process.env.CURSOR_CWD || process.cwd();
       const pPath = path.join(cwd, '.muggle-ai', 'preferences.json');
@@ -170,7 +175,7 @@ if [ -f "$prefs_global_file" ]; then
     prefs_file_note="\\n\\n${prefs_line}"
   fi
 else
-  prefs_file_note="\\n\\nMuggle Test Preferences: not configured. Run \\\`muggle setup\\\` or tell the agent to set preferences."
+  prefs_file_note="\\n\\n${onboarding_directive}"
 fi
 
 # --- Last-used cache injection ---

@@ -23,3 +23,6 @@ export * from "./shared/project-preferences-reconcile-types.js";
 export * from "./shared/preferences-constants.js";
 export * from "./shared/watcher-lifetime-constants.js";
 export * from "./shared/preferences-service.js";
+export * from "./shared/onboarding/onboarding-types.js";
+export * from "./shared/onboarding/onboarding-constants.js";
+export * from "./shared/onboarding/onboarding-service.js";

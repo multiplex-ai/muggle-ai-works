@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -9,6 +9,11 @@ import { join } from "node:path";
 import { DEFAULT_PREFERENCES } from "../../../packages/mcps/src/shared/preferences-constants.js";
 import { PreferenceKey } from "../../../packages/mcps/src/shared/preferences-types.js";
 import { ONBOARDING_MAX_OFFERS } from "../../../packages/mcps/src/shared/onboarding/onboarding-constants.js";
+
+// Each case shells out to the real hook, which spawns bash plus a node child per run.
+// That is seconds, not milliseconds, and slows further on a loaded machine or a shared
+// CI runner — the default 30s timeout turns ordinary contention into a red run.
+vi.setConfig({ testTimeout: 180_000 });
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
@@ -96,27 +101,22 @@ describe.skipIf(!hasBash)("ensure-electron-app.sh onboarding trigger", () => {
 });
 
 describe.skipIf(!hasBash)("ensure-electron-app.sh offer cap", () => {
-  it("stops offering after the cap even when the user never records a skip", () => {
+  it("stops offering after the cap, and still reports preferences once retired", () => {
     const home = makeHome();
 
-    const offered: boolean[] = [];
+    // One sequence answers both questions; splitting them would double the hook
+    // spawns to prove the same thing.
+    const contexts: string[] = [];
     for (let session = 0; session < ONBOARDING_MAX_OFFERS + 2; session += 1) {
-      offered.push(runHookIn(home).includes(DIRECTIVE_MARKER));
+      contexts.push(runHookIn(home));
     }
+    const offered = contexts.map((context) => context.includes(DIRECTIVE_MARKER));
 
     expect(offered.slice(0, ONBOARDING_MAX_OFFERS)).toEqual(
       Array(ONBOARDING_MAX_OFFERS).fill(true),
     );
     expect(offered.slice(ONBOARDING_MAX_OFFERS)).toEqual([false, false]);
-  });
-
-  it("keeps reporting preferences after the offer retires", () => {
-    const home = makeHome();
-    for (let session = 0; session < ONBOARDING_MAX_OFFERS + 1; session += 1) {
-      runHookIn(home);
-    }
-
-    expect(runHookIn(home)).toContain("Muggle Test Preferences");
+    expect(contexts[contexts.length - 1]).toContain("Muggle Test Preferences");
   });
 });
 

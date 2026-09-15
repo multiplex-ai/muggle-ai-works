@@ -20,6 +20,7 @@ const version = JSON.parse(readFileSync(join(root, "package.json"), "utf-8")).ve
 // is the surface oracle: a boot regression that drops one fails here.
 const expectedCommands = [
   "serve",
+  "init",
   "setup",
   "upgrade",
   "versions",

@@ -387,6 +387,8 @@ muggle serve --e2e        # Cloud E2E tools only (muggle-remote-*)
 muggle serve --local      # Local E2E tools only (muggle-local-*)
 
 # Setup and Diagnostics
+muggle init               # First-run walkthrough: explains Muggle Test, saves preferences
+muggle init --json        # Emit the walkthrough for another front-end to render
 muggle setup              # Download/update browser test runner
 muggle setup --force      # Force re-download
 muggle doctor             # Diagnose installation issues
@@ -514,6 +516,7 @@ muggle-ai-works/
 │   │   ├── muggle-repair/                 # /muggle:muggle-repair
 │   │   └── muggle-upgrade/                # /muggle:muggle-upgrade
 │   ├── hooks/               #   Session hooks (hooks.json)
+│   ├── config/              #   Data the hooks read (preference defaults, onboarding limits)
 │   ├── scripts/             #   Hook scripts (ensure-electron-app.sh)
 │   ├── .mcp.json            #   MCP server config
 │   └── README.md            #   Plugin install and usage docs

@@ -16,6 +16,7 @@
  *   muggle serve --local   # Local E2E acceptance tools only
  *
  *   # Setup and diagnostics
+ *   muggle init            # First-run walkthrough; saves preferences
  *   muggle setup           # Download Electron app
  *   muggle doctor          # Diagnose installation
  *

@@ -108,6 +108,54 @@ export function writePreferences(prefs: IPartialPreferences, dataDirOverride?: s
 }
 
 /**
+ * Read the non-preference top-level blocks of the preferences file.
+ *
+ * Onboarding state, the telemetry disclosure stamp, and `llmEnv` are siblings of
+ * `preferences`, so callers that need them read through here rather than reaching
+ * for the file directly.
+ *
+ * @param dataDirOverride - Override data dir for testing.
+ */
+export function readPreferencesMetadata(dataDirOverride?: string): Partial<IPreferencesFile> {
+  const metadata: Partial<IPreferencesFile> = {
+    ...readRawPreferencesFile(getGlobalPreferencesFilePath(dataDirOverride)),
+  };
+  delete metadata.preferences;
+  return metadata;
+}
+
+/**
+ * Write preferences and top-level metadata in a single pass.
+ *
+ * Two writers share this file and neither locks it, so a caller that needs to set
+ * preferences and a sibling stamp together must do it in one write — sequencing two
+ * calls lets the other writer land in between and lose one of them.
+ *
+ * @param prefs - Partial preferences, merged over what is already saved.
+ * @param metadata - Top-level fields to merge alongside `preferences`.
+ * @param dataDirOverride - Override data dir for testing.
+ */
+export function writePreferencesWithMetadata(
+  prefs: IPartialPreferences,
+  metadata: Partial<IPreferencesFile>,
+  dataDirOverride?: string,
+): void {
+  const dir = dataDirOverride ?? getDataDir();
+  fs.mkdirSync(dir, { recursive: true });
+
+  const filePath = path.join(dir, PREFERENCES_FILE_NAME);
+  const existing = readRawPreferencesFile(filePath);
+  const file: IPreferencesFile = {
+    ...existing,
+    ...metadata,
+    version: PREFERENCES_VERSION,
+    preferences: { ...(existing.preferences ?? {}), ...prefs },
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}
+`, "utf-8");
+}
+
+/**
  * Reset a preference key (or the entire file) back to defaults.
  * @param key - Key to reset, or undefined to reset the entire file.
  * @param dataDirOverride - Override data dir for testing.

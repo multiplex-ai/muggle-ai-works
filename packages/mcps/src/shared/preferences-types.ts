@@ -102,6 +102,20 @@ export interface IPreferencesFile {
    * of `preferences` because these are free-text, unlike the closed enum of preference values.
    */
   llmEnv?: Record<string, string>;
+  /**
+   * When a human completed or permanently declined the first-run walkthrough.
+   *
+   * A sibling of `preferences` because seeding defaults must not imply consent: the file
+   * exists from the first silent `muggle setup`, so its presence says nothing about whether
+   * anyone was ever asked.
+   */
+  onboardingCompletedAt?: string;
+  /** How many times the first-run walkthrough has been declined without being completed. */
+  onboardingOfferCount?: number;
+  /** When the first-run telemetry disclosure was shown. Written by `@muggleai/telemetry`. */
+  disclosureShownAt?: string;
+  /** Whether client telemetry is enabled. Written by `@muggleai/telemetry`. */
+  telemetryEnabled?: boolean;
 }
 
 /**

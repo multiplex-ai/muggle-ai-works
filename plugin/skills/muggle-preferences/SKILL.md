@@ -23,10 +23,11 @@ Pick the operation, then read its op file for the procedure.
 | "show preferences" / no args | `ops/list.md` |
 | "configure muggle" / "muggle setup" / change without naming a key | `ops/configure.md` |
 | "reset preferences" | `ops/reset.md` |
+| Session context says first-run setup has not been run | `ops/onboard.md` |
 
 ## Shared context (all ops)
 
-- **Current values**: session-context line `Muggle Test Preferences key=value …`. Default `ask`.
+- **Current values**: session-context line `Muggle Test Preferences key=value …`, already resolved against the shipped defaults in `${CLAUDE_PLUGIN_ROOT}/config/preference-defaults.json`.
 - **Per-key files**: `preference-gates/<key>.md`. Key list = `ls preference-gates/*.md` minus `README.md`.
-- **Allowed values**: `always`/`never`/`ask` (or `local`/`remote`/`ask` for `defaultExecutionMode`).
+- **Allowed values**: `always`/`never`/`ask`, except `defaultExecutionMode` (`local`/`remote`/`ask`), `autoE2ETest` (`always`/`ask`), and `watcherLifetime` (`1d`/`7d`/`never`).
 - **Scope**: preferences are user-level. Every write lands in `~/.muggle-ai/preferences.json` and applies to every repo. If the user asks for a per-project setting, say it isn't supported and confirm before setting it everywhere.

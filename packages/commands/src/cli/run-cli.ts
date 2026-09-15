@@ -10,6 +10,7 @@ import {
   cleanupCommand,
   doctorCommand,
   helpCommand,
+  initCommand,
   loginCommand,
   logoutCommand,
   serveCommand,
@@ -65,6 +66,13 @@ function createProgram (): Command {
     .option("--local", "Only enable local E2E tools (localhost; muggle-local-* prefix)")
     .option("--stdio", "Use stdio transport (default)")
     .action(serveCommand);
+
+  program
+    .command("init")
+    .description("Set up Muggle Test — explains how it works and saves your preferences")
+    .option("--json", "Emit the walkthrough as JSON instead of prompting")
+    .option("--apply <file>", "Apply answers from a JSON file")
+    .action(initCommand);
 
   program
     .command("setup")

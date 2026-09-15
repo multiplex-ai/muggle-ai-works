@@ -5,7 +5,6 @@
 import { getConfig, getLocalQaTools, getLogger, getQaTools } from "../../packages/mcps/src/index.js";
 import {
   EventName,
-  getDisclosureCopy,
   hasShownDisclosure,
   initTelemetry,
   markDisclosureShown,
@@ -14,6 +13,7 @@ import {
   track,
 } from "@muggleai/telemetry";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
+import { resolveDisclosureCopy } from "./disclosure/disclosure-copy.js";
 
 // Connection string is inlined at publish time via tsup `define` from the
 // APPLICATIONINSIGHTS_CONNECTION_STRING env var (set from a GitHub secret in
@@ -28,7 +28,7 @@ const APPLICATIONINSIGHTS_CONNECTION_STRING: string =
 function showDisclosureIfNeeded(): void {
   try {
     if (hasShownDisclosure()) return;
-    process.stderr.write(getDisclosureCopy() + "\n");
+    process.stderr.write(resolveDisclosureCopy() + "\n");
     markDisclosureShown();
   } catch {
     // Disclosure write must never break the host process.

@@ -25,6 +25,7 @@ import { dirname, join } from "path";
 import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
+import { backfillOnboardingStamp } from "./onboarding-backfill.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
     resolveIntegrityPolicy,
@@ -1010,10 +1011,21 @@ function syncClaudePluginCache() {
     }
 }
 
+/**
+ * Run the onboarding backfill and log only when it actually stamps.
+ */
+function logOnboardingBackfill() {
+    const result = backfillOnboardingStamp(join(homedir(), ".muggle-ai"));
+    if (result.stamped) {
+        log("Existing installation: first-run walkthrough marked as already seen.");
+    }
+}
+
 // Run postinstall. The explicit `process.exit` guarantees the script doesn't
 // linger when something below (a hung socket, an EPERM rmSync retry on
 // Windows) keeps the event loop alive — see issue #167.
 initLogFile();
+logOnboardingBackfill();
 removeVersionOverrideFile();
 syncCursorSkills();
 syncClaudePluginCache();

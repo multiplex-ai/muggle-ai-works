@@ -75,7 +75,8 @@ describe("serveCommand", () => {
       enableLocalTools: true,
     });
     expect(startStdioServer).toHaveBeenCalledWith({ kind: "server" });
-    expect(stderrSpy).toHaveBeenCalledWith("disclosure copy\n");
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("disclosure copy"));
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining("MUGGLE_TELEMETRY_DISABLED=1"));
     expect(markDisclosureShown).toHaveBeenCalledOnce();
     expect(initTelemetry).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledOnce();
@@ -105,7 +106,7 @@ describe("serveCommand", () => {
     hasShownDisclosure.mockReturnValue(true);
     await serveCommand({});
     expect(markDisclosureShown).not.toHaveBeenCalled();
-    expect(stderrSpy).not.toHaveBeenCalledWith("disclosure copy\n");
+    expect(stderrSpy).not.toHaveBeenCalledWith(expect.stringContaining("disclosure copy"));
   });
 
   it("swallows telemetry init failures and still starts the server", async () => {

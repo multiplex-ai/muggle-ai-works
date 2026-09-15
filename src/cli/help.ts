@@ -58,54 +58,6 @@ function path(path: string): string {
 }
 
 /**
- * Get the post-install usage guidance message.
- * @returns Usage guidance string for postinstall.
- */
-export function getPostInstallGuidance(): string {
-  const lines = [
-    "",
-    colorize("=".repeat(60), COLORS.cyan),
-    colorize("  Muggle AI Works - Installation Complete!", COLORS.bold + COLORS.green),
-    colorize("=".repeat(60), COLORS.cyan),
-    "",
-    header("Quick Start"),
-    "",
-    "  1. Configure your MCP client (e.g., Cursor):",
-    "",
-    `     Add to ${path("~/.cursor/mcp.json")}:`,
-    "",
-    `     ${colorize("{", COLORS.dim)}`,
-    `       ${colorize('"mcpServers"', COLORS.yellow)}: {`,
-    `         ${colorize('"muggle"', COLORS.yellow)}: {`,
-    `           ${colorize('"command"', COLORS.yellow)}: ${colorize('"muggle"', COLORS.green)},`,
-    `           ${colorize('"args"', COLORS.yellow)}: [${colorize('"serve"', COLORS.green)}]`,
-    `         }`,
-    `       }`,
-    `     ${colorize("}", COLORS.dim)}`,
-    "",
-    "  2. Restart your MCP client to load the new tools",
-    "",
-    "  3. Ask your AI assistant to test your application!",
-    "",
-    header("Useful Commands"),
-    "",
-    `  ${cmd("muggle help")}      Show detailed how-to guidance`,
-    `  ${cmd("muggle doctor")}    Check installation health`,
-    `  ${cmd("muggle status")}    Check authentication status`,
-    `  ${cmd("muggle login")}     Login to Muggle AI`,
-    "",
-    header("Documentation"),
-    "",
-    `  ${colorize("https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview", COLORS.blue)}`,
-    "",
-    colorize("=".repeat(60), COLORS.cyan),
-    "",
-  ];
-
-  return lines.join("\n");
-}
-
-/**
  * Get the comprehensive help guidance message.
  * @returns Full help guidance string.
  */
@@ -153,6 +105,7 @@ export function getHelpGuidance(): string {
     `    ${cmd("muggle serve --local")}    Start with local E2E tools only`,
     "",
     `  ${colorize("Setup & Diagnostics:", COLORS.bold)}`,
+    `    ${cmd("muggle init")}             Explain Muggle Test and save your preferences`,
     `    ${cmd("muggle setup")}            Download/update Electron app`,
     `    ${cmd("muggle setup --force")}    Force re-download`,
     `    ${cmd("muggle doctor")}           Diagnose installation issues`,

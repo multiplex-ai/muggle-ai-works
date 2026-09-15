@@ -24,6 +24,7 @@
       "prompt": "mode: post\nprNumber: 123\nrepo: multiplex-ai/demo-app (gh is authenticated for it)\n\nE2eReport JSON (inline, complete):\n{\"projectId\":\"proj-demo-1\",\"tests\":[{\"testCaseId\":\"tc-101\",\"name\":\"Login flow\",\"result\":\"pass\",\"runId\":\"run-9001\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9001\",\"steps\":[{\"summary\":\"Open login page\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9001-1.png\"}]},{\"testCaseId\":\"tc-102\",\"name\":\"Checkout\",\"result\":\"fail\",\"runId\":\"run-9002\",\"viewUrl\":\"https://dashboard.muggle-ai.com/runs/run-9002\",\"steps\":[{\"summary\":\"Add to cart\",\"screenshotUrl\":\"https://cdn.muggle-ai.com/shots/9002-1.png\"}]}]}\n\nRender and deliver the walkthrough.",
       "bashResponses": [
         { "commandContains": "build-pr-section", "response": "{\"body\": \"### 🧪 Muggle Test E2E Walkthrough\\n\\n| Test | Result |\\n| --- | --- |\\n| [Login flow](https://dashboard.muggle-ai.com/runs/run-9001) | ✅ pass |\\n| [Checkout](https://dashboard.muggle-ai.com/runs/run-9002) | ❌ fail |\", \"comment\": null}" },
+        { "commandContains": "issues/123/comments", "response": "" },
         { "commandContains": "gh pr comment", "response": "https://github.com/multiplex-ai/demo-app/pull/123#issuecomment-99887766" },
         { "commandContains": "", "response": "(exit 0, no output)" }
       ],

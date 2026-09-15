@@ -34,7 +34,12 @@ import {
 
 import { ASK_QUESTION_TOOL } from "../../skill-gate-eval/src/constants.js";
 import { buildMockMcpServer } from "../../skill-gate-eval/src/mock-mcp.js";
-import type { AgentRunOptions, AgentRunVerdict, ToolAttempt } from "./types.js";
+import type {
+  AgentRunOptions,
+  AgentRunVerdict,
+  ScriptedBashResponse,
+  ToolAttempt,
+} from "./types.js";
 import { judgeAgentRun } from "./verdict.js";
 
 const DEFAULT_MAX_TURNS = 60;
@@ -72,11 +77,29 @@ function buildSystemPrompt(opts: AgentRunOptions): string {
   return lines.join("\n");
 }
 
-function scriptedBashResponse(command: string, opts: AgentRunOptions): string {
-  for (const scripted of opts.scenario.bashResponses ?? []) {
+/** Returned for a command no scripted response matches. */
+export const UNSCRIPTED_BASH_RESPONSE = "(exit 0, no output)";
+
+/**
+ * Resolve the canned stdout for an intercepted Bash command. First match wins;
+ * `commandContains: ""` is the catch-all.
+ *
+ * A command the scenario never stubs falls through to `UNSCRIPTED_BASH_RESPONSE`,
+ * which the agent reads as that command's literal output. A lookup whose real answer
+ * is "nothing found" must therefore be stubbed with an empty response — left to the
+ * fallback, it reads as a non-empty result and steers the agent down the wrong branch.
+ *
+ * @param command - The command the agent tried to run.
+ * @param responses - The scenario's scripted responses, in declaration order.
+ */
+export function resolveScriptedBashResponse(
+  command: string,
+  responses: ScriptedBashResponse[] | undefined,
+): string {
+  for (const scripted of responses ?? []) {
     if (command.includes(scripted.commandContains)) return scripted.response;
   }
-  return "(exit 0, no output)";
+  return UNSCRIPTED_BASH_RESPONSE;
 }
 
 /** Run one scenario once and return a verdict. Caller invokes this N times to compute a pass rate. */
@@ -144,7 +167,7 @@ export async function runAgentScenarioOnce(
       const command = String((input as { command?: unknown }).command ?? "");
       return {
         behavior: "deny",
-        message: `SIMULATED OUTPUT (treat as the command's real result):\n${scriptedBashResponse(command, opts)}`,
+        message: `SIMULATED OUTPUT (treat as the command's real result):\n${resolveScriptedBashResponse(command, opts.scenario.bashResponses)}`,
       };
     }
 

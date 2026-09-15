@@ -180,6 +180,11 @@ export async function runAgentScenarioOnce(
   const stream = query({
     prompt: opts.scenario.prompt,
     options: {
+      // Judge the agent on its own definition, nothing else. Omitting this loads every
+      // filesystem settings source, and this repo's .claude/settings.json enables the
+      // muggle plugin — whose Stop guardrails then fire inside the eval and replace the
+      // agent's final report with a reply to the guardrail.
+      settingSources: [],
       systemPrompt: buildSystemPrompt(opts),
       canUseTool: canUseTool,
       model: opts.definition.model,

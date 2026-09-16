@@ -40,6 +40,9 @@ on:
       agent_concurrency:
         description: "agent-gate-eval: parallel reps per agent"
         default: "8"
+      claude_cli_version:
+        description: "Claude Code CLI version to install (blank = the workflow's pin)"
+        default: ""
 
 concurrency:
   group: skill-eval-${{ github.ref }}
@@ -49,6 +52,12 @@ permissions:
   contents: read
   # Post the eval results back to the PR as a sticky comment.
   pull-requests: write
+
+# The routing eval scores model behaviour, so an unpinned CLI makes every
+# nightly-to-nightly comparison confound a model change with a skill change.
+# Pinned here and echoed after each install, so any past run stays attributable.
+env:
+  CLAUDE_CLI_VERSION: ${{ inputs.claude_cli_version || '2.1.273' }}
 
 jobs:
   skill-gate-eval:
@@ -174,7 +183,9 @@ jobs:
       # step point the SDK at it. Auth stays on the subscription token.
       - name: Install Claude Code CLI
         if: steps.scope.outputs.should_run == 'true'
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          claude --version
 
       # Prove a subscription token authenticates before the agent-SDK harness
       # runs, via the same `claude -p` path skill-routing-eval relies on. A
@@ -326,7 +337,9 @@ jobs:
 
       - name: Install Claude Code CLI
         if: steps.scope.outputs.should_run == 'true'
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          claude --version
 
       - name: Resolve subscription auth
         if: steps.scope.outputs.should_run == 'true'
@@ -450,6 +463,18 @@ jobs:
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
           base="origin/${{ github.base_ref }}"
+          # A scoring change can move any skill, so the harness runs the full
+          # sweep rather than a scoped one. Without this the job reports success
+          # having skipped the eval, which reads identically to a clean pass.
+          # Tests and Markdown cannot reach scoring and a sweep costs ~25 minutes
+          # of LLM calls, so they stay out.
+          if git diff --name-only "$base...HEAD" -- internal/skill-routing-eval/ | grep -vE '(^|/)test_[^/]*[.]py$|[.]md$' | grep -q .; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo "skills=" >> "$GITHUB_OUTPUT"
+            echo "Routing harness changed — full sweep."
+            exit 0
+          fi
           # Routing depends only on a skill's frontmatter (`name` + `description`)
           # — the body (gate contracts, procedure) never reaches the router. So
           # compare just the frontmatter block, minus `model:`, between base and
@@ -490,7 +515,9 @@ jobs:
 
       - name: Install Claude Code CLI
         if: steps.scope.outputs.should_run == 'true'
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          claude --version
 
       # Resolved ahead of the plugin install so every `claude` call in this job,
       # marketplace and probe alike, runs on the token that actually works.

@@ -1,3 +1,4 @@
+import { isShellToolCall } from "./shellTool.js";
 import type { HookInput } from "./types.js";
 import {
   REPORT_SENTINEL,
@@ -43,7 +44,7 @@ export function evaluateReportPost(
   input: HookInput,
   read: FileReader = defaultFileReader,
 ): ReportGateResult {
-  if (input.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input)) return { deny: false };
   const cmd = input.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return { deny: false };
   const text = collectPrPostText(cmd, input.cwd, read);

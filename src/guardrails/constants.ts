@@ -25,6 +25,11 @@ export const PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/
 
 export const MAX_PR_TERMINAL_BLOCKS = 3;
 
+// The tools that carry a shell command. A session picks its shell by platform,
+// so the same `gh pr create` arrives under either name — and a guard that reads
+// only one of them is blind on the other half of the fleet.
+export const SHELL_TOOL_NAMES = ["Bash", "PowerShell"] as const;
+
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;
 

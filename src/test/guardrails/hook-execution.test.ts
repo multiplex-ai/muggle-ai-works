@@ -777,8 +777,22 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly five observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
-    const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
+  // Matched as a regex, not compared as a literal: the group covers every shell
+  // a session can run a command through, so pinning one name would fail the day
+  // a second shell is added — which is exactly when the assertion matters.
+  const shellGroup = (groups: HookGroup[]): HookGroup | undefined =>
+    groups.find((g) => g.matcher !== undefined && new RegExp(`^(?:${g.matcher})$`).test("Bash"));
+
+  it("covers every shell a command can run through", () => {
+    for (const event of [hooks.PostToolUse, hooks.PreToolUse]) {
+      const matcher = shellGroup(event)?.matcher;
+      expect(matcher).toBeDefined();
+      expect(new RegExp(`^(?:${matcher})$`).test("PowerShell")).toBe(true);
+    }
+  });
+
+  it("fires exactly five observers on a shell PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
+    const bash = shellGroup(hooks.PostToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
     expect(cmds).toHaveLength(5);
@@ -789,8 +803,8 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-record-comment-replies.sh"))).toBe(true);
   });
 
-  it("stands both Bash PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
-    const bash = hooks.PreToolUse.find((g) => g.matcher === "Bash");
+  it("stands both shell PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
+    const bash = shellGroup(hooks.PreToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
     expect(cmds.some((c) => c.includes("guardrail-report-format.sh"))).toBe(true);

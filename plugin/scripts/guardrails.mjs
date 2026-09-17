@@ -12,6 +12,7 @@ var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
+var SHELL_TOOL_NAMES = ["Bash", "PowerShell"];
 var MAX_WATCH_BLOCKS = 3;
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
@@ -153,13 +154,18 @@ function markPrHandled(sessionId2, prUrl, dirOverride) {
   writeState(state, dirOverride);
 }
 
+// src/guardrails/shellTool.ts
+function isShellToolCall(input2) {
+  return SHELL_TOOL_NAMES.includes(input2.tool_name ?? "");
+}
+
 // src/guardrails/prOpened.ts
 var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
 var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
 var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
 var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
 function detectPrOpened(input2) {
-  if (input2.tool_name !== "Bash") return null;
+  if (!isShellToolCall(input2)) return null;
   const cmd = input2.tool_input?.command ?? "";
   if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
   const out = `${input2.tool_response?.stdout ?? ""}
@@ -178,7 +184,7 @@ function terminalProvenance(input2) {
   };
 }
 function detectPrTerminal(input2) {
-  if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
+  if (!isShellToolCall(input2) && input2.tool_name !== "Monitor") return null;
   const response = input2.tool_response;
   const provenance = terminalProvenance(input2);
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
@@ -200,7 +206,7 @@ function detectPrTerminal(input2) {
   return null;
 }
 function detectPrReopened(input2) {
-  if (input2.tool_name !== "Bash") return null;
+  if (!isShellToolCall(input2)) return null;
   if (!terminalProvenance(input2).acceptsForgeLine) return null;
   const response = input2.tool_response;
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
@@ -661,7 +667,7 @@ function isWalkthroughSkipMarker(cmd) {
   return WALKTHROUGH_SKIP_MARKER.test(cmd);
 }
 function detectWalkthroughPost(input2, read = defaultFileReader) {
-  if (input2.tool_name !== "Bash") return false;
+  if (!isShellToolCall(input2)) return false;
   const cmd = input2.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return false;
   if (callFailed(input2)) return false;
@@ -1002,14 +1008,14 @@ function gitlabThread(thread) {
   };
 }
 function detectUnansweredThreads(input2) {
-  if (input2.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input2)) return [];
   if (!REVIEW_THREAD_FETCH_COMMAND.test(input2.tool_input?.command ?? "")) return [];
   const threads = [];
   collectThreads(parsedResponse(input2), threads);
   return threads.map((thread) => Array.isArray(thread.notes) ? gitlabThread(thread) : githubThread(thread)).filter((thread) => thread !== void 0);
 }
 function detectConfirmedReplies(input2) {
-  if (input2.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input2)) return [];
   const command = input2.tool_input?.command ?? "";
   const targets = [...command.matchAll(THREADED_REPLY_TARGET)].map(
     ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId
@@ -1104,7 +1110,7 @@ function looksLikeE2EReport(text) {
   return resultsStructure && muggleContext;
 }
 function evaluateReportPost(input2, read = defaultFileReader) {
-  if (input2.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input2)) return { deny: false };
   const cmd = input2.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return { deny: false };
   const text = collectPrPostText(cmd, input2.cwd, read);
@@ -1125,7 +1131,7 @@ function detectResolveCall(command) {
 }
 var RESOLVE_DENIAL = "Blocked: resolving a review thread is the reviewer's call, not the loop's. Reply to the thread instead \u2014 the `<!-- muggle-do:bot -->` marker on that reply is what retires it (a thread is actionable only while it is unresolved AND its newest comment is unmarked), so resolving buys no echo protection and costs the reviewer their record of what is still unverified. The loop has twice hidden threads carrying fixes that were partly wrong. If a thread genuinely warrants resolving, say so and let the reviewer close it in the UI; to nudge, run the resolve-reminder stage, which lists addressed-but-open threads without touching them.";
 function evaluateReviewThreadResolve(input2) {
-  if (input2.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input2)) return { deny: false };
   const provider = detectResolveCall(input2.tool_input?.command ?? "");
   if (!provider) return { deny: false };
   return { deny: true, reason: RESOLVE_DENIAL };

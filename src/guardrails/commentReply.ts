@@ -1,3 +1,4 @@
+import { isShellToolCall } from "./shellTool.js";
 import { existsSync, readFileSync, readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
@@ -172,7 +173,7 @@ function gitlabThread(thread: UnresolvedThread): UnansweredThread | undefined {
  * Output shape: `[{ threadId: "PRRT_1", provider: "github", humanCommentIds: ["11", "12"] }]`
  */
 export function detectUnansweredThreads(input: HookInput): UnansweredThread[] {
-  if (input.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input)) return [];
   if (!REVIEW_THREAD_FETCH_COMMAND.test(input.tool_input?.command ?? "")) return [];
   const threads: UnresolvedThread[] = [];
   collectThreads(parsedResponse(input), threads);
@@ -191,7 +192,7 @@ export function detectUnansweredThreads(input: HookInput): UnansweredThread[] {
  * whichever the reply call addressed.
  */
 export function detectConfirmedReplies(input: HookInput): ConfirmedReply[] {
-  if (input.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input)) return [];
   const command = input.tool_input?.command ?? "";
   const targets = [...command.matchAll(THREADED_REPLY_TARGET)].map(
     ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId,

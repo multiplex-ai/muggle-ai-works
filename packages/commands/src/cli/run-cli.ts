@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { getLogger } from "@muggleai/mcp";
 import {
   buildPrSectionCommand,
+  ciInstallCommand,
   prWalkthroughCheckCommand,
   cleanupCommand,
   doctorCommand,
@@ -138,6 +139,12 @@ function createProgram (): Command {
     .option("--head-sha <sha>", "Commit the check run attaches to (default: the PR head)")
     .option("--check-run", "Publish the verdict as a check run instead of failing the process")
     .action(prWalkthroughCheckCommand);
+
+  program
+    .command("ci-install")
+    .description("Add the Muggle walkthrough check to this repository's GitHub Actions")
+    .option("--force", "Replace an existing workflow file")
+    .action(ciInstallCommand);
 
   program.action(() => {
     helpCommand();

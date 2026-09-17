@@ -71,6 +71,13 @@ function reportOutcome(result: IOnboardingApplyResult): void {
   console.log("");
   console.log("Preferences saved.");
   console.log(summary);
+  // A pointer, not an automatic write: this walkthrough saves preferences under
+  // the user's home, and putting a file inside their repository is a different
+  // act that deserves its own explicit command.
+  console.log("");
+  console.log(
+    "To make pull requests here carry a Muggle walkthrough comment even when they're opened outside Claude, run `muggle ci-install`.",
+  );
 }
 
 /**

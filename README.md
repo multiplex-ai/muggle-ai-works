@@ -398,10 +398,65 @@ muggle login              # Manually trigger login
 muggle logout             # Clear credentials
 muggle status             # Show auth status
 
+# Pull request checks
+muggle ci-install         # Add the walkthrough check to this repo's GitHub Actions
+muggle ci-install --force # Replace an existing workflow file
+
 # Info
 muggle --version          # Show version
 muggle --help             # Show help
 ```
+
+---
+
+## Pull request walkthrough check
+
+When you open a pull request from a Claude session running this plugin, Muggle reserves a comment on it for the E2E visual walkthrough and holds the turn open until that comment is settled — by the walkthrough itself, or by a stated reason E2E does not apply.
+
+A pull request opened any other way — the GitHub web UI, a teammate without the plugin — never passes through that session, so the check also runs in GitHub Actions. `muggle ci-install` writes it into the repository:
+
+```bash
+muggle ci-install
+```
+
+That creates `.github/workflows/muggle-walkthrough.yml`. To add it by hand instead, create that file with:
+
+<!-- muggle:ci-workflow-snippet -->
+```yaml
+name: muggle-walkthrough
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: muggle-walkthrough-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  walkthrough-comment:
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the walkthrough comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx -y -p @muggleai/works muggle pr-walkthrough-check --check-run
+```
+<!-- /muggle:ci-workflow-snippet -->
+
+Three things worth knowing:
+
+- The verdict is published as a check run against the pull request's head commit, not as this job's own status. An `issue_comment` run executes against the default branch, and only a head-commit check reaches the pull request from there — which is what lets settling the comment turn the check green without a new push.
+- GitHub reads the `issue_comment` trigger from the **default branch's** copy of the workflow, so comment-driven re-runs start working only once it is merged.
+- On a pull request from a fork, `GITHUB_TOKEN` is read-only and the check run cannot be published. The command fails open and reports nothing rather than blocking the pull request.
 
 ---
 

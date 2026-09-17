@@ -6,6 +6,7 @@
  */
 
 export { buildPrSectionCommand } from "../../../../src/cli/build-pr-section.js";
+export { ciInstallCommand } from "../../../../src/cli/ci-install.js";
 export { cleanupCommand, versionsCommand } from "../../../../src/cli/cleanup.js";
 export { doctorCommand } from "../../../../src/cli/doctor.js";
 export { helpCommand } from "../../../../src/cli/help.js";

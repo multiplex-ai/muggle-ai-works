@@ -387,7 +387,7 @@ muggle serve --e2e        # Cloud E2E tools only (muggle-remote-*)
 muggle serve --local      # Local E2E tools only (muggle-local-*)
 
 # Setup and Diagnostics
-muggle init               # First-run walkthrough: explains Muggle Test, saves preferences
+muggle init               # First-run walkthrough: preferences, then offers the CI check
 muggle init --json        # Emit the walkthrough for another front-end to render
 muggle setup              # Download/update browser test runner
 muggle setup --force      # Force re-download
@@ -413,7 +413,9 @@ muggle --help             # Show help
 
 When you open a pull request from a Claude session running this plugin, Muggle reserves a comment on it for the E2E visual walkthrough and holds the turn open until that comment is settled — by the walkthrough itself, or by a stated reason E2E does not apply.
 
-A pull request opened any other way — the GitHub web UI, a teammate without the plugin — never passes through that session, so the check also runs in GitHub Actions. `muggle ci-install` writes it into the repository:
+A pull request opened any other way — the GitHub web UI, a teammate without the plugin — never passes through that session, so the check also runs in GitHub Actions.
+
+`muggle init` asks whether you want it and installs it for you. To add it to another repository later:
 
 ```bash
 muggle ci-install

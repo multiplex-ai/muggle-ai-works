@@ -1,12 +1,7 @@
 import { readFileSync, existsSync } from "fs";
 import { isAbsolute, resolve } from "path";
 
-/**
- * Substring present in every `muggle build-pr-section` rendering (see
- * src/cli/build-pr-section.ts). Kept as a version-agnostic substring so both
- * gates keep recognising sanctioned output across `:v1` → `:v2` bumps.
- */
-export const REPORT_SENTINEL = "muggle-pr-section";
+export { REPORT_SENTINEL } from "../pr-walkthrough/constants.js";
 
 const PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
 

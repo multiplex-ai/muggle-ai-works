@@ -2,8 +2,12 @@ import type { GuardrailState } from "./types.js";
 
 export const MAX_E2E_BLOCKS = 3;
 
+// Opening a PR owes an acceptance run on its own, independent of unit tests. A
+// change shipped without a single unit run is exactly the one a reviewer has no
+// other evidence for, and keying only on `unitTestsGreen` left that case silent.
 export function shouldRunE2E(state: GuardrailState): boolean {
-  return state.unitTestsGreen === true && state.e2eRun !== true && state.e2eSkipped !== true;
+  const owed = state.unitTestsGreen === true || state.prsHandled.length > 0;
+  return owed && state.e2eRun !== true && state.e2eSkipped !== true;
 }
 
 export interface RecordedRun {

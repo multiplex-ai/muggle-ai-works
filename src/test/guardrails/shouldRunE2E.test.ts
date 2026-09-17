@@ -11,6 +11,19 @@ describe("shouldRunE2E", () => {
   it("does not fire if tests never went green", () => {
     expect(shouldRunE2E({ sessionId: "s", prsHandled: [], unitTestsGreen: false })).toBe(false);
   });
+  it("fires on a PR opened with no unit run at all", () => {
+    expect(shouldRunE2E({ sessionId: "s", prsHandled: ["https://github.com/o/r/pull/7"] })).toBe(true);
+  });
+  it("does not fire for an opened PR once E2E ran", () => {
+    expect(
+      shouldRunE2E({ sessionId: "s", prsHandled: ["https://github.com/o/r/pull/7"], e2eRun: true }),
+    ).toBe(false);
+  });
+  it("does not fire for an opened PR once a skip was recorded", () => {
+    expect(
+      shouldRunE2E({ sessionId: "s", prsHandled: ["https://github.com/o/r/pull/7"], e2eSkipped: true }),
+    ).toBe(false);
+  });
   it("does not fire once a skip was recorded", () => {
     expect(shouldRunE2E({ sessionId: "s", prsHandled: [], unitTestsGreen: true, e2eSkipped: true })).toBe(false);
   });

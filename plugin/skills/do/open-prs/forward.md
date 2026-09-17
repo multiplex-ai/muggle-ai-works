@@ -32,14 +32,18 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - `## Acceptance Criteria` — bulleted; omit if empty.
    - `## Changes` — summary of what changed in this repo.
    - `## Validation` — one line: link to E2E report, `unit-only`, or `skip — <reason>`.
-   - **Walkthrough block** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, omit this block. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode B and embed the returned `body` verbatim. No report → skip the block.
+   - The walkthrough does **not** go in the body. It settles the PR's designated walkthrough comment in Step 6, so a rerun updates one comment instead of rewriting the description.
    - **Signature** — write the assembled body to a file and sign it with `--command /muggle-do --mode editable` per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). The signature lands last, after the walkthrough block; `editable` is the mode a description carries so later refreshes replace it instead of stacking.
 
 5. **Create:** resolve the provider per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md).
    - `github` → `gh pr create --title "..." --body-file <signed-file> --head <branch>`, passing the file signed in Step 4. Capture the PR URL and number.
    - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
 
-6. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
+6. **Settle the designated walkthrough comment.** Creating the PR reserves one comment for the walkthrough, marked `muggle-pr-walkthrough` and empty until settled — the PR's walkthrough check fails while it stays that way.
+   - E2E report exists → fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, leave the comment to the gate's own skip record. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the PR number — it fills the reserved comment in place.
+   - No E2E report (validation was `unit-only` or `skip`) → state the reason on the PR with `echo "MUGGLE_E2E_SKIP: <reason>"`, which settles the comment as a declared skip. A PR whose title says `[UNIT-ONLY]` still owes reviewers the why.
+
+7. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 
 ## Stage 7.5 gate
 
@@ -68,7 +72,7 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; PR creation per non-skipped repo; walkthrough block via Mode B; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before the dispatch; `/loop` dispatch is the last action.
+- Branch synced with its base before the push, never after; PR creation per non-skipped repo; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before the dispatch; `/loop` dispatch is the last action.
 
 ## Output
 

@@ -51,6 +51,7 @@ describe("guardrail hook execution (cli entry)", () => {
       "https://github.com/multiplex-ai/muggle-ai-ui/pull/342",
     );
     expect(parsed.hookSpecificOutput.additionalContext).toContain("autoWatchPR");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("visual-walkthrough comment is reserved");
   });
 
   it("pr-opened: dedupes the same PR within a session (second fire is a no-op)", () => {
@@ -589,8 +590,16 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     chmodSync(stub, 0o755);
   });
 
-  function runWrapper(script: string, stdin: string): string {
+  function runWrapper(script: string, stdin: string, seededState?: { sessionId: string } & Record<string, unknown>): string {
     const home = mkdtempSync(join(tmpdir(), "gr-home-"));
+    if (seededState) {
+      const stateDir = join(home, ".muggle-ai", "guardrails");
+      mkdirSync(stateDir, { recursive: true });
+      writeFileSync(
+        join(stateDir, `${seededState.sessionId}.json`),
+        JSON.stringify(seededState, null, 2),
+      );
+    }
     const r = spawnSync("bash", [join(SCRIPTS, script)], {
       input: stdin,
       encoding: "utf-8",
@@ -688,6 +697,28 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
 
   it("e2e-gate: skips Node when no armed state file exists for the session", () => {
     expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
+  });
+
+  // The pre-filter has to track shouldRunE2E's *second* trigger too. Keyed on
+  // unitTestsGreen alone, a session that opened a PR without running tests never
+  // spawned Node, so the widened gate would have been dead code.
+  it("e2e-gate: spawns Node for a PR opened with no unit run, skips once E2E ran", () => {
+    const openedPr = { sessionId: "pr", prsHandled: ["https://github.com/o/r/pull/7"] };
+    expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "pr" }), openedPr)).toContain(
+      NODE_RAN,
+    );
+    expect(
+      runWrapper("guardrail-e2e-gate.sh", event({ session_id: "pr" }), { ...openedPr, e2eRun: true }),
+    ).toBe("{}");
+  });
+
+  it("e2e-gate: skips Node for a session with neither a green unit run nor a PR", () => {
+    expect(
+      runWrapper("guardrail-e2e-gate.sh", event({ session_id: "idle" }), {
+        sessionId: "idle",
+        prsHandled: [],
+      }),
+    ).toBe("{}");
   });
 
   it("watch-gate: skips Node when no PR was opened this session", () => {

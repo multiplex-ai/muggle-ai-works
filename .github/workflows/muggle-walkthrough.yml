@@ -6,6 +6,11 @@ name: muggle-walkthrough
 # issue_comment trigger runs against the default branch — only a head-SHA check
 # reaches the PR from there, which is what lets settling the comment turn the
 # check green with no new push.
+#
+# That same rule means GitHub reads the issue_comment trigger from the default
+# branch's copy of this file, never a PR's: until this workflow is on the
+# default branch, settling a comment re-runs nothing, and the check only
+# refreshes on a push or a manual re-run.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]

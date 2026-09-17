@@ -21,11 +21,31 @@ describe("detectFalseCapabilityClaim", () => {
     expect(detectFalseCapabilityClaim("Without a logged-in session we can't test the dashboard.")).toBe(true);
   });
 
-  it("stays silent on the channels muggle genuinely cannot drive", () => {
-    expect(detectFalseCapabilityClaim("The SMS OTP step can't be tested end to end.")).toBe(false);
-    expect(detectFalseCapabilityClaim("We cannot automate the authenticator app 2FA challenge.")).toBe(false);
-    expect(detectFalseCapabilityClaim("Verifying the code takes a phone number, so this is untestable.")).toBe(false);
-    expect(detectFalseCapabilityClaim("TOTP login is impossible to automate in a replay.")).toBe(false);
+  it("fires on SMS and authenticator codes, which the runner now reads", () => {
+    expect(detectFalseCapabilityClaim("The SMS OTP step can't be tested end to end.")).toBe(true);
+    expect(detectFalseCapabilityClaim("We cannot automate the authenticator app 2FA challenge.")).toBe(true);
+    expect(detectFalseCapabilityClaim("TOTP login is impossible to automate in a replay.")).toBe(true);
+    expect(detectFalseCapabilityClaim("The texted code can't be verified in an automated test.")).toBe(true);
+  });
+
+  it("stays silent on what is still genuinely out of reach", () => {
+    expect(detectFalseCapabilityClaim("The voice call OTP can't be tested end to end.")).toBe(false);
+    expect(
+      detectFalseCapabilityClaim("Sign in with Google is the only option, so we cannot automate the login."),
+    ).toBe(false);
+    expect(detectFalseCapabilityClaim("OAuth-only login means this flow can't be automated.")).toBe(false);
+  });
+
+  // The one real SMS limit the pattern cannot infer: reading a number is not the
+  // same as having one. Without this the gate would argue the model out of a
+  // correct claim on any deployment that never provisioned a number.
+  it("stays silent when the deployment has no number provisioned", () => {
+    expect(
+      detectFalseCapabilityClaim("No phone number is provisioned here, so the SMS code can't be tested."),
+    ).toBe(false);
+    expect(
+      detectFalseCapabilityClaim("With no number provisioned we cannot verify the texted code."),
+    ).toBe(false);
   });
 
   it("stays silent on product defects, which are true statements about the app", () => {

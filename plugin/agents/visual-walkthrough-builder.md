@@ -33,18 +33,18 @@ echo "$REPORT_JSON" | muggle build-pr-section > /tmp/muggle-pr-section.json
 
 **Mode A (`post`)** — deliver `body`, then `comment` only if non-null. Sign each posted body per [`../skills/_shared/vcs/post-signature.md`](../skills/_shared/vcs/post-signature.md) with `--mode plain` — this post is the walkthrough's own, so the command it names is `/muggle-pr-visual-walkthrough`.
 
-**Update in place when this PR already carries a walkthrough.** A rerun after a failure must leave the PR with **one** walkthrough reflecting latest state, not a comment per attempt. Resolve which comment to update by reading the PR — never by remembering an id — so the behavior is idempotent across sessions and survives a lost session or a forgotten handle:
+**Settle the designated comment.** Every PR carries one comment reserved for this walkthrough — posted the moment the PR opened, marked `muggle-pr-walkthrough`, and empty until a run settles it. Fill that comment rather than adding another: a rerun after a failure must leave the PR with **one** walkthrough reflecting latest state, and a fresh post would strand the reserved slot pending, which is what the PR's walkthrough check fails on. Resolve which comment to fill by reading the PR — never by remembering an id — so the behavior is idempotent across sessions and survives a lost session or a forgotten handle:
 
 ```bash
 sign() { bash "${CLAUDE_PLUGIN_ROOT}/scripts/sign-body.sh" --command /muggle-pr-visual-walkthrough --mode plain; }
 existing=$(gh api "repos/<owner>/<repo>/issues/<prNumber>/comments" \
-  --jq '[.[] | select(.body | contains("muggle-pr-section")) | .id] | join(" ")')
+  --jq '[.[] | select(.body | contains("muggle-pr-section") or contains("muggle-pr-walkthrough")) | .id] | join(" ")')
 ```
 
 - `existing` empty → post fresh: `jq -r '.body' … | sign | gh pr comment <prNumber> --body-file -`, then the same for `.comment` when non-null.
 - `existing` non-empty → update the first id with `body` via `gh api --method PATCH repos/<owner>/<repo>/issues/comments/<id> -F body=@-`, feeding the same signed text on stdin. Handle `comment` against the second id when both exist; post it fresh when the overflow is new, and delete a now-surplus overflow comment (`gh api --method DELETE …`) so a stale tail never outlives the run it described.
 
-Match only comments carrying the sentinel — never every comment the loop user wrote — so an unrelated reply is never overwritten.
+Match only comments carrying one of those markers — never every comment the loop user wrote — so an unrelated reply is never overwritten.
 
 Report back: PR URL, whether an overflow comment was involved, and whether this was a fresh post or an update.
 

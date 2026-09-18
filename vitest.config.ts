@@ -17,6 +17,10 @@ export default defineConfig({
     // spawn contention, short enough to still catch a genuine hang.
     testTimeout: SPAWN_HEAVY_TIMEOUT_MS,
     hookTimeout: SPAWN_HEAVY_TIMEOUT_MS,
+    // Guardrail hooks call `gh` for real, and the hook-execution fixtures carry
+    // live PR urls. Inherited by the subprocesses those tests spawn, so no test
+    // run — here or on a contributor's authenticated machine — can reach a PR.
+    env: { MUGGLE_GUARDRAIL_GH_CALLS: "off" },
     // First entry is Vitest's default glob (kept so packages/** and internal/**
     // stay discovered); second makes the top-level test/ tree — tests mirror
     // their src/ path there — explicit.

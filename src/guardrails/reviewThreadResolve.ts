@@ -1,3 +1,4 @@
+import { isShellToolCall } from "./shellTool.js";
 import {
   GITHUB_RESOLVE_THREAD_MUTATION,
   GITLAB_RESOLVE_DISCUSSION_CALL,
@@ -42,7 +43,7 @@ const RESOLVE_DENIAL =
  * same loop marker GitHub uses, so the reply alone already does that.
  */
 export function evaluateReviewThreadResolve(input: HookInput): ReviewThreadResolveResult {
-  if (input.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input)) return { deny: false };
   const provider = detectResolveCall(input.tool_input?.command ?? "");
   if (!provider) return { deny: false };
   return { deny: true, reason: RESOLVE_DENIAL };

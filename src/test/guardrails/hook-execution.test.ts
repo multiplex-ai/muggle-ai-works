@@ -51,6 +51,7 @@ describe("guardrail hook execution (cli entry)", () => {
       "https://github.com/multiplex-ai/muggle-ai-ui/pull/342",
     );
     expect(parsed.hookSpecificOutput.additionalContext).toContain("autoWatchPR");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("visual-walkthrough comment is reserved");
   });
 
   it("pr-opened: dedupes the same PR within a session (second fire is a no-op)", () => {
@@ -589,8 +590,16 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     chmodSync(stub, 0o755);
   });
 
-  function runWrapper(script: string, stdin: string): string {
+  function runWrapper(script: string, stdin: string, seededState?: { sessionId: string } & Record<string, unknown>): string {
     const home = mkdtempSync(join(tmpdir(), "gr-home-"));
+    if (seededState) {
+      const stateDir = join(home, ".muggle-ai", "guardrails");
+      mkdirSync(stateDir, { recursive: true });
+      writeFileSync(
+        join(stateDir, `${seededState.sessionId}.json`),
+        JSON.stringify(seededState, null, 2),
+      );
+    }
     const r = spawnSync("bash", [join(SCRIPTS, script)], {
       input: stdin,
       encoding: "utf-8",
@@ -690,6 +699,28 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
 
+  // The pre-filter has to track shouldRunE2E's *second* trigger too. Keyed on
+  // unitTestsGreen alone, a session that opened a PR without running tests never
+  // spawned Node, so the widened gate would have been dead code.
+  it("e2e-gate: spawns Node for a PR opened with no unit run, skips once E2E ran", () => {
+    const openedPr = { sessionId: "pr", prsHandled: ["https://github.com/o/r/pull/7"] };
+    expect(runWrapper("guardrail-e2e-gate.sh", event({ session_id: "pr" }), openedPr)).toContain(
+      NODE_RAN,
+    );
+    expect(
+      runWrapper("guardrail-e2e-gate.sh", event({ session_id: "pr" }), { ...openedPr, e2eRun: true }),
+    ).toBe("{}");
+  });
+
+  it("e2e-gate: skips Node for a session with neither a green unit run nor a PR", () => {
+    expect(
+      runWrapper("guardrail-e2e-gate.sh", event({ session_id: "idle" }), {
+        sessionId: "idle",
+        prsHandled: [],
+      }),
+    ).toBe("{}");
+  });
+
   it("watch-gate: skips Node when no PR was opened this session", () => {
     expect(runWrapper("guardrail-watch-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
@@ -746,8 +777,22 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     );
   });
 
-  it("fires exactly five observers on a Bash PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
-    const bash = hooks.PostToolUse.find((g) => g.matcher === "Bash");
+  // Matched as a regex, not compared as a literal: the group covers every shell
+  // a session can run a command through, so pinning one name would fail the day
+  // a second shell is added — which is exactly when the assertion matters.
+  const shellGroup = (groups: HookGroup[]): HookGroup | undefined =>
+    groups.find((g) => g.matcher !== undefined && new RegExp(`^(?:${g.matcher})$`).test("Bash"));
+
+  it("covers every shell a command can run through", () => {
+    for (const event of [hooks.PostToolUse, hooks.PreToolUse]) {
+      const matcher = shellGroup(event)?.matcher;
+      expect(matcher).toBeDefined();
+      expect(new RegExp(`^(?:${matcher})$`).test("PowerShell")).toBe(true);
+    }
+  });
+
+  it("fires exactly five observers on a shell PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
+    const bash = shellGroup(hooks.PostToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
     expect(cmds).toHaveLength(5);
@@ -758,8 +803,8 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-record-comment-replies.sh"))).toBe(true);
   });
 
-  it("stands both Bash PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
-    const bash = hooks.PreToolUse.find((g) => g.matcher === "Bash");
+  it("stands both shell PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
+    const bash = shellGroup(hooks.PreToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
     expect(cmds.some((c) => c.includes("guardrail-report-format.sh"))).toBe(true);

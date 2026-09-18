@@ -7,6 +7,8 @@ import { Command } from "commander";
 import { getLogger } from "@muggleai/mcp";
 import {
   buildPrSectionCommand,
+  ciInstallCommand,
+  prWalkthroughCheckCommand,
   cleanupCommand,
   doctorCommand,
   helpCommand,
@@ -129,6 +131,21 @@ function createProgram (): Command {
     .option("--max-body-bytes <n>", "Max UTF-8 byte budget for the PR body (default 60000)")
     .action(buildPrSectionCommand);
 
+  program
+    .command("pr-walkthrough-check")
+    .description("Check that a PR's Muggle AI walkthrough comment carries a result or a stated skip")
+    .option("--repo <owner/repo>", "Repository (default: $GITHUB_REPOSITORY)")
+    .option("--pr <number>", "Pull request number (default: the Actions event payload)")
+    .option("--head-sha <sha>", "Commit the check run attaches to (default: the PR head)")
+    .option("--check-run", "Publish the verdict as a check run instead of failing the process")
+    .action(prWalkthroughCheckCommand);
+
+  program
+    .command("ci-install")
+    .description("Add the Muggle walkthrough check to this repository's GitHub Actions")
+    .option("--force", "Replace an existing workflow file")
+    .action(ciInstallCommand);
+
   program.action(() => {
     helpCommand();
   });
@@ -144,7 +161,7 @@ function createProgram (): Command {
 /**
  * Check if the user is requesting help via "muggle help".
  *
- * @returns True if help was requested and handled.
+ * @returns True when help was asked for and handled.
  */
 function handleHelpCommand (): boolean {
   const args = process.argv.slice(2);

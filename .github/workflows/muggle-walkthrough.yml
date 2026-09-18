@@ -1,0 +1,52 @@
+name: muggle-walkthrough
+
+# Every PR owes a settled Muggle AI walkthrough comment: the E2E acceptance
+# result, or a stated reason E2E does not apply. The verdict rides a check run
+# against the PR head SHA rather than this job's own status, because the
+# issue_comment trigger runs against the default branch — only a head-SHA check
+# reaches the PR from there, which is what lets settling the comment turn the
+# check green with no new push.
+#
+# That same rule means GitHub reads the issue_comment trigger from the default
+# branch's copy of this file, never a PR's: until this workflow is on the
+# default branch, settling a comment re-runs nothing, and the check only
+# refreshes on a push or a manual re-run.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+concurrency:
+  group: muggle-walkthrough-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  walkthrough-comment:
+    # issue_comment fires for plain issues too; only PR conversations matter.
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the walkthrough comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm exec tsx src/cli/main.ts pr-walkthrough-check --check-run

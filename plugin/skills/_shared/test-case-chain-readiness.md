@@ -11,8 +11,9 @@ This is the **graph the backend owns** — do not infer the chain from titles or
 Run once the target `testCaseId` is chosen and the local URL + services are confirmed (the generation calls below need `localUrl` and `cwd`).
 
 1. **Resolve the chain.** `muggle-remote-test-case-ancestors-get` with the target `testCaseId`. Response: `{ testCaseId, ancestors, orphan }`.
-   - `orphan: true` **or** empty `ancestors` → no prerequisites. Skip the rest; continue to Step 5.
-     One orphan is ordinary. **Every** case in a project reading `orphan: true` is not — it means the graph was never built, so nothing orders prerequisites and a bulk replay runs cases that destroy each other's fixtures (one empties a household another needs). Queue `muggle-remote-test-plan-graph-rebuild` for the project, then re-read the chain. It only queues the work, so the graph is not ready the moment it returns.
+   - `orphan: false` with empty `ancestors` → the graph places this case as a root: it has no prerequisites. Skip the rest; continue to Step 5.
+   - `orphan: true` → the graph holds no node for this case, so its prerequisites are **unknown, not absent**, and running it is a guess about what state already exists. Queue `muggle-remote-test-plan-graph-rebuild` for the project and re-read the chain once it has settled — the call only queues the work, so the graph is not ready the moment it returns.
+     One orphan is ordinary. **Every** case in a project reading `orphan: true` means the graph was never built, so nothing orders prerequisites and a bulk replay runs cases that destroy each other's fixtures (one empties a household another needs).
    - Otherwise `ancestors` is ordered **immediate-parent → root**. Reverse it to **root-first** so prerequisites are satisfied bottom-up.
 
 2. **For each ancestor, root-first:**
@@ -33,6 +34,12 @@ If an ancestor's generation does not reach `passed` (read it via `muggle-local-r
 - **Give feedback** — invoke the `muggle-feedback` skill with the failed ancestor's `runId`.
 
 Do not silently skip a failed ancestor and run the target.
+
+## Unattended callers
+
+A caller with no user to ask — an autonomous stage, an agent — resolves the same chain and takes the same actions, but never prompts. Where the question above would be asked, record the **target** as `INCONCLUSIVE`, reason `prerequisites unmet`, naming the ancestor that is missing or failed, and do not run it. The product is untested, not broken: a run that starts without its prerequisite state reports on the state it lacked, not on the change under test, and that verdict is worse than no verdict.
+
+The same applies to a target that still reads `orphan: true` after a rebuild has been queued for its project: its prerequisites are unknown, not absent, so it is `INCONCLUSIVE` for this cycle rather than a cold run. Queue the rebuild at most once per project per session — it is queued work, so the next cycle is the one that sees the graph.
 
 ## Notes
 

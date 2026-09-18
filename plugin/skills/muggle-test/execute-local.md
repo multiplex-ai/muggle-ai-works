@@ -30,6 +30,10 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; app
 - `never` → pass `showUi: false`.
 - `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
 
+## Prerequisite chain
+
+Before the first run, resolve each selected test case's prerequisite chain and make every ancestor ready, per [`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md). Ancestors are generated, never replayed, root-first; the session an ancestor leaves behind is what the target starts from, so ordering here is what makes `freshSession: false` mean anything below.
+
 ## Run the dev loop
 
 Execute each test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).

@@ -98,6 +98,14 @@ Based on the changed files and the requirements goal, determine which test cases
 - Test cases that cover areas potentially affected by the changes
 - When in doubt, include the test case (better to over-test than miss a regression)
 
+### Step 3.5: Satisfy each target's prerequisite chain
+
+For every test case selected in Step 3, resolve its prerequisite chain from the backend's test-plan graph and make each ancestor ready before the target runs, per [`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md). This stage is unattended, so follow that file's unattended-caller rule: a target whose chain cannot be satisfied is reported `INCONCLUSIVE` with reason `prerequisites unmet` and is not run.
+
+A target that runs without its prerequisite state spends its step budget re-creating that state — signing in, seeding data — and reports on what it lacked rather than on the change under test. That verdict reads as a product failure and is worth less than no verdict.
+
+Ancestors generated here are prerequisites, not results: they belong in neither the Passed nor the Failed block of the report.
+
 ### Step 4: Run the dev loop, gather screenshots
 
 For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
@@ -134,7 +142,7 @@ For each test case:
   - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
   - artifactsDir: `<path>` (for local debugging)
 
-**Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
+**Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, prerequisites unmet (Step 3.5), infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
 - (test case name):
   - testCaseId: `<id>`
   - runId: `<id>` (synthesize a UUID if no run started)

@@ -27,9 +27,9 @@ back to the same place.
 
 ## Running
 
-Layer 2 is **ad-hoc**, never wired to CI — trigger it by hand when you
-want it. From the muggle-ai-works repo root, via the `test:gates:behavioral`
-script (forward args after `--`):
+Layer 2 runs in CI — blocking on every PR to `master` (see [CI](#ci-blocking)
+below) — and by hand whenever you want it. From the muggle-ai-works repo root,
+via the `test:gates:behavioral` script (forward args after `--`):
 
 ```bash
 MUGGLE_BRAIN_DIR=../muggle-ai-brain \
@@ -56,7 +56,10 @@ one 429 pauses new starts for every worker instead of compounding. `--verbose`
 traces interleave under concurrency; each line is prefixed with its
 scenario/rep label.
 
-A scenario passes if it succeeds on ≥ 99% of runs (per the design doc).
+A scenario passes if it succeeds on ≥ 80% of runs — `PASS_THRESHOLD` in
+`src/constants.ts`, which is the only authority. These runs are probabilistic:
+a healthy gate still misses occasionally, so a bar set at perfection flakes
+every run and teaches everyone to ignore the job.
 
 ## Why not vitest
 
@@ -70,12 +73,18 @@ blocking workflow — see CI below.
 
 `.github/workflows/skill-eval.yml` runs every gate found under
 `$MUGGLE_BRAIN_DIR/eval/skill-gate-eval/*/scenarios.json` on each PR to
-`master` (`--runs 10` at `--concurrency 4`, each scenario must hold ≥99%),
+`master` (`--runs 10` at `--concurrency 4`, each scenario must hold ≥80%),
 plus nightly and on `workflow_dispatch`. Gates run one at a time — the
 parallelism lives inside each gate's rep pool — so per-gate log groups stay
-attributable. A PR that changes only runtime (no gate/skill files) is
-skipped; label it `run-full-eval` to force the whole suite anyway — the lever
-for de-risking a refactor that changes how skills run, not their definitions.
+attributable. What a PR owes is decided by `scripts/skill-eval-scope.sh`: the
+harness or a preference gate contract forces the full suite, a `model:`-only
+`SKILL.md` edit scopes to that skill, and everything else — runtime, docs, a
+support file under a skill directory — is skipped. A support file is skipped
+because it provably cannot reach a gate prompt, which is built from `SKILL.md`
+plus the gate contract while the harness denies the `Read` tool; `test/system-prompt.test.ts`
+pins that, and if it ever fails the scope rule has to widen with it. Label a PR
+`run-full-eval` to force the whole suite anyway — the lever for de-risking a
+refactor that changes how skills run, not their definitions.
 It checks out `muggle-ai-brain` for the scenarios, so
 CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
 `claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).

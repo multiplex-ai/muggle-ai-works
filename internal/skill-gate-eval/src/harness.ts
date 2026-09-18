@@ -53,7 +53,7 @@ const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
  *     Muggle Test Last Project: id=proj-stub-1 url=http://localhost:3000 ...
  *     Muggle Test Last Host: http://localhost:3000
  */
-function buildSystemPrompt(opts: RunOptions): string {
+export function buildSystemPrompt(opts: RunOptions): string {
   const skillMdPath = path.join(
     opts.skillsDir,
     opts.scenarioFile.skill,
@@ -203,6 +203,12 @@ export async function runScenarioOnce(
     prompt: opts.scenario.userPrompt,
     options: {
       systemPrompt: systemPrompt,
+      // Judge the skill on its own definition, nothing else. Omitting this loads
+      // every filesystem settings source, and this repo's .claude/settings.json
+      // enables the muggle plugin — whose Stop guardrails then fire inside the
+      // eval. The production-tool denial below is a second line of defence
+      // against the same bleed, not a substitute for closing it here.
+      settingSources: [],
       mcpServers: { eval_mock: mock.config },
       canUseTool: canUseTool,
       model: opts.model,

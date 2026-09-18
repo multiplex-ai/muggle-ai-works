@@ -27,7 +27,7 @@
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
@@ -57,13 +57,13 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-opened.sh\"",
             "async": false,
-            "timeout": 10
+            "timeout": 25
           },
           {
             "type": "command",

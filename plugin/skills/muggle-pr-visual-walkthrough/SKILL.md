@@ -18,7 +18,7 @@ This is the **canonical PR-walkthrough workflow** shared across every Muggle Tes
 | :--- | :--- | :--- |
 | `muggle-test` | **Mode A** (post to existing PR) | After publishing results, user opts in via `AskUserQuestion` |
 | `muggle-test-feature-local` | **Mode A** (post to existing PR) | After publishing the run, user opts in via `AskUserQuestion` |
-| `muggle-do` / `open-prs.md` | **Mode B** (render-only for embedding) | During PR creation — caller embeds `body` in the PR create call and posts `comment` as follow-up |
+| `muggle-do` / `open-prs.md` | **Mode A** (settle the designated comment) | Right after PR creation — the walkthrough fills the comment the PR reserved for it, and `comment` posts as follow-up |
 | `muggle-test` Mode C / `acceptance-tester` agent | **Mode C** (embed in verdict comment) | Inside an open-PR sweep orchestrator — caller folds the rendered body into a single per-PR verdict comment |
 
 ## Preferences
@@ -27,7 +27,7 @@ Callers consult the `postPRVisualWalkthrough` gate **before** invoking this skil
 
 ## Procedure
 
-1. **Resolve the mode.** Chosen by the caller, never the user: top-level `muggle-test`/`muggle-test-feature-local` → `post` (Mode A); `muggle-do` PR creation → `render-for-new-pr` (Mode B); an orchestrator passing `mode: "embed"` → Mode C.
+1. **Resolve the mode.** Chosen by the caller, never the user: top-level `muggle-test`/`muggle-test-feature-local` and `muggle-do` PR creation → `post` (Mode A); a caller that needs the block rendered without posting → `render-for-new-pr` (Mode B); an orchestrator passing `mode: "embed"` → Mode C.
 2. **Mode A only — find the PR** with `gh pr view --json number,url,title`. No PR on the branch → `AskUserQuestion`: create a new PR with the walkthrough in the body (switch to Mode B and hand the rendered block back to the caller), or skip posting. `gh` missing/unauthenticated → tell the user, suggest `gh auth login`, stop. This is the skill's only interactive branch — resolve it **before** dispatching.
 3. **Gather the inputs.** The `E2eReport` JSON if the caller already assembled it (see [`e2e-report-assembly.md`](e2e-report-assembly.md)), else the run identifiers (`projectId`, per-test `runId`/`testCaseId`) the agent needs to assemble it.
 4. **Dispatch** the `visual-walkthrough-builder` agent (subagent type `muggle:visual-walkthrough-builder`; bare `visual-walkthrough-builder` where the plugin namespace is absent), synchronously, passing: mode, PR number + repo (Mode A), and the report JSON or identifiers. In a harness with no agent/subagent facility, execute `plugin/agents/visual-walkthrough-builder.md` inline instead.

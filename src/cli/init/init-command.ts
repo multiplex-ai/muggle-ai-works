@@ -8,6 +8,7 @@
  */
 
 import { readFileSync } from "fs";
+import { createInterface } from "node:readline/promises";
 
 import {
   OnboardingBlanketChoice,
@@ -19,6 +20,9 @@ import {
   type IOnboardingApplyResult,
 } from "../../../packages/mcps/src/index.js";
 
+import { USER_WORKFLOW_PATH } from "../../ci-workflow/constants.js";
+import { offerCiWorkflow } from "./ci-question.js";
+import { CiOfferOutcome } from "./ci-question-types.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";
 import type { IInitOptions } from "./init-types.js";
 
@@ -73,6 +77,27 @@ function reportOutcome(result: IOnboardingApplyResult): void {
   console.log(summary);
 }
 
+const CI_OFFER_REPORT: Record<CiOfferOutcome, string | null> = {
+  [CiOfferOutcome.Installed]: `Added ${USER_WORKFLOW_PATH} — commit it, and every pull request here will owe a settled walkthrough comment.`,
+  [CiOfferOutcome.Declined]: "Left CI alone. Run `muggle ci-install` whenever you want it.",
+  [CiOfferOutcome.AlreadyInstalled]: null,
+  [CiOfferOutcome.NotApplicable]: null,
+};
+
+/** Ask the CI question at the end of the walkthrough, and report what it did. */
+async function runCiOffer(): Promise<void> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    const line = CI_OFFER_REPORT[await offerCiWorkflow((q) => rl.question(q), process.cwd())];
+    if (line) {
+      console.log("");
+      console.log(line);
+    }
+  } finally {
+    rl.close();
+  }
+}
+
 /**
  * Execute the init command.
  * @param options - Command options.
@@ -106,4 +131,5 @@ export async function initCommand(options: IInitOptions): Promise<void> {
   }
 
   reportOutcome(applyOnboardingAnswers(await runTerminalWalkthrough()));
+  await runCiOffer();
 }

@@ -1,3 +1,4 @@
+import { isShellToolCall } from "./shellTool.js";
 import { PrTerminalGateAction, PrTerminalVerdict } from "./types.js";
 import type { GuardrailState, HookInput, PrTerminalEvent, PrTerminalGateDecision } from "./types.js";
 import {
@@ -35,7 +36,7 @@ function terminalProvenance(input: HookInput): {
 // stdout/output, and a replayed Monitor notification may carry it in content —
 // scan all four.
 export function detectPrTerminal(input: HookInput): PrTerminalEvent | null {
-  if (input.tool_name !== "Bash" && input.tool_name !== "Monitor") return null;
+  if (!isShellToolCall(input) && input.tool_name !== "Monitor") return null;
   const response = input.tool_response;
   const provenance = terminalProvenance(input);
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content]
@@ -63,7 +64,7 @@ export function detectPrTerminal(input: HookInput): PrTerminalEvent | null {
 
 /** The pull-request number a `gh pr reopen` success line names, or null when the tool output carries no reopen. */
 export function detectPrReopened(input: HookInput): number | null {
-  if (input.tool_name !== "Bash") return null;
+  if (!isShellToolCall(input)) return null;
   if (!terminalProvenance(input).acceptsForgeLine) return null;
   const response = input.tool_response;
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content]

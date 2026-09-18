@@ -194,8 +194,15 @@ describe("hooks.json registers every stage guardrail", () => {
   type HookGroup = { matcher?: string; hooks: Array<{ command: string }> };
   const hooks = (JSON.parse(readFileSync(HOOKS, "utf-8")) as { hooks: Record<string, HookGroup[]> })
     .hooks;
-  const commandsFor = (event: string, matcher: string): string[] =>
-    hooks[event]?.find((group) => group.matcher === matcher)?.hooks.map((h) => h.command) ?? [];
+  // Resolves the group the way the harness does — the matcher is a regex over
+  // the tool name, so a group covering several tools still answers for each.
+  const commandsFor = (event: string, toolName: string): string[] =>
+    hooks[event]
+      ?.find(
+        (group) =>
+          group.matcher !== undefined && new RegExp(`^(?:${group.matcher})$`).test(toolName),
+      )
+      ?.hooks.map((h) => h.command) ?? [];
 
   it("observes skill invocations and stage reads", () => {
     expect(commandsFor("PostToolUse", "Skill").join()).toContain("guardrail-skill-stages.sh");
@@ -230,8 +237,11 @@ describe("hooks.json registers every stage guardrail", () => {
     expect(matcher.test("mcp__plugin_muggle_muggle__muggle-remote-user-feedback-create")).toBe(true);
   });
 
-  it("records skip markers typed as Bash commands", () => {
+  it("records skip markers typed in either shell", () => {
     expect(commandsFor("PostToolUse", "Bash").join()).toContain("guardrail-record-stage-signals.sh");
+    expect(commandsFor("PostToolUse", "PowerShell").join()).toContain(
+      "guardrail-record-stage-signals.sh",
+    );
   });
 
   it("gates both local execution tools before they burn a browser run", () => {

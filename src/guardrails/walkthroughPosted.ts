@@ -1,3 +1,4 @@
+import { isShellToolCall } from "./shellTool.js";
 import type { GuardrailState, HookInput } from "./types.js";
 import { callFailed } from "./callOutcome.js";
 import {
@@ -33,7 +34,7 @@ export function detectWalkthroughPost(
   input: HookInput,
   read: FileReader = defaultFileReader,
 ): boolean {
-  if (input.tool_name !== "Bash") return false;
+  if (!isShellToolCall(input)) return false;
   const cmd = input.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return false;
   // A publish the provider rejected posted nothing, so it must not settle the

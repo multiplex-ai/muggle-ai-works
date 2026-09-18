@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# tests-green → E2E gate (Stop). When unit tests passed this session and no E2E
-# acceptance run has happened, offer to run change-driven E2E (gated by
-# autoE2ETest). Fires once per session.
+# tests-green-or-PR-opened → E2E gate (Stop). When unit tests passed this
+# session or a PR was opened, and no E2E acceptance run has happened, offer to
+# run change-driven E2E (gated by autoE2ETest). Fires once per session.
 #
 # This must stay synchronous (only a sync Stop hook can block the turn end), and
 # it fires on EVERY turn end. There is no command payload to key off, so the
 # pre-filter reads the same per-session state file guardrails.mjs uses and only
-# spawns Node when the gate could actually fire — i.e. shouldRunE2E: unit tests
-# went green and no E2E run is recorded yet. On the overwhelming majority of
-# turns (no test run this session) the state file is absent or unitTestsGreen is
-# unset, so we return {} in-shell and never pay Node cold-start. Degrades to {}.
+# spawns Node when the gate could actually fire — i.e. shouldRunE2E's two
+# triggers, with no E2E run recorded yet. It must track that predicate exactly:
+# a pre-filter narrower than the gate retires the gate silently. On the
+# overwhelming majority of turns (no test run, no PR) the state file is absent,
+# or unitTestsGreen is unset while prsHandled is empty, so we return {} in-shell
+# and never pay Node cold-start. Degrades to {}.
 payload="$(cat)"
 
 raw_sid="$(printf '%s' "$payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')"
@@ -28,7 +30,7 @@ fi
 
 state_file="$home/.muggle-ai/guardrails/$sid.json"
 if [ ! -f "$state_file" ] \
-  || ! grep -q '"unitTestsGreen": true' "$state_file" \
+  || { ! grep -q '"unitTestsGreen": true' "$state_file" && grep -q '"prsHandled": \[\]' "$state_file"; } \
   || grep -q '"e2eReleased": true' "$state_file" \
   || grep -q '"e2eRun": true' "$state_file"; then
   printf '{}'

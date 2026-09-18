@@ -68,6 +68,8 @@ import {
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
 import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
+import { reserveWalkthroughComment, settleWalkthroughCommentAsSkipped } from "../pr-walkthrough/reserve.js";
+import { skipReasonFrom } from "./skipReason.js";
 import {
   commentReplyGateDecision,
   detectConfirmedReplies,
@@ -134,8 +136,15 @@ function prOpened(): string {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
+  // Reserved at open rather than at post time: a PR whose slot exists from the
+  // first minute shows reviewers that evidence is coming, and gives both the
+  // Stop gate and the CI check one fixed comment to settle instead of guessing
+  // which of a thread's comments was meant to carry the walkthrough.
+  reserveWalkthroughComment(url);
   const ctx =
     `A pull request was just opened: ${url}\n` +
+    `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
+    `walkthrough there once E2E runs, or by recording why E2E does not apply.\n` +
     `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. ` +
     `If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; ` +
     `if =ask, offer it to the user; if =never, do nothing.`;
@@ -208,7 +217,21 @@ function recordTests(): string {
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
+  recordSkipReasonOnPrs(next, cmd);
   return "{}";
+}
+
+// A skip that only ever reaches session state is invisible the moment the
+// session ends: the PR keeps an empty slot, and a reviewer cannot tell a
+// deliberate skip from a cycle that forgot. Writing the stated reason into the
+// designated comment is what makes the declaration outlive the session and what
+// lets the CI check settle.
+function recordSkipReasonOnPrs(state: GuardrailState, cmd: string): void {
+  const reason = skipReasonFrom(cmd);
+  if (!reason) return;
+  for (const prUrl of state.prsHandled) {
+    settleWalkthroughCommentAsSkipped(prUrl, reason);
+  }
 }
 
 function skillStages(): string {
@@ -338,7 +361,7 @@ function e2eGate(): string {
   // taught the model both exits, so repeating the paragraph is pure noise.
   const reason =
     decision.blockCount === 1
-      ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. ` +
+      ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. ` +
         `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
         `then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user ` +
         `why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +

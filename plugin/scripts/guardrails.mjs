@@ -12,6 +12,7 @@ var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
+var SHELL_TOOL_NAMES = ["Bash", "PowerShell"];
 var MAX_WATCH_BLOCKS = 3;
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
@@ -153,13 +154,18 @@ function markPrHandled(sessionId2, prUrl, dirOverride) {
   writeState(state, dirOverride);
 }
 
+// src/guardrails/shellTool.ts
+function isShellToolCall(input2) {
+  return SHELL_TOOL_NAMES.includes(input2.tool_name ?? "");
+}
+
 // src/guardrails/prOpened.ts
 var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
 var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
 var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
 var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
 function detectPrOpened(input2) {
-  if (input2.tool_name !== "Bash") return null;
+  if (!isShellToolCall(input2)) return null;
   const cmd = input2.tool_input?.command ?? "";
   if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
   const out = `${input2.tool_response?.stdout ?? ""}
@@ -178,7 +184,7 @@ function terminalProvenance(input2) {
   };
 }
 function detectPrTerminal(input2) {
-  if (input2.tool_name !== "Bash" && input2.tool_name !== "Monitor") return null;
+  if (!isShellToolCall(input2) && input2.tool_name !== "Monitor") return null;
   const response = input2.tool_response;
   const provenance = terminalProvenance(input2);
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
@@ -200,7 +206,7 @@ function detectPrTerminal(input2) {
   return null;
 }
 function detectPrReopened(input2) {
-  if (input2.tool_name !== "Bash") return null;
+  if (!isShellToolCall(input2)) return null;
   if (!terminalProvenance(input2).acceptsForgeLine) return null;
   const response = input2.tool_response;
   const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
@@ -521,7 +527,8 @@ function isE2ERun(input2) {
 // src/guardrails/shouldRunE2E.ts
 var MAX_E2E_BLOCKS = 3;
 function shouldRunE2E(state) {
-  return state.unitTestsGreen === true && state.e2eRun !== true && state.e2eSkipped !== true;
+  const owed = state.unitTestsGreen === true || state.prsHandled.length > 0;
+  return owed && state.e2eRun !== true && state.e2eSkipped !== true;
 }
 function applyRecordedRun(state, run) {
   let next = state;
@@ -603,7 +610,15 @@ function buildFollowthroughDecision(state, maxBlocks = MAX_BUILD_BLOCKS) {
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
+
+// src/pr-walkthrough/constants.ts
 var REPORT_SENTINEL = "muggle-pr-section";
+var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
+var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
+var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
+var GH_COMMENT_TIMEOUT_MS = 1e4;
+
+// src/guardrails/prReportPost.ts
 var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
 var GH_API_CMD = /\bgh\s+api\b/;
 var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
@@ -652,7 +667,7 @@ function isWalkthroughSkipMarker(cmd) {
   return WALKTHROUGH_SKIP_MARKER.test(cmd);
 }
 function detectWalkthroughPost(input2, read = defaultFileReader) {
-  if (input2.tool_name !== "Bash") return false;
+  if (!isShellToolCall(input2)) return false;
   const cmd = input2.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return false;
   if (callFailed(input2)) return false;
@@ -713,6 +728,125 @@ function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_
     return { action: "release" /* Release */, blockCount, owed: owedPrUrls };
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
+}
+
+// src/pr-walkthrough/comment.ts
+function renderReservedComment() {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+_Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes \u2014 or records why E2E does not apply to this change._`;
+}
+function renderSkippedComment(reason) {
+  const stated = reason.trim();
+  if (!stated) return renderReservedComment();
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**E2E skipped** \u2014 ${stated}`;
+}
+function classifyComment(body) {
+  if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
+  if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return "not-designated" /* NotDesignated */;
+  if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
+  return "pending" /* Pending */;
+}
+var GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
+var GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
+var defaultGhRunner = (args, input2) => {
+  if (process.env[GH_CALLS_ENV] === "off") return null;
+  try {
+    return execFileSync("gh", args, {
+      encoding: "utf-8",
+      input: input2,
+      timeout: GH_COMMENT_TIMEOUT_MS,
+      stdio: ["pipe", "pipe", "ignore"]
+    });
+  } catch {
+    return null;
+  }
+};
+function parsePrUrl(prUrl) {
+  const parts = prUrl.match(GITHUB_PR_URL);
+  if (!parts) return null;
+  return { repo: `${parts[1]}/${parts[2]}`, prNumber: Number(parts[3]) };
+}
+function listPrComments(pr, run) {
+  let raw;
+  try {
+    raw = run(["api", "--paginate", `repos/${pr.repo}/issues/${pr.prNumber}/comments`]);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function writeJson(args, payload, run) {
+  try {
+    return run(args, JSON.stringify(payload)) !== null;
+  } catch {
+    return false;
+  }
+}
+function postPrComment(pr, body, run) {
+  return writeJson(
+    ["api", "--method", "POST", `repos/${pr.repo}/issues/${pr.prNumber}/comments`, "--input", "-"],
+    { body },
+    run
+  );
+}
+function patchPrComment(pr, commentId, body, run) {
+  return writeJson(
+    ["api", "--method", "PATCH", `repos/${pr.repo}/issues/comments/${commentId}`, "--input", "-"],
+    { body },
+    run
+  );
+}
+
+// src/pr-walkthrough/reserve.ts
+function commentWithStatus(comments, status) {
+  return comments.find((comment) => classifyComment(comment.body) === status);
+}
+function reserveComment(pr, comments, run) {
+  const claimed = comments.some(
+    (comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */
+  );
+  if (claimed) return false;
+  return postPrComment(pr, renderReservedComment(), run);
+}
+function reserveWalkthroughComment(prUrl, run = defaultGhRunner) {
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  return reserveComment(pr, comments, run);
+}
+function settleWalkthroughCommentAsSkipped(prUrl, reason, run = defaultGhRunner) {
+  if (!reason.trim()) return false;
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  if (commentWithStatus(comments, "reported" /* Reported */)) return false;
+  if (commentWithStatus(comments, "skipped" /* Skipped */)) return false;
+  const body = renderSkippedComment(reason);
+  const reserved = commentWithStatus(comments, "pending" /* Pending */);
+  return reserved ? patchPrComment(pr, reserved.id, body, run) : postPrComment(pr, body, run);
+}
+
+// src/guardrails/skipReason.ts
+var SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_(?:E2E|WALKTHROUGH)_SKIP:\s*(.+)$/;
+function skipReasonFrom(cmd) {
+  const declared = cmd.match(SKIP_DECLARATION);
+  if (!declared) return null;
+  const reason = declared[1].replace(/["']\s*$/, "").trim();
+  return reason || null;
 }
 
 // src/guardrails/ledger/constants.ts
@@ -874,14 +1008,14 @@ function gitlabThread(thread) {
   };
 }
 function detectUnansweredThreads(input2) {
-  if (input2.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input2)) return [];
   if (!REVIEW_THREAD_FETCH_COMMAND.test(input2.tool_input?.command ?? "")) return [];
   const threads = [];
   collectThreads(parsedResponse(input2), threads);
   return threads.map((thread) => Array.isArray(thread.notes) ? gitlabThread(thread) : githubThread(thread)).filter((thread) => thread !== void 0);
 }
 function detectConfirmedReplies(input2) {
-  if (input2.tool_name !== "Bash") return [];
+  if (!isShellToolCall(input2)) return [];
   const command = input2.tool_input?.command ?? "";
   const targets = [...command.matchAll(THREADED_REPLY_TARGET)].map(
     ([, githubCommentId, gitlabDiscussionId]) => githubCommentId ?? gitlabDiscussionId
@@ -976,7 +1110,7 @@ function looksLikeE2EReport(text) {
   return resultsStructure && muggleContext;
 }
 function evaluateReportPost(input2, read = defaultFileReader) {
-  if (input2.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input2)) return { deny: false };
   const cmd = input2.tool_input?.command ?? "";
   if (!isPrReportPostCommand(cmd)) return { deny: false };
   const text = collectPrPostText(cmd, input2.cwd, read);
@@ -997,7 +1131,7 @@ function detectResolveCall(command) {
 }
 var RESOLVE_DENIAL = "Blocked: resolving a review thread is the reviewer's call, not the loop's. Reply to the thread instead \u2014 the `<!-- muggle-do:bot -->` marker on that reply is what retires it (a thread is actionable only while it is unresolved AND its newest comment is unmarked), so resolving buys no echo protection and costs the reviewer their record of what is still unverified. The loop has twice hidden threads carrying fixes that were partly wrong. If a thread genuinely warrants resolving, say so and let the reviewer close it in the UI; to nudge, run the resolve-reminder stage, which lists addressed-but-open threads without touching them.";
 function evaluateReviewThreadResolve(input2) {
-  if (input2.tool_name !== "Bash") return { deny: false };
+  if (!isShellToolCall(input2)) return { deny: false };
   const provider = detectResolveCall(input2.tool_input?.command ?? "");
   if (!provider) return { deny: false };
   return { deny: true, reason: RESOLVE_DENIAL };
@@ -1052,7 +1186,9 @@ function prOpened() {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
+  reserveWalkthroughComment(url);
   const ctx = `A pull request was just opened: ${url}
+Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
 Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
@@ -1106,7 +1242,15 @@ function recordTests() {
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
+  recordSkipReasonOnPrs(next, cmd);
   return "{}";
+}
+function recordSkipReasonOnPrs(state, cmd) {
+  const reason = skipReasonFrom(cmd);
+  if (!reason) return;
+  for (const prUrl of state.prsHandled) {
+    settleWalkthroughCommentAsSkipped(prUrl, reason);
+  }
 }
 function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
@@ -1185,7 +1329,7 @@ function e2eGate() {
   if (decision.action === "none" /* None */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. Unit tests passed this session but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function watchGate() {

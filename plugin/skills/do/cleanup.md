@@ -13,3 +13,5 @@ Invoked by `/muggle-do` when the watcher forwards a PR's terminal state. On `mer
 3. **Teardown (`merged` only).** When the PR is `merged`, run [`../_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md) with `{worktreePath}` and `{branch}`. That file owns the teardown sequence **and its safety rules** — including skipping worktree-remove and local branch deletion when no worktree was used. This stage adds no teardown logic of its own. On `closed`, skip teardown — the branch and any worktree stay intact.
 4. Append a cleanup line to the session's `followup.log`, recording whether teardown ran.
 5. Suggest the next step per [`next-step.md`](next-step.md), passing whether teardown ran. This is the stage's last action.
+
+**Teardown never returns a question.** It finishes with its report — every step done, skipped, or blocked-with-a-reason — so steps 4 and 5 always run. A teardown that appears to be waiting on the user has stalled mid-sequence; the stage is not complete until the report and the next-step suggestion are both printed.

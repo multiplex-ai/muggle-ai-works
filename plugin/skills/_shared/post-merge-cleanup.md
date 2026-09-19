@@ -6,11 +6,29 @@ On `always`, the steps below run as one pre-authorized sequence (no per-step pro
 
 **Verify every step, assume none.** Each step states what proves it succeeded. A step whose side effect *usually* happens is not a step that ran — that assumption is how a branch survives a cleanup that reported success. The [report](#report) states verified state, never intent.
 
+**A blocked step is reported, never handed back.** On `always` the gate already authorized this whole sequence, so nobody is sitting on the prompt: stopping to describe an obstacle and wait turns cleanup into a run that hangs until the user next looks at the terminal. Every step ends exactly one of three ways — done, `—` nothing to do, or `❌` with its reason in the [report](#report) and the sequence stopped. Waiting for the user is not a fourth ending. An obstacle you can clear yourself (standing in the directory you are about to remove) you clear and continue; one you cannot (a lock held by another process, a permission you lack) you record and stop. Print the report either way — the report is what tells the user cleanup is over.
+
 ## Preconditions
 
 Confirm the PR is `MERGED` from provider state. A closed-unmerged PR keeps its branch and worktree: the work never landed, so deleting it destroys it.
 
-## 1. Remove the worktree — link-safe
+## 1. Leave the worktree
+
+Only if a worktree was used. This runs **before** anything is deleted — the working directory is the precondition the rest of the sequence stands on.
+
+`git worktree remove` refuses to remove the worktree the command is standing in, and a shell whose directory is deleted out from under it fails everything afterwards with `getcwd`/`No such file or directory`. Both surface as "cleanup can't proceed", and the reflex — announcing that you are inside the directory and waiting for the user — is the stall this step exists to prevent. Moving is yours to do; it needs no one's permission, and the gate already gave it.
+
+1. **Resolve the anchor** — the repo's main working tree, which removing a worktree never touches:
+   ```bash
+   git -C {worktreePath} worktree list --porcelain   # the first `worktree ` line is the main tree
+   ```
+2. **Compare resolved paths, not strings.** Resolve the current directory and `{worktreePath}` through symlinks before asking whether one contains the other; `/var/…` against `/private/var/…` reads as "already outside" and the removal then fails anyway. Match on path segments, so a sibling like `<name>-old` is not mistaken for being inside `<name>`.
+3. If the cwd is at or under `{worktreePath}`, move to the anchor now.
+4. Run every remaining command against an explicit repo — `git -C <anchor> …` — so no later step walks back into the tree it is deleting.
+
+**Verify:** the resolved cwd is outside `{worktreePath}` **and** still exists (a directory that resolves, not just a string). A cwd that was deleted rather than left is the same stall arriving one step later.
+
+## 2. Remove the worktree — link-safe
 
 Only if a worktree was used.
 
@@ -26,7 +44,7 @@ A worktree's dependency dir (`node_modules`, and nested workspace copies) is oft
 
 **Verify:** the path is gone, it no longer appears in `git worktree list`, **and** the shared dependency tree the links pointed at still exists. That last check is the one that catches a link-follow.
 
-## 2. Delete the local branch
+## 3. Delete the local branch
 
 **Skip entirely when no worktree was used** — the branch is then the user's live checkout, and a checked-out branch must never be deleted.
 
@@ -39,7 +57,7 @@ Do not reach for `-D` on faith. Replace the ancestry check with a content check:
 
 **Verify:** the branch is absent from `git branch --list`.
 
-## 3. Delete the remote branch
+## 4. Delete the remote branch
 
 **A provider that auto-deletes the head branch on merge is a setting, not a guarantee.** It can be off for the repo, off for a fork, or simply not fire. Treat auto-delete as something to detect, never as this step having run.
 
@@ -48,7 +66,7 @@ Do not reach for `-D` on faith. Replace the ancestry check with a content check:
 
 **Verify:** querying the ref returns not-found.
 
-## 4. Clear the session slot
+## 5. Clear the session slot
 
 The slot is `~/.muggle-ai/muggle-do/sessions/<slug>/` — the home directory, not the project.
 
@@ -56,7 +74,7 @@ Clear it only when `prs.json` records a terminal state. A slot for a still-open 
 
 **Verify:** the slot directory is gone, and no non-terminal slot was touched.
 
-## 5. Clear this run's prepare artifacts
+## 6. Clear this run's prepare artifacts
 
 The PID tracker and per-service logs written during environment prep — `/tmp/muggle-test-prepare.json` and `/tmp/muggle-prepare-*.log`.
 
@@ -75,6 +93,7 @@ Cleanup — <slug> (PR #<n>, merged)
 
 | Step                  | Result                                          |
 |:----------------------|:------------------------------------------------|
+| Left the worktree     | ✅ moved to <repo root> (cwd was inside)         |
 | Worktree removed      | ✅ .claude/worktrees/<name> (shared deps intact) |
 | Local branch deleted  | ✅ users/<user>/<branch>                         |
 | Remote branch deleted | ✅ (already gone — provider auto-delete)         |

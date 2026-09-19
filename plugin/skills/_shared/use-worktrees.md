@@ -51,3 +51,5 @@ Use this for feature development, local validation, and PR iteration.
 
 After merge, remove the worktree.  
 See [`post-merge-cleanup.md`](post-merge-cleanup.md).
+
+**Never remove a worktree you are standing in.** Step back to the repo's main working tree first — `git worktree remove` refuses from inside, and a deleted working directory breaks every command that follows. Relocating is part of teardown, not a reason to stop and ask.

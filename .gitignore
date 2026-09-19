@@ -41,6 +41,9 @@ coverage/
 .eslintcache
 *.tsbuildinfo
 
+# Node's V8 compile cache, written by the local toolchain (vitest/tsx on Node >= 22)
+node-compile-cache/
+
 # Turborepo cache
 .turbo/
 .worktrees

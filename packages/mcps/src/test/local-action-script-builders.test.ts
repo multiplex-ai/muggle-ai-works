@@ -1,4 +1,4 @@
-/** Tests for local action-script builders: executionSource tag + SharedTestMemory id. */
+/** Tests for local action-script builders: executionSource tag, SharedTestMemory id, webview sizing. */
 
 import { describe, expect, it } from "vitest";
 
@@ -7,10 +7,14 @@ import {
   buildReplayActionScript,
 } from "../mcp/local/services/action-script-builders.js";
 import type { TestCaseDetails, TestScriptDetails } from "../mcp/local/contracts/project-schemas.js";
+import { DisplayResolution } from "../mcp/local/types/enums.js";
 
 const PROJECT_ID = "proj-123";
 
-function makeTestCase(): TestCaseDetails {
+const DESKTOP_PARAMS = { browserWindowWidth: 1920, browserWindowHeight: 1080 };
+const PHONE_PARAMS = { browserWindowWidth: 390, browserWindowHeight: 844 };
+
+function makeTestCase(storedDisplayOptions?: DisplayResolution[]): TestCaseDetails {
   return {
     id: "tc-1",
     projectId: PROJECT_ID,
@@ -21,6 +25,7 @@ function makeTestCase(): TestCaseDetails {
     instructions: "",
     expectedResult: "Dashboard shown",
     url: "https://staging.example.com",
+    displayOptions: storedDisplayOptions,
   } as unknown as TestCaseDetails;
 }
 
@@ -97,5 +102,63 @@ describe("buildReplayActionScript", () => {
 
   it("runs the script against localUrl, not the cloud url", () => {
     expect(script.url).toBe("http://localhost:3999");
+  });
+});
+
+describe("displayParams sizing", () => {
+  function generationWith(params: {
+    displayResolution?: DisplayResolution;
+    storedDisplayOptions?: DisplayResolution[];
+  }): unknown {
+    const script = buildGenerationActionScript({
+      testCase: makeTestCase(params.storedDisplayOptions),
+      localUrl: "http://localhost:3999",
+      runId: "run-1",
+      localTestScriptId: "lts-1",
+      ownerUserId: "user-1",
+      displayResolution: params.displayResolution,
+    });
+    return actionParams(script).displayParams;
+  }
+
+  function replayWith(displayResolution?: DisplayResolution): unknown {
+    const script = buildReplayActionScript({
+      testScript: makeTestScript(),
+      actionScript: [],
+      localUrl: "http://localhost:3999",
+      runId: "run-2",
+      ownerUserId: "user-1",
+      displayResolution: displayResolution,
+    });
+    return actionParams(script).displayParams;
+  }
+
+  it("sizes a generation run at 1920x1080 when nothing is specified", () => {
+    expect(generationWith({})).toEqual(DESKTOP_PARAMS);
+  });
+
+  it("sizes a generation run from the requested resolution", () => {
+    expect(generationWith({ displayResolution: DisplayResolution.R_0390x0844 })).toEqual(PHONE_PARAMS);
+  });
+
+  it("sizes a generation run from the test case's stored display option", () => {
+    expect(generationWith({ storedDisplayOptions: [DisplayResolution.R_0390x0844] })).toEqual(PHONE_PARAMS);
+  });
+
+  it("lets the requested resolution override the test case's stored option", () => {
+    expect(
+      generationWith({
+        displayResolution: DisplayResolution.R_1920x1080,
+        storedDisplayOptions: [DisplayResolution.R_0390x0844],
+      }),
+    ).toEqual(DESKTOP_PARAMS);
+  });
+
+  it("sizes a replay run at 1920x1080 when nothing is specified", () => {
+    expect(replayWith()).toEqual(DESKTOP_PARAMS);
+  });
+
+  it("sizes a replay run from the requested resolution", () => {
+    expect(replayWith(DisplayResolution.R_0390x0844)).toEqual(PHONE_PARAMS);
   });
 });

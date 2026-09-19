@@ -15,6 +15,10 @@
 import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+import { DisplayResolution } from "../types/enums.js";
+
+/** Resolution a run executes at, accepted wherever a caller may name one. */
+export const DisplayResolutionSchema = z.nativeEnum(DisplayResolution);
 
 /**
  * Test case details schema.
@@ -39,6 +43,13 @@ export const TestCaseDetailsSchema = z.object({
   projectId: MuggleEntityIdSchema.describe("Cloud project ID (UUID)"),
   /** Cloud use case ID (required for electron workflow context). */
   useCaseId: MuggleEntityIdSchema.describe("Cloud use case ID (UUID)"),
+  /** Resolutions stored on the cloud test case; the first entry sizes the run unless the caller names one. */
+  displayOptions: z
+    .array(DisplayResolutionSchema)
+    .optional()
+    .describe(
+      "Resolutions stored on the cloud test case (from muggle-remote-test-case-get). The first entry sizes the browser unless displayResolution overrides it.",
+    ),
 });
 
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
@@ -88,6 +99,10 @@ export const ExecuteTestGenerationInputSchema = z.object({
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
   /** Mutation parameters providing variable context for this generation run — a string[] where each element is a plain-English instruction or a local file path for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. */
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
+  /** Resolution for this run. Overrides `testCase.displayOptions`; both absent means 1920x1080. */
+  displayResolution: DisplayResolutionSchema.optional().describe(
+    "Browser resolution for this run, e.g. R_0390x0844 for a 390x844 phone viewport. Overrides testCase.displayOptions; defaults to R_1920x1080 when neither is given.",
+  ),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -113,6 +128,10 @@ export const ExecuteReplayInputSchema = z.object({
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
   /** Mutation parameters passed to the LLM step predictor — a string[] where each element is an instruction describing what varies this run. Supports plain-English instructions (e.g. "The post content should be 'Hello world'") and local file paths for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
+  /** Resolution for this run. A test script carries no stored resolution, so this is replay's only sizing input. */
+  displayResolution: DisplayResolutionSchema.optional().describe(
+    "Browser resolution for this run, e.g. R_0390x0844 for a 390x844 phone viewport. Defaults to R_1920x1080.",
+  ),
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

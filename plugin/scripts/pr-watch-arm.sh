@@ -110,6 +110,20 @@ echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behin
     printf 'BLOCKED_CIDIGEST=""\n'
 } > "${slot}/watch-watermark.env"
 
+# Claim the slot for this session. watcher_lease_is_foreign reads an absent
+# owner.json as "not foreign", so a slot armed without one leases itself to a
+# live PID nothing can classify: once the arming session dies its watcher polls
+# into a closed pipe, and every later arm skips the slot as already owned until
+# the lifetime cap expires. An unset id writes nothing rather than a placeholder
+# — reconcile reads any id it does not recognise as another session's claim, and
+# a bogus one would strand the slot exactly as an absent file does.
+if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+    printf '{\n  "session_id": "%s",\n  "claimed_at": "%s"\n}\n' \
+        "$CLAUDE_CODE_SESSION_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${slot}/owner.json"
+else
+    echo "pr-watch-arm: CLAUDE_CODE_SESSION_ID unset — slot left unowned, reconcile cannot re-arm it" >&2
+fi
+
 echo "ARMED pr=$pr_number watermark seeded at ${slot}/watch-watermark.env"
 
 [ "$exec_loop" -eq 1 ] || exit 0

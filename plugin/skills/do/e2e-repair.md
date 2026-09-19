@@ -47,6 +47,8 @@ Map each bucket to exactly one disposition. Buckets are defined in [`../_shared/
 
 A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. Without one it is `ask`, whatever the bucket said.
 
+An Inconclusive entry Stage 6 recorded as `prerequisites unmet` never executed. It carries no bucket and none may be derived from it — there is no run to read. Its disposition is `ask`, and the question names the missing prerequisite: what failed is the project's test-plan chain, not the diff.
+
 ## Step 3: Act
 
 Process dispositions in order — `retry`, then `regenerate`, then `repair` — so cheap self-healing runs before any code change.

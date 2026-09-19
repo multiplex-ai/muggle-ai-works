@@ -149,3 +149,19 @@ export enum TestResultStatus {
   /** Test was skipped. */
   Skipped = "skipped",
 }
+
+/**
+ * Browser resolutions a run can execute at. Values mirror the cloud's
+ * `DisplayResolutionEnum` verbatim so a resolution stamped on a cloud test case
+ * means the same thing on the local lane.
+ */
+export enum DisplayResolution {
+  /** 800 x 600. */
+  R_0800x0600 = "R_0800x0600",
+  /** 1024 x 768. */
+  R_1024x0768 = "R_1024x0768",
+  /** 390 x 844 — phone viewport. */
+  R_0390x0844 = "R_0390x0844",
+  /** 1920 x 1080. */
+  R_1920x1080 = "R_1920x1080",
+}

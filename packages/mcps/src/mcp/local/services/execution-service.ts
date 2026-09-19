@@ -23,6 +23,7 @@ import {
 import { applyLlmEnvOverrides } from "../../../shared/llm-env-service.js";
 import { getLogger } from "../../../shared/logger.js";
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
+import type { DisplayResolution } from "../types/enums.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
 import {
   buildGenerationActionScript,
@@ -657,6 +658,7 @@ export async function executeTestGeneration(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
   try {
@@ -673,6 +675,7 @@ async function runTestGenerationLocked(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 300000;
@@ -720,6 +723,7 @@ async function runTestGenerationLocked(params: {
       runId: runId,
       localTestScriptId: localTestScript.id,
       ownerUserId: authContent.userId,
+      displayResolution: params.displayResolution,
     });
 
     // Write temp files
@@ -917,6 +921,7 @@ export async function executeReplay(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
   try {
@@ -934,6 +939,7 @@ async function runReplayLocked(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 180000;
@@ -973,6 +979,7 @@ async function runReplayLocked(params: {
       localUrl: localUrl,
       runId: runId,
       ownerUserId: authContent.userId,
+      displayResolution: params.displayResolution,
     });
 
     // Write temp files

@@ -5,7 +5,9 @@
  */
 
 import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
+import { resolveDisplayParams } from "./display-resolution.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
+import type { DisplayResolution } from "../types/enums.js";
 
 /**
  * Get a required string from an object field.
@@ -27,6 +29,9 @@ function getRequiredStringField(params: {
 
 /**
  * Build a local action script for test generation (explore mode).
+ *
+ * @param params.displayResolution - Resolution for this run; overrides the test
+ * case's stored `displayOptions`. Neither given sizes the run at 1920x1080.
  */
 export function buildGenerationActionScript(params: {
   testCase: TestCaseDetails;
@@ -34,6 +39,7 @@ export function buildGenerationActionScript(params: {
   runId: string;
   localTestScriptId: string;
   ownerUserId: string;
+  displayResolution?: DisplayResolution;
 }): Record<string, unknown> {
   const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -75,6 +81,12 @@ export function buildGenerationActionScript(params: {
       // it, so leave it empty here; STM-on-local needs a backend resolver.
       sharedTestMemoryId: "",
       runEnvironmentType: "local",
+      // Sizes the studio's webview. Absent, the electron-app falls back to its
+      // own hardcoded 1920x1080, which is why a phone-viewport run needs this.
+      displayParams: resolveDisplayParams({
+        requestedResolution: params.displayResolution,
+        storedDisplayOptions: params.testCase.displayOptions,
+      }),
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -97,6 +109,9 @@ export function buildGenerationActionScript(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.runId - Run ID for this execution.
  * @param params.ownerUserId - Owner user ID.
+ * @param params.displayResolution - Resolution for this run. A test script
+ * carries no stored resolution, so this is replay's only sizing input; absent,
+ * the run is sized at 1920x1080.
  */
 export function buildReplayActionScript(params: {
   testScript: TestScriptDetails;
@@ -104,6 +119,7 @@ export function buildReplayActionScript(params: {
   localUrl: string;
   runId: string;
   ownerUserId: string;
+  displayResolution?: DisplayResolution;
 }): Record<string, unknown> {
   const testScriptRecord = params.testScript as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -150,6 +166,11 @@ export function buildReplayActionScript(params: {
       // it, so leave it empty here; STM-on-local needs a backend resolver.
       sharedTestMemoryId: "",
       runEnvironmentType: "local",
+      // Sizes the studio's webview. Absent, the electron-app falls back to its
+      // own hardcoded 1920x1080, which is why a phone-viewport run needs this.
+      displayParams: resolveDisplayParams({
+        requestedResolution: params.displayResolution,
+      }),
     },
     goal: params.testScript.name,
     url: params.localUrl,

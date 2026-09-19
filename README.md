@@ -1,71 +1,68 @@
-# *muggle-ai-works*
+# Muggle Works
 
-**Run real-browser E2E acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.**
+**An open-source harness that drives your AI coding agent through the whole delivery cycle — design, build, test, acceptance — and closes the loop on GitHub and GitLab.**
 
-One install gives your AI coding assistant the power to exercise your app like a real user would: clicking through flows, catching broken experiences, and reporting results with screenshots and evidence.
+Coding agents are good at producing a diff. They are bad at knowing whether the diff works, whether it broke the login flow, and what still has to happen before a human can merge it. Muggle Works is the harness around the agent that answers those questions: it freezes requirements, delegates the design and build, runs the unit suite, drives a **real browser** through the affected user flows, opens the pull request with screenshots attached, and then keeps watching that PR — picking up review comments, red CI, and a stale base branch until the change is genuinely mergeable.
 
-*[License: MIT](LICENSE)
-[npm]()
-[MCP Tools]()
-[Node*]()
+[![npm](https://img.shields.io/npm/v/@muggleai/works.svg)](https://www.npmjs.com/package/@muggleai/works)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://www.npmjs.com/package/@muggleai/works)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](https://nodejs.org)
+[![MCP tools](https://img.shields.io/badge/MCP%20tools-100%2B-blue.svg)](#mcp-tool-reference)
 
-*Powered by [MuggleTest](https://www.muggletest.com) — the [AI-powered E2E acceptance testing platform](https://www.muggletest.com).*
-
----
-
-## Why muggle-ai-works?
-
-Your AI assistant writes code fast. But does the feature actually work? Does the login flow break on mobile? Does the checkout still render after that refactor?
-
-muggle-ai-works closes the gap between "code complete" and "actually works."
-
-- **You create, we verify** — `/muggle:muggle-test` AI drives a real browser against your localhost across desktop and mobile resolutions, clicks through flows like a user would, and reports failures with step-by-step screenshots. No Playwright scripts to maintain.
-- **Go from requirement to merged PR in one command** — `/muggle:muggle-do` handles the full cycle: code the feature, run unit tests, run E2E acceptance tests against the app in a real browser at multiple viewports, triage failures, and open a PR with evidence attached.
-- **70+ MCP tools for custom workflows** — manage projects, generate test cases from plain English, replay test scripts, batch-run regressions, and publish results to your team. Works in Claude Code, Cursor, and any MCP client.
+Works in Claude Code, Cursor, Codex, Windsurf, and any MCP client. Powered by [Muggle Test](https://www.muggletest.com).
 
 ---
 
-## Quick Start
+## Highlights
 
-### 1. Install skills and mcps (choose your client)
+- **One request, one pull request.** `/mdo "add a logout button"` runs requirements → design → build → impact analysis → unit tests → browser acceptance → PR. You answer one questionnaire up front, then walk away.
+- **A real browser under a real identity.** Not a headless stub. Every managed login profile owns a live inbox, so magic links, emailed OTPs, email 2FA, verification mail, and password resets are all testable — no mail catcher, no test-only backdoor, no `SKIP_AUTH` flag.
+- **GitHub and GitLab as peers.** Pull requests and merge requests, review threads and discussions, Actions and pipelines, signed commits on both. Self-hosted GitLab included — the provider is detected from the remote, not hardcoded.
+- **The loop keeps running after you close the laptop.** A watcher polls the PR and re-enters the cycle when a reviewer comments, CI goes red, or the branch falls behind its base. Feedback becomes commits without you relaying it.
+- **A gate, not a vibe.** No PR is opened until requirements are written, the build typechecks and lints, new logic carries unit tests, the suite passes, and a browser verdict is recorded — or a waiver reason is written down. Silence is not a waiver.
+- **Plain English in, replayable scripts out.** Describe a flow in a sentence; get a script that persists across sessions and re-runs as a regression test after every change.
+- **100+ MCP tools** if you'd rather assemble your own pipeline than use the packaged one.
 
-**Claude Code (full plugin experience)**
+### Built for two kinds of people
+
+**If you write code for a living,** this is the discipline you'd apply yourself if you had the patience to apply it every time: frozen requirements, a Definition of Done that blocks the PR, evidence attached to the review, and a follow-up loop that doesn't forget.
+
+**If you vibe-code,** this is the part you can't easily judge by reading the diff. You don't have to know Playwright, or what a fixture is, or why the checkout page broke on mobile. Describe the feature; the harness builds it, clicks through it like a user, shows you the screenshots, and tells you what failed in English.
+
+---
+
+## The cycle
+
+| # | Stage | What it does | Evidence it leaves |
+| :- | :---- | :----------- | :----------------- |
+| 1 | Pre-flight | Detects repo, branch, dev server, project, credentials; asks everything it can't detect in **one** turn | `state.md` |
+| 2 | Requirements | Freezes goal and acceptance criteria before a line is written | `requirements.md` |
+| 3 | Build | Delegates real design surface to a design → plan → subagent build, then commits (signed) | Conventional commits |
+| 4 | Impact analysis | Maps the diff to the user flows it can break | Affected-flow list |
+| 5 | Unit tests | Runs the suite authored in stage 3 | Exit code |
+| 6 | Acceptance | Drives a real browser through the affected flows | Verdict + `runId` + per-step screenshots |
+| 7 | Pull request | Opens the PR/MR with the evidence block in the body | PR URL |
+| 7.5 | Repair | Investigates and fixes acceptance failures, up to 3 iterations | Repair log |
+| 8 | Watcher | Polls reviews, CI, and base-branch drift; re-enters the cycle on each | `followup.log` |
+
+Stage 7 refuses to run until the Definition of Done holds. Stage 8 is dispatched only once stage 7.5 clears — a cycle with unrepaired failures never reaches a watcher.
+
+---
+
+## Quick start
+
+### 1. Install
+
+**Claude Code** — full plugin: skills, MCP tools, and the browser runner.
 
 ```
 /plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
 /plugin install muggleai@muggle-works
 ```
 
-This installs:
+**Cursor** — `npm install -g @muggleai/works`. The postinstall writes `~/.cursor/mcp.json` and syncs the `muggle-*` skills into `~/.cursor/skills/`. Restart Cursor.
 
-- `/muggle:muggle` — command router and menu
-- `/muggle:muggle-do` — autonomous dev pipeline (requirements to PR)
-- `/muggle:muggle-test` — change-driven E2E acceptance testing (local or remote, with PR posting)
-- `/muggle:muggle-test-feature-local` — local quick E2E acceptance testing
-- `/muggle:muggle-test-prepare` — verify and start the dev servers a test run needs
-- `/muggle:muggle-test-import` — import existing Playwright/Cypress specs, PRDs, or feature files
-- `/muggle:muggle-test-regenerate-missing` — bulk-regenerate test scripts for every test case that has no active script
-- `/muggle:muggle-browser-task` — perform a real action on a website from plain English
-- `/muggle:muggle-pr-visual-walkthrough` — post screenshots and a pass/fail summary to a PR
-- `/muggle:muggle-pr-followup` — watch a PR's review thread and address incoming feedback
-- `/muggle:muggle-feedback` — flag a generated action script or step as wrong
-- `/muggle:muggle-preferences` — view, set, or reset Muggle Test preferences
-- `/muggle:muggle-status` — health check for muggle-works plugins (Electron app, MCP server, and auth)
-- `/muggle:muggle-repair` — diagnose and fix broken installation
-- `/muggle:muggle-upgrade` — update to the latest version
-- short aliases for every command above — `/m`, `/mdo`, `/mtest`, `/mtestlocal`, `/mtestprep`, `/mimport`, `/mregen`, `/mbt`, `/mpr`, `/mprfollowup`, `/mfeedback`, `/mprefs`, `/mstatus`, `/mrepair`, `/mupgrade`
-- MCP server with 70+ tools (auto-started)
-- Electron browser test runner provisioning (via session hook)
-
-**Cursor, Codex, Windsurf, and other MCP clients (MCP tools only)**
-
-```bash
-npm install -g @muggleai/works
-```
-
-For Cursor, that's it — the install automatically configures `~/.cursor/mcp.json` and syncs `muggle-*` skills to `~/.cursor/skills/`. Just restart Cursor.
-
-For other MCP clients, add this to your client's config:
+**Codex, Windsurf, any other MCP client** — install the package as above, then register the server:
 
 ```json
 {
@@ -81,347 +78,92 @@ For other MCP clients, add this to your client's config:
 }
 ```
 
-Claude slash commands are plugin-managed, so update those with `/plugin update muggleai@muggle-works`.
-
-### 2. Verify
-
-**Claude Code**
-
-```
-/muggle:muggle-status
-```
-
-This checks Electron browser test runner, MCP server health, and authentication. If anything is broken, run `/muggle:muggle-repair`.
-
-**Cursor/Codex/Windsurf/other MCP clients**
-
-Run any `muggle-*` MCP tool from your client after adding the MCP server config above. Authentication starts automatically on first protected tool call.
-
-### 3. Start building features
-
-**Claude Code**
-
-Describe what you want to build:
-
-```
-/muggle:muggle-do "Add a logout button to the header"
-```
-
-The AI handles the full cycle: code the feature, run unit tests, run E2E acceptance tests against the app in a real browser, and open a PR with results.
-
-**Cursor/Codex/Windsurf/other MCP clients**
-
-Use the direct MCP workflow section below to call `muggle-*` tools from your client.
-
-### 4. Test a feature locally
-
-**Claude Code**
-
-Already have code running on localhost? Test it directly:
-
-```
-/muggle:muggle-test-feature-local
-```
-
-Describe what to test in plain English. The AI finds or creates test cases, launches a real browser, and reports results with screenshots.
-
-**Cursor/Codex/Windsurf/other MCP clients**
-
-Call local execution MCP tools directly (for example `muggle-local-execute-test-script-replay` or related `muggle-local-*` commands exposed by your client).
-
----
-
-## Architecture
-
-muggle-ai-works separates test management from test execution. All entity management (projects, use cases, test cases) lives in the cloud via `muggle-remote-*` tools. Local execution (`muggle-local-*`) is stateless — it receives what it needs and runs the test.
-
-### Entity model
-
-```
-Project (e.g., "My App")
-  └── Use Case (e.g., "User Login Flow")
-       └── Test Case (e.g., "Login with valid credentials")
-            └── Test Script (recorded browser automation steps)
-                 └── Run Result (pass/fail + screenshots)
-```
-
-Test execution flow
-
-```
-Your AI assistant describes what to test
-         │
-         v
-muggle-remote-* tools create test cases in cloud
-         │
-         v
-muggle-local-execute-test-generation launches the browser test runner
-         │
-         v
-AI agent drives the browser step-by-step (click, type, navigate, assert)
-         │
-         v
-Screenshots captured per step → action-script.json recorded
-         │
-         v
-Results: pass/fail with evidence at ~/.muggle-ai/sessions/{runId}/
-         │
-         v
-studio publishes the run to the cloud during execution → run result carries viewUrl to open dashboard
-```
-
----
-
-## Three Ways to Use It
-
-### 1. `/muggle:muggle-test-feature-local` — Test a feature on localhost
-
-Describe what to test in English. The AI finds the right project and test cases, launches a real browser, and reports results with screenshots.
-
-```
-> /muggle:muggle-test-feature-local
-
-"Test my login changes on localhost:3999"
-
-1. Auth check ✓
-2. Found project: "My App"
-3. Found use case: "User Login"
-4. Found 2 test cases — recommend replay (minor changes detected)
-5. Launching browser test runner... (approve? y)
-6. Results: 2/2 PASS
-   Screenshots: ~/.muggle-ai/sessions/abc123/screenshots/
-7. Publish to cloud? (y)
-```
-
-### 2. `/muggle:muggle-do` — Autonomous dev pipeline
-
-Full development cycle: requirements to PR in one command. The AI codes the feature, writes unit tests, runs E2E acceptance tests against your running app, and opens a PR.
-
-```
-> /muggle:muggle-do "Add a logout button to the header"
-
-REQUIREMENTS  → Goal: Add logout button. Criteria: visible, functional, redirects.
-IMPACT        → frontend repo, src/components/Header.tsx
-VALIDATE      → Branch: feat/add-logout, 1 commit
-CODING        → (writes/fixes code)
-UNIT_TESTS    → 12/12 pass
-E2E acceptance → 3/3 test cases pass
-OPEN_PRS      → PR #42 opened
-DONE          → 1 iteration, all green
-```
-
-- Session-based with crash recovery (`~/.muggle-ai/muggle-do/sessions/`)
-- Auto-triage: analyzes failures and loops back to fix (max 3 iterations)
-- Multi-repo support via `muggle-repos.json`
-- PRs include E2E acceptance results and screenshots in the description
-
-### 3. Direct MCP tool calls — Build your own E2E acceptance workflow
-
-Use any of the 70+ MCP tools directly from your AI assistant. This is the lowest-level option and the most flexible for building custom E2E acceptance workflows.
-
-```
-"Create a project called My App with URL https://myapp.com"
-"Generate test cases for the checkout flow"
-"Replay all test scripts against localhost:3000"
-"Show me the latest E2E acceptance results"
-```
-
----
-
-## What MCP tools are included?
-
-muggle-ai-works provides 70+ MCP tools organized into 8 categories: authentication, project management, use cases, test cases, test scripts, local execution, reports, and administration. These tools power all AI testing automation workflows — from one-off browser checks to full E2E acceptance automation pipelines.
-
-Authentication (muggle-remote-auth-*)
-
-
-| Tool                        | Purpose                      |
-| --------------------------- | ---------------------------- |
-| `muggle-remote-auth-status` | Check authentication status  |
-| `muggle-remote-auth-login`  | Start device-code login flow |
-| `muggle-remote-auth-poll`   | Poll for login completion    |
-| `muggle-remote-auth-logout` | Clear credentials            |
-
-
-Project Management (muggle-remote-project-*)
-
-
-| Tool                           | Purpose             |
-| ------------------------------ | ------------------- |
-| `muggle-remote-project-create` | Create E2E acceptance test project   |
-| `muggle-remote-project-list`   | List all projects   |
-| `muggle-remote-project-get`    | Get project details |
-| `muggle-remote-project-update` | Update project      |
-| `muggle-remote-project-delete` | Delete project      |
-
-
-Use Cases (muggle-remote-use-case-*)
-
-
-| Tool                                           | Purpose                                                  |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| `muggle-remote-use-case-list`                  | List use cases                                           |
-| `muggle-remote-use-case-create`                | Persist a fully-specified use case (no LLM)              |
-| `muggle-remote-use-case-create-from-prompts`   | Create from natural language                             |
-| `muggle-remote-use-case-prompt-preview`        | Preview before creating                                  |
-| `muggle-remote-use-case-update-from-prompt`    | Regenerate from new prompt                               |
-| `muggle-remote-use-case-bulk-preview-submit`   | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
-| `muggle-remote-use-case-delete`                | Delete use case (cascades to its test cases + scripts)   |
-
-
-Test Cases (muggle-remote-test-case-*)
-
-
-| Tool                                           | Purpose                                                  |
-| ---------------------------------------------- | -------------------------------------------------------- |
-| `muggle-remote-test-case-list`                 | List all test cases                                      |
-| `muggle-remote-test-case-list-by-use-case`     | List by use case                                         |
-| `muggle-remote-test-case-get`                  | Get test case details                                    |
-| `muggle-remote-test-case-create`               | Create test case                                         |
-| `muggle-remote-test-case-generate-from-prompt` | Generate from prompt                                     |
-| `muggle-remote-test-case-bulk-preview-submit`  | Async batch-preview via OpenAI Batch API (~50% cheaper)  |
-| `muggle-remote-test-case-delete`               | Delete test case                                         |
-
-
-Bulk Preview Jobs (muggle-remote-bulk-preview-job-*)
-
-Manage async jobs started by the `*-bulk-preview-submit` tools above. Submit returns a
-`jobId` immediately; poll `-get` until a terminal status, then persist the results via
-`muggle-remote-use-case-create` / `muggle-remote-test-case-create`.
-
-| Tool                                    | Purpose                                 |
-| --------------------------------------- | --------------------------------------- |
-| `muggle-remote-bulk-preview-job-get`    | Poll a bulk-preview job for status/results |
-| `muggle-remote-bulk-preview-job-list`   | List bulk-preview jobs for a project    |
-| `muggle-remote-bulk-preview-job-cancel` | Cooperatively cancel an in-flight job   |
-
-
-Test Scripts and Workflows (muggle-remote-workflow-*)
-
-
-| Tool                                                   | Purpose                 |
-| ------------------------------------------------------ | ----------------------- |
-| `muggle-remote-test-script-list`                       | List test scripts       |
-| `muggle-remote-test-script-get`                        | Get script details      |
-| `muggle-remote-test-script-delete`                     | Delete test script      |
-| `muggle-remote-action-script-delete`                   | Delete action script (permanent) |
-| `muggle-remote-workflow-start-website-scan`            | Scan site for use cases |
-| `muggle-remote-workflow-start-test-case-detection`     | Generate test cases     |
-| `muggle-remote-workflow-start-test-script-generation`  | Generate scripts        |
-| `muggle-remote-workflow-start-test-script-replay`      | Replay single script    |
-| `muggle-remote-workflow-start-test-script-replay-bulk` | Batch replay            |
-
-
-Local Execution (muggle-local-*)
-
-
-| Tool                                   | Purpose                            |
-| -------------------------------------- | ---------------------------------- |
-| `muggle-local-check-status`            | Check local browser test runner status       |
-| `muggle-local-execute-test-generation` | Generate test script locally       |
-| `muggle-local-execute-replay`          | Replay existing script locally     |
-| `muggle-local-cancel-execution`        | Cancel active execution            |
-| `muggle-local-run-result-list`         | List run results                   |
-| `muggle-local-run-result-get`          | Get detailed results + screenshots + studio-published cloud refs (`viewUrl`, `cloudTestScriptId`, `cloudActionScriptId`) |
-
-
-Reports and Analytics (muggle-remote-report-*)
-
-
-| Tool                                             | Purpose                                   |
-| ------------------------------------------------ | ----------------------------------------- |
-| `muggle-remote-report-stats-summary-get`         | Report statistics                         |
-| `muggle-remote-report-cost-query`                | Query cost/usage                          |
-| `muggle-remote-report-final-generate`            | Generate final report (PDF/HTML/Markdown) |
-| `muggle-remote-project-test-results-summary-get` | Test results summary                      |
-
-
-Administration (PRD, secrets, billing, scheduling)
-
-
-| Category           | Tools                                                                |
-| ------------------ | -------------------------------------------------------------------- |
-| PRD processing     | `muggle-remote-prd-`* — upload and process product requirements docs |
-| Secrets management | `muggle-remote-secret-`* — store credentials for test environments   |
-| Wallet and billing | `muggle-remote-wallet-`* — manage credits and payment methods        |
-| Scheduling         | `muggle-remote-recommend-*` — get CI/CD and schedule recommendations |
-
-
----
-
-## Works with muggle-ai-teams
-
-[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams) is the companion package for agent orchestration, workflow steps, and delivery. When both packages are installed, muggle-ai-teams automatically integrates E2E acceptance testing into the development workflow at each stage.
-
-
-| Workflow Step | What Happens                                            |
-| ------------- | ------------------------------------------------------- |
-| **Plan**      | E2E acceptance test instructions written per implementation slice   |
-| **Build**     | Per-slice E2E acceptance tests via muggle-ai-works before each commit     |
-| **Verify**    | Full regression sweep replaying all project scripts     |
-| **Ship**      | E2E results published to cloud, linked in PR description |
-
-
-Frontend slices get browser E2E tests. Backend-only slices are verified by unit tests (browser E2E skipped with documented reasoning).
-
-Install both: `npm install @muggleai/works @muggleai/teams`
-
-**Muggle AI open-source ecosystem:**
-
-
-| Package                                                                | Purpose                                         | Install                                 |
-| ---------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------- |
-| **muggle-ai-works** (this repo)                                        | E2E acceptance testing MCP server + autonomous dev pipeline | `/plugin install muggleai@muggle-works` |
-| **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow, skills, rules    | `npm install @muggleai/teams`           |
-
-
-Want the full platform experience? [MuggleTest](https://www.muggletest.com) gives you everything out of the box — no setup, no configuration.
-
----
-
-## CLI Reference
+### 2. Set up
 
 ```bash
-# Server (main command — starts MCP server for AI clients)
-muggle serve              # Start with all tools (default)
-muggle serve --e2e        # Cloud E2E tools only (muggle-remote-*)
-muggle serve --local      # Local E2E tools only (muggle-local-*)
-
-# Setup and Diagnostics
-muggle init               # First-run walkthrough: preferences, then offers the CI check
-muggle init --json        # Emit the walkthrough for another front-end to render
-muggle setup              # Download/update browser test runner
-muggle setup --force      # Force re-download
-muggle doctor             # Diagnose installation issues
-
-# Authentication
-muggle login              # Manually trigger login
-muggle logout             # Clear credentials
-muggle status             # Show auth status
-
-# Pull request checks
-muggle ci-install         # Add the walkthrough check to this repo's GitHub Actions
-muggle ci-install --force # Replace an existing workflow file
-
-# Info
-muggle --version          # Show version
-muggle --help             # Show help
+muggle init
 ```
+
+Explains how the harness works, saves your preferences, and offers to install the pull-request walkthrough check. Then confirm the install is healthy:
+
+```
+/mstatus          # Claude Code
+muggle doctor     # anywhere else
+```
+
+Broken? `/mrepair`, or `muggle setup --force`.
+
+### 3. Build something
+
+```
+/mdo "Add a logout button to the header"
+```
+
+```
+PRE-FLIGHT    → repo: frontend · branch: users/me/logout-button · target: localhost:3000
+REQUIREMENTS  → Goal: logout button in header. AC: visible, ends session, redirects to /login.
+BUILD         → src/components/Header.tsx, src/hooks/useLogout.ts (+ unit tests)
+IMPACT        → affects "User Login" and "Session" flows
+UNIT TESTS    → 12/12 pass
+ACCEPTANCE    → 3/3 test cases pass · runId a1b2c3 · 14 screenshots
+PULL REQUEST  → #42 opened, walkthrough posted
+WATCHER       → armed on #42
+```
+
+Authentication starts on the first protected call: a browser opens with a verification code, you sign in, and the call continues. Credentials persist in `~/.muggle-ai/`.
 
 ---
 
-## Pull request walkthrough check
+## Commands
 
-When you open a pull request from a Claude session running this plugin, Muggle reserves a comment on it for the E2E visual walkthrough and holds the turn open until that comment is settled — by the walkthrough itself, or by a stated reason E2E does not apply.
+Every skill has a short alias. Both spellings work in Claude Code.
 
-A pull request opened any other way — the GitHub web UI, a teammate without the plugin — never passes through that session, so the check also runs in GitHub Actions.
+| Command | Alias | What it does |
+| :------ | :---- | :----------- |
+| `/muggle:muggle` | `/m` | Command router and menu |
+| `/muggle:muggle-do` | `/mdo` | The full cycle: request → pull request |
+| `/muggle:muggle-test` | `/mtest` | Change-driven acceptance testing on your diff, PR, or branch |
+| `/muggle:muggle-test-feature-local` | `/mtestlocal` | Test one named flow against localhost |
+| `/muggle:muggle-test-prepare` | `/mtestprep` | Verify and start the dev servers a run needs |
+| `/muggle:muggle-test-import` | `/mimport` | Import Playwright, Cypress, Gherkin, or PRDs |
+| `/muggle:muggle-test-regenerate-missing` | `/mregen` | Bulk-regenerate scripts for cases that have none |
+| `/muggle:muggle-browser-task` | `/mbt` | Perform a real action on a website from plain English |
+| `/muggle:muggle-pr-visual-walkthrough` | `/mpr` | Post screenshots and a pass/fail summary to a PR |
+| `/muggle:muggle-pr-followup` | `/mprfollowup` | Watch a PR's reviews, CI, and base drift |
+| `/muggle:muggle-feedback` | `/mfeedback` | Flag a generated script or step as wrong |
+| `/muggle:muggle-preferences` | `/mprefs` | View, set, or reset preferences |
+| `/muggle:muggle-status` | `/mstatus` | Health check: runner, MCP server, auth |
+| `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix a broken install |
+| `/muggle:muggle-upgrade` | `/mupgrade` | Update to the latest version |
 
-`muggle init` asks whether you want it and installs it for you. To add it to another repository later:
+---
+
+## GitHub and GitLab
+
+The harness resolves one provider token — `github` or `gitlab` — from the URL you passed or the `origin` remote, then picks the matching recipe set. GitHub goes through `gh`, GitLab through `glab`. Self-hosted GitLab resolves by matching the remote host against `glab`'s configured host, so `git.acme.com` works without configuration.
+
+| Capability | GitHub | GitLab |
+| :--------- | :----- | :----- |
+| Open and update the change | Pull request | Merge request |
+| Read review feedback | Review threads + line comments | Discussions + notes |
+| Reply per comment, resolve threads | Yes | Yes |
+| Read CI status and re-enter on red | Actions | Pipelines |
+| Rebase onto a drifted base | Yes | Yes |
+| Signed commits | Yes | Yes |
+
+Nested GitLab namespaces of any depth are handled — the project path is everything before the `/-/` segment, never assumed to be two levels.
+
+### The pull-request walkthrough check
+
+When a PR is opened from a session running this plugin, Muggle reserves a comment for the acceptance walkthrough and holds the turn open until it's settled — by the walkthrough, or by a stated reason acceptance testing doesn't apply.
+
+A PR opened any other way — the web UI, a teammate without the plugin — never passes through that session, so the same check also runs in GitHub Actions. `muggle init` offers to install it; to add it to another repository later:
 
 ```bash
 muggle ci-install
 ```
 
-That creates `.github/workflows/muggle-walkthrough.yml`. To add it by hand instead, create that file with:
+That writes `.github/workflows/muggle-walkthrough.yml`. To add it by hand instead:
 
 <!-- muggle:ci-workflow-snippet -->
 ```yaml
@@ -462,226 +204,279 @@ Three things worth knowing:
 
 ---
 
-## Setup and Configuration
+## Architecture
 
-Authentication happens automatically when you first use a tool that requires it: a browser window opens with a verification code, you log in with your Muggle AI account, and the tool call continues. Credentials persist across sessions in `~/.muggle-ai/`.
+Test management lives in the cloud; execution is local and stateless. `muggle-remote-*` tools own projects, use cases, test cases, and scripts. `muggle-local-*` tools receive what they need and run the browser — so a local run never waits on cloud replay capacity.
 
-MCP client configuration examples
+### Entity model
 
-When installed as a plugin, MCP server configuration is shipped by the plugin (`plugin/.mcp.json`) and does not require manual user-level file copy.
-
-**Environment targeting** — set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` to switch between production and dev:
-
-```json
-{
-  "mcpServers": {
-    "muggle": {
-      "command": "muggle",
-      "args": ["serve"],
-      "env": {
-        "MUGGLE_MCP_PROMPT_SERVICE_TARGET": "production"
-      }
-    }
-  }
-}
+```
+Project ("My App")
+  └── Use Case ("User Login Flow")
+       └── Test Case ("Login with valid credentials")
+            └── Test Script (recorded browser steps)
+                 └── Run Result (pass/fail + screenshots)
 ```
 
-**Multi-repo config for /muggle:muggle-do** — create `muggle-repos.json` in your working directory:
+### Execution flow
 
-```json
-[
-  { "name": "frontend", "path": "/absolute/path/to/frontend", "testCommand": "pnpm test" },
-  { "name": "backend", "path": "/absolute/path/to/backend", "testCommand": "pnpm test" }
-]
+```
+Your agent describes what to test
+         │
+         ▼
+muggle-remote-*  create or find the test cases
+         │
+         ▼
+muggle-local-execute-test-generation  launches the browser runner
+         │
+         ▼
+An agent drives the browser step by step (click, type, navigate, assert)
+         │
+         ▼
+Per-step screenshots → action-script.json recorded
+         │
+         ▼
+Results at ~/.muggle-ai/sessions/{runId}/ — published during the run,
+so the result carries a viewUrl straight to the dashboard
 ```
 
-Data directory structure (~/.muggle-ai/)
+### Data directory
 
 ```
 ~/.muggle-ai/
 ├── oauth-session.json    # OAuth tokens (short-lived, auto-refresh)
-├── api-key.json          # Long-lived API key for service calls
+├── api-key.json          # Long-lived key for service calls
 ├── projects/             # Local project cache
-├── sessions/             # E2E test sessions
+├── sessions/             # Run sessions
 │   └── {runId}/
 │       ├── action-script.json    # Recorded browser steps
 │       ├── results.md            # Step-by-step report
 │       └── screenshots/          # Per-step images
-└── electron-app/         # Downloaded browser test runner
-    └── {version}/
+├── muggle-do/sessions/   # Cycle state, iterations, PR watchers
+└── electron-app/{version}/
 ```
 
 ---
 
-## What AI clients does it work with?
+## MCP tool reference
 
-Full support for Claude Code. Cursor, Codex, Windsurf, and other MCP-compatible clients use the same MCP tools but do not support Claude plugin slash commands (`/muggle:*`).
+106 tools across authentication, projects, use cases, test cases, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
-Platform compatibility table
+**Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
+**Projects** — `muggle-remote-project-create`, `-list`, `-get`, `-update`, `-delete`, plus per-project rollups: `-test-results-summary-get`, `-test-runs-summary-get`, `-test-scripts-summary-get`.
 
-| Platform        | MCP Tools            | Plugin skills (/muggle:*)                             |
-| --------------- | -------------------- | ----------------------------------------------------- |
-| **Claude Code** | Yes                  | Yes (do, test-feature-local, status, repair, upgrade) |
-| **Cursor**      | Yes (via MCP)        | No (needs plugin support)                             |
-| **Others**      | Via MCP if supported | No                                                    |
+| Use cases | Purpose |
+| :-------- | :------ |
+| `muggle-remote-use-case-list` / `-get` | Read use cases |
+| `muggle-remote-use-case-create` | Persist a fully-specified use case (no LLM) |
+| `muggle-remote-use-case-create-from-prompts` | Create from natural language |
+| `muggle-remote-use-case-prompt-preview` | Preview before creating |
+| `muggle-remote-use-case-update-from-prompt` | Regenerate from a new prompt |
+| `muggle-remote-use-case-candidates-approve` | Approve discovered candidates |
+| `muggle-remote-use-case-bulk-preview-submit` | Async batch preview (~50% cheaper) |
+| `muggle-remote-use-case-delete` | Delete (cascades to test cases + scripts) |
 
+| Test cases | Purpose |
+| :--------- | :------ |
+| `muggle-remote-test-case-list` / `-list-by-use-case` / `-get` | Read test cases |
+| `muggle-remote-test-case-create` / `-update` / `-delete` | Manage test cases |
+| `muggle-remote-test-case-generate-from-prompt` | Generate from a prompt |
+| `muggle-remote-test-case-ancestors-get` | Walk prerequisite chains |
+| `muggle-remote-test-case-bulk-preview-submit` | Async batch preview (~50% cheaper) |
+| `muggle-remote-test-plan-graph-rebuild` | Rebuild the prerequisite graph |
+
+Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-preview-job-get` until terminal, then persist with the matching `-create` tool. `-list` and `-cancel` round out the set.
+
+| Scripts and workflows | Purpose |
+| :-------------------- | :------ |
+| `muggle-remote-test-script-list` / `-get` / `-delete` | Manage test scripts |
+| `muggle-remote-action-script-get` / `-delete` | Manage recorded action scripts |
+| `muggle-remote-workflow-start-website-scan` | Scan a site for use cases |
+| `muggle-remote-workflow-start-test-case-detection` | Generate test cases |
+| `muggle-remote-workflow-start-test-script-generation` | Generate a script |
+| `muggle-remote-workflow-start-test-script-generation-bulk` | Generate in bulk |
+| `muggle-remote-workflow-start-test-script-replay` | Replay one script |
+| `muggle-remote-workflow-start-test-script-replay-bulk` | Batch replay |
+| `muggle-remote-workflow-cancel-run` / `-cancel-runtime` | Cancel in flight |
+| `muggle-remote-wf-get-*` | Poll the latest run of each workflow type |
+
+| Local execution | Purpose |
+| :-------------- | :------ |
+| `muggle-local-check-status` | Browser runner status |
+| `muggle-local-execute-test-generation` | Generate a script by driving the browser |
+| `muggle-local-execute-replay` | Replay an existing script |
+| `muggle-local-cancel-execution` | Cancel the active run |
+| `muggle-local-run-result-list` / `-get` | Results, screenshots, and cloud refs (`viewUrl`) |
+| `muggle-local-test-script-list` / `-get` | Read locally cached scripts |
+| `muggle-local-last-host-*` / `-last-project-*` | Remember the host and project between runs |
+| `muggle-local-preferences-set` | Set harness preferences |
+| `muggle-remote-local-run-upload` | Publish a local run to the cloud |
+
+**Reporting** — `muggle-remote-report-stats-summary-get`, `-cost-query`, `-final-generate` (PDF/HTML/Markdown), `-preferences-upsert`.
+
+**Administration** — `muggle-remote-prd-file-*` (upload and process requirements docs), `muggle-remote-secret-*` (credentials for test environments), `muggle-remote-wallet-*` (credits, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`.
 
 ---
 
-Troubleshooting
-
-### "unauthorized_client" during login
-
-**Cause**: MCP configured for one environment but authenticating against another.
-
-**Fix**: Set the correct `MUGGLE_MCP_PROMPT_SERVICE_TARGET` in your MCP config and restart your client.
-
-### Browser test runner not found
+## CLI reference
 
 ```bash
-muggle setup --force    # Re-download
-muggle doctor           # Diagnose
+# Server
+muggle serve                  # Start the MCP server with all tools
+muggle serve --e2e            # Cloud tools only (muggle-remote-*)
+muggle serve --local          # Local tools only (muggle-local-*)
+
+# Setup and diagnostics
+muggle init                   # Guided setup; saves preferences, offers the CI check
+muggle setup [--force]        # Download or update the browser runner
+muggle upgrade [--check]      # Install the latest runner version
+muggle versions               # List installed runner versions
+muggle cleanup [--dry-run]    # Remove old versions and obsolete skills
+muggle doctor                 # Diagnose installation problems
+
+# Authentication
+muggle login [--key-expiry 90d]
+muggle logout
+muggle status
+
+# Pull requests
+muggle ci-install [--force]   # Add the walkthrough check to GitHub Actions
+muggle pr-walkthrough-check   # Verify a PR's walkthrough comment is settled
+muggle build-pr-section       # Render a PR evidence block from a report on stdin
+
+muggle --version
+muggle --help
 ```
 
-### Authentication keeps expiring
+---
+
+## Configuration
+
+**Environment targeting.** Set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` (`production` or `dev`) in the MCP server's `env` block. Mismatching it against the account you log in with is the usual cause of `unauthorized_client`.
+
+**Multi-repo cycles.** Drop a `muggle-repos.json` in your working directory so a single request can span services:
+
+```json
+[
+  { "name": "frontend", "path": "/absolute/path/to/frontend", "testCommand": "pnpm test" },
+  { "name": "backend",  "path": "/absolute/path/to/backend",  "testCommand": "pnpm test" }
+]
+```
+
+**Preferences.** `/mprefs` (or `muggle init`) controls the gates — whether to use a worktree, rebase onto the base branch, run acceptance tests every cycle, open the PR automatically, and arm the watcher. Each gate takes `always`, `ask`, or `never`.
+
+When installed as a Claude Code plugin, MCP configuration ships with the plugin (`plugin/.mcp.json`) — there is nothing to copy by hand.
+
+---
+
+## Client support
+
+| Client | MCP tools | Slash commands |
+| :----- | :-------- | :------------- |
+| **Claude Code** | Yes | Yes — full plugin |
+| **Cursor** | Yes, auto-configured | Skills synced to `~/.cursor/skills/` |
+| **Codex, Windsurf, others** | Yes, via MCP config | No |
+
+Slash commands are plugin-managed; update them with `/plugin update muggleai@muggle-works`.
+
+---
+
+## Troubleshooting
+
+**`unauthorized_client` during login** — the MCP server is pointed at one environment and you're authenticating against another. Fix `MUGGLE_MCP_PROMPT_SERVICE_TARGET` and restart the client.
+
+**Browser runner not found**
 
 ```bash
-muggle logout           # Clear all credentials
+muggle setup --force
+muggle doctor
+```
+
+**Authentication keeps expiring**
+
+```bash
+muggle logout
 rm ~/.muggle-ai/oauth-session.json ~/.muggle-ai/api-key.json
-muggle login            # Fresh login
+muggle login
 ```
 
 ---
 
-## About
+## The ecosystem
 
-Built by the team behind [MuggleTest](https://www.muggletest.com) — [AI-powered E2E acceptance testing](https://www.muggletest.com) for teams who ship fast.
+| Package | Purpose | Install |
+| :------ | :------ | :------ |
+| **Muggle Works** (this repo) | Delivery-cycle harness, MCP server, acceptance testing | `/plugin install muggleai@muggle-works` |
+| **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow steps, rules | `npm install @muggleai/teams` |
 
-Repository structure
+With both installed, muggle-ai-teams folds acceptance testing into each workflow step: test instructions written per slice at **Plan**, per-slice browser tests at **Build**, a full regression sweep at **Verify**, and results published and linked in the PR at **Ship**. Frontend slices get browser tests; backend-only slices are covered by unit tests, with the skip reasoned in writing.
+
+Want it hosted, with nothing to configure? [Muggle Test](https://www.muggletest.com).
+
+---
+
+## Contributing
+
+```bash
+pnpm install              # This repo is pnpm-only
+pnpm run build            # tsup + plugin artifact
+pnpm test                 # Test suite
+pnpm run lint             # Lint (auto-fix)
+pnpm run typecheck        # Type check
+pnpm run dev              # Watch mode
+```
+
+Verification gates, all run in CI:
+
+```bash
+pnpm run verify:plugin     # Plugin and marketplace metadata agree
+pnpm run verify:contracts  # CLI/MCP/plugin/skill surface contracts hold
+pnpm run verify:skill-deps # Skill dependencies stay one-way
+pnpm run verify:signatures # Shipped artifacts are signed
+pnpm run verify:upgrade-experience        # Existing-user upgrade still works
+pnpm run verify:electron-release-checksums
+```
+
+### Repository layout
 
 ```
 muggle-ai-works/
-├── plugin/                  # Claude Code plugin (source of truth)
-│   ├── .claude-plugin/      #   Plugin manifest (plugin.json)
-│   ├── skills/              #   Skill definitions
-│   │   ├── muggle/                        # /muggle:muggle — command router and menu
-│   │   ├── muggle-do/                     # /muggle:muggle-do — autonomous dev pipeline
-│   │   ├── muggle-test-feature-local/     # /muggle:muggle-test-feature-local
-│   │   ├── muggle-test-regenerate-missing/# /muggle:muggle-test-regenerate-missing
-│   │   ├── muggle-status/                 # /muggle:muggle-status
-│   │   ├── muggle-repair/                 # /muggle:muggle-repair
-│   │   └── muggle-upgrade/                # /muggle:muggle-upgrade
-│   ├── hooks/               #   Session hooks (hooks.json)
-│   ├── config/              #   Data the hooks read (preference defaults, onboarding limits)
-│   ├── scripts/             #   Hook scripts (ensure-electron-app.sh)
-│   ├── .mcp.json            #   MCP server config
-│   └── README.md            #   Plugin install and usage docs
-│
-├── src/                     # Application source
-│   ├── cli/                 #   CLI commands (serve, setup, doctor, login, etc.)
-│   └── server/              #   MCP server (tool registration, stdio transport)
-│
-├── packages/                # Workspace packages
-│   ├── mcps/                #   Core MCP runtime — tool registries, schemas, services
-│   ├── commands/            #   CLI command contracts and registration
-│   └── workflows/           #   Workflow contracts and tests
-│
-├── scripts/                 # Build and release
-│   ├── build-plugin.mjs     #   Assembles dist/plugin/ from plugin/ source
-│   ├── verify-plugin-marketplace.mjs  # Validates plugin/marketplace consistency
-│   ├── verify-compatibility-contracts.mjs # Validates long-term surface contracts
-│   ├── verify-upgrade-experience.mjs  # Validates in-place upgrade behavior
-│   └── postinstall.mjs      #   npm postinstall (Electron app download, Cursor MCP config, skills sync)
-│
-├── config/compatibility/     # Contract baselines (CLI/MCP/plugin/skills)
-├── bin/                     # CLI entrypoint (muggle.js → dist/cli.js)
-├── dist/                    # Build output (gitignored)
-├── .claude-plugin/          # Marketplace catalog (marketplace.json)
-└── docs/                    # Internal design docs and plans
+├── plugin/               # Claude Code plugin — source of truth
+│   ├── skills/           #   Skill definitions (muggle-do, muggle-test, _shared/vcs, …)
+│   ├── hooks/            #   Session hooks
+│   └── .mcp.json         #   MCP server config
+├── src/
+│   ├── cli/              # CLI entrypoint
+│   └── server/           # MCP server — tool registration, stdio transport
+├── packages/
+│   ├── mcps/             # Tool registries, schemas, services
+│   ├── commands/         # CLI command contracts
+│   └── workflows/        # Workflow contracts
+├── scripts/              # Build, verification, postinstall
+├── config/compatibility/ # Surface contract baselines
+├── internal/             # Maintainer-only skills (not published)
+└── .claude-plugin/       # Marketplace catalog
 ```
 
-Development commands
+### Releases
 
-```bash
-pnpm install              # Install dependencies
-pnpm run build            # Build (tsup + plugin artifact)
-pnpm run build:plugin     # Rebuild plugin artifact only
-pnpm run verify:plugin    # Validate plugin/marketplace metadata consistency
-pnpm run verify:contracts # Validate compatibility contracts (CLI/MCP/plugin/skills)
-pnpm run verify:electron-release-checksums # Ensure checksums.txt exists for bundled electron release
-pnpm run verify:upgrade-experience # Validate existing-user cleanup + re-download flow
-pnpm run dev              # Dev mode (watch)
-pnpm test                 # Run tests
-pnpm run lint             # Lint (auto-fix)
-pnpm run lint:check       # Lint (check only)
-pnpm run typecheck        # TypeScript type check
-```
+| Workflow | Trigger | What it does |
+| :------- | :------ | :----------- |
+| `ci.yml` | Push/PR to `master` | Lint, test, build, contract verification across platforms |
+| `verify-end-user-upgrade.yml` | Weekly + manual | Existing-user upgrade validation |
+| `publish-works-to-npm.yml` | Tag `v*` or manual | Verify, audit, smoke-install, publish |
 
-CI/CD and publishing
+Two independent tag tracks: `vX.Y.Z` publishes `@muggleai/works` to npm; `electron-app-vX.Y.Z` publishes browser-runner binaries consumed by `muggle setup` and `muggle upgrade`.
 
+Maintainers cut releases with the repo-local `/mrelease` skill rather than tagging by hand — CI can otherwise publish a version that disagrees with the checked-in manifests.
 
-| Workflow            | Trigger             | Description                                                  |
-| ------------------- | ------------------- | ------------------------------------------------------------ |
-| `ci.yml`            | Push/PR to `master` | Lint, test, build, plugin + compatibility contract verification on multiple platforms |
-| `verify-end-user-upgrade.yml` | Weekly + manual | Existing-user upgrade validation (cleanup + re-download + health checks) |
-| `publish-works-to-npm.yml` | Tag `v*` or manual  | Verify (including release checksums), audit, smoke-install, publish to npm |
-
-**Publishing `@muggleai/works`:** use the maintainer-only skill **`.claude/skills/muggle-works-npm-release/SKILL.md`** — a repo-local project skill (invoke `/muggle-works-npm-release` in Claude Code, or `/mrelease`, while working in this repo; mirrored to `.cursor/skills/` for Cursor). To invoke it from any project — not only when the cwd is this repo — run `pnpm run link:maintainer-skills`, which symlinks the maintainer skills from `.claude/skills/` into `~/.claude/skills/`; it is idempotent and safe to re-run if a skill moves. It is intentionally not in the published plugin (`plugin/skills/`) since it is maintainer-only. It does the bump + `pnpm run sync:versions`, local verify, `chore(release)` PR, merge, then `workflow_dispatch` with an explicit `version`. Do not rely on tagging alone while `package.json` / marketplace manifests on `master` are still old — CI can publish a version that does not match the checked-in manifests. Tag `v*` push remains a valid workflow trigger when it matches the merged release commit.
-
-Release tag strategy
-
-- `electron-app-vX.Y.Z` tags in `muggle-ai-works` are for public Electron app binary releases (consumed by `muggle setup`, `muggle upgrade`, and npm postinstall).
-- `vX.Y.Z` tags in `muggle-ai-works` are for npm publishing of `@muggleai/works` (`publish-works-to-npm.yml`).
-- `muggle-ai-teaching-service` builds Electron artifacts and publishes them into this public repo using `electron-app-vX.Y.Z`, so binaries are publicly downloadable.
-- The two version tracks are intentionally separate: runtime Electron artifact versions and npm package versions can move independently.
-
-
-Optimizing agent-facing descriptions
-
-
-AI agents decide which tools to use based on text in MCP server instructions, hook context injection, skill descriptions, tool descriptions, and plugin metadata. If these don't match what users actually say, agents won't reach for muggle tools.
-
-The `optimize-descriptions` skill documents the full optimization process. It lives at `internal/skills/optimize-descriptions/SKILL.md` — an internal-only skill that does **not** ship via npm or the plugin marketplace. To use it as a slash command on a dev machine, symlink or copy the folder into `~/.claude/skills/`. It covers:
-
-- The five layers of agent-facing text and where each lives in the codebase
-- How to write descriptions that match real user intent ("test my signup flow" not "execute test generation")
-- How to create trigger eval sets and run them with `run_eval.py`
-- Limitations of the eval tool (can't measure MCP instructions or hook injection)
-- A checklist for the full optimization workflow
-
-**Key files touched during optimization:**
-
-| What | File |
-| :--- | :--- |
-| MCP server instructions | `src/server/mcp-server.ts` |
-| SessionStart hook injection | `plugin/scripts/ensure-electron-app.sh` |
-| Hook config | `plugin/hooks/hooks.json` |
-| Skill descriptions | `plugin/skills/*/SKILL.md` |
-| Tool descriptions (local) | `packages/mcps/src/mcp/tools/local/tool-registry.ts` |
-| Tool descriptions (cloud) | `packages/mcps/src/mcp/tools/e2e/tool-registry.ts` |
-| Plugin metadata | `plugin/.claude-plugin/plugin.json` |
-
-**Quick eval run:**
-
-```bash
-# Requires Python 3.10+ and skill-creator plugin
-cd ~/.claude/plugins/cache/claude-plugins-official/skill-creator/unknown/skills/skill-creator
-
-python3 -m scripts.run_eval \
-  --eval-set /path/to/eval_set.json \
-  --skill-path /path/to/plugin/skills/test-feature-local \
-  --model claude-opus-4-6 \
-  --runs-per-query 3 \
-  --verbose
-```
-
-See `internal/skills/optimize-descriptions/SKILL.md` for the full guide.
+Agents pick tools by reading descriptions, so that text is tuned deliberately rather than written once. `internal/skills/optimize-descriptions/SKILL.md` documents the five layers of agent-facing text, where each lives, and how to build and run trigger eval sets against them. It is maintainer-only and ships in neither the npm package nor the plugin.
 
 ---
 
 ## License
 
-[MIT](LICENSE) — Use it, fork it, make it yours.
+MIT. Use it, fork it, make it yours.
 
-If this helps your development workflow, consider giving it a star. It helps others find it.
+If it saves you a bad merge, a star helps others find it.

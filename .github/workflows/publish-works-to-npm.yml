@@ -236,6 +236,28 @@ jobs:
           CHANNEL: ${{ inputs.channel || 'production' }}
         run: npm pkg set muggleConfig.runtimeTargetDefault="$CHANNEL"
 
+      # Each of the three version steps above is `npm version`, which writes
+      # package.json alone — the plugin manifests, marketplace manifests and
+      # server.json keep whatever master carried. Production never showed it
+      # because /mrelease syncs them in the release PR, so the tag publish finds
+      # them already correct. Staging has no release PR, so every pre-release
+      # shipped manifests pinned to the last production version: 5.19.0-staging.125
+      # went out with all four of its plugin manifests reading 5.18.0.
+      - name: Sync the bumped version into every manifest
+        run: pnpm run sync:versions
+
+      # dist/plugin/ was assembled by the earlier Build step, before the bump, so
+      # it still holds the pre-bump version. package.json `files` ships dist as
+      # well as plugin, which means a stale built manifest reaches users too.
+      - name: Rebuild the plugin artifact at the bumped version
+        run: pnpm run build:plugin
+
+      # The invariant already had a checker; it had never run anywhere it could
+      # fail. In CI it sees a repo state whose numbers agree by construction —
+      # only here, after the bump, can it catch the drift.
+      - name: Verify every manifest agrees with package.json
+        run: pnpm run verify:plugin
+
       - name: Fail on stale mcp folder references
         run: |
           node <<'NODE'

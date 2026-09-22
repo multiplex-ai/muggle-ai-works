@@ -5,7 +5,7 @@
 Coding agents are good at producing a diff. They are bad at knowing whether the diff works, whether it broke the login flow, and what still has to happen before a human can merge it. Muggle Works is the harness around the agent that answers those questions: it freezes requirements, delegates the design and build, runs the unit suite, drives a **real browser** through the affected user flows, opens the pull request with screenshots attached, and then keeps watching that PR — picking up review comments, red CI, and a stale base branch until the change is genuinely mergeable.
 
 [![npm](https://img.shields.io/npm/v/@muggleai/works.svg)](https://www.npmjs.com/package/@muggleai/works)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](https://www.npmjs.com/package/@muggleai/works)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](https://nodejs.org)
 [![MCP tools](https://img.shields.io/badge/MCP%20tools-100%2B-blue.svg)](#mcp-tool-reference)
 
@@ -477,6 +477,6 @@ Agents pick tools by reading descriptions, so that text is tuned deliberately ra
 
 ## License
 
-MIT. Use it, fork it, make it yours.
+[MIT](LICENSE). Use it, fork it, make it yours.
 
 If it saves you a bad merge, a star helps others find it.

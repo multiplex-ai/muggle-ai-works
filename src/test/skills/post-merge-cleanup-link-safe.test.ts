@@ -42,12 +42,14 @@ describe("post-merge cleanup is link-safe", () => {
   it("requires unlinking the dependency link before removing the worktree", () => {
     const doc = readCleanupDoc().toLowerCase();
     // The unlink instruction must precede the removal instruction, otherwise the
-    // remove follows the still-present link into the shared target.
+    // remove follows the still-present link into the shared target. Anchor on the
+    // instruction to remove, not on any mention of the command — the procedure
+    // also names it while describing the refusals it has to clear first.
     const unlinkAt = doc.search(/unlink/);
-    const removeAt = doc.search(/git worktree remove/);
+    const removeAt = doc.search(/then plain `git worktree remove/);
     expect(unlinkAt).toBeGreaterThanOrEqual(0);
     expect(removeAt).toBeGreaterThanOrEqual(0);
-    expect(unlinkAt).toBeLessThan(removeAt + doc.length);
+    expect(unlinkAt).toBeLessThan(removeAt);
     expect(doc).toMatch(/unlink[^.]*first|first[^.]*unlink/);
   });
 
@@ -124,5 +126,59 @@ describe("post-merge cleanup verifies rather than assumes", () => {
     const verifications = doc.match(/^\*\*Verify:\*\*/gm) ?? [];
     expect(stepHeadings.length).toBeGreaterThanOrEqual(5);
     expect(verifications.length).toBe(stepHeadings.length);
+  });
+});
+
+/**
+ * `git worktree remove` refuses a second way the procedure did not anticipate: a
+ * worktree left dirty by the cycle's own already-merged edits. Unlike
+ * `Directory not empty`, that error prescribes `--force` in its own text, so the
+ * gap pointed cleanup straight at the flag the rest of this file forbids — and a
+ * blocked cleanup is the moment the suggestion looks reasonable.
+ */
+describe("post-merge cleanup clears a dirty worktree without forcing", () => {
+  it("names the modified-or-untracked refusal as distinct from Directory not empty", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/contains modified or untracked files/i);
+    expect(doc).toMatch(/Directory not empty/i);
+  });
+
+  it("clears the dirty state before the removal rather than after the refusal", () => {
+    const doc = readCleanupDoc();
+    const clearAt = doc.search(/Clear the worktree's own dirty state/);
+    const removeAt = doc.search(/Then plain `git worktree remove/);
+    expect(clearAt).toBeGreaterThanOrEqual(0);
+    expect(removeAt).toBeGreaterThan(clearAt);
+  });
+
+  it("discards tracked changes only when the base already carries them", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/diff origin\/<base>/);
+    expect(doc).toMatch(/reset --hard/);
+    // A non-empty diff is work the merge never landed; discarding it is the
+    // failure this gate exists to prevent.
+    expect(doc).toMatch(/non-empty diff stops the sequence/i);
+    expect(doc).toMatch(/unlanded work/i);
+  });
+
+  it("deletes only the untracked paths cleanup created, and names the rest", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/only the paths this procedure itself created/i);
+    expect(doc).toMatch(/reported by name/i);
+  });
+
+  it("forbids `git clean -x`, which recurses through the dependency link", () => {
+    const doc = readCleanupDoc();
+    expect(doc).toMatch(/never\s+`?git clean -x`?/i);
+    expect(doc).toMatch(/reaches the ignored dependency dir/i);
+  });
+
+  it("verifies the removal actually ran without --force", () => {
+    const doc = readCleanupDoc();
+    const worktreeVerification = doc
+      .split("\n")
+      .find((line) => line.startsWith("**Verify:**") && line.includes("git worktree list"));
+    expect(worktreeVerification).toBeDefined();
+    expect(worktreeVerification).toMatch(/without `--force`/);
   });
 });

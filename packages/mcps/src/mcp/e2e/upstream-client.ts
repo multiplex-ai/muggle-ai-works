@@ -18,6 +18,9 @@ import {
   McpErrorCode,
 } from "./types.js";
 
+/** Methods whose timeout may still have changed state upstream. */
+const MUTATING_METHODS = ["POST", "PUT", "PATCH", "DELETE"];
+
 /** Allowed upstream path prefixes. */
 const ALLOWED_UPSTREAM_PREFIXES = [
   "/v1/protected/muggle-test/",
@@ -316,9 +319,16 @@ export class PromptServiceClient {
         });
 
         if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT") {
+          // A timeout says the answer never arrived, never that the work did not happen: the
+          // request reached the backend and may have been applied. Reported as a bare failure,
+          // the caller retries — and a retried write is applied twice, or is read back later as
+          // a change nobody believes they made. Seen live: a test-case update timed out three
+          // times, each attempt landing upstream, while every reply said the edit had failed.
           throw new GatewayError({
             code: McpErrorCode.UPSTREAM_ERROR,
-            message: `Request timeout after ${timeout}ms`,
+            message: MUTATING_METHODS.includes(call.method)
+              ? `Request timeout after ${timeout}ms. This ${call.method} may still have been applied upstream — re-read the resource before retrying, since a retry can apply it a second time.`
+              : `Request timeout after ${timeout}ms`,
             details: { upstreamPath: call.path },
           });
         }

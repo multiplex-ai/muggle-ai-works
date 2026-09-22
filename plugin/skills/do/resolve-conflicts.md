@@ -14,7 +14,7 @@ Rebase a PR's branch onto its base — whether it's merely **behind** (out of da
 
 ## Inputs from disk
 
-From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + branch + `head_sha`), `last_seen.json` (`conflict_resolve_attempts`, `conflict_escalated_keys`, `pushed_shas`), `state.md` (worktree path, validation strategy, base branch).
+From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + branch + `head_sha`), `last_seen.json` (`conflict_resolve_attempts`, `conflict_escalated_keys`, `catch_up_rebases`, `pushed_shas`), `state.md` (worktree path, validation strategy, base branch).
 
 ## Procedure
 
@@ -37,7 +37,7 @@ Build (typecheck + lint on the changed surface) + unit suite must pass. Run E2E 
 
 ### Step 4 — Force-push + respawn
 
-Force-push per [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) (tool-agnostic instruction; handles the signing gate for rebased commits and directs to provider-specific force-push paths). Use `git push --force-with-lease` for the force operation. Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_key]` — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+Force-push per [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) (tool-agnostic instruction; handles the signing gate for rebased commits and directs to provider-specific force-push paths). Use `git push --force-with-lease` for the force operation. Append the new SHA to `last_seen.pushed_shas`; increment `last_seen.conflict_resolve_attempts[rebase_key]` **and** `last_seen.catch_up_rebases` — all whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. The second counter is unkeyed on purpose: `rebase_key` carries the base tip, so it mints a fresh budget every time the base moves and cannot bound a PR on an active base. Increment it on every push here, including one that later escalates, or a branch that fails the same way twenty times reads as having spent nothing. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 
@@ -47,13 +47,22 @@ When `autoResolveConflicts=never`, the resolution failed verification, or `confl
 2. Emit one terminal escalation naming the PR and the conflicting files (or the failing verification, for a behind-only rebase that didn't verify).
 3. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md) — it keeps polling for the user's manual resolution or any new reviews.
 
+### Step 5a — Escalate (per-PR catch-up budget spent)
+
+When `catch_up_rebases` has reached [`maxCatchUpRebases`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) (20 unless the user changed it), the PR is out of catch-up budget for good — a different escalation from Step 5, which retires one `rebase_key` and re-arms the moment the base moves.
+
+1. Set `last_seen.rebase_budget_exhausted` to `true`. The watcher stops dispatching rebases for this PR outright, so no base advance re-arms it.
+2. Emit one terminal escalation, and post it on the PR, naming the count, the cap, and `maxCatchUpRebases` as the way to raise it. Say what the owner has to decide — rebase onto a different base, split the branch, or close it — because the harness has stopped trying and silence here reads as a healthy watcher.
+3. Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md); it keeps polling reviews and CI, and blocks with reason `rebase_budget_exhausted`.
+
 ### Step 6 — Telemetry
 
-Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.md`](../_shared/telemetry-events/muggle-do-cycle.md)) with `outcome: "rebased"` (a verified rebase pushed — behind-only or conflicts resolved) or `"rebase-escalated"`.
+Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.md`](../_shared/telemetry-events/muggle-do-cycle.md)) with `outcome: "rebased"` (a verified rebase pushed — behind-only or conflicts resolved), `"rebase-escalated"`, or `"rebase-budget-exhausted"` (Step 5a).
 
 ## Guardrails
 
-- Max 2 rebase attempts per SHA; then escalate rather than churn.
+- Max 2 rebase attempts per `rebase_key`, and `maxCatchUpRebases` (20 by default) across the PR's whole life; then escalate rather than churn. The per-key cap alone bounds nothing on an active base, since a base advance mints a new key.
+- Never let an exhausted budget pass as silence — Step 5a reports on the PR. A watcher that stops without saying so is indistinguishable from one that has nothing to do.
 - Never push an unverified rebase — verify-or-rollback always.
 - Never push unsigned commits — every push or force-push goes through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md).
 - Resolve `autoResolveConflicts` from the configured preference (per the gate contract — don't assume a default): `always` resolves conflicts behind the verify-or-rollback gate, `never` escalates to the user. A clean behind-only rebase needs neither.

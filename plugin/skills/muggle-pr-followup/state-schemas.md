@@ -82,6 +82,8 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "ci_escalated_shas": ["<sha>", ...],
     "conflict_resolve_attempts": { "<head-sha>..<base-tip-sha>": <int> },
     "conflict_escalated_keys": ["<head-sha>..<base-tip-sha>", ...],
+    "catch_up_rebases": <int>,
+    "rebase_budget_exhausted": <bool>,
     "blocked": {
       "reason": "conflict_escalated" | "ci_escalated" | "reviews_escalated",
       "since": "<ISO-8601>",
@@ -105,12 +107,15 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
 - `conflict_resolve_attempts`: count of rebase cycles `/muggle-do` has run (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching once a key's count reaches 2. Keyed by `rebase_key` — `"<head_sha>..<base_tip_sha>"`, the head paired with the base branch tip it was measured against.
 - `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless pairing is never re-attempted.
+- `catch_up_rebases`: how many rebases this PR has been dispatched for across its whole life. A plain counter, deliberately unkeyed: the two fields above key on `rebase_key`, which changes on every base advance and so hands an active base an unlimited supply of fresh budgets. Nothing resets this one, which makes it the only cap that binds. Capped by [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) — 20 by default, `never` for unbounded. Incremented by the rebase cycle on every push, whatever the outcome.
+- `rebase_budget_exhausted`: set once `catch_up_rebases` reaches the cap. The watcher then stops dispatching rebases for the PR entirely and blocks with reason `rebase_budget_exhausted` rather than idling, so the owner is told the branch is waiting on them. Cleared by raising the preference.
 
 Both are keyed on the pair, not the head alone, because whether a branch conflicts depends on both sides. Under a head-only key, a base that moves produces a genuinely new conflict against an unchanged head — and the stale entry suppresses it permanently, because nothing can change the head while the branch sits blocked. Pairing re-arms the budget whenever either side moves. Legacy entries written before this change are bare SHAs with no `..`; readers ignore them, which un-wedges any slot they had blocked.
 
 Unlike these, `ci_fix_attempts` / `ci_escalated_shas` stay keyed on the head SHA alone — a CI result is a function of the head only, so base movement must not re-arm them.
 - `blocked`: present only while the watcher is **awaiting the owner** on a PR that cannot progress without a human ([`contract.md`](contract.md) Step 7). Absent ⇒ the watcher is in its normal dispatch flow. When present, the watcher **keeps the normal `1m` cadence** and each tick is a reminder-or-resume check ([`contract.md`](contract.md) Step 2.5): it re-emits a one-line reminder to the owner, recomputes the `fingerprint`, and clears the block the moment any component moves. Its value is the reason-specific reminder plus fingerprint auto-resume.
-  - `reason`: which durable block is being awaited — `conflict_escalated` (`rebase_key` ∈ `conflict_escalated_keys`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), or `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty). Selects the reminder wording; the resume decision is fingerprint-driven, not reason-driven.
+  - `reason`: which durable block is being awaited — `conflict_escalated` (`rebase_key` ∈ `conflict_escalated_keys`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty), or `rebase_budget_exhausted` (`catch_up_rebases` reached its cap). Selects the reminder wording; the resume decision is fingerprint-driven for every reason but the last.
+  - `rebase_budget_exhausted` is the one reason a fingerprint move does not clear. Base movement is what spent the budget, so resuming on it would restore the unbounded rebase loop the cap exists to end; it clears when the owner raises `maxCatchUpRebases` or the PR goes terminal.
   - `since`: when the block was first flagged — lets the reminder state how long the owner has been the blocker.
   - `fingerprint`: the external state the block is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts. Any change clears the block and resumes evaluation.
 

@@ -116,7 +116,9 @@ Rebase dedup is keyed on the **pair** `rebase_key = "<head_sha>..<base_tip_sha>"
 
 Entries written by an older watcher are bare head SHAs with no `..` — ignore them when reading `conflict_escalated_keys`, which re-arms any slot a head-only key had wedged.
 
-If a rebase is due **and** `conflict_resolve_attempts[rebase_key] < 2` **and** `rebase_key` ∉ `conflict_escalated_keys` → dispatch and exit:
+`conflict_resolve_attempts` bounds one key, never the PR. Because `rebase_key` carries the base tip, every advance of the base mints a fresh key and hands the branch a fresh pair of attempts, so on an active base that budget can never stop anything. The per-PR budget is the one that binds: `last_seen.catch_up_rebases` counts every rebase this PR has been dispatched for, no key resets it, and [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) caps it at 20 by default.
+
+If a rebase is due **and** `catch_up_rebases < maxCatchUpRebases` **and** `conflict_resolve_attempts[rebase_key] < 2` **and** `rebase_key` ∉ `conflict_escalated_keys` → dispatch and exit:
 
   1. Reset `last_seen.idle_tick_count` to 0.
   2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s rebase respawns it when the cycle is done.
@@ -128,7 +130,11 @@ If a rebase is due **and** `conflict_resolve_attempts[rebase_key] < 2` **and** `
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `rebase_needed: true`, `dispatched_rebase: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
 
-Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or budget spent (`conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys`) → fall through to CI.
+If a rebase is due **and** `catch_up_rebases >= maxCatchUpRebases` → the PR has spent its catch-up budget. Do **not** dispatch, and do **not** fall through quietly: set `last_seen.rebase_budget_exhausted` to `true`, block the watch with reason `rebase_budget_exhausted` (Step 7), and report the count, the cap and the preference key on the PR. Twenty rebases without converging is a branch its owner has to decide about — rebase it onto a different base, split it, or close it — and a watcher that merely stops leaves them to discover it days later.
+
+That block is the one reason a fingerprint move does not clear (Step 2.5): base movement is precisely what spent the budget, so resuming on it would restore the loop the cap exists to end. It clears when the owner raises `maxCatchUpRebases` or the PR goes terminal.
+
+Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or the per-key budget is spent (`conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys`) → fall through to CI.
 
 ### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
 

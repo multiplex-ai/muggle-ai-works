@@ -50,6 +50,8 @@ export enum PreferenceKey {
   AutoWatchPR = "autoWatchPR",
   /** How long a muggle-pr-followup watch loop may poll before retiring itself. */
   WatcherLifetime = "watcherLifetime",
+  /** How many catch-up rebases muggle-pr-followup runs on one PR before handing it back. */
+  MaxCatchUpRebases = "maxCatchUpRebases",
   /** Reuse the saved prepare plan for this stack instead of rediscovering. */
   ReusePreparePlan = "reusePreparePlan",
 }
@@ -59,6 +61,8 @@ export enum PreferenceKey {
  *
  * Most knobs use `Always` / `Ask` / `Never`. A few use domain-specific values:
  *  - `DefaultExecutionMode` uses `Local` / `Remote` / `Ask`.
+ *  - `WatcherLifetime` uses `OneDay` / `SevenDays` / `Never`.
+ *  - `MaxCatchUpRebases` uses `TenRebases` / `TwentyRebases` / `FiftyRebases` / `Never`.
  *
  * Per-key validity is enforced via `PREFERENCE_ALLOWED_VALUES` in preferences-constants.ts.
  */
@@ -77,6 +81,12 @@ export enum PreferenceValue {
   OneDay = "1d",
   /** For WatcherLifetime: retire a PR watch loop after seven days. */
   SevenDays = "7d",
+  /** For MaxCatchUpRebases: ten catch-up rebases per PR. */
+  TenRebases = "10",
+  /** For MaxCatchUpRebases: twenty catch-up rebases per PR. */
+  TwentyRebases = "20",
+  /** For MaxCatchUpRebases: fifty catch-up rebases per PR. */
+  FiftyRebases = "50",
 }
 
 /**

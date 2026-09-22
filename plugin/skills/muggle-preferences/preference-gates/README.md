@@ -6,7 +6,13 @@ actually fire.
 
 Default allowed values: `always` / `never` / `ask`. Per-key overrides are noted
 in their own file: `defaultExecutionMode` (`local` / `remote` / `ask`),
-`autoE2ETest` (`always` / `ask`), and `watcherLifetime` (`1d` / `7d` / `never`).
+`autoE2ETest` (`always` / `ask`), `watcherLifetime` (`1d` / `7d` / `never`), and
+`maxCatchUpRebases` (a positive integer, or `never`).
+
+`watcherLifetime` and `maxCatchUpRebases` are **configuration values rather than
+gates**: they prompt nothing, fire no picker and print no silent footer, and the
+saved value is simply read where it applies. Configure and Set still expose
+them. Gate behavior below describes gates only.
 
 ## Resolution
 

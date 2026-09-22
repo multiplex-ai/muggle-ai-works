@@ -101,7 +101,8 @@ export function buildOnboardingPlan(): IOnboardingPlan {
  * Resolve a blanket disposition into the preferences it writes.
  *
  * `AskEverything` falls back to a key's default wherever `ask` is not one of its
- * allowed values — `watcherLifetime` takes a duration, so there is nothing to ask.
+ * allowed values — `watcherLifetime` takes a duration and `maxCatchUpRebases` a count,
+ * so neither has anything to ask.
  *
  * @param choice - The disposition the user picked.
  */

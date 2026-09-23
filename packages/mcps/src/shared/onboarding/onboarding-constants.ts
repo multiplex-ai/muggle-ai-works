@@ -125,6 +125,17 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
       { value: PreferenceValue.Never, label: "Never retire — no time-based reaper for an orphaned loop" },
     ],
   },
+  {
+    header: "Rebase budget",
+    key: PreferenceKey.MaxCatchUpRebases,
+    prompt: "How many times should a PR be rebased onto a moving base before you are asked to step in?",
+    optionLabels: [
+      { value: PreferenceValue.TenRebases, label: "Stop after 10" },
+      { value: PreferenceValue.TwentyRebases, label: "Stop after 20" },
+      { value: PreferenceValue.FiftyRebases, label: "Stop after 50" },
+      { value: PreferenceValue.Never, label: "Never stop — an active base can rebase a PR for as long as it stays open" },
+    ],
+  },
 ];
 
 /** Dispositions offered before the per-group questions. */

@@ -14,6 +14,7 @@ import {
 import { ProjectPreferencesReconcileOutcome } from "../shared/project-preferences-reconcile-types.js";
 import { PreferencesSetInputSchema } from "../mcp/local/contracts/preferences-schemas.js";
 import { WATCHER_LIFETIME_SECONDS } from "../shared/watcher-lifetime-constants.js";
+import { CATCH_UP_REBASE_BUDGET } from "../shared/catch-up-rebase-constants.js";
 import {
   DEFAULT_PREFERENCES,
   PREFERENCE_ALLOWED_VALUES,
@@ -33,9 +34,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 23 keys", () => {
+  it("has exactly 24 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(23);
+    expect(keys).toHaveLength(24);
   });
 
   it("contains all expected keys", () => {
@@ -61,15 +62,17 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoRouteBuildToMuggleDo).toBe("autoRouteBuildToMuggleDo");
     expect(PreferenceKey.AutoWatchPR).toBe("autoWatchPR");
     expect(PreferenceKey.ReusePreparePlan).toBe("reusePreparePlan");
+    expect(PreferenceKey.WatcherLifetime).toBe("watcherLifetime");
+    expect(PreferenceKey.MaxCatchUpRebases).toBe("maxCatchUpRebases");
   });
 });
 
 describe("PreferenceValue enum", () => {
-  it("has exactly 7 values (always/ask/never + local/remote + 1d/7d)", () => {
-    expect(Object.values(PreferenceValue)).toHaveLength(7);
+  it("has exactly 10 values (always/ask/never + local/remote + 1d/7d + 10/20/50)", () => {
+    expect(Object.values(PreferenceValue)).toHaveLength(10);
   });
 
-  it("contains always, ask, never, local, remote, 1d, 7d", () => {
+  it("contains always, ask, never, local, remote, 1d, 7d, 10, 20, 50", () => {
     expect(PreferenceValue.Always).toBe("always");
     expect(PreferenceValue.Ask).toBe("ask");
     expect(PreferenceValue.Never).toBe("never");
@@ -77,6 +80,9 @@ describe("PreferenceValue enum", () => {
     expect(PreferenceValue.Remote).toBe("remote");
     expect(PreferenceValue.OneDay).toBe("1d");
     expect(PreferenceValue.SevenDays).toBe("7d");
+    expect(PreferenceValue.TenRebases).toBe("10");
+    expect(PreferenceValue.TwentyRebases).toBe("20");
+    expect(PreferenceValue.FiftyRebases).toBe("50");
   });
 });
 
@@ -116,6 +122,7 @@ describe("DEFAULT_PREFERENCES", () => {
       [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Local,
       [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
       [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
+      [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
     };
     for (const [key, value] of Object.entries(DEFAULT_PREFERENCES)) {
       const expected = exceptions[key] ?? PreferenceValue.Always;
@@ -445,5 +452,45 @@ describe("watcherLifetime", () => {
 
   it("maps never to 0, the guard library's unbounded sentinel", () => {
     expect(WATCHER_LIFETIME_SECONDS[PreferenceValue.Never]).toBe(0);
+  });
+});
+
+describe("maxCatchUpRebases", () => {
+  it("defaults to twenty", () => {
+    expect(DEFAULT_PREFERENCES[PreferenceKey.MaxCatchUpRebases]).toBe(PreferenceValue.TwentyRebases);
+  });
+
+  it("offers exactly 10, 20, 50 and never", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.MaxCatchUpRebases]).toEqual([
+      PreferenceValue.TenRebases,
+      PreferenceValue.TwentyRebases,
+      PreferenceValue.FiftyRebases,
+      PreferenceValue.Never,
+    ]);
+  });
+
+  it("rejects the general always/ask values, which mean nothing for a count", () => {
+    expect(validatePreference(PreferenceKey.MaxCatchUpRebases, PreferenceValue.Always)).toBe(false);
+    expect(validatePreference(PreferenceKey.MaxCatchUpRebases, PreferenceValue.Ask)).toBe(false);
+  });
+
+  it("maps every allowed value to a budget the tick can compare against", () => {
+    for (const value of PREFERENCE_ALLOWED_VALUES[PreferenceKey.MaxCatchUpRebases]) {
+      expect(CATCH_UP_REBASE_BUDGET[value], `no budget mapping for ${value}`).toBeTypeOf("number");
+    }
+    expect(CATCH_UP_REBASE_BUDGET[PreferenceValue.TenRebases]).toBe(10);
+    expect(CATCH_UP_REBASE_BUDGET[PreferenceValue.TwentyRebases]).toBe(20);
+    expect(CATCH_UP_REBASE_BUDGET[PreferenceValue.FiftyRebases]).toBe(50);
+  });
+
+  it("maps never to 0, the unbounded sentinel", () => {
+    expect(CATCH_UP_REBASE_BUDGET[PreferenceValue.Never]).toBe(0);
+  });
+
+  it("parses each budget value back to the integer it names", () => {
+    for (const value of PREFERENCE_ALLOWED_VALUES[PreferenceKey.MaxCatchUpRebases]) {
+      if (value === PreferenceValue.Never) continue;
+      expect(CATCH_UP_REBASE_BUDGET[value]).toBe(Number(value));
+    }
   });
 });

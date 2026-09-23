@@ -29,5 +29,5 @@ Pick the operation, then read its op file for the procedure.
 
 - **Current values**: session-context line `Muggle Test Preferences key=value …`, already resolved against the shipped defaults in `${CLAUDE_PLUGIN_ROOT}/config/preference-defaults.json`.
 - **Per-key files**: `preference-gates/<key>.md`. Key list = `ls preference-gates/*.md` minus `README.md`.
-- **Allowed values**: `always`/`never`/`ask`, except `defaultExecutionMode` (`local`/`remote`/`ask`), `autoE2ETest` (`always`/`ask`), and `watcherLifetime` (`1d`/`7d`/`never`).
+- **Allowed values**: `always`/`never`/`ask`, except `defaultExecutionMode` (`local`/`remote`/`ask`), `autoE2ETest` (`always`/`ask`), `watcherLifetime` (`1d`/`7d`/`never`), and `maxCatchUpRebases` (a positive integer, or `never`).
 - **Scope**: preferences are user-level. Every write lands in `~/.muggle-ai/preferences.json` and applies to every repo. If the user asks for a per-project setting, say it isn't supported and confirm before setting it everywhere.

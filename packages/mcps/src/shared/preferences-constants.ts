@@ -49,6 +49,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoWatchPR]: PreferenceValue.Always,
   [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
   [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
+  [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
 };
 
 const ALWAYS_ASK_NEVER = [
@@ -71,6 +72,13 @@ const LOCAL_REMOTE_ASK = [
 const WATCHER_LIFETIMES = [
   PreferenceValue.OneDay,
   PreferenceValue.SevenDays,
+  PreferenceValue.Never,
+] as const;
+
+const CATCH_UP_REBASE_BUDGETS = [
+  PreferenceValue.TenRebases,
+  PreferenceValue.TwentyRebases,
+  PreferenceValue.FiftyRebases,
   PreferenceValue.Never,
 ] as const;
 
@@ -103,6 +111,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoWatchPR]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
   [PreferenceKey.WatcherLifetime]: WATCHER_LIFETIMES,
+  [PreferenceKey.MaxCatchUpRebases]: CATCH_UP_REBASE_BUDGETS,
 };
 
 /** Human-readable schema for each preference — used in setup wizard and validation. */
@@ -175,5 +184,8 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.WatcherLifetime]: {
     description: "How long a muggle-pr-followup watch loop polls before retiring itself — 1d, 7d, or never (unbounded, which leaves no time-based reaper for an orphaned loop)",
+  },
+  [PreferenceKey.MaxCatchUpRebases]: {
+    description: "How many catch-up rebases muggle-pr-followup runs on one PR before it stops and reports the branch back to its owner — 10, 20, 50, or never (unbounded, which lets an active base rebase a PR for as long as it stays open)",
   },
 };

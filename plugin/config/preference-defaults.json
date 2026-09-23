@@ -21,5 +21,6 @@
   "autoRouteBuildToMuggleDo": "always",
   "autoWatchPR": "always",
   "reusePreparePlan": "always",
-  "watcherLifetime": "7d"
+  "watcherLifetime": "7d",
+  "maxCatchUpRebases": "20"
 }

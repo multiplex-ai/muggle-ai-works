@@ -6,6 +6,8 @@
  * renders a self-contained page, because frames are the point and a terminal cannot show them.
  */
 
+import { pathToFileURL } from "node:url";
+
 import {
   openBrowserUrl,
   readRunView,
@@ -57,7 +59,9 @@ export async function runViewCommand(
   console.log(`\nWrote ${htmlPath}`);
 
   if (options.open) {
-    const opened = await openBrowserUrl({ url: `file://${htmlPath.replace(/\\/g, "/")}` });
+    // pathToFileURL, not string surgery: a Windows path needs the third slash before its drive
+    // letter, and an output directory containing a space needs percent-encoding.
+    const opened = await openBrowserUrl({ url: pathToFileURL(htmlPath).href });
     if (!opened.opened) {
       console.log("Could not open a browser automatically — open the file above.");
     }

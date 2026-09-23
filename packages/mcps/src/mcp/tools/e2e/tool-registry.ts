@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getConfig } from "../../../shared/config.js";
 import { createChildLogger } from "../../../shared/logger.js";
+import { registerAccount } from "../../../shared/register.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
@@ -1545,6 +1546,20 @@ const userFeedbackTools: IQaToolDefinition[] = [
 ];
 
 const authTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-auth-register",
+    description:
+      "Create a new Muggle AI account from an email and password and start using E2E features on the free plan immediately — no browser, no human step. Verifying the address on that account upgrades it to the Starter package for free and permanently, raising the monthly token allowance tenfold; the account keeps working unverified, with less. Use this when there is no account yet; use muggle-remote-auth-login when one already exists. The API key it returns is stored automatically, so remote tools work straight afterwards.",
+    inputSchema: schemas.AuthRegisterInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => {
+      throw new Error("LOCAL_HANDLER_ONLY");
+    },
+    localHandler: async (input) => {
+      const authRegisterInput = input as z.infer<typeof schemas.AuthRegisterInputSchema>;
+      return registerAccount(authRegisterInput.email, authRegisterInput.password);
+    },
+  },
   {
     name: "muggle-remote-auth-status",
     description: "Check current authentication status. Shows if you're logged in and when your session expires.",

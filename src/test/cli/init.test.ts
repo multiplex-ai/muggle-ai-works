@@ -215,6 +215,7 @@ describe("muggle init interactive walkthrough", () => {
     expect(answers.selectedToggleKeys).not.toContain("verboseOutput");
     expect(answers.choices.defaultExecutionMode).toBe("local");
     expect(answers.choices.watcherLifetime).toBe("7d");
+    expect(answers.choices.maxCatchUpRebases).toBe("20");
   });
 
   it("flips the toggles the user names", async () => {

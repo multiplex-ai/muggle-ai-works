@@ -41,7 +41,7 @@ Write the answers to `~/.muggle-ai/temp/onboarding-answers.json`:
 {
   "blanket": "customize",
   "selectedToggleKeys": ["autoLogin", "autoSelectProject"],
-  "choices": { "autoE2ETest": "always", "defaultExecutionMode": "local", "watcherLifetime": "7d" }
+  "choices": { "autoE2ETest": "always", "defaultExecutionMode": "local", "watcherLifetime": "7d", "maxCatchUpRebases": "20" }
 }
 ```
 

@@ -5,6 +5,7 @@
 3. Footer:
    ```
    Values: always · ask · never — except defaultExecutionMode (local/remote/ask),
-   autoE2ETest (always/ask), watcherLifetime (1d/7d/never)
+   autoE2ETest (always/ask), watcherLifetime (1d/7d/never),
+   maxCatchUpRebases (10/20/50/never)
    Stored: ~/.muggle-ai/preferences.json — applies to every repo
    ```

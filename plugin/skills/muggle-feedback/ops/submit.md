@@ -45,6 +45,8 @@ Always render before asking for feedback — the user must see the steps to refe
 
 `muggle-remote-action-script-get` with the resolved `actionScriptId`.
 
+For a local run you already hold the `runId` for, `muggle-local-run-steps-get` returns the same steps with each frame's path already resolved — prefer it over walking the session directory. It numbers steps from 0; this skill's feedback anchors are **1-based**, so renumber when printing rather than passing its text through.
+
 Print:
 
 - **Header** — project name, test case title, script name, status, run url (if available). For remote, include the dashboard link.

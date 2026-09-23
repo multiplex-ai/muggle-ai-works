@@ -25,7 +25,9 @@ Read the Stage 6 run-level verdict, defined in [`../_shared/failure-mode-handlin
 
 ## Step 1: Root-cause each failure
 
-Per failing test case, assemble evidence and a diagnosis with [`../_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) Steps 1–2 — attempted steps, halt reason, the failing step's screenshot, then the bucket. That doc's Step 3 is the interactive debug card; this stage is autonomous and does not run it.
+Per failing test case, assemble evidence and a diagnosis with [`../_shared/debug-failed-run.md`](../_shared/debug-failed-run.md) Steps 1–2 — attempted steps, halt reason, the failing step's screenshot, then the bucket. For a local run that is one `muggle-local-run-steps-get` call. That doc's Step 3 is the interactive debug card; this stage is autonomous and does not run it.
+
+Check the steps against the verdict before repairing anything. A run whose frames show the element its verdict calls missing is a false negative — repairing working code against one wastes the cycle.
 
 Stage 6 already wrote this evidence into its Failed block. Re-derive a bucket only for entries that arrived without one.
 

@@ -25,6 +25,7 @@ export interface Fixtures {
   testCase?: unknown;
   executeResult?: unknown;
   runResult?: unknown;
+  runStepsResult?: unknown;
   [key: string]: unknown;
 }
 

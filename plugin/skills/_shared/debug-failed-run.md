@@ -19,8 +19,8 @@ The guarantee binds **interactive** callers. An autonomous caller with no user t
 
 Read **structured run fields**, never the `execute` stdout tail (see [`dev-loop/failures.md`](./dev-loop/failures.md)). Assemble:
 
-- **Attempted steps + reasoning** — local: the attempted steps + `summaryStep` halt reason from `action-script.json` in `artifactsDir`; remote: the per-step list + `summaryStep` from `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run`.
-- **Visual evidence** — a failed run already preserves the full step-by-step on disk: every per-step frame under `<artifactsDir>/electron-runtime/screenshot/` (with per-step label data under `.../dataset/`), alongside the step script at `<artifactsDir>/action-script.json`. `run-result-get` returns `artifactsDir` — read the whole set there; don't trust a step's `screenshotLocalPath`, which points at the original runtime dir. Once published — failed runs are published too, see [`dev-loop/publish.md`](./dev-loop/publish.md) — the same frames are cloud-hosted per step as `screenshotUrl`, the form remote runs expose directly.
+- **Attempted steps + reasoning** — local: call `muggle-local-run-steps-get` with the `runId`. It returns the ordered steps (action, the agent's own explanation, the resolved frame path) plus the run's recorded status and closing verdict, already paired up. Remote: the per-step list + `summaryStep` from `muggle-remote-wf-get-ts-gen-latest-run` / `muggle-remote-wf-get-ts-replay-latest-run`.
+- **Visual evidence** — local: the frame path on each step from the call above is the frame for that step; a step with none reports it rather than guessing. Do not hunt `<artifactsDir>/electron-runtime/screenshot/` by hand, and don't trust a step's `screenshotLocalPath`, which points at the original runtime dir. To look at the frames rather than their paths, `muggle run-view <runId> --html --open` renders them inline. Once published — failed runs are published too, see [`dev-loop/publish.md`](./dev-loop/publish.md) — the same frames are cloud-hosted per step as `screenshotUrl`, the form remote runs expose directly.
 - **Verdict** — `Status` + `Error`.
 
 ## Step 2 — Diagnose
@@ -29,7 +29,9 @@ Classify into the failure bucket per [`failure-mode-handling.md`](./failure-mode
 
 ## Step 3 — Present the debug card, then the guaranteed offer
 
-Show the **debug card** first: attempted steps + reasoning, the failing step's screenshot (or a one-line note if a path is genuinely absent), and the one-line diagnosis.
+Show the **debug card** first: attempted steps + reasoning, the failing step's screenshot (or a one-line note if a path is genuinely absent), and the one-line diagnosis. For a local run `muggle-local-run-steps-get` already returns that card's body as text — print it rather than reassembling it, and offer `muggle run-view <runId> --html` when the user should see the frames themselves.
+
+A verdict that disagrees with its own frames is common enough to check for: if the steps say the agent saw the thing its verdict calls missing, say so instead of reporting the verdict.
 
 Then present one `AskUserQuestion` whose options are:
 

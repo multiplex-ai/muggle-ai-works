@@ -200,6 +200,21 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
             },
           ),
       ),
+      tool(
+        "muggle-local-run-steps-get",
+        "A run's steps beside the frames they produced (mock).",
+        PERMISSIVE_SHAPE,
+        async () =>
+          jsonResult(
+            fixtures.runStepsResult ?? {
+              runId: "run-stub",
+              status: "passed",
+              verdict: null,
+              steps: [],
+              screenshotCount: 0,
+            },
+          ),
+      ),
     ],
   });
 

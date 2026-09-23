@@ -247,11 +247,11 @@ so the result carries a viewUrl straight to the dashboard
 ├── oauth-session.json    # OAuth tokens (short-lived, auto-refresh)
 ├── api-key.json          # Long-lived key for service calls
 ├── projects/             # Local project cache
-├── sessions/             # Run sessions
+├── sessions/             # Run sessions — read one with `muggle run-view [runId]`
 │   └── {runId}/
-│       ├── action-script.json    # Recorded browser steps
-│       ├── results.md            # Step-by-step report
-│       └── screenshots/          # Per-step images
+│       ├── action-script.json            # Recorded browser steps
+│       ├── results.md                    # Step-by-step report
+│       └── electron-runtime/screenshot/  # Per-step images
 ├── muggle-do/sessions/   # Cycle state, iterations, PR watchers
 └── electron-app/{version}/
 ```
@@ -260,7 +260,7 @@ so the result carries a viewUrl straight to the dashboard
 
 ## MCP tool reference
 
-106 tools across authentication, projects, use cases, test cases, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
+108 tools across authentication, projects, use cases, test cases, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
 **Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
@@ -308,6 +308,7 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 | `muggle-local-execute-replay` | Replay an existing script |
 | `muggle-local-cancel-execution` | Cancel the active run |
 | `muggle-local-run-result-list` / `-get` | Results, screenshots, and cloud refs (`viewUrl`) |
+| `muggle-local-run-steps-get` | A run's ordered steps beside the frame each produced |
 | `muggle-local-test-script-list` / `-get` | Read locally cached scripts |
 | `muggle-local-last-host-*` / `-last-project-*` | Remember the host and project between runs |
 | `muggle-local-preferences-set` | Set harness preferences |
@@ -334,6 +335,11 @@ muggle upgrade [--check]      # Install the latest runner version
 muggle versions               # List installed runner versions
 muggle cleanup [--dry-run]    # Remove old versions and obsolete skills
 muggle doctor                 # Diagnose installation problems
+
+# Inspecting runs
+muggle run-view [runId]       # A run's steps beside the frames they produced (newest run by default)
+muggle run-view --html        # Render those frames as a self-contained page
+muggle run-view --open        # Render it and open it in the browser
 
 # Authentication
 muggle login [--key-expiry 90d]

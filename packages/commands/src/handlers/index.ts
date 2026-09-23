@@ -13,6 +13,7 @@ export { helpCommand } from "../../../../src/cli/help.js";
 export { initCommand } from "../../../../src/cli/init/init-command.js";
 export { loginCommand, logoutCommand, statusCommand } from "../../../../src/cli/login.js";
 export { prWalkthroughCheckCommand } from "../../../../src/cli/pr-walkthrough-check.js";
+export { runViewCommand } from "../../../../src/cli/run-view.js";
 export { serveCommand } from "../../../../src/cli/serve.js";
 export { setupCommand } from "../../../../src/cli/setup.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";

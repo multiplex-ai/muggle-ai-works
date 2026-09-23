@@ -30,6 +30,9 @@ const expectedCommands = [
   "logout",
   "status",
   "build-pr-section",
+  "run-view",
+  "pr-walkthrough-check",
+  "ci-install",
 ];
 
 // https-only report: collectGsUrls() finds nothing, so build-pr-section renders
@@ -69,36 +72,36 @@ function check(name, fn) {
 }
 
 check("muggle --version prints the package version", () => {
-  const result = run(["--version"]);
-  assert(result.status === 0, `exited ${result.status}`);
-  assert(result.stdout.trim() === version, `printed '${result.stdout.trim()}', expected '${version}'`);
+  const cliRun = run(["--version"]);
+  assert(cliRun.status === 0, `exited ${cliRun.status}`);
+  assert(cliRun.stdout.trim() === version, `printed '${cliRun.stdout.trim()}', expected '${version}'`);
 });
 
 check("muggle --help advertises every registered command", () => {
-  const result = run(["--help"]);
-  assert(result.status === 0, `exited ${result.status}`);
+  const cliRun = run(["--help"]);
+  assert(cliRun.status === 0, `exited ${cliRun.status}`);
   for (const command of expectedCommands) {
-    assert(result.stdout.includes(command), `--help omits '${command}'`);
+    assert(cliRun.stdout.includes(command), `--help omits '${command}'`);
   }
 });
 
 check("muggle help prints the how-to guide", () => {
-  const result = run(["help"]);
-  assert(result.status === 0, `exited ${result.status}`);
-  assert(result.stdout.includes("Muggle AI Works"), "guide text missing");
+  const cliRun = run(["help"]);
+  assert(cliRun.status === 0, `exited ${cliRun.status}`);
+  assert(cliRun.stdout.includes("Muggle AI Works"), "guide text missing");
 });
 
 check("muggle build-pr-section renders the PR evidence block from stdin", () => {
-  const result = run(["build-pr-section"], sampleReport);
-  assert(result.status === 0, `exited ${result.status}: ${result.stderr}`);
-  const body = JSON.parse(result.stdout).body;
+  const cliRun = run(["build-pr-section"], sampleReport);
+  assert(cliRun.status === 0, `exited ${cliRun.status}: ${cliRun.stderr}`);
+  const body = JSON.parse(cliRun.stdout).body;
   assert(body.startsWith("<!-- muggle-pr-section:v1 -->\n"), "missing section marker");
   assert(body.includes("E2E Acceptance Results"), "missing results heading");
 });
 
 check("muggle rejects an unknown command with a nonzero exit (never hangs)", () => {
-  const result = run(["definitely-not-a-command"]);
-  assert(result.status === 1, `expected exit 1, got ${result.status}`);
+  const cliRun = run(["definitely-not-a-command"]);
+  assert(cliRun.status === 1, `expected exit 1, got ${cliRun.status}`);
 });
 
 if (failures.length > 0) {

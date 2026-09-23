@@ -34,7 +34,7 @@ describe("help guidance", () => {
   it("help guidance lists the core CLI commands", () => {
     process.env.NO_COLOR = "1";
     const out = getHelpGuidance();
-    for (const cmd of ["muggle setup", "muggle doctor", "muggle upgrade", "muggle login", "muggle cleanup"]) {
+    for (const cmd of ["muggle setup", "muggle doctor", "muggle upgrade", "muggle login", "muggle cleanup", "muggle run-view"]) {
       expect(out).toContain(cmd);
     }
   });

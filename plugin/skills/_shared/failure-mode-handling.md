@@ -114,8 +114,9 @@ Triggered when `muggle-local-execute-replay` returns `status: "failed"` (or non-
 Call `muggle-local-run-result-get` (local) or the remote equivalent and read **structured fields**, not `execute`'s response stdout tail (it's a truncated display excerpt and routinely cuts off mid-sentence). Order:
 
 1. `Status` + `Error` — the verdict and the one-line cause.
-2. `Artifacts` section, when present — opens `artifactsDir`. Read `results.md` (step-by-step + screenshot links) for the per-step verdict, then `action-script.json` for what the agent attempted.
-3. `stdout.log` / `stderr.log` only when the Artifacts section is absent or `results.md` doesn't exist (e.g. early Electron failure).
+2. `muggle-local-run-steps-get` with the `runId` (local) — what the agent attempted, each step beside the frame it produced. This replaces reading `action-script.json` out of `artifactsDir` by hand.
+3. `Artifacts` section, when present — opens `artifactsDir`. Read `results.md` for the per-step verdict on a passing run.
+4. `stdout.log` / `stderr.log` only when the Artifacts section is absent or `results.md` doesn't exist (e.g. early Electron failure).
 
 ### Initial signal heuristics
 
@@ -197,12 +198,12 @@ Triggered when `muggle-local-execute-test-generation` (or the remote equivalent)
 
 ### Where to read signals
 
-Same rule as section B: read **structured fields** from `muggle-local-run-result-get`, not `execute`'s response stdout tail. The `Artifacts` section is present on failed regen too — `action-script.json` is included when generation reached the step-emission stage (typical for `goal_not_achievable`: the agent's attempted steps + halt summary). `results.md` and per-step screenshots are absent on failure (electron-app emits those only on the successful completion path).
+Same rule as section B: read **structured fields** from `muggle-local-run-result-get`, not `execute`'s response stdout tail. The `Artifacts` section is present on failed regen too — `action-script.json` is included when generation reached the step-emission stage (typical for `goal_not_achievable`: the agent's attempted steps + halt summary). `results.md` is absent on failure; the per-step frames are not — electron-app writes those as it goes, so a halted run still has one per step taken.
 
 Order:
 
 1. `Status` + `Error` — the verdict and one-line cause. `Error: Electron exited with code 26` typically means `goal_not_achievable`.
-2. `action-script.json` in `artifactsDir` when present — read the steps the agent attempted and the `summaryStep` (halt reason, goal-not-achievable verdict).
+2. `muggle-local-run-steps-get` with the `runId` — the steps the agent attempted, its own explanation of each, the frame each produced, and the closing `summaryStep` verdict. Read this before trusting the verdict: a `goal_not_achievable` whose frames show the thing it calls missing is a false negative, not a defect.
 3. `stdout.log` / `stderr.log` at `artifactsDir/` — last 100 lines is usually enough; look for the final structured summary the generation agent emitted (it appears near the end as a JSON-ish block, not in the truncated execute tail).
 4. Remote regen — fetch the workflow run with `muggle-remote-wf-get-ts-gen-latest-run`; signals live in `summaryStep` and the per-step list there.
 

@@ -46,6 +46,35 @@
           { "tool": "muggle-local-execute-test-generation", "argContains": "" }
         ]
       }
+    },
+    {
+      "name": "verdict-contradicted-by-its-own-steps-is-inconclusive",
+      "prompt": "Run acceptance tests against http://localhost:3000 for the demo app.\n\nUse the muggle-test run loop: for EACH test case below, call `muggle-local-execute-replay` with that test case, then `muggle-local-run-result-get` for the returned runId. For any run that does not pass, work the debug path in `plugin/skills/_shared/debug-failed-run.md` Steps 1-2 before you classify it — gather the attempted steps and their evidence the way that file says to, then bucket it. Then return your report per your output contract.\n\nTest cases (project proj-demo-1, already bound):\n- tc-301 \"Place an order\"",
+      "fixtures": {
+        "lastProject": { "id": "proj-demo-1", "url": "http://localhost:3000" },
+        "executeResult": { "runId": "run-contradicted", "status": "failed", "viewUrl": "https://example.invalid/run/run-contradicted" },
+        "runResult": { "runId": "run-contradicted", "status": "failed", "viewUrl": "https://example.invalid/run/run-contradicted", "artifactsDir": "/sessions/run-contradicted", "steps": [{ "summary": "Place the order", "status": "passed" }, { "summary": "Check for the order confirmation banner", "status": "failed" }], "failureStepIndex": 1, "error": "The order confirmation banner never appeared after placing the order." },
+        "runStepsResult": {
+          "runId": "run-contradicted",
+          "sessionPath": "/sessions/run-contradicted",
+          "title": "Place an order",
+          "status": "failed",
+          "verdict": "Failed. The order confirmation banner never appeared.",
+          "screenshotCount": 3,
+          "steps": [
+            { "index": 0, "action": "navigate", "explanation": "Workflow started at url [http://localhost:3000/checkout].", "screenshotPath": "/sessions/run-contradicted/electron-runtime/screenshot/step001_a_screenshot.jpg", "url": "http://localhost:3000/checkout" },
+            { "index": 1, "action": "click", "explanation": "Clicked 'Place order'. The green order confirmation banner reading 'Your order is confirmed' is now visible at the top of the page.", "screenshotPath": "/sessions/run-contradicted/electron-runtime/screenshot/step002_a_screenshot.jpg", "url": "http://localhost:3000/checkout" },
+            { "index": 2, "action": "halt", "explanation": "The order confirmation banner is displayed with the order number.", "screenshotPath": "/sessions/run-contradicted/electron-runtime/screenshot/step003_a_screenshot.jpg", "url": "http://localhost:3000/checkout" }
+          ]
+        }
+      },
+      "expect": {
+        "outputMatches": ["Verdict:\\**\\s*INCONCLUSIVE\\b"],
+        "outputContains": ["Reason:"],
+        "outputNotContains": ["Blocking issue:"],
+        "outputNotMatches": ["(^|\\n)[`*>#\\s-]*needs-input:"],
+        "requireToolAttempts": [{ "tool": "muggle-local-run-steps-get", "argContains": "" }]
+      }
     }
   ]
 }

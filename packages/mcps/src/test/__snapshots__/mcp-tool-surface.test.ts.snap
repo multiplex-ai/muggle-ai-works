@@ -59,6 +59,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-run-result-list",
   },
   {
+    "description": "Read a local run's steps beside the frames they produced, so the run's own verdict can be shown against its own evidence. Returns the ordered steps (action, the agent's explanation, screenshot path) plus the run's status and closing verdict. Takes a run id or a unique prefix; omit it for the most recent run. Read-only — it never modifies a session. Reach for this after a failed local run instead of parsing action-script.json by hand.",
+    "name": "muggle-local-run-steps-get",
+  },
+  {
     "description": "Emit a structured failure-mode telemetry event recording how a Muggle Test skill classified a situation and what action the user took. Used at five decision points: 'pre-execution-classification' (replay vs regen), 'replay-failure-classified', 'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved'. Records to ~/.muggle-ai/telemetry/failure-events.jsonl. Never fails the skill on telemetry errors.",
     "name": "muggle-local-telemetry-event-emit",
   },
@@ -449,6 +453,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-local-preferences-set",
   "muggle-local-run-result-get",
   "muggle-local-run-result-list",
+  "muggle-local-run-steps-get",
   "muggle-local-telemetry-event-emit",
   "muggle-local-telemetry-skill-emit",
   "muggle-local-test-script-get",

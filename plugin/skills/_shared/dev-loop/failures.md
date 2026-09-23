@@ -4,7 +4,9 @@ For each `runId`, call `muggle-local-run-result-get` and read **structured field
 
 ## Artifacts
 
-The `Artifacts` section is present after any completed run; it names `artifactsDir` and lists files. On pass, `results.md` is the step-by-step verdict (read it before summarizing). On failure, `stdout.log` + `stderr.log` are always present; `action-script.json` appears when generation reached step-emission (typical for `goal_not_achievable`); `results.md` and per-step screenshots are absent on the failure path — don't hunt for them.
+The `Artifacts` section is present after any completed run; it names `artifactsDir` and lists files. On pass, `results.md` is the step-by-step verdict (read it before summarizing). On failure, `stdout.log` + `stderr.log` are always present; `action-script.json` appears when generation reached step-emission (typical for `goal_not_achievable`); `results.md` is absent.
+
+Per-step frames are **not** absent on the failure path — the `Artifacts` section just doesn't list them. A failed run writes them under `artifactsDir` like any other, so a run that halted still has a frame for every step it took. Call `muggle-local-run-steps-get` with the `runId` to get the steps paired with those frames rather than walking the directory.
 
 ## Common failures
 

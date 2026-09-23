@@ -9,6 +9,7 @@ import {
   buildPrSectionCommand,
   ciInstallCommand,
   prWalkthroughCheckCommand,
+  runViewCommand,
   cleanupCommand,
   doctorCommand,
   helpCommand,
@@ -130,6 +131,15 @@ function createProgram (): Command {
     .description("Render a muggle-do PR body evidence block from an e2e report on stdin")
     .option("--max-body-bytes <n>", "Max UTF-8 byte budget for the PR body (default 60000)")
     .action(buildPrSectionCommand);
+
+  program
+    .command("run-view")
+    .argument("[runId]", "Run id, or a unique prefix of one (default: the newest run)")
+    .description("Show a local run's steps beside the frames they produced")
+    .option("--html", "Render a self-contained HTML page instead of terminal text")
+    .option("--open", "Open the rendered page in the default browser (implies --html)")
+    .option("--out-dir <dir>", "Directory to write the page into (default: current directory)")
+    .action(runViewCommand);
 
   program
     .command("pr-walkthrough-check")

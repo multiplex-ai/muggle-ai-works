@@ -10,6 +10,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { getLogger } from "../../../shared/logger.js";
+import { readRunView, renderRunViewText, RunViewError } from "../../local/services/run-view/index.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
 import {
@@ -20,6 +21,7 @@ import {
   CancelExecutionInputSchema,
   RunResultListInputSchema,
   RunResultGetInputSchema,
+  RunStepsGetInputSchema,
   TestScriptListInputSchema,
   TestScriptGetInputSchema,
   PreferencesSetInputSchema,
@@ -163,6 +165,35 @@ const runResultListTool: ILocalMcpTool = {
     const content = ["## Run Results", "", ...lines].join("\n");
 
     return { content: content, isError: false, data: { results: results } };
+  },
+};
+
+const runStepsGetTool: ILocalMcpTool = {
+  name: "muggle-local-run-steps-get",
+  description:
+    "Read a local run's steps beside the frames they produced, so the run's own verdict can be shown against its own evidence. Returns the ordered steps (action, the agent's explanation, screenshot path) plus the run's status and closing verdict. Takes a run id or a unique prefix; omit it for the most recent run. Read-only — it never modifies a session. Reach for this after a failed local run instead of parsing action-script.json by hand.",
+  inputSchema: RunStepsGetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-run-steps-get");
+
+    const input = RunStepsGetInputSchema.parse(ctx.input);
+
+    try {
+      const runView = readRunView(input.runId);
+      // The frames cannot travel through this surface, so the offer to render them is left to the
+      // CLI; a caller here already has the paths and can present them itself.
+      return {
+        content: renderRunViewText(runView, { includeHtmlOffer: false }),
+        isError: false,
+        data: { run: runView },
+      };
+    } catch (error) {
+      if (error instanceof RunViewError) {
+        return { content: error.message, isError: true };
+      }
+      throw error;
+    }
   },
 };
 
@@ -682,6 +713,7 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   // Run result tools
   runResultListTool,
   runResultGetTool,
+  runStepsGetTool,
   // Test script tools (read-only)
   testScriptListTool,
   testScriptGetTool,

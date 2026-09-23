@@ -165,6 +165,22 @@ export const RunResultGetInputSchema = z.object({
 
 export type RunResultGetInput = z.infer<typeof RunResultGetInputSchema>;
 
+/**
+ * Run steps get input schema.
+ *
+ * The id is a free-form string rather than a UUID: the newest run is the common case and takes no
+ * id at all, and a person reading a terminal supplies a prefix rather than retyping a UUID.
+ */
+export const RunStepsGetInputSchema = z.object({
+  runId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Run id, or a unique prefix of one. Omit to read the most recent run."),
+});
+
+export type RunStepsGetInput = z.infer<typeof RunStepsGetInputSchema>;
+
 
 /**
  * Test script list input schema.

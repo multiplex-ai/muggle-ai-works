@@ -8,6 +8,7 @@ export * from "./shared/runtime-target.js";
 export * from "./shared/checksum.js";
 export * from "./shared/logger.js";
 export * from "./shared/open-browser.js";
+export * from "./mcp/local/services/run-view/index.js";
 export * from "./shared/api-key.js";
 export * from "./shared/config.js";
 export * from "./shared/auth.js";

@@ -21,7 +21,9 @@ This stage is **mode-driven by pre-flight**:
 - `local-e2e` runs the local browser flow (`test-feature-local` approach).
 - `unit-only` or `skip` does not execute browser runs and must emit an explicit non-pass verdict (`SKIPPED` / `UNIT-ONLY` equivalent in downstream reporting).
 
-**Every SKIPPED exit from this stage** (Step 0 poll-only, Step 1 `unit-only`/`skip`, Step 1.5 placeholder branch) also runs `echo "MUGGLE_E2E_SKIP: <one-line reason>"` as a single Bash call before exiting — it records the skip in guardrail session state so the Stop-hook E2E gate releases instead of blocking the turn.
+**Every SKIPPED exit from this stage** (Step 0 poll-only, Step 1 `unit-only`/`skip`, Step 1.5 placeholder branch) also runs `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"` as a single Bash call before exiting — it records the skip in guardrail session state so the Stop-hook E2E gate releases instead of blocking the turn.
+
+`<CODE>` is one of `NO_WEB_SURFACE`, `DEV_SERVER_UNREACHABLE`, `EMPTY_DIFF`, `MUGGLE_AUTH_DOWN`, `NO_PR`, `USER_WAIVED`, and the guardrail verifies it against the environment before the gate releases. Every code names a fact about the environment; none names a judgment about the change, so "static page", "layout only", "unit tests cover it" and "verified with another tool" have no way through — cite a code that holds, or run the tests. `USER_WAIVED` needs the user's own literal `SKIP E2E` in the transcript, never an inferred go-ahead. A rejected declaration is answered with the check that failed, and the turn stays blocked.
 - `staging-replay` is not executed in this stage path and should be surfaced as `INCONCLUSIVE` unless the caller has already routed to a dedicated staging runner.
 
 For local runs, the tool boundaries are:
@@ -50,7 +52,7 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 Read `state.md`.
 
-**No `## Pre-flight answers` block at all** → the session was seeded poll-only (e.g. by auto-track, [`../muggle-pr-followup/auto-track.md`](../muggle-pr-followup/auto-track.md)). Treat `Validation` as `skip`: emit a `SKIPPED` report with reason `no validation context seeded` and exit cleanly. The watcher owns no E2E context by design; "no context" is a clean skip, not a failure.
+**No `## Pre-flight answers` block at all** → the session was seeded poll-only (e.g. by auto-track, [`../muggle-pr-followup/auto-track.md`](../muggle-pr-followup/auto-track.md)). Treat `Validation` as `skip`: emit a `SKIPPED` report citing `NO_PR` and exit cleanly. The watcher owns no E2E context by design; "no context" is a clean skip, not a failure.
 
 Otherwise the block was seeded by pre-flight or bootstrap per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) — read it the same way regardless of seeder. The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
 
@@ -68,13 +70,13 @@ Before launching the local runner:
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
 
-If validation is `unit-only` or `skip`, emit a `SKIPPED` report with a one-line reason and exit cleanly.
+If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly.
 
 If validation is `staging-replay`, emit `INCONCLUSIVE` with reason `staging replay not handled in Stage 6 local runner path` and exit cleanly.
 
 ### Step 1.5: Placeholder branch detection
 
-Read `pathClassification` from the impact-analysis output (emitted by `do/impact-analysis.md`). If it is `none` — i.e. `git diff <default-branch>...HEAD --stat` was empty after rebase — there is no code under test and running test cases would only re-test master. Write a one-paragraph SKIPPED result to the E2E report (or return a SKIPPED verdict to the caller) and exit the stage cleanly. **Do not** synthesize test cases or run anything.
+Read `pathClassification` from the impact-analysis output (emitted by `do/impact-analysis.md`). If it is `none` — i.e. `git diff <default-branch>...HEAD --stat` was empty after rebase — there is no code under test and running test cases would only re-test master. Write a SKIPPED result citing `EMPTY_DIFF` to the E2E report (or return that verdict to the caller) and exit the stage cleanly. **Do not** synthesize test cases or run anything.
 
 ### Step 1.7: Route + project classification
 

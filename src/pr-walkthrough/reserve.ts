@@ -1,4 +1,10 @@
-import { classifyComment, renderReservedComment, renderSkippedComment } from "./comment.js";
+import type { E2eSkipCode } from "../e2e-skip/types.js";
+import {
+  classifyComment,
+  renderReservedComment,
+  renderSkippedComment,
+  renderUnreasonedSkipComment,
+} from "./comment.js";
 import {
   defaultGhRunner,
   listPrComments,
@@ -50,27 +56,43 @@ export function reserveWalkthroughComment(prUrl: string, run: GhRunner = default
   return reserveComment(pr, comments, run);
 }
 
-/**
- * Record in the open why this PR gets no walkthrough.
- *
- * A posted walkthrough always wins: a skip declared after a run must not erase
- * the evidence the run produced.
- *
- * @returns Whether the reason reached the PR.
- */
-export function settleWalkthroughCommentAsSkipped(
-  prUrl: string,
-  reason: string,
-  run: GhRunner = defaultGhRunner,
-): boolean {
-  if (!reason.trim()) return false;
+function settleWith(prUrl: string, body: string, run: GhRunner): boolean {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
   if (commentWithStatus(comments, WalkthroughCommentStatus.Reported)) return false;
   if (commentWithStatus(comments, WalkthroughCommentStatus.Skipped)) return false;
-  const body = renderSkippedComment(reason);
   const reserved = commentWithStatus(comments, WalkthroughCommentStatus.Pending);
   return reserved ? patchPrComment(pr, reserved.id, body, run) : postPrComment(pr, body, run);
+}
+
+/**
+ * Record in the open why this PR gets no walkthrough.
+ *
+ * Takes the verified code, never prose. A posted walkthrough always wins: a
+ * skip declared after a run must not erase the evidence the run produced.
+ *
+ * @returns Whether the reason reached the PR.
+ */
+export function settleWalkthroughCommentAsSkipped(
+  prUrl: string,
+  code: E2eSkipCode,
+  detail: string,
+  run: GhRunner = defaultGhRunner,
+): boolean {
+  return settleWith(prUrl, renderSkippedComment(code, detail), run);
+}
+
+/**
+ * Record that the session ended owing an acceptance run and never cited a
+ * verifiable code.
+ *
+ * @returns Whether the notice reached the PR.
+ */
+export function settleWalkthroughCommentAsUnreasoned(
+  prUrl: string,
+  run: GhRunner = defaultGhRunner,
+): boolean {
+  return settleWith(prUrl, renderUnreasonedSkipComment(), run);
 }

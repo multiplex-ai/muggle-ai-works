@@ -39,3 +39,4 @@ Callers consult the `postPRVisualWalkthrough` gate **before** invoking this skil
 - Mode is chosen by the caller, not the user.
 - Never create a PR without confirmation in Mode A.
 - Don't run tests — this skill only dispatches rendering/posting of existing results. No report and no run identifiers in context → redirect the caller to `muggle-test`, `muggle-test-feature-local`, or `muggle-do`.
+- The designated comment carries a real Muggle run or a verified `MUGGLE_E2E_SKIP` code, and nothing else. Never put another tool's findings — puppeteer output, a unit-test summary, a manual check — under the walkthrough heading or the slot marker: that heading is Muggle vouching for a run, and a PreToolUse guard denies the post outright when no run was recorded. Supplemental evidence is welcome as its own comment, without the heading or marker.

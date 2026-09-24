@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
+  settleWalkthroughCommentAsUnreasoned,
 } from "../../pr-walkthrough/reserve";
 import { renderReservedComment } from "../../pr-walkthrough/comment";
+import { E2eSkipCode } from "../../e2e-skip/types";
 import { WALKTHROUGH_SKIPPED_MARKER, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
 
 const PR_URL = "https://github.com/o/r/pull/7";
@@ -61,31 +63,36 @@ describe("reserveWalkthroughComment", () => {
 });
 
 describe("settleWalkthroughCommentAsSkipped", () => {
-  it("patches the designated comment with the stated reason", () => {
+  it("patches the designated comment with the verified code", () => {
     const gh = recorder({ "issues/7/comments": listedComments(["hi", renderReservedComment()]) });
-    expect(settleWalkthroughCommentAsSkipped(PR_URL, "no browser surface", gh.run)).toBe(true);
+    expect(
+      settleWalkthroughCommentAsSkipped(PR_URL, E2eSkipCode.NoWebSurface, "hooks and a CLI", gh.run),
+    ).toBe(true);
     const patched = gh.calls.find((call) => call.args.includes("PATCH"));
     expect(patched?.args.join(" ")).toContain("issues/comments/2");
     expect(patched?.input).toContain(WALKTHROUGH_SKIPPED_MARKER);
-    expect(patched?.input).toContain("no browser surface");
+    expect(patched?.input).toContain("NO_WEB_SURFACE");
   });
 
   it("reserves the slot first when the PR has no designated comment", () => {
     const gh = recorder({ "issues/7/comments": listedComments([]) });
-    expect(settleWalkthroughCommentAsSkipped(PR_URL, "docs only", gh.run)).toBe(true);
+    expect(settleWalkthroughCommentAsSkipped(PR_URL, E2eSkipCode.EmptyDiff, "", gh.run)).toBe(true);
     const posted = gh.calls.find((call) => call.args.includes("POST"));
-    expect(posted?.input).toContain("docs only");
+    expect(posted?.input).toContain("EMPTY_DIFF");
   });
 
   it("never overwrites a posted walkthrough with a skip", () => {
     const gh = recorder({ "issues/7/comments": listedComments(["<!-- muggle-pr-section:v1 -->\n2 passed"]) });
-    expect(settleWalkthroughCommentAsSkipped(PR_URL, "docs only", gh.run)).toBe(false);
+    expect(settleWalkthroughCommentAsSkipped(PR_URL, E2eSkipCode.EmptyDiff, "", gh.run)).toBe(false);
     expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
   });
+});
 
-  it("does nothing without a stated reason", () => {
+describe("settleWalkthroughCommentAsUnreasoned", () => {
+  it("marks the slot as an unreasoned evasion so the release is visible to reviewers", () => {
     const gh = recorder({ "issues/7/comments": listedComments([renderReservedComment()]) });
-    expect(settleWalkthroughCommentAsSkipped(PR_URL, "  ", gh.run)).toBe(false);
-    expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
+    expect(settleWalkthroughCommentAsUnreasoned(PR_URL, gh.run)).toBe(true);
+    const patched = gh.calls.find((call) => call.args.includes("PATCH"));
+    expect(patched?.input).toContain("no verified reason given");
   });
 });

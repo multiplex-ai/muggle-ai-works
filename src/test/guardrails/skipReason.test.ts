@@ -1,29 +1,49 @@
 import { describe, it, expect } from "vitest";
-import { skipReasonFrom } from "../../guardrails/skipReason";
+import { judgeE2eSkip } from "../../guardrails/skipReason";
+import { E2eSkipCode, type SkipProbes } from "../../e2e-skip/types";
+import type { GuardrailState, HookInput } from "../../guardrails/types";
 
-describe("skipReasonFrom", () => {
-  it("reads the reason off an E2E skip declaration", () => {
-    expect(skipReasonFrom('echo "MUGGLE_E2E_SKIP: no browser surface in this change"')).toBe(
-      "no browser surface in this change",
+const probes = (overrides: Partial<SkipProbes> = {}): SkipProbes => ({
+  readTextFile: () => null,
+  listFiles: () => [],
+  runGit: () => null,
+  isReachable: () => false,
+  ...overrides,
+});
+
+const state = (overrides: Partial<GuardrailState> = {}): GuardrailState => ({
+  sessionId: "s",
+  prsHandled: [],
+  ...overrides,
+});
+
+const declaring = (cmd: string): HookInput => ({ tool_name: "Bash", tool_input: { command: cmd }, cwd: "/repo" });
+
+describe("judgeE2eSkip", () => {
+  it("accepts a verified code", () => {
+    const judged = judgeE2eSkip(
+      declaring('echo "MUGGLE_E2E_SKIP: NO_PR: nothing was opened"'),
+      state(),
+      probes(),
     );
+    expect(judged).toEqual({
+      accepted: true,
+      skip: { code: E2eSkipCode.NoPr, detail: "nothing was opened" },
+    });
   });
 
-  it("reads the reason off a walkthrough skip declaration", () => {
-    expect(skipReasonFrom("echo 'MUGGLE_WALKTHROUGH_SKIP: someone else's PR'")).toBe(
-      "someone else's PR",
+  // The session's own PR list is what refutes the claim, which is why the
+  // adapter feeds state into the verification rather than just the command.
+  it("rejects a code the session's own state refutes", () => {
+    const judged = judgeE2eSkip(
+      declaring('echo "MUGGLE_E2E_SKIP: NO_PR"'),
+      state({ prsHandled: ["https://github.com/o/r/pull/9"] }),
+      probes(),
     );
+    expect(judged?.accepted).toBe(false);
   });
 
-  it("ignores a declaration with no reason", () => {
-    expect(skipReasonFrom('echo "MUGGLE_E2E_SKIP:"')).toBeNull();
-    expect(skipReasonFrom('echo "MUGGLE_E2E_SKIP: "')).toBeNull();
-  });
-
-  it("ignores a command that merely mentions the marker", () => {
-    expect(skipReasonFrom("grep -r MUGGLE_E2E_SKIP: plugin/")).toBeNull();
-  });
-
-  it("ignores an unrelated command", () => {
-    expect(skipReasonFrom("pnpm test")).toBeNull();
+  it("returns null for a command that is not a declaration", () => {
+    expect(judgeE2eSkip(declaring("pnpm test"), state(), probes())).toBeNull();
   });
 });

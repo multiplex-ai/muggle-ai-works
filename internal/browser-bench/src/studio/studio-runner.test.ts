@@ -126,7 +126,8 @@ describe("runStudioTaskAsync", () => {
     });
   });
 
-  it("empties a fresh trajectory and browser profile directory per task", async () => {
+
+  it("empties a fresh trajectory directory per task", async () => {
     const { fileSystem, recreatedDirs } = createFakeFileSystem(
       JSON.stringify({
         taskId: "BBC News--0",
@@ -137,7 +138,7 @@ describe("runStudioTaskAsync", () => {
         trajectoryDir: "",
       }),
     );
-    const { spawnStudio, invocations } = createFakeSpawn(Promise.resolve(cleanExit));
+    const { spawnStudio } = createFakeSpawn(Promise.resolve(cleanExit));
 
     await runStudioTaskAsync({
       task: { ...task, taskId: "BBC News--0" },
@@ -150,11 +151,7 @@ describe("runStudioTaskAsync", () => {
       fileSystem: fileSystem,
     });
 
-    expect(recreatedDirs).toEqual([
-      path.join(OUT_DIR, "trajectories", "BBC_News--0"),
-      path.join(OUT_DIR, "profiles", "BBC_News--0"),
-    ]);
-    expect(invocations[0].browserProfileDir).toBe(path.join(OUT_DIR, "profiles", "BBC_News--0"));
+    expect(recreatedDirs).toEqual([path.join(OUT_DIR, "trajectories", "BBC_News--0")]);
   });
 
   it("throws with the exit code and stderr when studio exits non-zero", async () => {

@@ -1,3 +1,5 @@
+import { E2E_SKIP_CODE_CLAIMS } from "../e2e-skip/constants.js";
+import type { E2eSkipCode } from "../e2e-skip/types.js";
 import {
   REPORT_SENTINEL,
   WALKTHROUGH_COMMENT_HEADING,
@@ -19,17 +21,37 @@ export function renderReservedComment(): string {
 /**
  * Body that settles the slot without a run.
  *
- * A blank reason renders the reserved body instead: an unexplained skip is the
- * thing this guard exists to catch, so it must not be able to close the slot.
+ * Takes a verified {@link E2eSkipCode} rather than prose, which is what keeps
+ * another tool's output from wearing this heading: the rendering has nowhere to
+ * put a free-text justification, so a skip can only ever read as one of the
+ * environment facts the guardrail checked for itself.
  */
-export function renderSkippedComment(reason: string): string {
-  const stated = reason.trim();
-  if (!stated) return renderReservedComment();
+export function renderSkippedComment(code: E2eSkipCode, detail: string): string {
+  const stated = detail.trim();
+  const qualifier = stated ? ` — ${stated}` : "";
   return (
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `**E2E skipped** — ${stated}`
+    `**No E2E run.** Muggle verified \`${code}\` — ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`
+  );
+}
+
+/**
+ * Body that settles the slot when the Stop gate gave up without a verified code.
+ *
+ * The gate releases after a bounded number of reminders so an un-runnable E2E
+ * cannot trap a session. That release used to be silent, which made "nobody
+ * gave a reason" indistinguishable on the PR from "E2E did not apply" — so it
+ * now says so in the one place a reviewer is already looking.
+ */
+export function renderUnreasonedSkipComment(): string {
+  return (
+    `${WALKTHROUGH_SLOT_MARKER}\n` +
+    `${WALKTHROUGH_SKIPPED_MARKER}\n` +
+    `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
+    `**No E2E run, and no verified reason given.** The session ended still owing an acceptance run ` +
+    `and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`
   );
 }
 

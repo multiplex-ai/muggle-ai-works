@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { runPrWalkthroughCheck } from "../../../cli/pr-walkthrough/check";
 import { renderReservedComment, renderSkippedComment } from "../../../pr-walkthrough/comment";
+import { E2eSkipCode } from "../../../e2e-skip/types";
 import { CheckConclusion } from "../../../cli/pr-walkthrough/types";
 
 const REPORTED = "<!-- muggle-pr-section:v1 -->\n### Muggle E2E\n3 passed";
@@ -42,8 +43,8 @@ describe("runPrWalkthroughCheck", () => {
     expect(result.exitCode).toBe(0);
   });
 
-  it("passes when the comment states why E2E was skipped", async () => {
-    const gh = ghWithComments([renderSkippedComment("docs-only change")]);
+  it("passes when the comment cites a verified skip code", async () => {
+    const gh = ghWithComments([renderSkippedComment(E2eSkipCode.NoWebSurface, "")]);
     const result = await runPrWalkthroughCheck(options, gh.run);
     expect(result.conclusion).toBe(CheckConclusion.Success);
   });

@@ -1,12 +1,27 @@
-// Anchored to a leading echo for the same reason the skip markers themselves
-// are: a grep, a commit, or a skill edit that merely mentions the token must
-// not be read as a declaration — and must not post a reason to a PR.
-const SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_(?:E2E|WALKTHROUGH)_SKIP:\s*(.+)$/;
+import { homedir } from "os";
+import { defaultSkipProbes } from "../e2e-skip/probes.js";
+import { resolveSkipDeclaration } from "../e2e-skip/resolveSkip.js";
+import type { SkipJudgment, SkipProbes } from "../e2e-skip/types.js";
+import type { GuardrailState, HookInput } from "./types.js";
 
-/** The stated reason in an `echo "MUGGLE_*_SKIP: <reason>"` declaration; `null` when the command states none. */
-export function skipReasonFrom(cmd: string): string | null {
-  const declared = cmd.match(SKIP_DECLARATION);
-  if (!declared) return null;
-  const reason = declared[1].replace(/["']\s*$/, "").trim();
-  return reason || null;
+/**
+ * Judge a tool call as an E2E skip declaration, holding any cited code to its
+ * precondition.
+ *
+ * `null` when the call was not a declaration; a rejected judgment when one was
+ * attempted and did not qualify. The two differ for the caller: only the second
+ * owes the session an explanation, and neither records a skip.
+ */
+export function judgeE2eSkip(
+  input: HookInput,
+  state: GuardrailState,
+  probes: SkipProbes = defaultSkipProbes,
+): SkipJudgment | null {
+  return resolveSkipDeclaration(input.tool_input?.command ?? "", {
+    cwd: input.cwd,
+    prsHandled: state.prsHandled,
+    transcriptPath: input.transcript_path,
+    homeDir: homedir(),
+    probe: probes,
+  });
 }

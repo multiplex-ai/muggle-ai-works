@@ -1,8 +1,8 @@
 import * as path from "node:path";
 
-import { BROWSER_PROFILES_DIRNAME, TRAJECTORIES_DIRNAME } from "../domain/constants";
+import { TRAJECTORIES_DIRNAME } from "../domain/constants";
 import { type BenchmarkTask, type TaskResult } from "../domain/types";
-import { STUDIO_RESULT_FILENAME, STUDIO_TASK_FILENAME } from "./constants";
+import { STUDIO_LOG_FILENAME, STUDIO_RESULT_FILENAME, STUDIO_TASK_FILENAME } from "./constants";
 import { buildStudioTaskFile } from "./studio-invocation";
 import { parseStudioResult, toTaskResult } from "./studio-result";
 import { type SpawnStudio, type StudioExitReport, type StudioProcess, type TaskFileSystem } from "./types";
@@ -73,12 +73,11 @@ export const runStudioTaskAsync = async ({
 }): Promise<TaskResult> => {
   const pathSegment = toPathSegment(task.taskId);
   const trajectoryDir = path.join(outDir, TRAJECTORIES_DIRNAME, pathSegment);
-  const browserProfileDir = path.join(outDir, BROWSER_PROFILES_DIRNAME, pathSegment);
   const taskFilePath = path.join(trajectoryDir, STUDIO_TASK_FILENAME);
   const resultFilePath = path.join(trajectoryDir, STUDIO_RESULT_FILENAME);
+  const studioLogPath = path.join(trajectoryDir, STUDIO_LOG_FILENAME);
 
   await fileSystem.recreateDirAsync(trajectoryDir);
-  await fileSystem.recreateDirAsync(browserProfileDir);
 
   const studioTaskFile = buildStudioTaskFile({
     task: task,
@@ -93,7 +92,7 @@ export const runStudioTaskAsync = async ({
     authFilePath: authFilePath,
     taskFilePath: taskFilePath,
     resultFilePath: resultFilePath,
-    browserProfileDir: browserProfileDir,
+    studioLogPath: studioLogPath,
   });
 
   const exitReport = await awaitExitWithinBudgetAsync({
@@ -104,7 +103,7 @@ export const runStudioTaskAsync = async ({
 
   if (exitReport.exitCode !== 0) {
     throw new Error(
-      `Studio exited ${exitReport.exitCode ?? "on a signal"} for task ${task.taskId}. ${exitReport.stderrTail}`.trim(),
+      `Studio exited ${exitReport.exitCode ?? "on a signal"} for task ${task.taskId}; full output at ${studioLogPath}. ${exitReport.stderrTail}`.trim(),
     );
   }
 

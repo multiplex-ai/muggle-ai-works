@@ -7,6 +7,9 @@ export const DEFAULT_STUDIO_BIN = "muggle-studio";
 /** Names the studio flag that points at the task file. */
 export const BENCHMARK_TASK_FLAG = "--benchmark-task";
 
+/** Studio's own stdout and stderr, captured beside the task's screenshots. */
+export const STUDIO_LOG_FILENAME = "studio.log";
+
 /** The harness writes the task file here, inside the task's own trajectory directory. */
 export const STUDIO_TASK_FILENAME = "task.json";
 

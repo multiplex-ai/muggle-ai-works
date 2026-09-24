@@ -3,8 +3,10 @@ import {
   classifyComment,
   renderReservedComment,
   renderSkippedComment,
+  renderUnreasonedSkipComment,
   walkthroughVerdict,
 } from "../../pr-walkthrough/comment";
+import { E2eSkipCode } from "../../e2e-skip/types";
 import { REPORT_SENTINEL, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
 import { WalkthroughCommentStatus, WalkthroughVerdict } from "../../pr-walkthrough/types";
 
@@ -23,14 +25,31 @@ describe("renderReservedComment", () => {
 });
 
 describe("renderSkippedComment", () => {
-  it("shows the reason to reviewers", () => {
-    const body = renderSkippedComment("no browser surface in this change");
-    expect(body).toContain("no browser surface in this change");
+  it("names the verified code and what it claims", () => {
+    const body = renderSkippedComment(E2eSkipCode.NoWebSurface, "ships hooks and a CLI");
+    expect(body).toContain("NO_WEB_SURFACE");
+    expect(body).toContain("ships hooks and a CLI");
     expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
   });
 
-  it("stays pending when the reason is blank, so an empty skip cannot settle the slot", () => {
-    expect(classifyComment(renderSkippedComment("   "))).toBe(WalkthroughCommentStatus.Pending);
+  it("settles on the code alone when no detail was given", () => {
+    expect(classifyComment(renderSkippedComment(E2eSkipCode.NoPr, "  "))).toBe(
+      WalkthroughCommentStatus.Skipped,
+    );
+  });
+
+  // The rendering takes a code, so there is nowhere to put another tool's
+  // findings — which is what keeps this heading off a run that never happened.
+  it("states plainly that no run happened", () => {
+    expect(renderSkippedComment(E2eSkipCode.EmptyDiff, "")).toContain("No E2E run");
+  });
+});
+
+describe("renderUnreasonedSkipComment", () => {
+  it("settles the slot while saying no verified reason was given", () => {
+    const body = renderUnreasonedSkipComment();
+    expect(body).toContain("no verified reason given");
+    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
   });
 });
 
@@ -65,8 +84,8 @@ describe("walkthroughVerdict", () => {
     );
   });
 
-  it("is satisfied by a skip that states a reason", () => {
-    expect(walkthroughVerdict([renderSkippedComment("docs-only change")])).toBe(
+  it("is satisfied by a skip that cites a verified code", () => {
+    expect(walkthroughVerdict([renderSkippedComment(E2eSkipCode.NoWebSurface, "")])).toBe(
       WalkthroughVerdict.Satisfied,
     );
   });

@@ -506,12 +506,8 @@ function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS) {
 var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
 var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
-var E2E_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_E2E_SKIP\b/;
 function isTestCommand(cmd) {
   return TEST_CMD.test(cmd);
-}
-function isE2ESkipMarker(cmd) {
-  return E2E_SKIP_MARKER.test(cmd);
 }
 function testsPassed(input2) {
   const out = `${input2.tool_response?.stdout ?? ""}
@@ -711,12 +707,12 @@ function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
   const branchPrUrl = lookup.branchPrUrl();
   if (branchPrUrl) candidates.add(branchPrUrl);
   const owed = [];
-  const verified = [];
+  const verified2 = [];
   for (const prUrl of candidates) {
-    if (lookup.prCarriesWalkthrough(prUrl)) verified.push(prUrl);
+    if (lookup.prCarriesWalkthrough(prUrl)) verified2.push(prUrl);
     else owed.push(prUrl);
   }
-  return { owed, verified };
+  return { owed, verified: verified2 };
 }
 function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
   const blockCount = state.walkthroughBlockCount ?? 0;
@@ -730,6 +726,56 @@ function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
 }
 
+// src/e2e-skip/types.ts
+var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
+  E2eSkipCode3["NoWebSurface"] = "NO_WEB_SURFACE";
+  E2eSkipCode3["DevServerUnreachable"] = "DEV_SERVER_UNREACHABLE";
+  E2eSkipCode3["EmptyDiff"] = "EMPTY_DIFF";
+  E2eSkipCode3["MuggleAuthDown"] = "MUGGLE_AUTH_DOWN";
+  E2eSkipCode3["NoPr"] = "NO_PR";
+  E2eSkipCode3["UserWaived"] = "USER_WAIVED";
+  return E2eSkipCode3;
+})(E2eSkipCode || {});
+
+// src/e2e-skip/constants.ts
+var E2E_SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_E2E_SKIP:(.*)$/;
+var SKIP_CODE_TOKEN = /^[\s:]*([A-Za-z_]+)/;
+var E2E_SKIP_CODES = Object.values(E2eSkipCode);
+var E2E_SKIP_CODE_CLAIMS = {
+  ["NO_WEB_SURFACE" /* NoWebSurface */]: "the repo ships no web surface to drive",
+  ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: "the named dev server does not answer",
+  ["EMPTY_DIFF" /* EmptyDiff */]: "the branch carries no diff against its base",
+  ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
+  ["NO_PR" /* NoPr */]: "no pull request was handled this session",
+  ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words"
+};
+var USER_WAIVE_PHRASE = "SKIP E2E";
+var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
+var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
+var BROWSER_FRAMEWORK_PACKAGES = [
+  "react-dom",
+  "next",
+  "vue",
+  "svelte",
+  "@angular/core",
+  "nuxt",
+  "astro",
+  "@remix-run/react",
+  "preact",
+  "solid-js"
+];
+var WEB_SURFACE_CONFIG_FILES = [
+  "next.config.js",
+  "next.config.mjs",
+  "next.config.ts",
+  "vite.config.js",
+  "vite.config.ts",
+  "index.html",
+  "public/index.html"
+];
+var OAUTH_SESSION_FILE = /^oauth-session[\w.-]*\.json$/;
+var MUGGLE_HOME_DIR_NAME = ".muggle-ai";
+
 // src/pr-walkthrough/comment.ts
 function renderReservedComment() {
   return `${WALKTHROUGH_SLOT_MARKER}
@@ -737,14 +783,21 @@ ${WALKTHROUGH_COMMENT_HEADING}
 
 _Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes \u2014 or records why E2E does not apply to this change._`;
 }
-function renderSkippedComment(reason) {
-  const stated = reason.trim();
-  if (!stated) return renderReservedComment();
+function renderSkippedComment(code, detail) {
+  const stated = detail.trim();
+  const qualifier = stated ? ` \u2014 ${stated}` : "";
   return `${WALKTHROUGH_SLOT_MARKER}
 ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
-**E2E skipped** \u2014 ${stated}`;
+**No E2E run.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
+}
+function renderUnreasonedSkipComment() {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**No E2E run, and no verified reason given.** The session ended still owing an acceptance run and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`;
 }
 function classifyComment(body) {
   if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
@@ -827,26 +880,237 @@ function reserveWalkthroughComment(prUrl, run = defaultGhRunner) {
   if (comments === null) return false;
   return reserveComment(pr, comments, run);
 }
-function settleWalkthroughCommentAsSkipped(prUrl, reason, run = defaultGhRunner) {
-  if (!reason.trim()) return false;
+function settleWith(prUrl, body, run) {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
   if (commentWithStatus(comments, "reported" /* Reported */)) return false;
   if (commentWithStatus(comments, "skipped" /* Skipped */)) return false;
-  const body = renderSkippedComment(reason);
   const reserved = commentWithStatus(comments, "pending" /* Pending */);
   return reserved ? patchPrComment(pr, reserved.id, body, run) : postPrComment(pr, body, run);
 }
+function settleWalkthroughCommentAsSkipped(prUrl, code, detail, run = defaultGhRunner) {
+  return settleWith(prUrl, renderSkippedComment(code, detail), run);
+}
+function settleWalkthroughCommentAsUnreasoned(prUrl, run = defaultGhRunner) {
+  return settleWith(prUrl, renderUnreasonedSkipComment(), run);
+}
+
+// src/e2e-skip/parseSkipDeclaration.ts
+var stripQuotes = (text) => text.replace(/["']\s*$/, "").trim();
+var asSkipCode = (candidate) => {
+  const upper = candidate.toUpperCase();
+  return E2E_SKIP_CODES.find((code) => code === upper) ?? null;
+};
+function judgeSkipDeclaration(cmd) {
+  const declared = cmd.match(E2E_SKIP_DECLARATION);
+  if (!declared) return null;
+  const stated = stripQuotes(declared[1] ?? "");
+  if (!stated) return { accepted: false, rejection: "missing-code" /* MissingCode */ };
+  const token = stated.match(SKIP_CODE_TOKEN)?.[1];
+  if (!token) return { accepted: false, rejection: "missing-code" /* MissingCode */ };
+  const code = asSkipCode(token);
+  if (!code) return { accepted: false, rejection: "unknown-code" /* UnknownCode */, claimedCode: token };
+  const detail = stated.slice(stated.indexOf(token) + token.length).replace(/^[\s:]+/, "").trim();
+  return { accepted: true, skip: { code, detail } };
+}
+var verified = { verified: true };
+var refuted = (failure) => ({ verified: false, failure });
+var URL_IN_DETAIL = /https?:\/\/[^\s"']+|localhost:\d+/i;
+var parseManifest = (manifest) => {
+  if (!manifest) return {};
+  try {
+    return JSON.parse(manifest);
+  } catch {
+    return {};
+  }
+};
+var verifyNoWebSurface = (context) => {
+  if (!context.cwd) return refuted("no working directory was available to inspect");
+  const manifest = parseManifest(context.probe.readTextFile(join(context.cwd, "package.json")));
+  const serving = Object.entries(manifest.scripts ?? {}).find(
+    ([, command]) => WEB_SERVER_COMMAND.test(command)
+  );
+  if (serving) return refuted(`the "${serving[0]}" script runs a web server (${serving[1]})`);
+  const dependencies = { ...manifest.dependencies, ...manifest.devDependencies };
+  const framework = BROWSER_FRAMEWORK_PACKAGES.find((name) => name in dependencies);
+  if (framework) return refuted(`${framework} is a declared dependency`);
+  const config = WEB_SURFACE_CONFIG_FILES.find(
+    (file) => context.probe.readTextFile(join(context.cwd, file)) !== null
+  );
+  if (config) return refuted(`the repo contains ${config}`);
+  return verified;
+};
+var verifyDevServerUnreachable = (context, detail) => {
+  const url = detail.match(URL_IN_DETAIL)?.[0];
+  if (!url) return refuted("the detail names no url to probe");
+  if (context.probe.isReachable(url)) return refuted(`${url} answered the probe`);
+  return verified;
+};
+var verifyEmptyDiff = (context) => {
+  if (!context.cwd) return refuted("no working directory was available to inspect");
+  const head = context.probe.runGit(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], context.cwd);
+  const base = head?.trim();
+  if (!base) return refuted("the repo's base branch could not be resolved");
+  const diff = context.probe.runGit(["diff", `${base}...HEAD`, "--stat"], context.cwd);
+  if (diff === null) return refuted("the diff against the base branch could not be read");
+  if (diff.trim()) return refuted(`the branch carries a diff against ${base}`);
+  return verified;
+};
+var liveSessionExpiry = (session) => {
+  if (!session) return null;
+  try {
+    const expiresAt = JSON.parse(session).expiresAt;
+    if (!expiresAt) return null;
+    const expiry = Date.parse(expiresAt);
+    return !Number.isNaN(expiry) && expiry > Date.now() ? expiresAt : null;
+  } catch {
+    return null;
+  }
+};
+var verifyMuggleAuthDown = (context) => {
+  const muggleHome = join(context.homeDir, MUGGLE_HOME_DIR_NAME);
+  const sessionFiles = context.probe.listFiles(muggleHome).filter((name) => OAUTH_SESSION_FILE.test(name));
+  for (const name of sessionFiles) {
+    const expiresAt = liveSessionExpiry(context.probe.readTextFile(join(muggleHome, name)));
+    if (expiresAt) return refuted(`${name} holds a session valid until ${expiresAt}`);
+  }
+  return verified;
+};
+var verifyNoPr = (context) => {
+  if (context.prsHandled.length === 0) return verified;
+  return refuted(`this session handled ${context.prsHandled.join(", ")}`);
+};
+var verifyUserWaived = (context) => {
+  if (!context.transcriptPath) return refuted("no transcript was available to read the waive from");
+  const transcript = context.probe.readTextFile(context.transcriptPath);
+  if (!transcript) return refuted("the transcript could not be read");
+  const tail = transcript.slice(-64e3);
+  const waived = tail.split("\n").some((line) => {
+    if (!line.includes(USER_WAIVE_PHRASE)) return false;
+    try {
+      const entry = JSON.parse(line);
+      const isUserTurn = entry.type === "user" || entry.message?.role === "user";
+      return isUserTurn && JSON.stringify(entry.message?.content ?? "").includes(USER_WAIVE_PHRASE);
+    } catch {
+      return false;
+    }
+  });
+  if (waived) return verified;
+  return refuted(`no user turn in the transcript contains "${USER_WAIVE_PHRASE}"`);
+};
+var VERIFIERS = {
+  ["NO_WEB_SURFACE" /* NoWebSurface */]: verifyNoWebSurface,
+  ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: verifyDevServerUnreachable,
+  ["EMPTY_DIFF" /* EmptyDiff */]: verifyEmptyDiff,
+  ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: verifyMuggleAuthDown,
+  ["NO_PR" /* NoPr */]: verifyNoPr,
+  ["USER_WAIVED" /* UserWaived */]: verifyUserWaived
+};
+function verifyDeclaredSkip(skip, context) {
+  return VERIFIERS[skip.code](context, skip.detail);
+}
+
+// src/e2e-skip/resolveSkip.ts
+function resolveSkipDeclaration(cmd, context) {
+  const judged = judgeSkipDeclaration(cmd);
+  if (!judged || !judged.accepted) return judged;
+  const checked = verifyDeclaredSkip(judged.skip, context);
+  if (checked.verified) return judged;
+  return {
+    accepted: false,
+    rejection: "verification-failed" /* VerificationFailed */,
+    claimedCode: judged.skip.code,
+    failure: checked.failure
+  };
+}
+var codeMenu = () => E2E_SKIP_CODES.map((code) => `${code} (${E2E_SKIP_CODE_CLAIMS[code]})`).join(", ");
+function explainRejection(judged) {
+  if (judged.rejection === "missing-code" /* MissingCode */) {
+    return `That skip declaration states no code. E2E is skipped only by citing one of: ${codeMenu()}.`;
+  }
+  if (judged.rejection === "unknown-code" /* UnknownCode */) {
+    return `"${judged.claimedCode}" is not a skip code, so E2E is still owed. A skip must name a fact about the environment, not a judgment about the change: ${codeMenu()}. If none of them is true, the run has to happen.`;
+  }
+  return `The skip cited ${judged.claimedCode}, but that could not be verified: ${judged.failure}. E2E is still owed \u2014 cite a code that holds, or run it.`;
+}
+var readTextFile = (path) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+};
+var listFiles = (dir) => {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+};
+var runGit = (args, cwd) => {
+  try {
+    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return null;
+  }
+};
+var hostAndPort = (url) => {
+  const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+  try {
+    const parsed = new URL(withScheme);
+    const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+    return { host: parsed.hostname, port };
+  } catch {
+    return null;
+  }
+};
+var isReachable = (url) => {
+  const target = hostAndPort(url);
+  if (!target) return false;
+  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${DEV_SERVER_PROBE_TIMEOUT_MS});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
+  try {
+    execFileSync(process.execPath, ["-e", script], {
+      timeout: DEV_SERVER_PROBE_TIMEOUT_MS * 2,
+      stdio: "ignore"
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+var defaultSkipProbes = {
+  readTextFile,
+  listFiles,
+  runGit,
+  isReachable
+};
 
 // src/guardrails/skipReason.ts
-var SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_(?:E2E|WALKTHROUGH)_SKIP:\s*(.+)$/;
-function skipReasonFrom(cmd) {
-  const declared = cmd.match(SKIP_DECLARATION);
-  if (!declared) return null;
-  const reason = declared[1].replace(/["']\s*$/, "").trim();
-  return reason || null;
+function judgeE2eSkip(input2, state, probes = defaultSkipProbes) {
+  return resolveSkipDeclaration(input2.tool_input?.command ?? "", {
+    cwd: input2.cwd,
+    prsHandled: state.prsHandled,
+    transcriptPath: input2.transcript_path,
+    homeDir: homedir(),
+    probe: probes
+  });
+}
+
+// src/guardrails/walkthroughHeadingGate.ts
+function evaluateWalkthroughHeadingPost(input2, state, read = defaultFileReader) {
+  if (!isShellToolCall(input2)) return { deny: false };
+  if (state.e2eRun === true) return { deny: false };
+  const cmd = input2.tool_input?.command ?? "";
+  if (!isPrReportPostCommand(cmd)) return { deny: false };
+  const text = collectPrPostText(cmd, input2.cwd, read);
+  const claimsIdentity = text.includes(WALKTHROUGH_COMMENT_HEADING) || text.includes(WALKTHROUGH_SLOT_MARKER);
+  if (!claimsIdentity) return { deny: false };
+  return {
+    deny: true,
+    reason: 'Blocked: this comment carries the Muggle walkthrough heading, but no Muggle acceptance run has been recorded this session. That slot is settled by Muggle itself \u2014 either from a real run, or from a verified skip code via `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"`. If you verified this change some other way, post that as its own comment without the Muggle heading, slot marker, or report sentinel.'
+  };
 }
 
 // src/guardrails/ledger/constants.ts
@@ -1230,10 +1494,11 @@ function terminalGate() {
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
+  const judgedSkip = judgeE2eSkip(input, state);
   const recorded = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
-    e2eSkipped: isE2ESkipMarker(cmd)
+    e2eSkipped: judgedSkip?.accepted === true
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
@@ -1242,14 +1507,15 @@ function recordTests() {
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
-  recordSkipReasonOnPrs(next, cmd);
+  if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
+  if (judgedSkip && !judgedSkip.accepted) {
+    return envelope("PostToolUse", explainRejection(judgedSkip), host);
+  }
   return "{}";
 }
-function recordSkipReasonOnPrs(state, cmd) {
-  const reason = skipReasonFrom(cmd);
-  if (!reason) return;
+function recordSkipReasonOnPrs(state, skip) {
   for (const prUrl of state.prsHandled) {
-    settleWalkthroughCommentAsSkipped(prUrl, reason);
+    settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
   }
 }
 function skillStages() {
@@ -1325,11 +1591,14 @@ function debugPathGate() {
 function e2eGate() {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === "release" /* Release */) return releaseGate("e2eReleased");
+  if (decision.action === "release" /* Release */) {
+    for (const prUrl of state.prsHandled) settleWalkthroughCommentAsUnreasoned(prUrl);
+    return releaseGate("e2eReleased");
+  }
   if (decision.action === "none" /* None */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. A skip states a fact about the environment, never a judgment about the change: run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies the code itself, so one that does not hold leaves this gate blocked.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
 function watchGate() {
@@ -1435,6 +1704,11 @@ function reportGate() {
   if (!reportPostVerdict.deny || !reportPostVerdict.reason) return "{}";
   return denyTool(reportPostVerdict.reason, host);
 }
+function walkthroughHeadingGate() {
+  const headingVerdict = evaluateWalkthroughHeadingPost(input, readState(sessionId));
+  if (!headingVerdict.deny || !headingVerdict.reason) return "{}";
+  return denyTool(headingVerdict.reason, host);
+}
 function resolveGate() {
   const resolveVerdict = evaluateReviewThreadResolve(input);
   if (!resolveVerdict.deny || !resolveVerdict.reason) return "{}";
@@ -1482,6 +1756,7 @@ var handlers = {
   "record-comment-replies": recordCommentReplies,
   "comment-reply-gate": commentReplyGate,
   "report-gate": reportGate,
+  "walkthrough-heading-gate": walkthroughHeadingGate,
   "resolve-gate": resolveGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,

@@ -48,7 +48,7 @@ import {
   detectFailedRunId,
   undebuggedFailedRuns,
 } from "./debugPath.js";
-import { isTestCommand, testsPassed, isE2ERun, isE2ESkipMarker } from "./testsGreen.js";
+import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import {
   findUntrackedHandledPrs,
@@ -68,8 +68,16 @@ import {
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
 import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
-import { reserveWalkthroughComment, settleWalkthroughCommentAsSkipped } from "../pr-walkthrough/reserve.js";
-import { skipReasonFrom } from "./skipReason.js";
+import {
+  reserveWalkthroughComment,
+  settleWalkthroughCommentAsSkipped,
+  settleWalkthroughCommentAsUnreasoned,
+} from "../pr-walkthrough/reserve.js";
+import { E2E_SKIP_CODES } from "../e2e-skip/constants.js";
+import { explainRejection } from "../e2e-skip/resolveSkip.js";
+import type { DeclaredSkip } from "../e2e-skip/types.js";
+import { judgeE2eSkip } from "./skipReason.js";
+import { evaluateWalkthroughHeadingPost } from "./walkthroughHeadingGate.js";
 import {
   commentReplyGateDecision,
   detectConfirmedReplies,
@@ -205,10 +213,11 @@ function terminalGate(): string {
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
+  const judgedSkip = judgeE2eSkip(input, state);
   const recorded = applyRecordedRun(state, {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
-    e2eSkipped: isE2ESkipMarker(cmd),
+    e2eSkipped: judgedSkip?.accepted === true,
   });
   const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
   const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
@@ -217,7 +226,13 @@ function recordTests(): string {
   const failedRunId = detectFailedRunId(input);
   const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   if (next !== state) writeState(next);
-  recordSkipReasonOnPrs(next, cmd);
+  if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
+  // A rejected declaration is the moment the session is still trying to skip,
+  // so it is the moment worth answering — naming the failed check here is what
+  // stops the next attempt being the same excuse in different words.
+  if (judgedSkip && !judgedSkip.accepted) {
+    return envelope("PostToolUse", explainRejection(judgedSkip), host);
+  }
   return "{}";
 }
 
@@ -226,11 +241,9 @@ function recordTests(): string {
 // deliberate skip from a cycle that forgot. Writing the stated reason into the
 // designated comment is what makes the declaration outlive the session and what
 // lets the CI check settle.
-function recordSkipReasonOnPrs(state: GuardrailState, cmd: string): void {
-  const reason = skipReasonFrom(cmd);
-  if (!reason) return;
+function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
   for (const prUrl of state.prsHandled) {
-    settleWalkthroughCommentAsSkipped(prUrl, reason);
+    settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
   }
 }
 
@@ -353,7 +366,13 @@ function debugPathGate(): string {
 function e2eGate(): string {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === E2eGateAction.Release) return releaseGate("e2eReleased");
+  if (decision.action === E2eGateAction.Release) {
+    // The release exists so an un-runnable E2E cannot trap a session, but it
+    // must not read on the PR as though E2E did not apply. No code was ever
+    // verified here, and the reviewer is the person who needs to know that.
+    for (const prUrl of state.prsHandled) settleWalkthroughCommentAsUnreasoned(prUrl);
+    return releaseGate("e2eReleased");
+  }
   if (decision.action === E2eGateAction.None) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
@@ -363,11 +382,11 @@ function e2eGate(): string {
     decision.blockCount === 1
       ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. ` +
         `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
-        `then finish. If E2E genuinely cannot run here (no app to drive, services down, no PR), tell the user ` +
-        `why and run \`echo "MUGGLE_E2E_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
-        `for the rest of the session.`
+        `then finish. A skip states a fact about the environment, never a judgment about the change: run ` +
+        `\`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies ` +
+        `the code itself, so one that does not hold leaves this gate blocked.`
       : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
-        `run /muggle:muggle-test, or record a legitimate skip via \`echo "MUGGLE_E2E_SKIP: <reason>"\`.`;
+        `run /muggle:muggle-test, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -542,6 +561,12 @@ function reportGate(): string {
   return denyTool(reportPostVerdict.reason, host);
 }
 
+function walkthroughHeadingGate(): string {
+  const headingVerdict = evaluateWalkthroughHeadingPost(input, readState(sessionId));
+  if (!headingVerdict.deny || !headingVerdict.reason) return "{}";
+  return denyTool(headingVerdict.reason, host);
+}
+
 function resolveGate(): string {
   const resolveVerdict = evaluateReviewThreadResolve(input);
   if (!resolveVerdict.deny || !resolveVerdict.reason) return "{}";
@@ -604,6 +629,7 @@ const handlers: Record<string, () => string> = {
   "record-comment-replies": recordCommentReplies,
   "comment-reply-gate": commentReplyGate,
   "report-gate": reportGate,
+  "walkthrough-heading-gate": walkthroughHeadingGate,
   "resolve-gate": resolveGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,

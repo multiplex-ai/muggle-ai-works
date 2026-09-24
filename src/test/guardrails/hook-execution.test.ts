@@ -326,7 +326,7 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("terminal-gate", event({ session_id: "no-pending" })).out).toBe("{}");
   });
 
-  it("record-tests -> e2e-gate: an explicit skip marker releases an armed gate", () => {
+  it("record-tests -> e2e-gate: a verified skip code releases an armed gate", () => {
     const session = "skip-chain";
     runHook(
       "record-tests",
@@ -342,11 +342,39 @@ describe("guardrail hook execution (cli entry)", () => {
       event({
         session_id: session,
         tool_name: "Bash",
-        tool_input: { command: 'echo "MUGGLE_E2E_SKIP: CLI package, no web surface to drive"' },
-        tool_response: { stdout: "MUGGLE_E2E_SKIP: CLI package, no web surface to drive" },
+        tool_input: { command: 'echo "MUGGLE_E2E_SKIP: NO_PR: nothing was opened this session"' },
+        tool_response: { stdout: "MUGGLE_E2E_SKIP: NO_PR: nothing was opened this session" },
       }),
     );
     expect(runHook("e2e-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  // The whole point of the enum: an articulate excuse must not buy what a
+  // verified fact buys. This is the muggle-ai-ui#613 shape end to end.
+  it("record-tests -> e2e-gate: an unverifiable excuse leaves the gate armed", () => {
+    const session = "excuse-chain";
+    runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "pnpm test" },
+        tool_response: { stdout: "Tests: 18 passed", stderr: "" },
+      }),
+    );
+    const rejected = runHook(
+      "record-tests",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: {
+          command: 'echo "MUGGLE_E2E_SKIP: verified instead with puppeteer against the dev server"',
+        },
+        tool_response: { stdout: "" },
+      }),
+    );
+    expect(rejected.out).toContain("not a skip code");
+    expect(runHook("e2e-gate", event({ session_id: session })).out).not.toBe("{}");
   });
 
   it("record-tests -> e2e-gate: a muggle-test skill emit (clean SKIP path) releases an armed gate", () => {

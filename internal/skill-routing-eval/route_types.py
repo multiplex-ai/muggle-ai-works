@@ -22,3 +22,5 @@ class RouteOutcome:
 
     route: str
     none_reason: NoneReason | None
+    #: The session's own answer when it routed nowhere — empty otherwise.
+    answer: str = ""

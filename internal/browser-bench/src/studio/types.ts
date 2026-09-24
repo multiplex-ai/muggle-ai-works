@@ -32,7 +32,8 @@ export interface StudioInvocation {
   authFilePath: string;
   taskFilePath: string;
   resultFilePath: string;
-  browserProfileDir: string;
+  /** Where this process's stdout and stderr are written, so a failed attempt can be read back. */
+  studioLogPath: string;
 }
 
 /** How a studio process ended. `exitCode` is null when a signal killed it. */

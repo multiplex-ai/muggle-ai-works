@@ -51,7 +51,7 @@ describe("buildStudioArgv", () => {
         authFilePath: "/tmp/studio-auth.json",
         taskFilePath: "/out/trajectories/Allrecipes--0/task.json",
         resultFilePath: "/out/trajectories/Allrecipes--0/result.json",
-        browserProfileDir: "/out/profiles/Allrecipes--0",
+        studioLogPath: "/out/trajectories/Allrecipes--0/studio.log",
       }),
     ).toEqual([
       "explore",
@@ -72,7 +72,7 @@ describe("buildStudioArgv", () => {
         authFilePath: "/tmp/studio-auth.json",
       taskFilePath: "/out/task.json",
       resultFilePath: "/out/result.json",
-      browserProfileDir: "/out/profiles/x",
+      studioLogPath: "/out/studio.log",
     });
 
     expect(argv[0]).toBe("explore");
@@ -87,7 +87,7 @@ describe("buildStudioArgv", () => {
       authFilePath: "/tmp/studio-auth.json",
       taskFilePath: "/out/task.json",
       resultFilePath: "/out/result.json",
-      browserProfileDir: "/out/profiles/x",
+      studioLogPath: "/out/studio.log",
     });
 
     expect(argv[3]).toBe("/tmp/studio-auth.json");
@@ -99,9 +99,10 @@ describe("buildStudioArgv", () => {
         authFilePath: "/tmp/studio-auth.json",
       taskFilePath: "/out/task.json",
       resultFilePath: "/out/result.json",
-      browserProfileDir: "/out/profiles/x",
+      studioLogPath: "/out/studio.log",
     });
 
     expect(argv).not.toContain("--out");
   });
+
 });

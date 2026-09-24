@@ -1,23 +1,39 @@
 import { describe, it, expect } from "vitest";
 
+import { DASHBOARD_URL_BASE } from "../../../cli/pr-section/constants.js";
 import {
-  DASHBOARD_URL_BASE,
   computeVerdict,
   renderOverview,
   renderTestDetails,
   renderBody,
   renderComment,
+  resolveLatestRuns,
+  type ILatestRun,
 } from "../../../cli/pr-section/render.js";
-import type { E2eReport, FailedTest, InconclusiveTest, PassedTest } from "../../../cli/pr-section/types.js";
+import type { E2eReport, FailedTest, InconclusiveTest, PassedTest, Step, TestResult } from "../../../cli/pr-section/types.js";
 
 const PROJECT_ID = "p1";
 const CHECKOUT_USE_CASE = "Checkout";
 const OVERVIEW_ORDINAL = /\*\*\d+\.\*\*/g;
-const DETAILS_ORDINAL = /<b>\d+\. <\/b>/g;
+const DETAILS_ORDINAL = /<b>\d+\. /g;
 
 /** Pull the rendered test ordinals out of a markdown chunk, in document order. */
 function ordinalsFrom (markdown: string, pattern: RegExp): number[] {
   return (markdown.match(pattern) ?? []).map((token) => Number(token.replace(/[^0-9]/g, "")));
+}
+
+/** Wrap a single test as the collapsed-run entry renderTestDetails consumes. */
+function latest (test: TestResult, attempts = 1): ILatestRun {
+  return { test: test, attempts: attempts };
+}
+
+/** Build `count` sequential steps so elision boundaries can be exercised. */
+function buildSteps (count: number): Step[] {
+  return Array.from({ length: count }, (_, i) => ({
+    stepIndex: i,
+    action: `Action ${i + 1}`,
+    screenshotUrl: `https://cdn/long-${i}.png`,
+  }));
 }
 
 const passedWithDesc: PassedTest = {
@@ -190,6 +206,32 @@ const allPassedNoMeta: E2eReport = {
 
 const emptyReport: E2eReport = { projectId: PROJECT_ID, tests: [] };
 
+describe("resolveLatestRuns", () => {
+  it("keeps a single run untouched with an attempt count of one", () => {
+    const resolved = resolveLatestRuns([passedNoMeta, failedNoMeta]);
+    expect(resolved).toHaveLength(2);
+    expect(resolved.map((e) => e.attempts)).toEqual([1, 1]);
+    expect(resolved[0].test).toBe(passedNoMeta);
+  });
+
+  it("collapses a repeated testCaseId onto the last run and counts the attempts", () => {
+    const resolved = resolveLatestRuns(flatRerunReport.tests);
+    expect(resolved).toHaveLength(3);
+    const checkout = resolved.find((e) => e.test.testCaseId === "tc-8")!;
+    expect(checkout.test).toBe(rerunSecondAttempt);
+    expect(checkout.attempts).toBe(2);
+  });
+
+  it("holds a collapsed entry at the position of its first run", () => {
+    const resolved = resolveLatestRuns(flatRerunReport.tests);
+    expect(resolved.map((e) => e.test.testCaseId)).toEqual(["tc-4", "tc-8", "tc-5"]);
+  });
+
+  it("returns an empty list for a report with no tests", () => {
+    expect(resolveLatestRuns([])).toEqual([]);
+  });
+});
+
 describe("computeVerdict", () => {
   it("returns 'none' for an empty report", () => {
     expect(computeVerdict({ projectId: PROJECT_ID, tests: [] })).toBe("none");
@@ -211,78 +253,114 @@ describe("computeVerdict", () => {
   it("returns 'inconclusive' when there are no failures but at least one inconclusive", () => {
     expect(computeVerdict(mixedWithInconclusiveReport)).toBe("inconclusive");
   });
+
+  it("rules on the rerun, so a failure followed by a passing rerun does not fail the report", () => {
+    expect(computeVerdict(groupedRerunReport)).toBe("pass");
+  });
 });
 
 describe("renderOverview", () => {
-  it("renders counts and a flat numbered list when no test has a useCaseName", () => {
+  it("renders the summary heading, a one-line verdict headline, and a flat state-first list", () => {
     const md = renderOverview(flatReport);
     expect(md).toContain("## E2E Acceptance Results");
-    expect(md).toContain("**Verdict: ❌ FAIL**");
-    expect(md).toContain("**2 tests ran — 1 passed / 1 failed / 0 inconclusive**");
-    expect(md).toContain("**Tests run:**");
-    expect(md).toContain("- **1.** ✅ Logout flow");
-    expect(md).toContain("- **2.** ❌ Checkout breaks");
-    // No nested use-case bullets (but the numbering does start the bullet with **).
-    // So the "no group bullets" check is by the em-style: "- **Word**" with no digit.
+    expect(md).toContain("### Summary");
+    expect(md).toContain("**❌ FAIL** — 2 tests ran · 1 passed / 1 failed / 0 inconclusive");
+    expect(md).toContain("- ✅ **1.** Logout flow");
+    expect(md).toContain("- ❌ **2.** Checkout breaks");
+    // The old stacked verdict/counts/label paragraphs are gone.
+    expect(md).not.toContain("**Verdict:");
+    expect(md).not.toContain("**Tests run:**");
+    // No nested use-case bullets.
     expect(md).not.toMatch(/^- \*\*[A-Za-z]/m);
   });
 
   it("groups tests by useCaseName with global numbering across groups", () => {
     const md = renderOverview(groupedReport);
-    expect(md).toContain("**Verdict: ❌ FAIL**");
-    expect(md).toContain("**3 tests ran — 2 passed / 1 failed / 0 inconclusive**");
+    expect(md).toContain("**❌ FAIL** — 3 tests ran · 2 passed / 1 failed / 0 inconclusive");
     expect(md).toContain("- **Create a New Project**");
-    expect(md).toContain("  - **1.** ✅ User creates a new project with valid URL");
-    expect(md).toContain("  - **2.** ❌ User receives error for invalid URL format");
+    expect(md).toContain("  - ✅ **1.** User creates a new project with valid URL");
+    expect(md).toContain("  - ❌ **2.** User receives error for invalid URL format");
     expect(md).toContain("- **User Authentication**");
-    expect(md).toContain("  - **3.** ✅ Login with valid credentials");
+    expect(md).toContain("  - ✅ **3.** Login with valid credentials");
   });
 
-  it("renders the verdict line as INCONCLUSIVE when no failures but any inconclusive test exists", () => {
+  it("renders an INCONCLUSIVE headline when no failures but any inconclusive test exists", () => {
     const md = renderOverview(mixedWithInconclusiveReport);
-    expect(md).toContain("**Verdict: ⚠️ INCONCLUSIVE**");
-    expect(md).toContain("**3 tests ran — 2 passed / 0 failed / 1 inconclusive**");
-    expect(md).toContain("⚠️ Clear search input restores full list");
+    expect(md).toContain("**⚠️ INCONCLUSIVE** — 3 tests ran · 2 passed / 0 failed / 1 inconclusive");
+    expect(md).toContain("⚠️ **3.** Clear search input restores full list");
   });
 
-  it("renders the verdict line as PASS when all tests passed", () => {
-    const md = renderOverview({ projectId: PROJECT_ID, tests: [passedWithDesc, passedAuthGroup] });
-    expect(md).toContain("**Verdict: ✅ PASS**");
-    expect(md).toContain("**2 tests ran — 2 passed / 0 failed / 0 inconclusive**");
+  it("renders a PASS headline when all tests passed", () => {
+    const md = renderOverview(allPassedWithDesc);
+    expect(md).toContain("**✅ PASS** — 2 tests ran · 2 passed / 0 failed / 0 inconclusive");
+  });
+
+  it("counts a rerun test case once and marks how many runs it had", () => {
+    const md = renderOverview(flatRerunReport);
+    expect(md).toContain("**❌ FAIL** — 3 tests ran · 2 passed / 1 failed / 0 inconclusive");
+    expect(md).toContain("- ✅ **2.** Checkout completes with a saved card (rerun) _(2 runs)_");
+    // The earlier attempt is not listed as its own entry.
+    expect(md).not.toContain("**3.** Checkout completes with a saved card");
+  });
+
+  it("uses the singular noun for a one-test report", () => {
+    const md = renderOverview(allPassedNoMeta);
+    expect(md).toContain("1 test ran ·");
   });
 
   it("handles an empty report with a friendly placeholder", () => {
     const md = renderOverview(emptyReport);
     expect(md).toContain("## E2E Acceptance Results");
-    expect(md).toContain("**0 tests ran — 0 passed / 0 failed / 0 inconclusive**");
+    expect(md).toContain("### Summary");
+    expect(md).toContain("**0 tests ran · 0 passed / 0 failed / 0 inconclusive**");
     expect(md).toContain("_No tests were executed._");
-    expect(md).not.toContain("**Tests run:**");
-    // No verdict line on an empty report — there's nothing to rule on.
-    expect(md).not.toContain("**Verdict:");
+    // No verdict label on an empty report — there's nothing to rule on.
+    expect(md).not.toContain("PASS");
+    expect(md).not.toContain("FAIL");
   });
 });
 
 describe("renderTestDetails", () => {
-  it("renders a passed test with description and numbered summary line", () => {
-    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
+  it("renders a passed test with a state-first summary line and no expand hint", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
     expect(md).toContain("<details>");
-    expect(md).toContain("<summary>");
-    expect(md).toContain("<b>1. </b><i>▶ click to expand</i> <b>User creates a new project with valid URL</b> ✅");
+    expect(md).toContain("<summary>✅ <b>1. User creates a new project with valid URL</b>");
     expect(md).toContain("— Verify that a logged-in user can create a new project");
-    // Ending screenshot = last step, with a caption above it.
-    expect(md).toContain("**📸 Ending screen — Final page after the test completed**");
-    expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
+    expect(md).not.toContain("click to expand");
     expect(md).toContain("**Result:** ✅ PASSED");
-    expect(md).toContain("**Steps:** 3");
-    expect(md).toContain(
+    expect(md).toContain("</details>");
+  });
+
+  it("merges the step count and the dashboard link onto one reference line", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    const stepsLine = md.split("\n").find((l) => l.startsWith("**Steps:**"))!;
+    expect(stepsLine).toContain("**Steps:** 3 ·");
+    expect(stepsLine).toContain("View steps on Muggle AI →");
+    expect(stepsLine).toContain(
       "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-1",
     );
-    expect(md).toContain("</details>");
+  });
+
+  it("closes the block with the ending screenshot, after the result and the steps", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    expect(md).toContain("**📸 Ending screen — Final page after the test completed**");
+    expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
+    expect(md.indexOf("**Result:**")).toBeLessThan(md.indexOf("**📸 Ending screen"));
+    expect(md.indexOf("**Steps:**")).toBeLessThan(md.indexOf("**📸 Ending screen"));
+    expect(md.indexOf("1. Open dashboard")).toBeLessThan(md.indexOf("**📸 Ending screen"));
+  });
+
+  it("renders every step of a short run, numbered from one", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    expect(md).toContain("1. Open dashboard");
+    expect(md).toContain("2. Click New Project");
+    expect(md).toContain("3. Submit");
+    expect(md).not.toContain("more steps");
   });
 
   it("links into the ring the run happened on when a base is supplied", () => {
     const md = renderTestDetails(
-      passedWithDesc,
+      latest(passedWithDesc),
       PROJECT_ID,
       1,
       "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
@@ -295,26 +373,34 @@ describe("renderTestDetails", () => {
   });
 
   it("falls back to production when no base is supplied", () => {
-    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
     expect(md).toContain(DASHBOARD_URL_BASE);
   });
 
   it("renders a passed test without description (no em-dash, no description text)", () => {
-    const md = renderTestDetails(passedNoMeta, PROJECT_ID, 4);
-    expect(md).toContain("<b>4. </b><i>▶ click to expand</i> <b>Logout flow</b> ✅");
-    // No " — " separator between name and the description-free summary.
-    expect(md).not.toMatch(/<b>Logout flow<\/b> ✅ —/);
+    const md = renderTestDetails(latest(passedNoMeta), PROJECT_ID, 4);
+    expect(md).toContain("<summary>✅ <b>4. Logout flow</b></summary>");
   });
 
-  it("renders a failed test with error, numbered summary, and failure-step screenshot", () => {
-    const md = renderTestDetails(failedWithDesc, PROJECT_ID, 2);
-    expect(md).toContain("<b>2. </b><i>▶ click to expand</i> <b>User receives error for invalid URL format</b> ❌");
-    expect(md).toContain("**Result:** ❌ FAILED at step 3");
+  it("renders a failed test with the error and a position-based failure ordinal", () => {
+    const md = renderTestDetails(latest(failedWithDesc), PROJECT_ID, 2);
+    expect(md).toContain("<summary>❌ <b>2. User receives error for invalid URL format</b>");
+    // failureStepIndex 3 is the fourth step, so it reads as step 4 alongside "Steps: 4".
+    expect(md).toContain("**Result:** ❌ FAILED at step 4");
     expect(md).toContain("**Error:** `Element not found: submit button`");
-    expect(md).toContain("**Steps:** 4");
-    // Ending screenshot = failure step (stepIndex 3). Caption reflects failure.
-    expect(md).toContain("**📸 Ending screen — Failure at step 3**");
+    expect(md).toContain("**Steps:** 4 ·");
+    expect(md).toContain("**📸 Ending screen — Failure at step 4**");
     expect(md).toContain('<img src="https://cdn/2-3.png"');
+  });
+
+  it("marks how many runs a collapsed test case had, and which one is shown", () => {
+    const md = renderTestDetails(latest(rerunSecondAttempt, 2), PROJECT_ID, 2);
+    expect(md).toContain("**Runs:** 2 — showing the latest");
+  });
+
+  it("omits the runs line for a test case that ran once", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    expect(md).not.toContain("**Runs:**");
   });
 
   it("uses endingScreenshotUrl + endingScreenshotCaption when provided on the test", () => {
@@ -323,72 +409,114 @@ describe("renderTestDetails", () => {
       endingScreenshotUrl: "https://cdn/summary.png",
       endingScreenshotCaption: "Success. The goal is achieved.",
     };
-    const md = renderTestDetails(overrideTest, PROJECT_ID, 1);
-    // Caption shows the caller-provided summary text, not the default.
+    const md = renderTestDetails(latest(overrideTest), PROJECT_ID, 1);
     expect(md).toContain("**📸 Ending screen — Success. The goal is achieved.**");
-    // Image uses the override URL, NOT the last step in steps[].
     expect(md).toContain('<img src="https://cdn/summary.png"');
     expect(md).not.toContain('<img src="https://cdn/1-2.png"');
   });
 
   it("escapes backticks in the error message so inline code stays balanced", () => {
-    const md = renderTestDetails(failedNoMeta, PROJECT_ID, 5);
+    const md = renderTestDetails(latest(failedNoMeta), PROJECT_ID, 5);
     expect(md).toContain("**Error:**");
-    // Raw backticks from the error must not appear unescaped in the rendered output.
     expect(md).not.toMatch(/Timeout waiting for `button/);
-    // The two backticks wrapping `button[...]` should be replaced with U+2018.
-    expect(md).toContain("Timeout waiting for \u2018button[data-id='confirm']\u2018");
-    // The `**Error:** `...` ` inline-code wrapper must still be a clean pair.
+    expect(md).toContain("Timeout waiting for ‘button[data-id='confirm']‘");
     const errorLine = md.split("\n").find((l) => l.startsWith("**Error:**"))!;
     expect(errorLine).toMatch(/^\*\*Error:\*\* `[^`]+`$/);
   });
 
+  it("escapes backticks in a step action so the list cannot open a code span", () => {
+    const backtickStep: PassedTest = {
+      ...passedNoMeta,
+      steps: [{ stepIndex: 0, action: "Click `Submit`", screenshotUrl: "https://cdn/bt-0.png" }],
+    };
+    const md = renderTestDetails(latest(backtickStep), PROJECT_ID, 1);
+    expect(md).toContain("1. Click ‘Submit‘");
+    expect(md).not.toContain("Click `Submit`");
+  });
+
   it("renders the dashboard link to open in a new tab", () => {
-    const md = renderTestDetails(passedWithDesc, PROJECT_ID, 1);
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
     expect(md).toContain("target=\"_blank\"");
     expect(md).toContain("rel=\"noopener noreferrer\"");
   });
 
   it("renders an inconclusive test with the warning emoji, reason line, and no error", () => {
-    const md = renderTestDetails(inconclusiveWithDesc, PROJECT_ID, 3);
-    expect(md).toContain("<b>3. </b><i>▶ click to expand</i> <b>Clear search input restores full list</b> ⚠️");
+    const md = renderTestDetails(latest(inconclusiveWithDesc), PROJECT_ID, 3);
+    expect(md).toContain("<summary>⚠️ <b>3. Clear search input restores full list</b>");
     expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
     expect(md).toContain("**Reason:** `No replayable script exists yet — needs first generation run.`");
     expect(md).not.toContain("**Error:**");
-    expect(md).toContain("**Steps:** 0");
-    // No ending-screen block when there are zero steps.
+    expect(md).toContain("**Steps:** 0 ·");
+    // No ending-screen block and no step list when there are zero steps.
     expect(md).not.toContain("**📸 Ending screen");
-    // Dashboard link still works — that's what makes per-TC navigation possible.
     expect(md).toContain(
       "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-6",
     );
   });
 
   it("renders an inconclusive test with steps using a 'cut short' caption", () => {
-    const md = renderTestDetails(inconclusiveWithSteps, PROJECT_ID, 4);
+    const md = renderTestDetails(latest(inconclusiveWithSteps), PROJECT_ID, 4);
     expect(md).toContain("**📸 Ending screen — Last frame before run was cut short**");
     expect(md).toContain('<img src="https://cdn/7-1.png"');
     expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
   });
 });
 
+describe("step list elision", () => {
+  const withSteps = (count: number): ILatestRun =>
+    latest({ ...passedNoMeta, steps: buildSteps(count) });
+
+  it("renders all nine steps of a nine-step run", () => {
+    const md = renderTestDetails(withSteps(9), PROJECT_ID, 1);
+    expect(md).toContain("9. Action 9");
+    expect(md).not.toContain("more steps");
+  });
+
+  it("renders all ten steps at the threshold", () => {
+    const md = renderTestDetails(withSteps(10), PROJECT_ID, 1);
+    expect(md).toContain("10. Action 10");
+    expect(md).not.toContain("more steps");
+  });
+
+  it("elides one step past the threshold, keeping six head and three tail entries", () => {
+    const md = renderTestDetails(withSteps(11), PROJECT_ID, 1);
+    expect(md).toContain("6. Action 6");
+    expect(md).toContain("_… 2 more steps …_");
+    expect(md).toContain("9. Action 9");
+    expect(md).toContain("11. Action 11");
+    expect(md).not.toContain("7. Action 7");
+  });
+
+  it("keeps a long run scannable and its tail numbered by true position", () => {
+    const md = renderTestDetails(withSteps(50), PROJECT_ID, 1);
+    expect(md).toContain("1. Action 1");
+    expect(md).toContain("6. Action 6");
+    expect(md).toContain("_… 41 more steps …_");
+    expect(md).toContain("48. Action 48");
+    expect(md).toContain("50. Action 50");
+    expect(md).toContain("**Steps:** 50 ·");
+  });
+});
+
 describe("renderBody", () => {
-  it("renders overview + details inline for a grouped mixed pass/fail report", () => {
+  it("renders summary + details inline under their own headings", () => {
     const body = renderBody(groupedReport, { inlineDetails: true });
     expect(body).toContain("## E2E Acceptance Results");
+    expect(body).toContain("### Summary");
+    expect(body).toContain("### Test details");
     expect(body).toContain("- **Create a New Project**");
     expect(body).toContain("---");
-    // Three <details> blocks — one per test.
     const detailsCount = (body.match(/<details>/g) ?? []).length;
     expect(detailsCount).toBe(3);
   });
 
-  it("renders overview + pointer line when inlineDetails=false", () => {
+  it("renders summary + pointer line when inlineDetails=false", () => {
     const body = renderBody(groupedReport, { inlineDetails: false });
     expect(body).toContain("## E2E Acceptance Results");
     expect(body).toContain("---");
     expect(body).toContain("_Full per-test details in the comment below");
     expect(body).not.toContain("<details>");
+    expect(body).not.toContain("### Test details");
   });
 
   it("renders every passed test as a details block (not just failures)", () => {
@@ -399,14 +527,13 @@ describe("renderBody", () => {
 
   it("renders a flat numbered list when no test has a useCaseName", () => {
     const body = renderBody(allPassedNoMeta, { inlineDetails: true });
-    expect(body).toContain("- **1.** ✅ Logout flow");
-    // No use-case group bullets (letter-prefixed, not digit-prefixed).
+    expect(body).toContain("- ✅ **1.** Logout flow");
     expect(body).not.toMatch(/^- \*\*[A-Za-z]/m);
   });
 
   it("empty report: no details, no horizontal rule", () => {
     const body = renderBody(emptyReport, { inlineDetails: true });
-    expect(body).toContain("**0 tests ran — 0 passed / 0 failed / 0 inconclusive**");
+    expect(body).toContain("**0 tests ran · 0 passed / 0 failed / 0 inconclusive**");
     expect(body).toContain("_No tests were executed._");
     expect(body).not.toContain("---");
     expect(body).not.toContain("<details>");
@@ -417,6 +544,7 @@ describe("renderComment", () => {
   it("renders a comment with one <details> block per test (passed and failed)", () => {
     const comment = renderComment(groupedReport);
     expect(comment).toContain("## E2E acceptance evidence (overflow)");
+    expect(comment).toContain("### Test details");
     const detailsCount = (comment.match(/<details>/g) ?? []).length;
     expect(detailsCount).toBe(3);
   });
@@ -433,23 +561,33 @@ describe("renderComment", () => {
   });
 });
 
-describe("numbering when one testCaseId appears twice", () => {
-  it("numbers a failed run and its rerun consecutively in a flat list", () => {
+describe("collapsing repeated runs of one test case", () => {
+  it("emits one details block per test case, not one per run", () => {
+    const body = renderBody(flatRerunReport, { inlineDetails: true });
+    const detailsCount = (body.match(/<details>/g) ?? []).length;
+    expect(detailsCount).toBe(3);
+    expect(body).toContain("**Runs:** 2 — showing the latest");
+  });
+
+  it("numbers the collapsed entries consecutively in a flat list", () => {
     const md = renderOverview(flatRerunReport);
-    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3, 4]);
-    const lines = md.split("\n");
-    expect(lines.find((l) => l.endsWith("Checkout completes with a saved card"))!).toContain("**2.**");
-    expect(lines.find((l) => l.endsWith("(rerun)"))!).toContain("**3.**");
+    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3]);
   });
 
-  it("numbers a failed run and its rerun consecutively inside a use-case group", () => {
+  it("numbers the collapsed entries consecutively inside a use-case group", () => {
     const md = renderOverview(groupedRerunReport);
-    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3, 4]);
+    expect(ordinalsFrom(md, OVERVIEW_ORDINAL)).toEqual([1, 2, 3]);
   });
 
-  it("gives the overview the same ordinals as the details blocks", () => {
+  it("gives the summary the same ordinals as the details blocks", () => {
     const [overview, details] = renderBody(flatRerunReport, { inlineDetails: true }).split("\n---\n");
-    expect(ordinalsFrom(details, DETAILS_ORDINAL)).toEqual([1, 2, 3, 4]);
+    expect(ordinalsFrom(details, DETAILS_ORDINAL)).toEqual([1, 2, 3]);
     expect(ordinalsFrom(overview, OVERVIEW_ORDINAL)).toEqual(ordinalsFrom(details, DETAILS_ORDINAL));
+  });
+
+  it("shows the rerun's outcome, not the original attempt's", () => {
+    const body = renderBody(flatRerunReport, { inlineDetails: true });
+    expect(body).toContain("Checkout completes with a saved card (rerun)");
+    expect(body).not.toContain("Timed out waiting for the confirmation banner");
   });
 });

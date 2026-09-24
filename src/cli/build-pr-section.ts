@@ -9,7 +9,7 @@
 import { ZodError } from "zod";
 
 import { buildPrSection, E2eReportSchema } from "./pr-section/index.js";
-import { DASHBOARD_URL_BASE } from "./pr-section/render.js";
+import { DASHBOARD_URL_BASE } from "./pr-section/constants.js";
 import { resolveGsScreenshotUrls } from "./pr-section/resolve-urls.js";
 
 /** Default UTF-8 byte budget for the PR description. */

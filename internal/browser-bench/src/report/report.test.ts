@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BenchmarkOutcome, type TaskResult } from "../domain/types";
+import { BenchmarkOutcome, type BenchmarkTask, type TaskResult } from "../domain/types";
 import { renderReport } from "./report";
 
 const result = (taskId: string, outcome: BenchmarkOutcome): TaskResult => ({
@@ -85,5 +85,54 @@ describe("step budget disclosure", () => {
 
     expect(rendered).toMatch(/30/);
     expect(rendered).toMatch(/not comparable|deviat/i);
+  });
+});
+
+describe("past-dated instruction disclosure", () => {
+  const task = (taskId: string, instruction: string): BenchmarkTask => ({
+    taskId: taskId,
+    siteName: "Booking",
+    instruction: instruction,
+    startUrl: "https://example.test",
+  });
+
+  const tasks = [
+    task("stale", "a stay from March 20-27, 2024"),
+    task("current", "a stay from March 20-27"),
+  ];
+
+  it("names how many instructions pin a year already past", () => {
+    const rendered = renderReport(
+      [result("stale", BenchmarkOutcome.Fail), result("current", BenchmarkOutcome.Pass)],
+      { tasks: tasks, runYear: 2026 },
+    );
+
+    expect(rendered).toContain("**Past-dated instructions:** 1");
+  });
+
+  it("carries the rate without them on the same line as the count", () => {
+    // A caveat that lives only in the prose around the number is one that gets
+    // dropped the first time someone quotes the number.
+    const rendered = renderReport(
+      [result("stale", BenchmarkOutcome.Fail), result("current", BenchmarkOutcome.Pass)],
+      { tasks: tasks, runYear: 2026 },
+    );
+
+    expect(rendered).toMatch(/Past-dated instructions:\*\* 1.*100\.0%/);
+  });
+
+  it("marks the affected row with the year rather than dropping it from the table", () => {
+    const rendered = renderReport([result("stale", BenchmarkOutcome.Fail)], {
+      tasks: tasks,
+      runYear: 2026,
+    });
+
+    expect(rendered).toMatch(/\| stale \|.*\| 2024 \|/);
+  });
+
+  it("still prints the line at zero, so a clean slice says so", () => {
+    expect(renderReport([result("current", BenchmarkOutcome.Pass)], { tasks: tasks })).toContain(
+      "**Past-dated instructions:** 0",
+    );
   });
 });

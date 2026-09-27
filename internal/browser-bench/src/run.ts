@@ -174,7 +174,7 @@ const mainAsync = async (): Promise<void> => {
     tasks: tasks,
     results: [...resumedResults, ...freshResults],
   });
-  fs.writeFileSync(reportPath, `${renderReport(orderedResults, { maxSteps: options.maxSteps })}\n`, "utf8");
+  fs.writeFileSync(reportPath, `${renderReport(orderedResults, { maxSteps: options.maxSteps, tasks: tasks })}\n`, "utf8");
 
   process.stdout.write(`Report: ${reportPath}\n`);
 };

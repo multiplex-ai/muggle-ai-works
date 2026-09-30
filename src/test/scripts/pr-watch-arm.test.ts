@@ -168,3 +168,50 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh slot ownership", () => {
     expect(leaseIsForeign(armSlot("session-abc"), "session-abc")).toBe(false);
   });
 });
+
+// Arms a slot and lets the loop run to its own exit, returning what it printed
+// and how long it took. `window` and `interval` are seconds.
+function runWatch(window: number, interval: number): { stdout: string; seconds: number } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${stubGhDir()}${delimiter}${process.env.PATH ?? ""}`,
+    MUGGLE_PR_WATCH_MONITOR_WINDOW: String(window),
+    MUGGLE_PR_WATCH_POLL_INTERVAL: String(interval),
+  };
+  const startedAt = Date.now();
+  const stdout = execFileSync(
+    "bash",
+    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    { env: env, encoding: "utf8", timeout: 60_000 },
+  );
+  return { stdout: stdout, seconds: (Date.now() - startedAt) / 1000 };
+}
+
+describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
+  // The defect this closes: a loop that outlived its Monitor kept polling into a
+  // closed pipe while its lease and heartbeat read healthy. Ending the loop with
+  // its window hands the watch back to the session to re-arm.
+  it("announces a rollover and exits once its window elapses", () => {
+    expect(runWatch(2, 1).stdout).toMatch(/^ROLLOVER pr=1 /m);
+  }, 60_000);
+
+  // An interval far longer than the window stands in for a long fetch backoff:
+  // the loop must wake at the window's end, not sleep past its monitor. The
+  // interval is set so an unclamped sleep could not finish inside the bound
+  // however fast the machine, while process spawns under a loaded parallel run
+  // can take tens of seconds.
+  it("does not sleep past its window", () => {
+    expect(runWatch(2, 600).seconds).toBeLessThan(50);
+  }, 60_000);
+
+  // Every stdout line wakes the session, so a quiet window may add exactly one
+  // line: the rollover itself.
+  it("stays silent through quiet iterations", () => {
+    const loopLines = runWatch(3, 1)
+      .stdout.split("\n")
+      .filter((line) => line.trim() && !/^(DRAIN|ARMED) /.test(line));
+    expect(loopLines).toHaveLength(1);
+    expect(loopLines[0]).toMatch(/^ROLLOVER /);
+  }, 60_000);
+});

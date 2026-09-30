@@ -114,7 +114,7 @@ echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behin
 # owner.json as "not foreign", so a slot armed without one leases itself to a
 # live PID nothing can classify: once the arming session dies its watcher polls
 # into a closed pipe, and every later arm skips the slot as already owned until
-# the lifetime cap expires. An unset id writes nothing rather than a placeholder
+# the loop's monitor window ends it. An unset id writes nothing rather than a placeholder
 # — reconcile reads any id it does not recognise as another session's claim, and
 # a bogus one would strand the slot exactly as an absent file does.
 if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then

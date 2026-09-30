@@ -87,9 +87,23 @@ read_watermark_value() {
     printf '%s' "$value"
 }
 
+# Every wait goes through here so that none, however long, can carry the loop
+# past the end of its monitor window.
+pause() {
+    sleep "$(watcher_window_sleep "$started" "$(date +%s)" "$1")"
+}
+
 while :; do
     watcher_superseded "$slot" "$$" && exit 0
     watcher_lifetime_exceeded "$started" "$(date +%s)" && exit 0
+    # Exit while the Monitor that owns this stdout is still reading, and say so:
+    # the line is the owning session's cue to re-arm, and ending here is what
+    # frees the lease that re-arm needs. A loop that ran on past its monitor would
+    # keep that lease and heartbeat fresh while reporting to no one.
+    if watcher_window_elapsed "$started" "$(date +%s)"; then
+        echo "ROLLOVER pr=$pr_number monitor window of ${MUGGLE_PR_WATCH_MONITOR_WINDOW}s elapsed — re-arm to keep watching"
+        exit 0
+    fi
     touch "${slot}/watch-heartbeat" 2>/dev/null
 
     # No watermark yet means the arming session has not finished seeding. Wait
@@ -107,7 +121,7 @@ while :; do
             echo "WATCH-FAIL pr=$pr_number no watch-watermark.env after ${unseeded}s — arming never seeded it, so this watch can detect nothing (arm-watcher.md steps 1-2)"
             exit 1
         fi
-        sleep "$MUGGLE_PR_WATCH_POLL_INTERVAL"
+        pause "$MUGGLE_PR_WATCH_POLL_INTERVAL"
         continue
     fi
     unseeded=0
@@ -131,7 +145,7 @@ while :; do
             echo "WATCH-FAIL pr=$pr_number ${fails} consecutive fetch failures — see watch-fetch.log"
             exit 1
         fi
-        sleep "$(watcher_fetch_backoff "$fails")"
+        pause "$(watcher_fetch_backoff "$fails")"
         continue
     fi
 
@@ -158,7 +172,7 @@ while :; do
             echo "WATCH-FAIL pr=$pr_number unreadable state after ${fails} tries"
             exit 1
         fi
-        sleep "$(watcher_fetch_backoff "$fails")"
+        pause "$(watcher_fetch_backoff "$fails")"
         continue
     fi
     fails=0
@@ -204,5 +218,5 @@ while :; do
         floor_blocked_digest="$ci_digest"
     fi
 
-    sleep "$MUGGLE_PR_WATCH_POLL_INTERVAL"
+    pause "$MUGGLE_PR_WATCH_POLL_INTERVAL"
 done

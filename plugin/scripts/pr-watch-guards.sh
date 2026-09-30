@@ -6,23 +6,33 @@
 #
 # A bare `while true` monitor leaks on Windows: the OS does not stop a detached
 # Git Bash loop when the Claude session that launched it ends, so orphaned
-# watchers accumulate and each keeps spawning gh calls forever. Two guards bound
+# watchers accumulate and each keeps spawning gh calls forever. Three guards bound
 # that, and together with arm-watcher's pre-arm dedup keep at most one live
 # watcher per PR:
 #
 #   watcher_superseded    — <slot>/watch.pid holds the PID of the watcher that
 #                           owns the slot. A loop whose PID no longer matches has
 #                           been replaced by a newer arm and must exit.
+#   watcher_window_elapsed — a loop exits once it has run for its monitor
+#                           window, before the Monitor that owns its stdout ends.
+#                           It announces the exit so the owning session re-arms.
 #   watcher_lifetime_exceeded — a loop exits after MUGGLE_PR_WATCH_MAX_LIFETIME
 #                           regardless, so an orphan nothing supersedes still dies
 #                           on its own; reconcile re-arms an open PR inside a live
 #                           session.
 
 # Seconds a watch loop may live. 0 means unbounded — the `never` setting of the
-# watcherLifetime preference, which removes the only time-based reaper for a
-# loop whose session has gone. `watcher_superseded` is then the sole guard.
+# watcherLifetime preference. Under a Monitor the window below ends a loop long
+# before this does; this bounds a loop run with the window disabled.
 MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-604800}"
 MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
+# Seconds one loop process runs before handing the watch back for a fresh arm.
+# The Monitor tool ends a background task after 1800s but does not stop the
+# process it launched, so a loop that outlives its monitor polls into a closed
+# pipe: every event it prints reaches nobody while its lease and heartbeat read
+# healthy. 1740 closes the window one poll interval inside that cap. 0 means
+# unbounded, for a loop run outside a Monitor.
+MUGGLE_PR_WATCH_MONITOR_WINDOW="${MUGGLE_PR_WATCH_MONITOR_WINDOW:-1740}"
 # Consecutive failed fetches before a loop gives up. A watcher must ride through
 # a GitHub / network outage — an observed drop lasted ~8 minutes — not die and
 # leave the PR unwatched until its owning session next starts. With the backoff, 60
@@ -66,6 +76,27 @@ watcher_lifetime_exceeded() {
     # wise make every loop exit on its first iteration.
     [ "$max" -eq 0 ] 2>/dev/null && return 1
     [ $((now - started)) -ge "$max" ]
+}
+
+# True once a loop started at `started` has run for its monitor window.
+watcher_window_elapsed() {
+    local started="$1" now="$2" window="${3:-$MUGGLE_PR_WATCH_MONITOR_WINDOW}"
+    [ "$window" -eq 0 ] 2>/dev/null && return 1
+    [ $((now - started)) -ge "$window" ]
+}
+
+# Seconds to sleep: `desired`, cut short so the loop wakes at the end of its
+# window rather than sleeping past its monitor — a 5-minute fetch backoff taken
+# near the end would otherwise outlast the pipe. Never below 1.
+watcher_window_sleep() {
+    local started="$1" now="$2" desired="$3" window="${4:-$MUGGLE_PR_WATCH_MONITOR_WINDOW}" remaining
+    if [ "$window" -eq 0 ] 2>/dev/null; then
+        echo "$desired"
+        return
+    fi
+    remaining=$((started + window - now))
+    [ "$remaining" -lt 1 ] && remaining=1
+    if [ "$desired" -lt "$remaining" ]; then echo "$desired"; else echo "$remaining"; fi
 }
 
 # True when the slot has gone unseeded longer than the cap allows. 0 is

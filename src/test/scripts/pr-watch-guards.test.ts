@@ -111,6 +111,46 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_lifetime_exceeded", () => 
   });
 });
 
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_window_elapsed", () => {
+  it("is true once a loop has run for its monitor window", () => {
+    expect(runGuard("watcher_window_elapsed 1000 2740 1740")).toBe(0);
+  });
+
+  it("is false inside the window", () => {
+    expect(runGuard("watcher_window_elapsed 1000 2739 1740")).toBe(1);
+  });
+
+  // The window has to close before the Monitor's 1800s cap, or the loop
+  // outlives the pipe it reports into.
+  it("defaults to one poll interval inside the Monitor's 30-minute cap", () => {
+    expect(runGuard('[ "$MUGGLE_PR_WATCH_MONITOR_WINDOW" = "1740" ]')).toBe(0);
+  });
+
+  it("treats a zero window as unbounded, for a loop run outside a Monitor", () => {
+    expect(runGuard("watcher_window_elapsed 0 999999999 0")).toBe(1);
+  });
+});
+
+describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_window_sleep", () => {
+  it("sleeps the full interval when the window has room", () => {
+    expect(runGuard('[ "$(watcher_window_sleep 1000 1100 60 1740)" = "60" ]')).toBe(0);
+  });
+
+  // A loop sleeping out a 5-minute fetch backoff near the end of its window
+  // would otherwise wake after its monitor has gone.
+  it("cuts a sleep short at the window's end", () => {
+    expect(runGuard('[ "$(watcher_window_sleep 1000 2700 300 1740)" = "40" ]')).toBe(0);
+  });
+
+  it("never sleeps less than a second, even past the window", () => {
+    expect(runGuard('[ "$(watcher_window_sleep 1000 9999 60 1740)" = "1" ]')).toBe(0);
+  });
+
+  it("sleeps the full interval when the window is unbounded", () => {
+    expect(runGuard('[ "$(watcher_window_sleep 1000 999999 300 0)" = "300" ]')).toBe(0);
+  });
+});
+
 describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_pid_alive", () => {
   it("is true for this shell's own PID", () => {
     expect(runGuard('watcher_pid_alive "$$"')).toBe(0);

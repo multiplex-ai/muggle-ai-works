@@ -15,6 +15,7 @@ import {
   calculateFileChecksum,
   getDataDir,
   getElectronAppDir,
+  getElectronAppReleaseTagPrefix,
   getElectronAppSignedFromVersion,
   getElectronAppVersion,
   getLogger,
@@ -32,8 +33,11 @@ import { cleanupOldVersions, formatBytes } from "./cleanup.js";
 
 const logger = getLogger();
 
-/** GitHub API URL for releases. */
-const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases";
+/**
+ * GitHub API URL for releases. Staging runner releases are sparse among stable ones,
+ * so the default page of 30 can hold none of them.
+ */
+const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=100";
 
 /** Install metadata filename. */
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
@@ -108,12 +112,16 @@ function getBinaryName (): string {
 }
 
 /**
- * Extract version from release tag.
- * @param tag - Release tag (e.g., "v1.0.2").
- * @returns Version string (e.g., "1.0.2") or null.
+ * Extract the runner version from a release tag on the given lane.
+ * @param tag - Release tag (e.g., "electron-app-staging-v1.10.6").
+ * @param releaseTagPrefix - The lane's tag prefix (e.g., "electron-app-staging-v").
+ * @returns Version string (e.g., "1.10.6"), or null when the tag belongs to another lane.
  */
-function extractVersionFromTag (tag: string): string | null {
-  const match = tag.match(/^(?:electron-app-)?v(\d+\.\d+\.\d+)$/);
+function extractVersionFromTag (tag: string, releaseTagPrefix: string): string | null {
+  if (!tag.startsWith(releaseTagPrefix)) {
+    return null;
+  }
+  const match = tag.slice(releaseTagPrefix.length).match(/^(\d+\.\d+\.\d+)$/);
   return match ? match[1] : null;
 }
 
@@ -189,13 +197,16 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
       draft: boolean;
     }>;
 
-    // Find latest electron-app release (non-prerelease, non-draft)
+    // The tag prefix is the lane: GitHub marks every staging runner release as a
+    // prerelease, so filtering on that flag would hand a staging CLI a stable version
+    // and a download URL under a staging tag that was never published.
+    const releaseTagPrefix = getElectronAppReleaseTagPrefix();
     for (const release of releases) {
-      if (release.prerelease || release.draft) {
+      if (release.draft) {
         continue;
       }
 
-      const version = extractVersionFromTag(release.tag_name);
+      const version = extractVersionFromTag(release.tag_name, releaseTagPrefix);
       if (version) {
         const updateAvailable = compareVersions(version, currentVersion) > 0;
         const binaryName = getBinaryName();
@@ -541,13 +552,13 @@ export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
 
     // Check for updates
     console.log("Checking for updates...");
-    const result = await checkForUpdates();
+    const updateCheckResult = await checkForUpdates();
 
-    console.log(`Current version: ${result.currentVersion}`);
-    console.log(`Latest version:  ${result.latestVersion}`);
+    console.log(`Current version: ${updateCheckResult.currentVersion}`);
+    console.log(`Latest version:  ${updateCheckResult.latestVersion}`);
 
     if (options.check) {
-      if (result.updateAvailable) {
+      if (updateCheckResult.updateAvailable) {
         console.log("\nUpdate available! Run 'muggle upgrade' to install.");
       } else {
         console.log("\nYou are on the latest version.");
@@ -555,18 +566,18 @@ export async function upgradeCommand (options: IUpgradeOptions): Promise<void> {
       return;
     }
 
-    if (!result.updateAvailable && !options.force) {
+    if (!updateCheckResult.updateAvailable && !options.force) {
       console.log("\nYou are already on the latest version.");
       console.log("Use --force to re-download the current version.");
       return;
     }
 
-    if (!result.downloadUrl) {
+    if (!updateCheckResult.downloadUrl) {
       throw new Error("No download URL available");
     }
 
     // Download and install
-    await downloadAndInstall(result.latestVersion, result.downloadUrl);
+    await downloadAndInstall(updateCheckResult.latestVersion, updateCheckResult.downloadUrl);
 
     // Auto-cleanup old versions (keep current + 1 previous)
     const cleanupResult = cleanupOldVersions({ all: false });

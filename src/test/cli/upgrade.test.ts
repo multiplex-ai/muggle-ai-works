@@ -17,6 +17,7 @@ const mcpsMocks = vi.hoisted(() => ({
   calculateFileChecksum: vi.fn(async () => "exec-sum"),
   getDataDir: vi.fn(() => "/data"),
   getElectronAppDir: vi.fn((v: string) => `/data/electron-app/${v}`),
+  getElectronAppReleaseTagPrefix: vi.fn(() => "electron-app-v"),
   getElectronAppVersion: vi.fn(() => "1.0.5"),
   getElectronAppSignedFromVersion: vi.fn(() => "1.10.0"),
   getReleaseSignerIdentityUri: vi.fn(
@@ -83,6 +84,12 @@ function releasesResponse(tags: string[]): Record<string, unknown> {
     statusText: "OK",
     json: async () => tags.map((t) => ({ tag_name: t, prerelease: false, draft: false })),
   };
+}
+
+function laneReleasesResponse(
+  releases: Array<{ tag_name: string; prerelease: boolean; draft: boolean }>,
+): Record<string, unknown> {
+  return { ok: true, status: 200, statusText: "OK", json: async () => releases };
 }
 
 function downloadResponse(): Record<string, unknown> {
@@ -156,6 +163,7 @@ describe("upgradeCommand", () => {
     procArch.value = "x64";
     Object.defineProperty(process, "arch", { get: () => procArch.value, configurable: true });
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
+    mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-v");
     cleanupMock.cleanupOldVersions.mockReturnValue({ removed: [], freedBytes: 0 });
     childProcessMock.execFile.mockImplementation((_c, _a, cb) => cb(null));
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -181,13 +189,13 @@ describe("upgradeCommand", () => {
   });
 
   it("--check reports up-to-date when no newer release exists", async () => {
-    stubFetchSequence([releasesResponse(["v1.0.5"])]);
+    stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
     await upgradeCommand({ check: true });
     expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("latest version");
   });
 
   it("does nothing when already latest and not forced", async () => {
-    stubFetchSequence([releasesResponse(["v1.0.5"])]);
+    stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
     await upgradeCommand({});
     expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("already on the latest");
     expect(streamMock.pipeline).not.toHaveBeenCalled();
@@ -200,7 +208,7 @@ describe("upgradeCommand", () => {
       freedBytes: 2048,
     } as never);
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       checksumsResponse(),
     ]);
@@ -246,7 +254,7 @@ describe("upgradeCommand", () => {
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: true, expected: "e", actual: "e" });
     const sum = "a".repeat(64);
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       { ok: true, status: 200, statusText: "OK", text: async () => `${sum}  MuggleAI-win32-x64.zip\n` },
     ]);
@@ -260,7 +268,7 @@ describe("upgradeCommand", () => {
     mcpsMocks.verifyFileChecksum.mockResolvedValue({ valid: false, expected: "a", actual: "b" });
     const sum = "a".repeat(64);
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       { ok: true, status: 200, statusText: "OK", text: async () => `${sum}  MuggleAI-win32-x64.zip\n` },
     ]);
@@ -277,7 +285,7 @@ describe("upgradeCommand", () => {
 
   it("exits 1 when extraction yields no executable", async () => {
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       checksumsResponse(),
     ]);
@@ -288,7 +296,7 @@ describe("upgradeCommand", () => {
   it("re-downloads the current version when --force is set despite no update", async () => {
     fsState.existing.add(join("/data/electron-app/1.0.5", "MuggleAI.exe"));
     stubFetchSequence([
-      releasesResponse(["v1.0.5"]),
+      releasesResponse(["electron-app-v1.0.5"]),
       downloadResponse(),
       checksumsResponse(),
     ]);
@@ -303,35 +311,57 @@ describe("upgradeCommand", () => {
     expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("latest version");
   });
 
-  it("skips prerelease and draft entries when scanning releases", async () => {
-    let i = 0;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        i++;
-        if (i === 1) {
-          return {
-            ok: true,
-            status: 200,
-            statusText: "OK",
-            json: async () => [
-              { tag_name: "v9.9.9", prerelease: true, draft: false },
-              { tag_name: "v8.8.8", prerelease: false, draft: true },
-              { tag_name: "v1.0.7", prerelease: false, draft: false },
-            ],
-          };
-        }
-        return checksumsResponse();
-      }),
-    );
+  it("skips draft entries when scanning releases", async () => {
+    stubFetchSequence([laneReleasesResponse([
+      { tag_name: "electron-app-v8.8.8", prerelease: false, draft: true },
+      { tag_name: "electron-app-v1.0.7", prerelease: false, draft: false },
+    ])]);
     await upgradeCommand({ check: true });
-    const out = logSpy.mock.calls.map((c) => String(c[0])).join("\n");
-    expect(out).toContain("Latest version:  1.0.7");
+    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Latest version:  1.0.7");
+  });
+
+  it("requests a full page of releases so sparse staging releases are not cut off", async () => {
+    stubFetchSequence([releasesResponse(["electron-app-v1.0.5"])]);
+    await upgradeCommand({ check: true });
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(String(fetchMock.mock.calls[0][0])).toContain("per_page=100");
+  });
+
+  it("on the stable lane picks the newest stable release and ignores staging ones", async () => {
+    stubFetchSequence([laneReleasesResponse([
+      { tag_name: "electron-app-staging-v1.0.9", prerelease: true, draft: false },
+      { tag_name: "electron-app-v1.0.7", prerelease: false, draft: false },
+    ])]);
+    await upgradeCommand({ check: true });
+    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Latest version:  1.0.7");
+  });
+
+  it("on the staging lane picks the newest staging release even though GitHub marks it prerelease", async () => {
+    mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-staging-v");
+    stubFetchSequence([laneReleasesResponse([
+      { tag_name: "electron-app-v1.0.9", prerelease: false, draft: false },
+      { tag_name: "electron-app-staging-v1.0.7", prerelease: true, draft: false },
+    ])]);
+    await upgradeCommand({ check: true });
+    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("Latest version:  1.0.7");
+    expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalledWith({
+      version: "1.0.7",
+      assetFileName: "MuggleAI-win32-x64.zip",
+    });
+  });
+
+  it("on the staging lane reports up-to-date instead of downloading when only stable releases exist", async () => {
+    mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-staging-v");
+    stubFetchSequence([releasesResponse(["electron-app-v1.11.0"])]);
+    await upgradeCommand({});
+    expect(logSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("already on the latest");
+    expect(streamMock.pipeline).not.toHaveBeenCalled();
+    expect(exitSpy).not.toHaveBeenCalled();
   });
 
   it("refuses to install when the checksums file is absent and the release predates signing", async () => {
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       { ok: false, status: 404, statusText: "Not Found" },
     ]);
@@ -341,7 +371,7 @@ describe("upgradeCommand", () => {
 
   it("exits 1 when the download response is not ok", async () => {
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       { ok: false, status: 502, statusText: "Bad Gateway" },
     ]);
     await upgradeCommand({});
@@ -355,7 +385,7 @@ describe("upgradeCommand", () => {
     fsState.existing.add(darwinExe);
     procArch.value = "arm64";
     stubFetchSequence([
-      releasesResponse(["v1.0.6"]),
+      releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),
       checksumsResponse(),
     ]);

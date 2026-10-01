@@ -580,21 +580,37 @@ describe("guardrail hook execution (cli entry)", () => {
   });
 });
 
-// Lazy-core tripwires. These pin the two things the footprint refactor changes —
-// the bash-wrapper "never block" fallback and the per-event fan-out — so either
-// change is a conscious, reviewed diff rather than a silent behavior shift. When
-// Lazy core lands, update these alongside it (e.g. assert the never-block
-// guarantee now lives in guardrails.mjs, and the Bash event drives one observer).
-describe("guardrail wrapper never-block fallback (Lazy-core tripwire)", () => {
-  it("every wrapper that calls guardrails.mjs falls back to {} and swallows stderr", () => {
-    const wrappers = readdirSync(SCRIPTS).filter((f) => f.startsWith("guardrail-") && f.endsWith(".sh"));
-    expect(wrappers.length).toBeGreaterThan(0);
-    for (const f of wrappers) {
-      const body = readFileSync(join(SCRIPTS, f), "utf-8");
-      if (!body.includes("guardrails.mjs")) continue;
-      expect(body, `${f} must keep its never-block fallback`).toContain("printf '{}'");
-      expect(body, `${f} must swallow guardrail stderr`).toContain("2>/dev/null");
+// Lazy core: every gate reaches Node through guardrail-lib.sh's one runner, so the
+// never-block guarantee (fall back to {}, swallow stderr) lives in exactly one place,
+// and `run` isolates gates from each other once they share a process. The per-event
+// fan-out collapse itself is capped in footprint/hook-footprint.test.ts.
+describe("guardrail never-block fallback", () => {
+  const LIB = "guardrail-lib.sh";
+
+  it("the shared runner falls back to {} and swallows stderr", () => {
+    const body = readFileSync(join(SCRIPTS, LIB), "utf-8");
+    expect(body).toMatch(/node "\$\{root\}\/scripts\/guardrails\.mjs" "\$@" 2>\/dev\/null \|\| printf '\{\}'/);
+  });
+
+  it("no gate script calls Node except through the shared runner", () => {
+    const scripts = readdirSync(SCRIPTS).filter((f) => f.startsWith("guardrail-") && f.endsWith(".sh") && f !== LIB);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const f of scripts) {
+      expect(readFileSync(join(SCRIPTS, f), "utf-8"), `${f} must reach Node via guardrail_run_node`).not.toMatch(
+        /^\s*[^#\n]*\bnode\s/m,
+      );
     }
+  });
+
+  it("run: a throwing or unknown gate degrades to {} without silencing the others", () => {
+    const home = mkdtempSync(join(tmpdir(), "gr-run-"));
+    const r = spawnSync(process.execPath, ["--import", "tsx", CLI, "run", "no-such-gate", "build-router"], {
+      input: JSON.stringify({ session_id: "iso", prompt: "implement dark mode" }),
+      encoding: "utf-8",
+      env: { ...process.env, HOME: home, USERPROFILE: home },
+    });
+    expect(r.status).toBe(0);
+    expect(JSON.parse(r.stdout).hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
   });
 });
 
@@ -819,11 +835,12 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     }
   });
 
-  it("fires exactly five observers on a shell PostToolUse (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
+  it("drives one dispatcher on a shell PostToolUse, feeding all five observers (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
     const bash = shellGroup(hooks.PostToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
-    expect(cmds).toHaveLength(5);
+    expect(cmds).toHaveLength(1);
+    expect(cmds[0]).toContain("guardrail-dispatch.sh");
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-record-tests.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-pr-terminal.sh"))).toBe(true);
@@ -874,8 +891,8 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(releaseBranches, "a gate reaches Release without stamping it").toBe(stampedFlags.length);
 
     const stopWrapperBodies = hooks.Stop[0].hooks
-      .map((h) => h.command.match(/guardrail-[a-z0-9-]+\.sh/)?.[0])
-      .filter((name): name is string => name !== undefined)
+      .flatMap((h) => [...h.command.matchAll(/guardrail-[a-z0-9-]+\.sh/g)].map(([name]) => name))
+      .filter((name) => name !== "guardrail-dispatch.sh")
       .map((name) => readFileSync(join(SCRIPTS, name), "utf-8"));
 
     for (const field of stampedFlags) {

@@ -33,7 +33,7 @@ function wrapperBody(wrapperScriptName: string): string {
 }
 
 function payloadPrefilter(wrapperScriptName: string): RegExp {
-  const prefilter = wrapperBody(wrapperScriptName).match(/grep -Eiq '([^']+)'/);
+  const prefilter = wrapperBody(wrapperScriptName).match(/guardrail_payload_matches '([^']+)'/);
   if (!prefilter) throw new Error(`${wrapperScriptName} has no payload pre-filter`);
   return new RegExp(prefilter[1].replaceAll("[[:space:]]", "\\s"), "i");
 }
@@ -177,7 +177,7 @@ describe("stop-gate state pre-filters match the state the recorders write", () =
   it.each(["guardrail-stage-gate.sh", "guardrail-debug-path-gate.sh"])(
     "%s greps only for shapes the state file can hold",
     (wrapperScriptName) => {
-      const patterns = [...wrapperBody(wrapperScriptName).matchAll(/grep -q '([^']+)'/g)];
+      const patterns = [...wrapperBody(wrapperScriptName).matchAll(/guardrail_state_has '([^']+)'/g)];
       expect(patterns.length).toBeGreaterThan(0);
       for (const [, statePattern] of patterns) {
         const literal = statePattern.replaceAll("\\[", "[").replaceAll("\\]", "]");

@@ -171,3 +171,6 @@ export const FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+
 // present, only these may produce it. Anything else printing the line is an
 // echo, the same way a grep of a fixture echoes a forge merge line.
 export const WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
+
+/** Joins the reasons or context of several gates that fired on one event into one hook response. */
+export const MERGED_GATE_OUTPUT_SEPARATOR = "\n\n";

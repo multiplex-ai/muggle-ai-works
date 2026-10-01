@@ -10,12 +10,17 @@ set -uo pipefail
 # never one outside it, so source reads and repo docs return {} in-shell. Both
 # path separators are accepted: a Windows payload carries escaped backslashes.
 # Degrades to {}.
-payload="$(cat)"
 
-if ! grep -Eiq '"file_path"[[:space:]]*:[[:space:]]*"[^"]*[/\\]+skills[/\\]+[^"]*\.md"' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="record-stage-read"
+
+guardrail_wants() {
+  guardrail_payload_matches '"file_path"[[:space:]]*:[[:space:]]*"[^"]*[/\\]+skills[/\\]+[^"]*\.md"'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" record-stage-read 2>/dev/null || printf '{}'

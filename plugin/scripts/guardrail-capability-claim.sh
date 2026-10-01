@@ -15,24 +15,34 @@ set -uo pipefail
 # from being "corrected". Over-matching here costs a needless spawn; it can
 # never emit a spurious nudge. Degrades to {} so it never blocks on its own
 # failure.
-payload="$(cat)"
 
-transcript="$(printf '%s' "$payload" \
-  | grep -oE '"transcript_path"[[:space:]]*:[[:space:]]*"[^"]*"' \
-  | head -1 \
-  | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/' \
-  | sed 's/\\\\/\//g')"
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
 
-if [ -z "$transcript" ] || [ ! -f "$transcript" ]; then
-  printf '{}'
-  exit 0
+GUARDRAIL_SUBCOMMAND="capability-claim-gate"
+
+guardrail_wants() {
+  if guardrail_load_state && guardrail_state_has '"capabilityClaimNudged": true'; then
+    return 1
+  fi
+  local transcript_pattern='"transcript_path"[[:space:]]*:[[:space:]]*"([^"]*)"'
+  [[ $GUARDRAIL_PAYLOAD =~ $transcript_pattern ]] || return 1
+  local json_escaped_separator='\\'
+  local transcript="${BASH_REMATCH[1]//"$json_escaped_separator"//}"
+  [[ -f $transcript ]] || return 1
+  # The one spawn left on a turn end: bash cannot seek, and reading a multi-MB transcript
+  # in-shell costs more than a tail. Gone for the session once the gate has nudged.
+  local transcript_tail
+  transcript_tail="$(tail -c 20000 "$transcript" 2>/dev/null)"
+  local claim_pattern='can.t|cannot|unable to|no way to|untestable|unverifiable|impossible|infeasible'
+  local matched=1
+  shopt -s nocasematch
+  [[ $transcript_tail =~ $claim_pattern ]] && matched=0
+  shopt -u nocasematch
+  return "$matched"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-if ! tail -c 20000 "$transcript" \
-  | grep -Eiq 'can.t|cannot|unable to|no way to|untestable|unverifiable|impossible|infeasible'; then
-  printf '{}'
-  exit 0
-fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" capability-claim-gate 2>/dev/null || printf '{}'

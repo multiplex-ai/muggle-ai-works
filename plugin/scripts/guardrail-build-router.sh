@@ -12,12 +12,17 @@ set -uo pipefail
 # then applies the real detectBuildIntent logic (question/slash exclusions,
 # once-per-session dedupe). Over-matching here only costs an occasional needless
 # spawn; it can never emit a spurious offer. Degrades to {} so it never blocks.
-payload="$(cat)"
 
-if ! grep -Eiq '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green)' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="build-router"
+
+guardrail_wants() {
+  guardrail_payload_matches '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green)'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" build-router 2>/dev/null || printf '{}'

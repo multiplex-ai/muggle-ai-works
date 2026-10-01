@@ -12,12 +12,17 @@ set -uo pipefail
 # unrelated payload never pays Node cold-start. It stays cheap by construction:
 # an execution call happens minutes apart and burns a real browser, so the spawn
 # is noise against what it protects. Degrades to {}.
-payload="$(cat)"
 
-if ! grep -Eiq 'muggle-local-(execute-test-generation|execute-replay)' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="classify-gate"
+
+guardrail_wants() {
+  guardrail_payload_matches 'muggle-local-(execute-test-generation|execute-replay)'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" classify-gate 2>/dev/null || printf '{}'

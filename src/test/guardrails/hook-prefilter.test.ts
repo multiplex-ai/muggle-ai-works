@@ -28,7 +28,7 @@ function guardrailSourceFiles(dir: string = GUARDRAIL_SOURCE): string[] {
 
 function payloadPrefilter(wrapperScriptName: string): RegExp {
   const wrapperBody = readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
-  const prefilter = wrapperBody.match(/grep -Eiq '([^']+)'/);
+  const prefilter = wrapperBody.match(/guardrail_payload_matches '([^']+)'/);
   if (!prefilter) throw new Error(`${wrapperScriptName} has no payload pre-filter`);
   return new RegExp(prefilter[1].replaceAll("[[:space:]]", "\\s"), "i");
 }
@@ -297,7 +297,7 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
   );
 
   const statePrefilterLiterals = (wrapperScriptName: string): string[] =>
-    [...readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8").matchAll(/grep -q '([^']+)'/g)].map(
+    [...readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8").matchAll(/guardrail_state_has '([^']+)'/g)].map(
       ([, statePattern]) => statePattern.replaceAll("\\[", "[").replaceAll("\\]", "]"),
     );
 

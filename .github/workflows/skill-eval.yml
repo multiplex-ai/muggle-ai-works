@@ -419,7 +419,7 @@ jobs:
       ROUTING_RUNS_SCOPED: ${{ inputs.routing_runs_scoped || '5' }}
       # Safe above the old default of 3 now that router_eval retries throttled
       # runs with a pool-wide backoff instead of scoring them as `none`.
-      ROUTING_WORKERS: ${{ inputs.routing_workers || '12' }}
+      ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
       BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run/recall-baseline.candidate.json
@@ -542,6 +542,19 @@ jobs:
       # matter how the skill is described. Seed a small web app with real
       # uncommitted changes so those queries have a referent. It stays isolated
       # from this repo, so the plugin is still the only skill source.
+      - name: Mark Muggle onboarding done so the probe is not diverted
+        if: steps.scope.outputs.should_run == 'true'
+        run: |
+          set -euo pipefail
+          # A runner is a fresh machine, so the SessionStart hook finds no preferences file and asks
+          # the session to offer the one-time setup walkthrough before acting on the request. With
+          # nobody to answer, the probe does exactly that and never routes — every query scores
+          # `none` for reason `no_tool_call`, which looks like a routing failure and is not one.
+          mkdir -p "$HOME/.muggle-ai"
+          cat > "$HOME/.muggle-ai/preferences.json" <<'JSON'
+          { "onboardingCompletedAt": "2026-01-01T00:00:00.000Z", "preferences": {} }
+          JSON
+
       - name: Seed the eval cwd with a changed web app
         if: steps.scope.outputs.should_run == 'true'
         run: |

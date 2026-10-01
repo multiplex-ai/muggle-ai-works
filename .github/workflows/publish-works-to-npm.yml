@@ -27,6 +27,10 @@ on:
   push:
     tags:
       - "v*"
+  # Staging is not published by hand. ci.yml's `staging-release` job dispatches
+  # this workflow with `channel=staging` after every green push to master, so a
+  # merged change reaches the `staging` dist-tag on its own. Those runs still show
+  # event `workflow_dispatch` and the run name `manual-patch`; no one ran them.
   workflow_dispatch:
     inputs:
       version:

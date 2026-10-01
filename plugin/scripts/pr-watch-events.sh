@@ -31,6 +31,18 @@ watch_split_state() {
     printf '%s\n' "$1" | awk -F'\t' '{for (i = 1; i <= NF; i++) print $i}'
 }
 
+# Loads a state line's fields into the array STATE_FIELDS, empty fields kept.
+# Read line by line rather than with `mapfile`, which bash 3.2 lacks — and 3.2
+# is the system bash on macOS, where a missing builtin left every field empty
+# and the watch unable to see a review, a red check, or a merge.
+watch_read_state_fields() {
+    local field
+    STATE_FIELDS=()
+    while IFS= read -r field; do
+        STATE_FIELDS+=("$field")
+    done < <(watch_split_state "$1")
+}
+
 # A submitted review newer than the floor. Monotonic ids, so `>` is the whole
 # test. PENDING (unsubmitted) reviews are excluded by the caller's query — they
 # are the reviewer's own drafts and are not feedback until submitted.

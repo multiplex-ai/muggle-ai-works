@@ -59,16 +59,16 @@ if [ -z "$state_line" ]; then
     exit 1
 fi
 
-mapfile -t fields < <(watch_split_state "$state_line")
-pr_state="${fields[0]-}"
-head_sha="${fields[1]-}"
-base_sha="${fields[2]-}"
-mergeable="${fields[3]-}"
-latest_review="${fields[4]-}"
-latest_comment="${fields[5]-}"
-unresolved_threads="${fields[6]-}"
-pending_checks="${fields[7]-}"
-failed_checks="${fields[8]-}"
+watch_read_state_fields "$state_line"
+pr_state="${STATE_FIELDS[0]-}"
+head_sha="${STATE_FIELDS[1]-}"
+base_sha="${STATE_FIELDS[2]-}"
+mergeable="${STATE_FIELDS[3]-}"
+latest_review="${STATE_FIELDS[4]-}"
+latest_comment="${STATE_FIELDS[5]-}"
+unresolved_threads="${STATE_FIELDS[6]-}"
+pending_checks="${STATE_FIELDS[7]-}"
+failed_checks="${STATE_FIELDS[8]-}"
 
 if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
     echo "TERMINAL pr=$pr_number state=$pr_state — nothing to arm"

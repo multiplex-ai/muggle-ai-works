@@ -8,7 +8,7 @@ import {
   PR_MONITOR_TERMINAL_LINE,
   MAX_PR_TERMINAL_BLOCKS,
   FORGE_TERMINAL_CMD,
-  WATCH_LOOP_CMD,
+  WATCH_TERMINAL_CMD,
 } from "./constants.js";
 
 // A forge success line is only evidence when *this call* is the one that
@@ -28,7 +28,7 @@ function terminalProvenance(input: HookInput): {
   if (command === undefined) return { acceptsForgeLine: true, acceptsMonitorLine: true };
   return {
     acceptsForgeLine: FORGE_TERMINAL_CMD.test(command),
-    acceptsMonitorLine: WATCH_LOOP_CMD.test(command),
+    acceptsMonitorLine: WATCH_TERMINAL_CMD.test(command),
   };
 }
 

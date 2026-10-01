@@ -770,7 +770,7 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(
       runWrapper(
         "guardrail-pr-terminal.sh",
-        event({ tool_name: "Bash", tool_response: { stdout: "TERMINAL pr=331: MERGED" } }),
+        event({ tool_name: "Bash", tool_response: { stdout: "TERMINAL pr=331 state=MERGED" } }),
       ),
     ).toContain(NODE_RAN);
   });

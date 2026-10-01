@@ -18,10 +18,12 @@ export const GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 // close leaves a post-merge handoff owed on a change that is open again.
 export const GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 
-// The pr-followup watch monitor's exit line (e.g. `TERMINAL pr=331: MERGED`),
-// which also surfaces when a monitor event notification is replayed through a
-// tool result.
-export const PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
+// The pr-followup watch's exit line, `TERMINAL pr=331 state=MERGED`, printed by
+// pr-watch-loop.sh when the PR goes terminal and by pr-watch-arm.sh when asked to
+// arm one that already is. It also surfaces when a monitor event notification is
+// replayed through a tool result. The `pr=331: MERGED` form is what the
+// generated watch.sh printed, still running in any slot not re-armed since.
+export const PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+)(?: state=|: )(MERGED|CLOSED)\b/;
 
 export const MAX_PR_TERMINAL_BLOCKS = 3;
 
@@ -161,9 +163,11 @@ export const CALL_FAILURE_SIGNALS = [
 // of a test fixture — is not evidence that a pull request went terminal.
 export const FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
 
-// The watch loop's own invocation. Its TERMINAL line is machine-generated, so
-// it is trusted with no command at all (a Monitor event, or a replayed
-// notification) — but when a Bash command *is* present, only the loop itself
-// may produce it. Anything else printing the line is an echo, the same way a
-// grep of a fixture echoes a forge merge line.
-export const WATCH_LOOP_CMD = /pr-watch-loop\.sh/;
+// The commands that can legitimately produce the watch's TERMINAL line: the loop,
+// and the arm script that launches every watch — it execs the loop and itself
+// reports a PR that is already terminal, so its command never names the loop.
+// The line is machine-generated, so it is trusted with no command at all (a
+// Monitor event, or a replayed notification) — but when a Bash command *is*
+// present, only these may produce it. Anything else printing the line is an
+// echo, the same way a grep of a fixture echoes a forge merge line.
+export const WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;

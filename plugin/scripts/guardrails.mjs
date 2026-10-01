@@ -10,7 +10,7 @@ import { execFileSync } from 'child_process';
 var GH_PR_MERGED_LINE = /\b(?:Merged|Squashed and merged|Rebased and merged) pull request [\w./-]*#(\d+)/;
 var GH_PR_CLOSED_LINE = /\bClosed pull request [\w./-]*#(\d+)/;
 var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
-var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+): (MERGED|CLOSED)\b/;
+var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+)(?: state=|: )(MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
 var SHELL_TOOL_NAMES = ["Bash", "PowerShell"];
 var MAX_WATCH_BLOCKS = 3;
@@ -50,7 +50,7 @@ var CALL_FAILURE_SIGNALS = [
   /"isError"\s*:\s*true/
 ];
 var FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
-var WATCH_LOOP_CMD = /pr-watch-loop\.sh/;
+var WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -180,7 +180,7 @@ function terminalProvenance(input2) {
   if (command === void 0) return { acceptsForgeLine: true, acceptsMonitorLine: true };
   return {
     acceptsForgeLine: FORGE_TERMINAL_CMD.test(command),
-    acceptsMonitorLine: WATCH_LOOP_CMD.test(command)
+    acceptsMonitorLine: WATCH_TERMINAL_CMD.test(command)
   };
 }
 function detectPrTerminal(input2) {

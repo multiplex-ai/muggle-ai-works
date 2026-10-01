@@ -181,3 +181,16 @@ export interface ToolInput {
   testCase?: { id?: string };
   testScript?: { testCaseId?: string };
 }
+
+/** Any one hook response a guardrail handler emits, parsed back so several can be merged into one. */
+export interface GuardrailHookOutput {
+  decision?: string;
+  reason?: string;
+  additional_context?: string;
+  hookSpecificOutput?: {
+    hookEventName?: string;
+    additionalContext?: string;
+    permissionDecision?: string;
+    permissionDecisionReason?: string;
+  };
+}

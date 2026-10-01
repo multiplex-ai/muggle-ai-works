@@ -17,12 +17,17 @@ set -uo pipefail
 # hand-listed set instructs the user to run an echo that can never register,
 # then blocks the turn anyway. Over-matching here only costs a needless spawn.
 # Degrades to {}.
-payload="$(cat)"
 
-if ! grep -Eiq 'reviewThreads|merge_requests/[0-9]+/discussions|comments/[0-9]+/replies|discussions/[A-Za-z0-9_-]+/notes|MUGGLE_[A-Z0-9_]+_SKIP' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="record-comment-replies"
+
+guardrail_wants() {
+  guardrail_payload_matches 'reviewThreads|merge_requests/[0-9]+/discussions|comments/[0-9]+/replies|discussions/[A-Za-z0-9_-]+/notes|MUGGLE_[A-Z0-9_]+_SKIP'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" record-comment-replies 2>/dev/null || printf '{}'

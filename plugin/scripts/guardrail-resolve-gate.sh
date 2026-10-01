@@ -11,12 +11,17 @@ set -uo pipefail
 # and `resolved=false` through to guardrails.mjs, which allows both. Cheaper to
 # pay one cold start on the rare inverse call than to encode the boundary twice
 # and have the two drift. Degrades to {} so it never blocks an unrelated command.
-payload="$(cat)"
 
-if ! grep -Eiq 'resolveReviewThread|resolved=(true|false)' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="resolve-gate"
+
+guardrail_wants() {
+  guardrail_payload_matches 'resolveReviewThread|resolved=(true|false)'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" resolve-gate 2>/dev/null || printf '{}'

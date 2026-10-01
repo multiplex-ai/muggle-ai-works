@@ -26,9 +26,9 @@ Enforcement is reserved for the handoffs that were being skipped: the E2E accept
 
 A recorder that *clears* an obligation — a walkthrough posted, a failure diagnosed, a test case classified — records only when the call did not visibly fail (`callOutcome.ts`). Recording from the request alone let a rejected `gh pr comment` mark the walkthrough posted, so the gate went quiet on a PR that never received it.
 
-Each guardrail is a thin bash wrapper in `../scripts/` registered in `hooks.json`. The wrapper pipes the event payload (stdin JSON) to the bundled `../scripts/guardrails.mjs <subcommand>`, which holds the decision logic (built from `src/guardrails/`, vitest-covered). Per-session state in `~/.muggle-ai/guardrails/<session_id>.json` tracks what fired. Any *failure* degrades to `{}` (allow) — a gate blocks only by an explicit, tested decision, never by accident.
+Each guardrail is a bash gate script in `../scripts/` holding a `guardrail_wants` pre-filter and the `guardrails.mjs` subcommand it feeds; the bundled `../scripts/guardrails.mjs` holds the decision logic (built from `src/guardrails/`, vitest-covered). The busy events — a shell command before and after it runs, and every turn end — register one `guardrail-dispatch.sh` command listing their gates, which reads the payload once, asks every gate's pre-filter in that one process, and starts Node once (`guardrails.mjs run <gates...>`) for just the gates that could fire, merging their responses. Rarer events call a gate script directly. Per-session state in `~/.muggle-ai/guardrails/<session_id>.json` tracks what fired. Any *failure* degrades to `{}` (allow) — a gate blocks only by an explicit, tested decision, never by accident; `guardrail-lib.sh` is the one place that falls back, and `run` isolates gates from each other.
 
-Each wrapper short-circuits in shell first, so the common case never pays Node cold-start. A gate that has spent its block budget stamps a `<gate>Released` flag, which its wrapper then pre-filters on — without it a released gate keeps cold-starting Node on every remaining turn end to answer `{}`, and the walkthrough gate keeps making provider calls to do it. That pre-filter is a second, looser copy of what `guardrails.mjs` matches, and it is the one place a guardrail can fail *silently*: a payload it drops — a skip marker, a reopen line, a comment edit — reaches no recorder, and the gate keeps demanding an action the user already took. Over-matching is free; under-matching is a dead escape hatch. `src/test/guardrails/hook-prefilter.test.ts` pins every payload each subcommand acts on against the wrapper guarding it, and derives the skip-marker tokens from source so a new marker is covered the moment it exists.
+Pre-filters are bash builtins only (`guardrail-lib.sh`), so an irrelevant event starts no process at all. A gate that has spent its block budget stamps a `<gate>Released` flag, which its wrapper then pre-filters on — without it a released gate keeps cold-starting Node on every remaining turn end to answer `{}`, and the walkthrough gate keeps making provider calls to do it. That pre-filter is a second, looser copy of what `guardrails.mjs` matches, and it is the one place a guardrail can fail *silently*: a payload it drops — a skip marker, a reopen line, a comment edit — reaches no recorder, and the gate keeps demanding an action the user already took. Over-matching is free; under-matching is a dead escape hatch. `src/test/guardrails/hook-prefilter.test.ts` pins every payload each subcommand acts on against the wrapper guarding it, and derives the skip-marker tokens from source so a new marker is covered the moment it exists.
 
 ## Guardrails
 
@@ -70,3 +70,18 @@ The nudge counts only slots **this session owns**, and reports the rest as orpha
 - Finalized watcher slots (`result.md` present) are pruned 30 days after finalize; their `followup.log` is forensic-only. An **open** slot — a PR watched for any length of time — has no `result.md` and is never touched.
 
 Both windows are overridable (`MUGGLE_GUARDRAILS_TTL_DAYS`, `MUGGLE_SLOT_TTL_DAYS`). TTL-gated to once per day via a `~/.cache/muggle/state-gc-checked` marker (the current-session refresh runs every start regardless); silent and best-effort, never blocks session start. Never touches an open slot or the current session's own state.
+
+## Footprint caps
+
+Every hook here fires on every tool call, prompt or turn end in every open session, so its cost is paid thousands of times a day on the user's machine; on Windows each process start costs 50 ms healthy and seconds under load. The budget is lightweight by construction: one hook command per busy event, and nothing started beyond it when the event is irrelevant. `src/test/guardrails/footprint/` holds CI to it:
+
+| Cap | Limit |
+| :-- | :-- |
+| Hook commands per busy slot (PreToolUse/PostToolUse on `Bash` and `Read`, Stop, UserPromptSubmit) | 1 |
+| Programs started beyond each hook's own launch on an irrelevant event | 0 (Stop: 1, a transcript `tail` until the capability-claim gate has nudged; bash cannot seek) |
+| `node`, `gh`, `python` on that path | 0 |
+| Median wall time of one irrelevant firing, Linux/macOS | 100 ms |
+| Hook commands in the whole manifest | 15 |
+| Hook timeout | declared on every hook; 30 s, SessionStart 120 s |
+
+Counts are exec counts, so they are identical on every runner. Every count is exact: CI fails when a change exceeds a limit, and also when it beats one until `footprint/constants.ts` is lowered to match, so a gain cannot be given back later.

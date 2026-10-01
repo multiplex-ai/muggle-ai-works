@@ -20,12 +20,17 @@ set -uo pipefail
 # the user to run an echo that could never reach the recorder, then blocked the
 # turn anyway. Anchoring the marker to a leading `echo` stays in guardrails.mjs;
 # over-matching here only costs a needless spawn.
-payload="$(cat)"
 
-if ! grep -Eiq '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test-generation|replay)|muggle-local-telemetry-skill-emit|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="record-tests"
+
+guardrail_wants() {
+  guardrail_payload_matches '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test-generation|replay)|muggle-local-telemetry-skill-emit|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" record-tests 2>/dev/null || printf '{}'

@@ -11,6 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
@@ -198,5 +200,53 @@ describe.skipIf(!hasBash)("watch_wake_blocked_resume", () => {
 
   it("stays quiet while the digest is unchanged", () => {
     expect(wake('watch_wake_blocked_resume 383 "build:FAILURE" "build:FAILURE"')).toBe("");
+  });
+});
+
+/** Loads a state line through watch_read_state_fields and returns the array it filled. */
+function readStateFields(line: string): string[] {
+  const stdout = execFileSync(
+    "bash",
+    ["-c", `source "$SCRIPT"; watch_read_state_fields "$LINE"; printf '%s\\n' "\${STATE_FIELDS[@]}"`],
+    { env: { ...process.env, SCRIPT: scriptPath, LINE: line }, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+  );
+  return stdout.split("\n").slice(0, -1);
+}
+
+describe.skipIf(!hasBash)("watch_read_state_fields", () => {
+  it("fills one element per field, keeping empty ones in place", () => {
+    const fields = readStateFields(
+      ["MERGED", "h", "b", "MERGEABLE", "0", "0", "", "0", "0", ""].join("\t"),
+    );
+    expect(fields).toEqual(["MERGED", "h", "b", "MERGEABLE", "0", "0", "", "0", "0", ""]);
+  });
+
+  it("replaces the previous line's fields rather than appending to them", () => {
+    const stdout = execFileSync(
+      "bash",
+      ["-c", 'source "$SCRIPT"; watch_read_state_fields "a\tb\tc"; watch_read_state_fields "x"; echo "${#STATE_FIELDS[@]}"'],
+      { env: { ...process.env, SCRIPT: scriptPath }, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    );
+    expect(stdout.trim()).toBe("1");
+  });
+});
+
+// macOS ships bash 3.2 as /bin/bash, and a watch runs under whatever `bash` is
+// first on PATH. Linux and Git Bash ship 4+, so a bash-4-only builtin passes
+// every local run and fails only on a Mac — where a missing `mapfile` left
+// every state field empty and the watch blind. Checking the text catches it
+// wherever the suite runs.
+describe("watch scripts stay runnable on bash 3.2", () => {
+  const scriptsDir = fileURLToPath(new URL("../../../plugin/scripts/", import.meta.url));
+  const watchScripts = readdirSync(scriptsDir).filter((name) => /^pr-watch-.*\.sh$/.test(name));
+
+  it("finds the watch scripts to check", () => {
+    expect(watchScripts.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it.each(watchScripts)("%s uses no bash-4-only builtin", (name) => {
+    const body = readFileSync(join(scriptsDir, name), "utf8");
+    expect(body).not.toMatch(/^\s*(?:mapfile|readarray)\b/m);
+    expect(body).not.toMatch(/\b(?:declare|local) -[a-zA-Z]*[An][a-zA-Z]*\b/);
   });
 });

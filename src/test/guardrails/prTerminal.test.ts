@@ -51,15 +51,26 @@ describe("detectPrTerminal", () => {
     expect(
       detectPrTerminal({
         tool_name: "Bash",
-        tool_response: { stdout: "tick 41 ok\nTERMINAL pr=331: MERGED\n" },
+        tool_response: { stdout: "tick 41 ok\nTERMINAL pr=331 state=MERGED\n" },
       }),
     ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
     expect(
       detectPrTerminal({
         tool_name: "Monitor",
-        tool_response: { content: "TERMINAL pr=45: CLOSED" },
+        tool_response: { content: "TERMINAL pr=45 state=CLOSED" },
       }),
     ).toEqual({ prNumber: 45, verdict: PrTerminalVerdict.Closed });
+  });
+
+  // A slot armed before the loop shipped as a file still runs its generated
+  // watch.sh until re-armed, and that loop printed the older form.
+  it("still detects the legacy generated watch.sh form", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Monitor",
+        tool_response: { stdout: "TERMINAL pr=331: MERGED" },
+      }),
+    ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
   });
 
   it("ignores state metadata in JSON fetches — a PR state query is not a terminal event", () => {
@@ -257,9 +268,9 @@ describe("applyPrReopened", () => {
 describe("forge lines are only evidence when this call produced them", () => {
   const MERGE_LINE = "91:  [\"a merge success line\", outputPayload(\"[ok] Merged pull request o/r#341 (feat: thing)\")],";
 
-  // This is not hypothetical: grepping a test fixture for the phrase armed a
-  // post-merge handoff for PR #341 twice while this very change was being
-  // written, and held the turn open until the state was edited by hand.
+  // Grepping a test fixture for the phrase is enough to arm a post-merge
+  // handoff for a PR that does not exist, holding the turn open until the
+  // state is edited by hand.
   it("ignores a merge line a grep merely printed", () => {
     expect(
       detectPrTerminal({
@@ -306,7 +317,7 @@ describe("forge lines are only evidence when this call produced them", () => {
     expect(
       detectPrTerminal({
         tool_name: "Monitor",
-        tool_response: { stdout: "TERMINAL pr=331: MERGED" },
+        tool_response: { stdout: "TERMINAL pr=331 state=MERGED" },
       }),
     ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
   });
@@ -322,7 +333,7 @@ describe("the monitor's terminal line is provenance-checked too", () => {
       detectPrTerminal({
         tool_name: "Bash",
         tool_input: { command: "grep -rn 'TERMINAL pr=' src/test/" },
-        tool_response: { stdout: "src/test/x.ts:91:  TERMINAL pr=331: MERGED" },
+        tool_response: { stdout: "src/test/x.ts:91:  TERMINAL pr=331 state=MERGED" },
       }),
     ).toBeNull();
   });
@@ -332,7 +343,19 @@ describe("the monitor's terminal line is provenance-checked too", () => {
       detectPrTerminal({
         tool_name: "Bash",
         tool_input: { command: "bash /p/scripts/pr-watch-loop.sh --slot /s --repo o/r --pr 331" },
-        tool_response: { stdout: "TERMINAL pr=331: MERGED" },
+        tool_response: { stdout: "TERMINAL pr=331 state=MERGED" },
+      }),
+    ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
+  });
+
+  // Arming runs pr-watch-arm.sh, which execs the loop and itself reports a PR
+  // that is already terminal, so its command never names the loop script.
+  it("accepts it from the arm script, which is how every watch is launched", () => {
+    expect(
+      detectPrTerminal({
+        tool_name: "Bash",
+        tool_input: { command: "bash /p/scripts/pr-watch-arm.sh --slot /s --repo o/r --pr 331 --base master" },
+        tool_response: { stdout: "TERMINAL pr=331 state=MERGED — nothing to arm" },
       }),
     ).toEqual({ prNumber: 331, verdict: PrTerminalVerdict.Merged });
   });
@@ -341,7 +364,7 @@ describe("the monitor's terminal line is provenance-checked too", () => {
     expect(
       detectPrTerminal({
         tool_name: "Monitor",
-        tool_response: { stdout: "TERMINAL pr=45: CLOSED" },
+        tool_response: { stdout: "TERMINAL pr=45 state=CLOSED" },
       }),
     ).toEqual({ prNumber: 45, verdict: PrTerminalVerdict.Closed });
   });

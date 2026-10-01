@@ -89,7 +89,7 @@ describe("pr-terminal pre-filter reaches every payload the detector acts on", ()
     ["a squash-merge success line", outputPayload("✓ Squashed and merged pull request o/r#341 (feat: thing)")],
     ["a close success line", outputPayload("✓ Closed pull request o/r#369 (stale)")],
     ["a reopen success line", outputPayload("✓ Reopened pull request o/r#369 (gate fix)")],
-    ["the watch monitor's terminal exit line", JSON.stringify({ tool_name: "Monitor", tool_response: { stdout: "TERMINAL pr=331: MERGED" } })],
+    ["the watch monitor's terminal exit line", JSON.stringify({ tool_name: "Monitor", tool_response: { stdout: "TERMINAL pr=331 state=MERGED" } })],
   ];
 
   it.each(reaching)("spawns Node for %s", (_label, payload) => {

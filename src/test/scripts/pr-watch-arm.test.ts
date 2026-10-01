@@ -5,9 +5,13 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
+import { detectPrTerminal } from "../../guardrails/prTerminal.js";
+import { PrTerminalVerdict } from "../../guardrails/types.js";
+
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
 const armPath = toBash(fileURLToPath(new URL("../../../plugin/scripts/pr-watch-arm.sh", import.meta.url)));
+const loopPath = toBash(fileURLToPath(new URL("../../../plugin/scripts/pr-watch-loop.sh", import.meta.url)));
 const guardsPath = toBash(
   fileURLToPath(new URL("../../../plugin/scripts/pr-watch-guards.sh", import.meta.url)),
 );
@@ -82,7 +86,8 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
 
 // The claim happens after the state fetch, so reaching it needs the two calls
 // arming makes: the tab-separated state projection and the behind-by compare.
-function stubGhDir(): string {
+// `prState` is the PR state the projection reports.
+function stubGhDir(prState = "OPEN"): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
   const gh = join(dir, "gh");
   writeFileSync(
@@ -91,7 +96,7 @@ function stubGhDir(): string {
       "#!/usr/bin/env bash",
       'if [ "$1" = "auth" ]; then echo stub-token; exit 0; fi',
       'if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then',
-      "  printf 'OPEN\\tHEAD1\\tBASE1\\tMERGEABLE\\t0\\t0\\t\\t0\\t0\\t\\n'",
+      `  printf '${prState}\\tHEAD1\\tBASE1\\tMERGEABLE\\t0\\t0\\t\\t0\\t0\\t\\n'`,
       "  exit 0",
       "fi",
       "echo 0",
@@ -213,5 +218,41 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
       .filter((line) => line.trim() && !/^(DRAIN|ARMED) /.test(line));
     expect(loopLines).toHaveLength(1);
     expect(loopLines[0]).toMatch(/^ROLLOVER /);
+  }, 60_000);
+});
+
+// Runs one watch script against a merged PR and returns the command it was run
+// as alongside what it printed — the two halves the post-merge guardrail reads.
+function runAgainstMergedPr(script: string): { command: string; stdout: string } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  // The loop waits for arming to seed this before it polls at all.
+  writeFileSync(
+    join(slot, "watch-watermark.env"),
+    'REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\n',
+  );
+  const args = [script, "--slot", toBash(slot), "--repo", "o/n", "--pr", "7", "--base", "master"];
+  const stdout = execFileSync("bash", args, {
+    env: { ...process.env, PATH: `${stubGhDir("MERGED")}${delimiter}${process.env.PATH ?? ""}` },
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  return { command: `bash ${args.join(" ")}`, stdout: stdout };
+}
+
+// The post-merge guardrail recognises the terminal line by pattern, so it has to
+// be checked against what the scripts really print. It drifted once already: the
+// pattern kept the generated watch.sh's form after the loop moved into a file and
+// changed it, and every test went on feeding the old form.
+describe.skipIf(!hasBash)("terminal line contract with the post-merge guardrail", () => {
+  it("recognises the line the arm script prints for an already-merged PR", () => {
+    const { command, stdout } = runAgainstMergedPr(armPath);
+    expect(detectPrTerminal({ tool_name: "Bash", tool_input: { command: command }, tool_response: { stdout: stdout } }))
+      .toEqual({ prNumber: 7, verdict: PrTerminalVerdict.Merged });
+  }, 60_000);
+
+  it("recognises the line the loop prints when the PR merges", () => {
+    const { command, stdout } = runAgainstMergedPr(loopPath);
+    expect(detectPrTerminal({ tool_name: "Bash", tool_input: { command: command }, tool_response: { stdout: stdout } }))
+      .toEqual({ prNumber: 7, verdict: PrTerminalVerdict.Merged });
   }, 60_000);
 });

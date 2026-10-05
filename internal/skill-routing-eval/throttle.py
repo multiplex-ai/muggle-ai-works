@@ -16,7 +16,11 @@ THROTTLE_SIGNATURE = re.compile(
     re.IGNORECASE,
 )
 
-MAX_THROTTLE_RETRIES = 3
+# Raised from 3 after a sweep exhausted retries 71 times: an exhausted throttle scores as a miss,
+# so rate limiting reads as bad routing and a skill can fall 79 points without a word of its
+# description changing. Retries are cheap in wall time because the gate below pauses every worker
+# on the first throttle rather than letting the pool pile onto an already-limited token.
+MAX_THROTTLE_RETRIES = 6
 BACKOFF_BASE_SECONDS = 15.0
 BACKOFF_CAP_SECONDS = 120.0
 JITTER_MAX_SECONDS = 5.0

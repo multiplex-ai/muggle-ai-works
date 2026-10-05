@@ -17,6 +17,10 @@ export enum PreferenceValue {
 /** Canned per-tool responses keyed by the slot the mock-mcp stubs read. */
 export interface Fixtures {
   authStatus?: unknown;
+  /** Canned `muggle-remote-auth-register` reply, for a flow that opens its own account. */
+  authRegister?: unknown;
+  /** Canned `muggle-remote-auth-api-key-create` reply. */
+  apiKeyCreate?: unknown;
   lastProject?: unknown;
   lastHost?: unknown;
   projects?: unknown;

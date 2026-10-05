@@ -31,19 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-report-format.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-resolve-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-walkthrough-heading.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
             "async": false,
             "timeout": 10
           }
@@ -67,33 +55,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-opened.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh",
             "async": false,
             "timeout": 25
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-terminal.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-comment-replies.sh\"",
-            "async": false,
-            "timeout": 10
           }
         ]
       },
@@ -180,57 +144,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-e2e-gate.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh",
             "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-terminal-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-watch-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-followthrough-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-walkthrough-gate.sh\"",
-            "async": false,
-            "timeout": 15
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-comment-reply-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-stage-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-debug-path-gate.sh\"",
-            "async": false,
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-capability-claim.sh\"",
-            "async": false,
-            "timeout": 10
+            "timeout": 30
           }
         ]
       }

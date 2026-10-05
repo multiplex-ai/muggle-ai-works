@@ -12,31 +12,21 @@ set -uo pipefail
 # only when a failed run is recorded and unresolved. On the overwhelming majority
 # of turns nothing failed, so the state file is absent or failedRuns is empty and
 # we return {} in-shell. The evidence join runs in guardrails.mjs. Degrades to {}.
-payload="$(cat)"
 
-raw_sid="$(printf '%s' "$payload" | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')"
-[ -n "$raw_sid" ] || raw_sid="unknown"
-sid="$(printf '%s' "$raw_sid" | sed 's/[^A-Za-z0-9_-]/_/g')"
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
 
-# Resolve the same home dir Node's os.homedir() uses. HOME is correct on
-# macOS/Linux and on most Git Bash setups; fall back to converting USERPROFILE
-# when HOME doesn't hold the state dir (some Windows shells point HOME elsewhere).
-home="${HOME:-}"
-if [ ! -d "$home/.muggle-ai" ] && command -v cygpath >/dev/null 2>&1 && [ -n "${USERPROFILE:-}" ]; then
-  home="$(cygpath -u "$USERPROFILE" 2>/dev/null || printf '%s' "$home")"
+GUARDRAIL_SUBCOMMAND="debug-path-gate"
+
+guardrail_wants() {
+  guardrail_load_state \
+    && guardrail_state_has '"failedRuns"' \
+    && ! guardrail_state_has '"failedRuns": []' \
+    && ! guardrail_state_has '"debugReleased": true' \
+    && ! guardrail_state_has '"debugSkipped": true'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-# Empty array serializes as `"failedRuns": []` (one line); a non-empty array
-# spans lines, so the empty match reliably tells them apart.
-state_file="$home/.muggle-ai/guardrails/$sid.json"
-if [ ! -f "$state_file" ] \
-  || ! grep -q '"failedRuns"' "$state_file" \
-  || grep -q '"failedRuns": \[\]' "$state_file" \
-  || grep -q '"debugReleased": true' "$state_file" \
-  || grep -q '"debugSkipped": true' "$state_file"; then
-  printf '{}'
-  exit 0
-fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" debug-path-gate 2>/dev/null || printf '{}'

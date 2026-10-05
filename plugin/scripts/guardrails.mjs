@@ -51,6 +51,7 @@ var CALL_FAILURE_SIGNALS = [
 ];
 var FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
 var WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
+var MERGED_GATE_OUTPUT_SEPARATOR = "\n\n";
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -1425,6 +1426,23 @@ function denyTool(reason, host2) {
     }
   });
 }
+function mergeHookOutputs(gateOutputs, host2) {
+  const parsedOutputs = gateOutputs.flatMap((gateOutput) => {
+    try {
+      return [JSON.parse(gateOutput)];
+    } catch {
+      return [];
+    }
+  });
+  const denyReasons = parsedOutputs.filter((parsed) => parsed.hookSpecificOutput?.permissionDecision === "deny").map((parsed) => parsed.hookSpecificOutput?.permissionDecisionReason ?? "").filter(Boolean);
+  if (denyReasons.length > 0) return denyTool(denyReasons.join(MERGED_GATE_OUTPUT_SEPARATOR), host2);
+  const blockReasons = parsedOutputs.filter((parsed) => parsed.decision === "block").map((parsed) => parsed.reason ?? "").filter(Boolean);
+  if (blockReasons.length > 0) return blockStop(blockReasons.join(MERGED_GATE_OUTPUT_SEPARATOR), host2);
+  const contexts = parsedOutputs.map((parsed) => parsed.hookSpecificOutput?.additionalContext ?? parsed.additional_context ?? "").filter(Boolean);
+  if (contexts.length === 0) return "{}";
+  const hookEventName = parsedOutputs.find((parsed) => parsed.hookSpecificOutput?.hookEventName)?.hookSpecificOutput?.hookEventName;
+  return envelope(hookEventName ?? "", contexts.join(MERGED_GATE_OUTPUT_SEPARATOR), host2);
+}
 
 // src/guardrails/cli.ts
 function readStdin() {
@@ -1742,7 +1760,18 @@ function capabilityClaimGate() {
   const reason = `Do not end the turn yet. This turn tells the user that an email- or login-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor; stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. If the real blocker is SMS/phone OTP, authenticator-app TOTP, or OAuth-only social login, those limits are genuine \u2014 name the one that applies and move on.`;
   return blockStop(reason, host);
 }
+function runFiringGates() {
+  const gateOutputs = process.argv.slice(3).map((firingSubcommand) => {
+    try {
+      return (handlers[firingSubcommand] ?? (() => "{}"))();
+    } catch {
+      return "{}";
+    }
+  });
+  return mergeHookOutputs(gateOutputs, host);
+}
 var handlers = {
+  run: runFiringGates,
   "pr-opened": prOpened,
   "capability-claim-gate": capabilityClaimGate,
   "pr-terminal": prTerminal,

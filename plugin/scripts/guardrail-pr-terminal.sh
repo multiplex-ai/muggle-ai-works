@@ -14,12 +14,17 @@ set -uo pipefail
 # dropped it a close+reopen — routine, to re-fire a lost workflow trigger — left
 # the handoff armed on a change that is open again. Degrades to {} so it never
 # blocks.
-payload="$(cat)"
 
-if ! grep -Eiq '(merged|closed|reopened) pull request|TERMINAL pr=' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="pr-terminal"
+
+guardrail_wants() {
+  guardrail_payload_matches '(merged|closed|reopened) pull request|TERMINAL pr='
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" pr-terminal 2>/dev/null || printf '{}'

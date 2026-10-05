@@ -94,7 +94,7 @@ import { detectBuildIntent } from "./detectBuildIntent.js";
 import { callFailed } from "./callOutcome.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
-import { envelope, blockStop, denyTool, type Host } from "./emit.js";
+import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./emit.js";
 import {
   type GuardrailState,
   CommentReplyGateAction,
@@ -615,7 +615,24 @@ function capabilityClaimGate(): string {
   return blockStop(reason, host);
 }
 
+/**
+ * `run <subcommand...>`: every gate guardrail-dispatch.sh's pre-filters let through, in one
+ * process, merged into one response. Each gate is isolated so a throwing handler cannot
+ * silence the rest — the never-block guarantee each gate's own bash fallback used to give.
+ */
+function runFiringGates(): string {
+  const gateOutputs = process.argv.slice(3).map((firingSubcommand) => {
+    try {
+      return (handlers[firingSubcommand] ?? (() => "{}"))();
+    } catch {
+      return "{}";
+    }
+  });
+  return mergeHookOutputs(gateOutputs, host);
+}
+
 const handlers: Record<string, () => string> = {
+  run: runFiringGates,
   "pr-opened": prOpened,
   "capability-claim-gate": capabilityClaimGate,
   "pr-terminal": prTerminal,

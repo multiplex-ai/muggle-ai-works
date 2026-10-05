@@ -13,12 +13,17 @@ set -uo pipefail
 # Must stay synchronous (only a sync PreToolUse hook can deny). The same keyword
 # pre-filter keeps Node off the hot path for ordinary commands, and any failure
 # degrades to {} so an unrelated command is never blocked.
-payload="$(cat)"
 
-if ! grep -Eiq 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]' <<<"$payload"; then
-  printf '{}'
-  exit 0
+guardrail_script_dir="${BASH_SOURCE[0]%/*}"
+[[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
+. "$guardrail_script_dir/guardrail-lib.sh"
+
+GUARDRAIL_SUBCOMMAND="walkthrough-heading-gate"
+
+guardrail_wants() {
+  guardrail_payload_matches 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi
-
-root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-printf '%s' "$payload" | node "${root}/scripts/guardrails.mjs" walkthrough-heading-gate 2>/dev/null || printf '{}'

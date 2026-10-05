@@ -8,6 +8,7 @@ Lookup material pulled out of `SKILL.md` to keep the always-loaded body lean. Ev
 |:------|:-----|:-----|
 | Auth | `muggle-remote-auth-status` | Both |
 | Auth | `muggle-remote-auth-login` | Both |
+| Auth | `muggle-remote-auth-register` | Both |
 | Auth | `muggle-remote-auth-poll` | Both |
 | Project | `muggle-remote-project-list` | Both |
 | Project | `muggle-remote-project-create` | Both |

@@ -1953,5 +1953,10 @@
     "query": "ping the team on slack to review my PR",
     "expected_skill": "none",
     "note": "pr-followup near-miss: nudge reviewers, not a watcher"
+  },
+  {
+    "query": "create an account on our app's signup page at staging.acme.io and tell me if it works",
+    "expected_skill": "muggle-browser-task",
+    "note": "negative boundary for the registration wording — creating an account ON the user's product is a browser task, not muggle's own signup"
   }
 ]

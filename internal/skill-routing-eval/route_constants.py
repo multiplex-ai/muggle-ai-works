@@ -16,6 +16,32 @@ INSPECTION_TOOL_NAMES = frozenset({
 
 SHELL_TOOL_NAMES = frozenset({"Bash", "PowerShell"})
 
+# Tools that reach the network. Read-only from the repo's point of view, but outside the throwaway
+# checkout a probe session is supposed to stay inside, so the session is not granted them.
+NETWORK_TOOL_NAMES = frozenset({"WebFetch", "WebSearch"})
+
+# What a probe session is allowed to call. A route is read off the `tool_use` block itself — a
+# `Skill` invocation, or a `Read` of a SKILL.md — so observing routing needs those tools to exist,
+# never the ability to act. Granting the session everything instead would let a routed skill body
+# run arbitrary commands on the runner, which no part of this measurement needs.
+#
+# Derived from the classifier's own notion of read-only so the two cannot drift apart: a tool the
+# classifier would count as orienting is a tool the session may call.
+SESSION_ALLOWED_TOOL_NAMES = frozenset({"Skill"}) | (INSPECTION_TOOL_NAMES - NETWORK_TOOL_NAMES)
+
+
+def session_allowed_tool_specifiers() -> list[str]:
+    """What a probe session may call, as Claude Code tool specifiers.
+
+    A realistic query makes the model look before it routes — `git status`, `ls`, a diff — and a
+    session that cannot look never gets far enough to pick a skill. So the shell is granted, but
+    only for the verbs this module already calls read-only: the same list the classifier scores
+    orienting against, rather than a second one kept in step by hand.
+    """
+    return sorted(SESSION_ALLOWED_TOOL_NAMES) + [
+        f"Bash({command}:*)" for command in sorted(INSPECTION_COMMANDS)
+    ]
+
 # Shell verbs that report state without changing it. Anything unlisted counts as
 # substantive work, so an unfamiliar command is never mistaken for orienting.
 INSPECTION_COMMANDS = frozenset({

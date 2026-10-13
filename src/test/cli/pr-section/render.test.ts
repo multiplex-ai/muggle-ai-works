@@ -15,7 +15,17 @@ import type { E2eReport, FailedTest, InconclusiveTest, PassedTest, Step, TestRes
 const PROJECT_ID = "p1";
 const CHECKOUT_USE_CASE = "Checkout";
 const OVERVIEW_ORDINAL = /\*\*\d+\.\*\*/g;
-const DETAILS_ORDINAL = /<b>\d+\. /g;
+const TEST_HEADING = /^#### /gm;
+
+/** Count the per-test blocks by their heading; steps are <details> too, so they cannot be counted by that tag. */
+function testBlocks (markdown: string): number {
+  return (markdown.match(TEST_HEADING) ?? []).length;
+}
+
+/** The ordinals in the per-test headings, in document order. */
+function detailsOrdinals (markdown: string): number[] {
+  return [...markdown.matchAll(/^#### \S+ (\d+)\. /gm)].map((m) => Number(m[1]));
+}
 
 /** Pull the rendered test ordinals out of a markdown chunk, in document order. */
 function ordinalsFrom (markdown: string, pattern: RegExp): number[] {
@@ -320,42 +330,107 @@ describe("renderOverview", () => {
   });
 });
 
+// Steps as a real action script yields them after assembly: the operation verb
+// in `action`, the agent's readable explanation in `description`. The previous
+// layout was written against fixtures whose `action` held readable text, which
+// real reports never do — so these are taken from a recorded run.
+const realSteps: Step[] = [
+  { stepIndex: 0, action: "navigate", description: "Workflow started at url [http://localhost:3011/muggleTestV0/landing].", screenshotUrl: "https://cdn/real-0.png" },
+  { stepIndex: 1, action: "click", description: "Click 'Accept all' button to dismiss the cookie consent dialog.", screenshotUrl: "https://cdn/real-1.png" },
+  { stepIndex: 2, action: "click", description: "Click the 'How it works' link with element id [1] to navigate to the section.", screenshotUrl: "https://cdn/real-2.png" },
+  { stepIndex: 3, action: "halt", description: "Verify that all header links navigate to existing sections.", screenshotUrl: "https://cdn/real-3.png" },
+];
+
+const passedRealSteps: PassedTest = {
+  ...passedNoMeta,
+  name: "Every header link scrolls to a section that exists",
+  testCaseId: "tc-real",
+  steps: realSteps,
+};
+
 describe("renderTestDetails", () => {
-  it("renders a passed test with a state-first summary line and no expand hint", () => {
+  it("titles the test with a heading that opens on the status glyph", () => {
     const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).toContain("<details>");
-    expect(md).toContain("<summary>✅ <b>1. User creates a new project with valid URL</b>");
-    expect(md).toContain("— Verify that a logged-in user can create a new project");
+    expect(md.split("\n")[0]).toBe("#### ✅ 1. User creates a new project with valid URL");
     expect(md).not.toContain("click to expand");
-    expect(md).toContain("**Result:** ✅ PASSED");
-    expect(md).toContain("</details>");
   });
 
-  it("merges the step count and the dashboard link onto one reference line", () => {
+  // GitHub lays a heading inside <summary> out inline-block, so a title longer
+  // than one line drops below its disclosure triangle and strands it.
+  it("keeps the title out of any collapsible", () => {
     const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    const stepsLine = md.split("\n").find((l) => l.startsWith("**Steps:**"))!;
-    expect(stepsLine).toContain("**Steps:** 3 ·");
-    expect(stepsLine).toContain("View steps on Muggle AI →");
-    expect(stepsLine).toContain(
+    expect(md).not.toMatch(/<summary><h\d/);
+  });
+
+  it("states the test's description under the heading, not in it", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    expect(md.split("\n")[0]).not.toContain("Verify that a logged-in user");
+    expect(md).toContain("_Verify that a logged-in user can create a new project");
+  });
+
+  // The verdict reads without expanding anything; only the evidence collapses.
+  it("shows the result table outside the collapsible and tucks steps and screens inside one", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    const collapsible = md.indexOf("<details><summary><b>Steps and screenshots</b></summary>");
+    expect(collapsible).toBeGreaterThan(md.indexOf("| **Result** |"));
+    expect(md.indexOf("<summary>1 · ")).toBeGreaterThan(collapsible);
+    expect(md.indexOf("**Ending screen**")).toBeGreaterThan(collapsible);
+    expect(md.trimEnd().endsWith("</details>")).toBe(true);
+  });
+
+  // A quote in the alt text closes the attribute early, and GitHub prints the
+  // whole tag as text in place of the screenshot.
+  it("escapes a quote in the test name where it becomes the image's alt text", () => {
+    const md = renderTestDetails(latest({ ...passedWithDesc, name: 'Find the "What else" control' }), PROJECT_ID, 1);
+    expect(md).toContain('alt="Find the &quot;What else&quot; control"');
+  });
+
+  it("lays the result out as a labelled table", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    expect(md).toContain("| | |\n|:--|:--|");
+    expect(md).toContain("| **Result** | ✅ Passed |");
+    expect(md).not.toContain("| **Why** |");
+  });
+
+  it("gives a failure its step ordinal and its error as plain text", () => {
+    const md = renderTestDetails(latest(failedWithDesc), PROJECT_ID, 2);
+    expect(md.split("\n")[0]).toBe("#### ❌ 2. User receives error for invalid URL format");
+    expect(md).toContain("| **Result** | ❌ Failed at step 4 |");
+    expect(md).toContain("| **Why** | Element not found: submit button |");
+  });
+
+  it("gives an inconclusive run its reason", () => {
+    const md = renderTestDetails(latest(inconclusiveWithDesc), PROJECT_ID, 3);
+    expect(md).toContain("| **Result** | ⚠️ Inconclusive |");
+    expect(md).toContain("| **Why** | No replayable script exists yet — needs first generation run. |");
+  });
+
+  it("keeps a pipe or line break in the reason from breaking the table row", () => {
+    const md = renderTestDetails(
+      latest({ ...inconclusiveWithDesc, reason: "a | b\nsecond line" }),
+      PROJECT_ID,
+      1,
+    );
+    expect(md).toContain("| **Why** | a \\| b second line |");
+  });
+
+  it("names the run's step count and where the link goes", () => {
+    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
+    const runRow = md.split("\n").find((l) => l.startsWith("| **Run** |"))!;
+    expect(runRow).toContain("3 browser steps ·");
+    expect(runRow).toContain("Open the full run on Muggle AI →");
+    expect(runRow).toContain(
       "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-1",
     );
   });
 
-  it("closes the block with the ending screenshot, after the result and the steps", () => {
-    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).toContain("**📸 Ending screen — Final page after the test completed**");
-    expect(md).toContain('<img src="https://cdn/1-2.png" width="720"');
-    expect(md.indexOf("**Result:**")).toBeLessThan(md.indexOf("**📸 Ending screen"));
-    expect(md.indexOf("**Steps:**")).toBeLessThan(md.indexOf("**📸 Ending screen"));
-    expect(md.indexOf("1. Open dashboard")).toBeLessThan(md.indexOf("**📸 Ending screen"));
+  it("marks how many runs a collapsed test case had, and which one is shown", () => {
+    const md = renderTestDetails(latest(rerunSecondAttempt, 2), PROJECT_ID, 2);
+    expect(md).toContain("| **Attempts** | 2 — showing the latest |");
   });
 
-  it("renders every step of a short run, numbered from one", () => {
-    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).toContain("1. Open dashboard");
-    expect(md).toContain("2. Click New Project");
-    expect(md).toContain("3. Submit");
-    expect(md).not.toContain("more steps");
+  it("omits the attempts row for a test case that ran once", () => {
+    expect(renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1)).not.toContain("**Attempts**");
   });
 
   it("links into the ring the run happened on when a base is supplied", () => {
@@ -365,136 +440,123 @@ describe("renderTestDetails", () => {
       1,
       "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
     );
-    expect(md).toContain(
-      "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-1",
-    );
-    // A staging run must not send reviewers to production.
+    expect(md).toContain("https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts");
     expect(md).not.toContain("https://www.muggle-ai.com");
   });
 
   it("falls back to production when no base is supplied", () => {
+    expect(renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1)).toContain(DASHBOARD_URL_BASE);
+  });
+
+  it("opens the dashboard link in a new tab", () => {
     const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).toContain(DASHBOARD_URL_BASE);
+    expect(md).toContain('target="_blank"');
+    expect(md).toContain('rel="noopener noreferrer"');
+  });
+});
+
+describe("step collapsibles", () => {
+  it("labels each step with the agent's explanation, not the operation verb", () => {
+    const md = renderTestDetails(latest(passedRealSteps), PROJECT_ID, 1);
+    expect(md).toContain("<summary>2 · Click 'Accept all' button to dismiss the cookie consent dialog.</summary>");
+    expect(md).not.toMatch(/<summary>\d+ · click<\/summary>/);
   });
 
-  it("renders a passed test without description (no em-dash, no description text)", () => {
-    const md = renderTestDetails(latest(passedNoMeta), PROJECT_ID, 4);
-    expect(md).toContain("<summary>✅ <b>4. Logout flow</b></summary>");
+  it("drops the internal element id the agent's explanation carries", () => {
+    const md = renderTestDetails(latest(passedRealSteps), PROJECT_ID, 1);
+    expect(md).toContain("<summary>3 · Click the 'How it works' link to navigate to the section.</summary>");
+    expect(md).not.toContain("element id [");
   });
 
-  it("renders a failed test with the error and a position-based failure ordinal", () => {
-    const md = renderTestDetails(latest(failedWithDesc), PROJECT_ID, 2);
-    expect(md).toContain("<summary>❌ <b>2. User receives error for invalid URL format</b>");
-    // failureStepIndex 3 is the fourth step, so it reads as step 4 alongside "Steps: 4".
-    expect(md).toContain("**Result:** ❌ FAILED at step 4");
-    expect(md).toContain("**Error:** `Element not found: submit button`");
-    expect(md).toContain("**Steps:** 4 ·");
-    expect(md).toContain("**📸 Ending screen — Failure at step 4**");
-    expect(md).toContain('<img src="https://cdn/2-3.png"');
+  // Recorded runs also write it as `#N`, which GitHub would autolink as an issue.
+  it("drops the #-numbered form of the element id too", () => {
+    const md = renderTestDetails(
+      latest({ ...passedNoMeta, steps: [{ stepIndex: 0, action: "input", description: "Input email in the 'Email address' field with element id #0.", screenshotUrl: "https://cdn/x.png" }] }),
+      PROJECT_ID,
+      1,
+    );
+    expect(md).toContain("<summary>1 · Input email in the 'Email address' field.</summary>");
+    expect(md).not.toContain("#0");
   });
 
-  it("marks how many runs a collapsed test case had, and which one is shown", () => {
-    const md = renderTestDetails(latest(rerunSecondAttempt, 2), PROJECT_ID, 2);
-    expect(md).toContain("**Runs:** 2 — showing the latest");
+  it("falls back to the operation verb for a step with no explanation", () => {
+    const md = renderTestDetails(latest(passedNoMeta), PROJECT_ID, 1);
+    expect(md).toContain("<summary>1 · Click user menu</summary>");
   });
 
-  it("omits the runs line for a test case that ran once", () => {
-    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).not.toContain("**Runs:**");
+  it("opens each step onto its own screenshot", () => {
+    const md = renderTestDetails(latest(passedRealSteps), PROJECT_ID, 1);
+    const step = md.slice(md.indexOf("<summary>2 · "), md.indexOf("<summary>3 · "));
+    expect(step).toContain('<img src="https://cdn/real-1.png"');
+    expect(step).not.toContain("https://cdn/real-2.png");
+  });
+
+  it("escapes markup in an explanation so it cannot break the collapsible", () => {
+    const md = renderTestDetails(
+      latest({ ...passedNoMeta, steps: [{ stepIndex: 0, action: "click", description: "Click the <Submit> button", screenshotUrl: "https://cdn/x.png" }] }),
+      PROJECT_ID,
+      1,
+    );
+    expect(md).toContain("<summary>1 · Click the &lt;Submit&gt; button</summary>");
+  });
+
+  it("closes the block with the ending screenshot, after every step", () => {
+    const md = renderTestDetails(latest(passedRealSteps), PROJECT_ID, 1);
+    expect(md).toContain("**Ending screen** — Final page after the test completed");
+    expect(md.lastIndexOf("<summary>4 · ")).toBeLessThan(md.indexOf("**Ending screen**"));
   });
 
   it("uses endingScreenshotUrl + endingScreenshotCaption when provided on the test", () => {
-    const overrideTest: PassedTest = {
-      ...passedWithDesc,
-      endingScreenshotUrl: "https://cdn/summary.png",
-      endingScreenshotCaption: "Success. The goal is achieved.",
-    };
-    const md = renderTestDetails(latest(overrideTest), PROJECT_ID, 1);
-    expect(md).toContain("**📸 Ending screen — Success. The goal is achieved.**");
-    expect(md).toContain('<img src="https://cdn/summary.png"');
-    expect(md).not.toContain('<img src="https://cdn/1-2.png"');
-  });
-
-  it("escapes backticks in the error message so inline code stays balanced", () => {
-    const md = renderTestDetails(latest(failedNoMeta), PROJECT_ID, 5);
-    expect(md).toContain("**Error:**");
-    expect(md).not.toMatch(/Timeout waiting for `button/);
-    expect(md).toContain("Timeout waiting for ‘button[data-id='confirm']‘");
-    const errorLine = md.split("\n").find((l) => l.startsWith("**Error:**"))!;
-    expect(errorLine).toMatch(/^\*\*Error:\*\* `[^`]+`$/);
-  });
-
-  it("escapes backticks in a step action so the list cannot open a code span", () => {
-    const backtickStep: PassedTest = {
-      ...passedNoMeta,
-      steps: [{ stepIndex: 0, action: "Click `Submit`", screenshotUrl: "https://cdn/bt-0.png" }],
-    };
-    const md = renderTestDetails(latest(backtickStep), PROJECT_ID, 1);
-    expect(md).toContain("1. Click ‘Submit‘");
-    expect(md).not.toContain("Click `Submit`");
-  });
-
-  it("renders the dashboard link to open in a new tab", () => {
-    const md = renderTestDetails(latest(passedWithDesc), PROJECT_ID, 1);
-    expect(md).toContain("target=\"_blank\"");
-    expect(md).toContain("rel=\"noopener noreferrer\"");
-  });
-
-  it("renders an inconclusive test with the warning emoji, reason line, and no error", () => {
-    const md = renderTestDetails(latest(inconclusiveWithDesc), PROJECT_ID, 3);
-    expect(md).toContain("<summary>⚠️ <b>3. Clear search input restores full list</b>");
-    expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
-    expect(md).toContain("**Reason:** `No replayable script exists yet — needs first generation run.`");
-    expect(md).not.toContain("**Error:**");
-    expect(md).toContain("**Steps:** 0 ·");
-    // No ending-screen block and no step list when there are zero steps.
-    expect(md).not.toContain("**📸 Ending screen");
-    expect(md).toContain(
-      "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc-6",
+    const md = renderTestDetails(
+      latest({ ...passedWithDesc, endingScreenshotUrl: "https://cdn/summary.png", endingScreenshotCaption: "Success. The goal is achieved." }),
+      PROJECT_ID,
+      1,
     );
+    expect(md).toContain("**Ending screen** — Success. The goal is achieved.");
+    expect(md).toContain('<img src="https://cdn/summary.png" width="720"');
   });
 
-  it("renders an inconclusive test with steps using a 'cut short' caption", () => {
+  it("captions an inconclusive run's last frame as cut short", () => {
     const md = renderTestDetails(latest(inconclusiveWithSteps), PROJECT_ID, 4);
-    expect(md).toContain("**📸 Ending screen — Last frame before run was cut short**");
-    expect(md).toContain('<img src="https://cdn/7-1.png"');
-    expect(md).toContain("**Result:** ⚠️ INCONCLUSIVE");
+    expect(md).toContain("**Ending screen** — Last frame before run was cut short");
+    expect(md).toContain('<img src="https://cdn/7-1.png" width="720"');
+  });
+
+  it("renders neither steps nor an ending screen for a run with no steps", () => {
+    const md = renderTestDetails(latest(inconclusiveWithDesc), PROJECT_ID, 3);
+    expect(md).not.toContain("**Steps**");
+    expect(md).not.toContain("**Ending screen**");
+    expect(md).not.toContain("Steps and screenshots");
+    expect(md).toContain("| **Run** | 0 browser steps ·");
   });
 });
 
 describe("step list elision", () => {
-  const withSteps = (count: number): ILatestRun =>
-    latest({ ...passedNoMeta, steps: buildSteps(count) });
+  const withSteps = (count: number): ILatestRun => latest({ ...passedNoMeta, steps: buildSteps(count) });
 
-  it("renders all nine steps of a nine-step run", () => {
-    const md = renderTestDetails(withSteps(9), PROJECT_ID, 1);
-    expect(md).toContain("9. Action 9");
-    expect(md).not.toContain("more steps");
+  it("shows every step of a 20-step run", () => {
+    const md = renderTestDetails(withSteps(20), PROJECT_ID, 1);
+    expect(md).toContain("<summary>20 · Action 20</summary>");
+    expect(md).not.toContain("more step");
   });
 
-  it("renders all ten steps at the threshold", () => {
-    const md = renderTestDetails(withSteps(10), PROJECT_ID, 1);
-    expect(md).toContain("10. Action 10");
-    expect(md).not.toContain("more steps");
+  it("elides one step past the limit, keeping 12 head and 8 tail steps", () => {
+    const md = renderTestDetails(withSteps(21), PROJECT_ID, 1);
+    expect(md).toContain("<summary>12 · Action 12</summary>");
+    expect(md).not.toContain("<summary>13 · ");
+    expect(md).toContain("1 more step");
+    expect(md).toContain("<summary>14 · Action 14</summary>");
+    expect(md).toContain("<summary>21 · Action 21</summary>");
   });
 
-  it("elides one step past the threshold, keeping six head and three tail entries", () => {
-    const md = renderTestDetails(withSteps(11), PROJECT_ID, 1);
-    expect(md).toContain("6. Action 6");
-    expect(md).toContain("_… 2 more steps …_");
-    expect(md).toContain("9. Action 9");
-    expect(md).toContain("11. Action 11");
-    expect(md).not.toContain("7. Action 7");
-  });
-
-  it("keeps a long run scannable and its tail numbered by true position", () => {
+  it("keeps a long run's tail numbered by true position and points to the full run", () => {
     const md = renderTestDetails(withSteps(50), PROJECT_ID, 1);
-    expect(md).toContain("1. Action 1");
-    expect(md).toContain("6. Action 6");
-    expect(md).toContain("_… 41 more steps …_");
-    expect(md).toContain("48. Action 48");
-    expect(md).toContain("50. Action 50");
-    expect(md).toContain("**Steps:** 50 ·");
+    expect(md).toContain("<summary>1 · Action 1</summary>");
+    expect(md).toContain("30 more steps");
+    expect(md).toContain("<summary>43 · Action 43</summary>");
+    expect(md).toContain("<summary>50 · Action 50</summary>");
+    const elision = md.split("\n").find((l) => l.includes("30 more steps"))!;
+    expect(elision).toContain("Open the full run on Muggle AI →");
   });
 });
 
@@ -506,7 +568,7 @@ describe("renderBody", () => {
     expect(body).toContain("### Test details");
     expect(body).toContain("- **Create a New Project**");
     expect(body).toContain("---");
-    const detailsCount = (body.match(/<details>/g) ?? []).length;
+    const detailsCount = testBlocks(body);
     expect(detailsCount).toBe(3);
   });
 
@@ -521,7 +583,7 @@ describe("renderBody", () => {
 
   it("renders every passed test as a details block (not just failures)", () => {
     const body = renderBody(allPassedWithDesc, { inlineDetails: true });
-    const detailsCount = (body.match(/<details>/g) ?? []).length;
+    const detailsCount = testBlocks(body);
     expect(detailsCount).toBe(2);
   });
 
@@ -545,7 +607,7 @@ describe("renderComment", () => {
     const comment = renderComment(groupedReport);
     expect(comment).toContain("## E2E acceptance evidence (overflow)");
     expect(comment).toContain("### Test details");
-    const detailsCount = (comment.match(/<details>/g) ?? []).length;
+    const detailsCount = testBlocks(comment);
     expect(detailsCount).toBe(3);
   });
 
@@ -556,7 +618,7 @@ describe("renderComment", () => {
   it("renders a comment even for an all-passed report (every test gets details)", () => {
     const comment = renderComment(allPassedWithDesc);
     expect(comment).toContain("## E2E acceptance evidence (overflow)");
-    const detailsCount = (comment.match(/<details>/g) ?? []).length;
+    const detailsCount = testBlocks(comment);
     expect(detailsCount).toBe(2);
   });
 });
@@ -564,9 +626,9 @@ describe("renderComment", () => {
 describe("collapsing repeated runs of one test case", () => {
   it("emits one details block per test case, not one per run", () => {
     const body = renderBody(flatRerunReport, { inlineDetails: true });
-    const detailsCount = (body.match(/<details>/g) ?? []).length;
+    const detailsCount = testBlocks(body);
     expect(detailsCount).toBe(3);
-    expect(body).toContain("**Runs:** 2 — showing the latest");
+    expect(body).toContain("| **Attempts** | 2 — showing the latest |");
   });
 
   it("numbers the collapsed entries consecutively in a flat list", () => {
@@ -581,8 +643,8 @@ describe("collapsing repeated runs of one test case", () => {
 
   it("gives the summary the same ordinals as the details blocks", () => {
     const [overview, details] = renderBody(flatRerunReport, { inlineDetails: true }).split("\n---\n");
-    expect(ordinalsFrom(details, DETAILS_ORDINAL)).toEqual([1, 2, 3]);
-    expect(ordinalsFrom(overview, OVERVIEW_ORDINAL)).toEqual(ordinalsFrom(details, DETAILS_ORDINAL));
+    expect(detailsOrdinals(details)).toEqual([1, 2, 3]);
+    expect(ordinalsFrom(overview, OVERVIEW_ORDINAL)).toEqual(detailsOrdinals(details));
   });
 
   it("shows the rerun's outcome, not the original attempt's", () => {

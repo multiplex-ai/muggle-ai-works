@@ -23,7 +23,7 @@ Fetch step screenshots in parallel — pick the right tool per run result:
 
 For each result:
 
-1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. Empty array is fine — zero-step runs still render the failure summary header in the walkthrough.
+1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, description: steps[i].briefExplanation, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. `action` is only the operation verb (`navigate`, `click`); `description` is the agent's readable account of the step and is what the walkthrough shows — omit it only when the step has no `briefExplanation`. Empty array is fine — zero-step runs still render the failure summary header in the walkthrough.
 2. `viewUrl` — from the run result (deep-links to the specific run).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
@@ -56,7 +56,7 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "runId": "<runId from muggle-local-execute-test-generation>",
       "viewUrl": "<viewUrl from run result>",
       "status": "passed",
-      "steps": [{ "stepIndex": 0, "action": "...", "screenshotUrl": "..." }]
+      "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Accept all' to dismiss the cookie consent dialog.", "screenshotUrl": "..." }]
     },
     {
       "name": "<failed test case title>",

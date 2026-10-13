@@ -6,4 +6,4 @@ The studio publishes every completed run — pass or fail — to the cloud durin
 
 ## Screenshots
 
-Per run, `muggle-remote-test-script-get` with the `cloudTestScriptId` from the run result → per step `operation.screenshotUrl` and `operation.action`. Retain `{ stepIndex, action, screenshotUrl }`. Batch in parallel. These feed the `E2eReport` consumed by [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) — the dev loop does not post to the PR.
+Per run, `muggle-remote-test-script-get` with the `cloudTestScriptId` from the run result → per step `operation.screenshotUrl`, `operation.action` and `briefExplanation`. Retain `{ stepIndex, action, description, screenshotUrl }`, with `description` taken from `briefExplanation` — `action` is only the operation verb, and the description is what the walkthrough shows a reviewer. Batch in parallel. These feed the `E2eReport` consumed by [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) — the dev loop does not post to the PR.

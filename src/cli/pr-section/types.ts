@@ -5,9 +5,14 @@
 
 import { z } from "zod";
 
+// `action` is the operation verb (navigate, click, halt). `description` is the
+// agent's readable account of the step — the action script's briefExplanation —
+// and is what a reader can follow; optional so reports assembled before it
+// existed still parse.
 const StepSchema = z.object({
   stepIndex: z.number().int().nonnegative(),
   action: z.string().min(1),
+  description: z.string().min(1).optional(),
   screenshotUrl: z.string().url(),
 });
 

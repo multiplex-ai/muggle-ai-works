@@ -4,8 +4,8 @@
  *
  * Layout (two sections):
  *   1. Summary: verdict headline + per-test name list (numbered; grouped by useCaseName when present).
- *   2. Test details: one <details> block per test case, in report order, showing the
- *      result, an elided step list, and the ending screen.
+ *   2. Test details: one <details> block per test case, in report order, holding a
+ *      result table, one collapsible per step with its screenshot, and the ending screen.
  *
  * A test case that ran more than once collapses to a single entry carrying its
  * latest run; see resolveLatestRuns.
@@ -14,6 +14,8 @@
 import {
   DASHBOARD_URL_BASE,
   DETAIL_IMAGE_WIDTH,
+  STEP_ELEMENT_ID_SUFFIX,
+  STEP_IMAGE_WIDTH,
   STEP_LIST_ELISION_THRESHOLD,
   STEP_LIST_HEAD_COUNT,
   STEP_LIST_TAIL_COUNT,
@@ -188,16 +190,33 @@ function endingFrame (test: TestResult): IEndingFrame | null {
   };
 }
 
-/** Clickable full-width image. */
+/**
+ * Clickable full-width image. The alt text is a test name, which can carry a
+ * quote — unescaped, it closes the attribute early and GitHub prints the whole
+ * tag as text instead of the screenshot.
+ */
 function fullSizeImage (url: string, alt: string): string {
-  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${alt}"></a>`;
+  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtml(alt).replace(/"/g, "&quot;")}"></a>`;
 }
 
-/** Escape backticks in free text so inline-code formatting stays balanced. */
-function safeInlineCode (s: string): string {
-  // Replace backticks with the visually-similar U+2018/U+2019 so the surrounding
-  // inline-code markers don't get closed early.
-  return s.replace(/`/g, "‘");
+/** Escape text placed inside HTML, so an agent's `<…>` cannot break the markup around it. */
+function escapeHtml (s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Fit free text into one table cell: a line break or a bare pipe would end the row. */
+function tableCell (s: string): string {
+  return s.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
+}
+
+/** What a step did, in the agent's words when it gave them, else the operation verb. */
+function stepText (step: Step): string {
+  return escapeHtml((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
+}
+
+function dashboardLink (test: TestResult, projectId: string, dashboardBaseUrl: string): string {
+  const url = `${dashboardBaseUrl}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
+  return `<a href="${url}" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a>`;
 }
 
 /**
@@ -294,12 +313,17 @@ function buildGroupedLayout (latestRuns: readonly ILatestRun[]): GroupedEntry[] 
 }
 
 /**
- * Render one `<details>` block for a test case.
+ * Render one test case: a heading, its description, the result table, then one
+ * collapsible holding the steps and the ending screenshot.
  *
- * `testNumber` is the 1-based index used to prefix the collapsible summary line
- * so it lines up with the numbered list in the summary section. Block order is
- * result first, evidence last: the verdict and its reason, the step reference
- * line and step list, then the ending screenshot.
+ * The heading sits outside any <details>. GitHub lays a heading placed inside a
+ * <summary> out inline-block, so a title too long for one line wraps as a whole
+ * below the disclosure triangle and leaves the triangle alone on a line — and
+ * test titles are usually full sentences. Out here it is a plain heading, and
+ * the result stays readable without expanding anything.
+ *
+ * `testNumber` is the 1-based index that lines the heading up with the numbered
+ * list in the summary section.
  */
 export function renderTestDetails (
   entry: ILatestRun,
@@ -308,33 +332,25 @@ export function renderTestDetails (
   dashboardBaseUrl: string = DASHBOARD_URL_BASE,
 ): string {
   const { test } = entry;
-  const body: string[] = ["", "<br>", ""];
-  body.push(...renderResultSummary(entry, projectId, dashboardBaseUrl));
-  const stepList = renderStepList(test.steps);
-  if (stepList) {
-    body.push("", ...stepList);
+  const lines: string[] = [`#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
+  if (test.description) {
+    lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
-  const frameBlock = renderEndingFrame(test);
-  if (frameBlock) {
-    body.push("", ...frameBlock);
+  lines.push(...renderResultTable(entry, projectId, dashboardBaseUrl));
+  const steps = renderSteps(test, projectId, dashboardBaseUrl) ?? [];
+  const frame = renderEndingFrame(test) ?? [];
+  const evidence = [...steps, ...(steps.length > 0 && frame.length > 0 ? [""] : []), ...frame];
+  if (evidence.length > 0) {
+    lines.push("", "<details><summary><b>Steps and screenshots</b></summary>", "", ...evidence, "", "</details>");
   }
-  return `<details>\n<summary>${renderSummaryLine(test, testNumber)}</summary>\n${body.join("\n")}\n\n</details>`;
+  return lines.join("\n");
 }
 
 /**
- * The collapsible's visible line: status emoji first so the outcome reads while
- * collapsed. GitHub draws its own disclosure triangle, so none is written here.
- */
-function renderSummaryLine (test: TestResult, testNumber: number): string {
-  const base = `${statusEmoji(test)} <b>${testNumber}. ${test.name}</b>`;
-  return test.description ? `${base} — ${test.description}` : base;
-}
-
-/**
- * Render the ending-frame block: a bold caption line identifying what the
- * screenshot shows, followed by the clickable full-width image. Returns null
- * if there is nothing to render (e.g. an empty-steps passed test with no
- * endingScreenshotUrl override).
+ * Render the ending-frame block: a caption line identifying what the screenshot
+ * shows, followed by the clickable full-width image. Returns null if there is
+ * nothing to render (e.g. an empty-steps passed test with no endingScreenshotUrl
+ * override).
  */
 function renderEndingFrame (test: TestResult): string[] | null {
   const frame = endingFrame(test);
@@ -342,57 +358,66 @@ function renderEndingFrame (test: TestResult): string[] | null {
     return null;
   }
   return [
-    `**📸 Ending screen — ${frame.caption}**`,
+    `**Ending screen** — ${frame.caption}`,
     "",
     fullSizeImage(frame.url, test.name),
   ];
 }
 
 /**
- * Render the run's steps as a numbered list, eliding the middle of a long run
- * so the block stays scannable and the byte budget survives. Ordinals come from
- * array position, matching the step count on the reference line above. Returns
- * null when the run recorded no steps.
- *
- * Output shape: `["1. Open profile", "", "_… 41 more steps …_", "", "48. Submit"]`
+ * Render the run's steps, one collapsible each that opens onto that step's
+ * screenshot — a comment runs no script, so a native <details> is the only
+ * interaction available. Past the threshold the middle is elided with a pointer
+ * to the full run. Ordinals come from array position, so the tail reads as the
+ * run's real step numbers. Returns null when the run recorded no steps.
  */
-function renderStepList (steps: readonly Step[]): string[] | null {
+function renderSteps (test: TestResult, projectId: string, dashboardBaseUrl: string): string[] | null {
+  const { steps } = test;
   if (steps.length === 0) {
     return null;
   }
-  const entry = (step: Step, position: number): string => `${position}. ${safeInlineCode(step.action)}`;
+  const collapsible = (step: Step, position: number): string =>
+    `<details><summary>${position} · ${stepText(step)}</summary>\n\n` +
+    `<img src="${step.screenshotUrl}" width="${STEP_IMAGE_WIDTH}" alt="Step ${position}">\n\n</details>`;
+  const heading = ["**Steps** — click a step to see its screenshot", ""];
   if (steps.length <= STEP_LIST_ELISION_THRESHOLD) {
-    return steps.map((step, i) => entry(step, i + 1));
+    return [...heading, ...steps.map((step, i) => collapsible(step, i + 1))];
   }
-  const head = steps.slice(0, STEP_LIST_HEAD_COUNT).map((step, i) => entry(step, i + 1));
   const tailStart = steps.length - STEP_LIST_TAIL_COUNT;
-  const tail = steps.slice(tailStart).map((step, i) => entry(step, tailStart + i + 1));
   const hidden = tailStart - STEP_LIST_HEAD_COUNT;
-  return [...head, "", `_… ${hidden} more steps …_`, "", ...tail];
+  return [
+    ...heading,
+    ...steps.slice(0, STEP_LIST_HEAD_COUNT).map((step, i) => collapsible(step, i + 1)),
+    "",
+    `_… ${hidden} more ${hidden === 1 ? "step" : "steps"} — ${dashboardLink(test, projectId, dashboardBaseUrl)}_`,
+    "",
+    ...steps.slice(tailStart).map((step, i) => collapsible(step, tailStart + i + 1)),
+  ];
 }
 
-function renderResultSummary (
+/** The run's outcome as a two-column table, so each label stands apart from its value. */
+function renderResultTable (
   entry: ILatestRun,
   projectId: string,
   dashboardBaseUrl: string,
 ): string[] {
   const { test } = entry;
-  const dashboardUrl = `${dashboardBaseUrl}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
-  const lines: string[] = [];
+  const rows: string[] = ["| | |", "|:--|:--|"];
   if (test.status === "passed") {
-    lines.push(`**Result:** ✅ PASSED`);
+    rows.push("| **Result** | ✅ Passed |");
   } else if (test.status === "failed") {
-    lines.push(`**Result:** ❌ FAILED at step ${failureOrdinal(test, test.failureStepIndex)}`);
-    lines.push(`**Error:** \`${safeInlineCode(test.error)}\``);
+    rows.push(`| **Result** | ❌ Failed at step ${failureOrdinal(test, test.failureStepIndex)} |`);
+    rows.push(`| **Why** | ${tableCell(escapeHtml(test.error))} |`);
   } else {
-    lines.push(`**Result:** ⚠️ INCONCLUSIVE`);
-    lines.push(`**Reason:** \`${safeInlineCode(test.reason)}\``);
+    rows.push("| **Result** | ⚠️ Inconclusive |");
+    rows.push(`| **Why** | ${tableCell(escapeHtml(test.reason))} |`);
   }
   if (entry.attempts > 1) {
-    lines.push(`**Runs:** ${entry.attempts} — showing the latest`);
+    rows.push(`| **Attempts** | ${entry.attempts} — showing the latest |`);
   }
-  lines.push(`**Steps:** ${test.steps.length} · <a href="${dashboardUrl}" target="_blank" rel="noopener noreferrer">View steps on Muggle AI →</a>`);
-  return lines;
+  const count = test.steps.length;
+  rows.push(`| **Run** | ${count} browser ${count === 1 ? "step" : "steps"} · ${dashboardLink(test, projectId, dashboardBaseUrl)} |`);
+  return rows;
 }
 
 /** Options shared by both render entry points. */

@@ -210,3 +210,42 @@ describe("E2eReportSchema", () => {
     expect(parsed.tests.every((t) => typeof t.useCaseName === "string")).toBe(true);
   });
 });
+
+describe("step description", () => {
+  const reportWithStep = (step: Record<string, unknown>) => ({
+    projectId: "p1",
+    tests: [
+      {
+        name: "Header links",
+        testCaseId: "tc1",
+        runId: "r1",
+        viewUrl: "https://example.com/x",
+        status: "passed",
+        steps: [step],
+      },
+    ],
+  });
+
+  it("carries the agent's explanation alongside the operation verb", () => {
+    const parsed = E2eReportSchema.parse(
+      reportWithStep({
+        stepIndex: 1,
+        action: "click",
+        description: "Click 'Accept all' button to dismiss the cookie consent dialog.",
+        screenshotUrl: "https://s/1",
+      }),
+    );
+    expect(parsed.tests[0].steps[0].description).toBe("Click 'Accept all' button to dismiss the cookie consent dialog.");
+  });
+
+  // Reports assembled before the field existed must still parse.
+  it("is optional", () => {
+    expect(() => E2eReportSchema.parse(reportWithStep({ stepIndex: 0, action: "click", screenshotUrl: "https://s/1" }))).not.toThrow();
+  });
+
+  it("rejects an empty description rather than rendering a blank step", () => {
+    expect(() =>
+      E2eReportSchema.parse(reportWithStep({ stepIndex: 0, action: "click", description: "", screenshotUrl: "https://s/1" })),
+    ).toThrow();
+  });
+});

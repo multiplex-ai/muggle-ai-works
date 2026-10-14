@@ -35,7 +35,6 @@ from route_constants import (
     OUTPUT_REDIRECT,
     REPORT_NONE_REASONS_FIELD,
     SHELL_TOOL_NAMES,
-    session_allowed_tool_specifiers,
 )
 from route_types import NoneReason, RouteOutcome
 from scoring import NONE, scored_pass
@@ -271,11 +270,6 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
         "--output-format", "stream-json",
         "--verbose",
         "--max-turns", str(SESSION_MAX_TURNS),
-        # Unapproved tools are unavailable to a session with nobody to ask, so without this the run
-        # makes no tool call at all and reaches no skill however well the descriptions route —
-        # scoring `none` for reason `no_tool_call`, which reads as a routing failure and is not one.
-        # Read-only only: enough to look at the repo and reach a skill, never enough to change it.
-        "--allowedTools", *session_allowed_tool_specifiers(),
     ]
     if model:
         cmd.extend(["--model", model])

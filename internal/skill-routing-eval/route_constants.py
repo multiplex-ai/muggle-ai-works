@@ -33,13 +33,14 @@ SESSION_ALLOWED_TOOL_NAMES = frozenset({"Skill"}) | (INSPECTION_TOOL_NAMES - NET
 def session_allowed_tool_specifiers() -> list[str]:
     """What a probe session may call, as Claude Code tool specifiers.
 
-    The shell is deliberately absent. A denied `git diff` still lands in the stream, so the
-    classifier sees the orienting call either way; but a granted one hands the model the diff,
-    and on a small diff it does the skill's job by hand instead of routing. That measures a
-    different question from the one the recall baseline was recorded under, and on CI it cost
-    muggle-test some thirty points of recall with no description changed.
+    A realistic query makes the model look before it routes — `git status`, `ls`, a diff — and a
+    session that cannot look never gets far enough to pick a skill. So the shell is granted, but
+    only for the verbs this module already calls read-only: the same list the classifier scores
+    orienting against, rather than a second one kept in step by hand.
     """
-    return sorted(SESSION_ALLOWED_TOOL_NAMES)
+    return sorted(SESSION_ALLOWED_TOOL_NAMES) + [
+        f"Bash({command}:*)" for command in sorted(INSPECTION_COMMANDS)
+    ]
 
 # Shell verbs that report state without changing it. Anything unlisted counts as
 # substantive work, so an unfamiliar command is never mistaken for orienting.

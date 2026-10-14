@@ -274,7 +274,7 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
         # Unapproved tools are unavailable to a session with nobody to ask, so without this the run
         # makes no tool call at all and reaches no skill however well the descriptions route —
         # scoring `none` for reason `no_tool_call`, which reads as a routing failure and is not one.
-        # Read-only only: enough to look at the repo and reach a skill, never enough to change it.
+        # Read-only file tools and `Skill`, no shell: enough to reach a skill, never to do its job.
         "--allowedTools", *session_allowed_tool_specifiers(),
     ]
     if model:

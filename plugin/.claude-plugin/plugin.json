@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "The release discipline of 13 years shipping hyperscale web products at Microsoft, built into your AI coding agent. Freezes requirements, builds, drives a real browser through end-to-end (E2E) acceptance tests on signup, checkout, and dashboards, opens the PR with screenshots, then watches reviews and CI until it's mergeable. Plain-English tests replay on localhost as regressions. Works across Claude Code, Cursor, Codex, and Windsurf.",
+  "description": "Real-browser E2E acceptance for your coding agent: test the flows you changed, PR with screenshots",
   "version": "5.18.0",
   "author": {
     "name": "Muggle AI",

@@ -1,6 +1,6 @@
 # Muggle AI Plugin for Claude Code
 
-13 years of shipping hyperscale web products at Microsoft, distilled into a harness for your AI coding agent: frozen requirements, real-browser E2E acceptance tests, and PRs that arrive with evidence and stay watched until they're mergeable.
+Real-browser E2E acceptance for your coding agent: test the flows you changed, PR with screenshots.
 
 ## Install
 

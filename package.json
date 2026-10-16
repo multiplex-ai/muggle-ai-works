@@ -2,7 +2,7 @@
   "name": "@muggleai/works",
   "mcpName": "io.github.multiplex-ai/muggle",
   "version": "5.18.0",
-  "description": "13 years of shipping hyperscale web products at Microsoft, distilled into a harness for your AI coding agent: frozen requirements, real-browser E2E acceptance tests, and PRs that arrive with evidence and stay watched until they're mergeable.",
+  "description": "13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

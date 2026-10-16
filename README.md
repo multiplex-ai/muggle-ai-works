@@ -1,10 +1,6 @@
 # Muggle Works
 
-**An open-source harness that drives your AI coding agent through the whole delivery cycle — design, build, test, acceptance — and closes the loop on GitHub and GitLab.**
-
-### 13 years of hyperscale engineering, packaged for your agent
-
-Muggle Works isn't a weekend wrapper around a browser driver. It encodes 13 years of engineering experience shipping hyperscale web products at Microsoft — the habits that keep a change from reaching a very large audience broken: requirements frozen before code, a Definition of Done that blocks the merge, acceptance verified against the real product rather than a mock, evidence attached to every review, and a follow-up loop that doesn't drop a comment or a red build. Teams at that scale pay for this discipline with release engineers, test infrastructure, and review culture. Muggle Works hands it to your coding agent on day one.
+**13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.**
 
 Coding agents are good at producing a diff. They are bad at knowing whether the diff works, whether it broke the login flow, and what still has to happen before a human can merge it. Muggle Works is the harness around the agent that answers those questions: it freezes requirements, delegates the design and build, runs the unit suite, drives a **real browser** through the affected user flows, opens the pull request with screenshots attached, and then keeps watching that PR — picking up review comments, red CI, and a stale base branch until the change is genuinely mergeable.
 

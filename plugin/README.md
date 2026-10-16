@@ -1,6 +1,6 @@
 # Muggle AI Plugin for Claude Code
 
-Real-browser E2E acceptance for your coding agent: test the flows you changed, PR with screenshots.
+Real-browser E2E acceptance for your coding agent: test the flows you changed and open the PR with screenshots. Built for flows other tools can't reach: managed test identities with live inboxes (magic links, email OTP and 2FA, verification mail, password resets), an encrypted secret store for login and test credentials, and a test graph that runs prerequisite flows first. Plain-English tests become replayable scripts on localhost or preview URLs.
 
 ## Install
 

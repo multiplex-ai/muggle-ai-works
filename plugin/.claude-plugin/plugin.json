@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "Run real-browser end-to-end (E2E) acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
+  "description": "The release discipline of 13 years shipping hyperscale web products at Microsoft, built into your AI coding agent. Freezes requirements, builds, drives a real browser through end-to-end (E2E) acceptance tests on signup, checkout, and dashboards, opens the PR with screenshots, then watches reviews and CI until it's mergeable. Plain-English tests replay on localhost as regressions. Works across Claude Code, Cursor, Codex, and Windsurf.",
   "version": "5.18.0",
   "author": {
     "name": "Muggle AI",

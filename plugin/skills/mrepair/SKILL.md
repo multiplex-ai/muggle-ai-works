@@ -1,6 +1,7 @@
 ---
 name: mrepair
 description: Explicit short alias for the `muggle-repair` skill. ONLY invoke when the user explicitly types `mrepair` or `/mrepair` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mrepair — alias for muggle-repair

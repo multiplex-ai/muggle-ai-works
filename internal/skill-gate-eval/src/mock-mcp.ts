@@ -95,6 +95,37 @@ export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
           }),
       ),
       tool(
+        "muggle-remote-auth-api-key-create",
+        "API key create (mock).",
+        PERMISSIVE_SHAPE,
+        async () =>
+          jsonResult(
+            fixtures.apiKeyCreate ?? {
+              apiKeyId: "key_stub",
+              key: "mk_stub_key",
+              name: "eval-stub",
+            },
+          ),
+      ),
+      tool(
+        "muggle-remote-auth-register",
+        "Auth register (mock).",
+        PERMISSIVE_SHAPE,
+        async () =>
+          jsonResult(
+            fixtures.authRegister ?? {
+              outcome: "created",
+              userId: "auth0|stub-registered",
+              email: "tester@example.com",
+              plan: "free",
+              emailVerified: false,
+              credentialStored: true,
+              tokensGranted: 100000,
+              tokensOnVerification: 1000000,
+            },
+          ),
+      ),
+      tool(
         "muggle-remote-auth-poll",
         "Auth poll (mock).",
         PERMISSIVE_SHAPE,

@@ -131,7 +131,7 @@ For each test case:
   - testScriptId: `<id>`
   - runId: `<id>`
   - viewUrl: `<url>`
-  - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
+  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]`
 
 **Failed:** (count)
 - (test case name):
@@ -141,7 +141,7 @@ For each test case:
   - viewUrl: `<url>`
   - failureStepIndex: `<index>`
   - error: `<message>`
-  - steps: `[{ stepIndex, action, screenshotUrl }, ...]`
+  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]`
   - artifactsDir: `<path>` (for local debugging)
 
 **Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, prerequisites unmet (Step 3.5), infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
@@ -150,7 +150,7 @@ For each test case:
   - runId: `<id>` (synthesize a UUID if no run started)
   - viewUrl: `<url>` (project-level run-results fallback when no specific run URL exists)
   - reason: `<one short sentence>`
-  - steps: `[{ stepIndex, action, screenshotUrl }, ...]` (may be empty)
+  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]` (empty only when the run produced no steps)
 
 **Metadata:**
 - projectId: `<projectId>`

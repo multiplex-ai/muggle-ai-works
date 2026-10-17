@@ -1,6 +1,7 @@
 ---
 name: mpr
 description: Explicit short alias for the `muggle-pr-visual-walkthrough` skill. ONLY invoke when the user explicitly types `mpr` or `/mpr` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mpr — alias for muggle-pr-visual-walkthrough

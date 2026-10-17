@@ -1,6 +1,7 @@
 ---
 name: mupgrade
 description: Explicit short alias for the `muggle-upgrade` skill. ONLY invoke when the user explicitly types `mupgrade` or `/mupgrade` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mupgrade — alias for muggle-upgrade

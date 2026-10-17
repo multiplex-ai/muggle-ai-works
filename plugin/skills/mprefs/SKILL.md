@@ -1,6 +1,7 @@
 ---
 name: mprefs
 description: Explicit short alias for the `muggle-preferences` skill. ONLY invoke when the user explicitly types `mprefs` or `/mprefs` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mprefs — alias for muggle-preferences

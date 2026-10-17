@@ -1,6 +1,7 @@
 ---
 name: mstatus
 description: Explicit short alias for the `muggle-status` skill. ONLY invoke when the user explicitly types `mstatus` or `/mstatus` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mstatus — alias for muggle-status

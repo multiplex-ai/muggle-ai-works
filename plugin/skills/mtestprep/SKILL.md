@@ -1,6 +1,7 @@
 ---
 name: mtestprep
 description: Explicit short alias for the `muggle-test-prepare` skill. ONLY invoke when the user explicitly types `mtestprep` or `/mtestprep` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mtestprep — alias for muggle-test-prepare

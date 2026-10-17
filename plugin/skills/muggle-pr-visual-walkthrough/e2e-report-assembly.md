@@ -8,7 +8,7 @@ Include **all** runs — passed, failed, **and inconclusive**. Never drop a run.
 |---|---|---|
 | `passed` | Run completed and the assertion held. | — |
 | `failed` | Run completed and the assertion failed, or the product itself broke before the assertion could be made (server error, 500, broken page). | `failureStepIndex`, `error` |
-| `inconclusive` | Run could not yield a pass/fail signal for reasons **outside the product**: no replayable script existed, environment precondition unmet, infra/Electron error, agent stalled on a cookie banner or login wall, missing secrets, agent went off-course. | `reason` (one short sentence; `steps[]` may be empty) |
+| `inconclusive` | Run could not yield a pass/fail signal for reasons **outside the product**: no replayable script existed, environment precondition unmet, infra/Electron error, agent stalled on a cookie banner or login wall, missing secrets, agent went off-course. | `reason` (one short sentence). Include every step the run produced; `steps[]` is empty only when it produced none. |
 
 If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: synthesize a UUID-shaped runId and use `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs` as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
 
@@ -23,7 +23,7 @@ Fetch step screenshots in parallel — pick the right tool per run result:
 
 For each result:
 
-1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, description: steps[i].briefExplanation, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. `action` is only the operation verb (`navigate`, `click`); `description` is the agent's readable account of the step and is what the walkthrough shows — omit it only when the step has no `briefExplanation`. Empty array is fine — zero-step runs still render the failure summary header in the walkthrough.
+1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, description: steps[i].briefExplanation, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. `action` is only the operation verb (`navigate`, `click`); `description` is the agent's readable account of the step and is what the walkthrough shows — omit it only when the step has no `briefExplanation`. A non-passing run carries its steps too: fetch them with the fallback above rather than sending `[]`, which collapses its walkthrough entry to a single ending frame. Send `[]` only when the run genuinely produced no steps; those still render the failure summary header.
 2. `viewUrl` — from the run result (deep-links to the specific run).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
@@ -66,7 +66,7 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "runId": "<runId from muggle-local-execute-test-generation>",
       "viewUrl": "<viewUrl from run result>",
       "status": "failed",
-      "steps": [],
+      "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Sign in' to open the login form.", "screenshotUrl": "..." }],
       "failureStepIndex": 0,
       "error": "<error message from run result>"
     },
@@ -78,7 +78,7 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "runId": "<runId from execute, or synthesized UUID if no run started>",
       "viewUrl": "<viewUrl from run result, or project-level fallback URL>",
       "status": "inconclusive",
-      "steps": [],
+      "steps": [{ "stepIndex": 0, "action": "navigate", "description": "Workflow started at the app's URL.", "screenshotUrl": "..." }],
       "reason": "<one short sentence: why neither pass nor fail applies>"
     }
   ]

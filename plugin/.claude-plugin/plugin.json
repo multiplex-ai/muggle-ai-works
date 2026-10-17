@@ -1,6 +1,6 @@
 {
   "name": "muggle",
-  "description": "Run real-browser end-to-end (E2E) acceptance tests on your web app from any AI coding agent. Generate test scripts from plain English, replay them on localhost, capture screenshots, and validate user flows like signup, checkout, and dashboards. Works across Claude Code, Cursor, Codex, and Windsurf.",
+  "description": "Real-browser E2E acceptance for your coding agent: test the flows you changed and open the PR with screenshots. Built for flows other tools can't reach: managed test identities with live inboxes (magic links, email OTP and 2FA, verification mail, password resets), an encrypted secret store for login and test credentials, and a test graph that runs prerequisite flows first. Plain-English tests become replayable scripts on localhost or preview URLs.",
   "version": "5.18.0",
   "author": {
     "name": "Muggle AI",

@@ -316,6 +316,32 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
     return ("OK", out)
 
 
+def last_assistant_text(out: str) -> str:
+    """The session's final prose, for a `none` that needs explaining.
+
+    `no_tool_call` covers two very different sessions — one that could not reach a tool, and one
+    that simply answered the query itself — and the preflight's own error names three causes it
+    cannot tell apart. The answer text separates them at a glance.
+    """
+    text = ""
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        # Only an assistant event carries a message object; on the others `message` is a plain
+        # string, which is what the tool-call iterator above filters on type before touching.
+        if event.get("type") != "assistant":
+            continue
+        for block in event.get("message", {}).get("content", []):
+            if block.get("type") == "text":
+                text = block.get("text", "") or text
+    return " ".join(text.split())
+
+
 def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> RouteOutcome:
     """One query's route, carrying why it never routed when the route is `none`.
 
@@ -337,11 +363,12 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
         if status == "OK":
             route = parse_route_from_session(out)
             reason = classify_none_reason(out) if route == NONE else None
-            return RouteOutcome(route, reason)
+            answer = last_assistant_text(out) if reason else ""
+            return RouteOutcome(route, reason, answer)
         # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
         # strings, so they score exactly like the old silent `none` on negatives
         # while staying attributable in the fired[] lists.
-        return RouteOutcome(status, None)
+        return RouteOutcome(status, None, "")
 
 
 def main():
@@ -363,6 +390,8 @@ def main():
             # The preflight reads stdout as the bare route, so a failed probe can
             # only explain itself on stderr.
             print(f"  no route: {outcome.none_reason.value}", file=sys.stderr)
+            if outcome.answer:
+                print(f"  it answered instead: {outcome.answer[:300]}", file=sys.stderr)
         print(outcome.route)
         return
     if not args.eval_set or not args.out:

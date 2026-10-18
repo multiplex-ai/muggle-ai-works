@@ -29,6 +29,13 @@ import {
   buildGenerationActionScript,
   buildReplayActionScript,
 } from "./action-script-builders.js";
+import {
+  describeStoppedRun,
+  removeStopRequestFileAsync,
+  requestGracefulStopAsync,
+  resolveStoppedRunStatus,
+} from "./execution-stop.js";
+import { RunStopReasonEnum } from "./execution-stop-types.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
@@ -51,6 +58,12 @@ interface IInternalExecutionProcess {
   startedAt: number;
   /** Timeout timer. */
   timeoutTimer?: ReturnType<typeof setTimeout>;
+  /** Set once the MCP has asked the run to stop. */
+  stopReason?: RunStopReasonEnum;
+  /** Kills the process if it has not stopped by the end of the grace period. */
+  hardKillTimer?: ReturnType<typeof setTimeout>;
+  /** Set once the process has exited and its result has been delivered. */
+  hasSettled: boolean;
   /** Captured stdout. */
   capturedStdout: string;
   /** Captured stderr. */
@@ -69,6 +82,8 @@ interface IElectronExecutionResult {
   stderr: string;
   /** Electron's spawn cwd (path.dirname of the electron binary). Needed to locate user_data/runtime/ for artifact preservation. */
   electronCwd: string;
+  /** Set when the MCP stopped the run; such a run is never recorded as passed, whatever its exit code. */
+  stopReason?: RunStopReasonEnum;
 }
 
 /**
@@ -498,6 +513,50 @@ function getElectronAppPathOrThrow(): string {
 }
 
 /**
+ * Asks a running execution to stop, once; later calls for the same run are ignored so a cancel during a timeout's
+ * grace period does not restart it.
+ */
+async function stopExecutionGracefullyAsync(params: {
+  processInfo: IInternalExecutionProcess;
+  reason: RunStopReasonEnum;
+}): Promise<void> {
+  const { processInfo } = params;
+  if (processInfo.stopReason !== undefined || processInfo.hasSettled) {
+    return;
+  }
+  processInfo.stopReason = params.reason;
+  logger.info("Asking the studio to stop the run", { runId: processInfo.runId, reason: params.reason });
+
+  const hardKillTimer = await requestGracefulStopAsync({
+    tempDir: await ensureTempDir(),
+    runId: processInfo.runId,
+    reason: params.reason,
+    child: processInfo.process,
+  });
+  // The process may have exited while the request was being written.
+  if (processInfo.hasSettled) {
+    clearTimeout(hardKillTimer);
+    return;
+  }
+  processInfo.hardKillTimer = hardKillTimer;
+}
+
+/** The error message stored for an execution that failed or was stopped. */
+function describeElectronFailure(params: { executionResult: IElectronExecutionResult; timeoutMs: number }): string {
+  const { executionResult } = params;
+  const headline =
+    executionResult.stopReason !== undefined
+      ? describeStoppedRun({ reason: executionResult.stopReason, timeoutMs: params.timeoutMs })
+      : `Electron exited with code ${executionResult.exitCode}.`;
+  return `${headline}\nSTDOUT:\n${executionResult.stdout}\nSTDERR:\n${executionResult.stderr}`;
+}
+
+/** The stored status of an execution that failed or was stopped. */
+function resolveFailedRunStatus(executionResult: IElectronExecutionResult): RunResultStatus {
+  return executionResult.stopReason !== undefined ? resolveStoppedRunStatus(executionResult.stopReason) : "failed";
+}
+
+/**
  * Spawn electron-app in the requested mode and wait for completion.
  */
 async function executeElectronAppAsync(params: {
@@ -549,24 +608,29 @@ async function executeElectronAppAsync(params: {
     process: child,
     status: "running",
     startedAt: Date.now(),
+    hasSettled: false,
     capturedStdout: "",
     capturedStderr: "",
   };
   activeProcesses.set(params.runId, processInfo);
 
   return await new Promise<IElectronExecutionResult>((resolve, reject) => {
-    let settled = false;
-
     const finalize = (result: { ok: boolean; payload: IElectronExecutionResult | Error }) => {
-      if (settled) {
+      if (processInfo.hasSettled) {
         return;
       }
-      settled = true;
+      processInfo.hasSettled = true;
 
       if (processInfo.timeoutTimer) {
         clearTimeout(processInfo.timeoutTimer);
       }
+      if (processInfo.hardKillTimer) {
+        clearTimeout(processInfo.hardKillTimer);
+      }
       activeProcesses.delete(params.runId);
+      if (processInfo.stopReason !== undefined) {
+        void ensureTempDir().then((tempDir) => removeStopRequestFileAsync({ tempDir: tempDir, runId: params.runId }));
+      }
 
       if (result.ok) {
         resolve(result.payload as IElectronExecutionResult);
@@ -575,16 +639,10 @@ async function executeElectronAppAsync(params: {
       }
     };
 
+    // The run is asked to stop rather than killed, so the studio can publish what it recorded; the close handler
+    // below then delivers it through the normal post-run path.
     processInfo.timeoutTimer = setTimeout(() => {
-      processInfo.process.kill("SIGTERM");
-      finalize({
-        ok: false,
-        payload: new Error(
-          `Electron execution timed out after ${params.timeoutMs}ms.\n` +
-            `STDOUT:\n${processInfo.capturedStdout}\n` +
-            `STDERR:\n${processInfo.capturedStderr}`,
-        ),
-      });
+      void stopExecutionGracefullyAsync({ processInfo: processInfo, reason: RunStopReasonEnum.Timeout });
     }, params.timeoutMs);
 
     if (child.stdout) {
@@ -613,6 +671,19 @@ async function executeElectronAppAsync(params: {
 
     child.on("close", (code, signal) => {
       const exitCode = code ?? -1;
+      if (processInfo.stopReason !== undefined) {
+        finalize({
+          ok: true,
+          payload: {
+            exitCode: exitCode,
+            stdout: processInfo.capturedStdout,
+            stderr: processInfo.capturedStderr,
+            electronCwd: electronCwd,
+            stopReason: processInfo.stopReason,
+          },
+        });
+        return;
+      }
       if (signal) {
         finalize({
           ok: false,
@@ -774,11 +845,8 @@ async function runTestGenerationLocked(params: {
         spawnAtMs: startedAt,
       });
 
-      if (executionResult.exitCode !== 0) {
-        const failureMessage =
-          `Electron exited with code ${executionResult.exitCode}.\n` +
-          `STDOUT:\n${executionResult.stdout}\n` +
-          `STDERR:\n${executionResult.stderr}`;
+      if (executionResult.exitCode !== 0 || executionResult.stopReason !== undefined) {
+        const failureMessage = describeElectronFailure({ executionResult: executionResult, timeoutMs: timeoutMs });
 
         const sessionsDir = getStorageService().getSessionsDir();
         const artifactsDir = path.join(sessionsDir, runId);
@@ -803,7 +871,7 @@ async function runTestGenerationLocked(params: {
 
         const failedStudioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
         storage.updateRunResult(runId, {
-          status: "failed",
+          status: resolveFailedRunStatus(executionResult),
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
@@ -1029,17 +1097,18 @@ async function runReplayLocked(params: {
         spawnAtMs: startedAt,
       });
 
-      if (executionResult.exitCode !== 0) {
-        const failureMessage =
-          `Electron exited with code ${executionResult.exitCode}.\n` +
-          `STDOUT:\n${executionResult.stdout}\n` +
-          `STDERR:\n${executionResult.stderr}`;
+      if (executionResult.exitCode !== 0 || executionResult.stopReason !== undefined) {
+        const failureMessage = describeElectronFailure({ executionResult: executionResult, timeoutMs: timeoutMs });
         const artifactsDir = path.join(getStorageService().getSessionsDir(), runId);
+        // The studio publishes a failed replay too; without its refs the run's viewUrl is lost.
+        const failedReplayStudioResult = await readCloudRefsFile(inputFilePath);
         storage.updateRunResult(runId, {
-          status: "failed",
+          status: resolveFailedRunStatus(executionResult),
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
           artifactsDir: artifactsDir,
+          studioReturnedResult: failedReplayStudioResult,
+          ...extractStudioCloudRefs(failedReplayStudioResult),
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,
@@ -1114,14 +1183,11 @@ export function cancelExecution(params: { runId: string }): boolean {
     return false;
   }
 
-  // Kill the process
-  process.process.kill("SIGTERM");
-
-  // Update status
+  // Asked to stop rather than killed, so the studio publishes what the run recorded; the run's own close handler
+  // removes it from activeProcesses and records the final outcome.
+  void stopExecutionGracefullyAsync({ processInfo: process, reason: RunStopReasonEnum.Cancelled });
   process.status = "cancelled";
-  activeProcesses.delete(params.runId);
 
-  // Update storage
   const storage = getRunResultStorageService();
   storage.updateRunResult(params.runId, {
     status: "cancelled",

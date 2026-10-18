@@ -1,33 +1,33 @@
 {
-  "recorded_from": "full routing sweep on master",
+  "recorded_from": "full routing sweep, run 39018009334 (PR #493; skill frontmatter identical to master)",
   "runs_per_query": 3,
   "skills": {
     "muggle": {
-      "passed": 11,
+      "passed": 21,
       "total": 24
     },
     "muggle-browser-task": {
-      "passed": 12,
-      "total": 25
+      "passed": 13,
+      "total": 26
     },
     "muggle-feedback": {
-      "passed": 23,
+      "passed": 24,
       "total": 24
     },
     "muggle-pr-followup": {
-      "passed": 20,
+      "passed": 24,
       "total": 24
     },
     "muggle-pr-visual-walkthrough": {
-      "passed": 22,
+      "passed": 24,
       "total": 24
     },
     "muggle-preferences": {
-      "passed": 23,
+      "passed": 24,
       "total": 24
     },
     "muggle-repair": {
-      "passed": 20,
+      "passed": 22,
       "total": 24
     },
     "muggle-status": {
@@ -35,7 +35,7 @@
       "total": 24
     },
     "muggle-test": {
-      "passed": 24,
+      "passed": 25,
       "total": 26
     },
     "muggle-test-feature-local": {
@@ -43,11 +43,11 @@
       "total": 26
     },
     "muggle-test-import": {
-      "passed": 22,
+      "passed": 24,
       "total": 24
     },
     "muggle-test-prepare": {
-      "passed": 24,
+      "passed": 23,
       "total": 24
     },
     "muggle-test-regenerate-missing": {
@@ -59,7 +59,7 @@
       "total": 26
     },
     "none": {
-      "passed": 48,
+      "passed": 47,
       "total": 48
     }
   }

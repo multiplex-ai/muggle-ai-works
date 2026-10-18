@@ -1,7 +1,7 @@
 ---
 name: muggle
 model: haiku
-description: Muggle AI command router and menu. Use when user types "muggle" or asks for available Muggle Test commands.
+description: "Muggle AI command router and menu: the entry point for any question about what Muggle itself offers. Opens an interactive pick-list of Muggle Test commands and launches the one the user chooses, so it is the right first step whenever someone asks what Muggle can do or what commands, options, features or choices it has; asks to list Muggle's commands, all of them or just those for one area (testing, PRs, scripts, config, checking on things); wants a rundown, overview or walkthrough of Muggle; is new to Muggle or unsure where to start; or types \"muggle\" or \"/muggle\" alone. Also use when they name a broad area but are unsure which Muggle command applies and ask to see the options. Invoke it instead of summarizing Muggle's skills yourself - the pick-list turns the answer into the next action. Not for a request that already names one concrete task - that goes straight to the matching muggle skill."
 ---
 
 # Muggle Test

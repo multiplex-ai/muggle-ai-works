@@ -1,6 +1,7 @@
 ---
 name: mtest
 description: Explicit short alias for the `muggle-test` skill. ONLY invoke when the user explicitly types `mtest` or `/mtest` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mtest — alias for muggle-test

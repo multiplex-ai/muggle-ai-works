@@ -1,6 +1,7 @@
 ---
 name: mbt
 description: Explicit short alias for the `muggle-browser-task` skill. ONLY invoke when the user explicitly types `mbt` or `/mbt` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mbt — alias for muggle-browser-task

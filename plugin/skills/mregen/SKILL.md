@@ -1,6 +1,7 @@
 ---
 name: mregen
 description: Explicit short alias for the `muggle-test-regenerate-missing` skill. ONLY invoke when the user explicitly types `mregen` or `/mregen` — never auto-trigger from any other phrasing.
+disable-model-invocation: true
 ---
 
 # mregen — alias for muggle-test-regenerate-missing

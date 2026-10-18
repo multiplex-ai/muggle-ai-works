@@ -9,6 +9,13 @@ name: Skill Evals
 # one that changes only runtime and touches no skill/gate file (which the change
 # detection would skip). The on-demand lever for de-risking a refactor that alters
 # how skills are delivered but not their definitions.
+#
+# skill-gate-eval, agent-gate-eval and skill-routing-eval are required status
+# checks on master's branch protection, so every job must report a conclusion on
+# every PR: a renamed job, a job-level `if:`, or a `paths:` filter on the trigger
+# leaves its required check pending forever and blocks every merge. Scoping lives
+# in each job's `Determine scope` step instead, and a scoped-out job passes.
+# Pinned by src/test/scripts/skill-eval-required-checks.test.ts.
 on:
   pull_request:
     branches: [master]
@@ -75,16 +82,6 @@ jobs:
       # skill-routing-eval) — avoids first-run state in an unwritable HOME.
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
-      # Fail fast with a clear reason if setup is incomplete, rather than a
-      # cryptic git-auth error deep in the scenario-repo checkout.
-      - name: Require secrets
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
-        run: |
-          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
-          : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
-
       - name: Checkout works
         uses: actions/checkout@v6
         with:
@@ -144,6 +141,19 @@ jobs:
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             echo "No gate-relevant changes (docs) — gate eval not required."
           fi
+
+      # Fail fast with a clear reason if setup is incomplete, rather than a
+      # cryptic git-auth error deep in the scenario-repo checkout. Checked only
+      # when the eval runs: Dependabot PRs get no Actions secrets, and a
+      # scoped-out run must still pass its required check.
+      - name: Require secrets
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
+        run: |
+          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
+          : "${BRAIN_REPO_TOKEN:?set the BRAIN_REPO_TOKEN repo secret (read access to multiplex-ai/muggle-ai-brain)}"
 
       # Scenario data lives in a separate private repo; needs a token with read
       # access to multiplex-ai/muggle-ai-brain (the default GITHUB_TOKEN cannot
@@ -276,12 +286,6 @@ jobs:
       AGENT_CONCURRENCY: ${{ inputs.agent_concurrency || '8' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
     steps:
-      - name: Require secrets
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-        run: |
-          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
-
       - name: Checkout works
         uses: actions/checkout@v6
         with:
@@ -313,6 +317,13 @@ jobs:
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             echo "No agent-relevant changes — agent-gate eval not required."
           fi
+
+      - name: Require secrets
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
 
       - name: Setup Node.js
         if: steps.scope.outputs.should_run == 'true'

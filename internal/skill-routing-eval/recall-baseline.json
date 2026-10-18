@@ -1,9 +1,9 @@
 {
-  "recorded_from": "full routing sweep, run 39018009334 (PR #493; skill frontmatter identical to master)",
+  "recorded_from": "mean of two full routing sweeps, runs 39018009334 (PR #493) and 39099224150 (PR #495), halves rounded down; skill frontmatter identical to master",
   "runs_per_query": 3,
   "skills": {
     "muggle": {
-      "passed": 21,
+      "passed": 18,
       "total": 24
     },
     "muggle-browser-task": {
@@ -11,7 +11,7 @@
       "total": 26
     },
     "muggle-feedback": {
-      "passed": 24,
+      "passed": 23,
       "total": 24
     },
     "muggle-pr-followup": {
@@ -43,7 +43,7 @@
       "total": 26
     },
     "muggle-test-import": {
-      "passed": 24,
+      "passed": 23,
       "total": 24
     },
     "muggle-test-prepare": {
@@ -55,7 +55,7 @@
       "total": 24
     },
     "muggle-upgrade": {
-      "passed": 24,
+      "passed": 23,
       "total": 26
     },
     "none": {

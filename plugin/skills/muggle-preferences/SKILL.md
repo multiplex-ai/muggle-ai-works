@@ -1,13 +1,7 @@
 ---
 name: muggle-preferences
 model: haiku
-description: >-
-  View, set, or reset Muggle AI preferences that control testing behavior.
-  Use when user asks to see preferences, change a setting, configure Muggle Test
-  defaults, or manage muggle config. Triggers on: 'muggle preferences',
-  'show muggle settings', 'change muggle preference', 'set autoLogin to
-  always', 'muggle config', 'reset muggle preferences', 'show my muggle
-  settings', 'configure muggle', 'muggle setup'.
+description: "View, set, or reset Muggle AI preferences that control testing behavior. Use when the user asks to see their muggle settings, what a setting does, which setting controls a behavior (stop the login prompt, skip auto-rebase), where the settings live, or to change, configure, or reset one. Route these through this skill rather than answering from the preferences line in session context — it explains what each key gates, its allowed values, and writes changes to the right file. Triggers on: 'muggle preferences', 'what are my muggle settings', 'list every muggle preference', 'set autoLogin to always', 'turn autoRebase off', 'muggle config', 'reset muggle preferences', 'configure muggle', 'muggle setup'."
 ---
 
 # Muggle Test Preferences

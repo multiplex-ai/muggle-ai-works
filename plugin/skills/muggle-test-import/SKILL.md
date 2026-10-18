@@ -1,6 +1,6 @@
 ---
 name: muggle-test-import
-description: "Bring existing tests and test artifacts INTO Muggle Test — from Playwright, Cypress, PRDs, Gherkin feature files, test-plan docs, Notion exports, or any source. TRIGGER when the user wants to import, migrate, load, or convert existing test files or docs into Muggle Test — import my playwright tests, migrate from cypress to muggle, upload my PRD to muggle, turn this feature file into muggle test cases, or any .spec.ts/.cy.js/.feature/.md file plus muggle. DO NOT trigger for running or replaying scripts, scanning a site, generating new tests from scratch, or checking results."
+description: "Bring existing tests and test artifacts INTO Muggle Test — from Playwright, Cypress, PRDs, Gherkin feature files, test-plan docs, Notion or Confluence exports, or any source. TRIGGER when the user wants to import, migrate, load, convert, seed, or track existing test files or docs as Muggle test cases — import my playwright tests, migrate from cypress to muggle, upload my PRD and create test cases from it, turn these .feature files into muggle cases, seed an empty muggle project from our specs, get our existing specs into the dashboard, or any .spec.ts/.cy.js/.feature/.md file plus muggle. Invoke it before reading the source files — it reads and parses them itself (PRDs go through Muggle's native PRD workflow), so reading them or creating test cases by hand duplicates its work. DO NOT trigger for running or replaying scripts, scanning a site, generating new tests from scratch, or checking results."
 ---
 
 # Muggle Test Import

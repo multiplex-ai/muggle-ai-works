@@ -15,7 +15,7 @@ export enum PreferenceValue {
   Remote = "remote",
 }
 
-/** Canned per-tool responses keyed by the slot the mock-mcp stubs read. */
+/** Canned per-tool responses keyed by the slot the mock-tools stubs read. */
 export interface Fixtures {
   authStatus?: unknown;
   /** Canned `muggle-remote-auth-register` reply, for a flow that opens its own account. */

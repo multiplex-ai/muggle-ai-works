@@ -72,6 +72,16 @@ export const MAX_WALKTHROUGH_BLOCKS = 3;
 /** Ceiling on each `gh` lookup the walkthrough gate runs at turn end; a hung call must never hold the turn open. */
 export const GH_LOOKUP_TIMEOUT_MS = 10_000;
 
+/**
+ * A muggle MCP tool's name as every host reports it. Claude Code and Cursor keep
+ * the server's hyphens; Codex turns every character outside [A-Za-z0-9_] into
+ * `_` (`mcp__muggle__muggle_local_execute_replay`), so each hyphen in the
+ * spelling given here matches either.
+ */
+function mcpToolNamePattern(hyphenatedSource: string): RegExp {
+  return new RegExp(hyphenatedSource.replaceAll("-", "[-_]"), "i");
+}
+
 // The muggle-test skill's own first-step telemetry emit
 // (mcp__…muggle-local-telemetry-skill-emit with skillName "muggle-test").
 // Registering it as an E2E run covers the clean-SKIP verdict: the skill runs
@@ -80,7 +90,7 @@ export const GH_LOOKUP_TIMEOUT_MS = 10_000;
 // signal the gate could see, so it kept blocking on changes it structurally
 // couldn't test. Keyed on the emitting tool name plus its own skillName input
 // (never Bash text), so casual mentions of "muggle-test" stay inert.
-export const MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
+export const MUGGLE_SKILL_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-skill-emit");
 export const MUGGLE_TEST_SKILL_NAME = "muggle-test";
 
 /** Optional SKILL.md frontmatter key holding the stage files a skill cannot be executed without. */
@@ -108,13 +118,13 @@ export const ANY_TEST_CASE = "*";
 // The local execution tools the classification gate stands in front of, and the
 // pair whose non-passing result owes a debug path. Both burn a real browser run
 // (~5 minutes), which is what makes a pre-flight check worth a hook.
-export const MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
+export const MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
 
 /** The telemetry emit that carries the Step 6f / debug-path decisions the stage gates key on. */
-export const MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
+export const MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
 
 /** The feedback submission that counts as debug-path evidence for the run it names. */
-export const MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+export const MUGGLE_FEEDBACK_CREATE_TOOL = mcpToolNamePattern("muggle-remote-user-feedback-create");
 
 /** Step 6f's event type — the classification that calls `muggle-remote-test-script-list` before a run is spent. */
 export const PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";

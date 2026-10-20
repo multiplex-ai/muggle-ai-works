@@ -34,16 +34,19 @@ var MAX_WATCH_BLOCKS = 3;
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
-var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
+function mcpToolNamePattern(hyphenatedSource) {
+  return new RegExp(hyphenatedSource.replaceAll("-", "[-_]"), "i");
+}
+var MUGGLE_SKILL_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-skill-emit");
 var MUGGLE_TEST_SKILL_NAME = "muggle-test";
 var MANDATORY_STAGES_FRONTMATTER_KEY = "mandatoryStages";
 var SKILL_NAME_INPUT_KEYS = ["skill", "skillName", "name", "command"];
 var MAX_STAGE_BLOCKS = 3;
 var MAX_DEBUG_BLOCKS = 3;
 var ANY_TEST_CASE = "*";
-var MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
-var MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
-var MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+var MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
+var MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
+var MUGGLE_FEEDBACK_CREATE_TOOL = mcpToolNamePattern("muggle-remote-user-feedback-create");
 var PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";
 var FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 var MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;

@@ -24,6 +24,7 @@
         "REQUEST_TIMEOUT_MS",
         "WORKFLOW_TIMEOUT_MS",
         "LOG_LEVEL",
+        "MUGGLE_TELEMETRY_DISABLED",
         "MUGGLE_LLM_PROVIDER",
         "MUGGLE_LLM_BASE_URL",
         "MUGGLE_LLM_API_KEY",

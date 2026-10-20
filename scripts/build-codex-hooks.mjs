@@ -9,14 +9,18 @@
  *
  * - Codex exports CLAUDE_PLUGIN_ROOT to plugin hooks for compatibility, so a
  *   guardrail cannot tell it from Claude Code. Every command is stamped with
- *   MUGGLE_HOOK_HOST=codex instead — through `env`, which every login shell
- *   Codex may run the command in understands.
- * - On Windows Codex runs `commandWindows` through cmd.exe, which cannot run
- *   that POSIX command. Each hook gets a variant that hands the same script to
- *   Git Bash via scripts/codex-hook-windows.cmd, which stamps the host itself.
+ *   MUGGLE_HOOK_HOST=codex instead — through `env`, which every shell Codex may
+ *   run the command in understands.
+ * - On Windows Codex runs `commandWindows` through the session shell —
+ *   PowerShell, or cmd.exe as a fallback — and neither can run that POSIX
+ *   command. Each hook gets a variant that starts with a bare `node` (a quoted
+ *   path there is a PowerShell syntax error) and hands the same script to Git
+ *   Bash through scripts/codex-hook-windows.mjs, which stamps the host itself.
  * - Codex has its own tool names. A matcher naming a Claude Code tool is
  *   rewritten to the Codex tool that plays its part, and a group whose tools
- *   Codex does not have is dropped.
+ *   Codex does not have is dropped. An MCP tool reaches a Codex hook as
+ *   `mcp__<server>__<tool>` with every character outside [A-Za-z0-9_] turned
+ *   into `_`, so a matcher spelling the muggle tools with hyphens is respelled.
  *
  * hooks.json stays the one hand-edited manifest. `--check` exits non-zero when
  * the committed file differs from what this script would write.
@@ -34,8 +38,8 @@ const codexHooksPath = join(repositoryRootPath, "plugin", "hooks", "codex-hooks.
 /** The stamp that tells the guardrails a hook was fired by Codex, applied portably. */
 export const CODEX_HOOK_HOST_STAMP = "env MUGGLE_HOOK_HOST=codex";
 
-/** The cmd.exe launcher a Windows hook runs through; Codex substitutes the plugin root. */
-export const CODEX_WINDOWS_HOOK_LAUNCHER = '"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd"';
+/** The launcher a Windows hook runs through, as both PowerShell and cmd.exe parse it; Codex substitutes the plugin root. */
+export const CODEX_WINDOWS_HOOK_LAUNCHER = 'node "${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs"';
 
 // Every hooks.json command runs a shipped bash script; the Windows variant
 // hands the rest of the command line to Git Bash.
@@ -59,10 +63,28 @@ export const CODEX_TOOL_EQUIVALENTS = {
 const CODEX_HOOKS_DESCRIPTION =
     "Generated from hooks.json by scripts/build-codex-hooks.mjs for the Codex plugin. Edit hooks.json, then run `pnpm run build:codex-hooks`.";
 
-// A matcher made only of names and `|` lists tools (or session-start sources);
-// anything else is a regex, which here only ever selects muggle MCP tools whose
-// names Codex shares.
+// A matcher made only of names and `|` lists tools (or session-start sources),
+// which Codex compares whole; anything else is an unanchored regex, which here
+// only ever selects muggle MCP tools.
 const NAME_LIST_MATCHER = /^[A-Za-z0-9_|]+$/;
+
+// Regex syntax a hyphen can belong to, where respelling it would change the
+// pattern rather than the tool name it spells.
+const UNRESPELLABLE_REGEX_SYNTAX = /[[\\]/;
+
+/**
+ * An MCP tool matcher as Codex must see it: the tool names it spells with
+ * hyphens, spelled the way Codex reports them.
+ * @param {string} matcher - A hooks.json regex matcher.
+ * @returns {string} The respelled matcher.
+ * @throws {Error} When the matcher uses regex syntax a hyphen could be part of.
+ */
+export function respellMcpMatcherForCodex(matcher) {
+    if (UNRESPELLABLE_REGEX_SYNTAX.test(matcher)) {
+        throw new Error(`cannot respell this hooks.json matcher for Codex's MCP tool names: ${matcher}`);
+    }
+    return matcher.replaceAll("-", "_");
+}
 
 /**
  * The Codex form of one matcher, or null when it selects nothing Codex has.
@@ -70,7 +92,8 @@ const NAME_LIST_MATCHER = /^[A-Za-z0-9_|]+$/;
  * @returns {string | undefined | null} The rewritten matcher; undefined when the group had none.
  */
 function deriveCodexMatcher(matcher) {
-    if (matcher === undefined || !NAME_LIST_MATCHER.test(matcher)) return matcher;
+    if (matcher === undefined) return matcher;
+    if (!NAME_LIST_MATCHER.test(matcher)) return respellMcpMatcherForCodex(matcher);
     const codexNames = [];
     for (const name of matcher.split("|")) {
         const codexName = Object.hasOwn(CODEX_TOOL_EQUIVALENTS, name) ? CODEX_TOOL_EQUIVALENTS[name] : name;

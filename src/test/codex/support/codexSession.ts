@@ -5,7 +5,7 @@ import { delimiter, join } from "path";
 import { createInterface } from "readline";
 import { fileURLToPath } from "url";
 import type { MockResponsesServer } from "./mockResponsesServer.js";
-import type { AppServerResponse, CodexExecResult, ScriptedTurn } from "./types.js";
+import type { AppServerResponse, AppServerSession, CodexExecResult, ScriptedTurn } from "./types.js";
 
 // A throwaway Codex install with the plugin added from this checkout the way a
 // user adds it, pointed at a scripted model. Everything Codex, the hooks and
@@ -122,10 +122,20 @@ export class CodexSession {
     return { status: status, stdout: stdout, stderr: stderr, requests: [...this.model.requests] };
   }
 
-  /** Ask `codex app-server` each method in turn over stdio JSON-RPC, after the initialize handshake. */
-  async appServer(calls: Array<{ method: string; params: unknown }>): Promise<AppServerResponse[]> {
+  /**
+   * Ask `codex app-server` each method in turn over stdio JSON-RPC, after the
+   * initialize handshake. Its log comes back too, MCP startup included, for a
+   * failure to explain itself.
+   */
+  async appServer(calls: Array<{ method: string; params: unknown }>): Promise<AppServerSession> {
     const { program, argv } = codexCommand(["app-server"]);
-    const child = spawn(program, argv, { cwd: this.workspace, env: this.env(), stdio: ["pipe", "pipe", "ignore"] });
+    const child = spawn(program, argv, {
+      cwd: this.workspace,
+      env: { ...this.env(), RUST_LOG: "warn,codex_rmcp_client=info,codex_mcp=info" },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let log = "";
+    child.stderr.on("data", (chunk: Buffer) => (log += chunk.toString("utf-8")));
     const pending = new Map<number, (response: AppServerResponse) => void>();
     createInterface({ input: child.stdout }).on("line", (line) => {
       let message: AppServerResponse;
@@ -150,7 +160,7 @@ export class CodexSession {
       child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "initialized" })}\n`);
       const responses: AppServerResponse[] = [];
       for (const call of calls) responses.push(await request(call.method, call.params));
-      return responses;
+      return { responses: responses, log: log };
     } finally {
       clearTimeout(timer);
       child.kill();
@@ -159,20 +169,12 @@ export class CodexSession {
 
   // `npx -y @muggleai/works` resolves a package already in the cwd's
   // node_modules without touching the registry, so the plugin's unmodified MCP
-  // command starts this checkout. A Windows junction needs no privilege.
+  // command starts this checkout. Codex starts a server in the thread's cwd, or
+  // in CODEX_HOME when no thread is open (app-server status calls), so both get
+  // the package; otherwise npx quietly installs the published one instead.
   private prepareWorkspace(): void {
-    writeFileSync(join(this.workspace, "package.json"), JSON.stringify({ name: "codex-live-fixture", private: true }));
-    const scope = join(this.workspace, "node_modules", "@muggleai");
-    const bin = join(this.workspace, "node_modules", ".bin");
-    mkdirSync(scope, { recursive: true });
-    mkdirSync(bin, { recursive: true });
-    symlinkSync(REPO_ROOT, join(scope, "works"), process.platform === "win32" ? "junction" : "dir");
-    const cli = join(REPO_ROOT, "bin", "muggle.js");
-    if (process.platform === "win32") {
-      writeFileSync(join(bin, "muggle.cmd"), `@node "${cli}" %*\r\n`);
-    } else {
-      writeExecutable(join(bin, "muggle"), `#!/bin/sh\nexec node "${cli}" "$@"\n`);
-    }
+    linkCheckoutPackage(this.workspace);
+    linkCheckoutPackage(this.codexHome);
     // The model's own `gh`: prints a PR url for `gh pr create`, nothing for anything else.
     const fakeGh = `process.stdout.write(process.argv[2] === "pr" && process.argv[3] === "create" ? "${FAKE_PR_URL}\\n" : "");\n`;
     writeFileSync(join(this.fakeBin, "fake-gh.mjs"), fakeGh);
@@ -184,11 +186,14 @@ export class CodexSession {
   }
 
   // A fresh Electron check marker keeps the SessionStart hook from running
-  // `muggle setup`, which would download the Electron runner.
+  // `muggle setup`, which would download the Electron runner. Offline npm makes
+  // an `npx` that stopped resolving this checkout fail loudly rather than
+  // quietly install the published package — and keeps the cache in the temp home.
   private prepareHome(): void {
     const marker = join(this.home, ".cache", "muggle");
     mkdirSync(marker, { recursive: true });
     writeFileSync(join(marker, "electron-app-checked"), "");
+    writeFileSync(join(this.home, ".npmrc"), `offline=true\ncache=${join(this.home, ".npm-cache")}\n`);
   }
 
   // Top-level keys must precede the tables `codex plugin add` already wrote.
@@ -224,6 +229,9 @@ export class CodexSession {
       `model_provider = "mock"`,
       `model_catalog_json = ${JSON.stringify(catalog)}`,
       `web_search = "disabled"`,
+      // A login shell re-sorts PATH on macOS (path_helper), putting the runner's
+      // real gh in front of the fake one; the hooks never run under one anyway.
+      `allow_login_shell = false`,
     ].join("\n");
     const tables = [
       `[model_providers.mock]`,
@@ -239,6 +247,22 @@ export class CodexSession {
       `enabled = false`,
     ].join("\n");
     writeFileSync(configPath, `${topLevel}\n\n${installed}\n${tables}\n`);
+  }
+}
+
+/** Make `dir` a project with this checkout installed as @muggleai/works; a Windows junction needs no privilege. */
+function linkCheckoutPackage(dir: string): void {
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "codex-live-fixture", private: true }));
+  const scope = join(dir, "node_modules", "@muggleai");
+  const bin = join(dir, "node_modules", ".bin");
+  mkdirSync(scope, { recursive: true });
+  mkdirSync(bin, { recursive: true });
+  symlinkSync(REPO_ROOT, join(scope, "works"), process.platform === "win32" ? "junction" : "dir");
+  const cli = join(REPO_ROOT, "bin", "muggle.js");
+  if (process.platform === "win32") {
+    writeFileSync(join(bin, "muggle.cmd"), `@node "${cli}" %*\r\n`);
+  } else {
+    writeExecutable(join(bin, "muggle"), `#!/bin/sh\nexec node "${cli}" "$@"\n`);
   }
 }
 

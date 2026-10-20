@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { readFileSync } from "fs";
 import { join } from "path";
 import {
   CODEX_BIN,
@@ -18,6 +18,7 @@ import {
   shellCall,
   toolCallOutput,
 } from "./support/mockResponsesServer.js";
+import { ALIASES, CANONICAL_SKILLS, SKILL_NAMES, skillDescription } from "./support/skills.js";
 import type { CodexExecResult, ModelRequest, ModelTool } from "./support/types.js";
 
 // The plugin under the real Codex CLI, end to end: installed from this
@@ -32,12 +33,6 @@ import type { CodexExecResult, ModelRequest, ModelTool } from "./support/types.j
 // build (`pnpm run build`); without CODEX_BIN it skips. The codex-compat CI
 // job sets both, plus MUGGLE_REQUIRE_CODEX_LIVE so a missing binary fails.
 
-const SKILLS_DIR = join(REPO_ROOT, "plugin", "skills");
-const ALIASES = (JSON.parse(readFileSync(join(SKILLS_DIR, "_aliases.json"), "utf-8")) as { aliases: string[] }).aliases;
-const SKILL_NAMES = readdirSync(SKILLS_DIR, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory() && existsSync(join(SKILLS_DIR, entry.name, "SKILL.md")))
-  .map((entry) => entry.name);
-const CANONICAL_SKILLS = SKILL_NAMES.filter((name) => !ALIASES.includes(name));
 const ADVERTISED_TOOLS = [
   ...new Set(
     [
@@ -53,14 +48,6 @@ const CODEX_HOOKS = JSON.parse(readFileSync(join(REPO_ROOT, "plugin", "hooks", "
 };
 const WINDOWS = process.platform === "win32";
 const LIVE_TIMEOUT_MS = 180_000;
-
-/** A SKILL.md description as Codex renders it: the YAML scalar, collapsed to one line. */
-function skillDescription(skillName: string): string {
-  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(join(SKILLS_DIR, skillName, "SKILL.md"), "utf-8"))![1];
-  const raw = /^description:[ \t]*(.+)$/m.exec(frontmatter)![1].trim();
-  const value = raw.startsWith('"') ? (JSON.parse(raw) as string) : raw.startsWith("'") ? raw.slice(1, -1).replaceAll("''", "'") : raw;
-  return value.split(/\s+/).filter(Boolean).join(" ");
-}
 
 function noHookFailed(run: CodexExecResult): void {
   expect(hookOutcomes(run.stderr).filter((outcome) => outcome.endsWith(" Failed"))).toEqual([]);
@@ -83,6 +70,7 @@ describe.skipIf(!CODEX_BIN)("the muggle plugin in a real Codex", () => {
     errors: unknown[];
   };
   let mcp: { name: string; pluginId?: string; tools: Record<string, unknown>; toolsError: unknown };
+  let appServerLog: string;
   // The installed plugin root exactly as Codex hands it to the hooks — read off
   // the commands it substituted it into, since a temp dir can be spelled
   // differently on the way (an 8.3 name on Windows, /private on macOS).
@@ -91,11 +79,13 @@ describe.skipIf(!CODEX_BIN)("the muggle plugin in a real Codex", () => {
   beforeAll(async () => {
     await model.start();
     session.prepare();
-    const [skillsList, hooksList, mcpStatus] = await session.appServer([
+    const appServer = await session.appServer([
       { method: "skills/list", params: { cwds: [session.workspace], forceReload: true } },
       { method: "hooks/list", params: { cwds: [session.workspace] } },
       { method: "mcpServerStatus/list", params: { serverName: "muggle", detail: "toolsAndAuthOnly" } },
     ]);
+    const [skillsList, hooksList, mcpStatus] = appServer.responses;
+    appServerLog = appServer.log;
     skills = (skillsList.result as { data: Array<typeof skills> }).data[0];
     hooks = (hooksList.result as { data: Array<typeof hooks> }).data[0];
     mcp = (mcpStatus.result as { data: Array<typeof mcp> }).data.find((server) => server.name === "muggle")!;
@@ -135,7 +125,7 @@ describe.skipIf(!CODEX_BIN)("the muggle plugin in a real Codex", () => {
 
     it("starts the MCP server from the plugin's own command and lists every advertised tool", () => {
       expect(mcp.pluginId).toBe(PLUGIN_ID);
-      expect(mcp.toolsError).toBeNull();
+      expect(mcp.toolsError, appServerLog.split("\n").slice(-60).join("\n")).toBeNull();
       expect(Object.keys(mcp.tools).sort()).toEqual([...ADVERTISED_TOOLS].sort());
     });
   });

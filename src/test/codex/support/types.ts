@@ -44,3 +44,9 @@ export interface AppServerResponse {
   result?: unknown;
   error?: { code: number; message: string };
 }
+
+/** What one `codex app-server` exchange returned, with the server's own log. */
+export interface AppServerSession {
+  responses: AppServerResponse[];
+  log: string;
+}

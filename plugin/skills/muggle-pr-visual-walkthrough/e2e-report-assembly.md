@@ -24,6 +24,7 @@ Fetch step screenshots in parallel — pick the right tool per run result:
 For each result:
 
 1. Build `steps[]`: `[{ stepIndex: <index>, action: steps[i].operation.action, description: steps[i].briefExplanation, screenshotUrl: steps[i].operation.screenshotUrl }, ...]`. `action` is only the operation verb (`navigate`, `click`); `description` is the agent's readable account of the step and is what the walkthrough shows — omit it only when the step has no `briefExplanation`. A non-passing run carries its steps too: fetch them with the fallback above rather than sending `[]`, which collapses its walkthrough entry to a single ending frame. Send `[]` only when the run genuinely produced no steps; those still render the failure summary header.
+   Add each step's `afterScreenshotUrl` — the page after the step acted, which the action script does not store. It is the `operation.screenshotUrl` of the next step that has one, skipping steps without a screenshot (`noOp`, `proceed`, `proposeStep`, `curl`, `secretSave`, `generateManagedProfile`), and for the last such step the `summaryStep.operation.screenshotUrl`. Omit it when neither exists; the walkthrough then shows the before screenshot alone. This is the same pairing the Muggle AI dashboard shows.
 2. `viewUrl` — from the run result (deep-links to the specific run).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.

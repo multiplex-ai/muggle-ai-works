@@ -26,7 +26,7 @@ describe("splitWithOverflow", () => {
     const report = load("oversized.json");
     const result = splitWithOverflow(report, { maxBodyBytes: 300 });
     expect(result.comment).not.toBeNull();
-    expect(result.body).not.toContain("<details>");
+    expect(result.body).not.toContain("<kbd>Show");
     expect(result.body).toContain("Full per-test details in the comment below");
     expect(result.comment).toContain("<details>");
     expect(result.comment).toContain("## E2E acceptance evidence (overflow)");
@@ -37,7 +37,7 @@ describe("splitWithOverflow", () => {
     const result = splitWithOverflow(report, { maxBodyBytes: 400 });
     // Every test now gets a <details> block, so all-passed reports can overflow too.
     expect(result.comment).not.toBeNull();
-    expect(result.body).not.toContain("<details>");
+    expect(result.body).not.toContain("<kbd>Show");
     expect(result.body).toContain("Full per-test details in the comment below");
     expect(result.comment).toContain("<details>");
   });
@@ -64,14 +64,59 @@ describe("splitWithOverflow", () => {
     const report = load("grouped-by-use-case.json");
     const fit = splitWithOverflow(report, { maxBodyBytes: 60_000 });
     expect(fit.comment).toBeNull();
-    expect(fit.body).toContain("- **Create a New Project**");
-    expect(fit.body).toContain("  - ✅ **1.** User creates a new project with valid URL");
-    expect(fit.body).toContain("  - ❌ **2.** User receives error for invalid URL format");
-    expect(fit.body).toContain("  - ✅ **3.** Login with valid credentials");
+    expect(fit.body).toContain("<summary><b>Create a New Project</b>");
+    expect(fit.body).toContain("- ✅ **1.** User creates a new project with valid URL");
+    expect(fit.body).toContain("- ❌ **2.** User receives error for invalid URL format");
+    expect(fit.body).toContain("- ✅ **3.** Login with valid credentials");
 
     const spilled = splitWithOverflow(report, { maxBodyBytes: 500 });
     expect(spilled.comment).not.toBeNull();
-    expect(spilled.body).toContain("- **Create a New Project**");
-    expect(spilled.body).not.toContain("<details>");
+    expect(spilled.body).toContain("<summary><b>Create a New Project</b>");
+    expect(spilled.body).not.toContain("<kbd>Show");
+  });
+});
+
+describe("overflow comment size cap", () => {
+  // GitHub rejects a comment over its cap outright, so the details must shed screenshots rather than vanish.
+  const _bigReport = (stepsPerTest: number, testCount = 5) => {
+    const longUrl = (label: string) => `https://firebasestorage.googleapis.com/v0/b/bucket/o/${label}-${"x".repeat(300)}.jpg`;
+    return E2eReportSchema.parse({
+      projectId: "p1",
+      tests: Array.from({ length: testCount }, (_unused, testIndex) => ({
+        name: `Test ${testIndex}`,
+        testCaseId: `tc-${testIndex}`,
+        runId: `r-${testIndex}`,
+        viewUrl: "https://example.com/run",
+        status: "passed",
+        steps: Array.from({ length: stepsPerTest }, (_step, stepIndex) => ({
+          stepIndex: stepIndex,
+          action: "click",
+          description: `Click item ${stepIndex}`,
+          screenshotUrl: longUrl(`t${testIndex}-s${stepIndex}-before`),
+          afterScreenshotUrl: longUrl(`t${testIndex}-s${stepIndex}-after`),
+        })),
+      })),
+    });
+  };
+
+  it("drops after screenshots when before-and-after would exceed the cap", () => {
+    const result = splitWithOverflow(_bigReport(14), { maxBodyBytes: 1_000 });
+    expect(Buffer.byteLength(result.comment!, "utf-8")).toBeLessThanOrEqual(64_000);
+    expect(result.comment).not.toContain("| Before | After |");
+    expect(result.comment).toContain("<summary>📷 1 · Click item 0</summary>");
+    expect(result.comment).toContain("Step screenshots are trimmed to fit GitHub's comment size limit");
+  });
+
+  it("falls back to step text when even one screenshot per step would exceed the cap", () => {
+    const result = splitWithOverflow(_bigReport(20, 10), { maxBodyBytes: 1_000 });
+    expect(Buffer.byteLength(result.comment!, "utf-8")).toBeLessThanOrEqual(64_000);
+    expect(result.comment).not.toContain("<summary>📷");
+    expect(result.comment).toContain("- 1 · Click item 0");
+  });
+
+  it("keeps both screenshots when they fit", () => {
+    const result = splitWithOverflow(_bigReport(2), { maxBodyBytes: 1_000 });
+    expect(result.comment).toContain("| Before | After |");
+    expect(result.comment).not.toContain("trimmed to fit");
   });
 });

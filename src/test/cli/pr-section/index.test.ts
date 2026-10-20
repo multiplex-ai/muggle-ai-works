@@ -30,8 +30,8 @@ describe("buildPrSection", () => {
     const result = buildPrSection(load("grouped-by-use-case.json"), { maxBodyBytes: 500 });
     expect(result.body).toContain("## E2E Acceptance Results");
     expect(result.body).toContain("**❌ FAIL** — 3 tests ran · 2 passed / 1 failed / 0 inconclusive");
-    expect(result.body).toContain("- **Create a New Project**");
-    expect(result.body).not.toContain("<details>");
+    expect(result.body).toContain("<summary><b>Create a New Project</b>");
+    expect(result.body).not.toContain("<kbd>Show");
     expect(result.comment).toContain("<details>");
   });
 });

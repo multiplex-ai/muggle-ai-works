@@ -1,0 +1,46 @@
+{
+  "name": "muggle",
+  "version": "5.18.0",
+  "description": "Real-browser E2E acceptance for your coding agent: test the flows you changed and open the PR with screenshots. Built for flows other tools can't reach: managed test identities with live inboxes (magic links, email OTP and 2FA, verification mail, password resets), an encrypted secret store for login and test credentials, and a test graph that runs prerequisite flows first. Plain-English tests become replayable scripts on localhost or preview URLs.",
+  "author": {
+    "name": "Muggle AI",
+    "email": "support@muggle-ai.com"
+  },
+  "homepage": "https://www.muggletest.com",
+  "repository": "https://github.com/multiplex-ai/muggle-ai-works",
+  "license": "MIT",
+  "keywords": [
+    "acceptance-testing",
+    "testing",
+    "mcp",
+    "browser-automation",
+    "ai-coding",
+    "muggle-ai",
+    "ui-validation",
+    "regression-testing",
+    "e2e-testing",
+    "ux-testing",
+    "visual-testing",
+    "frontend-testing"
+  ],
+  "skills": "./skills",
+  "mcpServers": "./.codex-mcp.json",
+  "hooks": "./hooks/codex-hooks.json",
+  "interface": {
+    "displayName": "Muggle AI",
+    "shortDescription": "Real-browser E2E acceptance tests and PR walkthroughs",
+    "longDescription": "Muggle Works is the harness around your coding agent: it freezes requirements, builds the change, runs the unit suite, drives a real browser through the user flows the diff can break, and opens the pull request with step-by-step screenshots attached. Managed test identities carry live inboxes, so magic links, emailed OTPs and password resets are testable end to end.",
+    "developerName": "Muggle AI",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://www.muggletest.com",
+    "defaultPrompt": [
+      "Use $muggle:muggle-test to test the user flows my changes affect",
+      "Use $muggle:muggle-do to build this and open a PR with browser proof",
+      "Use $muggle:muggle-status to check my Muggle AI installation"
+    ]
+  }
+}

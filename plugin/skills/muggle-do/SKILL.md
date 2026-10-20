@@ -7,6 +7,8 @@ description: Take a feature request, spec, design, bug, or ticket and carry it a
 
 > Telemetry first step: see [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-do"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user answers one pre-flight questionnaire, then walks away. The [muggle-pr-followup](../muggle-pr-followup/SKILL.md) watcher invokes `/muggle-do` again with the *address-reviews* directive when new reviews land.
 
 ## Forward pipeline (fresh feature)

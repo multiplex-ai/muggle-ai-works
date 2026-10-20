@@ -54,6 +54,18 @@ Pre-filters are bash builtins only (`guardrail-lib.sh`), so an irrelevant event 
 | `Stop` | `guardrail-capability-claim.sh` | **enforce** | the closing turn tells the user a login- or code-gated flow can't be tested, reached, or verified | — | **block** once, citing `_shared/identity-and-inbox.md`: the managed profile's live inbox, provisioned number, stored TOTP secret, credentials, and CAPTCHA solver clear exactly that blocker. Reads the claim out of the transcript, since a Stop payload carries no message text. Per-sentence matching, and a sentence naming a voice call, an OAuth-only provider, or a deployment with no number provisioned never fires — those limits are real. Nudges once per session, then stays quiet, so a misread costs one turn |
 | `UserPromptSubmit` | `guardrail-build-router.sh` | advise | a build/implement/fix request (first one this session) | `autoRouteBuildToMuggleDo` | route the work through `muggle-do` (build delegated to superpowers) |
 
+## Codex
+
+Codex runs Claude Code-format plugin hooks, from `codex-hooks.json` rather than `hooks.json` — the Codex plugin manifest (`../.codex-plugin/plugin.json`) names it. `scripts/build-codex-hooks.mjs` generates it from `hooks.json` on every build, and `pnpm run verify:plugin` fails when the committed copy drifts, so `hooks.json` stays the one manifest to edit. The generated copy differs in three ways, each written down rather than guessed at runtime:
+
+- **Host stamp.** Codex exports `CLAUDE_PLUGIN_ROOT` to plugin hooks for compatibility, so nothing in the environment tells a guardrail it is not in Claude Code. Every command runs under `env MUGGLE_HOOK_HOST=codex`, and the guardrails word their instructions for Codex (`$muggle:muggle-test`, not `/muggle:muggle-test`).
+- **Tool names.** A matcher naming a Claude Code tool becomes the Codex tool that plays its part — `AskUserQuestion` → `request_user_input` — and a group whose tools Codex lacks is dropped: Codex reports every shell call as `Bash`, opens files and skills through the shell, and delivers a background command's output as that command's own `Bash` event, so `PowerShell`, `Read`, `Skill` and `Monitor` never fire.
+- **Windows.** Codex runs `commandWindows` through cmd.exe, so every hook also gets one that hands the same script to Git Bash through `../scripts/codex-hook-windows.cmd`. With no Git Bash the launcher prints `{}` and succeeds — the same allow-by-default every guardrail falls back to.
+
+What Codex sends differs too, and the guardrails read either shape: a shell result arrives as the bare output string (normalized to `tool_response.output` in `hookInput.ts`), with no exit code; the Stop payload carries the closing message as `last_assistant_message`, which the capability-claim gate judges in place of the transcript, whose format is not Claude Code's; and a stage file opened with `cat` or `sed -n` counts as read, since there is no `Read` tool. With no structured question in Codex's default mode, a turn that closes on a question to the user is the post-merge offer there — under Codex only.
+
+Codex runs a plugin's hooks only once the user trusts them: it asks at startup ("Trust all and continue"), asks again when an update changes them, and `/hooks` lists and manages them. Until then the MCP tools and skills work and no guardrail fires.
+
 ## Session-start reconcile nudge
 
 `SessionStart` (`scripts/reconcile-stale-watchers.sh`) — a standalone advisory, not part of the `guardrails.mjs` decision tree above.

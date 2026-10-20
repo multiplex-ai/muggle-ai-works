@@ -7,6 +7,8 @@ description: "Bring existing tests and test artifacts INTO Muggle Test — from 
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-import"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 This skill migrates existing test artifacts into Muggle Test. It reads your source files,
 structures them into use cases and test cases, gets your approval, then creates everything
 in a Muggle Test project via the API.

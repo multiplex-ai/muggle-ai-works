@@ -7,3 +7,6 @@
 # The watch projection is read verbatim into a jq program; a CR would land
 # inside the filter source.
 *.jq text eol=lf
+# cmd.exe misparses some batch constructs in a file with bare LF line endings,
+# so the Codex-on-Windows hook launcher is checked out with CRLF everywhere.
+*.cmd text eol=crlf

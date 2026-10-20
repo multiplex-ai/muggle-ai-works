@@ -8,6 +8,8 @@ description: "Post a visual walkthrough of Muggle AI E2E acceptance results to a
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-pr-visual-walkthrough"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Renders a visual walkthrough of Muggle AI E2E acceptance test results and posts it to a PR. Each test case links to its detail page on the Muggle AI dashboard, so reviewers can click through to step-by-step screenshots — not just a pass/fail flag.
 
 This skill is a **dispatcher**: it resolves the mode and any user interaction, then hands execution to the `visual-walkthrough-builder` agent (`plugin/agents/visual-walkthrough-builder.md`), which renders and delivers per its own contract.

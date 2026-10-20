@@ -1,0 +1,7 @@
+# Codex reads this beside SKILL.md. An alias is for the user to type, never for
+# the model to pick on its own: Codex's equivalent of disable-model-invocation.
+interface:
+  display_name: "mprfollowup"
+  short_description: "Short alias for the muggle-pr-followup skill"
+policy:
+  allow_implicit_invocation: false

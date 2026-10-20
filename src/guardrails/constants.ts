@@ -29,8 +29,36 @@ export const MAX_PR_TERMINAL_BLOCKS = 3;
 
 // The tools that carry a shell command. A session picks its shell by platform,
 // so the same `gh pr create` arrives under either name — and a guard that reads
-// only one of them is blind on the other half of the fleet.
+// only one of them is blind on the other half of the fleet. Codex reports every
+// shell call as `Bash`, whatever the platform.
 export const SHELL_TOOL_NAMES = ["Bash", "PowerShell"] as const;
+
+// Stamped on every command of plugin/hooks/codex-hooks.json. Codex exports
+// CLAUDE_PLUGIN_ROOT to plugin hooks for compatibility, so without the stamp a
+// Codex hook is indistinguishable from a Claude Code one.
+export const HOOK_HOST_ENV_VAR = "MUGGLE_HOOK_HOST";
+
+// The structured question tools that can carry the post-merge next-options
+// offer: Claude Code's, and Codex's (offered only in some Codex modes).
+export const NEXT_OPTIONS_OFFER_TOOL_NAMES = ["AskUserQuestion", "request_user_input"] as const;
+
+// Shell programs whose job is printing a file. A host with no Read tool (Codex)
+// opens a skill's stage files this way, so these are what count as a read.
+export const FILE_PRINTING_PROGRAMS = [
+  "cat",
+  "sed",
+  "head",
+  "tail",
+  "nl",
+  "less",
+  "more",
+  "bat",
+  "batcat",
+  "awk",
+  "get-content",
+  "gc",
+  "type",
+] as const;
 
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;

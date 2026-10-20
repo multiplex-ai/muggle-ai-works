@@ -6,4 +6,4 @@ disable-model-invocation: true
 
 # mtestprep — alias for muggle-test-prepare
 
-Invoke the `muggle-test-prepare` skill via the Skill tool. Forward any user-provided arguments unchanged.
+Invoke the `muggle-test-prepare` skill via the Skill tool. Forward any user-provided arguments unchanged. In a host with no Skill tool (Codex), open `../muggle-test-prepare/SKILL.md` and follow it with those arguments.

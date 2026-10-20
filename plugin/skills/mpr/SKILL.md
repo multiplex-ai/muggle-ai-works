@@ -6,4 +6,4 @@ disable-model-invocation: true
 
 # mpr — alias for muggle-pr-visual-walkthrough
 
-Invoke the `muggle-pr-visual-walkthrough` skill via the Skill tool. Forward any user-provided arguments unchanged.
+Invoke the `muggle-pr-visual-walkthrough` skill via the Skill tool. Forward any user-provided arguments unchanged. In a host with no Skill tool (Codex), open `../muggle-pr-visual-walkthrough/SKILL.md` and follow it with those arguments.

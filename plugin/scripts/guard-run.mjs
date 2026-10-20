@@ -179,6 +179,11 @@ function parseGuardRunArguments(argv) {
   };
 }
 
+// src/guard-run/probeRan.ts
+function probeRan(probe) {
+  return probe.status !== null && typeof probe.stdout === "string";
+}
+
 // src/guard-run/selectBackend.ts
 var SYSTEMD_USABLE_MANAGER_STATES = /* @__PURE__ */ new Set(["running", "degraded"]);
 function selectGuardRunBackend(probe) {
@@ -223,7 +228,7 @@ function probedSystemdUserManagerState() {
     encoding: "utf-8",
     timeout: 1e4
   });
-  if (probe.error !== void 0 || typeof probe.stdout !== "string") return null;
+  if (!probeRan(probe)) return null;
   return probe.stdout.trim();
 }
 function resolveJobObjectShimPath() {
@@ -258,7 +263,7 @@ function currentUserProcessCount() {
     encoding: "utf-8",
     timeout: 1e4
   });
-  if (listing.error !== void 0 || listing.status !== 0) {
+  if (!probeRan(listing) || listing.status !== 0) {
     return fail("cannot count current user processes for the nproc ceiling");
   }
   return countProcessListLines(listing.stdout);

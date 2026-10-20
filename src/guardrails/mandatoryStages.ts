@@ -1,7 +1,9 @@
 import { existsSync, readFileSync } from "fs";
-import { dirname, isAbsolute, join, resolve } from "path";
+import { homedir } from "os";
+import { basename, dirname, isAbsolute, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import {
+  FILE_PRINTING_PROGRAMS,
   MANDATORY_STAGES_FRONTMATTER_KEY,
   MAX_STAGE_BLOCKS,
   SKILL_NAME_INPUT_KEYS,
@@ -26,6 +28,13 @@ const STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
 const SKILLS_DIR_NAME = "skills";
 const SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 const SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+
+// The characters of the separators that start a new command: `a && b`, `a; b`, `a | b`, a newline.
+const SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
+const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+const SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+const MARKDOWN_FILE = /\.md$/i;
 
 const unquote = (raw: string): string => raw.trim().replace(/^["']|["']$/g, "").trim();
 
@@ -148,11 +157,155 @@ export function applySkillInvocation(
   return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
 }
 
+/** Whether a path is a markdown file inside a skills tree — the only place a mandatory stage lives. */
+export function isSkillTreeMarkdown(filePath: string): boolean {
+  const normalized = normalizeStagePath(filePath);
+  return normalized.includes(SKILLS_PATH_SEGMENT) && MARKDOWN_FILE.test(normalized);
+}
+
 /** Record a read of a file in the skills tree, returning the same reference when it was already recorded. */
 export function applyStageRead(state: GuardrailState, filePath: string): GuardrailState {
   const stagePath = normalizeStagePath(filePath);
   if ((state.stagesRead ?? []).includes(stagePath)) return state;
   return { ...state, stagesRead: [...(state.stagesRead ?? []), stagePath] };
+}
+
+// A backslash escapes only the characters the shell gives meaning to, so a
+// Windows path (`C:\Users\…`) keeps its separators.
+const SHELL_ESCAPABLE_UNQUOTED = new Set([" ", "\t", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
+const SHELL_ESCAPABLE_DOUBLE_QUOTED = new Set(['"', "\\", "$", "`"]);
+
+/**
+ * A shell command split into its simple commands, each as its words with quotes removed.
+ *
+ * A best-effort reading, not a shell: quotes group words and separators split
+ * commands, which is all a stage-read check needs. Substitutions and
+ * redirections pass through as ordinary words.
+ *
+ * Output shape: `splitShellCommands("cd /p && cat 'a b.md'")` → `[["cd", "/p"], ["cat", "a b.md"]]`
+ */
+function splitShellCommands(command: string): string[][] {
+  const commands: string[][] = [];
+  let words: string[] = [];
+  let word = "";
+  let wordStarted = false;
+  let quote: string | null = null;
+  const endWord = (): void => {
+    if (wordStarted) words.push(word);
+    word = "";
+    wordStarted = false;
+  };
+  const endCommand = (): void => {
+    endWord();
+    if (words.length > 0) commands.push(words);
+    words = [];
+  };
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    const nextCharacter = command[index + 1];
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
+        word += nextCharacter;
+        index += 1;
+      } else {
+        word += character;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      wordStarted = true;
+    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
+      word += nextCharacter;
+      wordStarted = true;
+      index += 1;
+    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
+      endCommand();
+    } else if (/\s/.test(character)) {
+      endWord();
+    } else {
+      word += character;
+      wordStarted = true;
+    }
+  }
+  endCommand();
+  return commands;
+}
+
+// An unset variable expands to nothing, as the shell expands it, so the path is
+// the one the command actually opened.
+function expandShellWord(word: string, variables: Record<string, string | undefined>): string {
+  const withHome = word === "~" || word.startsWith("~/") ? `${homedir()}${word.slice(1)}` : word;
+  return withHome.replace(
+    SHELL_VARIABLE_REFERENCE,
+    (_reference, bracedName: string | undefined, bareName: string | undefined) =>
+      variables[bracedName ?? bareName ?? ""] ?? "",
+  );
+}
+
+function resolveShellPath(path: string, workingDirectory: string): string {
+  return isAbsolute(path) || WINDOWS_ABSOLUTE_PATH.test(path) ? path : resolve(workingDirectory, path);
+}
+
+/**
+ * The skill-tree markdown files a shell command prints, as normalized paths.
+ *
+ * A host with no Read tool opens a stage file through the shell — Codex runs
+ * `cat`, `sed -n` or `head` on it — so the stage gate has to see those reads
+ * too, or it holds the turn open over files that were read. Paths resolve
+ * against the command's working directory, following any `cd` earlier in the
+ * same command, and expand the variables the hook inherited
+ * (`$CLAUDE_PLUGIN_ROOT`, `$HOME`) or an earlier `NAME=value` in the command
+ * set. Only markdown under a `skills/` directory is returned: a read anywhere
+ * else is not a stage.
+ *
+ * Output shape: `["/home/u/.codex/plugins/cache/muggle-works/muggle/5.18.0/skills/_shared/debug-failed-run.md"]`
+ */
+export function detectShellStageReads(
+  command: string,
+  cwd: string | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const variables: Record<string, string | undefined> = { ...env };
+  let workingDirectory = cwd ?? process.cwd();
+  const readPaths: string[] = [];
+  for (const words of splitShellCommands(command)) {
+    let programIndex = 0;
+    const assignments: Array<[string, string]> = [];
+    for (; programIndex < words.length; programIndex += 1) {
+      const assignment = SHELL_ASSIGNMENT.exec(words[programIndex]);
+      if (!assignment) break;
+      assignments.push([assignment[1], expandShellWord(assignment[2], variables)]);
+    }
+    const programWord = words[programIndex];
+    // `NAME=value` alone (or under `export`) sets the variable for the rest of the
+    // command; in front of a program it only reaches that program's environment,
+    // never the expansion of its own arguments.
+    if (programWord === undefined || programWord === "export") {
+      for (const word of words.slice(programIndex + 1)) {
+        const exported = SHELL_ASSIGNMENT.exec(word);
+        if (exported) assignments.push([exported[1], expandShellWord(exported[2], variables)]);
+      }
+      for (const [name, value] of assignments) variables[name] = value;
+      continue;
+    }
+    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+    const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
+    if (program === "cd") {
+      const target = argumentWords.find((word) => !word.startsWith("-"));
+      if (target) workingDirectory = resolveShellPath(target, workingDirectory);
+      continue;
+    }
+    if (!(FILE_PRINTING_PROGRAMS as readonly string[]).includes(program)) continue;
+    for (const argument of argumentWords) {
+      if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
+      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
+      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
+    }
+  }
+  return readPaths;
 }
 
 /** The declared stages this session never opened. */

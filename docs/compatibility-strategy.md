@@ -24,7 +24,7 @@ It captures required values for:
 
 ## Verification Commands
 
-- `pnpm run verify:plugin` checks manifest and marketplace alignment.
+- `pnpm run verify:plugin` checks manifest and marketplace alignment for Claude Code, Cursor, and Codex, the Codex MCP server's timeout and host stamp, and that `plugin/hooks/codex-hooks.json` matches what `hooks.json` generates.
 - `pnpm run verify:contracts` checks CLI/MCP/plugin/skill contracts.
 - `pnpm run verify:electron-release-checksums` checks that the bundled electron release publishes `checksums.txt` with valid SHA256 entries for all platform artifacts.
 - `pnpm run verify:upgrade-experience` validates in-place existing-user upgrade behavior:
@@ -44,7 +44,7 @@ Use this model to decide which checks are mandatory.
    Required: low-risk checks plus upgrade experience validation.
 
 3. **High risk (public contract changes)**  
-   Required: medium-risk checks plus targeted manual client smoke checks on Claude and Cursor.
+   Required: medium-risk checks plus targeted manual client smoke checks on Claude, Cursor, and Codex (`codex plugin add muggle@muggle-works` from a local marketplace, then `codex mcp list` and `/skills`).
 
 ## Automation
 

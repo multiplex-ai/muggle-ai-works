@@ -106,8 +106,10 @@ export function applyPrTerminalDetected(state: GuardrailState, prNumber: number)
   return { ...state, terminalPending: [...pending, prNumber] };
 }
 
-// The ONLY exit: an AskUserQuestion call while a terminal PR is pending. Moves
-// the pending PRs to handled and resets the block counter. Nothing else —
+// The ONLY exit: the next-options offer while a terminal PR is pending — an
+// AskUserQuestion (Codex: request_user_input) call, or on Codex a turn that
+// closes on the question. Moves the pending PRs to handled and resets the
+// block counter. Nothing else —
 // not a passing unit test, not a tick, not another Bash call — may clear the
 // pending set or rewind the counter: any other reset path lets routine
 // activity turn the 3-block cap into an unbounded nag loop.
@@ -120,6 +122,17 @@ export function applyNextOptionsOffered(state: GuardrailState): GuardrailState {
     terminalHandled: [...(state.terminalHandled ?? []), ...pending],
     terminalBlockCount: 0,
   };
+}
+
+/**
+ * Whether a turn's closing message puts a question to the user.
+ *
+ * On a host whose structured question tool is not always offered (Codex), the
+ * next-options offer is the question the turn ends on, so that question is the
+ * offer. A closing message that only reports, with nothing asked, is not.
+ */
+export function closingMessageAsksUser(closingMessage: string | undefined): boolean {
+  return typeof closingMessage === "string" && closingMessage.includes("?");
 }
 
 // Decide what the Stop hook does when a terminal PR's handoff is still owed.

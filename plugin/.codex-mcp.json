@@ -1,0 +1,54 @@
+{
+  "mcpServers": {
+    "muggle": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@muggleai/works",
+        "serve"
+      ],
+      "env": {
+        "MUGGLE_MCP_HOST": "codex"
+      },
+      "env_vars": [
+        "MUGGLE_MCP_PROMPT_SERVICE_TARGET",
+        "ELECTRON_APP_PATH",
+        "ELECTRON_APP_VERSION",
+        "PROMPT_SERVICE_BASE_URL",
+        "WEB_SERVICE_URL",
+        "WEB_SERVICE_PATH",
+        "AUTH0_DOMAIN",
+        "AUTH0_CLIENT_ID",
+        "AUTH0_AUDIENCE",
+        "AUTH0_SCOPE",
+        "REQUEST_TIMEOUT_MS",
+        "WORKFLOW_TIMEOUT_MS",
+        "LOG_LEVEL",
+        "MUGGLE_LLM_PROVIDER",
+        "MUGGLE_LLM_BASE_URL",
+        "MUGGLE_LLM_API_KEY",
+        "MUGGLE_LLM_MODEL",
+        "MUGGLE_LLM_MODEL_PREDICTION",
+        "MUGGLE_LLM_MODEL_SUMMARIZER",
+        "MUGGLE_LLM_MODEL_EVAL",
+        "MUGGLE_LLM_MAX_TOKENS",
+        "MUGGLE_LLM_TEMPERATURE",
+        "MUGGLE_LLM_TOP_P",
+        "MUGGLE_LLM_TIMEOUT_MS",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "no_proxy",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XAUTHORITY",
+        "XDG_RUNTIME_DIR",
+        "DBUS_SESSION_BUS_ADDRESS"
+      ],
+      "startup_timeout_sec": 120,
+      "tool_timeout_sec": 1800
+    }
+  }
+}

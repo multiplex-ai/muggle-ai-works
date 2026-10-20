@@ -1,0 +1,147 @@
+{
+  "description": "Generated from hooks.json by scripts/build-codex-hooks.mjs for the Codex plugin. Edit hooks.json, then run `pnpm run build:codex-hooks`.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
+            "async": false,
+            "timeout": 120,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\""
+          },
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\""
+          },
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/gc-state.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/gc-state.sh\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*(execute-test-generation|execute-replay)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh",
+            "async": false,
+            "timeout": 25,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*(execute|replay|telemetry-skill-emit)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*(telemetry-event-emit|user-feedback-create)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*muggle.*telemetry-skill-emit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\""
+          }
+        ]
+      },
+      {
+        "matcher": "request_user_input",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-offer-ran.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-offer-ran.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh",
+            "async": false,
+            "timeout": 30,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\"",
+            "async": false,
+            "timeout": 10,
+            "commandWindows": "\"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.cmd\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

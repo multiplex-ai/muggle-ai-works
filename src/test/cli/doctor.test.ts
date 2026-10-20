@@ -203,6 +203,96 @@ describe("doctorCommand", () => {
     expect(output(logSpy)).toContain("does not exist: serve");
   });
 
+  describe("Codex integration", () => {
+    const CODEX_HOME = join("/home/u", ".codex");
+    const CODEX_CONFIG = join(CODEX_HOME, "config.toml");
+    const CODEX_PLUGIN_CACHE = join(CODEX_HOME, "plugins", "cache", "muggle-works", "muggle");
+    const PLUGIN_TABLE = '[plugins."muggle@muggle-works"]\nenabled = true\n';
+    const originalCodexHome = process.env.CODEX_HOME;
+
+    beforeEach(() => {
+      delete process.env.CODEX_HOME;
+    });
+
+    afterEach(() => {
+      if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+      else process.env.CODEX_HOME = originalCodexHome;
+    });
+
+    function codexLine(): string {
+      return output(logSpy)
+        .split("\n")
+        .filter((line, index, lines) => line.includes("Codex Integration") || lines[index - 1]?.includes("Codex Integration"))
+        .join("\n");
+    }
+
+    function withCodexConfig(toml: string): void {
+      fsState.existing.add(CODEX_HOME);
+      fsState.existing.add(CODEX_CONFIG);
+      fsState.files.set(CODEX_CONFIG, toml);
+    }
+
+    it("skips the check on a machine without Codex", async () => {
+      await doctorCommand();
+      expect(codexLine()).toContain("Codex not detected (skipped)");
+    });
+
+    it("passes when the plugin is installed and enabled", async () => {
+      withCodexConfig(PLUGIN_TABLE);
+      fsState.existing.add(CODEX_PLUGIN_CACHE);
+      await doctorCommand();
+      expect(codexLine()).toContain("Plugin muggle@muggle-works installed and enabled");
+    });
+
+    it("flags a plugin that is installed but disabled", async () => {
+      withCodexConfig('[plugins."muggle@muggle-works"]\nenabled = false\n');
+      fsState.existing.add(CODEX_PLUGIN_CACHE);
+      await doctorCommand();
+      expect(codexLine()).toContain("installed but disabled");
+    });
+
+    it("notes a hand-registered server that duplicates the plugin's", async () => {
+      withCodexConfig(`${PLUGIN_TABLE}\n[mcp_servers.muggle]\ncommand = "muggle"\n`);
+      fsState.existing.add(CODEX_PLUGIN_CACHE);
+      await doctorCommand();
+      expect(codexLine()).toContain("Codex keeps only one server by that name");
+    });
+
+    // Codex's default tool timeout is 60s; a local run takes minutes.
+    it("flags a hand-registered server that keeps Codex's default tool timeout", async () => {
+      withCodexConfig('[mcp_servers.muggle]\ncommand = "muggle"\nargs = ["serve"]\n');
+      await doctorCommand();
+      expect(codexLine()).toContain("tool_timeout_sec unset (Codex default: 60)");
+      expect(codexLine()).toContain("tool_timeout_sec = 1800");
+    });
+
+    it("flags a hand-registered tool timeout too short for a local run", async () => {
+      withCodexConfig('[mcp_servers."muggle"]\ncommand = "muggle"\ntool_timeout_sec = 300\n');
+      await doctorCommand();
+      expect(codexLine()).toContain("has tool_timeout_sec 300");
+    });
+
+    it("passes a hand-registered server whose timeout outlasts a local run", async () => {
+      withCodexConfig('[mcp_servers.muggle]\ncommand = "muggle"\ntool_timeout_sec = 1800\n\n[mcp_servers.muggle.env]\nMUGGLE_MCP_HOST = "codex"\n');
+      await doctorCommand();
+      expect(codexLine()).toContain("MCP server registered in");
+    });
+
+    it("tells a Codex user with nothing registered how to install the plugin", async () => {
+      fsState.existing.add(CODEX_HOME);
+      await doctorCommand();
+      expect(codexLine()).toContain("Muggle is not registered with it");
+      expect(codexLine()).toContain("codex plugin add muggle@muggle-works");
+    });
+
+    it("reads the Codex home from CODEX_HOME", async () => {
+      process.env.CODEX_HOME = "/custom/codex";
+      fsState.existing.add("/custom/codex");
+      await doctorCommand();
+      expect(codexLine()).toContain("Codex found at /custom/codex");
+    });
+  });
+
   it("throws for an unsupported platform when resolving the executable path", async () => {
     platformState.value = "sunos";
     fsState.existing.add(VERSION_DIR);

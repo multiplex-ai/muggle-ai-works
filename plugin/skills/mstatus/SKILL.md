@@ -6,4 +6,4 @@ disable-model-invocation: true
 
 # mstatus — alias for muggle-status
 
-Invoke the `muggle-status` skill via the Skill tool. Forward any user-provided arguments unchanged.
+Invoke the `muggle-status` skill via the Skill tool. Forward any user-provided arguments unchanged. In a host with no Skill tool (Codex), open `../muggle-status/SKILL.md` and follow it with those arguments.

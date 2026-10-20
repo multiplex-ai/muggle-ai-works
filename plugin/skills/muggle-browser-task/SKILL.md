@@ -7,6 +7,8 @@ description: "Perform a real action on a website or web app from a plain-English
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-do-task"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Runs a browser automation task described in plain English. Finds or creates the necessary Muggle Test entities automatically, then executes locally with mutation-driven step prediction.
 
 ## Step 1 — Parse the prompt

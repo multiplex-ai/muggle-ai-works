@@ -63,6 +63,24 @@ describe("stage-read pre-filter reaches every path a mandatory stage can live at
     expect(prefilter.test(readPayload("/repo/src/index.ts"))).toBe(false);
     expect(prefilter.test(readPayload("/repo/README.md"))).toBe(false);
   });
+
+  // A host with no Read tool (Codex) opens stages through the shell.
+  it.each([
+    ["a quoted absolute path", commandPayload('cat "/home/u/.codex/plugins/cache/muggle-works/muggle/5.18.0/skills/_shared/debug-failed-run.md"')],
+    ["a path through the plugin-root variable", commandPayload('sed -n \'1,200p\' "${CLAUDE_PLUGIN_ROOT}/skills/muggle-test/execute-local.md"')],
+    ["a path relative to a cd into the skills tree", commandPayload("cd /p/skills && cat _shared/debug-failed-run.md")],
+    [
+      "a path relative to the payload's cwd",
+      JSON.stringify({ cwd: "/p/skills/muggle-test", tool_name: "Bash", tool_input: { command: "cat ../_shared/debug-failed-run.md" } }),
+    ],
+  ])("spawns Node for a shell read with %s", (_label, payload) => {
+    expect(prefilter.test(payload)).toBe(true);
+  });
+
+  it("short-circuits a shell command with no skills-tree markdown in it", () => {
+    expect(prefilter.test(commandPayload("cat README.md"))).toBe(false);
+    expect(prefilter.test(commandPayload("ls"))).toBe(false);
+  });
 });
 
 describe("stage-signal pre-filter reaches every payload the recorder acts on", () => {
@@ -237,6 +255,10 @@ describe("hooks.json registers every stage guardrail", () => {
     expect(matcher.test("mcp__plugin_muggle_muggle__muggle-remote-user-feedback-create")).toBe(true);
   });
 
+  it("records stage reads made through the shell as well as the Read tool", () => {
+    expect(commandsFor("PostToolUse", "Bash").join()).toContain("guardrail-record-stage-read.sh");
+  });
+
   it("records skip markers typed in either shell", () => {
     expect(commandsFor("PostToolUse", "Bash").join()).toContain("guardrail-record-stage-signals.sh");
     expect(commandsFor("PostToolUse", "PowerShell").join()).toContain(
@@ -323,6 +345,31 @@ describe("stage guardrail cli entry", () => {
       tool_input: { file_path: join(pluginRoot, "skills", "_shared", "debug-failed-run.md") },
     });
     expect(runHook("stage-gate", { session_id: "gate" }).out).toBe("{}");
+  });
+
+  it("stage-gate: a stage printed through the shell counts as read", () => {
+    runHook("skill-stages", { session_id: "shell", tool_name: "Skill", tool_input: { skill: "demo-skill" } });
+    expect(JSON.parse(runHook("stage-gate", { session_id: "shell" }).out).decision).toBe("block");
+
+    runHook("record-stage-read", {
+      session_id: "shell",
+      cwd: join(pluginRoot, "skills", "demo-skill"),
+      tool_name: "Bash",
+      tool_input: { command: "sed -n '1,200p' ../_shared/debug-failed-run.md" },
+      tool_response: "# debug",
+    });
+    expect(runHook("stage-gate", { session_id: "shell" }).out).toBe("{}");
+  });
+
+  it("record-stage-read: a Read outside the skills tree records nothing", () => {
+    runHook("skill-stages", { session_id: "outside", tool_name: "Skill", tool_input: { skill: "demo-skill" } });
+    runHook("record-stage-read", {
+      session_id: "outside",
+      tool_name: "Read",
+      tool_input: { file_path: "/repo/notes.md" },
+      tool_response: { content: "see skills/_shared/debug-failed-run.md" },
+    });
+    expect(JSON.parse(runHook("stage-gate", { session_id: "outside" }).out).decision).toBe("block");
   });
 
   it("stage-gate: the documented marker releases it", () => {
@@ -436,6 +483,11 @@ describe.skipIf(process.platform === "win32")("stage wrapper pre-filter (no Node
   it("record-stage-read: spawns Node on a skill-tree read, not a source read", () => {
     expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Read", tool_input: { file_path: "/p/skills/_shared/debug-failed-run.md" } })).toContain(NODE_RAN);
     expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Read", tool_input: { file_path: "/repo/src/index.ts" } })).toBe("{}");
+  });
+
+  it("record-stage-read: spawns Node on a shell read of a stage, not on an unrelated command", () => {
+    expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Bash", tool_input: { command: 'cat "/p/skills/_shared/debug-failed-run.md"' } })).toContain(NODE_RAN);
+    expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Bash", tool_input: { command: "git status" } })).toBe("{}");
   });
 
   it("record-stage-signals: spawns Node on a classification emit and on every skip marker", () => {

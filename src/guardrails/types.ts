@@ -163,8 +163,10 @@ export interface HookInput {
   // array of typed parts, not a string. Readers must narrow rather than assume.
   tool_response?: { stdout?: string; stderr?: string; output?: string; content?: unknown };
   prompt?: string;
-  // Stop hooks carry no message payload, so a gate that judges what the user was
-  // actually told has to read the turn back out of the JSONL transcript.
+  // The closing message of the turn a Stop hook judges. Codex always sends it;
+  // Claude Code may omit it, so a gate that judges what the user was actually
+  // told falls back to reading the turn out of the JSONL transcript.
+  last_assistant_message?: string;
   transcript_path?: string;
 }
 

@@ -4,6 +4,7 @@
  */
 
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import type { ZodRawShape } from "zod";
 
 /** Canonical preference values a gate can resolve to. */
 export enum PreferenceValue {
@@ -31,6 +32,16 @@ export interface Fixtures {
   runResult?: unknown;
   runStepsResult?: unknown;
   [key: string]: unknown;
+}
+
+/** One canned muggle tool, as either host mounts it. */
+export interface MockToolSpec {
+  name: string;
+  description: string;
+  /** Input fields the host advertises; a field a gate inspects must be declared here. */
+  shape: ZodRawShape;
+  /** The canned reply, before it is wrapped as MCP content. */
+  reply: () => unknown;
 }
 
 /** Returned from `buildMockMcpServer`; the harness mounts `config` and calls are recorded by the harness via canUseTool. */

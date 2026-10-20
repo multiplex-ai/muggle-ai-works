@@ -44,7 +44,7 @@ describe("alias skills under Codex", () => {
   it.each(ALIASES)("%s is for the user to type, never for Codex to pick on its own", (alias) => {
     const policyPath = join(SKILLS_ROOT, alias, "agents", "openai.yaml");
     expect(existsSync(policyPath), policyPath).toBe(true);
-    expect(readFileSync(policyPath, "utf-8")).toMatch(/^policy:\n {2}allow_implicit_invocation: false$/m);
+    expect(readFileSync(policyPath, "utf-8")).toMatch(/^policy:\r?\n {2}allow_implicit_invocation: false\r?$/m);
     expect(frontmatterField(alias, "disable-model-invocation")).toBe("true");
   });
 

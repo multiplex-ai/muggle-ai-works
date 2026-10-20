@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 import {
   applySkillInvocation,
   applyStageRead,
@@ -222,6 +222,9 @@ describe("stageGateDecision", () => {
 describe("detectShellStageReads", () => {
   const root = "/home/u/.codex/plugins/cache/muggle-works/muggle/5.18.0";
   const stage = (relativePath: string): string => normalizeStagePath(`${root}/skills/${relativePath}`);
+  // A relative read resolves the way the platform resolves the declared stage
+  // paths, which on Windows prefixes the current drive.
+  const resolvedStage = (relativePath: string): string => normalizeStagePath(resolve(`${root}/skills`, relativePath));
   const env = { CLAUDE_PLUGIN_ROOT: root, HOME: "/home/u" };
 
   it.each([
@@ -239,12 +242,12 @@ describe("detectShellStageReads", () => {
   it("resolves a relative path against the payload's working directory", () => {
     expect(
       detectShellStageReads("sed -n '1,200p' ../_shared/failure-mode-handling.md", `${root}/skills/muggle-test`, env),
-    ).toEqual([stage("_shared/failure-mode-handling.md")]);
+    ).toEqual([resolvedStage("_shared/failure-mode-handling.md")]);
   });
 
   it("follows a cd earlier in the same command", () => {
     expect(detectShellStageReads(`cd ${root}/skills && cat _shared/identity-and-inbox.md`, "/tmp", env)).toEqual([
-      stage("_shared/identity-and-inbox.md"),
+      resolvedStage("_shared/identity-and-inbox.md"),
     ]);
   });
 

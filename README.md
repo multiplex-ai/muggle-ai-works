@@ -412,6 +412,14 @@ The Codex plugin ships the same skills, MCP server, and hooks as the Claude Code
   network_access = true
   writable_roots = ["/absolute/path/to/home/.muggle-ai"]
   ```
+- **Headless runs.** `codex exec` cannot ask you anything. It refuses every muggle MCP call ("requires approval, but approval policy is never"), and it runs only hooks you have already trusted. Trust the hooks once in the TUI (`/hooks`), and approve the muggle tools in `~/.codex/config.toml`:
+
+  ```toml
+  [plugins."muggle@muggle-works".mcp_servers.muggle]
+  default_tools_approval_mode = "approve"
+  ```
+
+  `--dangerously-bypass-hook-trust` skips the trust step for one run. It is meant for automation that already vets hook sources.
 
 Registering only the MCP server, without the plugin? Keep the timeout, or local runs are cut off at a minute:
 
@@ -482,6 +490,12 @@ pnpm run verify:skill-deps # Skill dependencies stay one-way
 pnpm run verify:signatures # Shipped artifacts are signed
 pnpm run verify:upgrade-experience        # Existing-user upgrade still works
 pnpm run verify:electron-release-checksums
+```
+
+Codex has its own layers, from static contracts up to model-driven evals. See [docs/compatibility-strategy.md](docs/compatibility-strategy.md#codex):
+
+```bash
+CODEX_BIN=$(command -v codex) pnpm run test:codex   # The plugin under the real Codex CLI, against a scripted model
 ```
 
 ### Repository layout

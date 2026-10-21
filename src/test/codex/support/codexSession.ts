@@ -101,9 +101,10 @@ export class CodexSession {
   /**
    * One non-interactive turn against the scripted model. Hook trust is
    * bypassed — a test cannot answer Codex's trust prompt — and the sandbox is
-   * off so a runner without user namespaces still executes the commands.
+   * off by default, so a runner without user namespaces still executes the
+   * commands.
    */
-  async exec(prompt: string, script: ScriptedTurn): Promise<CodexExecResult> {
+  async exec(prompt: string, script: ScriptedTurn, sandbox = "danger-full-access"): Promise<CodexExecResult> {
     this.model.useScript(script);
     const { program, argv } = codexCommand([
       "exec",
@@ -111,7 +112,7 @@ export class CodexSession {
       "--ephemeral",
       "--dangerously-bypass-hook-trust",
       "--sandbox",
-      "danger-full-access",
+      sandbox,
       "--color",
       "never",
       prompt,

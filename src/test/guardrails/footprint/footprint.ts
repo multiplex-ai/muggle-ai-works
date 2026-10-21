@@ -3,11 +3,9 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileS
 import { tmpdir } from "os";
 import { join } from "path";
 import { performance } from "perf_hooks";
-import { fileURLToPath } from "url";
-import { NOOP_TRANSCRIPT_PLACEHOLDER, SHIMMED_PROGRAMS } from "./constants.js";
-import type { HookCommand, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
+import { NOOP_TRANSCRIPT_PLACEHOLDER, PLUGIN_ROOT, SHIMMED_PROGRAMS } from "./constants.js";
+import type { HookCommand, HookGroup, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
 
-const PLUGIN_ROOT = fileURLToPath(new URL("../../../../plugin", import.meta.url));
 const MANIFEST_PATH = join(PLUGIN_ROOT, "hooks", "hooks.json");
 const UNSHIMMED_PATTERN = /(?:^|\s)([\w.+-]+): (?:command not found|No such file or directory)/g;
 
@@ -21,12 +19,15 @@ export function allHookCommands(manifest: HooksManifest): HookCommand[] {
   return Object.values(manifest.hooks).flatMap((groups) => groups.flatMap((group) => group.hooks));
 }
 
+/** Whether a group of `slot`'s event fires for it: the group has no matcher, the slot is not tool-scoped, or its tool name fully matches the matcher regex. */
+export function groupFiresForSlot(group: HookGroup, slot: HookSlot): boolean {
+  return !group.matcher || !slot.toolName || new RegExp(`^(?:${group.matcher})$`).test(slot.toolName);
+}
+
 /** The commands the harness launches when `slot` fires, honoring each group's tool-name regex. */
 export function commandsForSlot(manifest: HooksManifest, slot: HookSlot): HookCommand[] {
   const groups = manifest.hooks[slot.event] ?? [];
-  return groups
-    .filter((group) => !group.matcher || !slot.toolName || new RegExp(`^(?:${group.matcher})$`).test(slot.toolName))
-    .flatMap((group) => group.hooks);
+  return groups.filter((group) => groupFiresForSlot(group, slot)).flatMap((group) => group.hooks);
 }
 
 function runBash(script: string, env: NodeJS.ProcessEnv = process.env, input = ""): { stdout: string; stderr: string } {
@@ -34,8 +35,8 @@ function runBash(script: string, env: NodeJS.ProcessEnv = process.env, input = "
   return { stdout: bashRun.stdout ?? "", stderr: bashRun.stderr ?? "" };
 }
 
-// Git Bash needs POSIX paths inside PATH (a drive colon would split the entry) and in redirects.
-function toBashPathArg(nativePath: string): string {
+/** `nativePath` in the form bash accepts: Git Bash needs POSIX paths inside PATH (a drive colon would split the entry) and in redirects. */
+export function toBashPathArg(nativePath: string): string {
   if (process.platform !== "win32") return nativePath;
   const cygpathRun = spawnSync("bash", ["-c", 'cygpath -u "$1"', "_", nativePath], { encoding: "utf-8" });
   return (cygpathRun.stdout ?? "").trim() || nativePath.replace(/\\/g, "/");
@@ -77,12 +78,15 @@ function createInstalledUserHome(): string {
   return home;
 }
 
-// A transcript whose last turn claims nothing, so the capability-claim gate reads it and stays quiet.
-function noopPayloadJson(cap: HookSlotCap, home: string): string {
-  if (cap.noopPayload.transcript_path !== NOOP_TRANSCRIPT_PLACEHOLDER) return JSON.stringify(cap.noopPayload);
+/**
+ * `payload` as the JSON Claude Code would send, with a transcript placeholder swapped for a real file under `home`
+ * whose last turn claims nothing, so the capability-claim gate reads it and stays quiet.
+ */
+export function hookPayloadJson(payload: Record<string, unknown>, home: string): string {
+  if (payload.transcript_path !== NOOP_TRANSCRIPT_PLACEHOLDER) return JSON.stringify(payload);
   const transcriptPath = join(home, "transcript.jsonl");
   writeFileSync(transcriptPath, `${JSON.stringify({ type: "assistant", message: "All tests pass." })}\n`);
-  return JSON.stringify({ ...cap.noopPayload, transcript_path: transcriptPath });
+  return JSON.stringify({ ...payload, transcript_path: transcriptPath });
 }
 
 /**
@@ -91,7 +95,7 @@ function noopPayloadJson(cap: HookSlotCap, home: string): string {
  */
 export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): number {
   const home = createInstalledUserHome();
-  const payload = noopPayloadJson(cap, home);
+  const payload = hookPayloadJson(cap.noopPayload, home);
   const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PLUGIN_ROOT: toBashPathArg(PLUGIN_ROOT) };
   const startedAt = performance.now();
   for (const command of commandsForSlot(manifest, cap.slot)) runBash(command.command, env, payload);
@@ -109,7 +113,7 @@ export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): n
 export function measureSlotFootprint(manifest: HooksManifest, cap: HookSlotCap, shimDirectory: string): SlotFootprint {
   const commands = commandsForSlot(manifest, cap.slot);
   const home = createInstalledUserHome();
-  const payload = noopPayloadJson(cap, home);
+  const payload = hookPayloadJson(cap.noopPayload, home);
   const shimPathForBash = toBashPathArg(shimDirectory);
   const spawnedPrograms: string[] = [];
   const unshimmedPrograms: string[] = [];

@@ -1,5 +1,14 @@
 import { readFileSync } from "fs";
-import { readState, writeState, updateState, commitState, markPrHandled } from "./sessionState.js";
+import {
+  readState,
+  writeState,
+  updateState,
+  commitState,
+  markPrHandled,
+  readWalkthroughScan,
+  writeWalkthroughScan,
+} from "./sessionState.js";
+import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
@@ -71,7 +80,12 @@ import {
   applyWalkthroughPosted,
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
-import { scanForOwedWalkthroughs, walkthroughGateDecision } from "./walkthroughOwed.js";
+import {
+  isWalkthroughGateArmed,
+  isWalkthroughScanCurrent,
+  scanForOwedWalkthroughs,
+  walkthroughGateDecision,
+} from "./walkthroughOwed.js";
 import {
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
@@ -102,6 +116,7 @@ import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./em
 import { normalizeHookInput } from "./hookInput.js";
 import { resolveHookHost, skillInvocation } from "./hookHost.js";
 import { isShellToolCall } from "./shellTool.js";
+import { enforceHookChildProcessDeadline } from "../hook-budget/childProcessBudget.js";
 import {
   type GuardrailState,
   CommentReplyGateAction,
@@ -111,6 +126,7 @@ import {
   WalkthroughGateAction,
   WatchGateAction,
   BuildFollowthroughAction,
+  GuardrailBackgroundJob,
   type HookInput,
 } from "./types.js";
 
@@ -124,6 +140,8 @@ function readStdin(): HookInput {
 
 const host: Host = resolveHookHost();
 const sub = process.argv[2];
+// A background job runs detached, so nothing waits on it and its lookups keep their full timeouts.
+if (!isBackgroundJob(sub)) enforceHookChildProcessDeadline();
 const input = readStdin();
 const sessionId = input.session_id ?? "unknown";
 
@@ -168,7 +186,10 @@ function prOpened(): string {
   // first minute shows reviewers that evidence is coming, and gives both the
   // Stop gate and the CI check one fixed comment to settle instead of guessing
   // which of a thread's comments was meant to carry the walkthrough.
-  reserveWalkthroughComment(url);
+  startBackgroundJob(GuardrailBackgroundJob.ReserveWalkthroughComment, [url]);
+  if (isWalkthroughGateArmed(readState(sessionId))) {
+    startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
+  }
   const ctx =
     `A pull request was just opened: ${url}\n` +
     `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
@@ -239,7 +260,8 @@ function terminalGate(): string {
 
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
-  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const stateBefore = readState(sessionId);
+  const judgedSkip = judgeE2eSkip(input, stateBefore);
   const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
@@ -260,6 +282,10 @@ function recordTests(): string {
   // the later erases the earlier — the skill and its mandatory stages with it,
   // which disarms the stage and classification gates.
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
+  // Scanned the moment the gate arms, so the turn end that follows reads a finished scan.
+  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
+    startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
+  }
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
@@ -277,7 +303,7 @@ function recordTests(): string {
 // lets the CI check settle.
 function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
   for (const prUrl of state.prsHandled) {
-    settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
+    startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [prUrl, skip.code, skip.detail]);
   }
 }
 
@@ -410,7 +436,9 @@ function e2eGate(): string {
     // The release exists so an un-runnable E2E cannot trap a session, but it
     // must not read on the PR as though E2E did not apply. No code was ever
     // verified here, and the reviewer is the person who needs to know that.
-    for (const prUrl of state.prsHandled) settleWalkthroughCommentAsUnreasoned(prUrl);
+    for (const prUrl of state.prsHandled) {
+      startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughUnreasoned, [prUrl]);
+    }
     return releaseGate("e2eReleased");
   }
   if (decision.action === E2eGateAction.None) return "{}";
@@ -478,14 +506,14 @@ function buildFollowthroughGate(): string {
 
 function walkthroughGate(): string {
   const state = readState(sessionId);
-  if (
-    state.e2eRun !== true ||
-    state.walkthroughPosted === true ||
-    state.walkthroughSkipped === true
-  ) {
-    return "{}";
-  }
-  const scan = scanForOwedWalkthroughs(state);
+  if (!isWalkthroughGateArmed(state)) return "{}";
+  // The provider lookups take longer than a hook may run, so a detached scan
+  // does them and the gate decides on the last one that landed. Each turn end
+  // queues a fresh scan for the next; until one exists for these PRs the gate
+  // stays open, as it does whenever it cannot check.
+  const scan = readWalkthroughScan(sessionId);
+  startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
+  if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
   if (scan.owed.length === 0) {
     // Cache a walkthrough found on the PR itself, so later turn ends settle from
     // state and never repeat the provider lookups.
@@ -703,4 +731,42 @@ const handlers: Record<string, () => string> = {
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate,
 };
-process.stdout.write((handlers[sub] ?? (() => "{}"))());
+
+const jobArgs = process.argv.slice(3);
+
+function scanWalkthroughsJob(): string {
+  const scannedSessionId = jobArgs[0] ?? "unknown";
+  const state = readState(scannedSessionId);
+  const scan = scanForOwedWalkthroughs(state);
+  writeWalkthroughScan(scannedSessionId, { prsHandled: state.prsHandled, owed: scan.owed, verified: scan.verified });
+  return "{}";
+}
+
+function reserveWalkthroughCommentJob(): string {
+  const [prUrl] = jobArgs;
+  if (prUrl) reserveWalkthroughComment(prUrl);
+  return "{}";
+}
+
+function settleWalkthroughSkippedJob(): string {
+  const [prUrl, codeArg, detail] = jobArgs;
+  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
+  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
+  return "{}";
+}
+
+function settleWalkthroughUnreasonedJob(): string {
+  const [prUrl] = jobArgs;
+  if (prUrl) settleWalkthroughCommentAsUnreasoned(prUrl);
+  return "{}";
+}
+
+const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
+  [GuardrailBackgroundJob.ScanWalkthroughs]: scanWalkthroughsJob,
+  [GuardrailBackgroundJob.ReserveWalkthroughComment]: reserveWalkthroughCommentJob,
+  [GuardrailBackgroundJob.SettleWalkthroughSkipped]: settleWalkthroughSkippedJob,
+  [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
+};
+
+const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));
+process.stdout.write(runSubcommand());

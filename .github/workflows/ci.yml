@@ -53,6 +53,11 @@ jobs:
       - name: Run tests (memory-gated)
         run: bash scripts/mem-gate.sh pnpm test
 
+      # Every hook within 1 s and every firing within 2 s, timed alone so the
+      # suite's own process starts are not what gets measured.
+      - name: Run hook runtime budget
+        run: pnpm test:hook-runtime
+
       - name: Build
         run: pnpm run build
 
@@ -183,6 +188,10 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      # Hooks run on the user's OS, so the budget holds on each one.
+      - name: Run hook runtime budget
+        run: pnpm test:hook-runtime
 
       - name: Build
         run: pnpm run build

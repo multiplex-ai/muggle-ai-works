@@ -4,6 +4,7 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import {
   CODEX_HOOK_HOST_STAMP,
+  CODEX_LAUNCHER_ALLOWANCE_SECONDS,
   CODEX_TOOL_EQUIVALENTS,
   CODEX_WINDOWS_HOOK_LAUNCHER,
   deriveCodexHooks,
@@ -19,7 +20,7 @@ const CODEX_HOOKS = fileURLToPath(new URL("../../../plugin/hooks/codex-hooks.jso
 const GENERATOR = fileURLToPath(new URL("../../../scripts/build-codex-hooks.mjs", import.meta.url));
 const CODEX_PLUGIN_MANIFEST = fileURLToPath(new URL("../../../plugin/.codex-plugin/plugin.json", import.meta.url));
 
-type HookCommand = { command: string; commandWindows?: string };
+type HookCommand = { command: string; commandWindows?: string; timeout?: number };
 type HookGroup = { matcher?: string; hooks: HookCommand[] };
 type HooksManifest = { hooks: Record<string, HookGroup[]> };
 
@@ -55,6 +56,16 @@ describe("plugin/hooks/codex-hooks.json", () => {
       expect(hook.commandWindows?.slice(CODEX_WINDOWS_HOOK_LAUNCHER.length)).toBe(
         hook.command.slice(`${CODEX_HOOK_HOST_STAMP} bash`.length),
       );
+    }
+  });
+
+  // hooks.json holds each hook's runtime budget; Codex's timeout also covers the shell it launches the hook through.
+  it("gives every hook its hooks.json timeout plus the launcher allowance", () => {
+    const claudeTimeouts = new Map(allCommands(readManifest(CLAUDE_HOOKS)).map((hook) => [hook.command, hook.timeout]));
+    for (const hook of allCommands(codex)) {
+      const claudeTimeout = claudeTimeouts.get(hook.command.slice(`${CODEX_HOOK_HOST_STAMP} `.length));
+      expect(claudeTimeout, hook.command).toBeTypeOf("number");
+      expect(hook.timeout, hook.command).toBe((claudeTimeout ?? 0) + CODEX_LAUNCHER_ALLOWANCE_SECONDS);
     }
   });
 

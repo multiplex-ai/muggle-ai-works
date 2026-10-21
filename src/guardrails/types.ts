@@ -88,6 +88,21 @@ export interface WalkthroughGateDecision {
   owed: string[];
 }
 
+/** A walkthrough scan finished off the hook path, with the session's handled PRs it was run for. */
+export interface CachedWalkthroughScan {
+  prsHandled: string[];
+  owed: string[];
+  verified: string[];
+}
+
+/** Work a hook hands to a detached run of the guardrails CLI, because it waits on the network. */
+export enum GuardrailBackgroundJob {
+  ScanWalkthroughs = "scan-walkthroughs",
+  ReserveWalkthroughComment = "reserve-walkthrough-comment",
+  SettleWalkthroughSkipped = "settle-walkthrough-skipped",
+  SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
+}
+
 /** Outcome of the watcher-arm Stop gate for a turn end. */
 export enum WatchGateAction {
   Block = "block",

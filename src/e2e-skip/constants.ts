@@ -38,6 +38,9 @@ export const WAIVE_TRANSCRIPT_TAIL_BYTES = 64_000;
 /** Ceiling on the dev-server probe. A verifier runs inside a tool call, so an unreachable host must fail fast rather than hold the session. */
 export const DEV_SERVER_PROBE_TIMEOUT_MS = 2_000;
 
+/** Ceiling on each `git` lookup a verifier runs, for the same reason: a repo locked by another git process must not hold the session. */
+export const GIT_PROBE_TIMEOUT_MS = 5_000;
+
 // What means a repo has something a browser can drive.
 //
 // The signal is deliberately not "declares a dev script": a CLI or an MCP

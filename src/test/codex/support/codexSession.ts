@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { delimiter, join } from "path";
 import { createInterface } from "readline";
 import { fileURLToPath } from "url";
+import { UPKEEP_NOT_DUE_SECONDS } from "../../guardrails/footprint/constants.js";
 import type { MockResponsesServer } from "./mockResponsesServer.js";
 import type { AppServerResponse, AppServerSession, CodexExecResult, ProcessResult, ScriptedTurn } from "./types.js";
 
@@ -184,14 +185,17 @@ export class CodexSession {
     }
   }
 
-  // A fresh Electron check marker keeps the SessionStart hook from running
-  // `muggle setup`, which would download the Electron runner. Offline npm makes
-  // an `npx` that stopped resolving this checkout fail loudly rather than
-  // quietly install the published package — and keeps the cache in the temp home.
+  // A fresh Electron check marker keeps the session-start upkeep from running
+  // `muggle setup`, which would download the Electron runner, and a future due
+  // stamp keeps it from launching at all, so no turn under test shares the
+  // machine with it. Offline npm makes an `npx` that stopped resolving this
+  // checkout fail loudly rather than quietly install the published package —
+  // and keeps the cache in the temp home.
   private prepareHome(): void {
     const marker = join(this.home, ".cache", "muggle");
     mkdirSync(marker, { recursive: true });
     writeFileSync(join(marker, "electron-app-checked"), "");
+    writeFileSync(join(marker, "session-maintenance-due"), `${Math.floor(Date.now() / 1_000) + UPKEEP_NOT_DUE_SECONDS}\n`);
     writeFileSync(join(this.home, ".npmrc"), `offline=true\ncache=${join(this.home, ".npm-cache")}\n`);
   }
 

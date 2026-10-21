@@ -213,7 +213,7 @@ describe("guardrail hook output under Codex", () => {
   });
 
   // Run as Codex runs them: CLAUDE_PLUGIN_ROOT exported, the host stamp set.
-  it.skipIf(process.platform === "win32").each(["reconcile-stale-watchers.sh", "gc-state.sh"])(
+  it.skipIf(process.platform === "win32").each(["reconcile-stale-watchers.sh"])(
     "%s answers SessionStart in a shape Codex parses",
     (script) => {
       const home = mkdtempSync(join(tmpdir(), "codex-contract-home-"));

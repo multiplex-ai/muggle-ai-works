@@ -1,4 +1,5 @@
 import { execFileSync } from "child_process";
+import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
 import { GH_COMMENT_TIMEOUT_MS } from "./constants.js";
 import type { GhRunner, PrComment, PrCoordinates } from "./types.js";
 
@@ -14,11 +15,13 @@ const GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
 
 export const defaultGhRunner: GhRunner = (args, input) => {
   if (process.env[GH_CALLS_ENV] === "off") return null;
+  const timeoutMs = boundedChildTimeoutMs(GH_COMMENT_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("gh", args, {
       encoding: "utf-8",
       input: input,
-      timeout: GH_COMMENT_TIMEOUT_MS,
+      timeout: timeoutMs,
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
     });

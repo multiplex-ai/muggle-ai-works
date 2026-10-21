@@ -1,6 +1,7 @@
 import { execFileSync } from "child_process";
 import { readFileSync, readdirSync } from "fs";
-import { DEV_SERVER_PROBE_TIMEOUT_MS } from "./constants.js";
+import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
+import { DEV_SERVER_PROBE_TIMEOUT_MS, GIT_PROBE_TIMEOUT_MS } from "./constants.js";
 import type { SkipProbes } from "./types.js";
 
 const readTextFile = (path: string): string | null => {
@@ -20,10 +21,13 @@ const listFiles = (dir: string): string[] => {
 };
 
 const runGit = (args: string[], cwd: string): string | null => {
+  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("git", args, {
       cwd: cwd,
       encoding: "utf8",
+      timeout: timeoutMs,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
     });
@@ -50,16 +54,20 @@ const hostAndPort = (url: string): { host: string; port: number } | null => {
 const isReachable = (url: string): boolean => {
   const target = hostAndPort(url);
   if (!target) return false;
+  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
+  if (spawnTimeoutMs === null) return false;
+  // Half the spawn's allowance, so the socket gives up before the child is killed.
+  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
   const script =
     "const net=require('net');" +
     `const s=net.connect(${target.port},${JSON.stringify(target.host)});` +
-    `s.setTimeout(${DEV_SERVER_PROBE_TIMEOUT_MS});` +
+    `s.setTimeout(${socketTimeoutMs});` +
     "s.on('connect',()=>{s.destroy();process.exit(0)});" +
     "s.on('timeout',()=>{s.destroy();process.exit(1)});" +
     "s.on('error',()=>process.exit(1));";
   try {
     execFileSync(process.execPath, ["-e", script], {
-      timeout: DEV_SERVER_PROBE_TIMEOUT_MS * 2,
+      timeout: spawnTimeoutMs,
       stdio: "ignore",
       windowsHide: true,
     });

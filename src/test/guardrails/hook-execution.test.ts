@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 
@@ -1068,15 +1068,19 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
     chmodSync(stub, 0o755);
   });
 
-  function runGate(sessionId: string, prContent: string, prUrl: string = PR_URL): string {
+  function seedArmedSession(sessionId: string): string {
     const home = mkdtempSync(join(tmpdir(), "gr-wt-"));
     mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
     writeFileSync(
       join(home, ".muggle-ai", "guardrails", `${sessionId}.json`),
       JSON.stringify({ sessionId: sessionId, prsHandled: [], e2eRun: true }),
     );
-    const r = spawnSync(process.execPath, ["--import", "tsx", CLI_ENTRY, "walkthrough-gate"], {
-      input: JSON.stringify({ session_id: sessionId }),
+    return home;
+  }
+
+  function runCli(home: string, cliArgs: string[], stdin: string, prContent: string, prUrl: string): string {
+    const r = spawnSync(process.execPath, ["--import", "tsx", CLI_ENTRY, ...cliArgs], {
+      input: stdin,
       encoding: "utf-8",
       env: {
         ...process.env,
@@ -1089,6 +1093,23 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
     });
     return (r.stdout ?? "").trim();
   }
+
+  // The gate decides on the scan the detached job left, so the job runs to completion first.
+  function runGate(sessionId: string, prContent: string, prUrl: string = PR_URL): string {
+    const home = seedArmedSession(sessionId);
+    runCli(home, ["scan-walkthroughs", sessionId], "", prContent, prUrl);
+    return runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), prContent, prUrl);
+  }
+
+  it("stays open until a scan lands, and starts one for the next turn end", async () => {
+    const sessionId = "wt-unscanned";
+    const home = seedArmedSession(sessionId);
+    const gateOutput = runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), '{"body":"x","comments":[]}', PR_URL);
+    expect(gateOutput).toBe("{}");
+    const scanFile = join(home, ".muggle-ai", "guardrails", `${sessionId}.walkthrough-scan.json`);
+    await vi.waitFor(() => expect(existsSync(scanFile)).toBe(true), { timeout: 30_000, interval: 200 });
+    expect(JSON.parse(readFileSync(scanFile, "utf-8")).owed).toEqual([PR_URL]);
+  });
 
   it("blocks when the branch's PR carries no walkthrough", () => {
     const blocked = JSON.parse(runGate("wt-block", '{"body":"a feature","comments":[]}'));

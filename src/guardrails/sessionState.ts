@@ -1,15 +1,26 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { GuardrailState } from "./types.js";
+import type { CachedWalkthroughScan, GuardrailState } from "./types.js";
 import { withFileLock } from "./store/fileLock.js";
 import { SESSION_STATE_LOCK_WAIT_MS } from "./constants.js";
 
 const baseDir = (override?: string): string =>
   override ?? join(homedir(), ".muggle-ai", "guardrails");
 
-const fileFor = (sessionId: string, override?: string): string =>
-  join(baseDir(override), `${sessionId.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+const fileFor = (sessionId: string, override?: string, suffix = ".json"): string =>
+  join(baseDir(override), `${sessionId.replace(/[^A-Za-z0-9_-]/g, "_")}${suffix}`);
+
+// A sidecar rather than a state field: the detached scan writes it while the
+// session's hooks rewrite the state file, and neither may clobber the other.
+const WALKTHROUGH_SCAN_SUFFIX = ".walkthrough-scan.json";
+
+function writeAtomically(target: string, contents: unknown, dirOverride?: string): void {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, JSON.stringify(contents, null, 2));
+  renameSync(staging, target);
+}
 
 export function readState(sessionId: string, dirOverride?: string): GuardrailState {
   const f = fileFor(sessionId, dirOverride);
@@ -24,11 +35,21 @@ export function readState(sessionId: string, dirOverride?: string): GuardrailSta
 
 /** Replace the state file atomically, so a crash mid-write cannot leave a truncated file behind. */
 export function writeState(state: GuardrailState, dirOverride?: string): void {
-  mkdirSync(baseDir(dirOverride), { recursive: true });
-  const target = fileFor(state.sessionId, dirOverride);
-  const staging = `${target}.${process.pid}.tmp`;
-  writeFileSync(staging, JSON.stringify(state, null, 2));
-  renameSync(staging, target);
+  writeAtomically(fileFor(state.sessionId, dirOverride), state, dirOverride);
+}
+
+/** The session's last walkthrough scan, or null when none has landed or its file is unreadable. */
+export function readWalkthroughScan(sessionId: string, dirOverride?: string): CachedWalkthroughScan | null {
+  try {
+    return JSON.parse(readFileSync(fileFor(sessionId, dirOverride, WALKTHROUGH_SCAN_SUFFIX), "utf-8")) as CachedWalkthroughScan;
+  } catch {
+    return null;
+  }
+}
+
+/** Replace the session's walkthrough scan atomically. */
+export function writeWalkthroughScan(sessionId: string, scan: CachedWalkthroughScan, dirOverride?: string): void {
+  writeAtomically(fileFor(sessionId, dirOverride, WALKTHROUGH_SCAN_SUFFIX), scan, dirOverride);
 }
 
 /**

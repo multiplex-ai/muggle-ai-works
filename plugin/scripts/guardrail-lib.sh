@@ -11,6 +11,7 @@
 GUARDRAIL_LIB_LOADED=1
 
 GUARDRAIL_PAYLOAD=""
+GUARDRAIL_STATE_FILE=""
 GUARDRAIL_STATE=""
 GUARDRAIL_STATE_LOADED=""
 GUARDRAIL_HAS_STATE=""
@@ -50,20 +51,25 @@ guardrail_resolve_home() {
   fi
 }
 
+# Sets GUARDRAIL_STATE_FILE to this session's guardrail state file, named as sessionState.ts names it.
+guardrail_resolve_state_file() {
+  local session_id_pattern='"session_id"[[:space:]]*:[[:space:]]*"([^"]*)"'
+  local raw_session_id="unknown"
+  if [[ $GUARDRAIL_PAYLOAD =~ $session_id_pattern ]] && [[ -n ${BASH_REMATCH[1]} ]]; then
+    raw_session_id="${BASH_REMATCH[1]}"
+  fi
+  guardrail_resolve_home
+  GUARDRAIL_STATE_FILE="$GUARDRAIL_HOME/.muggle-ai/guardrails/${raw_session_id//[^A-Za-z0-9_-]/_}.json"
+}
+
 # Loads this session's guardrail state once per process; returns 1 when the session has none.
 guardrail_load_state() {
   if [[ -z $GUARDRAIL_STATE_LOADED ]]; then
     GUARDRAIL_STATE_LOADED=1
-    local session_id_pattern='"session_id"[[:space:]]*:[[:space:]]*"([^"]*)"'
-    local raw_session_id="unknown"
-    if [[ $GUARDRAIL_PAYLOAD =~ $session_id_pattern ]] && [[ -n ${BASH_REMATCH[1]} ]]; then
-      raw_session_id="${BASH_REMATCH[1]}"
-    fi
-    guardrail_resolve_home
-    local state_file="$GUARDRAIL_HOME/.muggle-ai/guardrails/${raw_session_id//[^A-Za-z0-9_-]/_}.json"
-    if [[ -f $state_file ]]; then
+    guardrail_resolve_state_file
+    if [[ -f $GUARDRAIL_STATE_FILE ]]; then
       GUARDRAIL_HAS_STATE=1
-      IFS= read -r -d '' GUARDRAIL_STATE <"$state_file" || true
+      IFS= read -r -d '' GUARDRAIL_STATE <"$GUARDRAIL_STATE_FILE" || true
     fi
   fi
   [[ -n $GUARDRAIL_HAS_STATE ]]

@@ -5,7 +5,7 @@ import { delimiter, join } from "path";
 import { createInterface } from "readline";
 import { fileURLToPath } from "url";
 import type { MockResponsesServer } from "./mockResponsesServer.js";
-import type { AppServerResponse, AppServerSession, CodexExecResult, ScriptedTurn } from "./types.js";
+import type { AppServerResponse, AppServerSession, CodexExecResult, ProcessResult, ScriptedTurn } from "./types.js";
 
 // A throwaway Codex install with the plugin added from this checkout the way a
 // user adds it, pointed at a scripted model. Everything Codex, the hooks and
@@ -31,7 +31,7 @@ const CODEX_RUN_TIMEOUT_MS = 180_000;
 // Variables that would authenticate Codex against a real backend instead of the mock.
 const CREDENTIAL_ENV = ["CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_API_KEY"];
 
-function codexCommand(args: string[]): { program: string; argv: string[] } {
+export function codexCommand(args: string[]): { program: string; argv: string[] } {
   if (!CODEX_BIN) throw new Error("CODEX_BIN is not set");
   return /\.m?js$/.test(CODEX_BIN)
     ? { program: process.execPath, argv: [CODEX_BIN, ...args] }
@@ -52,13 +52,18 @@ export class CodexSession {
 
   constructor(private readonly model: MockResponsesServer) {}
 
-  /** Install the plugin from this checkout and point Codex at the scripted model. */
-  prepare(): void {
+  /** Install the plugin from this checkout — `installPlugin`, by default the user's two commands — and point Codex at the scripted model. */
+  prepare(installPlugin: () => void = () => this.installPlugin()): void {
     this.prepareWorkspace();
     this.prepareHome();
+    installPlugin();
+    this.writeModelConfig();
+  }
+
+  /** Add this checkout as a marketplace and install the plugin from it, as a user does. */
+  installPlugin(): void {
     this.runCodex(["plugin", "marketplace", "add", REPO_ROOT]);
     this.runCodex(["plugin", "add", PLUGIN_ID]);
-    this.writeModelConfig();
   }
 
   /** The environment every Codex process here runs with — inherited by its hooks and MCP servers. */
@@ -111,15 +116,8 @@ export class CodexSession {
       "never",
       prompt,
     ]);
-    const child = spawn(program, argv, { cwd: this.workspace, env: this.env(), stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf-8")));
-    child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf-8")));
-    const timer = setTimeout(() => child.kill("SIGKILL"), CODEX_RUN_TIMEOUT_MS);
-    const status = await new Promise<number | null>((resolve) => child.on("close", resolve));
-    clearTimeout(timer);
-    return { status: status, stdout: stdout, stderr: stderr, requests: [...this.model.requests] };
+    const run = await runToCompletion(program, argv, { cwd: this.workspace, env: this.env() });
+    return { ...run, requests: [...this.model.requests] };
   }
 
   /**
@@ -248,6 +246,27 @@ export class CodexSession {
     ].join("\n");
     writeFileSync(configPath, `${topLevel}\n\n${installed}\n${tables}\n`);
   }
+}
+
+/**
+ * Run a process to its exit without blocking the event loop — the scripted
+ * model answers on it, so a synchronous spawn of anything that calls Codex
+ * would wait on a reply it is itself holding up.
+ */
+export async function runToCompletion(
+  program: string,
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv },
+): Promise<ProcessResult> {
+  const child = spawn(program, args, { cwd: options.cwd, env: options.env, stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString("utf-8")));
+  child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString("utf-8")));
+  const timer = setTimeout(() => child.kill("SIGKILL"), CODEX_RUN_TIMEOUT_MS);
+  const status = await new Promise<number | null>((resolve) => child.on("close", resolve));
+  clearTimeout(timer);
+  return { status: status, stdout: stdout, stderr: stderr };
 }
 
 /** Make `dir` a project with this checkout installed as @muggleai/works; a Windows junction needs no privilege. */

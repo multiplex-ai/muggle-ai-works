@@ -221,6 +221,12 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # The routing eval's Codex harness is Python; its live test drives it here.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Install the Codex CLI
         shell: bash
         run: |

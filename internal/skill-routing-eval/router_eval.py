@@ -4,7 +4,9 @@
 Runs a turn-capped `claude -p "<query>"` inside the muggle-ai-works repo (where
 the muggle plugin is active) and detects which muggle skill, if any, Claude
 invokes. The cap leaves room to orient before routing, and ends the session
-once the route is made, so the routed skill never runs anything.
+once the route is made, so the routed skill never runs anything. `--host codex`
+runs the same session in `codex exec` instead (see codex_session.py): Codex
+opens a skill by reading its SKILL.md, and the session is ended at that read.
 
 Each query is labeled with the skill we expect to fire (or "none"). Every query
 runs N times; we report, per query, the distribution of skills that fired plus a
@@ -24,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
 
+import codex_session
 import throttle
 from pool_constants import DEFAULT_ROUTING_WORKERS
 from route_constants import (
@@ -36,7 +39,7 @@ from route_constants import (
     REPORT_NONE_REASONS_FIELD,
     SHELL_TOOL_NAMES,
 )
-from route_types import NoneReason, RouteOutcome
+from route_types import Host, NoneReason, RouteOutcome
 from scoring import NONE, scored_pass
 
 # Shared across the worker pool: one rate-limited run pauses new starts for all.
@@ -161,8 +164,18 @@ def _iter_tool_calls(out: str):
             yield content_block.get("name", ""), content_block.get("input") or {}
 
 
-def _route_from_tool_call(tool_name: str, tool_input: dict) -> str:
+def _session_tool_calls(out: str, host: Host):
+    """Yields `(tool_name, tool_input)` for every tool call, read the way `host` reports them."""
+    if host is Host.CODEX:
+        return codex_session.iter_tool_calls(out)
+    return _iter_tool_calls(out)
+
+
+def _route_from_tool_call(tool_name: str, tool_input: dict, host: Host = Host.CLAUDE) -> str:
     """Skill named by an invocation or by a SKILL.md read, or "" when the call is not a route."""
+    if host is Host.CODEX:
+        # Codex has no skill tool: reading a skill's SKILL.md is how it invokes one.
+        return normalize_skill(codex_session.skill_opened_by(tool_input))
     if tool_name == "Skill":
         return normalize_skill(tool_input.get("skill", ""))
     if tool_name == "Read":
@@ -179,7 +192,7 @@ def _muggle_tool_signal(tool_name: str, tool_input: dict) -> str:
     return ""
 
 
-def parse_route_from_session(out: str) -> str:
+def parse_route_from_session(out: str, host: Host = Host.CLAUDE) -> str:
     """First route reached anywhere in the session, or NONE if it never routed.
 
     A realistic query makes the model orient (`git status`, `ls`) before it
@@ -195,8 +208,8 @@ def parse_route_from_session(out: str) -> str:
     Output shape: `"muggle-test"`
     """
     muggle_tool_signal = ""
-    for tool_name, tool_input in _iter_tool_calls(out):
-        route = _route_from_tool_call(tool_name, tool_input)
+    for tool_name, tool_input in _session_tool_calls(out, host):
+        route = _route_from_tool_call(tool_name, tool_input, host)
         if route:
             return resolve_alias_route(route)
         if not muggle_tool_signal:
@@ -226,7 +239,7 @@ def _is_inspection_call(tool_name: str, tool_input: dict) -> bool:
     return tool_name in INSPECTION_TOOL_NAMES
 
 
-def classify_none_reason(out: str) -> NoneReason:
+def classify_none_reason(out: str, host: Host = Host.CLAUDE) -> NoneReason:
     """Why a session that reached no skill never routed, read off its tool calls.
 
     A bare `none` reads the same whether the model answered the query outright,
@@ -240,7 +253,7 @@ def classify_none_reason(out: str) -> NoneReason:
     Output shape: `NoneReason.ORIENTED_ONLY`
     """
     called_a_tool = False
-    for tool_name, tool_input in _iter_tool_calls(out):
+    for tool_name, tool_input in _session_tool_calls(out, host):
         called_a_tool = True
         if not _is_inspection_call(tool_name, tool_input):
             return NoneReason.ACTED_WITHOUT_ROUTING
@@ -316,13 +329,15 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
     return ("OK", out)
 
 
-def last_assistant_text(out: str) -> str:
+def last_assistant_text(out: str, host: Host = Host.CLAUDE) -> str:
     """The session's final prose, for a `none` that needs explaining.
 
     `no_tool_call` covers two very different sessions — one that could not reach a tool, and one
     that simply answered the query itself — and the preflight's own error names three causes it
     cannot tell apart. The answer text separates them at a glance.
     """
+    if host is Host.CODEX:
+        return codex_session.last_agent_message(out)
     text = ""
     for line in out.splitlines():
         line = line.strip()
@@ -342,15 +357,18 @@ def last_assistant_text(out: str) -> str:
     return " ".join(text.split())
 
 
-def detect_route(query: str, repo_root: str, timeout: int, model: str | None) -> RouteOutcome:
+def detect_route(
+    query: str, repo_root: str, timeout: int, model: str | None, host: Host = Host.CLAUDE
+) -> RouteOutcome:
     """One query's route, carrying why it never routed when the route is `none`.
 
     Output shape: `RouteOutcome(route="none", none_reason=NoneReason.ORIENTED_ONLY)`
     """
+    run_session_once = codex_session.run_codex_once if host is Host.CODEX else run_claude_once
     attempt = 1
     while True:
         THROTTLE_GATE.wait_until_clear()
-        status, out = run_claude_once(query, repo_root, timeout, model)
+        status, out = run_session_once(query, repo_root, timeout, model)
         if status == "THROTTLED" and attempt <= throttle.MAX_THROTTLE_RETRIES:
             backoff = throttle.backoff_seconds(attempt)
             THROTTLE_GATE.report_throttle(backoff)
@@ -361,9 +379,9 @@ def detect_route(query: str, repo_root: str, timeout: int, model: str | None) ->
             attempt += 1
             continue
         if status == "OK":
-            route = parse_route_from_session(out)
-            reason = classify_none_reason(out) if route == NONE else None
-            answer = last_assistant_text(out) if reason else ""
+            route = parse_route_from_session(out, host)
+            reason = classify_none_reason(out, host) if route == NONE else None
+            answer = last_assistant_text(out, host) if reason else ""
             return RouteOutcome(route, reason, answer)
         # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
         # strings, so they score exactly like the old silent `none` on negatives
@@ -382,10 +400,17 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--probe", help="route a single query, print the detected skill, and exit (CI preflight)")
+    ap.add_argument(
+        "--host",
+        choices=[host.value for host in Host],
+        default=Host.CLAUDE.value,
+        help="the agent CLI the sessions run in; codex needs a CODEX_HOME prepared by codex_session.py",
+    )
     args = ap.parse_args()
+    host = Host(args.host)
 
     if args.probe:
-        outcome = detect_route(args.probe, args.repo_root, args.timeout, args.model)
+        outcome = detect_route(args.probe, args.repo_root, args.timeout, args.model, host=host)
         if outcome.none_reason:
             # The preflight reads stdout as the bare route, so a failed probe can
             # only explain itself on stderr.
@@ -412,7 +437,7 @@ def main():
 
     def work(i):
         qi, query = jobs[i]
-        return i, detect_route(query, args.repo_root, args.timeout, args.model)
+        return i, detect_route(query, args.repo_root, args.timeout, args.model, host=host)
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(work, i) for i in range(len(jobs))]
@@ -458,6 +483,7 @@ def main():
         })
 
     report = {
+        "host": host.value,
         "model": args.model or "default",
         "runs_per_query": args.runs,
         "total": len(eval_set),

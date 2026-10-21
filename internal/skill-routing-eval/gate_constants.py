@@ -4,6 +4,9 @@ from gate_types import SkillGateStatus
 
 BASELINE_FILENAME = "recall-baseline.json"
 
+# Codex routes on another model, so its recall is recorded apart from Claude's.
+CODEX_BASELINE_FILENAME = "recall-baseline.codex.json"
+
 BASELINE_SOURCE_FULL_SWEEP = "full routing sweep on master"
 
 # Two-sided ~95% band: a run inside it is indistinguishable from sampling noise.

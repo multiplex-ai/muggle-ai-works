@@ -30,11 +30,15 @@ export interface ModelRequest {
 /** Decides the scripted model's reply to the request it is handed (zero-based within the run). */
 export type ScriptedTurn = (request: ModelRequest, requestIndex: number) => ResponseStreamEvent[];
 
-/** What one `codex exec` run left behind. */
-export interface CodexExecResult {
+/** How a process exited, and what it printed. */
+export interface ProcessResult {
   status: number | null;
   stdout: string;
   stderr: string;
+}
+
+/** What one `codex exec` run left behind, the requests it sent the scripted model included. */
+export interface CodexExecResult extends ProcessResult {
   requests: ModelRequest[];
 }
 

@@ -1,0 +1,287 @@
+name: Codex Skill Evals
+
+# The skill evals with their sessions run in OpenAI's Codex CLI instead of
+# Claude Code. The routing eval asks whether the skill descriptions still route
+# the right queries when Codex's model picks among the plugin's skills.
+#
+# Not a required check: Codex runs on OpenAI's models, billed to the
+# OPENAI_API_KEY repo secret, and without that secret each job says so and
+# passes. Scoped like skill-eval.yml: on a PR a job runs only when the change can
+# move its result, the `run-full-eval` label forces the full sweep, and the
+# nightly and on-demand runs are always full.
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened, labeled]
+  schedule:
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      routing_runs:
+        description: "codex-skill-routing-eval: runs per query (full sweep)"
+        default: "3"
+      routing_runs_scoped:
+        description: "codex-skill-routing-eval: runs per query (scoped PR run)"
+        default: "5"
+      routing_workers:
+        description: "codex-skill-routing-eval: parallel sessions across the pooled sweep"
+        default: "6"
+      codex_cli_version:
+        description: "Codex CLI version to install (blank = the workflow's pin)"
+        default: ""
+
+concurrency:
+  group: codex-skill-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Post the eval results back to the PR as a sticky comment.
+  pull-requests: write
+
+# Pinned for the reason skill-eval.yml pins the Claude CLI — each CLI version
+# brings its own default model — and kept equal to ci.yml's codex-compat pin,
+# which proves the plugin loads under this version.
+env:
+  CODEX_CLI_VERSION: ${{ inputs.codex_cli_version || '0.163.0' }}
+
+jobs:
+  codex-skill-routing-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      ROUTING_RUNS: ${{ inputs.routing_runs || '3' }}
+      ROUTING_RUNS_SCOPED: ${{ inputs.routing_runs_scoped || '5' }}
+      ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
+      # A fresh Codex home, holding only the plugin and the eval's route tracer.
+      CODEX_HOME: ${{ github.workspace }}/.codex-home
+      CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
+      CODEX_BASELINE: internal/skill-routing-eval/recall-baseline.codex.json
+      BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run-codex/recall-baseline.candidate.json
+    steps:
+      - name: Checkout works
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # skill-routing-eval's rule, plus what only Codex reads: its plugin
+      # manifest and marketplace, its hooks and MCP config, and the per-skill
+      # agents/openai.yaml that hides the alias skills from its model.
+      - name: Determine scope
+        id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
+        run: |
+          set -euo pipefail
+          full() {
+            { echo "should_run=true"; echo "full=true"; echo "skills="; } >> "$GITHUB_OUTPUT"
+            echo "Full Codex routing sweep ($1)"
+            exit 0
+          }
+          if [ "$RUN_FULL_EVAL" = "true" ]; then full "run-full-eval label"; fi
+          if [ "${{ github.event_name }}" != "pull_request" ]; then full "event: ${{ github.event_name }}"; fi
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          if git diff --name-only "$base...HEAD" -- internal/skill-routing-eval/ | grep -vE '(^|/)test_[^/]*[.]py$|[.]md$' | grep -q .; then
+            full "routing harness changed"
+          fi
+          if git diff --name-only "$base...HEAD" -- \
+               plugin/.codex-plugin/ .agents/plugins/ plugin/.codex-mcp.json plugin/hooks/codex-hooks.json \
+               'plugin/skills/*/agents/openai.yaml' | grep -q .; then
+            full "Codex packaging changed"
+          fi
+          # Routing reads only a skill's frontmatter, minus `model:`.
+          fm() { tr -d '\r' | awk 'NR==1 && $0=="---"{f=1;next} f&&$0=="---"{exit} f{print}' | grep -vE '^model:[[:space:]]'; }
+          relevant=""
+          for s in $(git diff --name-only "$base...HEAD" -- 'plugin/skills/*/SKILL.md' | awk -F/ '{print $3}' | sort -u); do
+            before="$(git show "$base:plugin/skills/$s/SKILL.md" 2>/dev/null | fm || true)"
+            after="$(git show "HEAD:plugin/skills/$s/SKILL.md" 2>/dev/null | fm || true)"
+            if [ "$before" != "$after" ]; then
+              relevant="${relevant:+$relevant,}$s"
+            fi
+          done
+          if [ -z "$relevant" ]; then
+            { echo "should_run=false"; echo "full=false"; } >> "$GITHUB_OUTPUT"
+            echo "No routing-relevant changes — Codex routing eval not required."
+          else
+            { echo "should_run=true"; echo "full=false"; echo "skills=$relevant"; } >> "$GITHUB_OUTPUT"
+            echo "Routing-relevant skills: $relevant"
+          fi
+
+      # A missing key skips the eval rather than failing it, loudly: forks and
+      # Dependabot get no secrets, and the eval is opt-in until one is set.
+      - name: Check for an OpenAI key
+        id: auth
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codex routing eval skipped::Set the OPENAI_API_KEY repo secret to run the skill-routing eval under Codex."
+          fi
+
+      - name: Setup Node.js
+        if: steps.auth.outputs.ready == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup Python
+        if: steps.auth.outputs.ready == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Codex CLI
+        if: steps.auth.outputs.ready == 'true'
+        run: |
+          npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
+          codex --version
+
+      # Installed from THIS checkout, so the eval measures the PR's descriptions,
+      # into a Codex home that holds nothing else; the same step adds the hook
+      # that traces each session's tool calls.
+      - name: Install muggle plugin from this checkout
+        if: steps.auth.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$CODEX_HOME" "$CLEAN_CWD"
+          python internal/skill-routing-eval/codex_session.py prepare --codex-home "$CODEX_HOME"
+          codex plugin list
+          codex plugin list | grep -Eq 'muggle@muggle-works +installed, enabled' \
+            || { echo "muggle plugin failed to install/enable" >&2; exit 1; }
+
+      # Same reason as skill-routing-eval: with no preferences file the
+      # SessionStart hook has the session offer onboarding instead of routing.
+      - name: Mark Muggle onboarding done so the probe is not diverted
+        if: steps.auth.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.muggle-ai"
+          cat > "$HOME/.muggle-ai/preferences.json" <<'JSON'
+          { "onboardingCompletedAt": "2026-01-01T00:00:00.000Z", "preferences": {} }
+          JSON
+
+      - name: Seed the eval cwd with a changed web app
+        if: steps.auth.outputs.ready == 'true'
+        run: bash internal/skill-routing-eval/seed_eval_cwd.sh "$CLEAN_CWD"
+
+      # A read-only sandbox is the closest match to the Claude session, which
+      # may look but not act. Ubuntu 24.04 runners block the unprivileged user
+      # namespaces Codex's Linux sandbox starts in, so lift that, and if the
+      # sandbox still cannot start, run unsandboxed rather than let every shell
+      # call fail — sessions are ended at their first route either way.
+      - name: Start Codex's sandbox
+        if: steps.auth.outputs.ready == 'true'
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          if codex sandbox -- true; then
+            echo "Codex sessions run read-only."
+          else
+            echo "::warning title=Codex sandbox unavailable::The routing sessions run without Codex's sandbox on this runner."
+            echo "MUGGLE_CODEX_SANDBOX=danger-full-access" >> "$GITHUB_ENV"
+          fi
+
+      - name: Preflight — confirm the plugin actually routes
+        id: preflight
+        if: steps.auth.outputs.ready == 'true'
+        env:
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          # As in skill-routing-eval: up to PREFLIGHT_ATTEMPTS probes, passing on
+          # the first concrete route, and a pass that needed a retry is reported.
+          route=""
+          used=0
+          for attempt in $(seq 1 "${PREFLIGHT_ATTEMPTS:-3}"); do
+            used=$attempt
+            route="$(python internal/skill-routing-eval/router_eval.py --host codex \
+              --probe 'run a muggle E2E acceptance test on my web app' --repo-root "$CLEAN_CWD")"
+            echo "preflight attempt=$attempt route=$route"
+            case "$route" in
+              none|""|ERROR|TIMEOUT|THROTTLED) ;;
+              *)
+                {
+                  echo "route=$route"
+                  echo "attempts_used=$used"
+                  echo "unstable=$([ "$used" -gt 1 ] && echo true || echo false)"
+                } >> "$GITHUB_OUTPUT"
+                if [ "$used" -gt 1 ]; then
+                  echo "::warning title=Codex routing preflight inconsistently passed::Routed as '$route' only on attempt $used of ${PREFLIGHT_ATTEMPTS:-3}."
+                fi
+                echo "plugin loaded; Codex routes (route=$route)"
+                exit 0 ;;
+            esac
+          done
+          { echo "route=$route"; echo "attempts_used=$used"; echo "unstable=true"; } >> "$GITHUB_OUTPUT"
+          echo "Preflight failed: '$route' on all ${PREFLIGHT_ATTEMPTS:-3} attempts. Plugin not loaded, key rejected, or probe session broken." >&2
+          exit 1
+
+      # Gated against Codex's own recorded recall once one is committed; until
+      # then the sweep reports and proposes the first baseline, and the preflight
+      # is what fails a Codex that does not route at all.
+      - name: Run routing eval
+        if: steps.auth.outputs.ready == 'true'
+        env:
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          gate=()
+          if [ -f "$CODEX_BASELINE" ]; then
+            gate=(--gate)
+          else
+            echo "::notice title=Codex routing ungated::No $CODEX_BASELINE yet — this run reports recall without gating it. Promote a full sweep's codex-routing-recall-baseline artifact to start gating."
+          fi
+          if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
+            python internal/skill-routing-eval/run.py --host codex \
+              --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
+              --repo-root "$CLEAN_CWD" "${gate[@]}" \
+              --record-baseline "$BASELINE_CANDIDATE"
+          else
+            python internal/skill-routing-eval/run.py --host codex \
+              --skills "${{ steps.scope.outputs.skills }}" \
+              --runs "$ROUTING_RUNS_SCOPED" --workers "$ROUTING_WORKERS" \
+              --repo-root "$CLEAN_CWD" "${gate[@]}"
+          fi
+
+      - name: Upload baseline candidate
+        if: always() && steps.auth.outputs.ready == 'true' && steps.scope.outputs.full == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: codex-routing-recall-baseline
+          path: ${{ env.BASELINE_CANDIDATE }}
+          if-no-files-found: warn
+
+      - name: Report routing results
+        if: always() && steps.auth.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          f="internal/skill-routing-eval/reports/run-codex/combined.md"
+          if [ -f "$f" ]; then
+            md="$(printf '### 🧭 Skill routing eval — Codex\n\n%s' "$(head -c 60000 "$f")")"
+          else
+            md="$(printf '### 🧭 Skill routing eval — Codex\n\n_No routing report produced — the run failed before writing combined.md._')"
+          fi
+          if [ "${{ steps.preflight.outputs.unstable }}" = "true" ] && [ -n "${{ steps.preflight.outputs.route }}" ]; then
+            banner="$(printf '> ⚠️ **Codex routing preflight inconsistently passed** — routed only on attempt %s of %s (`%s`).\n' \
+              "${{ steps.preflight.outputs.attempts_used }}" "${PREFLIGHT_ATTEMPTS:-3}" "${{ steps.preflight.outputs.route }}")"
+            md="$(printf '%s\n%s' "$banner" "$md")"
+          fi
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:codex-routing -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
+          fi

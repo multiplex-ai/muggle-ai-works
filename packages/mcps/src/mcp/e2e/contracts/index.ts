@@ -5,6 +5,7 @@
 import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 
 export { MuggleEntityIdSchema };
@@ -338,6 +339,9 @@ export const TestCaseGenerateFromPromptInputSchema = z.object({
   instruction: z.string().min(1).describe("Natural language instruction describing the test cases to generate"),
 });
 
+const ALWAYS_STARTS_FRESH_SESSION_DESCRIPTION =
+  "True when the test must begin in a brand-new browser session with nothing signed in: its precondition needs a signed-out visitor, a brand-new account, or the first registration or sign-in of an account. False when it continues in a state an earlier test established, such as already being signed in or data an earlier test created.";
+
 export const TestCaseCreateInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID)"),
   useCaseId: IdSchema.describe("Use case ID (UUID) to associate the test case with"),
@@ -352,6 +356,8 @@ export const TestCaseCreateInputSchema = z.object({
   tags: z.array(z.string()).optional().describe("Tags for categorization"),
   category: z.string().optional().describe("Test case category"),
   automated: z.boolean().optional().describe("Whether this test case is automated (default: true)"),
+  pinnedAccount: PinnedAccountSchema.optional().describe("Project secrets the test case signs in as. Omit to leave it unpinned"),
+  alwaysStartsFreshSession: z.boolean().optional().describe(ALWAYS_STARTS_FRESH_SESSION_DESCRIPTION),
 });
 
 /**
@@ -374,6 +380,8 @@ export const TestCaseUpdateInputSchema = z.object({
   tags: z.array(z.string()).optional().describe("Updated tags"),
   category: z.string().optional().describe("Updated category"),
   automated: z.boolean().optional().describe("Whether this test case is automated"),
+  pinnedAccount: PinnedAccountSchema.nullable().optional().describe("Project secrets the test case signs in as; null clears the pin"),
+  alwaysStartsFreshSession: z.boolean().optional().describe(ALWAYS_STARTS_FRESH_SESSION_DESCRIPTION),
 });
 
 export const TestScriptListInputSchema = z.object({

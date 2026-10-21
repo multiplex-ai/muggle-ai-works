@@ -4,7 +4,7 @@
  * unit-testable in isolation.
  */
 
-import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
+import type { PinnedAccount, TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { resolveDisplayParams } from "./display-resolution.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { DisplayResolution } from "../types/enums.js";
@@ -32,6 +32,7 @@ function getRequiredStringField(params: {
  *
  * @param params.displayResolution - Resolution for this run; overrides the test
  * case's stored `displayOptions`. Neither given sizes the run at 1920x1080.
+ * @param params.freshSession - The run's effective fresh-session value; recorded only when true.
  */
 export function buildGenerationActionScript(params: {
   testCase: TestCaseDetails;
@@ -40,6 +41,7 @@ export function buildGenerationActionScript(params: {
   localTestScriptId: string;
   ownerUserId: string;
   displayResolution?: DisplayResolution;
+  freshSession?: boolean;
 }): Record<string, unknown> {
   const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -87,6 +89,10 @@ export function buildGenerationActionScript(params: {
         requestedResolution: params.displayResolution,
         storedDisplayOptions: params.testCase.displayOptions,
       }),
+      // Replay reads these from the recording, so they are written only when set:
+      // a legacy test case must produce exactly the params it always did.
+      ...(params.testCase.pinnedAccount ? { pinnedAccount: params.testCase.pinnedAccount } : {}),
+      ...(params.freshSession === true ? { freshSession: true } : {}),
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -112,6 +118,8 @@ export function buildGenerationActionScript(params: {
  * @param params.displayResolution - Resolution for this run. A test script
  * carries no stored resolution, so this is replay's only sizing input; absent,
  * the run is sized at 1920x1080.
+ * @param params.pinnedAccount - The account the script was recorded as; when set, the run uses that account's browser session.
+ * @param params.freshSession - Whether the script was recorded from an empty session; written only when true.
  */
 export function buildReplayActionScript(params: {
   testScript: TestScriptDetails;
@@ -120,6 +128,8 @@ export function buildReplayActionScript(params: {
   runId: string;
   ownerUserId: string;
   displayResolution?: DisplayResolution;
+  pinnedAccount?: PinnedAccount | null;
+  freshSession?: boolean;
 }): Record<string, unknown> {
   const testScriptRecord = params.testScript as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -171,6 +181,8 @@ export function buildReplayActionScript(params: {
       displayParams: resolveDisplayParams({
         requestedResolution: params.displayResolution,
       }),
+      ...(params.pinnedAccount ? { pinnedAccount: params.pinnedAccount } : {}),
+      ...(params.freshSession ? { freshSession: true } : {}),
     },
     goal: params.testScript.name,
     url: params.localUrl,

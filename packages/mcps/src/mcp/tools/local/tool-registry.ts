@@ -417,6 +417,7 @@ const executeReplayTool: ILocalMcpTool = {
         timeoutMs: input.timeoutMs,
         showUi: showUi,
         freshSession: input.freshSession,
+        pinnedAccount: input.pinnedAccount,
         displayResolution: input.displayResolution,
       });
 

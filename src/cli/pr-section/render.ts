@@ -19,8 +19,15 @@ import {
   STEP_LIST_ELISION_THRESHOLD,
   STEP_LIST_HEAD_COUNT,
   STEP_LIST_TAIL_COUNT,
+  STEP_PAIR_IMAGE_WIDTH,
+  STEP_SCREENSHOT_MARKER,
+  STEP_THUMBNAIL_QUALITY,
+  STEP_THUMBNAIL_WIDTH_PX,
+  TEST_DETAILS_ANCHOR_PREFIX,
+  TEST_DETAILS_DIVIDER,
 } from "./constants.js";
-import type { E2eReport, Step, TestResult } from "./types.js";
+import { IMAGE_PROXY_PREFIX } from "./resolve-urls-types.js";
+import { StepScreenshotDetailEnum, type E2eReport, type Step, type TestResult } from "./types.js";
 
 /** A test case reduced to its latest run, plus how many runs it had. */
 export interface ILatestRun {
@@ -251,13 +258,34 @@ export function renderOverview (report: E2eReport): string {
     if (entry.type === "test") {
       lines.push(renderOverviewBullet(entry.entry, numbering, ""));
     } else {
-      lines.push(`- **${entry.key}**`);
-      for (const member of entry.members) {
-        lines.push(renderOverviewBullet(member, numbering, "  "));
-      }
+      lines.push(...renderUseCaseGroup(entry.key, entry.members, numbering));
     }
   }
   return lines.join("\n");
+}
+
+/**
+ * One use case as a collapsible group whose label carries its tally. A group with a failure or an inconclusive
+ * test starts open, so a problem is never hidden behind a click; an all-passed group starts closed.
+ */
+function renderUseCaseGroup (
+  useCaseName: string,
+  members: readonly ILatestRun[],
+  numbering: Map<string, number>,
+): string[] {
+  const groupCounts = countTests(members);
+  const isAllPassed = groupCounts.passed === groupCounts.total;
+  const tally = [
+    groupCounts.passed > 0 ? `✅ ${groupCounts.passed} passed` : null,
+    groupCounts.failed > 0 ? `❌ ${groupCounts.failed} failed` : null,
+    groupCounts.inconclusive > 0 ? `⚠️ ${groupCounts.inconclusive} inconclusive` : null,
+  ].filter((part): part is string => part !== null).join(" · ");
+  return [
+    "",
+    `<details${isAllPassed ? "" : " open"}><summary><b>${escapeHtml(useCaseName)}</b> — ${tally}</summary>`,
+    ...indented(members.map((member) => renderOverviewBullet(member, numbering, ""))),
+    "</details>",
+  ];
 }
 
 /**
@@ -279,7 +307,8 @@ function renderOverviewBullet (
   indent: string,
 ): string {
   const rerunNote = entry.attempts > 1 ? ` _(${entry.attempts} runs)_` : "";
-  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${entry.test.name}${rerunNote}`;
+  const detailsLink = ` · [see details](#${testAnchor(entry.test)})`;
+  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${entry.test.name}${rerunNote}${detailsLink}`;
 }
 
 /** A use-case group and its members, or a single ungrouped test at its report position. */
@@ -330,20 +359,58 @@ export function renderTestDetails (
   projectId: string,
   testNumber: number,
   dashboardBaseUrl: string = DASHBOARD_URL_BASE,
+  screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
-  const lines: string[] = [`#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
-  if (test.description) {
+  const lines: string[] = [`<a name="${testAnchor(test)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
+  if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
   lines.push(...renderResultTable(entry, projectId, dashboardBaseUrl));
-  const steps = renderSteps(test, projectId, dashboardBaseUrl) ?? [];
+  const steps = renderSteps(test, projectId, dashboardBaseUrl, screenshotDetail) ?? [];
   const frame = renderEndingFrame(test) ?? [];
   const evidence = [...steps, ...(steps.length > 0 && frame.length > 0 ? [""] : []), ...frame];
   if (evidence.length > 0) {
-    lines.push("", "<details><summary><b>Steps and screenshots</b></summary>", "", ...evidence, "", "</details>");
+    lines.push("", `<details><summary>${evidenceToggleLabel(test, screenshotDetail)}</summary>`, ...indented(evidence), "</details>");
   }
   return lines.join("\n");
+}
+
+/**
+ * Wrap a collapsible's content in a definition-list body, the one indenting element GitHub keeps that does not
+ * also dim its text, so what a toggle reveals sits visibly under it. The blank lines let markdown inside render.
+ */
+function indented (content: readonly string[]): string[] {
+  return ["<dl><dd>", "", ...content, "", "</dd></dl>"];
+}
+
+/**
+ * The in-page anchor on a test's details, which its summary line links to. Keyed by test case so it stays unique
+ * on the PR page and resolves whether the details are inline or in the overflow comment.
+ */
+function testAnchor (test: TestResult): string {
+  return `${TEST_DETAILS_ANCHOR_PREFIX}${test.testCaseId}`;
+}
+
+/**
+ * The collapsible's label, drawn as a key cap — one of the few boxed styles GitHub keeps — so it reads as
+ * something to press without hovering, and says what pressing it reveals.
+ */
+function evidenceToggleLabel (test: TestResult, screenshotDetail: StepScreenshotDetailEnum): string {
+  const count = test.steps.length;
+  if (count === 0) {
+    return "<kbd>Show the ending screen</kbd>";
+  }
+  const stepCount = `${count} ${count === 1 ? "step" : "steps"}`;
+  return screenshotDetail === StepScreenshotDetailEnum.None
+    ? `<kbd>Show ${stepCount}</kbd>`
+    : `<kbd>Show ${stepCount} and screenshots</kbd>`;
+}
+
+/** Whether two texts say the same thing once case, spacing and trailing punctuation are set aside. */
+function isSameText (left: string, right: string): boolean {
+  const normalize = (text: string): string => text.trim().replace(/[\s.!?]+$/, "").replace(/\s+/g, " ").toLowerCase();
+  return normalize(left) === normalize(right);
 }
 
 /**
@@ -365,21 +432,65 @@ function renderEndingFrame (test: TestResult): string[] | null {
 }
 
 /**
+ * A step's screenshots: the page before and after it acted, side by side under labels, or the before alone when
+ * the report carries no after or the comment has no room for it. Each is a downsized thumbnail.
+ */
+function renderStepScreenshots (step: Step, position: number, screenshotDetail: StepScreenshotDetailEnum): string[] {
+  if (!step.afterScreenshotUrl || screenshotDetail === StepScreenshotDetailEnum.BeforeOnly) {
+    return [thumbnailImage(step.screenshotUrl, STEP_IMAGE_WIDTH, `Step ${position}`)];
+  }
+  return [
+    "| Before | After |",
+    "|:--|:--|",
+    `| ${thumbnailImage(step.screenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} before`)} ` +
+      `| ${thumbnailImage(step.afterScreenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} after`)} |`,
+  ];
+}
+
+/**
+ * A resized screenshot. GitHub links every image to itself, so clicking one opens it at thumbnail resolution;
+ * a link of our own to the original would double each screenshot's URL, and the overflow comment has a hard cap.
+ */
+function thumbnailImage (url: string, displayWidth: number, alt: string): string {
+  return `<img src="${thumbnailUrl(url)}" width="${displayWidth}" alt="${alt}">`;
+}
+
+/**
+ * The screenshot as the image proxy serves it resized and recompressed — the only way to make a page that loads
+ * every image lighter. A URL already on the proxy gains the resize parameters; any other is wrapped first.
+ */
+function thumbnailUrl (url: string): string {
+  const proxied = url.startsWith(IMAGE_PROXY_PREFIX) ? url : `${IMAGE_PROXY_PREFIX}${encodeURIComponent(url)}`;
+  return `${proxied}&amp;w=${STEP_THUMBNAIL_WIDTH_PX}&amp;q=${STEP_THUMBNAIL_QUALITY}&amp;output=jpg`;
+}
+
+/**
  * Render the run's steps, one collapsible each that opens onto that step's
  * screenshot — a comment runs no script, so a native <details> is the only
  * interaction available. Past the threshold the middle is elided with a pointer
  * to the full run. Ordinals come from array position, so the tail reads as the
  * run's real step numbers. Returns null when the run recorded no steps.
  */
-function renderSteps (test: TestResult, projectId: string, dashboardBaseUrl: string): string[] | null {
+function renderSteps (
+  test: TestResult,
+  projectId: string,
+  dashboardBaseUrl: string,
+  screenshotDetail: StepScreenshotDetailEnum,
+): string[] | null {
   const { steps } = test;
   if (steps.length === 0) {
     return null;
   }
+  const isTextOnly = screenshotDetail === StepScreenshotDetailEnum.None;
   const collapsible = (step: Step, position: number): string =>
-    `<details><summary>${position} · ${stepText(step)}</summary>\n\n` +
-    `<img src="${step.screenshotUrl}" width="${STEP_IMAGE_WIDTH}" alt="Step ${position}">\n\n</details>`;
-  const heading = ["**Steps** — click a step to see its screenshot", ""];
+    isTextOnly
+      ? `- ${position} · ${stepText(step)}`
+      : [
+          `<details><summary>${STEP_SCREENSHOT_MARKER} ${position} · ${stepText(step)}</summary>`,
+          ...indented(renderStepScreenshots(step, position, screenshotDetail)),
+          "</details>",
+        ].join("\n");
+  const heading = isTextOnly ? ["**Steps**", ""] : ["**Steps** — click a step to see its screenshots", ""];
   if (steps.length <= STEP_LIST_ELISION_THRESHOLD) {
     return [...heading, ...steps.map((step, i) => collapsible(step, i + 1))];
   }
@@ -402,14 +513,15 @@ function renderResultTable (
   dashboardBaseUrl: string,
 ): string[] {
   const { test } = entry;
-  const rows: string[] = ["| | |", "|:--|:--|"];
+  // GFM requires a header row; the result fills it, rather than an empty row that renders as a blank band.
+  const rows: string[] = [];
   if (test.status === "passed") {
-    rows.push("| **Result** | ✅ Passed |");
+    rows.push("| **Result** | ✅ Passed |", "|:--|:--|");
   } else if (test.status === "failed") {
-    rows.push(`| **Result** | ❌ Failed at step ${failureOrdinal(test, test.failureStepIndex)} |`);
+    rows.push(`| **Result** | ❌ Failed at step ${failureOrdinal(test, test.failureStepIndex)} |`, "|:--|:--|");
     rows.push(`| **Why** | ${tableCell(escapeHtml(test.error))} |`);
   } else {
-    rows.push("| **Result** | ⚠️ Inconclusive |");
+    rows.push("| **Result** | ⚠️ Inconclusive |", "|:--|:--|");
     rows.push(`| **Why** | ${tableCell(escapeHtml(test.reason))} |`);
   }
   if (entry.attempts > 1) {
@@ -430,7 +542,10 @@ export interface IDashboardLinkOptions {
 }
 
 /** Options for renderComment. */
-export type IRenderCommentOptions = IDashboardLinkOptions;
+export interface IRenderCommentOptions extends IDashboardLinkOptions {
+  /** How much of each step's screenshots to include; omitted means before and after. */
+  screenshotDetail?: StepScreenshotDetailEnum;
+}
 
 /** Options for renderBody. */
 export interface IRenderBodyOptions extends IDashboardLinkOptions {
@@ -442,11 +557,15 @@ export interface IRenderBodyOptions extends IDashboardLinkOptions {
   inlineDetails: boolean;
 }
 
-function renderDetailBlocks (report: E2eReport, dashboardBaseUrl?: string): string {
+function renderDetailBlocks (
+  report: E2eReport,
+  dashboardBaseUrl?: string,
+  screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
+): string {
   return resolveLatestRuns(report.tests)
     .map((entry, i) =>
-      renderTestDetails(entry, report.projectId, i + 1, dashboardBaseUrl ?? DASHBOARD_URL_BASE))
-    .join("\n\n");
+      renderTestDetails(entry, report.projectId, i + 1, dashboardBaseUrl ?? DASHBOARD_URL_BASE, screenshotDetail))
+    .join(`\n\n${TEST_DETAILS_DIVIDER}\n\n`);
 }
 
 /** Render the full PR-body evidence block (summary + optional per-test details). */
@@ -480,13 +599,17 @@ export function renderComment (report: E2eReport, opts: IRenderCommentOptions = 
   if (report.tests.length === 0) {
     return "";
   }
+  const screenshotDetail = opts.screenshotDetail ?? StepScreenshotDetailEnum.BeforeAndAfter;
   return [
     "## E2E acceptance evidence (overflow)",
     "",
     "_This comment was posted because the full per-test details did not fit in the PR description._",
+    ...(screenshotDetail === StepScreenshotDetailEnum.BeforeAndAfter
+      ? []
+      : ["", "_Step screenshots are trimmed to fit GitHub's comment size limit — open a run on Muggle AI for all of them._"]),
     "",
     "### Test details",
     "",
-    renderDetailBlocks(report, opts.dashboardBaseUrl),
+    renderDetailBlocks(report, opts.dashboardBaseUrl, screenshotDetail),
   ].join("\n");
 }

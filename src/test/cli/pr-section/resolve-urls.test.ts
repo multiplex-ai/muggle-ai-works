@@ -180,6 +180,40 @@ describe("resolveGsScreenshotUrls", () => {
     expect(result.tests[0]!.endingScreenshotCaption).toBe("Goal achieved");
   });
 
+  it("resolves a step's after screenshot as well as its before", async () => {
+    mockedGetCredentials.mockResolvedValue({ bearerToken: "tkn" });
+    mockedAxiosPost.mockImplementation(async (_url: string, body: { resourceUrl: string }) => ({
+      status: 200,
+      data: { resourceUrl: `https://firebasestorage.googleapis.com/${body.resourceUrl.slice("gs://".length)}` },
+    }));
+
+    const report: E2eReport = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "A",
+          testCaseId: "tc-a",
+          runId: "r-a",
+          viewUrl: "https://example.com/a",
+          status: "passed",
+          steps: [
+            {
+              stepIndex: 0,
+              action: "click",
+              screenshotUrl: "gs://bucket/before.jpg",
+              afterScreenshotUrl: "gs://bucket/after.jpg",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = await resolveGsScreenshotUrls(report, { stderrWrite: makeStderr().write });
+
+    expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe(wrapped("https://firebasestorage.googleapis.com/bucket/before.jpg"));
+    expect(result.tests[0]!.steps[0]!.afterScreenshotUrl).toBe(wrapped("https://firebasestorage.googleapis.com/bucket/after.jpg"));
+  });
+
   it("logs a login hint and skips HTTP calls when no credentials are available", async () => {
     mockedGetCredentials.mockResolvedValue({});
     const report = makeReport([{ screenshotUrl: "gs://bucket/x.jpg" }]);

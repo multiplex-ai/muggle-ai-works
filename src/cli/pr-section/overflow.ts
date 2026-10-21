@@ -11,7 +11,8 @@
  */
 
 import { renderBody, renderComment } from "./render.js";
-import type { E2eReport } from "./types.js";
+import { MAX_COMMENT_BYTES } from "./constants.js";
+import { StepScreenshotDetailEnum, type E2eReport } from "./types.js";
 
 export interface ISplitOptions {
   /** Maximum UTF-8 byte length of the rendered body. */
@@ -53,9 +54,29 @@ export function splitWithOverflow (
     return { body: inlineBody, comment: null };
   }
   const spilledBody = renderBody(report, { inlineDetails: false, dashboardBaseUrl: opts.dashboardBaseUrl });
-  const comment = renderComment(report, { dashboardBaseUrl: opts.dashboardBaseUrl });
+  const comment = renderFittingComment(report, opts.dashboardBaseUrl);
   return {
     body: spilledBody,
     comment: comment.length > 0 ? comment : null,
   };
+}
+
+/**
+ * The richest overflow comment GitHub will accept: before-and-after screenshots, then before only, then step text
+ * only. A comment over the cap is rejected outright, so dropping screenshots beats losing the details.
+ */
+function renderFittingComment (report: E2eReport, dashboardBaseUrl?: string): string {
+  const ladder = [
+    StepScreenshotDetailEnum.BeforeAndAfter,
+    StepScreenshotDetailEnum.BeforeOnly,
+    StepScreenshotDetailEnum.None,
+  ];
+  let comment = "";
+  for (const screenshotDetail of ladder) {
+    comment = renderComment(report, { dashboardBaseUrl: dashboardBaseUrl, screenshotDetail: screenshotDetail });
+    if (Buffer.byteLength(comment, "utf-8") <= MAX_COMMENT_BYTES) {
+      return comment;
+    }
+  }
+  return comment;
 }

@@ -8,12 +8,15 @@ import { z } from "zod";
 // `action` is the operation verb (navigate, click, halt). `description` is the
 // agent's readable account of the step — the action script's briefExplanation —
 // and is what a reader can follow; optional so reports assembled before it
-// existed still parse.
+// existed still parse. `screenshotUrl` is the page before the step acts;
+// `afterScreenshotUrl` the page after it, which the action script never stores:
+// it is the next visual step's screenshot, or the summary step's for the last.
 const StepSchema = z.object({
   stepIndex: z.number().int().nonnegative(),
   action: z.string().min(1),
   description: z.string().min(1).optional(),
   screenshotUrl: z.string().url(),
+  afterScreenshotUrl: z.string().url().optional(),
 });
 
 const PassedTestSchema = z.object({
@@ -86,3 +89,16 @@ export type PassedTest = z.infer<typeof PassedTestSchema>;
 export type FailedTest = z.infer<typeof FailedTestSchema>;
 export type InconclusiveTest = z.infer<typeof InconclusiveTestSchema>;
 export type Step = z.infer<typeof StepSchema>;
+
+/**
+ * How much of each step's screenshots a test's details carry. The overflow comment steps down this ladder when a
+ * richer rendering would exceed GitHub's comment size cap.
+ */
+export enum StepScreenshotDetailEnum {
+  /** Before and after, side by side. */
+  BeforeAndAfter = "before-and-after",
+  /** The page before each step only. */
+  BeforeOnly = "before-only",
+  /** Step text only; the ending screen still shows. */
+  None = "none",
+}

@@ -86,6 +86,9 @@ function collectGsUrls (report: E2eReport): string[] {
       if (isGsUrl(step.screenshotUrl)) {
         seen.add(step.screenshotUrl);
       }
+      if (step.afterScreenshotUrl && isGsUrl(step.afterScreenshotUrl)) {
+        seen.add(step.afterScreenshotUrl);
+      }
     }
     if (test.endingScreenshotUrl && isGsUrl(test.endingScreenshotUrl)) {
       seen.add(test.endingScreenshotUrl);
@@ -137,11 +140,16 @@ async function resolveOne (
  * every https:// step) are returned as-is to keep the diff minimal.
  */
 function remapStep (step: Step, urlMap: Map<string, string>): Step {
-  const resolved = urlMap.get(step.screenshotUrl);
-  if (!resolved) {
+  const resolvedBefore = urlMap.get(step.screenshotUrl);
+  const resolvedAfter = step.afterScreenshotUrl ? urlMap.get(step.afterScreenshotUrl) : undefined;
+  if (!resolvedBefore && !resolvedAfter) {
     return step;
   }
-  return { ...step, screenshotUrl: resolved };
+  return {
+    ...step,
+    ...(resolvedBefore ? { screenshotUrl: resolvedBefore } : {}),
+    ...(resolvedAfter ? { afterScreenshotUrl: resolvedAfter } : {}),
+  };
 }
 
 /**

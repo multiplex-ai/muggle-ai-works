@@ -20,3 +20,12 @@ Classify for the watcher:
 - **green** — every row `pass` / `skipping`, or no rows at all.
 
 The fix-ci dispatch carries the `name`s of the red rows. `gh pr checks` exits non-zero when any check fails — capture output regardless of exit code.
+
+A check that publishes its own verdict (the `muggle-walkthrough` check run) says why it failed in its output, not in a job log. Read the newest one on the head SHA:
+
+```bash
+gh api "repos/<owner>/<repo>/commits/<head-sha>/check-runs?check_name=<name>" \
+  --jq '.check_runs | sort_by(.completed_at) | last | {conclusion, completed_at, summary: .output.summary}'
+```
+
+`completed_at` is how a caller tells a fresh verdict from the one it is repairing.

@@ -48,6 +48,8 @@ export enum PreferenceKey {
   AutoRouteBuildToMuggleDo = "autoRouteBuildToMuggleDo",
   /** After a test run opens a PR, start a muggle-pr-followup watcher on it. */
   AutoWatchPR = "autoWatchPR",
+  /** Install the muggle-walkthrough E2E check workflow into a repository that lacks it. */
+  AutoInstallCiWorkflow = "autoInstallCiWorkflow",
   /** How long a muggle-pr-followup watch loop may poll before retiring itself. */
   WatcherLifetime = "watcherLifetime",
   /** How many catch-up rebases muggle-pr-followup runs on one PR before handing it back. */

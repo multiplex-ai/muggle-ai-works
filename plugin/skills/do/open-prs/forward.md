@@ -20,6 +20,8 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 1. **Sync with the base:** run [`../../_shared/sync-branch-with-base.md`](../../_shared/sync-branch-with-base.md) with `base` set to the PR target recorded in `state.md` — gated by [`autoRebase`](../../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. The branch is not on the remote yet, so the rebase lands without a force-push. Sync here rather than trusting stage 6: a `unit-only` or `skip` run never reaches the E2E stage's sync at all, and on a run that does, the base moves freely while stages 3–6 build and test. If the sync escalates — conflicts under `autoResolveConflicts=never`, or a resolution that fails the verify-or-rollback gate — stop and report; never open a PR on a tree that did not verify.
 
+1.5. **CI check:** gate [`autoInstallCiWorkflow`](../../muggle-preferences/preference-gates/autoInstallCiWorkflow.md) — fires only on a GitHub repo whose tree lacks `.github/workflows/muggle-walkthrough.yml`. On `always`, or `CI check: add` recorded by pre-flight, run `muggle ci-install` in the working tree and commit the workflow as `ci: add the Muggle E2E walkthrough check`, so it ships in this PR. On `never` or `CI check: skip`, leave CI alone.
+
 2. **Push:** Execute per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md) — the tool-agnostic instruction for pushing commits (handles the signing gate and directs to provider-specific recipes).
 
 3. **Title** (under 70 chars):

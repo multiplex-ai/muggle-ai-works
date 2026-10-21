@@ -167,7 +167,9 @@ Nested GitLab namespaces of any depth are handled — the project path is everyt
 
 When a PR is opened from a session running this plugin, Muggle reserves a comment for the acceptance walkthrough and holds the turn open until it's settled — by the walkthrough, or by a stated reason acceptance testing doesn't apply.
 
-A PR opened any other way — the web UI, a teammate without the plugin — never passes through that session, so the same check also runs in GitHub Actions. `muggle init` offers to install it; to add it to another repository later:
+A PR opened any other way — the web UI, a teammate without the plugin — never passes through that session, so the same check also runs in GitHub Actions. It fails while the comment is still empty, and whenever the walkthrough reports a failed or inconclusive test case; the check's summary names each one with its failing step and a link to the run. When the Muggle PR watcher sees it red, it repairs the cases, re-runs the whole suite, and re-settles the comment.
+
+The `autoInstallCiWorkflow` preference, chosen during `muggle init`, decides whether Muggle adds the workflow itself: `always` installs it in the repository `muggle init` runs in and in any repository `/muggle-do` opens a PR from, `ask` (the default) asks first, `never` leaves CI alone. To add it to a repository by hand:
 
 ```bash
 muggle ci-install

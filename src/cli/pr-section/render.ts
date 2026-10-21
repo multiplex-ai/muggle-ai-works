@@ -3,7 +3,8 @@
  * No I/O, no length measurement, no overflow logic — see overflow.ts for that.
  *
  * Layout (two sections):
- *   1. Summary: verdict headline + per-test name list (numbered; grouped by useCaseName when present).
+ *   1. Summary: verdict headline + the failed/inconclusive cases with why + per-test name list (numbered;
+ *      grouped by useCaseName when present).
  *   2. Test details: one <details> block per test case, in report order, holding a
  *      result table, one collapsible per step with its screenshot, and the ending screen.
  *
@@ -26,6 +27,10 @@ import {
   TEST_DETAILS_ANCHOR_PREFIX,
   TEST_DETAILS_DIVIDER,
 } from "./constants.js";
+import { escapeHtml, renderUnpassedCaseBullet } from "../../e2e-result/format.js";
+import { renderE2eResultMarker } from "../../e2e-result/marker.js";
+import type { IE2eResultRecord } from "../../e2e-result/types.js";
+import { buildE2eResultRecord, failureOrdinal } from "./result-record.js";
 import { IMAGE_PROXY_PREFIX } from "./resolve-urls-types.js";
 import { StepScreenshotDetailEnum, type E2eReport, type Step, type TestResult } from "./types.js";
 
@@ -150,18 +155,6 @@ function endingScreenshot (test: TestResult): Step | null {
   return test.steps[test.steps.length - 1];
 }
 
-/**
- * Position of the failing step in `steps[]`, 1-based.
- *
- * Producers disagree on whether `stepIndex` counts from 0 or 1, so the ordinal
- * comes from the step's place in the array — the same basis as the rendered step
- * list and the step count. Falls back to the raw index when no step carries it.
- */
-function failureOrdinal (test: TestResult, failureStepIndex: number): number {
-  const position = test.steps.findIndex((s) => s.stepIndex === failureStepIndex);
-  return position === -1 ? failureStepIndex : position + 1;
-}
-
 /** Default caption text used when the caller doesn't provide one. */
 function defaultEndingCaption (test: TestResult): string {
   if (test.status === "failed") {
@@ -206,11 +199,6 @@ function fullSizeImage (url: string, alt: string): string {
   return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtml(alt).replace(/"/g, "&quot;")}"></a>`;
 }
 
-/** Escape text placed inside HTML, so an agent's `<…>` cannot break the markup around it. */
-function escapeHtml (s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */
 function tableCell (s: string): string {
   return s.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
@@ -245,8 +233,9 @@ export function renderOverview (report: E2eReport): string {
     lines.push("", "_No tests were executed._");
     return lines.join("\n");
   }
-  lines.push("");
   const numbering = buildTestNumbering(latestRuns);
+  lines.push(...renderNeedsAttention(buildE2eResultRecord(latestRuns.map((entry) => entry.test))));
+  lines.push("");
   const anyGrouped = latestRuns.some((entry) => Boolean(entry.test.useCaseName));
   if (!anyGrouped) {
     for (const entry of latestRuns) {
@@ -262,6 +251,21 @@ export function renderOverview (report: E2eReport): string {
     }
   }
   return lines.join("\n");
+}
+
+/**
+ * The failed and inconclusive cases with why each did not pass, so a reader learns what to fix before reaching
+ * the full list. Empty when every case passed.
+ */
+function renderNeedsAttention (record: IE2eResultRecord): string[] {
+  if (record.unpassed.length === 0) return [];
+  return [
+    "",
+    "**Needs attention**",
+    "",
+    ...record.unpassed.map((unpassed) =>
+      renderUnpassedCaseBullet(unpassed, "see details", `#${testAnchor(unpassed.testCaseId)}`)),
+  ];
 }
 
 /**
@@ -307,7 +311,7 @@ function renderOverviewBullet (
   indent: string,
 ): string {
   const rerunNote = entry.attempts > 1 ? ` _(${entry.attempts} runs)_` : "";
-  const detailsLink = ` · [see details](#${testAnchor(entry.test)})`;
+  const detailsLink = ` · [see details](#${testAnchor(entry.test.testCaseId)})`;
   return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${entry.test.name}${rerunNote}${detailsLink}`;
 }
 
@@ -362,7 +366,7 @@ export function renderTestDetails (
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
-  const lines: string[] = [`<a name="${testAnchor(test)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
+  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
@@ -388,8 +392,8 @@ function indented (content: readonly string[]): string[] {
  * The in-page anchor on a test's details, which its summary line links to. Keyed by test case so it stays unique
  * on the PR page and resolves whether the details are inline or in the overflow comment.
  */
-function testAnchor (test: TestResult): string {
-  return `${TEST_DETAILS_ANCHOR_PREFIX}${test.testCaseId}`;
+function testAnchor (testCaseId: string): string {
+  return `${TEST_DETAILS_ANCHOR_PREFIX}${testCaseId}`;
 }
 
 /**
@@ -568,9 +572,17 @@ function renderDetailBlocks (
     .join(`\n\n${TEST_DETAILS_DIVIDER}\n\n`);
 }
 
-/** Render the full PR-body evidence block (summary + optional per-test details). */
+/**
+ * Render the full PR-body evidence block (summary + optional per-test details).
+ *
+ * Opens with the hidden result record, which is what lets the walkthrough CI check fail on a non-passing run
+ * without parsing the markdown.
+ */
 export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string {
-  const overview = renderOverview(report);
+  const resultMarker = renderE2eResultMarker(
+    buildE2eResultRecord(resolveLatestRuns(report.tests).map((entry) => entry.test)),
+  );
+  const overview = `${resultMarker}\n${renderOverview(report)}`;
   if (report.tests.length === 0) {
     return overview;
   }

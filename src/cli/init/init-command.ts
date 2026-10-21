@@ -16,13 +16,14 @@ import {
   applyOnboardingAnswers,
   buildOnboardingPlan,
   needsOnboarding,
+  resolvePreferences,
   type IOnboardingAnswers,
   type IOnboardingApplyResult,
 } from "../../../packages/mcps/src/index.js";
 
 import { USER_WORKFLOW_PATH } from "../../ci-workflow/constants.js";
-import { offerCiWorkflow } from "./ci-question.js";
-import { CiOfferOutcome } from "./ci-question-types.js";
+import { applyCiWorkflowPreference } from "./ci-question.js";
+import { CiOfferOutcome, type AskQuestion } from "./ci-question-types.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";
 import type { IInitOptions } from "./init-types.js";
 
@@ -78,21 +79,33 @@ function reportOutcome(result: IOnboardingApplyResult): void {
 }
 
 const CI_OFFER_REPORT: Record<CiOfferOutcome, string | null> = {
-  [CiOfferOutcome.Installed]: `Added ${USER_WORKFLOW_PATH} — commit it, and every pull request here will owe a settled walkthrough comment.`,
+  [CiOfferOutcome.Installed]: `Added ${USER_WORKFLOW_PATH} — commit it, and every pull request here will owe a passing walkthrough comment.`,
   [CiOfferOutcome.Declined]: "Left CI alone. Run `muggle ci-install` whenever you want it.",
+  [CiOfferOutcome.Deferred]: "This repo has no Muggle E2E check in CI yet — run `muggle ci-install` to add it.",
+  [CiOfferOutcome.TurnedOff]: null,
   [CiOfferOutcome.AlreadyInstalled]: null,
   [CiOfferOutcome.NotApplicable]: null,
 };
 
-/** Ask the CI question at the end of the walkthrough, and report what it did. */
-async function runCiOffer(): Promise<void> {
+/**
+ * Act on the saved `autoInstallCiWorkflow` value in the current repository, and report what it did.
+ *
+ * @param ask - Prompts the user; `null` on the agent surface, where the answers arrived as a file.
+ */
+async function runCiOffer(ask: AskQuestion | null): Promise<void> {
+  const preference = resolvePreferences()[PreferenceKey.AutoInstallCiWorkflow];
+  const line = CI_OFFER_REPORT[await applyCiWorkflowPreference(preference, process.cwd(), ask)];
+  if (line) {
+    console.log("");
+    console.log(line);
+  }
+}
+
+/** Run the CI offer with a terminal prompt for `ask`. */
+async function runInteractiveCiOffer(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    const line = CI_OFFER_REPORT[await offerCiWorkflow((q) => rl.question(q), process.cwd())];
-    if (line) {
-      console.log("");
-      console.log(line);
-    }
+    await runCiOffer((q) => rl.question(q));
   } finally {
     rl.close();
   }
@@ -114,7 +127,9 @@ export async function initCommand(options: IInitOptions): Promise<void> {
     } catch (error) {
       console.error(error instanceof Error ? error.message : String(error));
       process.exitCode = 1;
+      return;
     }
+    await runCiOffer(null);
     return;
   }
 
@@ -131,5 +146,5 @@ export async function initCommand(options: IInitOptions): Promise<void> {
   }
 
   reportOutcome(applyOnboardingAnswers(await runTerminalWalkthrough()));
-  await runCiOffer();
+  await runInteractiveCiOffer();
 }

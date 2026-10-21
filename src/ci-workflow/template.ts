@@ -13,7 +13,9 @@ export function renderUserWorkflow(): string {
   return `name: muggle-walkthrough
 
 # Every PR owes a settled Muggle AI walkthrough comment: the E2E acceptance
-# result, or a stated reason E2E does not apply. The verdict rides a check run
+# result, or a stated reason E2E does not apply. The check fails while that
+# comment is empty, and whenever the walkthrough reports a failed or
+# inconclusive test case — its summary names each one. The verdict rides a check run
 # against the PR head SHA rather than this job's own status, because the
 # issue_comment trigger runs against the default branch — only a head-SHA check
 # reaches the PR from there, which is what lets settling the comment turn the

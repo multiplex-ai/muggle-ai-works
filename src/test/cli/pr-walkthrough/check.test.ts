@@ -1,10 +1,36 @@
 import { describe, it, expect } from "vitest";
 import { runPrWalkthroughCheck } from "../../../cli/pr-walkthrough/check";
+import { CHECK_SUMMARY_MAX_CASES } from "../../../cli/pr-walkthrough/constants";
+import { renderNotPassingSummary } from "../../../cli/pr-walkthrough/summary";
 import { renderReservedComment, renderSkippedComment } from "../../../pr-walkthrough/comment";
+import { renderE2eResultMarker } from "../../../e2e-result/marker";
+import { UnpassedCaseStatus, type IE2eResultRecord, type IUnpassedCase } from "../../../e2e-result/types";
 import { E2eSkipCode } from "../../../e2e-skip/types";
-import { CheckConclusion } from "../../../cli/pr-walkthrough/types";
+import { CheckConclusion, WalkthroughCheckOutcome } from "../../../cli/pr-walkthrough/types";
 
 const REPORTED = "<!-- muggle-pr-section:v1 -->\n### Muggle E2E\n3 passed";
+
+const failedCase: IUnpassedCase = {
+  name: "Checkout",
+  testCaseId: "tc-2",
+  status: UnpassedCaseStatus.Failed,
+  failedStep: 4,
+  detail: "Pay button disabled",
+  viewUrl: "https://www.muggle-ai.com/run/2",
+};
+
+const inconclusiveCase: IUnpassedCase = {
+  name: "Search",
+  testCaseId: "tc-3",
+  status: UnpassedCaseStatus.Inconclusive,
+  detail: "No replayable script",
+  viewUrl: "https://www.muggle-ai.com/run/3",
+};
+
+/** A walkthrough comment as `build-pr-section` renders it: sentinel, then the result record. */
+function walkthrough(record: IE2eResultRecord): string {
+  return `<!-- muggle-pr-section:v1 -->\n${renderE2eResultMarker(record)}\n## E2E Acceptance Results`;
+}
 
 interface GhCall {
   args: string[];
@@ -84,5 +110,61 @@ describe("runPrWalkthroughCheck", () => {
     const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);
     expect(result.conclusion).toBe(CheckConclusion.Neutral);
     expect(result.exitCode).toBe(0);
+  });
+
+  it("fails when the walkthrough reports a failed case, and names it in the summary", async () => {
+    const gh = ghWithComments([walkthrough({ total: 2, passed: 1, unpassed: [failedCase] })]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.E2eNotPassing);
+    expect(result.conclusion).toBe(CheckConclusion.Failure);
+    expect(result.exitCode).toBe(1);
+    expect(result.summary).toContain("**Checkout** — failed at step 4: Pay button disabled");
+    expect(result.summary).toContain("[open run](https://www.muggle-ai.com/run/2)");
+  });
+
+  it("fails on an inconclusive case too — a run that never reached its assertion validated nothing", async () => {
+    const gh = ghWithComments([walkthrough({ total: 1, passed: 0, unpassed: [inconclusiveCase] })]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Failure);
+    expect(result.summary).toContain("**Search** — inconclusive: No replayable script");
+  });
+
+  it("publishes the failing cases on the check run, still exiting 0", async () => {
+    const gh = ghWithComments([walkthrough({ total: 2, passed: 1, unpassed: [failedCase] })]);
+    const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);
+    expect(result.exitCode).toBe(0);
+    const published = JSON.parse(checkRunCall(gh.calls)?.input ?? "{}");
+    expect(published.conclusion).toBe(CheckConclusion.Failure);
+    expect(published.output.summary).toContain("Checkout");
+  });
+
+  it("passes when every case in the record passed", async () => {
+    const gh = ghWithComments([walkthrough({ total: 3, passed: 3, unpassed: [] })]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.Settled);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+
+  it("judges the newest walkthrough, so a green re-run posted below a red one clears the check", async () => {
+    const gh = ghWithComments([
+      walkthrough({ total: 2, passed: 1, unpassed: [failedCase] }),
+      walkthrough({ total: 2, passed: 2, unpassed: [] }),
+    ]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+});
+
+describe("renderNotPassingSummary", () => {
+  it("tallies failed and inconclusive cases out of the total", () => {
+    const summary = renderNotPassingSummary({ total: 5, passed: 3, unpassed: [failedCase, inconclusiveCase] });
+    expect(summary.split("\n")[0]).toContain("1 failed, 1 inconclusive of 5 test cases");
+  });
+
+  it("lists at most the cap and points to the comment for the rest", () => {
+    const many = Array.from({ length: CHECK_SUMMARY_MAX_CASES + 2 }, (_, i) => ({ ...failedCase, name: `Case ${i}` }));
+    const summary = renderNotPassingSummary({ total: many.length, passed: 0, unpassed: many });
+    expect(summary.match(/^- ❌/gm)).toHaveLength(CHECK_SUMMARY_MAX_CASES);
+    expect(summary).toContain("…and 2 more — see the walkthrough comment.");
   });
 });

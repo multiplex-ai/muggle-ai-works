@@ -116,6 +116,16 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
     ],
   },
   {
+    header: "CI check",
+    key: PreferenceKey.AutoInstallCiWorkflow,
+    prompt: "Add the Muggle E2E check to a repository's CI? It fails a pull request whose walkthrough is missing or reports a failed test.",
+    optionLabels: [
+      { value: PreferenceValue.Always, label: "Always — add it to every repo Muggle works in" },
+      { value: PreferenceValue.Ask, label: "Ask in each repo" },
+      { value: PreferenceValue.Never, label: "Never — I'll run muggle ci-install myself" },
+    ],
+  },
+  {
     header: "PR watcher",
     key: PreferenceKey.WatcherLifetime,
     prompt: "How long should a PR watcher keep polling for new reviews?",

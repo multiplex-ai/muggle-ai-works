@@ -22,7 +22,7 @@ import {
 } from "../../../shared/config.js";
 import { applyLlmEnvOverrides } from "../../../shared/llm-env-service.js";
 import { getLogger } from "../../../shared/logger.js";
-import type { TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
+import type { PinnedAccount, TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import type { DisplayResolution } from "../types/enums.js";
 import { getAuthService, getRunResultStorageService, getStorageService } from "./index.js";
 import {
@@ -38,6 +38,7 @@ import {
 import { RunStopReasonEnum } from "./execution-stop-types.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
+import { resolveEffectiveFreshSession } from "./fresh-session.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -788,6 +789,13 @@ async function runTestGenerationLocked(params: {
     const runId = runResult.id;
     const startedAt = Date.now();
 
+    // Resolved once so the session the studio clears and the value replay reads off the
+    // recording can never disagree.
+    const effectiveFreshSession = resolveEffectiveFreshSession({
+      requestedFreshSession: params.freshSession,
+      storedAlwaysStartsFreshSession: testCase.alwaysStartsFreshSession,
+    });
+
     const actionScript = buildGenerationActionScript({
       testCase: testCase,
       localUrl: localUrl,
@@ -795,6 +803,7 @@ async function runTestGenerationLocked(params: {
       localTestScriptId: localTestScript.id,
       ownerUserId: authContent.userId,
       displayResolution: params.displayResolution,
+      freshSession: effectiveFreshSession,
     });
 
     // Write temp files
@@ -823,7 +832,7 @@ async function runTestGenerationLocked(params: {
         authFilePath: authFilePath,
         timeoutMs: timeoutMs,
         showUi: params.showUi,
-        freshSession: params.freshSession,
+        freshSession: effectiveFreshSession,
       });
 
       const completedAt = Date.now();
@@ -989,6 +998,7 @@ export async function executeReplay(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
@@ -1007,6 +1017,7 @@ async function runReplayLocked(params: {
   timeoutMs?: number;
   showUi?: boolean;
   freshSession?: boolean;
+  pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
@@ -1048,6 +1059,8 @@ async function runReplayLocked(params: {
       runId: runId,
       ownerUserId: authContent.userId,
       displayResolution: params.displayResolution,
+      pinnedAccount: params.pinnedAccount,
+      freshSession: params.freshSession,
     });
 
     // Write temp files

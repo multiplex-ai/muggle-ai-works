@@ -15,6 +15,7 @@
 import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { DisplayResolution } from "../types/enums.js";
 
 /** Resolution a run executes at, accepted wherever a caller may name one. */
@@ -50,9 +51,15 @@ export const TestCaseDetailsSchema = z.object({
     .describe(
       "Resolutions stored on the cloud test case (from muggle-remote-test-case-get). The first entry sizes the browser unless displayResolution overrides it.",
     ),
+  /** Project secrets the test case signs in as; absent or null means unpinned. */
+  pinnedAccount: PinnedAccountSchema.nullable().optional().describe("Pinned account from muggle-remote-test-case-get; the run signs in only as this pair"),
+  /** Whether every run starts from an empty browser session. */
+  alwaysStartsFreshSession: z.boolean().optional().describe("Stored fresh-session flag from muggle-remote-test-case-get; used when freshSession is not passed"),
 });
 
 export type TestCaseDetails = z.infer<typeof TestCaseDetailsSchema>;
+
+export type PinnedAccount = z.infer<typeof PinnedAccountSchema>;
 
 /**
  * Test script details schema.
@@ -96,7 +103,7 @@ export const ExecuteTestGenerationInputSchema = z.object({
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
   showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
-  freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
+  freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: the test case's stored alwaysStartsFreshSession flag (false when unset)."),
   /** Mutation parameters providing variable context for this generation run — a string[] where each element is a plain-English instruction or a local file path for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. */
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
   /** Resolution for this run. Overrides `testCase.displayOptions`; both absent means 1920x1080. */
@@ -124,10 +131,12 @@ export const ExecuteReplayInputSchema = z.object({
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
   showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
-  /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
-  freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: false."),
+  /** Whether the replay starts from an emptied browser session, copied from the recording. */
+  freshSession: z.boolean().optional().describe("Copy from actionParams.freshSession of the muggle-remote-action-script-get result, so the replay starts the way the script was recorded: true clears all session storage (cookies, localStorage, etc.) before execution. A recording without it may predate run identities; pass true then only for a test that needs clean browser state (registration, login, cookie consent). Default: false."),
   /** Mutation parameters passed to the LLM step predictor — a string[] where each element is an instruction describing what varies this run. Supports plain-English instructions (e.g. "The post content should be 'Hello world'") and local file paths for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
+  /** Pinned account the script was recorded with, copied from the recording. */
+  pinnedAccount: PinnedAccountSchema.nullable().optional().describe("Copy from actionParams.pinnedAccount of the muggle-remote-action-script-get result: the account the script was recorded as, not the test case's current pin. A pinned replay runs in that account's own browser session; omit when the recording carries none."),
   /** Resolution for this run. A test script carries no stored resolution, so this is replay's only sizing input. */
   displayResolution: DisplayResolutionSchema.optional().describe(
     "Browser resolution for this run, e.g. R_0390x0844 for a 390x844 phone viewport. Defaults to R_1920x1080.",

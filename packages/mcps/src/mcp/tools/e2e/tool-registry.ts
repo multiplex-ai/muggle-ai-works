@@ -386,13 +386,17 @@ const testCaseTools: IQaToolDefinition[] = [
           tags: toolInput.tags || [],
           category: toolInput.category || "Functional",
           automated: toolInput.automated ?? true,
+          ...(toolInput.pinnedAccount !== undefined && { pinnedAccount: toolInput.pinnedAccount }),
+          ...(toolInput.alwaysStartsFreshSession !== undefined && {
+            alwaysStartsFreshSession: toolInput.alwaysStartsFreshSession,
+          }),
         },
       };
     },
   },
   {
     name: "muggle-remote-test-case-update",
-    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     inputSchema: schemas.TestCaseUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
@@ -408,6 +412,10 @@ const testCaseTools: IQaToolDefinition[] = [
       if (toolInput.tags !== undefined) body.tags = toolInput.tags;
       if (toolInput.category !== undefined) body.category = toolInput.category;
       if (toolInput.automated !== undefined) body.automated = toolInput.automated;
+      if (toolInput.pinnedAccount !== undefined) body.pinnedAccount = toolInput.pinnedAccount;
+      if (toolInput.alwaysStartsFreshSession !== undefined) {
+        body.alwaysStartsFreshSession = toolInput.alwaysStartsFreshSession;
+      }
       return {
         method: "PUT",
         path: `${MUGGLE_TEST_PREFIX}/test-cases/${toolInput.testCaseId}`,
@@ -873,6 +881,8 @@ const workflowTools: IQaToolDefinition[] = [
           status: toolInput.status,
           executionTimeMs: toolInput.executionTimeMs,
           errorMessage: toolInput.errorMessage,
+          ...(toolInput.pinnedAccount && { pinnedAccount: toolInput.pinnedAccount }),
+          ...(toolInput.freshSession === true && { freshSession: true }),
         },
       };
     },

@@ -20,6 +20,16 @@ The product sends real mail to a real address. Nothing in the app under test nee
 
 Managed login profiles carry stored secrets, injected at run time. A flow behind a password, a paywall, or a seat licence is reachable — "there is no logged-in session" is not a reason to decline, nor to narrow scope to logged-out pages.
 
+## Pinned accounts
+
+A test case can be pinned to one account: a pair of the project's secrets, one holding the email and one the password (`pinnedAccount` on `muggle-remote-test-case-get`; set or clear it with `muggle-remote-test-case-update`, where `null` clears it). An unpinned test case behaves as before.
+
+- A pinned run signs in only as that account. If the page is signed in as anyone else, it signs out first. It is not offered the managed profile's login; other project secrets stay available.
+- Pinned runs sharing an account share its browser session; runs pinned to different accounts never see each other's.
+- A pin applies from the next generation. An existing script replays as recorded, so regenerate after changing a pin.
+- Only the managed profile's inbox is readable. A flow that needs email verification for any other pinned account cannot read its mail; pin such a test to the managed profile instead. Each lane's live managed profile is offered as its own pinnable account, its email and password taken together from that lane, never matched by secret name.
+- A pinned secret that was deleted, or that belongs to another project, fails the run before the browser starts, naming the secret.
+
 ## Receiving SMS
 
 A `readSms` step reads the newest messages sent to the profile's phone number and answers a question about them, exactly as `readEmail` does for mail. Texted one-time codes and SMS second factors are ordinary steps.

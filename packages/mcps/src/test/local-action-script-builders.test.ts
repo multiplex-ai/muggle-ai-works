@@ -162,3 +162,74 @@ describe("displayParams sizing", () => {
     expect(replayWith(DisplayResolution.R_0390x0844)).toEqual(PHONE_PARAMS);
   });
 });
+
+describe("buildGenerationActionScript run identity", () => {
+  const build = (testCaseExtra: Record<string, unknown>, freshSession?: boolean) =>
+    actionParams(
+      buildGenerationActionScript({
+        testCase: { ...makeTestCase(), ...testCaseExtra } as unknown as TestCaseDetails,
+        localUrl: "http://localhost:3999",
+        runId: "run-1",
+        localTestScriptId: "lts-1",
+        ownerUserId: "user-1",
+        freshSession: freshSession,
+      }),
+    );
+
+  it("emits pinnedAccount and freshSession for a pinned run that starts fresh", () => {
+    const pinnedAccount = { emailSecretId: "sec-e", passwordSecretId: "sec-p" };
+    const params = build({ pinnedAccount: pinnedAccount }, true);
+
+    expect(params.pinnedAccount).toEqual(pinnedAccount);
+    expect(params.freshSession).toBe(true);
+  });
+
+  it("records the effective value, not the test case's stored flag", () => {
+    const params = build({ alwaysStartsFreshSession: true }, false);
+
+    expect("freshSession" in params).toBe(false);
+  });
+
+  it("emits neither key for a legacy test case", () => {
+    const params = build({});
+
+    expect("pinnedAccount" in params).toBe(false);
+    expect("freshSession" in params).toBe(false);
+  });
+
+  it("emits neither key for an unpinned run that does not start fresh", () => {
+    const params = build({ pinnedAccount: null }, false);
+
+    expect("pinnedAccount" in params).toBe(false);
+    expect("freshSession" in params).toBe(false);
+  });
+});
+
+describe("buildReplayActionScript run identity", () => {
+  const build = (extra: Record<string, unknown>) =>
+    actionParams(
+      buildReplayActionScript({
+        testScript: makeTestScript(),
+        actionScript: [],
+        localUrl: "http://localhost:3999",
+        runId: "run-1",
+        ownerUserId: "user-1",
+        ...extra,
+      }),
+    );
+
+  it("emits pinnedAccount and freshSession when given", () => {
+    const pinnedAccount = { emailSecretId: "sec-e", passwordSecretId: "sec-p" };
+    const params = build({ pinnedAccount: pinnedAccount, freshSession: true });
+
+    expect(params.pinnedAccount).toEqual(pinnedAccount);
+    expect(params.freshSession).toBe(true);
+  });
+
+  it("emits neither key for a legacy replay", () => {
+    const params = build({});
+
+    expect("pinnedAccount" in params).toBe(false);
+    expect("freshSession" in params).toBe(false);
+  });
+});

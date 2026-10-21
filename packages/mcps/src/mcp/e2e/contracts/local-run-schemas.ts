@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
+import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 
 /**
@@ -33,4 +34,10 @@ export const LocalRunUploadInputSchema = z.object({
   status: z.enum(["passed", "failed"]).describe("Final local run status"),
   executionTimeMs: z.number().int().nonnegative().describe("Run duration in milliseconds"),
   errorMessage: z.string().optional().describe("Error message when status is failed"),
+  pinnedAccount: PinnedAccountSchema.optional().describe(
+    "The pinned account the run signed in as, copied from the run's actionParams. Omit when the run was not pinned",
+  ),
+  freshSession: z.boolean().optional().describe(
+    "True when the run started from an emptied browser session, copied from the run's actionParams. Omit otherwise",
+  ),
 });

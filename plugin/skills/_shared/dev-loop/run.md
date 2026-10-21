@@ -24,11 +24,11 @@ Per test case, branch on `mode`:
 
 **Replay**
 1. `muggle-remote-test-script-get` (latest replayable script — the lane-scoped one the caller resolved during classification per [`../failure-mode-handling.md`](../failure-mode-handling.md) §A) → note `actionScriptId`.
-2. `muggle-remote-action-script-get` with that id → full `actionScript` (see [`action-script.md`](action-script.md)).
-3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl`, `cwd`, `showUi`, `freshSession` (see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
+2. `muggle-remote-action-script-get` with that id → full `actionScript` (see [`action-script.md`](action-script.md)), plus the `pinnedAccount` and `freshSession` its `actionParams` recorded.
+3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl`, `cwd`, `showUi`, `pinnedAccount` and `freshSession` (each copied from the recording's `actionParams` when present; see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
 
 **Regen**
 1. `muggle-remote-test-case-get` → full test case object.
-2. `muggle-local-execute-test-generation` with `testCase`, `localUrl`, `cwd`, `showUi`, `freshSession`, `timeoutMs`.
+2. `muggle-local-execute-test-generation` with `testCase`, `localUrl`, `cwd`, `showUi`, `freshSession` (omit it so the stored flag decides; pass it only to override for this run, per [`fresh-session.md`](fresh-session.md)), `timeoutMs`.
 
 Store the returned `runId`, tagged with its `mode`. If a run fails, log it and continue the batch — never abort. Read the result per [`failures.md`](failures.md), then [`publish.md`](publish.md).

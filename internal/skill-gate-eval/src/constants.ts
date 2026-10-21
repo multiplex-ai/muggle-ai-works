@@ -69,12 +69,12 @@ export const CODEX_GATE_TRACE_ENV = "MUGGLE_GATE_EVAL_TRACE";
 /** The scenario's scripted answers, as a JSON file the Codex hook reads. */
 export const CODEX_GATE_ANSWERS_ENV = "MUGGLE_GATE_EVAL_ANSWERS";
 
-/** First line of every config.toml the Codex harness writes; it refuses to overwrite one without it. */
-export const CODEX_GATE_HOME_MARKER = "# Written by the muggle skill-gate eval, which owns this directory.";
+/** First line of every config.toml an eval's Codex harness writes; each refuses to overwrite one without it. */
+export const CODEX_EVAL_HOME_MARKER = "# Written by a muggle eval harness, which owns this directory.";
 
 /**
- * Codex tools the run switches off, so the model is offered what the agent SDK
- * harness offers: the mock muggle tools and a way to ask the user. What these
- * leave (Codex's MCP-resource tools) the hook denies.
+ * Codex tools no eval offers — neither agent SDK harness has an equivalent —
+ * switched off so the model is not handed them. What they leave besides the
+ * eval's own tools (Codex's MCP-resource tools, apply_patch) the hooks deny.
  */
-export const CODEX_DISABLED_FEATURES = ["shell_tool", "view_image", "multi_agent", "image_generation", "goals"];
+export const CODEX_UNUSED_FEATURES = ["view_image", "multi_agent", "image_generation", "goals"];

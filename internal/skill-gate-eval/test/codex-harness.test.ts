@@ -4,16 +4,9 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
-import {
-  closingMessageOf,
-  codexQuestionGuidance,
-  prepareCodexGateHome,
-  readCodexGateTrace,
-  threadIdOf,
-  turnFailureOf,
-} from "../src/codex-harness.js";
-import { CODEX_GATE_ANSWERS_ENV, CODEX_GATE_HOME_MARKER, CODEX_GATE_TRACE_ENV } from "../src/constants.js";
-import { mockToolSpecs } from "../src/mock-tools.js";
+import { closingMessageOf, mockToolNamesByCodexName, threadIdOf, turnFailureOf } from "../src/codex-cli.js";
+import { codexQuestionGuidance, prepareCodexGateHome, readCodexGateTrace } from "../src/codex-harness.js";
+import { CODEX_EVAL_HOME_MARKER, CODEX_GATE_ANSWERS_ENV, CODEX_GATE_TRACE_ENV } from "../src/constants.js";
 import type { CodexGateTraceEntry, Scenario } from "../src/types.js";
 import { extractFirstQuestionText, matchAskQuestionAnswer } from "../src/verdict.js";
 
@@ -120,7 +113,7 @@ describe("reading what a Codex run did", () => {
       { tool_name: "mcp__muggle__muggle_local_execute_test_generation", tool_input: { showUi: true } },
     ];
     writeFileSync(trace, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
-    const names = new Map(mockToolSpecs({}).map((spec) => [`mcp__muggle__${spec.name.replace(/[^A-Za-z0-9_]/g, "_")}`, spec.name]));
+    const names = mockToolNamesByCodexName({});
     const all = readCodexGateTrace(trace, 0, names);
     expect(all.entries).toBe(4);
     expect(all.mcpCalls).toEqual([
@@ -156,7 +149,7 @@ describe("the Codex home and prompt", () => {
     const codexHome = mkdtempSync(join(tmpdir(), "codex-gate-home-"));
     prepareCodexGateHome(codexHome, { lastHost: "http://localhost:3000" });
     const config = readFileSync(join(codexHome, "config.toml"), "utf-8");
-    expect(config.startsWith(CODEX_GATE_HOME_MARKER)).toBe(true);
+    expect(config.startsWith(CODEX_EVAL_HOME_MARKER)).toBe(true);
     expect(config).toContain("shell_tool = false");
     expect(config).toContain('default_tools_approval_mode = "approve"');
     expect(() => prepareCodexGateHome(codexHome, {})).not.toThrow();

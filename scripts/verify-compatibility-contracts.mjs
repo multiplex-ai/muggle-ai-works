@@ -13,6 +13,7 @@ const packageJsonPath = join(repositoryRootPath, "package.json");
 const serverJsonPath = join(repositoryRootPath, "server.json");
 const claudePluginManifestPath = join(repositoryRootPath, "plugin", ".claude-plugin", "plugin.json");
 const cursorPluginManifestPath = join(repositoryRootPath, "plugin", ".cursor-plugin", "plugin.json");
+const codexPluginManifestPath = join(repositoryRootPath, "plugin", ".codex-plugin", "plugin.json");
 const hooksJsonPath = join(repositoryRootPath, "plugin", "hooks", "hooks.json");
 const skillDirectoryPath = join(repositoryRootPath, "plugin", "skills");
 const runCliPath = join(repositoryRootPath, "packages", "commands", "src", "cli", "run-cli.ts");
@@ -29,6 +30,7 @@ function verifyCompatibilityContracts() {
     const serverJson = readJsonFile(serverJsonPath);
     const claudePluginManifest = readJsonFile(claudePluginManifestPath);
     const cursorPluginManifest = readJsonFile(cursorPluginManifestPath);
+    const codexPluginManifest = readJsonFile(codexPluginManifestPath);
     const hooksJson = readJsonFile(hooksJsonPath);
     const runCliSourceCode = readTextFile(runCliPath);
 
@@ -45,6 +47,7 @@ function verifyCompatibilityContracts() {
         pluginContract: contracts.plugins,
         claudePluginManifest: claudePluginManifest,
         cursorPluginManifest: cursorPluginManifest,
+        codexPluginManifest: codexPluginManifest,
         hooksJson: hooksJson,
     });
     verifySkillsContract({
@@ -108,10 +111,10 @@ function verifyServerContract({ serverContract, serverJson }) {
 
 /**
  * Verify plugin manifests and hooks contract.
- * @param {{ pluginContract: Record<string, unknown>, claudePluginManifest: Record<string, unknown>, cursorPluginManifest: Record<string, unknown>, hooksJson: Record<string, unknown> }} params
+ * @param {{ pluginContract: Record<string, unknown>, claudePluginManifest: Record<string, unknown>, cursorPluginManifest: Record<string, unknown>, codexPluginManifest: Record<string, unknown>, hooksJson: Record<string, unknown> }} params
  * @returns {void}
  */
-function verifyPluginContract({ pluginContract, claudePluginManifest, cursorPluginManifest, hooksJson }) {
+function verifyPluginContract({ pluginContract, claudePluginManifest, cursorPluginManifest, codexPluginManifest, hooksJson }) {
     assertValue({
         condition: claudePluginManifest.name === pluginContract.requiredName,
         message: `plugin/.claude-plugin/plugin.json name (${claudePluginManifest.name}) must equal plugins.requiredName (${pluginContract.requiredName}).`,
@@ -119,6 +122,12 @@ function verifyPluginContract({ pluginContract, claudePluginManifest, cursorPlug
     assertValue({
         condition: cursorPluginManifest.name === pluginContract.requiredName,
         message: `plugin/.cursor-plugin/plugin.json name (${cursorPluginManifest.name}) must equal plugins.requiredName (${pluginContract.requiredName}).`,
+    });
+    // Codex names every plugin skill after this (`$muggle:muggle-test`), so it is
+    // the same public namespace Claude Code's `/muggle:muggle-test` exposes.
+    assertValue({
+        condition: codexPluginManifest.name === pluginContract.requiredName,
+        message: `plugin/.codex-plugin/plugin.json name (${codexPluginManifest.name}) must equal plugins.requiredName (${pluginContract.requiredName}).`,
     });
 
     const sessionStartHooks = hooksJson?.hooks?.SessionStart;

@@ -20,7 +20,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="record-stage-signals"
 
 guardrail_wants() {
-  guardrail_payload_matches 'MUGGLE_[A-Z0-9_]+_SKIP|muggle.*(telemetry-event-emit|user-feedback-create)'
+  guardrail_payload_matches 'MUGGLE_[A-Z0-9_]+_SKIP|muggle.*(telemetry[-_]event[-_]emit|user[-_]feedback[-_]create)'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

@@ -5,6 +5,7 @@ import {
   applyPrTerminalDetected,
   applyPrReopened,
   applyNextOptionsOffered,
+  closingMessageAsksUser,
   prTerminalGateDecision,
 } from "../../guardrails/prTerminal";
 import { PrTerminalGateAction, PrTerminalVerdict, type GuardrailState } from "../../guardrails/types";
@@ -199,6 +200,17 @@ describe("prTerminalGateDecision", () => {
     expect(afterUnitPass.terminalBlockCount).toBe(2);
     expect(afterUnitPass.terminalPending).toEqual([341]);
     expect(prTerminalGateDecision(afterUnitPass)).toEqual({ action: PrTerminalGateAction.Block, blockCount: 3 });
+  });
+});
+
+describe("closingMessageAsksUser", () => {
+  it("reads a closing question as the offer", () => {
+    expect(closingMessageAsksUser("PR #77 merged. Next: 1) release, 2) the queued work — which one?")).toBe(true);
+  });
+
+  it("does not read a report with nothing asked as one", () => {
+    expect(closingMessageAsksUser("PR #77 merged and the watcher is finalized.")).toBe(false);
+    expect(closingMessageAsksUser(undefined)).toBe(false);
   });
 });
 

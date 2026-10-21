@@ -3,6 +3,7 @@
 import { existsSync, readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
+import { renderCodexHooks } from "./build-codex-hooks.mjs";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const scriptsDirectoryPath = dirname(currentFilePath);
@@ -11,10 +12,27 @@ const repositoryRootPath = join(scriptsDirectoryPath, "..");
 const packageJsonPath = join(repositoryRootPath, "package.json");
 const claudeMarketplacePath = join(repositoryRootPath, ".claude-plugin", "marketplace.json");
 const cursorMarketplacePath = join(repositoryRootPath, ".cursor-plugin", "marketplace.json");
+const codexMarketplacePath = join(repositoryRootPath, ".agents", "plugins", "marketplace.json");
 const claudePluginManifestPath = join(repositoryRootPath, "plugin", ".claude-plugin", "plugin.json");
 const cursorPluginManifestPath = join(repositoryRootPath, "plugin", ".cursor-plugin", "plugin.json");
+const codexPluginManifestPath = join(repositoryRootPath, "plugin", ".codex-plugin", "plugin.json");
+const pluginRootPath = join(repositoryRootPath, "plugin");
+const claudeMcpConfigPath = join(pluginRootPath, ".mcp.json");
+const codexHooksPath = join(pluginRootPath, "hooks", "codex-hooks.json");
 const builtClaudePluginManifestPath = join(repositoryRootPath, "dist", "plugin", ".claude-plugin", "plugin.json");
 const builtCursorPluginManifestPath = join(repositoryRootPath, "dist", "plugin", ".cursor-plugin", "plugin.json");
+const builtCodexPluginManifestPath = join(repositoryRootPath, "dist", "plugin", ".codex-plugin", "plugin.json");
+
+// Claude Code and Cursor install the marketplace's `muggleai` entry; Codex
+// requires the entry name to equal plugin.json's, and the shared `muggle`
+// namespace is what skills and hooks name (`/muggle:…`, `$muggle:…`).
+const CLAUDE_MARKETPLACE_PLUGIN_NAME = "muggleai";
+const CODEX_MARKETPLACE_PLUGIN_NAME = "muggle";
+
+// The longest local run the skills ask for (plugin/skills/_shared/dev-loop/timeouts.md:
+// timeoutMs 900000). Codex cancels an MCP call at its tool timeout — 60s unless set —
+// so the Codex server must outlast that run.
+const LONGEST_DOCUMENTED_LOCAL_RUN_SECONDS = 900;
 const serverJsonPath = join(repositoryRootPath, "server.json");
 
 verifyPluginMarketplace();
@@ -29,11 +47,15 @@ function verifyPluginMarketplace() {
 
     // Claude marketplace
     const claudeMarketplace = readJsonFile(claudeMarketplacePath);
-    verifyMarketplace({ marketplace: claudeMarketplace, version, label: "Claude" });
+    verifyMarketplace({ marketplace: claudeMarketplace, version, label: "Claude", pluginName: CLAUDE_MARKETPLACE_PLUGIN_NAME });
 
     // Cursor marketplace
     const cursorMarketplace = readJsonFile(cursorMarketplacePath);
-    verifyMarketplace({ marketplace: cursorMarketplace, version, label: "Cursor" });
+    verifyMarketplace({ marketplace: cursorMarketplace, version, label: "Cursor", pluginName: CLAUDE_MARKETPLACE_PLUGIN_NAME });
+
+    // Codex marketplace
+    const codexMarketplace = readJsonFile(codexMarketplacePath);
+    verifyMarketplace({ marketplace: codexMarketplace, version, label: "Codex", pluginName: CODEX_MARKETPLACE_PLUGIN_NAME });
 
     // Plugin manifests (source)
     const claudePlugin = readJsonFile(claudePluginManifestPath);
@@ -42,12 +64,19 @@ function verifyPluginMarketplace() {
     const cursorPlugin = readJsonFile(cursorPluginManifestPath);
     verifyPluginManifest({ manifest: cursorPlugin, version, label: "Cursor" });
 
+    const codexPlugin = readJsonFile(codexPluginManifestPath);
+    verifyPluginManifest({ manifest: codexPlugin, version, label: "Codex" });
+    verifyCodexPluginManifest({ manifest: codexPlugin });
+
     // Plugin manifests (built)
     const builtClaudePlugin = readJsonFile(builtClaudePluginManifestPath);
     verifyPluginManifest({ manifest: builtClaudePlugin, version, label: "Built Claude" });
 
     const builtCursorPlugin = readJsonFile(builtCursorPluginManifestPath);
     verifyPluginManifest({ manifest: builtCursorPlugin, version, label: "Built Cursor" });
+
+    const builtCodexPlugin = readJsonFile(builtCodexPluginManifestPath);
+    verifyPluginManifest({ manifest: builtCodexPlugin, version, label: "Built Codex" });
 
     // MCP registry metadata
     const serverJson = readJsonFile(serverJsonPath);
@@ -69,10 +98,10 @@ function verifyPluginMarketplace() {
 
 /**
  * Verify a marketplace.json file.
- * @param {{ marketplace: Record<string, unknown>, version: string, label: string }} params
+ * @param {{ marketplace: Record<string, unknown>, version: string, label: string, pluginName: string }} params
  * @returns {void}
  */
-function verifyMarketplace({ marketplace, version, label }) {
+function verifyMarketplace({ marketplace, version, label, pluginName }) {
     assertValue({
         condition: marketplace.name === "muggle-works",
         message: `${label} marketplace name must be muggle-works.`,
@@ -86,8 +115,8 @@ function verifyMarketplace({ marketplace, version, label }) {
     const [plugin] = marketplace.plugins;
 
     assertValue({
-        condition: plugin.name === "muggleai",
-        message: `${label} marketplace plugin entry name must be muggleai.`,
+        condition: plugin.name === pluginName,
+        message: `${label} marketplace plugin entry name must be ${pluginName}.`,
     });
 
     assertValue({
@@ -121,6 +150,52 @@ function verifyPluginManifest({ manifest, version, label }) {
     assertValue({
         condition: manifest.version === version,
         message: `${label} plugin manifest version (${manifest.version}) must match package.json version (${version}).`,
+    });
+}
+
+/**
+ * Verify what only Codex reads from its plugin manifest: the component paths,
+ * the Codex MCP server config, and the generated Codex hooks manifest.
+ * @param {{ manifest: Record<string, unknown> }} params
+ * @returns {void}
+ */
+function verifyCodexPluginManifest({ manifest }) {
+    for (const field of ["skills", "mcpServers", "hooks"]) {
+        const declaredPath = manifest[field];
+        assertValue({
+            condition: typeof declaredPath === "string" && declaredPath.startsWith("./"),
+            message: `Codex plugin manifest ${field} must be a "./"-relative path; Codex ignores any other form.`,
+        });
+        assertValue({
+            condition: existsSync(join(pluginRootPath, declaredPath)),
+            message: `Codex plugin manifest ${field} path does not exist: ${declaredPath}`,
+        });
+    }
+
+    const codexServer = readJsonFile(join(pluginRootPath, manifest.mcpServers)).mcpServers?.muggle;
+    const claudeServer = readJsonFile(claudeMcpConfigPath).mcpServers?.muggle;
+    assertValue({
+        condition: Boolean(codexServer),
+        message: "Codex MCP config must declare the muggle server.",
+    });
+    assertValue({
+        condition:
+            codexServer.command === claudeServer.command &&
+            JSON.stringify(codexServer.args) === JSON.stringify(claudeServer.args),
+        message: "Codex MCP config must launch the muggle server exactly as plugin/.mcp.json does.",
+    });
+    assertValue({
+        condition: codexServer.env?.MUGGLE_MCP_HOST === "codex",
+        message: "Codex MCP config must stamp MUGGLE_MCP_HOST=codex; Codex passes MCP servers no host signal of its own.",
+    });
+    assertValue({
+        condition: Number(codexServer.tool_timeout_sec) > LONGEST_DOCUMENTED_LOCAL_RUN_SECONDS,
+        message: `Codex MCP tool_timeout_sec must exceed ${LONGEST_DOCUMENTED_LOCAL_RUN_SECONDS}s, the longest local run the skills request.`,
+    });
+
+    assertValue({
+        condition: readFileSync(codexHooksPath, "utf-8") === renderCodexHooks(),
+        message: "plugin/hooks/codex-hooks.json is out of date with plugin/hooks/hooks.json. Run `pnpm run build:codex-hooks`.",
     });
 }
 

@@ -29,8 +29,36 @@ export const MAX_PR_TERMINAL_BLOCKS = 3;
 
 // The tools that carry a shell command. A session picks its shell by platform,
 // so the same `gh pr create` arrives under either name — and a guard that reads
-// only one of them is blind on the other half of the fleet.
+// only one of them is blind on the other half of the fleet. Codex reports every
+// shell call as `Bash`, whatever the platform.
 export const SHELL_TOOL_NAMES = ["Bash", "PowerShell"] as const;
+
+// Stamped on every command of plugin/hooks/codex-hooks.json. Codex exports
+// CLAUDE_PLUGIN_ROOT to plugin hooks for compatibility, so without the stamp a
+// Codex hook is indistinguishable from a Claude Code one.
+export const HOOK_HOST_ENV_VAR = "MUGGLE_HOOK_HOST";
+
+// The structured question tools that can carry the post-merge next-options
+// offer: Claude Code's, and Codex's (offered only in some Codex modes).
+export const NEXT_OPTIONS_OFFER_TOOL_NAMES = ["AskUserQuestion", "request_user_input"] as const;
+
+// Shell programs whose job is printing a file. A host with no Read tool (Codex)
+// opens a skill's stage files this way, so these are what count as a read.
+export const FILE_PRINTING_PROGRAMS = [
+  "cat",
+  "sed",
+  "head",
+  "tail",
+  "nl",
+  "less",
+  "more",
+  "bat",
+  "batcat",
+  "awk",
+  "get-content",
+  "gc",
+  "type",
+] as const;
 
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;
@@ -44,6 +72,16 @@ export const MAX_WALKTHROUGH_BLOCKS = 3;
 /** Ceiling on each `gh` lookup the walkthrough gate runs at turn end; a hung call must never hold the turn open. */
 export const GH_LOOKUP_TIMEOUT_MS = 10_000;
 
+/**
+ * A muggle MCP tool's name as every host reports it. Claude Code and Cursor keep
+ * the server's hyphens; Codex turns every character outside [A-Za-z0-9_] into
+ * `_` (`mcp__muggle__muggle_local_execute_replay`), so each hyphen in the
+ * spelling given here matches either.
+ */
+function mcpToolNamePattern(hyphenatedSource: string): RegExp {
+  return new RegExp(hyphenatedSource.replaceAll("-", "[-_]"), "i");
+}
+
 // The muggle-test skill's own first-step telemetry emit
 // (mcp__…muggle-local-telemetry-skill-emit with skillName "muggle-test").
 // Registering it as an E2E run covers the clean-SKIP verdict: the skill runs
@@ -52,7 +90,7 @@ export const GH_LOOKUP_TIMEOUT_MS = 10_000;
 // signal the gate could see, so it kept blocking on changes it structurally
 // couldn't test. Keyed on the emitting tool name plus its own skillName input
 // (never Bash text), so casual mentions of "muggle-test" stay inert.
-export const MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
+export const MUGGLE_SKILL_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-skill-emit");
 export const MUGGLE_TEST_SKILL_NAME = "muggle-test";
 
 /** Optional SKILL.md frontmatter key holding the stage files a skill cannot be executed without. */
@@ -80,13 +118,13 @@ export const ANY_TEST_CASE = "*";
 // The local execution tools the classification gate stands in front of, and the
 // pair whose non-passing result owes a debug path. Both burn a real browser run
 // (~5 minutes), which is what makes a pre-flight check worth a hook.
-export const MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
+export const MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
 
 /** The telemetry emit that carries the Step 6f / debug-path decisions the stage gates key on. */
-export const MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
+export const MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
 
 /** The feedback submission that counts as debug-path evidence for the run it names. */
-export const MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+export const MUGGLE_FEEDBACK_CREATE_TOOL = mcpToolNamePattern("muggle-remote-user-feedback-create");
 
 /** Step 6f's event type — the classification that calls `muggle-remote-test-script-list` before a run is spent. */
 export const PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";

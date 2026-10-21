@@ -29,6 +29,18 @@ Instructions for the AI agent...
 
 The `description` field determines when Claude invokes the skill. Make it specific — include trigger phrases, contexts, and what the skill does.
 
+### Codex
+
+The same skill ships to Codex, which loads it as `$muggle:<name>`. Codex drops a skill whose `name` exceeds 64 characters or whose `description` is empty, without an error anyone sees.
+
+Right after the telemetry line, add the pointer every top-level skill carries, so a session outside Claude Code reads the tool names the skill uses as its own host's:
+
+```markdown
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+```
+
+A new short alias also gets `agents/openai.yaml` with `policy.allow_implicit_invocation: false` — Codex's equivalent of `disable-model-invocation: true` — and a body that says how to open the canonical skill where there is no `Skill` tool. Copy an existing alias. `src/test/skills/codex-skill-compat.test.ts` checks all of this.
+
 ## 2. Update the router
 
 **File:** `plugin/skills/muggle/SKILL.md`
@@ -101,6 +113,8 @@ Skills are discovered automatically by directory — `scripts/postinstall.mjs` s
 
 ```
 [ ] plugin/skills/<skill-name>/SKILL.md created (name without muggle- prefix)
+[ ] SKILL.md — host-tool-equivalents pointer after the telemetry line
+[ ] Alias only — agents/openai.yaml with allow_implicit_invocation: false
 [ ] plugin/skills/muggle/SKILL.md — menu + routing updated
 [ ] plugin/README.md — skills table updated
 [ ] README.md — install list updated

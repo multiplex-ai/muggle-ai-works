@@ -7,9 +7,10 @@ set -uo pipefail
 # Nudges once per session, then stays quiet.
 #
 # This must stay synchronous (only a sync Stop hook can block the turn end) and
-# it fires on EVERY turn end, so the pre-filter has to be cheap. A Stop payload
-# carries no message text, only a transcript path, and the claim lives in the
-# assistant's prose — so the filter greps the transcript tail for an
+# it fires on EVERY turn end, so the pre-filter has to be cheap. The claim lives
+# in the assistant's prose. A payload carrying the closing message
+# (`last_assistant_message` — Codex always sends it, Claude Code may) is
+# searched in-shell; otherwise the filter greps the transcript tail for an
 # impossibility word in-shell and spawns Node only on a hit. Node then applies
 # the real per-sentence detector, which is what keeps a genuine SMS/TOTP limit
 # from being "corrected". Over-matching here costs a needless spawn; it can
@@ -26,6 +27,12 @@ guardrail_wants() {
   if guardrail_load_state && guardrail_state_has '"capabilityClaimNudged": true'; then
     return 1
   fi
+  local claim_pattern='can.t|cannot|unable to|no way to|untestable|unverifiable|impossible|infeasible'
+  local closing_message_pattern='"last_assistant_message"[[:space:]]*:[[:space:]]*"'
+  if [[ $GUARDRAIL_PAYLOAD =~ $closing_message_pattern ]]; then
+    guardrail_payload_matches "$claim_pattern"
+    return
+  fi
   local transcript_pattern='"transcript_path"[[:space:]]*:[[:space:]]*"([^"]*)"'
   [[ $GUARDRAIL_PAYLOAD =~ $transcript_pattern ]] || return 1
   local json_escaped_separator='\\'
@@ -35,7 +42,6 @@ guardrail_wants() {
   # in-shell costs more than a tail. Gone for the session once the gate has nudged.
   local transcript_tail
   transcript_tail="$(tail -c 20000 "$transcript" 2>/dev/null)"
-  local claim_pattern='can.t|cannot|unable to|no way to|untestable|unverifiable|impossible|infeasible'
   local matched=1
   shopt -s nocasematch
   [[ $transcript_tail =~ $claim_pattern ]] && matched=0

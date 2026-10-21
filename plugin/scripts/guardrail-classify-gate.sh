@@ -9,7 +9,8 @@ set -uo pipefail
 # once skipped.
 #
 # The pre-filter re-states the execution tool names the gate acts on, so an
-# unrelated payload never pays Node cold-start. It stays cheap by construction:
+# unrelated payload never pays Node cold-start. `[-_]` because Codex reports an
+# MCP tool with underscores where the server spells hyphens. It stays cheap by construction:
 # an execution call happens minutes apart and burns a real browser, so the spawn
 # is noise against what it protects. Degrades to {}.
 
@@ -20,7 +21,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="classify-gate"
 
 guardrail_wants() {
-  guardrail_payload_matches 'muggle-local-(execute-test-generation|execute-replay)'
+  guardrail_payload_matches 'muggle[-_]local[-_](execute[-_]test[-_]generation|execute[-_]replay)'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

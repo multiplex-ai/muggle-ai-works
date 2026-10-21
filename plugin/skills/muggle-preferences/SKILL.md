@@ -8,6 +8,8 @@ description: "View, set, or reset Muggle AI preferences that control testing beh
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-preferences"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Pick the operation, then read its op file for the procedure.
 
 | Intent | Op file |

@@ -24,7 +24,7 @@ export function loadScenarioFile(filePath: string): ScenarioFile {
 /**
  * Load a fixtures.json sitting next to (or relative to) the scenario file.
  *
- * Output shape: arbitrary record consumed by `mock-mcp.ts` stubs — keys
+ * Output shape: arbitrary record consumed by the `mock-tools.ts` stubs — keys
  * map to per-tool canned responses (e.g. `projects`, `useCases`,
  * `executeResult`).
  */

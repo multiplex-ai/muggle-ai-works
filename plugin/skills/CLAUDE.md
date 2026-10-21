@@ -36,6 +36,12 @@ Invoking the skill names those files as required reading, and a Stop gate holds 
 
 The bar is "must be **read** before the skill runs", not "must be executed". A failure protocol qualifies: by the time a run fails, a skill that never read it is already improvising. What does not qualify is a file only one branch consults for its content — the gate cannot tell that the branch was not taken, so it would block work that legitimately never needed it. Aliases declare nothing; they invoke the canonical skill, which carries the declaration.
 
+## Host compatibility
+
+Skills are written against Claude Code's tools and ship unchanged to Codex. [`_shared/host-tool-equivalents.md`](_shared/host-tool-equivalents.md) maps each Claude Code name a skill uses — `AskUserQuestion`, the `Skill` tool, `${CLAUDE_PLUGIN_ROOT}`, the PR watcher's monitor — to what plays its part in Codex. Every top-level `SKILL.md` links it right after its telemetry line, and the Codex SessionStart hook names it too.
+
+When a skill comes to depend on another Claude Code-only tool, add its row there; never branch a skill's steps per host. An alias also carries `agents/openai.yaml` with `allow_implicit_invocation: false`, which is how Codex reads `disable-model-invocation`. `src/test/skills/codex-skill-compat.test.ts` holds all three.
+
 ## Model tiers
 
 Each skill sets a `model:` in its `SKILL.md` frontmatter sized to its cognitive load. `model:` is a native Claude Code field — the override applies while the skill is active and reverts to the session model when it exits. Cheaper, faster models run the mechanical skills; the default (Opus) is reserved for the ones that actually reason. Cost and latency scale with the model, and these skills run often (the watcher fires every minute), so the tier is a real lever, not cosmetics.

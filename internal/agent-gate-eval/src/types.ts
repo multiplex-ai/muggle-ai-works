@@ -96,3 +96,29 @@ export interface AgentRunOptions {
   scenario: AgentScenario;
   maxTurns?: number;
 }
+
+/** One agent scenario run under Codex (codex-harness.ts). */
+export interface CodexAgentRunOptions extends AgentRunOptions {
+  /** The Codex home prepareCodexAgentHome set up. */
+  codexHome: string;
+  /** Unset, Codex runs its default model: Codex ignores an agent's `model:` pin. */
+  codexModel?: string;
+  /** Codex's `--sandbox` for the plugin reads that really run; defaults to read-only. */
+  sandbox?: string;
+  /** Extra `-c key=value` overrides for the `codex exec`, e.g. a model provider. */
+  configOverrides?: string[];
+}
+
+/** What the Codex hook answers a shell call with, unless it only reads the plugin tree. */
+export interface CodexScriptedBash {
+  responses: ScriptedBashResponse[];
+  /** The output for a command no response matches — harness.ts `UNSCRIPTED_BASH_RESPONSE`. */
+  unscripted: string;
+}
+
+/** One tool call the Codex hook recorded. */
+export interface CodexAgentTraceEntry {
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+}
+

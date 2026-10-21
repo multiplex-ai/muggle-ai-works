@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { buildCodexInstructions } from "../src/codex-harness.js";
 import { buildSystemPrompt } from "../src/harness.js";
 import type { RunOptions } from "../src/types.js";
 
@@ -18,9 +19,16 @@ const SUPPORT_BODY = "SUPPORT_FILE_MARKER";
  * changes *because* nothing but SKILL.md and the gate contract can reach a
  * prompt — the harness denies the Read tool, so a skill under eval cannot open
  * anything else. If that ever stops holding, this test fails and the workflow's
- * scope rule has to widen with it.
+ * scope rule has to widen with it. The Codex harness (no shell, every other tool
+ * denied) is held to the same contract; its one addition is the AskUserQuestion
+ * row of the skills' host-tool-equivalents table, which its scope rule covers.
  */
-describe("the gate prompt is built from the skill and its gate contract only", () => {
+const PROMPT_BUILDERS = [
+  { host: "the agent SDK", build: buildSystemPrompt },
+  { host: "Codex", build: buildCodexInstructions },
+];
+
+describe.each(PROMPT_BUILDERS)("the gate prompt under $host is built from the skill and its gate contract only", ({ build }) => {
   let skillsDir: string;
   let options: RunOptions;
 
@@ -33,6 +41,11 @@ describe("the gate prompt is built from the skill and its gate contract only", (
     writeFileSync(
       join(skillsDir, "muggle-preferences", "preference-gates", `${GATE}.md`),
       GATE_BODY,
+    );
+    mkdirSync(join(skillsDir, "_shared"), { recursive: true });
+    writeFileSync(
+      join(skillsDir, "_shared", "host-tool-equivalents.md"),
+      "| `AskUserQuestion` | Clickable options | QUESTION_RULE_MARKER |\n",
     );
 
     options = {
@@ -49,16 +62,16 @@ describe("the gate prompt is built from the skill and its gate contract only", (
   });
 
   it("carries the skill body and the gate contract", () => {
-    const prompt = buildSystemPrompt(options);
+    const prompt = build(options);
     expect(prompt).toContain(SKILL_BODY);
     expect(prompt).toContain(GATE_BODY);
   });
 
   it("never reaches a support file in the skill directory", () => {
-    expect(buildSystemPrompt(options)).not.toContain(SUPPORT_BODY);
+    expect(build(options)).not.toContain(SUPPORT_BODY);
   });
 
   it("carries the scenario's preferences, which are the other half of the input", () => {
-    expect(buildSystemPrompt(options)).toContain("checkForUpdates=ask");
+    expect(build(options)).toContain("checkForUpdates=ask");
   });
 });

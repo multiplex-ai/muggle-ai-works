@@ -12,12 +12,20 @@
  *     [--concurrency 8]           # parallel reps; AGENT_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]    # only run scenarios whose name contains this
  *     [--verbose]                 # dump per-run trace to stderr
+ *     [--host codex]              # run the reps in the Codex CLI (codex-harness.ts)
+ *     [--codex-home <dir>]        # under Codex: a Codex home the eval may own (default: a fresh one)
+ *     [--codex-config <key=value>] # under Codex: a config override for every run (repeatable)
+ *     [--model <id>]              # under Codex only: the model to run (default: Codex's own)
  *
  * The model is always the agent's frontmatter pin — there is no --model
  * override: the pinned model honoring the contract IS what this eval gates.
+ * Codex ignores the pin and runs every agent on the session's model, so under
+ * Codex the reps run Codex's default model, or the one --model names. Codex
+ * results go to <agent>.codex.results.json, beside the agent SDK's.
  */
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 import {
@@ -29,10 +37,12 @@ import {
   DEFAULT_GATE_EVAL_CONCURRENCY,
   PASS_THRESHOLD,
 } from "../../skill-gate-eval/src/constants.js";
+import { EvalHost } from "../../skill-gate-eval/src/types.js";
 import { loadAgentDefinition } from "./agent-definition.js";
+import { prepareCodexAgentHome, runAgentScenarioOnceInCodex } from "./codex-harness.js";
 import { runAgentScenarioOnce } from "./harness.js";
 import { loadAgentScenarioFile } from "./scenario.js";
-import type { AgentRunVerdict } from "./types.js";
+import type { AgentRunOptions, AgentRunVerdict } from "./types.js";
 
 interface AgentCliArgs {
   agent: string;
@@ -42,6 +52,11 @@ interface AgentCliArgs {
   concurrency: number;
   scenarioFilter?: string;
   verbose: boolean;
+  host: EvalHost;
+  /** Under Codex only: the model to run; unset, Codex's default. */
+  codexModel?: string;
+  codexHome?: string;
+  codexConfig: string[];
 }
 
 const DEFAULT_AGENT_RUNS = 5;
@@ -49,6 +64,7 @@ const DEFAULT_AGENT_RUNS = 5;
 function parseArgs(argv: string[]): AgentCliArgs {
   const out: Record<string, string> = {};
   const flags = new Set<string>();
+  const codexConfig: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith("--")) continue;
@@ -57,12 +73,20 @@ function parseArgs(argv: string[]): AgentCliArgs {
     if (val === undefined || val.startsWith("--")) {
       flags.add(key);
     } else {
-      out[key] = val;
+      if (key === "codex-config") codexConfig.push(val);
+      else out[key] = val;
       i++;
     }
   }
   if (!out.agent) {
     throw new Error("Required: --agent <name>");
+  }
+  const host = (out.host ?? EvalHost.Claude) as EvalHost;
+  if (!Object.values(EvalHost).includes(host)) {
+    throw new Error(`--host must be one of ${Object.values(EvalHost).join(", ")}, got "${out.host}"`);
+  }
+  if (out.model && host !== EvalHost.Codex) {
+    throw new Error("--model applies under --host codex only: the agent SDK run is the agent's pinned model");
   }
   const concurrencyRaw =
     out.concurrency ??
@@ -80,6 +104,10 @@ function parseArgs(argv: string[]): AgentCliArgs {
     concurrency: concurrency,
     scenarioFilter: out.scenario,
     verbose: flags.has("verbose"),
+    host: host,
+    codexModel: out.model,
+    codexHome: out["codex-home"],
+    codexConfig: codexConfig,
   };
 }
 
@@ -96,10 +124,30 @@ async function main(): Promise<void> {
       `Scenario file is for agent ${scenarioFile.agent}, not ${definition.name}`,
     );
   }
+  const modelLabel =
+    args.host === EvalHost.Codex ? (args.codexModel ?? "codex default") : definition.model;
   // eslint-disable-next-line no-console
   console.error(
-    `[agent-gate-eval] ${definition.name} — model=${definition.model} (pin: ${definition.modelAlias}) runs=${args.runs} concurrency=${args.concurrency}`,
+    `[agent-gate-eval] ${definition.name} — host=${args.host} model=${modelLabel} (pin: ${definition.modelAlias}) runs=${args.runs} concurrency=${args.concurrency}`,
   );
+  const codexHome =
+    args.host === EvalHost.Codex
+      ? path.resolve(args.codexHome ?? fs.mkdtempSync(path.join(os.tmpdir(), "muggle-agent-eval-codex-")))
+      : "";
+  if (args.host === EvalHost.Codex) prepareCodexAgentHome(codexHome);
+  const runRep = (runOptions: AgentRunOptions, onEvent?: (event: unknown) => void): Promise<AgentRunVerdict> =>
+    args.host === EvalHost.Codex
+      ? runAgentScenarioOnceInCodex(
+          {
+            ...runOptions,
+            codexHome: codexHome,
+            codexModel: args.codexModel,
+            sandbox: process.env.MUGGLE_CODEX_SANDBOX,
+            configOverrides: args.codexConfig,
+          },
+          onEvent,
+        )
+      : runAgentScenarioOnce(runOptions, onEvent);
 
   const filteredScenarios = args.scenarioFilter
     ? scenarioFile.scenarios.filter((s) => s.name.includes(args.scenarioFilter!))
@@ -124,7 +172,7 @@ async function main(): Promise<void> {
         try {
           verdict = await withThrottleRetry(
             () =>
-              runAgentScenarioOnce(
+              runRep(
                 {
                   definition: definition,
                   scenario: scenario,
@@ -187,14 +235,16 @@ async function main(): Promise<void> {
 
   const resultsPath = path.resolve(
     path.dirname(scenarioFilePath),
-    `${args.agent}.results.json`,
+    // Still `.results.json`, so CI's scenario loop and agent-contracts.test.ts skip it.
+    args.host === EvalHost.Codex ? `${args.agent}.codex.results.json` : `${args.agent}.results.json`,
   );
   fs.writeFileSync(
     resultsPath,
     JSON.stringify(
       {
         agent: definition.name,
-        model: definition.model,
+        host: args.host,
+        model: modelLabel,
         modelAlias: definition.modelAlias,
         runsPerScenario: args.runs,
         passThreshold: PASS_THRESHOLD,

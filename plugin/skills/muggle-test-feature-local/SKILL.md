@@ -9,6 +9,8 @@ mandatoryStages:
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-feature-local"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 **Goal:** Run or generate an end-to-end test against a **local URL** using Muggle Test's Electron browser.
 
 | Scope | MCP tools |

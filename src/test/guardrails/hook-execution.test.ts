@@ -580,6 +580,135 @@ describe("guardrail hook execution (cli entry)", () => {
   });
 });
 
+// Codex fires the same subcommands through plugin/hooks/codex-hooks.json, which
+// stamps MUGGLE_HOOK_HOST=codex. Its payloads differ from Claude Code's where it
+// matters: a shell result is the bare output string, the Stop payload carries the
+// closing message, and there is no AskUserQuestion — only request_user_input in
+// some modes — so the post-merge offer is the question the turn closes on.
+describe("guardrail hook execution under Codex (cli entry)", () => {
+  let home: string;
+  beforeEach(() => {
+    home = mkdtempSync(join(tmpdir(), "gr-codex-hook-"));
+  });
+
+  function runHook(sub: string, payload: unknown, hookHost: string = "codex"): string {
+    const r = spawnSync(process.execPath, ["--import", "tsx", CLI, sub], {
+      input: JSON.stringify(payload),
+      encoding: "utf-8",
+      env: { ...process.env, HOME: home, USERPROFILE: home, MUGGLE_HOOK_HOST: hookHost },
+    });
+    return (r.stdout ?? "").trim();
+  }
+
+  it("pr-opened: reads the PR url out of Codex's string output and names the skill as Codex spells it", () => {
+    const parsed = JSON.parse(
+      runHook("pr-opened", {
+        session_id: "cx-open",
+        turn_id: "t1",
+        tool_name: "Bash",
+        tool_input: { command: "gh pr create --title x --body y" },
+        tool_response: "https://github.com/o/r/pull/77\n",
+      }),
+    );
+    expect(parsed.hookSpecificOutput.hookEventName).toBe("PostToolUse");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("https://github.com/o/r/pull/77");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("$muggle:muggle-pr-followup");
+  });
+
+  it("record-tests -> e2e-gate: a passing suite in Codex's string output arms the gate", () => {
+    runHook("record-tests", {
+      session_id: "cx-unit",
+      tool_name: "Bash",
+      tool_input: { command: "pnpm test" },
+      tool_response: " Test Files  3 passed (3)\n      Tests  41 passed (41)\n",
+    });
+    const gate = JSON.parse(runHook("e2e-gate", { session_id: "cx-unit" }));
+    expect(gate.decision).toBe("block");
+    expect(gate.reason).toContain("$muggle:muggle-test");
+    expect(gate.reason).not.toContain("/muggle:muggle-test");
+  });
+
+  it("pr-terminal -> terminal-gate: the closing question is the offer that clears the gate", () => {
+    const nudge = JSON.parse(
+      runHook("pr-terminal", {
+        session_id: "cx-merge",
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 77 --squash" },
+        tool_response: "✓ Squashed and merged pull request o/r#77 (feat: x)\n",
+      }),
+    );
+    expect(nudge.hookSpecificOutput.additionalContext).toContain("closing message");
+    expect(nudge.hookSpecificOutput.additionalContext).not.toContain("AskUserQuestion");
+
+    const blocked = JSON.parse(
+      runHook("terminal-gate", { session_id: "cx-merge", last_assistant_message: "Merged and cleaned up." }),
+    );
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("#77");
+
+    expect(
+      runHook("terminal-gate", {
+        session_id: "cx-merge",
+        last_assistant_message: "PR #77 is merged. Next: 1) release, 2) the queued logout work — which one?",
+      }),
+    ).toBe("{}");
+  });
+
+  it("offer-ran: Codex's request_user_input clears a pending handoff", () => {
+    runHook("pr-terminal", {
+      session_id: "cx-ask",
+      tool_name: "Bash",
+      tool_input: { command: "gh pr close 12" },
+      tool_response: "✓ Closed pull request o/r#12 (stale)\n",
+    });
+    expect(runHook("offer-ran", { session_id: "cx-ask", tool_name: "request_user_input" })).toBe("{}");
+    expect(runHook("terminal-gate", { session_id: "cx-ask", last_assistant_message: "Done." })).toBe("{}");
+  });
+
+  // Claude Code has AskUserQuestion, so a question in prose is not the offer there.
+  it("terminal-gate: a closing question does not stand in for the offer under Claude Code", () => {
+    runHook(
+      "pr-terminal",
+      {
+        session_id: "cc-merge",
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 5" },
+        tool_response: { stderr: "✓ Merged pull request o/r#5 (x)\n" },
+      },
+      "",
+    );
+    const blocked = JSON.parse(
+      runHook("terminal-gate", { session_id: "cc-merge", last_assistant_message: "Merged. What next?" }, ""),
+    );
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("AskUserQuestion");
+  });
+
+  // Codex's transcript is not Claude Code's format; the Stop payload's own copy
+  // of the closing message is what the gate judges.
+  it("capability-claim-gate: judges the closing message the Stop payload carries", () => {
+    const blocked = JSON.parse(
+      runHook("capability-claim-gate", {
+        session_id: "cx-claim",
+        transcript_path: null,
+        last_assistant_message: "I can't test the magic link login flow end to end, since there is no inbox.",
+      }),
+    );
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("live inbox");
+  });
+
+  it("capability-claim-gate: stays quiet on a closing message that claims nothing", () => {
+    expect(
+      runHook("capability-claim-gate", {
+        session_id: "cx-quiet",
+        transcript_path: null,
+        last_assistant_message: "All three flows passed; the walkthrough is on the PR.",
+      }),
+    ).toBe("{}");
+  });
+});
+
 // Lazy core: every gate reaches Node through guardrail-lib.sh's one runner, so the
 // never-block guarantee (fall back to {}, swallow stderr) lives in exactly one place,
 // and `run` isolates gates from each other once they share a process. The per-event
@@ -657,6 +786,23 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     });
     return (r.stdout ?? "").trim();
   }
+
+  // Codex always sends the closing message, so the gate judges it in-shell
+  // without tailing a transcript (whose format is not Claude Code's anyway).
+  it("capability-claim: judges a payload's closing message with no transcript to tail", () => {
+    expect(
+      runWrapper(
+        "guardrail-capability-claim.sh",
+        event({ session_id: "cm-a", transcript_path: null, last_assistant_message: "I cannot test the OTP login flow." }),
+      ),
+    ).toContain(NODE_RAN);
+    expect(
+      runWrapper(
+        "guardrail-capability-claim.sh",
+        event({ session_id: "cm-b", transcript_path: null, last_assistant_message: "All three flows passed." }),
+      ),
+    ).toBe("{}");
+  });
 
   it("build-router: skips Node on a non-build prompt, spawns it on a build ask", () => {
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "a", prompt: "what time is it?" }))).toBe("{}");

@@ -6,4 +6,4 @@ disable-model-invocation: true
 
 # mregen — alias for muggle-test-regenerate-missing
 
-Invoke the `muggle-test-regenerate-missing` skill via the Skill tool. Forward any user-provided arguments unchanged.
+Invoke the `muggle-test-regenerate-missing` skill via the Skill tool. Forward any user-provided arguments unchanged. In a host with no Skill tool (Codex), open `../muggle-test-regenerate-missing/SKILL.md` and follow it with those arguments.

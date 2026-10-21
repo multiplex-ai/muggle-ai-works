@@ -16,8 +16,10 @@ export function isTestCommand(cmd: string): boolean {
   return TEST_CMD.test(cmd);
 }
 
+// `output` is where a host that reports combined output (Codex) puts both streams.
 export function testsPassed(input: HookInput): boolean {
-  const out = `${input.tool_response?.stdout ?? ""}\n${input.tool_response?.stderr ?? ""}`;
+  const response = input.tool_response;
+  const out = `${response?.stdout ?? ""}\n${response?.stderr ?? ""}\n${response?.output ?? ""}`;
   if (!out.trim()) return false;
   return !FAIL.test(out);
 }

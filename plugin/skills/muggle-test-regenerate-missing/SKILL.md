@@ -8,6 +8,8 @@ description: "Bulk-regenerate test scripts for every test case in a Muggle AI pr
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test-regenerate-missing"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 A bulk maintenance skill for Muggle AI projects. It finds every test case in a project that does **not** currently have an active (ready-to-run) test script, shows the list to the user, and on approval triggers a remote test script generation workflow for each one. Useful after creating a batch of new test cases or when cleaning up a project that has drifted.
 
 Execution is **remote only** — Muggle Test's cloud generates the scripts in parallel against the project URL. The user's machine is not involved beyond making API calls.

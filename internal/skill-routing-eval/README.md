@@ -8,7 +8,9 @@ Measures whether each muggle skill's `description` (its "entrance") routes the r
 - `eval-set.json` — labeled queries `{query, expected_skill, note}`. `expected_skill` is `none` for negative/near-miss queries that must not route to any muggle skill.
 - `router_eval.py` — the real-router harness.
 - `analyze.py` — turns a router run into a report and into per-skill signal for the optimizer.
-- `recall-baseline.json` — per-skill recall recorded from a full sweep on master; what the CI gate compares a run against.
+- `recall-baseline.json` — per-skill recall recorded from a full sweep on master; what the CI gate compares a run against. Under Codex, `recall-baseline.codex.json` once one is promoted.
+- `codex_session.py` — the Codex sessions (`--host codex`): runs one, ends it at its route, and prepares the Codex home they run in (`codex_constants.py`, `codex_route_tracer.mjs`).
+- `seed_eval_cwd.sh` — the small changed web app both hosts' CI jobs route in.
 - `regression_gate.py` — the gate: judges a run against that baseline inside a noise band (`gate_types.py`, `gate_constants.py`).
 - `reports/` — generated reports per iteration.
 
@@ -21,6 +23,21 @@ A run that reached no skill also records *why*: `no_tool_call` (answered or decl
 The turn cap is what bounds side effects, and it is a budget rather than a guarantee: one turn is spent routing, so a skill body can begin on the turn that follows. Runs are cheap to keep contained — point `--repo-root` at a throwaway directory, as CI does.
 
 This is faithful in a way isolated single-skill triggering tests are not: it catches cross-skill collisions (two skills both plausibly match, the wrong one wins), which are the dominant failure mode for a family of sibling skills.
+
+### Under Codex
+
+`--host codex` (on `run.py` and `router_eval.py`) runs each query as `codex exec` instead, against the plugin installed in `$CODEX_HOME`. Codex has no skill tool and no `--max-turns`: its model opens a skill by reading the `SKILL.md` its catalog lists, and its `--json` stream leaves out calls made from inside Codex's code mode. So a PreToolUse hook the eval installs in that Codex home, `codex_route_tracer.mjs`, appends every tool call to a trace file. The runner reads the trace while the session is live and ends it at the first `SKILL.md` it reads, or after `SESSION_MAX_TOOL_CALLS` calls without one — about what Claude's two turns of orienting spend. The route, the alias resolution, the MCP fallback and the none-reasons are then scored exactly as above. Sessions run with Codex's `read-only` sandbox, the closest match to a headless Claude session that may look but not act. Set `MUGGLE_CODEX_SANDBOX` to override it on a machine where that sandbox cannot start. Hook trust is bypassed, because a headless run cannot answer Codex's trust prompt.
+
+```bash
+export CODEX_HOME=/tmp/muggle-codex-eval
+python internal/skill-routing-eval/codex_session.py prepare   # plugin from this checkout + the tracer
+codex login                                                    # or export CODEX_API_KEY
+python internal/skill-routing-eval/run.py --all --host codex
+```
+
+Re-running `prepare` (or passing `--sync-cache`, which does the same) reinstalls the plugin from the working tree, so a description edit is what Codex sees. Output lands in `reports/run-codex/`, apart from the Claude report.
+
+The plumbing — `prepare`, the tracer, the session's end at its route and at its cap — runs against the real Codex CLI and a scripted model in `src/test/codex/codex-routing-eval.test.ts`, part of CI's `codex-compat` job. The model-driven sweep needs a real model, so it lives in its own workflow (below).
 
 ## Run it
 
@@ -58,6 +75,10 @@ refactor that touches no `SKILL.md`).
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
 CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key). Set the optional `CLAUDE_CODE_OAUTH_TOKEN_2` secret to a spare token and the job falls back to it for that run when the primary is rejected or throttled, with a workflow warning.
+
+### Codex (not blocking)
+
+`.github/workflows/codex-skill-eval.yml` runs the same eval with `--host codex`, on the same schedule and the same PR scoping. It also runs a full sweep when a PR changes what only Codex reads: its plugin manifest and marketplace, its hooks and MCP config, or a skill's `agents/openai.yaml`. It needs the `OPENAI_API_KEY` repo secret, which it hands Codex as `CODEX_API_KEY`. Without that secret the job posts a notice and passes. It is not a required check. Until `recall-baseline.codex.json` is committed, a run reports recall without gating it, and only the preflight can fail it. Each full sweep uploads its tallies as the `codex-routing-recall-baseline` artifact. Promote one the same way as below, and the job gates against it from then on.
 
 ## Regression gate
 

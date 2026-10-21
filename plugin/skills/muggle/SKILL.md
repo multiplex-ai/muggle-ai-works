@@ -8,6 +8,8 @@ description: "Muggle AI command router and menu: the entry point for any questio
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Use this as the top-level Muggle Test command router.
 
 ## Preferences

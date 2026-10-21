@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { buildBackendLaunchPlan } from "./buildLaunchPlan.js";
 import { computeNprocCeiling, countProcessListLines } from "./headroom.js";
 import { parseGuardRunArguments } from "./parseArguments.js";
+import { probeRan } from "./probeRan.js";
 import { selectGuardRunBackend } from "./selectBackend.js";
 import { BackendLaunchPlan, GuardRunBackend } from "./types.js";
 
@@ -25,7 +26,7 @@ function probedSystemdUserManagerState(): string | null {
     encoding: "utf-8",
     timeout: 10_000,
   });
-  if (probe.error !== undefined || typeof probe.stdout !== "string") return null;
+  if (!probeRan(probe)) return null;
   return probe.stdout.trim();
 }
 
@@ -65,7 +66,7 @@ function currentUserProcessCount(): number {
     encoding: "utf-8",
     timeout: 10_000,
   });
-  if (listing.error !== undefined || listing.status !== 0) {
+  if (!probeRan(listing) || listing.status !== 0) {
     return fail("cannot count current user processes for the nproc ceiling");
   }
   return countProcessListLines(listing.stdout);

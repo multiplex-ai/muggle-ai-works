@@ -18,11 +18,19 @@ const MANIFEST_PATHS = [
         update: (manifest, version) => { manifest.plugins[0].version = version; },
     },
     {
+        path: join(repositoryRootPath, ".agents", "plugins", "marketplace.json"),
+        update: (manifest, version) => { manifest.plugins[0].version = version; },
+    },
+    {
         path: join(repositoryRootPath, "plugin", ".claude-plugin", "plugin.json"),
         update: (manifest, version) => { manifest.version = version; },
     },
     {
         path: join(repositoryRootPath, "plugin", ".cursor-plugin", "plugin.json"),
+        update: (manifest, version) => { manifest.version = version; },
+    },
+    {
+        path: join(repositoryRootPath, "plugin", ".codex-plugin", "plugin.json"),
         update: (manifest, version) => { manifest.version = version; },
     },
     {

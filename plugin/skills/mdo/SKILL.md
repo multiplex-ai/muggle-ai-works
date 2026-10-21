@@ -6,4 +6,4 @@ disable-model-invocation: true
 
 # mdo — alias for muggle-do
 
-Invoke the `muggle-do` skill via the Skill tool. Forward any user-provided arguments unchanged.
+Invoke the `muggle-do` skill via the Skill tool. Forward any user-provided arguments unchanged. In a host with no Skill tool (Codex), open `../muggle-do/SKILL.md` and follow it with those arguments.

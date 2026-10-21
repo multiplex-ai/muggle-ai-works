@@ -1,252 +1,29 @@
 /**
  * In-process MCP server that shadows the muggle namespace with canned
  * responses. The agent SDK mounts this server, the agent calls its
- * tools by their prefixed names (`mcp__plugin_muggle_muggle__<bare>`),
- * and the canned handlers return scenario-appropriate fixtures so the
- * skill can complete a run without authenticating, without contacting
- * cloud APIs, and without launching Electron.
+ * tools by their prefixed names (`mcp__eval_mock__<bare>`), and the
+ * canned handlers return scenario-appropriate fixtures so the skill can
+ * complete a run without authenticating, without contacting cloud APIs,
+ * and without launching Electron.
  *
  * Call recording happens in the harness via `canUseTool`, not here —
- * the handlers are pure stubs.
+ * the handlers are pure stubs. The tool list itself lives in
+ * mock-tools.ts, shared with the stdio server the Codex harness mounts.
  */
 
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
-import { z } from "zod";
 
+import { jsonResult, mockToolSpecs } from "./mock-tools.js";
 import type { Fixtures, MockServerHandle } from "./types.js";
 
-const PERMISSIVE_SHAPE = {} as const;
-
-/**
- * Schema for the execute-* tools. The fields the gates care about
- * (`showUi`, `freshSession`) MUST be declared here — zod strips
- * undeclared keys before the SDK forwards them to canUseTool, so the
- * agent's emitted args would arrive empty otherwise.
- */
-const EXECUTE_SHAPE = {
-  testCase: z.unknown().optional(),
-  testScript: z.unknown().optional(),
-  actionScript: z.unknown().optional(),
-  localUrl: z.string().optional(),
-  showUi: z.boolean().optional(),
-  freshSession: z.boolean().optional(),
-  timeoutMs: z.number().optional(),
-} as const;
-
-function jsonResult(value: unknown): { content: Array<{ type: "text"; text: string }> } {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(value) }],
-  };
-}
-
-/**
- * Build the in-process muggle MCP server. The server name
- * `plugin_muggle_muggle` matches the prefix used in production so the
- * SKILL.md's bare tool references (`muggle-local-execute-test-generation`)
- * resolve to the same `mcp__plugin_muggle_muggle__<name>` handles.
- */
+/** Build the in-process mock server for the agent SDK. */
 export function buildMockMcpServer(fixtures: Fixtures): MockServerHandle {
   const config = createSdkMcpServer({
     name: "eval_mock",
     version: "0.0.0-eval",
-    tools: [
-      tool(
-        "muggle-local-telemetry-skill-emit",
-        "Telemetry sink (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult({ ok: true }),
-      ),
-      tool(
-        "muggle-local-telemetry-event-emit",
-        "Failure-mode telemetry sink (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult({ ok: true }),
-      ),
-      tool(
-        "muggle-local-check-status",
-        "MCP server / local status (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.checkStatus ?? {
-              ok: true,
-              authenticated: true,
-              email: "tester@example.com",
-            },
-          ),
-      ),
-      tool(
-        "muggle-remote-auth-status",
-        "Auth status (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.authStatus ?? { authenticated: true, email: "tester@example.com" },
-          ),
-      ),
-      tool(
-        "muggle-remote-auth-login",
-        "Auth login (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult({
-            verificationUrl: "https://example.invalid/login",
-            code: "STUB",
-          }),
-      ),
-      tool(
-        "muggle-remote-auth-api-key-create",
-        "API key create (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.apiKeyCreate ?? {
-              apiKeyId: "key_stub",
-              key: "mk_stub_key",
-              name: "eval-stub",
-            },
-          ),
-      ),
-      tool(
-        "muggle-remote-auth-register",
-        "Auth register (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.authRegister ?? {
-              outcome: "created",
-              userId: "auth0|stub-registered",
-              email: "tester@example.com",
-              plan: "free",
-              emailVerified: false,
-              credentialStored: true,
-              tokensGranted: 100000,
-              tokensOnVerification: 1000000,
-            },
-          ),
-      ),
-      tool(
-        "muggle-remote-auth-poll",
-        "Auth poll (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult({ status: "complete", email: "tester@example.com" }),
-      ),
-      tool(
-        "muggle-local-last-project-get",
-        "Last-project cache get (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult(fixtures.lastProject ?? null),
-      ),
-      tool(
-        "muggle-local-last-project-set",
-        "Last-project cache set (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult({ ok: true }),
-      ),
-      tool(
-        "muggle-local-last-host-get",
-        "Last-host cache get (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult(fixtures.lastHost ?? null),
-      ),
-      tool(
-        "muggle-local-last-host-set",
-        "Last-host cache set (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult({ ok: true }),
-      ),
-      tool(
-        "muggle-remote-project-list",
-        "Project list (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult(fixtures.projects ?? { items: [] }),
-      ),
-      tool(
-        "muggle-remote-use-case-list",
-        "Use-case list (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult(fixtures.useCases ?? { items: [] }),
-      ),
-      tool(
-        "muggle-remote-test-case-list-by-use-case",
-        "Test-case list (mock).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult(fixtures.testCases ?? { items: [] }),
-      ),
-      tool(
-        "muggle-remote-test-case-get",
-        "Test-case get (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.testCase ?? { id: "tc-stub", title: "Stub test case" },
-          ),
-      ),
-      tool(
-        "muggle-remote-test-script-list",
-        "Test-script list (mock — none).",
-        PERMISSIVE_SHAPE,
-        async () => jsonResult({ items: [] }),
-      ),
-      tool(
-        "muggle-local-execute-test-generation",
-        "Execute test generation (mock — args recorded by canUseTool, never actually runs).",
-        EXECUTE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.executeResult ?? {
-              runId: "run-stub",
-              status: "passed",
-              viewUrl: "https://example.invalid/run/stub",
-            },
-          ),
-      ),
-      tool(
-        "muggle-local-execute-replay",
-        "Execute replay (mock — args recorded by canUseTool, never actually runs).",
-        EXECUTE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.executeResult ?? {
-              runId: "run-stub",
-              status: "passed",
-              viewUrl: "https://example.invalid/run/stub",
-            },
-          ),
-      ),
-      tool(
-        "muggle-local-run-result-get",
-        "Run result (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.runResult ?? {
-              runId: "run-stub",
-              status: "passed",
-              steps: [],
-              viewUrl: "https://example.invalid/run/stub",
-              cloudTestScriptId: "cloud-ts-stub",
-              cloudActionScriptId: "cloud-as-stub",
-            },
-          ),
-      ),
-      tool(
-        "muggle-local-run-steps-get",
-        "A run's steps beside the frames they produced (mock).",
-        PERMISSIVE_SHAPE,
-        async () =>
-          jsonResult(
-            fixtures.runStepsResult ?? {
-              runId: "run-stub",
-              status: "passed",
-              verdict: null,
-              steps: [],
-              screenshotCount: 0,
-            },
-          ),
-      ),
-    ],
+    tools: mockToolSpecs(fixtures).map((spec) =>
+      tool(spec.name, spec.description, spec.shape, async () => jsonResult(spec.reply())),
+    ),
   });
 
   return { config: config };

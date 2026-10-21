@@ -19,6 +19,9 @@ export const LLM_SOURCE_OWNED_ENV_NAMES: readonly string[] = [
  */
 export const LLM_CREDENTIALS_FILE_NAME = "llm-credentials.json";
 
+/** Owner read/write only, matching Muggle's own sign-in credential file. */
+export const LLM_CREDENTIALS_FILE_MODE = 0o600;
+
 /** Short name of the LLM-source question. */
 export const LLM_SOURCE_HEADER = "LLM source";
 

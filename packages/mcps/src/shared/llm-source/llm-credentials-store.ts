@@ -7,7 +7,7 @@ import * as path from "node:path";
 
 import { getDataDir } from "../data-dir.js";
 import { getLogger } from "../logger.js";
-import { LLM_CREDENTIALS_FILE_NAME } from "./llm-source-constants.js";
+import { LLM_CREDENTIALS_FILE_MODE, LLM_CREDENTIALS_FILE_NAME } from "./llm-source-constants.js";
 import type { IStoredLlmCredentials } from "./llm-source-types.js";
 
 function getLlmCredentialsFilePath(dataDirOverride?: string): string {
@@ -46,9 +46,12 @@ export function writeStoredLlmApiKey(apiKey: string, dataDirOverride?: string): 
   fs.mkdirSync(dir, { recursive: true });
   const credentials: IStoredLlmCredentials = { apiKey: apiKey };
   const filePath = getLlmCredentialsFilePath(dataDirOverride);
-  fs.writeFileSync(filePath, `${JSON.stringify(credentials, null, 2)}\n`, { encoding: "utf-8", mode: 0o600 });
+  fs.writeFileSync(filePath, `${JSON.stringify(credentials, null, 2)}\n`, {
+    encoding: "utf-8",
+    mode: LLM_CREDENTIALS_FILE_MODE,
+  });
   // `mode` applies only when the file is created; tighten a file that already existed too.
-  fs.chmodSync(filePath, 0o600);
+  fs.chmodSync(filePath, LLM_CREDENTIALS_FILE_MODE);
 }
 
 /**

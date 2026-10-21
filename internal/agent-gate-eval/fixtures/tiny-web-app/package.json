@@ -1,0 +1,10 @@
+{
+  "name": "tiny-web-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/greeting.js",
+    "test": "node --test test/greeting_test.js"
+  }
+}

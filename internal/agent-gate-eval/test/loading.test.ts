@@ -1,11 +1,21 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { loadAgentDefinition } from "../src/agent-definition.js";
-import { loadAgentScenarioFile } from "../src/scenario.js";
+import { parseEvalCliArgs } from "../src/cli-args.js";
+import {
+  listScenarioStems,
+  loadAgentScenarioFile,
+  loadScenarioSuites,
+  scenariosForCadence,
+} from "../src/scenario.js";
+import { EvalTargetKind, ScenarioCadence, type AgentScenario } from "../src/types.js";
+
+const repoScenariosDir = path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), "scenarios");
 
 let tmpDir: string;
 
@@ -25,6 +35,7 @@ describe("loadAgentDefinition", () => {
   it("parses name, resolves the model alias, and strips frontmatter from the body", () => {
     writeAgent("test-prepare-runner", "name: test-prepare-runner\ndescription: \"x\"\nmodel: opus");
     const d = loadAgentDefinition(tmpDir, "test-prepare-runner");
+    expect(d.kind).toBe(EvalTargetKind.Agent);
     expect(d.name).toBe("test-prepare-runner");
     expect(d.modelAlias).toBe("opus");
     expect(d.model).toMatch(/opus/);
@@ -49,25 +60,151 @@ describe("loadAgentScenarioFile", () => {
     fs.writeFileSync(p, JSON.stringify(content));
     return p;
   };
+  const agentTarget = { kind: EvalTargetKind.Agent, name: "a" };
+  const minimalScenario = { name: "s1", prompt: "do it", expect: { outputContains: ["READY"] } };
 
   it("loads a valid file", () => {
-    const p = writeScenarios("ok", {
-      agent: "a",
-      scenarios: [{ name: "s1", prompt: "do it", expect: { outputContains: ["READY"] } }],
-    });
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [minimalScenario] });
     expect(loadAgentScenarioFile(p).scenarios).toHaveLength(1);
   });
 
+  it("accepts a second suite on one target named <target>.<suite>.json", () => {
+    const p = writeScenarios("muggle-do.handoff", {
+      target: { kind: EvalTargetKind.Skill, name: "muggle-do" },
+      passThreshold: 1,
+      scenarios: [minimalScenario],
+    });
+    expect(loadAgentScenarioFile(p).passThreshold).toBe(1);
+  });
+
   it("rejects an empty scenario list", () => {
-    const p = writeScenarios("empty", { agent: "a", scenarios: [] });
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [] });
     expect(() => loadAgentScenarioFile(p)).toThrow(/Invalid/);
   });
 
+  it("rejects a file without a target, including the pre-target `agent` field", () => {
+    const p = writeScenarios("a", { agent: "a", scenarios: [minimalScenario] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/needs target/);
+  });
+
+  it("rejects a file whose stem does not name its target", () => {
+    const p = writeScenarios("other", { target: agentTarget, scenarios: [minimalScenario] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/must be named a\.json/);
+  });
+
+  it("rejects a pass threshold outside (0, 1]", () => {
+    const p = writeScenarios("a", { target: agentTarget, passThreshold: 1.5, scenarios: [minimalScenario] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/passThreshold/);
+  });
+
   it("rejects a scenario missing prompt or expect", () => {
-    const p = writeScenarios("partial", {
-      agent: "a",
-      scenarios: [{ name: "s1", prompt: "p" }],
-    });
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [{ name: "s1", prompt: "p" }] });
     expect(() => loadAgentScenarioFile(p)).toThrow(/needs name, prompt, and expect/);
+  });
+
+  it("rejects repeated scenario names, which would merge their pass rates", () => {
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [minimalScenario, minimalScenario] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/repeats/);
+  });
+
+  it.each([
+    ["a bash response with neither response nor sequence", { bashResponses: [{ commandContains: "gh" }] }, /bashResponses/],
+    ["an empty bash sequence", { bashResponses: [{ commandContains: "gh", sequence: [] }] }, /bashResponses/],
+    ["a toolResponses key that is no scripted tool", { toolResponses: { Bash: [{ argContains: "", response: "x" }] } }, /toolResponses key "Bash"/],
+    ["a toolResponses entry without argContains", { toolResponses: { Skill: [{ response: "x" }] } }, /toolResponses\.Skill/],
+    ["an unknown cadence", { cadence: "weekly" }, /cadence/],
+    ["a non-positive maxTurns", { maxTurns: 0 }, /maxTurns/],
+    ["a seed file without content", { seed: { files: [{ path: "~/x" }] } }, /seed\.files/],
+    ["a fixture sequence that is empty", { fixtures: { executeResult: { sequence: [] } } }, /fixtures\.executeResult/],
+    ["a fixture sequence with sibling keys", { fixtures: { executeResult: { sequence: [{}], status: "x" } } }, /fixtures\.executeResult/],
+  ])("rejects %s", (_label, extra, message) => {
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [{ ...minimalScenario, ...extra }] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(message);
+  });
+});
+
+describe("scenario suites", () => {
+  const writeSuite = (stem: string, targetName: string): void => {
+    fs.writeFileSync(
+      path.join(tmpDir, `${stem}.json`),
+      JSON.stringify({
+        target: { kind: EvalTargetKind.Skill, name: targetName },
+        scenarios: [{ name: "s", prompt: "p", expect: {} }],
+      }),
+    );
+  };
+
+  it("runs every scenario file by default, skipping results files", () => {
+    writeSuite("muggle-do.handoff", "muggle-do");
+    writeSuite("muggle-do.adherence", "muggle-do");
+    fs.writeFileSync(path.join(tmpDir, "muggle-do.handoff.results.json"), "{}");
+    fs.writeFileSync(path.join(tmpDir, "muggle-do.handoff.codex.results.json"), "{}");
+    expect(listScenarioStems(tmpDir)).toEqual(["muggle-do.adherence", "muggle-do.handoff"]);
+    expect(loadScenarioSuites(tmpDir).map((suite) => suite.stem)).toEqual(["muggle-do.adherence", "muggle-do.handoff"]);
+  });
+
+  it("runs only the suite --suite names, and refuses one with no file", () => {
+    writeSuite("muggle-do.handoff", "muggle-do");
+    writeSuite("muggle-do.adherence", "muggle-do");
+    expect(loadScenarioSuites(tmpDir, "muggle-do.handoff").map((suite) => suite.stem)).toEqual(["muggle-do.handoff"]);
+    expect(() => loadScenarioSuites(tmpDir, "missing")).toThrow(/No scenario file/);
+  });
+
+  it("loads every scenario file the repo ships", () => {
+    const suites = loadScenarioSuites(repoScenariosDir);
+    expect(suites.length).toBeGreaterThan(0);
+    for (const suite of suites) expect(suite.file.target.kind).toBe(EvalTargetKind.Agent);
+  });
+});
+
+describe("scenariosForCadence", () => {
+  const scenarios: AgentScenario[] = [
+    { name: "default", prompt: "p", expect: {} },
+    { name: "pr", prompt: "p", cadence: ScenarioCadence.Pr, expect: {} },
+    { name: "nightly", prompt: "p", cadence: ScenarioCadence.Nightly, expect: {} },
+  ];
+
+  it("drops nightly-only scenarios from a PR run", () => {
+    expect(scenariosForCadence(scenarios, ScenarioCadence.Pr).map((scenario) => scenario.name)).toEqual(["default", "pr"]);
+  });
+
+  it("keeps every scenario for a nightly run or when no cadence is given", () => {
+    expect(scenariosForCadence(scenarios, ScenarioCadence.Nightly)).toHaveLength(3);
+    expect(scenariosForCadence(scenarios, undefined)).toHaveLength(3);
+  });
+});
+
+describe("parseEvalCliArgs", () => {
+  it("names a suite with --suite, or with the legacy --agent that also requires an agent target", () => {
+    expect(parseEvalCliArgs(["--suite", "muggle-do.handoff"])).toMatchObject({
+      suite: "muggle-do.handoff",
+      requireAgentTarget: false,
+    });
+    expect(parseEvalCliArgs(["--agent", "test-prepare-runner", "--runs", "3"])).toMatchObject({
+      suite: "test-prepare-runner",
+      requireAgentTarget: true,
+      runs: 3,
+    });
+    expect(parseEvalCliArgs([]).suite).toBeUndefined();
+  });
+
+  it("collects repeated --codex-config values and reads --cadence and --model", () => {
+    const args = parseEvalCliArgs([
+      "--codex-config", "a=1", "--codex-config", "b=2", "--cadence", "pr", "--model", "opus", "--verbose",
+    ]);
+    expect(args.codexConfig).toEqual(["a=1", "b=2"]);
+    expect(args.cadence).toBe(ScenarioCadence.Pr);
+    expect(args.model).toBe("opus");
+    expect(args.verbose).toBe(true);
+  });
+
+  it.each([
+    [["--suite", "a", "--agent", "a"], /not both/],
+    [["--host", "gemini"], /--host/],
+    [["--cadence", "weekly"], /--cadence/],
+    [["--runs", "0"], /--runs/],
+    [["--concurrency", "x"], /--concurrency/],
+  ])("rejects %j", (argv, message) => {
+    expect(() => parseEvalCliArgs(argv)).toThrow(message);
   });
 });

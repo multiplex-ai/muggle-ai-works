@@ -10,13 +10,24 @@ import { mockToolNamesByCodexName } from "../../skill-gate-eval/src/codex-cli.js
 import { CODEX_EVAL_HOME_MARKER } from "../../skill-gate-eval/src/constants.js";
 import {
   buildCodexAgentInstructions,
-  pluginTreeOf,
+  codexUnsupportedFeatures,
   prepareCodexAgentHome,
   readCodexAgentTrace,
 } from "../src/codex-harness.js";
-import { CODEX_AGENT_BASH_ENV, CODEX_AGENT_READ_ROOT_ENV, CODEX_AGENT_TRACE_ENV } from "../src/constants.js";
-import { UNSCRIPTED_BASH_RESPONSE, resolveScriptedBashResponse } from "../src/harness.js";
-import type { AgentRunOptions, CodexAgentTraceEntry, ScriptedBashResponse } from "../src/types.js";
+import {
+  CODEX_AGENT_BASH_ENV,
+  CODEX_AGENT_READ_ROOT_ENV,
+  CODEX_AGENT_TRACE_ENV,
+  UNSCRIPTED_BASH_RESPONSE,
+} from "../src/constants.js";
+import { pluginRootOf } from "../src/target-definition.js";
+import { resolveScriptedBashResponse } from "../src/tools/scripted-replies.js";
+import {
+  EvalTargetKind,
+  type CodexAgentRunOptions,
+  type CodexAgentTraceEntry,
+  type ScriptedBashResponse,
+} from "../src/types.js";
 
 const AGENT_HOOK = fileURLToPath(new URL("../src/codex-agent-hook.mjs", import.meta.url));
 const SIMULATED = "SIMULATED OUTPUT (treat as the command's real result):\n";
@@ -115,13 +126,34 @@ describe("the Codex agent hook", () => {
 });
 
 describe("the Codex agent harness", () => {
-  const options: AgentRunOptions = {
-    definition: { name: "runner", modelAlias: "haiku", model: "m", body: "AGENT_BODY_MARKER", filePath: agentFile },
+  const options: Pick<CodexAgentRunOptions, "definition" | "scenario"> = {
+    definition: {
+      kind: EvalTargetKind.Agent,
+      name: "runner",
+      modelAlias: "haiku",
+      model: "m",
+      body: "AGENT_BODY_MARKER",
+      filePath: agentFile,
+    },
     scenario: { name: "s", prompt: "go", expect: {} },
   };
 
   it("scopes real reads to the definition's plugin tree", () => {
-    expect(pluginTreeOf(agentFile)).toBe(pluginTree);
+    expect(pluginRootOf(options.definition)).toBe(pluginTree);
+  });
+
+  it("names every scenario feature its stateless hook and missing sandbox cannot honor", () => {
+    expect(codexUnsupportedFeatures(options.scenario)).toEqual([]);
+    expect(
+      codexUnsupportedFeatures({
+        ...options.scenario,
+        bashResponses: [{ commandContains: "gh", sequence: ["red", "green"] }],
+        fixtures: { executeResult: { sequence: [{ status: "failed" }, { status: "passed" }] } },
+        seed: { repo: "tiny-web-app" },
+        toolResponses: {},
+        expect: { requireArtifacts: [{ path: "~/x" }] },
+      }),
+    ).toEqual(["bashResponses sequence", "fixtures sequence", "seed", "toolResponses", "requireArtifacts"]);
   });
 
   it("gives the agent its definition and the Codex note, and names the mock tools only when the scenario has fixtures", () => {

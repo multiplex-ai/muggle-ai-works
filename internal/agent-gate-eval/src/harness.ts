@@ -1,105 +1,128 @@
 /**
- * Runs one agent scenario end-to-end and returns a per-run verdict.
+ * Runs one scenario end-to-end under the agent SDK and returns a per-run verdict.
  *
  * Mechanics:
- *   - Loads the agent's `plugin/agents/<name>.md` body as the system prompt —
- *     the same text the harness applies in production — plus an environment
- *     note describing the sandbox.
- *   - Runs on the model the agent's frontmatter pins (resolved upstream); the
- *     pin surviving on a cheaper/different model IS the contract under test.
- *   - Read is real and scoped to the plugin tree (the agent definition's
- *     grandparent dir), so the stage files the agent links to must actually
- *     resolve — a broken link fails behaviorally. The rest of the repo is
- *     denied: a single Read of a lockfile-sized file overflows the run's
- *     context and trips the SDK's autocompact-thrash breaker.
- *   - Bash is intercepted: every call is denied with the scenario's scripted
- *     output for that command, so the run is hermetic (nothing executes) while
- *     the agent still "observes" ports, smoke results, and CLI output.
- *   - Muggle MCP is mocked when the scenario declares `fixtures`: the in-process
- *     mock server (shared with skill-gate-eval) mounts, canned handlers return
- *     the fixtures, and each call is recorded so an agent whose contract runs
- *     through the tools — acceptance-tester — completes a run without auth,
- *     cloud, or Electron.
- *   - AskUserQuestion is denied and counted; the verdict fails any run that
- *     asks — agents return `needs-input:` instead of asking.
+ *   - Every run gets a sandbox (sandbox/sandbox.ts): a temp home and a repo,
+ *     optionally a copy of a fixture repository, seeded with the scenario's
+ *     files. The repo is the session's working directory; `~` and the real home
+ *     directory are redirected into the sandbox home.
+ *   - Agent targets: the agent's `plugin/agents/<name>.md` body is the system
+ *     prompt, run on the model its frontmatter pins — the pin surviving on a
+ *     cheaper/different model IS the contract under test.
+ *   - Skill targets: the session runs on Claude Code's own system prompt plus a
+ *     synthesized SessionStart preferences block, and the first user message
+ *     is the skill's invocation, built as the Skill tool injects it.
+ *   - One policy (tools/policy.ts) decides every tool call, applied in a
+ *     PreToolUse hook and again in canUseTool: Read is real within the plugin
+ *     tree and the sandbox, so a broken stage link fails behaviorally; Write
+ *     and Edit are real within the sandbox; Bash never executes and answers
+ *     with the scenario's scripted output; AskUserQuestion is denied with a
+ *     scripted answer or "there is no user".
+ *   - Muggle MCP is mocked (tools/sequenced-mock-mcp.ts) for skill targets and
+ *     for agent scenarios that declare `fixtures`, so a run completes without
+ *     auth, cloud, or Electron.
+ *   - Skill targets get same-named stand-ins for Skill, Agent, TodoWrite,
+ *     CronCreate, CronDelete and Monitor (tools/host-stubs.ts), answered from
+ *     the scenario's `toolResponses`; nothing they name runs.
+ *   - Tool attempts are recorded from the model's own tool_use blocks
+ *     (tools/trace.ts), in call order.
  */
-
-import * as path from "node:path";
 
 import {
   query,
   type CanUseTool,
-  type PermissionResult,
+  type HookCallback,
+  type McpServerConfig,
+  type PreToolUseHookInput,
 } from "@anthropic-ai/claude-agent-sdk";
 
-import { ASK_QUESTION_TOOL } from "../../skill-gate-eval/src/constants.js";
-import { buildMockMcpServer } from "../../skill-gate-eval/src/mock-mcp.js";
-import type {
-  AgentRunOptions,
-  AgentRunVerdict,
-  ScriptedBashResponse,
-  ToolAttempt,
+import {
+  AGENT_BUILTIN_TOOLS,
+  DEFAULT_MAX_TURNS,
+  HOST_STUB_PREFIX,
+  HOST_STUB_SERVER_NAME,
+  HOST_STUB_SPECS,
+  MOCK_MCP_NOTE_LINES,
+  MOCK_MCP_SERVER_NAME,
+  SCRIPTED_BASH_NOTE_LINES,
+  SKILL_BUILTIN_TOOLS,
+} from "./constants.js";
+import { createRunSandbox, removeRunSandbox, sandboxPathContext, snapshotArtifacts } from "./sandbox/sandbox.js";
+import { buildPreferencesContext } from "./session-context.js";
+import { buildSkillInvocationMessage } from "./skill-definition.js";
+import { pluginRootOf } from "./target-definition.js";
+import { buildHostStubServer } from "./tools/host-stubs.js";
+import { decideToolUse, toPreToolUseOutput } from "./tools/policy.js";
+import { createBashResponder, createToolResponder } from "./tools/scripted-replies.js";
+import { buildSequencedMockMcpServer } from "./tools/sequenced-mock-mcp.js";
+import { toolAttemptsInMessage } from "./tools/trace.js";
+import {
+  EvalTargetKind,
+  ScriptedTool,
+  type AgentDefinition,
+  type AgentRunOptions,
+  type AgentRunVerdict,
+  type AgentScenario,
+  type SandboxPathContext,
+  type SkillDefinition,
+  type ToolAttempt,
+  type ToolPolicyContext,
 } from "./types.js";
 import { judgeAgentRun } from "./verdict.js";
 
-const DEFAULT_MAX_TURNS = 60;
-const MOCK_MCP_PREFIX = "mcp__eval_mock__";
-const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
-
-function buildSystemPrompt(opts: AgentRunOptions): string {
+/** The system prompt an agent target runs under: its definition body plus the environment note. */
+export function buildAgentSystemPrompt(definition: AgentDefinition, scenario: AgentScenario): string {
   const lines = [
-    opts.definition.body,
+    definition.body,
     "",
     "---",
     "# ENVIRONMENT NOTE (behavioral test harness)",
-    `Your definition file lives at ${opts.definition.filePath}; resolve its`,
+    `Your definition file lives at ${definition.filePath}; resolve its`,
     "relative markdown links from that location using the Read tool.",
     "",
-    "Bash commands do not execute here. Every Bash call is intercepted and the",
-    "permission message carries that command's REAL observed output for this",
-    "environment (marked SIMULATED OUTPUT). Treat it exactly as if the command",
-    "ran and printed it; do not re-run a command whose output you already have.",
+    ...SCRIPTED_BASH_NOTE_LINES,
     "",
     "There is no user. Follow your no-user-channel contract: a missing decision",
     "or input means returning a single `needs-input:` line, never a question.",
   ];
-  if (opts.scenario.fixtures) {
-    lines.push(
-      "",
-      "The production `mcp__plugin_muggle_muggle__*` tools are NOT available;",
-      "call the matching `mcp__eval_mock__*` tools instead. They return canned",
-      "results so you can run and report without auth, cloud, or a real browser.",
-      "A bare tool name in your pasted skill text (e.g.",
-      "`muggle-local-execute-replay`) resolves to",
-      "`mcp__eval_mock__muggle-local-execute-replay`.",
-    );
-  }
+  if (scenario.fixtures) lines.push("", ...MOCK_MCP_NOTE_LINES);
   return lines.join("\n");
 }
 
-/** Returned for a command no scripted response matches. */
-export const UNSCRIPTED_BASH_RESPONSE = "(exit 0, no output)";
-
 /**
- * Resolve the canned stdout for an intercepted Bash command. First match wins;
- * `commandContains: ""` is the catch-all.
- *
- * A command the scenario never stubs falls through to `UNSCRIPTED_BASH_RESPONSE`,
- * which the agent reads as that command's literal output. A lookup whose real answer
- * is "nothing found" must therefore be stubbed with an empty response — left to the
- * fallback, it reads as a non-empty result and steers the agent down the wrong branch.
- *
- * @param command - The command the agent tried to run.
- * @param responses - The scenario's scripted responses, in declaration order.
+ * What a skill target's session appends to Claude Code's system prompt: the
+ * synthesized SessionStart context, then the environment note.
  */
-export function resolveScriptedBashResponse(
-  command: string,
-  responses: ScriptedBashResponse[] | undefined,
+export function buildSkillSystemPromptAppend(
+  scenario: AgentScenario,
+  paths: SandboxPathContext,
+  pluginRoot: string,
 ): string {
-  for (const scripted of responses ?? []) {
-    if (command.includes(scripted.commandContains)) return scripted.response;
-  }
-  return UNSCRIPTED_BASH_RESPONSE;
+  const stubNames = HOST_STUB_SPECS.map((spec) => spec.tool).join(", ");
+  return [
+    "# Synthesized SessionStart context (test harness)",
+    buildPreferencesContext(pluginRoot, scenario.preferences),
+    "",
+    "---",
+    "# ENVIRONMENT NOTE (behavioral test harness)",
+    ...SCRIPTED_BASH_NOTE_LINES,
+    "",
+    `Your home directory (\`~\`) is ${paths.home}; the repository you work in is`,
+    `${paths.repo}, the working directory. Read, Write and Edit work anywhere under`,
+    `${paths.root}. Read also opens the plugin tree at ${pluginRoot}, which is read-only.`,
+    "",
+    `The ${stubNames} tools are served here as \`${HOST_STUB_PREFIX}<name>\``,
+    `(e.g. \`${HOST_STUB_PREFIX}${ScriptedTool.Skill}\`); call those wherever your instructions name`,
+    "the tool. What they return is this environment's real result.",
+    "",
+    ...MOCK_MCP_NOTE_LINES,
+  ].join("\n");
+}
+
+function invocationPrompt(definition: AgentDefinition | SkillDefinition, scenario: AgentScenario): string {
+  return definition.kind === EvalTargetKind.Skill
+    ? buildSkillInvocationMessage(definition, scenario.prompt)
+    : scenario.prompt;
 }
 
 /** Run one scenario once and return a verdict. Caller invokes this N times to compute a pass rate. */
@@ -107,132 +130,108 @@ export async function runAgentScenarioOnce(
   opts: AgentRunOptions,
   onMessage?: (msg: unknown) => void,
 ): Promise<AgentRunVerdict> {
-  const toolAttempts: ToolAttempt[] = [];
-  let askQuestionCount = 0;
-
-  const readRoot = path.dirname(
-    path.dirname(path.resolve(opts.definition.filePath)),
-  );
-
-  const mock = opts.scenario.fixtures
-    ? buildMockMcpServer(opts.scenario.fixtures)
-    : null;
-
-  const canUseTool: CanUseTool = async (
-    toolName,
-    input,
-  ): Promise<PermissionResult> => {
-    // A mock MCP call is recorded under its bare name so `requireToolAttempts`
-    // and `forbidToolAttempts` match `muggle-local-execute-replay`, not the
-    // mounted `mcp__eval_mock__` alias.
-    if (toolName.startsWith(MOCK_MCP_PREFIX)) {
-      toolAttempts.push({ tool: toolName.slice(MOCK_MCP_PREFIX.length), args: input });
-      return { behavior: "allow", updatedInput: input };
-    }
-
-    toolAttempts.push({ tool: toolName, args: input });
-
-    // The production muggle plugin loaded in the parent session bleeds into the
-    // SDK; steer the agent to the mock equivalents.
-    if (toolName.startsWith(PRODUCTION_MUGGLE_PREFIX)) {
-      const bare = toolName.slice(PRODUCTION_MUGGLE_PREFIX.length);
-      return {
-        behavior: "deny",
-        message: `[harness] the production muggle plugin is not available here — call \`${MOCK_MCP_PREFIX}${bare}\` instead.`,
-      };
-    }
-
-    if (toolName === ASK_QUESTION_TOOL) {
-      askQuestionCount++;
-      return {
-        behavior: "deny",
-        message:
-          "[harness] there is no user in this environment — return a `needs-input:` line instead of asking",
-      };
-    }
-
-    if (toolName === "Read") {
-      const filePath = (input as { file_path?: unknown }).file_path;
-      const resolved = typeof filePath === "string" ? path.resolve(filePath) : "";
-      if (resolved === readRoot || resolved.startsWith(readRoot + path.sep)) {
-        return { behavior: "allow", updatedInput: input };
-      }
-      return {
-        behavior: "deny",
-        message: `[harness] Read is limited to the plugin tree at ${readRoot}; everything else in this environment is observed through the scripted Bash outputs`,
-      };
-    }
-
-    if (toolName === "Bash") {
-      const command = String((input as { command?: unknown }).command ?? "");
-      return {
-        behavior: "deny",
-        message: `SIMULATED OUTPUT (treat as the command's real result):\n${resolveScriptedBashResponse(command, opts.scenario.bashResponses)}`,
-      };
-    }
-
-    return {
-      behavior: "deny",
-      message: `[harness] tool ${toolName} is not available in this eval`,
-    };
-  };
-
-  const stream = query({
-    prompt: opts.scenario.prompt,
-    options: {
-      // Judge the agent on its own definition, nothing else. Omitting this loads every
-      // filesystem settings source, and this repo's .claude/settings.json enables the
-      // muggle plugin — whose Stop guardrails then fire inside the eval and replace the
-      // agent's final report with a reply to the guardrail.
-      settingSources: [],
-      systemPrompt: buildSystemPrompt(opts),
-      canUseTool: canUseTool,
-      model: opts.definition.model,
-      maxTurns: opts.maxTurns ?? DEFAULT_MAX_TURNS,
-      tools: ["Read", "Bash", "AskUserQuestion"],
-      ...(mock ? { mcpServers: { eval_mock: mock.config } } : {}),
-      ...(process.env.CLAUDE_CODE_EXECUTABLE
-        ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
-        : {}),
-      stderr: (data: string) => process.stderr.write(data),
-    },
-  });
-
-  // Drain the stream; the terminal `result` message carries the agent's final
-  // report. Keep the last assistant text as a fallback when the run ends
-  // without a success result (e.g. max-turns).
-  let finalOutput = "";
-  let lastAssistantText = "";
-  let lastResult: unknown = null;
+  const { definition, scenario } = opts;
+  const isSkillTarget = definition.kind === EvalTargetKind.Skill;
+  const pluginRoot = pluginRootOf(definition);
+  const sandbox = createRunSandbox(scenario.seed);
   try {
-    for await (const msg of stream) {
-      if (onMessage) onMessage(msg);
-      const typed = msg as {
-        type?: string;
-        result?: unknown;
-        message?: { content?: Array<{ type?: string; text?: string }> };
-      };
-      if (typed.type === "result") {
-        lastResult = msg;
-        if (typeof typed.result === "string") finalOutput = typed.result;
-      }
-      if (typed.type === "assistant") {
-        const textBlocks = (typed.message?.content ?? [])
-          .filter((b) => b.type === "text" && typeof b.text === "string")
-          .map((b) => b.text as string);
-        if (textBlocks.length > 0) lastAssistantText = textBlocks.join("\n");
-      }
-    }
-  } catch (err) {
-    if (lastResult !== null) {
-      process.stderr.write(
-        `[agent-gate-eval] final SDK message before failure: ${JSON.stringify(lastResult)}\n`,
+    const paths = sandboxPathContext(sandbox, [pluginRoot]);
+    const answerTool = createToolResponder(scenario.toolResponses);
+    const builtinTools = isSkillTarget ? SKILL_BUILTIN_TOOLS : AGENT_BUILTIN_TOOLS;
+    const policyContext: ToolPolicyContext = {
+      paths: paths,
+      pluginRoot: pluginRoot,
+      builtinTools: builtinTools,
+      hasHostStubs: isSkillTarget,
+      answerBash: createBashResponder(scenario.bashResponses),
+      answerQuestion: (serializedInput) => answerTool(ScriptedTool.AskUserQuestion, serializedInput),
+    };
+
+    // The hook is the gate: it fires for every call that passes input validation,
+    // including calls the SDK would allow without asking canUseTool.
+    const enforcePolicy: HookCallback = async (hookInput) => {
+      const { tool_name, tool_input } = hookInput as PreToolUseHookInput;
+      return toPreToolUseOutput(
+        decideToolUse(tool_name, (tool_input ?? {}) as Record<string, unknown>, policyContext),
       );
+    };
+    const canUseTool: CanUseTool = async (toolName, input) => decideToolUse(toolName, input, policyContext);
+
+    const mcpServers: Record<string, McpServerConfig> = {};
+    if (isSkillTarget || scenario.fixtures) {
+      mcpServers[MOCK_MCP_SERVER_NAME] = buildSequencedMockMcpServer(scenario.fixtures ?? {}).config;
     }
-    throw err;
+    if (isSkillTarget) mcpServers[HOST_STUB_SERVER_NAME] = buildHostStubServer(answerTool);
+
+    const stream = query({
+      prompt: invocationPrompt(definition, scenario),
+      options: {
+        // Judge the target on its own definition, nothing else. Omitting this loads every
+        // filesystem settings source, and this repo's .claude/settings.json enables the
+        // muggle plugin — whose Stop guardrails then fire inside the eval and replace the
+        // final report with a reply to the guardrail.
+        settingSources: [],
+        // Without it the account's claude.ai connectors join the run's tools.
+        strictMcpConfig: true,
+        persistSession: false,
+        cwd: sandbox.repo,
+        systemPrompt: isSkillTarget
+          ? { type: "preset", preset: "claude_code", append: buildSkillSystemPromptAppend(scenario, paths, pluginRoot) }
+          : buildAgentSystemPrompt(definition, scenario),
+        canUseTool: canUseTool,
+        hooks: { PreToolUse: [{ hooks: [enforcePolicy] }] },
+        model: definition.model,
+        maxTurns: opts.maxTurns ?? scenario.maxTurns ?? DEFAULT_MAX_TURNS,
+        tools: builtinTools,
+        ...(Object.keys(mcpServers).length > 0 ? { mcpServers: mcpServers } : {}),
+        ...(process.env.CLAUDE_CODE_EXECUTABLE
+          ? { pathToClaudeCodeExecutable: process.env.CLAUDE_CODE_EXECUTABLE }
+          : {}),
+        stderr: (chunk: string) => process.stderr.write(chunk),
+      },
+    });
+
+    // Drain the stream; the terminal `result` message carries the final report.
+    // Keep the last assistant text as a fallback when the run ends without a
+    // success result (e.g. max-turns).
+    const toolAttempts: ToolAttempt[] = [];
+    let finalOutput = "";
+    let lastAssistantText = "";
+    let lastResult: unknown = null;
+    try {
+      for await (const msg of stream) {
+        if (onMessage) onMessage(msg);
+        toolAttempts.push(...toolAttemptsInMessage(msg));
+        const typed = msg as {
+          type?: string;
+          result?: unknown;
+          message?: { content?: Array<{ type?: string; text?: string }> };
+        };
+        if (typed.type === "result") {
+          lastResult = msg;
+          if (typeof typed.result === "string") finalOutput = typed.result;
+        }
+        if (typed.type === "assistant") {
+          const textBlocks = (typed.message?.content ?? [])
+            .filter((b) => b.type === "text" && typeof b.text === "string")
+            .map((b) => b.text as string);
+          if (textBlocks.length > 0) lastAssistantText = textBlocks.join("\n");
+        }
+      }
+    } catch (err) {
+      if (lastResult !== null) {
+        process.stderr.write(
+          `[agent-gate-eval] final SDK message before failure: ${JSON.stringify(lastResult)}\n`,
+        );
+      }
+      throw err;
+    }
+
+    if (!finalOutput) finalOutput = lastAssistantText;
+    const askQuestionCount = toolAttempts.filter((attempt) => attempt.tool === ScriptedTool.AskUserQuestion).length;
+    const artifactSnapshot = snapshotArtifacts(scenario.expect.requireArtifacts ?? [], paths);
+    return judgeAgentRun(scenario, finalOutput, toolAttempts, askQuestionCount, artifactSnapshot);
+  } finally {
+    removeRunSandbox(sandbox);
   }
-
-  if (!finalOutput) finalOutput = lastAssistantText;
-
-  return judgeAgentRun(opts.scenario, finalOutput, toolAttempts, askQuestionCount);
 }

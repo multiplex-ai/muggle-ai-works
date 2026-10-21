@@ -1,5 +1,5 @@
 {
-  "agent": "test-prepare-runner",
+  "target": { "kind": "agent", "name": "test-prepare-runner" },
   "scenarios": [
     {
       "name": "all-services-up-returns-ready",

@@ -3,6 +3,9 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { listScenarioStems, loadAgentScenarioFile } from "../../../internal/agent-gate-eval/src/scenario.js";
+import { EvalTargetKind } from "../../../internal/agent-gate-eval/src/types.js";
+
 const repoRoot = process.cwd();
 const agentsDir = path.join(repoRoot, "plugin", "agents");
 const skillsDir = path.join(repoRoot, "plugin", "skills");
@@ -141,32 +144,31 @@ describe("skill -> agent dispatch consistency", () => {
   });
 });
 
-describe("agent behavioral eval coverage", () => {
+describe("behavioral eval coverage", () => {
   const scenariosDir = path.join(repoRoot, "internal", "agent-gate-eval", "scenarios");
-  const scenarioFiles = fs
-    .readdirSync(scenariosDir)
-    .filter((f) => f.endsWith(".json") && !f.endsWith(".results.json"));
+  const stems = listScenarioStems(scenariosDir);
+  const targetsByStem = new Map(
+    stems.map((stem) => [stem, loadAgentScenarioFile(path.join(scenariosDir, `${stem}.json`)).target]),
+  );
 
   it.each(["test-prepare-runner", "visual-walkthrough-builder", "acceptance-tester"])(
     "execution agent %s has behavioral scenarios",
     (agentName) => {
-      expect(scenarioFiles).toContain(`${agentName}.json`);
+      const agentTargets = Array.from(targetsByStem.values()).filter(
+        (target) => target.kind === EvalTargetKind.Agent && target.name === agentName,
+      );
+      expect(agentTargets.length, `no scenario file targets agent ${agentName}`).toBeGreaterThan(0);
     },
   );
 
-  it.each(scenarioFiles)("%s targets a real agent and is well-formed", (file) => {
-    const agentName = path.basename(file, ".json");
-    expect(agentFiles, `scenario file ${file} has no matching plugin/agents/${agentName}.md`).toContain(`${agentName}.md`);
-    const parsed = JSON.parse(fs.readFileSync(path.join(scenariosDir, file), "utf8")) as {
-      agent: string;
-      scenarios: Array<{ name: string; prompt: string; expect: unknown }>;
-    };
-    expect(parsed.agent).toBe(agentName);
-    expect(parsed.scenarios.length).toBeGreaterThan(0);
-    for (const scenario of parsed.scenarios) {
-      expect(scenario.name).toBeTruthy();
-      expect(scenario.prompt).toBeTruthy();
-      expect(scenario.expect).toBeTruthy();
-    }
+  // loadAgentScenarioFile already holds each file to a well-formed target, a stem
+  // naming it, and complete scenarios; this pins that the target exists in plugin/.
+  it.each(stems)("%s targets a real agent or skill", (stem) => {
+    const target = targetsByStem.get(stem)!;
+    const definitionPath =
+      target.kind === EvalTargetKind.Agent
+        ? path.join(agentsDir, `${target.name}.md`)
+        : path.join(skillsDir, target.name, "SKILL.md");
+    expect(fs.existsSync(definitionPath), `${stem}.json targets ${target.kind} ${target.name}, which has no ${definitionPath}`).toBe(true);
   });
 });

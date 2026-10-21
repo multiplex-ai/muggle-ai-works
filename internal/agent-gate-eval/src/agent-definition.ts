@@ -4,31 +4,26 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { MODEL_ALIASES } from "../../skill-gate-eval/src/constants.js";
-import type { AgentDefinition } from "./types.js";
+import { frontmatterField, splitFrontmatter } from "./frontmatter.js";
+import { EvalTargetKind, type AgentDefinition } from "./types.js";
 
 /**
  * Load and parse one agent definition file.
  *
- * Output shape: `{ name, modelAlias, model, body, filePath }` — throws when the
- * frontmatter is missing `name:` or `model:`, or when the alias is unknown; the
- * pin is the point of the eval, so an unpinned agent is a hard error, not a
+ * Output shape: `{ kind: "agent", name, modelAlias, model, body, filePath }` — throws
+ * when the frontmatter is missing `name:` or `model:`, or when the alias is unknown;
+ * the pin is the point of the eval, so an unpinned agent is a hard error, not a
  * silent default.
  */
 export function loadAgentDefinition(agentsDir: string, agentName: string): AgentDefinition {
   const filePath = path.resolve(agentsDir, `${agentName}.md`);
-  const raw = fs.readFileSync(filePath, "utf8");
-  const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-  if (!frontmatterMatch) {
-    throw new Error(`${filePath} has no frontmatter block`);
-  }
-  const block = frontmatterMatch[1];
-  const nameMatch = block.match(/^name:[ \t]*"?(.+?)"?[ \t]*$/m);
-  const modelMatch = block.match(/^model:[ \t]*"?(.+?)"?[ \t]*$/m);
-  if (!nameMatch) throw new Error(`${filePath} frontmatter has no name:`);
-  if (!modelMatch) {
+  const { block, body } = splitFrontmatter(fs.readFileSync(filePath, "utf8"), filePath);
+  const name = frontmatterField(block, "name");
+  const modelAlias = frontmatterField(block, "model");
+  if (!name) throw new Error(`${filePath} frontmatter has no name:`);
+  if (!modelAlias) {
     throw new Error(`${filePath} frontmatter has no model: — agent pins are the contract under test`);
   }
-  const modelAlias = modelMatch[1].trim();
   const model = MODEL_ALIASES[modelAlias];
   if (!model) {
     throw new Error(
@@ -36,10 +31,11 @@ export function loadAgentDefinition(agentsDir: string, agentName: string): Agent
     );
   }
   return {
-    name: nameMatch[1].trim(),
+    kind: EvalTargetKind.Agent,
+    name: name,
     modelAlias: modelAlias,
     model: model,
-    body: raw.slice(frontmatterMatch[0].length),
+    body: body,
     filePath: filePath,
   };
 }

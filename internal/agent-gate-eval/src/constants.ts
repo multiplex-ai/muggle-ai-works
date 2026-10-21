@@ -1,4 +1,10 @@
-/** Knobs of the agent-gate eval's Codex harness (codex-harness.ts) and its hook. */
+/** Knobs of the agent-gate eval: its agent SDK harness, its Codex harness (codex-harness.ts), and their hooks. */
+
+import { fileURLToPath } from "node:url";
+
+import { z } from "zod";
+
+import { type HostStubSpec, ScriptedTool } from "./types.js";
 
 /** The file the Codex hook appends each tool call to, per rep. */
 export const CODEX_AGENT_TRACE_ENV = "MUGGLE_AGENT_EVAL_TRACE";
@@ -14,3 +20,178 @@ export const CODEX_ASK_QUESTION_TOOL = "request_user_input";
 
 /** The sandbox a rep's real plugin reads run in; every other command is scripted and never runs. */
 export const DEFAULT_CODEX_AGENT_SANDBOX = "read-only";
+
+/** Returned for a Bash command no scripted response matches. */
+export const UNSCRIPTED_BASH_RESPONSE = "(exit 0, no output)";
+
+/** Prefixes every scripted Bash answer, on both hosts; the Codex hook spells it out itself. */
+export const SIMULATED_OUTPUT_PREFIX = "SIMULATED OUTPUT (treat as the command's real result):\n";
+
+/** Returned for a scripted tool call no `toolResponses` entry matches. */
+export const UNSCRIPTED_TOOL_RESPONSE = "(recorded by the eval harness; nothing ran)";
+
+/** The denial an unscripted AskUserQuestion gets: there is no user to answer it. */
+export const NO_USER_RESPONSE =
+  "[harness] there is no user in this environment — return a `needs-input:` line instead of asking";
+
+/** Reps per scenario when `--runs` is unset. */
+export const DEFAULT_AGENT_RUNS = 5;
+
+/** Turn cap when neither the caller nor the scenario sets one. */
+export const DEFAULT_MAX_TURNS = 60;
+
+/** The model a skill runs on when neither `--model` nor its frontmatter names one. */
+export const DEFAULT_SKILL_MODEL = "claude-sonnet-5-5";
+
+/** Name of the in-process mock muggle server; its tools surface as `mcp__eval_mock__<tool>`. */
+export const MOCK_MCP_SERVER_NAME = "eval_mock";
+
+/** Prefix the agent SDK gives every mock muggle tool. */
+export const MOCK_MCP_PREFIX = `mcp__${MOCK_MCP_SERVER_NAME}__`;
+
+/** Prefix of the production muggle plugin's tools, which must never answer inside an eval. */
+export const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
+
+/** Name of the in-process server carrying the host-tool stubs; its tools surface as `mcp__eval_host__<tool>`. */
+export const HOST_STUB_SERVER_NAME = "eval_host";
+
+/** Prefix the agent SDK gives every host-tool stub. */
+export const HOST_STUB_PREFIX = `mcp__${HOST_STUB_SERVER_NAME}__`;
+
+/** Version the eval's in-process MCP servers report. */
+export const EVAL_MCP_SERVER_VERSION = "0.0.0-eval";
+
+/** Built-in tools a plugin agent target is offered. */
+export const AGENT_BUILTIN_TOOLS = ["Read", "Bash", ScriptedTool.AskUserQuestion];
+
+/** Built-in tools a skill target is offered; its orchestration tools come as host stubs. */
+export const SKILL_BUILTIN_TOOLS = ["Read", "Write", "Edit", "Bash", ScriptedTool.AskUserQuestion];
+
+/** Built-in tools that write files, confined to the sandbox. */
+export const WRITE_TOOLS = ["Write", "Edit"];
+
+/** The SDK's own name for the subagent tool, which it lists beside `Agent`. */
+export const LEGACY_AGENT_TOOL = "Task";
+
+/**
+ * Host tools the SDK runs without consulting canUseTool, each replaced by a
+ * same-named stub. Skill, Agent and CronDelete validate their input before any
+ * hook fires (an unknown skill, subagent type, or job id never reaches one);
+ * TodoWrite, CronCreate and Monitor would really run. Each shape mirrors the
+ * built-in tool's fields, since zod strips undeclared keys from what the stub sees.
+ */
+export const HOST_STUB_SPECS: HostStubSpec[] = [
+  {
+    tool: ScriptedTool.Skill,
+    description: "Invoke a skill by name, with optional arguments.",
+    shape: { skill: z.string(), args: z.string().optional() },
+  },
+  {
+    tool: ScriptedTool.Agent,
+    description: "Dispatch a subagent with a task prompt and wait for its report.",
+    shape: {
+      description: z.string(),
+      prompt: z.string(),
+      subagent_type: z.string().optional(),
+      model: z.string().optional(),
+      run_in_background: z.boolean().optional(),
+    },
+  },
+  {
+    tool: ScriptedTool.TodoWrite,
+    description: "Replace the session's todo list.",
+    shape: {
+      todos: z.array(
+        z.object({ content: z.string(), status: z.string(), activeForm: z.string().optional() }),
+      ),
+    },
+  },
+  {
+    tool: ScriptedTool.CronCreate,
+    description: "Schedule a prompt on a cron expression.",
+    shape: {
+      cron: z.string(),
+      prompt: z.string(),
+      recurring: z.boolean().optional(),
+      durable: z.boolean().optional(),
+    },
+  },
+  {
+    tool: ScriptedTool.CronDelete,
+    description: "Cancel a scheduled job by id.",
+    shape: { id: z.string() },
+  },
+  {
+    tool: ScriptedTool.Monitor,
+    description: "Run a command in the background and stream each output line back as an event.",
+    shape: {
+      command: z.string(),
+      description: z.string(),
+      timeout_ms: z.number().optional(),
+      persistent: z.boolean().optional(),
+    },
+  },
+];
+
+/** Built-in tool names a host stub stands in for, including the SDK's legacy name for Agent. */
+export const STUBBED_BUILTIN_TOOL_NAMES = new Set<string>([
+  ...HOST_STUB_SPECS.map((spec) => spec.tool),
+  LEGACY_AGENT_TOOL,
+]);
+
+/** How every target's environment note explains scripted Bash. */
+export const SCRIPTED_BASH_NOTE_LINES = [
+  "Bash commands do not execute here. Every Bash call is intercepted and the",
+  "permission message carries that command's REAL observed output for this",
+  "environment (marked SIMULATED OUTPUT). Treat it exactly as if the command",
+  "ran and printed it; do not re-run a command whose output you already have.",
+];
+
+/** How the environment note points a run at the mock muggle tools. */
+export const MOCK_MCP_NOTE_LINES = [
+  "The production `mcp__plugin_muggle_muggle__*` tools are NOT available;",
+  `call the matching \`${MOCK_MCP_PREFIX}*\` tools instead. They return canned`,
+  "results so you can run and report without auth, cloud, or a real browser.",
+  "A bare tool name in your instructions (e.g.",
+  "`muggle-local-execute-replay`) resolves to",
+  `\`${MOCK_MCP_PREFIX}muggle-local-execute-replay\`.`,
+];
+
+/** The line the Skill tool puts before a skill's body, naming the directory its relative links resolve from. */
+export const SKILL_BASE_DIRECTORY_PREFIX = "Base directory for this skill: ";
+
+/** The placeholder a skill body uses for its invocation arguments. */
+export const SKILL_ARGUMENTS_PLACEHOLDER = "$ARGUMENTS";
+
+/** Prefixes the arguments the Skill tool appends to a body that has no `$ARGUMENTS` placeholder. */
+export const SKILL_ARGUMENTS_PREFIX = "ARGUMENTS: ";
+
+/** Header of the SessionStart preferences block, as plugin/scripts/ensure-electron-app.sh emits it. */
+export const PREFERENCES_CONTEXT_HEADER = "Muggle Test Preferences (~/.muggle-ai/preferences.json):";
+
+/** The shipped preference defaults, relative to the plugin tree. */
+export const PREFERENCE_DEFAULTS_PATH = "config/preference-defaults.json";
+
+/** Fixture repositories a scenario's `seed.repo` names. */
+export const FIXTURE_REPOS_DIR = fileURLToPath(new URL("../fixtures/", import.meta.url));
+
+/** Prefix of each run's sandbox directory under the OS temp dir. */
+export const SANDBOX_DIR_PREFIX = "muggle-agent-eval-run-";
+
+/** Env var that relocates the Claude Code CLI's config dir (CI points it at a temp dir). */
+export const CLAUDE_CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR";
+
+/** The CLI's config dir under the home directory when CLAUDE_CONFIG_DIR is unset. */
+export const DEFAULT_CLAUDE_CONFIG_DIRNAME = ".claude";
+
+/** The config subdirectory holding the CLI's per-project records. */
+export const CLAUDE_PROJECTS_DIRNAME = "projects";
+
+/** Spellings of the home directory a path or command may open with. */
+export const HOME_PATH_PREFIXES = ["~", "$HOME", "${HOME}"];
+
+/** Scenario files are JSON; results files beside them carry this suffix and are skipped. */
+export const RESULTS_FILE_SUFFIX = ".results.json";
+
+/** Sits before RESULTS_FILE_SUFFIX in a Codex run's results file, so neither host overwrites the other. */
+export const CODEX_RESULTS_INFIX = ".codex";

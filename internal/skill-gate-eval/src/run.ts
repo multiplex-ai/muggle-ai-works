@@ -13,11 +13,18 @@
  *     [--concurrency 8]           # parallel reps; SKILL_GATE_EVAL_CONCURRENCY env also works
  *     [--scenario <substring>]   # only run scenarios whose name contains this
  *     [--verbose]                 # dump per-run trace to stderr
+ *     [--host codex]              # run the reps in the Codex CLI (codex-harness.ts)
+ *     [--codex-home <dir>]        # under Codex: a Codex home the eval may own (default: a fresh one)
+ *     [--codex-config <key=value>] # under Codex: a config override for every run (repeatable)
+ *
+ * Under Codex the results go to results.codex.json, beside Claude's results.json.
  */
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
+import { prepareCodexGateHome, runScenarioOnceInCodex } from "./codex-harness.js";
 import {
   runWithConcurrencyLimit,
   ThrottleGate,
@@ -28,10 +35,12 @@ import {
   DEFAULT_MODEL,
   MODEL_ALIASES,
   PASS_THRESHOLD,
+  RESULTS_FILENAME_BY_HOST,
 } from "./constants.js";
 import { runScenarioOnce } from "./harness.js";
-import { loadScenarioFile } from "./scenario.js";
-import type { CliArgs, RunVerdict, ScenarioReport } from "./types.js";
+import { loadFixtures, loadScenarioFile } from "./scenario.js";
+import { EvalHost } from "./types.js";
+import type { CliArgs, Fixtures, RunOptions, RunVerdict, ScenarioReport } from "./types.js";
 
 interface RunCliArgs extends CliArgs {
   scenarioFilter?: string;
@@ -62,6 +71,7 @@ function frontmatterModel(skillsDir: string, skill: string): string | undefined 
 function parseArgs(argv: string[]): RunCliArgs {
   const out: Record<string, string> = {};
   const flags = new Set<string>();
+  const codexConfig: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (!a.startsWith("--")) continue;
@@ -70,7 +80,8 @@ function parseArgs(argv: string[]): RunCliArgs {
     if (val === undefined || val.startsWith("--")) {
       flags.add(key);
     } else {
-      out[key] = val;
+      if (key === "codex-config") codexConfig.push(val);
+      else out[key] = val;
       i++;
     }
   }
@@ -78,12 +89,21 @@ function parseArgs(argv: string[]): RunCliArgs {
     throw new Error("Required: --gate <key> --skill <name>");
   }
   const skillsDir = out["skills-dir"] ?? "plugin/skills";
+  const host = (out.host ?? EvalHost.Claude) as EvalHost;
+  if (!Object.values(EvalHost).includes(host)) {
+    throw new Error(`--host must be one of ${Object.values(EvalHost).join(", ")}, got "${out.host}"`);
+  }
   // Precedence: explicit --model > the skill's declared `model:` > DEFAULT_MODEL.
   // Honoring the frontmatter means the eval exercises the skill on the same
   // model it runs on in production (e.g. a haiku-tier skill is tested on haiku).
-  const model = out.model
-    ? resolveModel(out.model, DEFAULT_MODEL)
-    : resolveModel(frontmatterModel(skillsDir, out.skill), DEFAULT_MODEL);
+  // Codex ignores `model:` and runs every skill on the session's model, so
+  // there only an explicit --model applies.
+  const model =
+    host === EvalHost.Codex
+      ? (out.model ?? "")
+      : out.model
+        ? resolveModel(out.model, DEFAULT_MODEL)
+        : resolveModel(frontmatterModel(skillsDir, out.skill), DEFAULT_MODEL);
   const concurrencyRaw =
     out.concurrency ??
     process.env.SKILL_GATE_EVAL_CONCURRENCY ??
@@ -98,7 +118,10 @@ function parseArgs(argv: string[]): RunCliArgs {
     runs: parseInt(out.runs ?? "10", 10),
     brainDir: out["brain-dir"] ?? process.env.MUGGLE_BRAIN_DIR ?? "../muggle-ai-brain",
     skillsDir: skillsDir,
+    host: host,
     model: model,
+    codexHome: out["codex-home"],
+    codexConfig: codexConfig,
     concurrency: concurrency,
     scenarioFilter: out.scenario,
     verbose: flags.has("verbose"),
@@ -109,7 +132,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   // eslint-disable-next-line no-console
   console.error(
-    `[skill-gate-eval] ${args.gate} on ${args.skill} — model=${args.model} runs=${args.runs} concurrency=${args.concurrency}`,
+    `[skill-gate-eval] ${args.gate} on ${args.skill} — host=${args.host} model=${args.model || "codex default"} runs=${args.runs} concurrency=${args.concurrency}`,
   );
   const scenarioFilePath = path.resolve(
     args.brainDir,
@@ -137,6 +160,30 @@ async function main(): Promise<void> {
     );
   }
 
+  // Every Codex rep of this scenario file shares one Codex home, holding its fixtures.
+  const codexHome =
+    args.host === EvalHost.Codex
+      ? (args.codexHome ?? fs.mkdtempSync(path.join(os.tmpdir(), "muggle-gate-eval-codex-")))
+      : "";
+  if (args.host === EvalHost.Codex) {
+    prepareCodexGateHome(
+      path.resolve(codexHome),
+      loadFixtures(scenarioFilePath, scenarioFile.fixturesPath) as Fixtures,
+    );
+  }
+  const runRep = (runOptions: RunOptions, onEvent?: (event: unknown) => void): Promise<RunVerdict> =>
+    args.host === EvalHost.Codex
+      ? runScenarioOnceInCodex(
+          {
+            ...runOptions,
+            codexHome: path.resolve(codexHome),
+            model: args.model || undefined,
+            configOverrides: args.codexConfig,
+          },
+          onEvent,
+        )
+      : runScenarioOnce(runOptions, onEvent);
+
   // Each rep is an isolated agent session, so reps run through a bounded pool.
   // One shared gate: a rate-limited rep pauses new starts for every worker.
   const throttleGate = new ThrottleGate();
@@ -148,7 +195,7 @@ async function main(): Promise<void> {
         console.error(`[skill-gate-eval] running ${repLabel}…`);
         const verdict = await withThrottleRetry(
           () =>
-            runScenarioOnce(
+            runRep(
               {
                 scenarioFile: scenarioFile,
                 scenarioFilePath: scenarioFilePath,
@@ -204,7 +251,7 @@ async function main(): Promise<void> {
 
   const resultsPath = path.resolve(
     path.dirname(scenarioFilePath),
-    "results.json",
+    RESULTS_FILENAME_BY_HOST[args.host],
   );
   fs.writeFileSync(
     resultsPath,
@@ -212,7 +259,8 @@ async function main(): Promise<void> {
       {
         gate: args.gate,
         skill: args.skill,
-        model: args.model,
+        host: args.host,
+        model: args.model || "codex default",
         runsPerScenario: args.runs,
         passThreshold: PASS_THRESHOLD,
         recordedAt: new Date().toISOString(),

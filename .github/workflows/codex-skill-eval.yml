@@ -2,7 +2,9 @@ name: Codex Skill Evals
 
 # The skill evals with their sessions run in OpenAI's Codex CLI instead of
 # Claude Code. The routing eval asks whether the skill descriptions still route
-# the right queries when Codex's model picks among the plugin's skills.
+# the right queries when Codex's model picks among the plugin's skills; the gate
+# eval, whether each skill still keeps its preference gates when Codex's model
+# runs it.
 #
 # Not a required check: Codex runs on OpenAI's models, billed to the
 # OPENAI_API_KEY repo secret, and without that secret each job says so and
@@ -26,6 +28,12 @@ on:
       routing_workers:
         description: "codex-skill-routing-eval: parallel sessions across the pooled sweep"
         default: "6"
+      gate_runs:
+        description: "codex-skill-gate-eval: runs per scenario"
+        default: "10"
+      gate_concurrency:
+        description: "codex-skill-gate-eval: parallel reps per gate"
+        default: "8"
       codex_cli_version:
         description: "Codex CLI version to install (blank = the workflow's pin)"
         default: ""
@@ -275,6 +283,144 @@ jobs:
           printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             marker='<!-- muggle-skill-eval:codex-routing -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
+          fi
+
+  codex-skill-gate-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GATE_RUNS: ${{ inputs.gate_runs || '10' }}
+      GATE_CONCURRENCY: ${{ inputs.gate_concurrency || '8' }}
+      MUGGLE_BRAIN_DIR: ${{ github.workspace }}/muggle-ai-brain
+      # One Codex home per gate, which the harness owns; the run step makes it.
+      CODEX_GATE_HOMES: ${{ github.workspace }}/.codex-gate-homes
+    steps:
+      - name: Checkout works
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # skill-gate-eval's rule (scripts/skill-eval-scope.sh), less what Codex
+      # cannot see — it ignores a skill's `model:`, so a `model:`-only change is
+      # skipped — plus what only Codex reads: the host-tool-equivalents row that
+      # tells it how to ask a gate's question.
+      - name: Determine scope
+        id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
+        run: |
+          set -euo pipefail
+          if [ "$RUN_FULL_EVAL" = "true" ] || [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Full Codex gate sweep"
+            exit 0
+          fi
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          changed="$(git diff --name-only "$base...HEAD")"
+          decision="$(printf '%s\n' "$changed" | bash scripts/skill-eval-scope.sh "$base")"
+          echo "scope decision: $decision"
+          if [ "$decision" = "full" ] || printf '%s\n' "$changed" | grep -qx 'plugin/skills/_shared/host-tool-equivalents.md'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Gate-relevant changes detected — running the Codex gate suite."
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "No change Codex's gate runs can see — Codex gate eval not required."
+          fi
+
+      - name: Check for an OpenAI key and the scenario repo token
+        id: auth
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BRAIN_REPO_TOKEN: ${{ secrets.BRAIN_REPO_TOKEN }}
+        run: |
+          if [ -n "$OPENAI_API_KEY" ] && [ -n "$BRAIN_REPO_TOKEN" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Codex gate eval skipped::Set the OPENAI_API_KEY repo secret (and BRAIN_REPO_TOKEN, which skill-gate-eval already uses) to run the gate eval under Codex."
+          fi
+
+      - name: Checkout scenario data (muggle-ai-brain)
+        if: steps.auth.outputs.ready == 'true'
+        uses: actions/checkout@v6
+        with:
+          repository: multiplex-ai/muggle-ai-brain
+          token: ${{ secrets.BRAIN_REPO_TOKEN }}
+          path: muggle-ai-brain
+
+      - name: Setup Node.js
+        if: steps.auth.outputs.ready == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        if: steps.auth.outputs.ready == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        if: steps.auth.outputs.ready == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Codex CLI
+        if: steps.auth.outputs.ready == 'true'
+        run: |
+          npm install -g "@openai/codex@${CODEX_CLI_VERSION}"
+          codex --version
+
+      - name: Run skill-gate evals under Codex (every gate in the scenario repo)
+        if: steps.auth.outputs.ready == 'true'
+        env:
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          fail=0
+          total=0
+          for scenarios in "$MUGGLE_BRAIN_DIR"/eval/skill-gate-eval/*/scenarios.json; do
+            total=$((total + 1))
+            gate="$(basename "$(dirname "$scenarios")")"
+            skill="$(node -e "process.stdout.write(require(process.argv[1]).skill)" "$scenarios")"
+            echo "::group::gate=$gate skill=$skill runs=$GATE_RUNS"
+            if pnpm exec tsx internal/skill-gate-eval/src/run.ts --host codex \
+                 --gate "$gate" --skill "$skill" --runs "$GATE_RUNS" \
+                 --concurrency "$GATE_CONCURRENCY" \
+                 --codex-home "$CODEX_GATE_HOMES/$gate" \
+                 --brain-dir "$MUGGLE_BRAIN_DIR"; then
+              echo "PASS $gate"
+            else
+              echo "FAIL $gate"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$total" -eq 0 ]; then
+            echo "No scenarios.json found under $MUGGLE_BRAIN_DIR/eval/skill-gate-eval" >&2
+            exit 1
+          fi
+          exit "$fail"
+
+      - name: Report gate results
+        if: always() && steps.auth.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          md="$(pnpm exec tsx internal/skill-gate-eval/src/report.ts "$MUGGLE_BRAIN_DIR" --host codex)"
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:codex-gate -->'
             body="$(printf '%s\n%s' "$marker" "$md")"
             pr='${{ github.event.pull_request.number }}'
             repo='${{ github.repository }}'

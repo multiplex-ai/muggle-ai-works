@@ -196,30 +196,7 @@ export class CodexSession {
 
   // Top-level keys must precede the tables `codex plugin add` already wrote.
   private writeModelConfig(): void {
-    const catalog = join(this.codexHome, "mock-model-catalog.json");
-    writeFileSync(
-      catalog,
-      JSON.stringify({
-        models: [
-          {
-            slug: MOCK_MODEL,
-            display_name: "Mock Model",
-            supported_reasoning_levels: [],
-            shell_type: "unified_exec",
-            visibility: "list",
-            supported_in_api: true,
-            priority: 1,
-            support_verbosity: false,
-            truncation_policy: { mode: "bytes", limit: 10000 },
-            experimental_supported_tools: [],
-            // A bundled model's window, so the skills catalog gets a production-sized budget.
-            context_window: 272000,
-            supports_reasoning_summary_parameter: false,
-            base_instructions: "You are a scripted test agent.",
-          },
-        ],
-      }),
-    );
+    const catalog = writeMockModelCatalog(this.codexHome);
     const configPath = join(this.codexHome, "config.toml");
     const installed = readFileSync(configPath, "utf-8");
     const topLevel = [
@@ -246,6 +223,50 @@ export class CodexSession {
     ].join("\n");
     writeFileSync(configPath, `${topLevel}\n\n${installed}\n${tables}\n`);
   }
+}
+
+/** Describe the scripted model to Codex in `dir`; returns the catalog's path, for `model_catalog_json`. */
+export function writeMockModelCatalog(dir: string): string {
+  const catalog = join(dir, "mock-model-catalog.json");
+  writeFileSync(
+    catalog,
+    JSON.stringify({
+      models: [
+        {
+          slug: MOCK_MODEL,
+          display_name: "Mock Model",
+          supported_reasoning_levels: [],
+          shell_type: "unified_exec",
+          visibility: "list",
+          supported_in_api: true,
+          priority: 1,
+          support_verbosity: false,
+          truncation_policy: { mode: "bytes", limit: 10000 },
+          experimental_supported_tools: [],
+          // A bundled model's window, so the skills catalog gets a production-sized budget.
+          context_window: 272000,
+          supports_reasoning_summary_parameter: false,
+          base_instructions: "You are a scripted test agent.",
+        },
+      ],
+    }),
+  );
+  return catalog;
+}
+
+/** `-c key=value` overrides that point a Codex home at the scripted model, for a home this file did not set up. */
+export function mockModelOverrides(model: MockResponsesServer, catalogPath: string): string[] {
+  return [
+    `model=${JSON.stringify(MOCK_MODEL)}`,
+    `model_provider="mock"`,
+    `model_catalog_json=${JSON.stringify(catalogPath)}`,
+    `model_providers.mock.name="Scripted model"`,
+    `model_providers.mock.base_url=${JSON.stringify(model.baseUrl)}`,
+    `model_providers.mock.wire_api="responses"`,
+    `model_providers.mock.supports_websockets=false`,
+    `model_providers.mock.request_max_retries=0`,
+    `model_providers.mock.stream_max_retries=0`,
+  ];
 }
 
 /**

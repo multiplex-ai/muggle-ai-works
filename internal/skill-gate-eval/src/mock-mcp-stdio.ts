@@ -15,11 +15,9 @@ import * as fs from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
+import { MOCK_STDIO_SERVER_NAME } from "./constants.js";
 import { jsonResult, mockToolSpecs } from "./mock-tools.js";
 import type { Fixtures } from "./types.js";
-
-/** The production server name, so the host spells each tool as it would in a real session. */
-export const MOCK_STDIO_SERVER_NAME = "muggle";
 
 /** Serve the mock tools for these fixtures on stdin/stdout until the host closes the pipe. */
 export async function serveMockToolsOverStdio(fixtures: Fixtures): Promise<void> {

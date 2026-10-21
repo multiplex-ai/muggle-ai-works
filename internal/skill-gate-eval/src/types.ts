@@ -126,6 +126,17 @@ export interface RunVerdict {
   };
 }
 
+/** The files and scenario context a gate prompt is built from — see prompt-inputs.ts. */
+export interface GatePromptInputs {
+  skillBody: string;
+  /** The gate-under-test's contract, or "" when the skill has none on disk. */
+  gateBody: string;
+  /** The scenario's preferences as `key=value` pairs, space-separated. */
+  prefs: string;
+  /** The scenario's other session-context lines, newline-joined. */
+  extraContext: string;
+}
+
 export interface RunOptions {
   scenarioFile: ScenarioFile;
   scenarioFilePath: string;
@@ -136,13 +147,51 @@ export interface RunOptions {
   maxTurns?: number;
 }
 
+/** The agent host a gate runs in. */
+export enum EvalHost {
+  Claude = "claude",
+  Codex = "codex",
+}
+
+/** One scenario run under Codex (codex-harness.ts). */
+export interface CodexRunOptions extends Omit<RunOptions, "model" | "maxTurns"> {
+  /** The Codex home prepareCodexGateHome set up for this scenario file. */
+  codexHome: string;
+  /** Unset, Codex runs its default model — the session's model, which is what a skill gets in Codex. */
+  model?: string;
+  /** Extra `-c key=value` overrides for every `codex exec`, e.g. a model provider. */
+  configOverrides?: string[];
+}
+
+/** One tool call the Codex hook recorded, with the scripted pick it answered a question with. */
+export interface CodexGateTraceEntry {
+  tool_name: string;
+  tool_input: Record<string, unknown>;
+  /** Present on a `request_user_input` call: the pick it was answered with, or null when none was scripted. */
+  answer?: string | null;
+}
+
+/** How one `codex exec` turn exited, and what it printed. */
+export interface CodexTurnOutput {
+  status: number | null;
+  stdout: string;
+  stderr: string;
+}
+
 export interface CliArgs {
   gate: string;
   skill: string;
   runs: number;
   brainDir: string;
   skillsDir: string;
+  /** The host the reps run in. */
+  host: EvalHost;
+  /** Under Codex, "" runs Codex's default model, since Codex ignores a skill's `model:`. */
   model: string;
+  /** Under Codex: a Codex home the eval may own; unset, each run gets a fresh one. */
+  codexHome?: string;
+  /** Under Codex: `key=value` config overrides passed to every run. */
+  codexConfig: string[];
   /** Max eval reps in flight at once; 1 reproduces the old sequential behavior. */
   concurrency: number;
 }

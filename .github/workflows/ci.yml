@@ -187,6 +187,59 @@ jobs:
       - name: Build
         run: pnpm run build
 
+  # The plugin under the real Codex CLI (src/test/codex/codex-live.test.ts):
+  # installed from this checkout with Codex's own plugin commands, its MCP
+  # server started by the plugin's own command, its hooks fired by Codex
+  # itself, all against a scripted model — deterministic and credential-free.
+  # Codex reports a failed hook to no one, so nothing else would notice one;
+  # Windows is here because that is where the hook commands differ. Pinned so a
+  # Codex release that changes hook, skill or MCP behavior arrives as a
+  # deliberate bump rather than a red master.
+  codex-compat:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      CODEX_CLI_VERSION: "0.163.0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # The routing eval's Codex harness is Python; its live test drives it here.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the Codex CLI
+        shell: bash
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/codex-cli" "@openai/codex@${CODEX_CLI_VERSION}"
+          codex_bin="$RUNNER_TEMP/codex-cli/node_modules/@openai/codex/bin/codex.js"
+          node "$codex_bin" --version
+          echo "CODEX_BIN=$codex_bin" >> "$GITHUB_ENV"
+
+      - name: Run the plugin under Codex
+        env:
+          MUGGLE_REQUIRE_CODEX_LIVE: "1"
+        run: pnpm run test:codex
+
   # Verify plugin manifests and compatibility contracts
   verify-compatibility:
     runs-on: ubuntu-latest
@@ -237,6 +290,7 @@ jobs:
       - typecheck
       - node-compat
       - platform-compat
+      - codex-compat
       - verify-compatibility
     permissions:
       actions: write

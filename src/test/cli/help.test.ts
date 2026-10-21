@@ -31,6 +31,16 @@ describe("help guidance", () => {
     expect(out).toContain("muggle serve --local");
   });
 
+  // Codex cancels an MCP call after 60s unless told otherwise, and a local run
+  // takes minutes, so a config snippet without the timeout would be a broken one.
+  it("shows the Codex plugin install and an MCP config that outlasts a local run", () => {
+    process.env.NO_COLOR = "1";
+    const out = getHelpGuidance();
+    expect(out).toContain("codex plugin add muggle@muggle-works");
+    expect(out).toContain("~/.codex/config.toml");
+    expect(out).toContain("tool_timeout_sec = 1800");
+  });
+
   it("help guidance lists the core CLI commands", () => {
     process.env.NO_COLOR = "1";
     const out = getHelpGuidance();

@@ -122,7 +122,7 @@ Replace **`<VERSION>`** with **`nextNpmVersion`** (dots in the branch name are f
 pnpm run sync:versions
 ```
 
-Never hand-edit **`.claude-plugin/marketplace.json`**, **`.cursor-plugin/marketplace.json`**, **`plugin/.claude-plugin/plugin.json`**, **`plugin/.cursor-plugin/plugin.json`**, or **`server.json`** — **`sync-versions`** (and **`build`**) owns them.
+Never hand-edit **`.claude-plugin/marketplace.json`**, **`.cursor-plugin/marketplace.json`**, **`.agents/plugins/marketplace.json`**, **`plugin/.claude-plugin/plugin.json`**, **`plugin/.cursor-plugin/plugin.json`**, **`plugin/.codex-plugin/plugin.json`**, or **`server.json`** — **`sync-versions`** (and **`build`**) owns them.
 
 If you changed Electron after the first sync, run **`pnpm run sync:versions`** again.
 

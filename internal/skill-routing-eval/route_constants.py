@@ -12,6 +12,11 @@ INSPECTION_TOOL_NAMES = frozenset({
     "ToolSearch",
     "WebFetch",
     "WebSearch",
+    # Codex's, as its hooks name them.
+    "list_mcp_resource_templates",
+    "list_mcp_resources",
+    "read_mcp_resource",
+    "view_image",
 })
 
 SHELL_TOOL_NAMES = frozenset({"Bash", "PowerShell"})
@@ -52,12 +57,15 @@ INSPECTION_COMMANDS = frozenset({
     "head",
     "less",
     "ls",
+    # `nl -ba` and `sed -n` are how Codex reads a file a page at a time.
+    "nl",
     "printenv",
     "pwd",
     "resolve-path",
     "rg",
     "select-object",
     "select-string",
+    "sed -n",
     "stat",
     "tail",
     "test-path",

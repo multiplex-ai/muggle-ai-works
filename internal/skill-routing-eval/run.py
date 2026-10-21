@@ -12,12 +12,15 @@ Usage:
     python internal/skill-routing-eval/run.py --all
     python internal/skill-routing-eval/run.py --skill muggle-status
     python internal/skill-routing-eval/run.py --all --sync-cache
+    python internal/skill-routing-eval/run.py --all --host codex --sync-cache
 
 `--sync-cache` copies this repo's plugin/skills/<skill>/SKILL.md over the
 installed muggle plugin cache before running. Without it, the eval reflects
 whatever is installed; with a description edit in the working tree but not the
 cache, `claude -p` sees BOTH (the bare-name local skill and the cached
 `muggle:` one) and results are unreliable — sync first when validating an edit.
+Under `--host codex` it reinstalls the plugin from this checkout into
+$CODEX_HOME instead, the tracer the Codex sessions need included.
 """
 
 import argparse
@@ -28,16 +31,21 @@ import subprocess
 import sys
 from pathlib import Path
 
-from gate_constants import BASELINE_FILENAME, BASELINE_SOURCE_FULL_SWEEP
+import codex_session
+from gate_constants import BASELINE_FILENAME, BASELINE_SOURCE_FULL_SWEEP, CODEX_BASELINE_FILENAME
 from pool_constants import DEFAULT_ROUTING_WORKERS, MAX_DISCONNECT_ATTEMPTS
 from pooling import partition_results_by_skill, plan_pooled_items, resolve_disconnect_retries
 from regression_gate import build_baseline, format_gate_report, gate_failures, judge_run, load_baseline
+from route_types import Host
 from scoring import NONE, scored_pass
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parents[1]  # internal/skill-routing-eval -> repo root
 EVAL_SET = HERE / "eval-set.json"
-BASELINE = HERE / BASELINE_FILENAME
+# Each host routes on its own model, so each is gated against its own recorded recall.
+BASELINE_BY_HOST = {Host.CLAUDE: HERE / BASELINE_FILENAME, Host.CODEX: HERE / CODEX_BASELINE_FILENAME}
+# Kept apart so a Codex run never overwrites the Claude report checked in under reports/run.
+OUT_DIR_BY_HOST = {Host.CLAUDE: HERE / "reports" / "run", Host.CODEX: HERE / "reports" / "run-codex"}
 ROUTER = HERE / "router_eval.py"
 ANALYZE = HERE / "analyze.py"
 
@@ -67,14 +75,16 @@ def sync_cache(repo_root: Path, cache: Path) -> int:
     return n
 
 
-def run_chunk(items: list[dict], out_file: Path, repo_root: Path, runs: int, workers: int, timeout: int):
+def run_chunk(
+    items: list[dict], out_file: Path, repo_root: Path, runs: int, workers: int, timeout: int, host: Host
+):
     chunk_file = out_file.with_suffix(".in.json")
     chunk_file.write_text(json.dumps(items, indent=2), encoding="utf-8")
     cmd = [
         sys.executable, str(ROUTER),
         "--eval-set", str(chunk_file), "--repo-root", str(repo_root),
         "--runs", str(runs), "--workers", str(workers), "--timeout", str(timeout),
-        "--out", str(out_file),
+        "--out", str(out_file), "--host", host.value,
     ]
     subprocess.run(cmd, check=True)
     return json.loads(out_file.read_text(encoding="utf-8"))
@@ -93,12 +103,13 @@ def main():
     ap.add_argument("--runs", type=int, default=3)
     ap.add_argument("--workers", type=int, default=DEFAULT_ROUTING_WORKERS, help="parallel claude sessions across the pooled sweep; router_eval's per-run throttle retry + shared backoff make higher values safe")
     ap.add_argument("--timeout", type=int, default=200)
-    ap.add_argument("--out-dir", default=str(HERE / "reports" / "run"))
+    ap.add_argument("--out-dir", help="where the reports go; defaults to reports/run, or reports/run-codex under --host codex")
     ap.add_argument("--repo-root", default=str(REPO_ROOT))
     ap.add_argument("--sync-cache", action="store_true", help="copy working-tree descriptions into the installed plugin cache first")
     # Off by default, so dev runs stay informational and never fail the process.
     ap.add_argument("--gate", action="store_true", help="CI gate: exit 1 if a skill regressed against the recorded baseline or collapsed")
-    ap.add_argument("--baseline", default=str(BASELINE), help="recorded per-skill baseline the gate compares against")
+    ap.add_argument("--baseline", help=f"recorded per-skill baseline the gate compares against; defaults to {BASELINE_FILENAME}, or {CODEX_BASELINE_FILENAME} under --host codex")
+    ap.add_argument("--host", choices=[host.value for host in Host], default=Host.CLAUDE.value, help="the agent CLI the sessions run in")
     ap.add_argument("--record-baseline", help="write this run's per-skill tallies to PATH as a baseline candidate (full sweeps only)")
     args = ap.parse_args()
 
@@ -106,11 +117,20 @@ def main():
         print("--record-baseline needs a full sweep; a scoped run would drop every skill it did not measure", file=sys.stderr)
         sys.exit(2)
 
+    host = Host(args.host)
     repo_root = Path(args.repo_root).resolve()
-    out_dir = Path(args.out_dir)
+    out_dir = Path(args.out_dir) if args.out_dir else OUT_DIR_BY_HOST[host]
     out_dir.mkdir(parents=True, exist_ok=True)
+    combined_label = f"{host.value} (run.py)"
 
-    if args.sync_cache:
+    if args.sync_cache and host is Host.CODEX:
+        codex_home = os.environ.get("CODEX_HOME")
+        if not codex_home:
+            print("--sync-cache under --host codex needs CODEX_HOME set to the eval's Codex home", file=sys.stderr)
+            sys.exit(2)
+        codex_session.prepare_codex_home(Path(codex_home), os.environ.get("CODEX_BIN", "codex"), REPO_ROOT)
+        print(f"reinstalled the plugin from {REPO_ROOT} -> {codex_home}", file=sys.stderr)
+    elif args.sync_cache:
         cache = find_plugin_cache()
         if not cache:
             print("WARNING: could not find installed muggle plugin cache; skipping sync", file=sys.stderr)
@@ -142,7 +162,7 @@ def main():
             "to evaluate — passing."
         )
         print(msg, file=sys.stderr)
-        combined = {"model": "claude (run.py)", "runs_per_query": args.runs, "results": []}
+        combined = {"model": combined_label, "runs_per_query": args.runs, "results": []}
         (out_dir / "combined.json").write_text(json.dumps(combined, indent=2), encoding="utf-8")
         (out_dir / "combined.md").write_text("# Router eval report\n\n- " + msg + "\n", encoding="utf-8")
         print(f"Report: {out_dir / 'combined.md'}", file=sys.stderr)
@@ -156,11 +176,11 @@ def main():
         f"== pooled sweep: {len(planned)} queries x {args.runs} runs, {args.workers} workers ==",
         file=sys.stderr,
     )
-    pooled = run_chunk(planned, out_dir / "chunk_pooled.json", repo_root, args.runs, args.workers, args.timeout)
+    pooled = run_chunk(planned, out_dir / "chunk_pooled.json", repo_root, args.runs, args.workers, args.timeout, host)
 
     def rerun_skill(skill: str) -> list[dict]:
         """One skill's queries alone, in a fresh subprocess that usually reconnects."""
-        rep = run_chunk(by_skill[skill], out_dir / f"chunk_{skill}.json", repo_root, args.runs, args.workers, args.timeout)
+        rep = run_chunk(by_skill[skill], out_dir / f"chunk_{skill}.json", repo_root, args.runs, args.workers, args.timeout, host)
         return rep["results"]
 
     def announce_retry(skill: str, attempt: int, limit: int) -> None:
@@ -178,7 +198,7 @@ def main():
         )
     all_results = [row for skill in skills for row in grouped.get(skill, [])]
 
-    combined = {"model": "claude (run.py)", "runs_per_query": args.runs, "results": all_results}
+    combined = {"model": combined_label, "runs_per_query": args.runs, "results": all_results}
     combined_path = out_dir / "combined.json"
     combined_path.write_text(json.dumps(combined, indent=2), encoding="utf-8")
     md_path = out_dir / "combined.md"
@@ -209,7 +229,7 @@ def main():
     if not args.gate:
         return
 
-    baseline_path = Path(args.baseline)
+    baseline_path = Path(args.baseline) if args.baseline else BASELINE_BY_HOST[host]
     if not baseline_path.exists():
         print(f"GATE FAILED: no recorded baseline at {baseline_path} — nothing to compare this run against", file=sys.stderr)
         sys.exit(1)

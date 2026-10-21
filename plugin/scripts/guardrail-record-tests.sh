@@ -28,7 +28,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="record-tests"
 
 guardrail_wants() {
-  guardrail_payload_matches '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test-generation|replay)|muggle-local-telemetry-skill-emit|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
+  guardrail_payload_matches '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test[-_]generation|replay)|muggle[-_]local[-_]telemetry[-_]skill[-_]emit|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

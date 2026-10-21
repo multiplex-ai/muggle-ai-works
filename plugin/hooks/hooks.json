@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh",
             "async": false,
             "timeout": 25
           }

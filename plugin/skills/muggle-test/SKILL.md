@@ -11,6 +11,8 @@ mandatoryStages:
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-test"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 A router skill that detects code changes, resolves impacted test cases, executes them locally or remotely, reads the cloud results from the Muggle AI dashboard (local runs are published by the studio during execution; remote runs publish cloud-side), and posts E2E acceptance summaries to the PR. The user can invoke this at any moment, in any state.
 
 ## Beyond a Playwright/Cypress runner

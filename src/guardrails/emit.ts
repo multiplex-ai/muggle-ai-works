@@ -1,7 +1,9 @@
 import { MERGED_GATE_OUTPUT_SEPARATOR } from "./constants.js";
 import type { GuardrailHookOutput } from "./types.js";
 
-export type Host = "claude" | "cursor";
+// Codex parses Claude Code's hook output schema, so it shares every Claude shape
+// below; it is a host of its own only where the wording or the evidence differs.
+export type Host = "claude" | "cursor" | "codex";
 
 export function envelope(eventName: string, context: string, host: Host): string {
   if (!context) return "{}";

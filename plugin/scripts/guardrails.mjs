@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync, renameSync, readdirSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
-import { join, isAbsolute, resolve, dirname } from 'path';
+import { basename, join, isAbsolute, resolve, dirname } from 'path';
 import { homedir, hostname } from 'os';
 import { fileURLToPath } from 'url';
 import { execFileSync } from 'child_process';
@@ -13,20 +13,40 @@ var GH_PR_REOPENED_LINE = /\bReopened pull request [\w./-]*#(\d+)/;
 var PR_MONITOR_TERMINAL_LINE = /\bTERMINAL pr=(\d+)(?: state=|: )(MERGED|CLOSED)\b/;
 var MAX_PR_TERMINAL_BLOCKS = 3;
 var SHELL_TOOL_NAMES = ["Bash", "PowerShell"];
+var HOOK_HOST_ENV_VAR = "MUGGLE_HOOK_HOST";
+var NEXT_OPTIONS_OFFER_TOOL_NAMES = ["AskUserQuestion", "request_user_input"];
+var FILE_PRINTING_PROGRAMS = [
+  "cat",
+  "sed",
+  "head",
+  "tail",
+  "nl",
+  "less",
+  "more",
+  "bat",
+  "batcat",
+  "awk",
+  "get-content",
+  "gc",
+  "type"
+];
 var MAX_WATCH_BLOCKS = 3;
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
-var MUGGLE_SKILL_EMIT_TOOL = /muggle-local-telemetry-skill-emit/i;
+function mcpToolNamePattern(hyphenatedSource) {
+  return new RegExp(hyphenatedSource.replaceAll("-", "[-_]"), "i");
+}
+var MUGGLE_SKILL_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-skill-emit");
 var MUGGLE_TEST_SKILL_NAME = "muggle-test";
 var MANDATORY_STAGES_FRONTMATTER_KEY = "mandatoryStages";
 var SKILL_NAME_INPUT_KEYS = ["skill", "skillName", "name", "command"];
 var MAX_STAGE_BLOCKS = 3;
 var MAX_DEBUG_BLOCKS = 3;
 var ANY_TEST_CASE = "*";
-var MUGGLE_EXECUTION_TOOL = /muggle-local-(execute-test-generation|execute-replay)/i;
-var MUGGLE_EVENT_EMIT_TOOL = /muggle-local-telemetry-event-emit/i;
-var MUGGLE_FEEDBACK_CREATE_TOOL = /muggle-remote-user-feedback-create/i;
+var MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
+var MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
+var MUGGLE_FEEDBACK_CREATE_TOOL = mcpToolNamePattern("muggle-remote-user-feedback-create");
 var PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";
 var FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 var MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
@@ -134,20 +154,19 @@ function writeState(state, dirOverride) {
   writeFileSync(staging, JSON.stringify(state, null, 2));
   renameSync(staging, target);
 }
-function updateState(sessionId2, mutate, dirOverride) {
+function commitState(sessionId2, mutate, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
-  const committed = withFileLock(
-    `${fileFor(sessionId2, dirOverride)}.lock`,
-    SESSION_STATE_LOCK_WAIT_MS,
-    () => {
-      const current = readState(sessionId2, dirOverride);
-      const next = mutate(current);
-      if (next === current) return true;
-      writeState({ ...next, generation: (current.generation ?? 0) + 1 }, dirOverride);
-      return true;
-    }
-  );
-  return committed === true;
+  return withFileLock(`${fileFor(sessionId2, dirOverride)}.lock`, SESSION_STATE_LOCK_WAIT_MS, () => {
+    const current = readState(sessionId2, dirOverride);
+    const next = mutate(current);
+    if (next === current) return current;
+    const committed = { ...next, generation: (current.generation ?? 0) + 1 };
+    writeState(committed, dirOverride);
+    return committed;
+  });
+}
+function updateState(sessionId2, mutate, dirOverride) {
+  return commitState(sessionId2, mutate, dirOverride) !== void 0;
 }
 function markPrHandled(sessionId2, prUrl, dirOverride) {
   const state = readState(sessionId2, dirOverride);
@@ -240,6 +259,9 @@ function applyNextOptionsOffered(state) {
     terminalBlockCount: 0
   };
 }
+function closingMessageAsksUser(closingMessage) {
+  return typeof closingMessage === "string" && closingMessage.includes("?");
+}
 function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
   const blockCount = state.terminalBlockCount ?? 0;
   if ((state.terminalPending ?? []).length === 0) {
@@ -290,6 +312,11 @@ var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
 var SKILLS_DIR_NAME = "skills";
 var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+var SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
+var SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+var SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+var MARKDOWN_FILE = /\.md$/i;
 var unquote = (raw) => raw.trim().replace(/^["']|["']$/g, "").trim();
 function parseDeclaredStages(skillMarkdown) {
   const frontmatter = FRONTMATTER.exec(skillMarkdown)?.[1];
@@ -362,10 +389,112 @@ function applySkillInvocation(state, skillName, stagePaths) {
   }
   return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
 }
+function isSkillTreeMarkdown(filePath) {
+  const normalized = normalizeStagePath(filePath);
+  return normalized.includes(SKILLS_PATH_SEGMENT) && MARKDOWN_FILE.test(normalized);
+}
 function applyStageRead(state, filePath) {
   const stagePath = normalizeStagePath(filePath);
   if ((state.stagesRead ?? []).includes(stagePath)) return state;
   return { ...state, stagesRead: [...state.stagesRead ?? [], stagePath] };
+}
+var SHELL_ESCAPABLE_UNQUOTED = /* @__PURE__ */ new Set([" ", "	", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
+var SHELL_ESCAPABLE_DOUBLE_QUOTED = /* @__PURE__ */ new Set(['"', "\\", "$", "`"]);
+function splitShellCommands(command) {
+  const commands = [];
+  let words = [];
+  let word = "";
+  let wordStarted = false;
+  let quote = null;
+  const endWord = () => {
+    if (wordStarted) words.push(word);
+    word = "";
+    wordStarted = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (words.length > 0) commands.push(words);
+    words = [];
+  };
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    const nextCharacter = command[index + 1];
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
+        word += nextCharacter;
+        index += 1;
+      } else {
+        word += character;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      wordStarted = true;
+    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
+      word += nextCharacter;
+      wordStarted = true;
+      index += 1;
+    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
+      endCommand();
+    } else if (/\s/.test(character)) {
+      endWord();
+    } else {
+      word += character;
+      wordStarted = true;
+    }
+  }
+  endCommand();
+  return commands;
+}
+function expandShellWord(word, variables) {
+  const withHome = word === "~" || word.startsWith("~/") ? `${homedir()}${word.slice(1)}` : word;
+  return withHome.replace(
+    SHELL_VARIABLE_REFERENCE,
+    (_reference, bracedName, bareName) => variables[bracedName ?? bareName ?? ""] ?? ""
+  );
+}
+function resolveShellPath(path, workingDirectory) {
+  return isAbsolute(path) || WINDOWS_ABSOLUTE_PATH.test(path) ? path : resolve(workingDirectory, path);
+}
+function detectShellStageReads(command, cwd, env = process.env) {
+  const variables = { ...env };
+  let workingDirectory = cwd ?? process.cwd();
+  const readPaths = [];
+  for (const words of splitShellCommands(command)) {
+    let programIndex = 0;
+    const assignments = [];
+    for (; programIndex < words.length; programIndex += 1) {
+      const assignment = SHELL_ASSIGNMENT.exec(words[programIndex]);
+      if (!assignment) break;
+      assignments.push([assignment[1], expandShellWord(assignment[2], variables)]);
+    }
+    const programWord = words[programIndex];
+    if (programWord === void 0 || programWord === "export") {
+      for (const word of words.slice(programIndex + 1)) {
+        const exported = SHELL_ASSIGNMENT.exec(word);
+        if (exported) assignments.push([exported[1], expandShellWord(exported[2], variables)]);
+      }
+      for (const [name, value] of assignments) variables[name] = value;
+      continue;
+    }
+    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+    const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
+    if (program === "cd") {
+      const target = argumentWords.find((word) => !word.startsWith("-"));
+      if (target) workingDirectory = resolveShellPath(target, workingDirectory);
+      continue;
+    }
+    if (!FILE_PRINTING_PROGRAMS.includes(program)) continue;
+    for (const argument of argumentWords) {
+      if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
+      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
+      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
+    }
+  }
+  return readPaths;
 }
 function unreadMandatoryStages(state) {
   const read = new Set(state.stagesRead ?? []);
@@ -511,8 +640,10 @@ function isTestCommand(cmd) {
   return TEST_CMD.test(cmd);
 }
 function testsPassed(input2) {
-  const out = `${input2.tool_response?.stdout ?? ""}
-${input2.tool_response?.stderr ?? ""}`;
+  const response = input2.tool_response;
+  const out = `${response?.stdout ?? ""}
+${response?.stderr ?? ""}
+${response?.output ?? ""}`;
   if (!out.trim()) return false;
   return !FAIL.test(out);
 }
@@ -1444,15 +1575,36 @@ function mergeHookOutputs(gateOutputs, host2) {
   return envelope(hookEventName ?? "", contexts.join(MERGED_GATE_OUTPUT_SEPARATOR), host2);
 }
 
+// src/guardrails/hookInput.ts
+function normalizeHookInput(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const payload = raw;
+  if (typeof payload.tool_response === "string") {
+    return { ...payload, tool_response: { output: payload.tool_response } };
+  }
+  return payload;
+}
+
+// src/guardrails/hookHost.ts
+function resolveHookHost(env = process.env) {
+  if (env[HOOK_HOST_ENV_VAR] === "codex") return "codex";
+  if (env.CURSOR_PLUGIN_ROOT) return "cursor";
+  return "claude";
+}
+function skillInvocation(slashCommand, host2) {
+  if (host2 !== "codex") return slashCommand;
+  return `$muggle:${slashCommand.replace(/^\/(?:muggle:)?/, "")}`;
+}
+
 // src/guardrails/cli.ts
 function readStdin() {
   try {
-    return JSON.parse(readFileSync(0, "utf-8"));
+    return normalizeHookInput(JSON.parse(readFileSync(0, "utf-8")));
   } catch {
     return {};
   }
 }
-var host = process.env.CURSOR_PLUGIN_ROOT ? "cursor" : "claude";
+var host = resolveHookHost();
 var sub = process.argv[2];
 var input = readStdin();
 var sessionId = input.session_id ?? "unknown";
@@ -1463,6 +1615,12 @@ function releaseGate(field) {
   );
   return "{}";
 }
+function muggleSkill(slashCommand) {
+  return skillInvocation(slashCommand, host);
+}
+function nextOptionsOfferMethod() {
+  return host === "codex" ? "by asking them in your closing message (request_user_input where it is available)" : "via AskUserQuestion";
+}
 function prOpened() {
   const url = detectPrOpened(input);
   if (!url) return "{}";
@@ -1471,7 +1629,7 @@ function prOpened() {
   reserveWalkthroughComment(url);
   const ctx = `A pull request was just opened: ${url}
 Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
-Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
+Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
 function prTerminal() {
@@ -1488,43 +1646,48 @@ function prTerminal() {
   const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
   if (next === state) return "{}";
   writeState(next);
-  const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user (AskUserQuestion) \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
+  const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ${nextOptionsOfferMethod()} \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
   return envelope("PostToolUse", ctx, host);
 }
 function offerRan() {
-  if (input.tool_name !== "AskUserQuestion") return "{}";
+  if (!NEXT_OPTIONS_OFFER_TOOL_NAMES.includes(input.tool_name ?? "")) return "{}";
   const state = readState(sessionId);
   const next = applyNextOptionsOffered(state);
   if (next !== state) writeState(next);
   return "{}";
 }
 function terminalGate() {
-  const state = readState(sessionId);
+  const pendingState = readState(sessionId);
+  const state = host === "codex" && closingMessageAsksUser(input.last_assistant_message) ? applyNextOptionsOffered(pendingState) : pendingState;
+  if (state !== pendingState) writeState(state);
   const decision = prTerminalGateDecision(state);
   if (decision.action === "release" /* Release */) return releaseGate("terminalReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.terminalBlockCount = decision.blockCount;
   writeState(state);
   const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user via AskUserQuestion \u2014 release, queued work, deferred items. Only the AskUserQuestion offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then run the AskUserQuestion next-options offer.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user ${nextOptionsOfferMethod()} \u2014 release, queued work, deferred items. Only that offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then offer the next options ${nextOptionsOfferMethod()}.`;
   return blockStop(reason, host);
 }
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
-  const state = readState(sessionId);
-  const judgedSkip = judgeE2eSkip(input, state);
-  const recorded = applyRecordedRun(state, {
+  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: judgedSkip?.accepted === true
-  });
-  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
-  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  };
+  const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
-  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
-  if (next !== state) writeState(next);
+  const record = (state) => {
+    const recorded = applyRecordedRun(state, run);
+    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  };
+  const next = commitState(sessionId, record) ?? record(readState(sessionId));
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
@@ -1539,13 +1702,9 @@ function recordSkipReasonOnPrs(state, skip) {
 function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
-  const state = readState(sessionId);
-  const next = applySkillInvocation(
-    state,
-    skillName,
-    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot())
-  );
-  if (next !== state) writeState(next);
+  const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
+  const invoke = (state) => applySkillInvocation(state, skillName, stagePaths);
+  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   const ctx = `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;
@@ -1553,10 +1712,11 @@ function skillStages() {
 }
 function recordStageRead() {
   const filePath = input.tool_input?.file_path;
-  if (!filePath) return "{}";
+  const readPaths = filePath ? [filePath].filter(isSkillTreeMarkdown) : isShellToolCall(input) ? detectShellStageReads(input.tool_input?.command ?? "", input.cwd) : [];
+  if (readPaths.length === 0) return "{}";
   if (callFailed(input)) return "{}";
   const state = readState(sessionId);
-  const next = applyStageRead(state, filePath);
+  const next = readPaths.reduce(applyStageRead, state);
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -1616,7 +1776,7 @@ function e2eGate() {
   if (decision.action === "none" /* None */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, then finish. A skip states a fact about the environment, never a judgment about the change: run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies the code itself, so one that does not hold leaves this gate blocked.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run /muggle:muggle-test, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. A skip states a fact about the environment, never a judgment about the change: run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies the code itself, so one that does not hold leaves this gate blocked.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
 function watchGate() {
@@ -1628,7 +1788,7 @@ function watchGate() {
   state.watchBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.untracked.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 /muggle:muggle-pr-followup ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 ${muggleSkill("/muggle:muggle-pr-followup")} ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via ${muggleSkill("/muggle:muggle-pr-followup")}, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function buildFollowthroughGate() {
@@ -1638,7 +1798,7 @@ function buildFollowthroughGate() {
   if (decision.action === "none" /* None */) return "{}";
   state.buildBlockCount = decision.blockCount;
   writeState(state);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via /muggle-do, which runs requirements \u2192 build \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via /muggle-do, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ${muggleSkill("/muggle-do")}, which runs requirements \u2192 build \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via ${muggleSkill("/muggle-do")}, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function walkthroughGate() {
@@ -1657,7 +1817,7 @@ function walkthroughGate() {
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.owed.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via /muggle:muggle-pr-visual-walkthrough \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function slotForSession(state) {
@@ -1738,23 +1898,25 @@ function buildRouter() {
   if (state.buildIntentRouted) return "{}";
   state.buildIntentRouted = true;
   writeState(state);
-  const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through /muggle-do \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
+  const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
+}
+function closingAssistantText() {
+  if (typeof input.last_assistant_message === "string") return input.last_assistant_message;
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return "";
+  try {
+    return lastAssistantText(
+      readFileSync(transcriptPath, "utf-8").slice(-CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES)
+    );
+  } catch {
+    return "";
+  }
 }
 function capabilityClaimGate() {
   const state = readState(sessionId);
   if (state.capabilityClaimNudged) return "{}";
-  const transcriptPath = input.transcript_path;
-  if (!transcriptPath) return "{}";
-  let transcriptTail;
-  try {
-    transcriptTail = readFileSync(transcriptPath, "utf-8").slice(
-      -CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES
-    );
-  } catch {
-    return "{}";
-  }
-  if (!detectFalseCapabilityClaim(lastAssistantText(transcriptTail))) return "{}";
+  if (!detectFalseCapabilityClaim(closingAssistantText())) return "{}";
   state.capabilityClaimNudged = true;
   writeState(state);
   const reason = `Do not end the turn yet. This turn tells the user that a login- or code-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor. An SMS code is read from the profile's provisioned number, an authenticator code is derived offline from its stored TOTP secret, and stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. Genuine limits stay sayable: a voice call, an OAuth-only provider, or an account with no phone number provisioned (the runner cannot mint one) \u2014 name the one that applies and move on.`;

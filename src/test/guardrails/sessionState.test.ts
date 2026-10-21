@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { tmpdir } from "os";
 import { join } from "path";
-import { mkdtempSync, readdirSync } from "fs";
-import { readState, markPrHandled, isPrHandled, updateState } from "../../guardrails/sessionState";
+import { mkdtempSync, readdirSync, unlinkSync, writeFileSync } from "fs";
+import { hostname } from "os";
+import { commitState, readState, markPrHandled, isPrHandled, updateState } from "../../guardrails/sessionState";
 
 describe("sessionState", () => {
   let dir: string;
@@ -68,3 +69,37 @@ describe("updateState", () => {
     expect(readdirSync(dir).filter((name) => name.includes(".tmp") || name.endsWith(".lock"))).toEqual([]);
   });
 });
+
+describe("commitState", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "gr-commit-"));
+  });
+
+  it("returns the state it committed", () => {
+    const committed = commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    expect(committed).toEqual(readState("s", dir));
+    expect(committed?.e2eRun).toBe(true);
+  });
+
+  it("returns the state as it stands when the mutation changes nothing", () => {
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    expect(commitState("s", (state) => state, dir)).toEqual(readState("s", dir));
+  });
+
+  // A live holder — this process — is never broken out of the lock, so a writer
+  // that cannot take it must leave the committed state exactly as it was.
+  it("drops the write, and touches nothing, while another writer holds the lock", () => {
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    const lock = join(dir, "s.json.lock");
+    writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
+    try {
+      expect(commitState("s", (state) => ({ ...state, unitTestsGreen: true }), dir)).toBeUndefined();
+      expect(updateState("s", (state) => ({ ...state, unitTestsGreen: true }), dir)).toBe(false);
+      expect(readState("s", dir).unitTestsGreen).toBeUndefined();
+    } finally {
+      unlinkSync(lock);
+    }
+  });
+});
+

@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+class Host(Enum):
+    """The agent CLI a routing session runs in — each reports its tool calls its own way."""
+
+    CLAUDE = "claude"
+    CODEX = "codex"
+
+
 class NoneReason(Enum):
     """Why a session reached no skill — diagnostic only, never a scored route."""
 

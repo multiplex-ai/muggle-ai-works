@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { readState, writeState, updateState, markPrHandled } from "./sessionState.js";
+import { readState, writeState, updateState, commitState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
@@ -7,6 +7,7 @@ import {
   applyPrTerminalDetected,
   applyPrReopened,
   applyNextOptionsOffered,
+  closingMessageAsksUser,
   prTerminalGateDecision,
 } from "./prTerminal.js";
 import {
@@ -18,12 +19,15 @@ import {
   MAX_WALKTHROUGH_BLOCKS,
   MAX_WATCH_BLOCKS,
   MAX_BUILD_BLOCKS,
+  NEXT_OPTIONS_OFFER_TOOL_NAMES,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
   applySkillInvocation,
   applyStageRead,
   applyStageSkip,
+  detectShellStageReads,
+  isSkillTreeMarkdown,
   isStageSkipMarker,
   resolvePluginSkillsRoot,
   resolveSkillNameFromToolInput,
@@ -95,6 +99,9 @@ import { callFailed } from "./callOutcome.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./emit.js";
+import { normalizeHookInput } from "./hookInput.js";
+import { resolveHookHost, skillInvocation } from "./hookHost.js";
+import { isShellToolCall } from "./shellTool.js";
 import {
   type GuardrailState,
   CommentReplyGateAction,
@@ -109,13 +116,13 @@ import {
 
 function readStdin(): HookInput {
   try {
-    return JSON.parse(readFileSync(0, "utf-8")) as HookInput;
+    return normalizeHookInput(JSON.parse(readFileSync(0, "utf-8")));
   } catch {
     return {};
   }
 }
 
-const host: Host = process.env.CURSOR_PLUGIN_ROOT ? "cursor" : "claude";
+const host: Host = resolveHookHost();
 const sub = process.argv[2];
 const input = readStdin();
 const sessionId = input.session_id ?? "unknown";
@@ -139,6 +146,19 @@ function releaseGate(field: keyof GuardrailState): string {
   return "{}";
 }
 
+/** A Muggle skill invocation as the firing host spells it — see skillInvocation. */
+function muggleSkill(slashCommand: string): string {
+  return skillInvocation(slashCommand, host);
+}
+
+// Codex offers its structured question tool only in some modes, so there the
+// next-options offer is the question the turn closes on.
+function nextOptionsOfferMethod(): string {
+  return host === "codex"
+    ? "by asking them in your closing message (request_user_input where it is available)"
+    : "via AskUserQuestion";
+}
+
 function prOpened(): string {
   const url = detectPrOpened(input);
   if (!url) return "{}";
@@ -154,7 +174,7 @@ function prOpened(): string {
     `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
     `walkthrough there once E2E runs, or by recording why E2E does not apply.\n` +
     `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. ` +
-    `If autoWatchPR=always, start it now by invoking /muggle:muggle-pr-followup with the PR URL; ` +
+    `If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; ` +
     `if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
@@ -178,12 +198,12 @@ function prTerminal(): string {
   const ctx =
     `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: ` +
     `finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ` +
-    `(AskUserQuestion) — release, queued work, deferred items. The stop gate holds until the offer runs.`;
+    `${nextOptionsOfferMethod()} — release, queued work, deferred items. The stop gate holds until the offer runs.`;
   return envelope("PostToolUse", ctx, host);
 }
 
 function offerRan(): string {
-  if (input.tool_name !== "AskUserQuestion") return "{}";
+  if (!(NEXT_OPTIONS_OFFER_TOOL_NAMES as readonly string[]).includes(input.tool_name ?? "")) return "{}";
   const state = readState(sessionId);
   const next = applyNextOptionsOffered(state);
   if (next !== state) writeState(next);
@@ -191,7 +211,14 @@ function offerRan(): string {
 }
 
 function terminalGate(): string {
-  const state = readState(sessionId);
+  const pendingState = readState(sessionId);
+  // Where the offer is the closing question rather than a tool call, the turn
+  // that asks it is the offer: the gate's only exit, applied at the turn end.
+  const state =
+    host === "codex" && closingMessageAsksUser(input.last_assistant_message)
+      ? applyNextOptionsOffered(pendingState)
+      : pendingState;
+  if (state !== pendingState) writeState(state);
   const decision = prTerminalGateDecision(state);
   if (decision.action === PrTerminalGateAction.Release) return releaseGate("terminalReleased");
   if (decision.action !== PrTerminalGateAction.Block) return "{}";
@@ -203,29 +230,36 @@ function terminalGate(): string {
     decision.blockCount === 1
       ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge ` +
         `handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next ` +
-        `options to the user via AskUserQuestion — release, queued work, deferred items. Only the ` +
-        `AskUserQuestion offer clears this gate.`
+        `options to the user ${nextOptionsOfferMethod()} — release, queued work, deferred items. Only ` +
+        `that offer clears this gate.`
       : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): ` +
-        `finalize + tear down, then run the AskUserQuestion next-options offer.`;
+        `finalize + tear down, then offer the next options ${nextOptionsOfferMethod()}.`;
   return blockStop(reason, host);
 }
 
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
-  const state = readState(sessionId);
-  const judgedSkip = judgeE2eSkip(input, state);
-  const recorded = applyRecordedRun(state, {
+  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: judgedSkip?.accepted === true,
-  });
-  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
-  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  };
+  const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
-  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
-  if (next !== state) writeState(next);
+  const record = (state: GuardrailState): GuardrailState => {
+    const recorded = applyRecordedRun(state, run);
+    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  };
+  // Committed under the store's lock: a muggle-test skill emit reaches
+  // skill-stages at the same moment, and of two unlocked read-modify-writes
+  // the later erases the earlier — the skill and its mandatory stages with it,
+  // which disarms the stage and classification gates.
+  const next = commitState(sessionId, record) ?? record(readState(sessionId));
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
@@ -250,13 +284,10 @@ function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void 
 function skillStages(): string {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
-  const state = readState(sessionId);
-  const next = applySkillInvocation(
-    state,
-    skillName,
-    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot()),
-  );
-  if (next !== state) writeState(next);
+  const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
+  const invoke = (state: GuardrailState): GuardrailState => applySkillInvocation(state, skillName, stagePaths);
+  // Under the store's lock, for the reason recordTests gives.
+  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   // Injected at the moment of use, which is the only moment the requirement is
@@ -271,12 +302,21 @@ function skillStages(): string {
 }
 
 function recordStageRead(): string {
+  // A host with no Read tool opens stage files through the shell (Codex: `cat`,
+  // `sed -n`), so a shell command that prints one is a read too. The pre-filter
+  // matches a skills-tree path anywhere in the payload, so a Read's path is
+  // checked here rather than trusted.
   const filePath = input.tool_input?.file_path;
-  if (!filePath) return "{}";
+  const readPaths = filePath
+    ? [filePath].filter(isSkillTreeMarkdown)
+    : isShellToolCall(input)
+      ? detectShellStageReads(input.tool_input?.command ?? "", input.cwd)
+      : [];
+  if (readPaths.length === 0) return "{}";
   // A Read that errored opened nothing, so the stage it names is still unread.
   if (callFailed(input)) return "{}";
   const state = readState(sessionId);
-  const next = applyStageRead(state, filePath);
+  const next = readPaths.reduce(applyStageRead, state);
   if (next !== state) writeState(next);
   return "{}";
 }
@@ -381,12 +421,12 @@ function e2eGate(): string {
   const reason =
     decision.blockCount === 1
       ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. ` +
-        `Per the autoE2ETest preference (default: always), run change-driven E2E now via /muggle:muggle-test, ` +
+        `Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, ` +
         `then finish. A skip states a fact about the environment, never a judgment about the change: run ` +
         `\`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies ` +
         `the code itself, so one that does not hold leaves this gate blocked.`
       : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
-        `run /muggle:muggle-test, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
+        `run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -403,14 +443,14 @@ function watchGate(): string {
   const reason =
     decision.blockCount === 1
       ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. ` +
-        `Seed the slot and hand off per muggle-do Stage 8 — /muggle:muggle-pr-followup ${decision.untracked[0]} ` +
+        `Seed the slot and hand off per muggle-do Stage 8 — ${muggleSkill("/muggle:muggle-pr-followup")} ${decision.untracked[0]} ` +
         `does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start ` +
         `and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever ` +
         `picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), ` +
         `tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps ` +
         `this gate quiet for the rest of the session.`
       : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
-        `seed a slot via /muggle:muggle-pr-followup, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+        `seed a slot via ${muggleSkill("/muggle:muggle-pr-followup")}, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -427,12 +467,12 @@ function buildFollowthroughGate(): string {
       ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. ` +
         `A root cause written into the transcript ships nothing — once the session ends it is gone, and the ` +
         `watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ` +
-        `/muggle-do, which runs requirements → build → impact → unit tests → E2E → PR → watcher. ` +
+        `${muggleSkill("/muggle-do")}, which runs requirements → build → impact → unit tests → E2E → PR → watcher. ` +
         `If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was ` +
         `advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` — ` +
         `that records the skip and keeps this gate quiet for the rest of the session.`
       : `Build request still unanswered — no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): ` +
-        `carry it to a PR via /muggle-do, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
+        `carry it to a PR via ${muggleSkill("/muggle-do")}, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -463,13 +503,13 @@ function walkthroughGate(): string {
     decision.blockCount === 1
       ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough ` +
         `has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now ` +
-        `via /muggle:muggle-pr-visual-walkthrough — include the failed runs, which are the ones reviewers ` +
+        `via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} — include the failed runs, which are the ones reviewers ` +
         `most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, ` +
         `someone else's PR, nothing renderable), tell the user why and run ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
         `for the rest of the session.`
       : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): ` +
-        `post via /muggle:muggle-pr-visual-walkthrough, or record a legitimate skip via ` +
+        `post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
@@ -581,26 +621,32 @@ function buildRouter(): string {
   writeState(state);
   const ctx =
     `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, ` +
-    `route it through /muggle-do — which runs requirements → build (delegated to superpowers' ` +
+    `route it through ${muggleSkill("/muggle-do")} — which runs requirements → build (delegated to superpowers' ` +
     `design→plan→review) → impact → unit tests → E2E → PR → watcher. ` +
     `If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }
 
+// The closing message a Stop hook judges: the payload's own copy when the host
+// sends one (Codex always does), else the last assistant turn of the Claude Code
+// transcript — a format Codex's own transcript does not share.
+function closingAssistantText(): string {
+  if (typeof input.last_assistant_message === "string") return input.last_assistant_message;
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return "";
+  try {
+    return lastAssistantText(
+      readFileSync(transcriptPath, "utf-8").slice(-CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES),
+    );
+  } catch {
+    return "";
+  }
+}
+
 function capabilityClaimGate(): string {
   const state = readState(sessionId);
   if (state.capabilityClaimNudged) return "{}";
-  const transcriptPath = input.transcript_path;
-  if (!transcriptPath) return "{}";
-  let transcriptTail: string;
-  try {
-    transcriptTail = readFileSync(transcriptPath, "utf-8").slice(
-      -CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES,
-    );
-  } catch {
-    return "{}";
-  }
-  if (!detectFalseCapabilityClaim(lastAssistantText(transcriptTail))) return "{}";
+  if (!detectFalseCapabilityClaim(closingAssistantText())) return "{}";
   state.capabilityClaimNudged = true;
   writeState(state);
   const reason =

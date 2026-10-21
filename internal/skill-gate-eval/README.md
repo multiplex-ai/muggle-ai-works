@@ -12,13 +12,20 @@ Design: `muggle-ai-brain/architecture/` — grep for "skill preference-gate eval
 ```
 internal/skill-gate-eval/
   src/
-    harness.ts      # runs one scenario: spawns agent, captures trace, asserts
-    mock-mcp.ts     # in-process stub for the muggle MCP namespace
-    scenario.ts     # scenario file loader (types live in types.ts)
-    types.ts        # shared types + PreferenceValue enum
-    constants.ts    # ASK_QUESTION_TOOL, PASS_THRESHOLD, DEFAULT_MODEL
-    concurrency.ts  # bounded rep pool + shared throttle gate (vitest-covered)
-    run.ts          # CLI entrypoint
+    harness.ts          # runs one scenario: spawns agent, captures trace
+    codex-harness.ts    # the same under the Codex CLI (--host codex)
+    codex-gate-hook.mjs # Codex PreToolUse hook: records, answers, denies
+    verdict.ts          # asserts a trace against the scenario — shared by both hosts
+    prompt-inputs.ts    # the skill, gate contract and session context a prompt is built from
+    mock-tools.ts       # the canned muggle tools, independent of the host
+    mock-mcp.ts         # ...mounted in process for the agent SDK
+    mock-mcp-stdio.ts   # ...served over stdio for Codex
+    scenario.ts         # scenario file loader (types live in types.ts)
+    types.ts            # shared types + PreferenceValue enum
+    constants.ts        # ASK_QUESTION_TOOL, PASS_THRESHOLD, DEFAULT_MODEL, Codex knobs
+    concurrency.ts      # bounded rep pool + shared throttle gate (vitest-covered)
+    run.ts              # CLI entrypoint
+    report.ts           # markdown summary of the results files
 ```
 
 Scenario data lives in `muggle-ai-brain/eval/skill-gate-eval/<gate>/`,
@@ -61,6 +68,24 @@ A scenario passes if it succeeds on ≥ 80% of runs — `PASS_THRESHOLD` in
 a healthy gate still misses occasionally, so a bar set at perfection flakes
 every run and teaches everyone to ignore the job.
 
+## Under Codex
+
+`--host codex` runs every rep in the Codex CLI instead of the agent SDK, on the same scenarios and fixtures, judged by the same `verdict.ts`:
+
+```bash
+CODEX_API_KEY=... MUGGLE_BRAIN_DIR=../muggle-ai-brain \
+  pnpm test:gates:behavioral -- \
+    --gate showElectronBrowser --skill muggle-test-feature-local --runs 10 --host codex
+```
+
+- **Prompt.** The same skill, gate contract and synthesized SessionStart context, given to Codex as developer instructions. The Codex notes replace the agent SDK notes. Where the skill says AskUserQuestion, Codex is told what the skills' `_shared/host-tool-equivalents.md` table tells a real Codex session. The prompt is built from the same inputs only, and `test/system-prompt.test.ts` holds both hosts to that.
+- **Tools.** The shell and Codex's other built-in tools are switched off. The mock muggle tools are served over stdio as a required `muggle` MCP server, so Codex names them exactly as it names the real ones. `codex-gate-hook.mjs`, a PreToolUse hook on every tool, records each call. A mock muggle call runs, `request_user_input` is answered with the scenario's scripted pick (the same deny channel the agent SDK harness answers AskUserQuestion on), and anything else is denied.
+- **Questions in prose.** Where Codex does not offer its question tool, a skill asks by ending its turn on the question. A turn that ends on a question the scenario scripts is answered by resuming the thread with the pick, up to `CODEX_MAX_RESUMES` times.
+- **Model.** Codex ignores a skill's `model:`, so the reps run Codex's default model unless `--model` names one.
+- **Codex home.** Each gate run gets a fresh Codex home, authenticated by `CODEX_API_KEY`. `--codex-home <dir>` reuses one instead, for example a directory you ran `CODEX_HOME=<dir> codex login` in. The eval writes its own `config.toml` and `hooks.json` there, and refuses a directory whose `config.toml` it did not write. `--codex-config key=value` (repeatable) passes a config override to every run.
+
+Results go to `results.codex.json`, beside the agent SDK's `results.json`. `report.ts <brain-dir> --host codex` summarizes them. The plumbing (prompt, tools, both answer channels, denials, verdict) runs against the real Codex CLI and a scripted model in `src/test/codex/codex-gate-eval.test.ts`, part of CI's `codex-compat` job. The hook's own rules are unit-tested in `test/codex-harness.test.ts`.
+
 ## Why not vitest
 
 Layer 1 lives in `src/test/skills/` and runs via vitest on every
@@ -97,3 +122,7 @@ so one expired token no longer red-lines the suite. The fallback raises a
 workflow warning rather than passing silently — the primary still needs
 regenerating, and nothing rotates back on its own. Leave the secret unset to
 run single-token.
+
+### Codex (not blocking)
+
+`.github/workflows/codex-skill-eval.yml` runs every gate under Codex nightly, on demand, and on PRs whose change Codex's runs can see. That is the `full` decision of `scripts/skill-eval-scope.sh`, or a change to `_shared/host-tool-equivalents.md`. A `model:`-only change is skipped, since Codex ignores `model:`. The job needs the `OPENAI_API_KEY` repo secret, handed to Codex as `CODEX_API_KEY`, as well as `BRAIN_REPO_TOKEN`. Without them it posts a notice and passes. It is not a required check, and each scenario must hold the same 80%.

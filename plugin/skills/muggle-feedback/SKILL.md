@@ -8,6 +8,8 @@ description: "Use when the user wants to flag that a generated Muggle Test actio
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-feedback"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Capture user feedback on what a generated Muggle Test action script did wrong. The server uses each feedback row to find similar test cases via LLM and regenerate their scripts in the background.
 
 ## Routing

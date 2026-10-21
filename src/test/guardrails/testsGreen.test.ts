@@ -17,6 +17,12 @@ describe("testsGreen", () => {
     expect(testsPassed({ tool_response: { stdout: "" } })).toBe(false);
   });
 
+  // Codex reports combined output as one string, normalized to `output`.
+  it("judges a host's combined output the same way", () => {
+    expect(testsPassed({ tool_response: { output: "Tests  18 passed (18)" } })).toBe(true);
+    expect(testsPassed({ tool_response: { output: "Tests  1 failed | 17 passed (18)" } })).toBe(false);
+  });
+
   it("counts a muggle execute/replay MCP tool call as an E2E run", () => {
     expect(isE2ERun({ tool_name: "muggle-local-execute-replay" })).toBe(true);
     expect(isE2ERun({ tool_name: "muggle-local-execute-test-generation" })).toBe(true);

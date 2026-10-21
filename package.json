@@ -19,8 +19,9 @@
   ],
   "scripts": {
     "clean": "rimraf dist",
-    "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-plugin.mjs",
+    "build": "tsup && node scripts/strip-telemetry-comments.mjs && node scripts/write-release-manifest.mjs && node scripts/sync-versions.mjs && node scripts/build-codex-hooks.mjs && node scripts/build-plugin.mjs",
     "build:plugin": "node scripts/build-plugin.mjs",
+    "build:codex-hooks": "node scripts/build-codex-hooks.mjs",
     "sync:versions": "node scripts/sync-versions.mjs",
     "build:release": "npm run build",
     "verify:plugin": "node scripts/verify-plugin-marketplace.mjs",
@@ -47,6 +48,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:codex": "vitest run src/test/codex",
     "test:gates:behavioral": "tsx internal/skill-gate-eval/src/run.ts",
     "test:agents:behavioral": "tsx internal/agent-gate-eval/src/run.ts",
     "eval:studio-gen": "tsx internal/studio-gen-eval/src/run.ts",

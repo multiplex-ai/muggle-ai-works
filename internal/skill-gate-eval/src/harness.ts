@@ -14,9 +14,6 @@
  *     captured trace against the scenario's `expect` block.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-
 import {
   query,
   type CanUseTool,
@@ -25,6 +22,7 @@ import {
 
 import { ASK_QUESTION_TOOL } from "./constants.js";
 import { buildMockMcpServer } from "./mock-mcp.js";
+import { readGatePromptInputs } from "./prompt-inputs.js";
 import { loadFixtures } from "./scenario.js";
 import type {
   AskQuestionRecord,
@@ -32,8 +30,13 @@ import type {
   MockCall,
   RunOptions,
   RunVerdict,
-  Scenario,
 } from "./types.js";
+import {
+  extractFirstQuestionText,
+  isGateQuestion,
+  matchAskQuestionAnswer,
+  verdict,
+} from "./verdict.js";
 
 const DEFAULT_MAX_TURNS = 40;
 const MOCK_MCP_PREFIX = "mcp__eval_mock__";
@@ -54,29 +57,7 @@ const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
  *     Muggle Test Last Host: http://localhost:3000
  */
 export function buildSystemPrompt(opts: RunOptions): string {
-  const skillMdPath = path.join(
-    opts.skillsDir,
-    opts.scenarioFile.skill,
-    "SKILL.md",
-  );
-  const skillBody = fs.readFileSync(skillMdPath, "utf8");
-  // The Read tool is denied in this harness, so a skill that says "run
-  // Picker 1 from preference-gates/<gate>.md" can't open that file the way it
-  // would in production. Inline the gate-under-test's contract so the model
-  // has its Picker 1 question verbatim — mirroring production's Read access.
-  const gatePath = path.join(
-    opts.skillsDir,
-    "muggle-preferences",
-    "preference-gates",
-    `${opts.scenarioFile.gate}.md`,
-  );
-  const gateBody = fs.existsSync(gatePath)
-    ? fs.readFileSync(gatePath, "utf8")
-    : "";
-  const prefs = Object.entries(opts.scenario.preferences)
-    .map(([k, v]) => `${k}=${v}`)
-    .join(" ");
-  const extraContext = (opts.scenario.sessionContext ?? []).join("\n");
+  const { skillBody, gateBody, prefs, extraContext } = readGatePromptInputs(opts);
   return [
     skillBody,
     "",
@@ -103,27 +84,6 @@ export function buildSystemPrompt(opts: RunOptions): string {
     "`muggle-local-execute-test-generation`); resolve those to",
     "`mcp__eval_mock__muggle-local-execute-test-generation` and so on.",
   ].join("\n");
-}
-
-function matchAskQuestionAnswer(
-  question: string,
-  scenario: Scenario,
-): string | null {
-  for (const a of scenario.askQuestionAnswers ?? []) {
-    if (question.includes(a.questionContains)) return a.answer;
-  }
-  return null;
-}
-
-/**
- * Decide whether an AskQuestion call relates to the gate under test.
- * The simplest signal is `gateQuestionSubstring` — when present, an
- * AskQuestion whose text contains the substring is "the gate firing".
- */
-function isGateQuestion(question: string, scenario: Scenario): boolean {
-  const sub = scenario.expect.gateQuestionSubstring;
-  if (!sub) return false;
-  return question.includes(sub);
 }
 
 /**
@@ -254,82 +214,4 @@ export async function runScenarioOnce(
   }
 
   return verdict(opts.scenario, mcpCalls, askQuestions, gateQuestionFired);
-}
-
-function extractFirstQuestionText(input: Record<string, unknown>): string {
-  const questions = (input as { questions?: unknown }).questions;
-  if (Array.isArray(questions) && questions.length > 0) {
-    const q = questions[0] as { question?: unknown };
-    return typeof q.question === "string" ? q.question : "";
-  }
-  // Fallback: some callers may pass a flat `question` field.
-  const flat = (input as { question?: unknown }).question;
-  return typeof flat === "string" ? flat : "";
-}
-
-function verdict(
-  scenario: Scenario,
-  mcpCalls: MockCall[],
-  askQuestions: AskQuestionRecord[],
-  gateQuestionFired: boolean,
-): RunVerdict {
-  const reasons: string[] = [];
-
-  if (scenario.expect.askQuestionForGate && !gateQuestionFired) {
-    reasons.push(
-      `expected gate to ask Picker 1 (substring="${scenario.expect.gateQuestionSubstring}") but it never fired`,
-    );
-  }
-  if (!scenario.expect.askQuestionForGate && gateQuestionFired) {
-    reasons.push(
-      `expected gate to be silent but Picker 1 fired (substring matched: "${scenario.expect.gateQuestionSubstring}")`,
-    );
-  }
-
-  if (scenario.expect.executeTool) {
-    const exec = mcpCalls.find((c) => c.tool === scenario.expect.executeTool);
-    if (!exec) {
-      reasons.push(`expected ${scenario.expect.executeTool} to be called but it was not`);
-    } else if (scenario.expect.executeArgs) {
-      const args = (exec.args ?? {}) as Record<string, unknown>;
-      for (const [k, expected] of Object.entries(scenario.expect.executeArgs)) {
-        const actualPresent = Object.prototype.hasOwnProperty.call(args, k);
-        if (Array.isArray(expected)) {
-          // Set of acceptable outcomes — for gates where more than one arg shape
-          // is behaviorally correct (e.g. showElectronBrowser=always is satisfied
-          // by omitting showUi OR passing showUi:true; only showUi:false is wrong).
-          // The literal "OMITTED" element means "absent is acceptable".
-          const allowAbsent = expected.includes("OMITTED");
-          const allowedValues = expected.filter((v) => v !== "OMITTED");
-          const ok = actualPresent
-            ? allowedValues.some((v) => v === args[k])
-            : allowAbsent;
-          if (!ok) {
-            const got = actualPresent ? JSON.stringify(args[k]) : "<omitted>";
-            reasons.push(`expected ${k} to be one of ${JSON.stringify(expected)} on ${exec.tool} but got ${got}`);
-          }
-        } else if (expected === "OMITTED") {
-          if (actualPresent) {
-            reasons.push(`expected ${k} to be omitted from ${exec.tool} but it was ${JSON.stringify(args[k])}`);
-          }
-        } else {
-          if (!actualPresent) {
-            reasons.push(`expected ${k}=${JSON.stringify(expected)} on ${exec.tool} but it was omitted`);
-          } else if (args[k] !== expected) {
-            reasons.push(`expected ${k}=${JSON.stringify(expected)} on ${exec.tool} but got ${JSON.stringify(args[k])}`);
-          }
-        }
-      }
-    }
-  }
-
-  return {
-    scenario: scenario.name,
-    pass: reasons.length === 0,
-    reasons: reasons,
-    trace: {
-      mcpCalls: mcpCalls,
-      askQuestions: askQuestions,
-    },
-  };
 }

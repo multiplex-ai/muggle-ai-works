@@ -1,4 +1,4 @@
-# Muggle AI Plugin for Claude Code
+# Muggle AI Plugin for Claude Code and Codex
 
 Real-browser E2E acceptance for your coding agent: test the flows you changed and open the PR with screenshots. Built for flows other tools can't reach: managed test identities with live inboxes (magic links, email OTP and 2FA, verification mail, password resets), an encrypted secret store for login and test credentials, and a test graph that runs prerequisite flows first. Plain-English tests become replayable scripts on localhost or preview URLs.
 
@@ -8,6 +8,15 @@ Real-browser E2E acceptance for your coding agent: test the flows you changed an
 /plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
 /plugin install muggleai@muggle-works
 ```
+
+For Codex:
+
+```
+codex plugin marketplace add multiplex-ai/muggle-ai-works
+codex plugin add muggle@muggle-works
+```
+
+Codex reads `.codex-plugin/plugin.json`, which points it at the same skills, at `.codex-mcp.json` (the MCP server with Codex's tool timeout and environment passthrough), and at `hooks/codex-hooks.json` (generated from `hooks/hooks.json`). Trust the hooks when Codex asks; `/hooks` manages them later.
 
 For npm installs:
 
@@ -39,7 +48,7 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | `/mupgrade` | Update Electron browser test runner and MCP server to latest version. |
 
-Every skill ships the short alias in the table above. Type `/m` (Claude Code) or `m` (Cursor) to open the menu, or jump straight to one (e.g. `/mtest`). Claude Code namespaces plugin commands, so the aliases resolve as `/muggle:mtest`; mirror them into `~/.claude/commands/` to type `/mtest` bare.
+Every skill ships the short alias in the table above. Type `/m` (Claude Code), `m` (Cursor) or `$muggle:m` (Codex) to open the menu, or jump straight to one (e.g. `/mtest`, `$muggle:mtest`). Claude Code namespaces plugin commands, so the aliases resolve as `/muggle:mtest`; mirror them into `~/.claude/commands/` to type `/mtest` bare.
 
 ## MCP Tools
 
@@ -57,13 +66,15 @@ A `SessionStart` hook ensures the Electron browser test runner is downloaded and
 ## Upgrade
 
 ```
-/plugin update muggleai@muggle-works
+/plugin update muggleai@muggle-works            # Claude Code
+codex plugin marketplace upgrade muggle-works   # Codex
 ```
 
 ## Uninstall
 
 ```
-/plugin uninstall muggleai@muggle-works
+/plugin uninstall muggleai@muggle-works   # Claude Code
+codex plugin remove muggle@muggle-works   # Codex
 ```
 
 ## Links

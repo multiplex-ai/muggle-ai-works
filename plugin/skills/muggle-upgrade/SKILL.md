@@ -8,6 +8,8 @@ description: Update Muggle AI to the newest version on its current release lane.
 
 > Telemetry first step: see [`_shared/telemetry-emit.md`](../_shared/telemetry-emit.md). Use `skillName: "muggle-upgrade"`.
 
+> Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
+
 Update all Muggle AI components to the newest version **on the release lane the machine is already on**. This means **both** the `@muggleai/works` CLI on npm **and** the Electron runner the CLI manages.
 
 ## Release lanes

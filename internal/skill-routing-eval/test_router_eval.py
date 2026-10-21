@@ -10,7 +10,7 @@ from unittest import mock
 
 import router_eval
 from route_constants import REPORT_NONE_REASONS_FIELD
-from route_types import NoneReason
+from route_types import Host, NoneReason
 from scoring import scored_pass
 
 SKILL_FIXTURE_TEMPLATE = '''---
@@ -598,7 +598,7 @@ class TestReportCarriesNoneReasons(unittest.TestCase):
             report_path = Path(tmp) / "report.json"
             scripted = {q: iter(outcomes) for q, outcomes in outcomes_by_query.items()}
 
-            def scripted_detect(query, repo_root, timeout, model):
+            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE):
                 return next(scripted[query])
 
             argv = [

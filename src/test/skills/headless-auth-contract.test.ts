@@ -44,7 +44,8 @@ const TOOL_REGISTRY = path.join(
   "e2e",
   "tool-registry.ts",
 );
-const EVAL_MOCK_MCP = path.join(REPO_ROOT, "internal", "skill-gate-eval", "src", "mock-mcp.ts");
+// The tool list both eval hosts mount (the agent SDK in process, Codex over stdio).
+const EVAL_MOCK_TOOLS = path.join(REPO_ROOT, "internal", "skill-gate-eval", "src", "mock-tools.ts");
 
 const REGISTER_TOOL = "muggle-remote-auth-register";
 
@@ -85,7 +86,7 @@ describe("headless authentication contract", () => {
   });
 
   it("stubs every auth tool the skill names, so an eval never meets an unstubbed one", () => {
-    const mock = read(EVAL_MOCK_MCP);
+    const mock = read(EVAL_MOCK_TOOLS);
     const unstubbed = authToolsNamedBySkill().filter((toolName) => !mock.includes(toolName));
 
     expect(unstubbed).toEqual([]);

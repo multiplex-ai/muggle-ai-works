@@ -62,7 +62,16 @@ Stage 7 refuses to run until the Definition of Done holds. Stage 8 is dispatched
 
 **Cursor** — `npm install -g @muggleai/works`. The postinstall writes `~/.cursor/mcp.json` and syncs the `muggle-*` skills into `~/.cursor/skills/`. Restart Cursor.
 
-**Codex, Windsurf, any other MCP client** — install the package as above, then register the server:
+**Codex** — full plugin: skills, MCP tools, and the guardrail hooks.
+
+```
+codex plugin marketplace add multiplex-ai/muggle-ai-works
+codex plugin add muggle@muggle-works
+```
+
+Restart Codex and trust the plugin's hooks when it asks (or later, in `/hooks`). Skills are invoked as `$muggle:<skill>` — `$muggle:muggle-do`, `$muggle:muggle-test` — or picked from `/skills`. See [Codex](#codex) for what differs.
+
+**Windsurf, any other MCP client** — install the package as above, then register the server:
 
 ```json
 {
@@ -87,8 +96,9 @@ muggle init
 Explains how the harness works, saves your preferences, and offers to install the pull-request walkthrough check. Then confirm the install is healthy:
 
 ```
-/mstatus          # Claude Code
-muggle doctor     # anywhere else
+/mstatus                  # Claude Code
+$muggle:muggle-status     # Codex
+muggle doctor             # anywhere — also checks the Codex plugin or MCP entry
 ```
 
 Broken? `/mrepair`, or `muggle setup --force`.
@@ -116,7 +126,7 @@ Authentication starts on the first protected call: a browser opens with a verifi
 
 ## Commands
 
-Every skill has a short alias. Both spellings work in Claude Code.
+Every skill has a short alias. Both spellings work in Claude Code. In Codex, mention the skill with `$`: `$muggle:muggle-do`, or the alias `$muggle:mdo`.
 
 | Command | Alias | What it does |
 | :------ | :---- | :----------- |
@@ -359,7 +369,7 @@ muggle --help
 
 ## Configuration
 
-**Environment targeting.** Set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` (`production` or `dev`) in the MCP server's `env` block. Mismatching it against the account you log in with is the usual cause of `unauthorized_client`.
+**Environment targeting.** Set `MUGGLE_MCP_PROMPT_SERVICE_TARGET` (`production` or `dev`) in the MCP server's `env` block — in Codex, export it in your shell; the plugin forwards it. Mismatching it against the account you log in with is the usual cause of `unauthorized_client`.
 
 **Multi-repo cycles.** Drop a `muggle-repos.json` in your working directory so a single request can span services:
 
@@ -372,19 +382,57 @@ muggle --help
 
 **Preferences.** `/mprefs` (or `muggle init`) controls the gates — whether to use a worktree, rebase onto the base branch, run acceptance tests every cycle, open the PR automatically, and arm the watcher. Each gate takes `always`, `ask`, or `never`.
 
-When installed as a Claude Code plugin, MCP configuration ships with the plugin (`plugin/.mcp.json`) — there is nothing to copy by hand.
+When installed as a Claude Code plugin, MCP configuration ships with the plugin (`plugin/.mcp.json`; Codex reads `plugin/.codex-mcp.json`) — there is nothing to copy by hand.
 
 ---
 
 ## Client support
 
-| Client | MCP tools | Slash commands |
-| :----- | :-------- | :------------- |
-| **Claude Code** | Yes | Yes — full plugin |
-| **Cursor** | Yes, auto-configured | Skills synced to `~/.cursor/skills/` |
-| **Codex, Windsurf, others** | Yes, via MCP config | No |
+| Client | MCP tools | Skills | Guardrail hooks |
+| :----- | :-------- | :----- | :-------------- |
+| **Claude Code** | Yes | Yes — slash commands | Yes |
+| **Codex** | Yes | Yes — `$muggle:<skill>` | Yes, once trusted |
+| **Cursor** | Yes, auto-configured | Synced to `~/.cursor/skills/` | Advisory |
+| **Windsurf, others** | Yes, via MCP config | No | No |
 
-Slash commands are plugin-managed; update them with `/plugin update muggleai@muggle-works`.
+Slash commands are plugin-managed; update them with `/plugin update muggleai@muggle-works` (Claude Code) or `codex plugin marketplace upgrade muggle-works` (Codex).
+
+### Codex
+
+The Codex plugin ships the same skills, MCP server, and hooks as the Claude Code one, with what Codex needs written in rather than left to defaults:
+
+- **Long local runs.** Codex cancels an MCP call after 60 seconds unless told otherwise, and a local browser run takes minutes. The plugin's server allows 30 minutes per call and two minutes to start.
+- **Your environment.** Codex starts MCP servers with only `HOME`, `PATH` and the locale. The plugin forwards what the server reads — `MUGGLE_MCP_PROMPT_SERVICE_TARGET`, the `AUTH0_*` and service-URL overrides, `HTTPS_PROXY`/`NO_PROXY`, and on Linux the display variables the browser runner needs.
+- **Claude Code tools in the skills.** Codex has no `AskUserQuestion`, `Skill` tool, or background monitor. Each skill points at [`_shared/host-tool-equivalents.md`](plugin/skills/_shared/host-tool-equivalents.md), which maps them to Codex, and the session-start hook names it too.
+- **PR watching.** Codex cannot wake a session when a reviewer comments, so `$muggle:muggle-pr-followup` handles what is outstanding each time you run it rather than watching in the background.
+- **Sandbox.** Codex's default sandbox blocks the network and writes outside the workspace, so `gh`/`glab` and state under `~/.muggle-ai/` ask for approval. To stop the prompts, allow both in `~/.codex/config.toml`:
+
+  ```toml
+  [sandbox_workspace_write]
+  network_access = true
+  writable_roots = ["/absolute/path/to/home/.muggle-ai"]
+  ```
+- **Headless runs.** `codex exec` cannot ask you anything. It refuses every muggle MCP call ("requires approval, but approval policy is never"), and it runs only hooks you have already trusted. Trust the hooks once in the TUI (`/hooks`), and approve the muggle tools in `~/.codex/config.toml`:
+
+  ```toml
+  [plugins."muggle@muggle-works".mcp_servers.muggle]
+  default_tools_approval_mode = "approve"
+  ```
+
+  `--dangerously-bypass-hook-trust` skips the trust step for one run. It is meant for automation that already vets hook sources.
+
+Registering only the MCP server, without the plugin? Keep the timeout, or local runs are cut off at a minute:
+
+```toml
+[mcp_servers.muggle]
+command = "muggle"
+args = ["serve"]
+tool_timeout_sec = 1800
+startup_timeout_sec = 120
+env_vars = ["MUGGLE_MCP_PROMPT_SERVICE_TARGET"]
+```
+
+`muggle doctor` checks whichever of the two you set up.
 
 ---
 
@@ -413,7 +461,7 @@ muggle login
 
 | Package | Purpose | Install |
 | :------ | :------ | :------ |
-| **Muggle Works** (this repo) | Delivery-cycle harness, MCP server, acceptance testing | `/plugin install muggleai@muggle-works` |
+| **Muggle Works** (this repo) | Delivery-cycle harness, MCP server, acceptance testing | `/plugin install muggleai@muggle-works` · `codex plugin add muggle@muggle-works` |
 | **[muggle-ai-teams](https://github.com/multiplex-ai/muggle-ai-teams)** | Agent orchestration, workflow steps, rules | `npm install @muggleai/teams` |
 
 With both installed, muggle-ai-teams folds acceptance testing into each workflow step: test instructions written per slice at **Plan**, per-slice browser tests at **Build**, a full regression sweep at **Verify**, and results published and linked in the PR at **Ship**. Frontend slices get browser tests; backend-only slices are covered by unit tests, with the skip reasoned in writing.
@@ -444,14 +492,22 @@ pnpm run verify:upgrade-experience        # Existing-user upgrade still works
 pnpm run verify:electron-release-checksums
 ```
 
+Codex has its own layers, from static contracts up to model-driven evals. See [docs/compatibility-strategy.md](docs/compatibility-strategy.md#codex):
+
+```bash
+CODEX_BIN=$(command -v codex) pnpm run test:codex   # The plugin under the real Codex CLI, against a scripted model
+```
+
 ### Repository layout
 
 ```
 muggle-ai-works/
-├── plugin/               # Claude Code plugin — source of truth
+├── plugin/               # Claude Code, Codex and Cursor plugin — source of truth
 │   ├── skills/           #   Skill definitions (muggle-do, muggle-test, _shared/vcs, …)
-│   ├── hooks/            #   Session hooks
-│   └── .mcp.json         #   MCP server config
+│   ├── hooks/            #   Session hooks (codex-hooks.json is generated from hooks.json)
+│   ├── .mcp.json         #   MCP server config
+│   ├── .codex-mcp.json   #   The same server, with Codex's timeouts and env passthrough
+│   └── .codex-plugin/    #   Codex manifest
 ├── src/
 │   ├── cli/              # CLI entrypoint
 │   └── server/           # MCP server — tool registration, stdio transport
@@ -462,7 +518,8 @@ muggle-ai-works/
 ├── scripts/              # Build, verification, postinstall
 ├── config/compatibility/ # Surface contract baselines
 ├── internal/             # Maintainer-only skills (not published)
-└── .claude-plugin/       # Marketplace catalog
+├── .claude-plugin/       # Marketplace catalog (Claude Code)
+└── .agents/plugins/      # Marketplace catalog (Codex)
 ```
 
 ### Releases

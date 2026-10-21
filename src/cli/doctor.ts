@@ -72,6 +72,134 @@ function getCursorMcpConfigPath (): string {
   return join(homedir(), ".cursor", "mcp.json");
 }
 
+/** The Codex plugin id Muggle installs as: plugin `muggle` from marketplace `muggle-works`. */
+const CODEX_PLUGIN_ID = "muggle@muggle-works";
+
+/** Codex's plugin cache directory for Muggle, relative to the Codex home. */
+const CODEX_PLUGIN_CACHE_PATH_SEGMENTS = ["plugins", "cache", "muggle-works", "muggle"];
+
+/**
+ * The longest local run the skills request (`timeoutMs` 900000). Codex cancels an MCP
+ * call at its `tool_timeout_sec` — 60 seconds unless set — so a hand-registered server
+ * needs more than this.
+ */
+const LONGEST_DOCUMENTED_LOCAL_RUN_SECONDS = 900;
+
+/** The Codex command that installs the plugin. */
+const CODEX_PLUGIN_INSTALL_COMMAND =
+  "codex plugin marketplace add multiplex-ai/muggle-ai-works && codex plugin add muggle@muggle-works";
+
+/**
+ * Resolve the directory Codex keeps its config and plugins in.
+ *
+ * @returns `$CODEX_HOME`, else `~/.codex`.
+ */
+function getCodexHomePath (): string {
+  return process.env.CODEX_HOME || join(homedir(), ".codex");
+}
+
+/**
+ * The body of one table in a TOML document, up to the next table header.
+ *
+ * Not a TOML parser: Codex writes its own tables one per header, which is all the
+ * doctor reads. A quoted key matches with either quote style.
+ *
+ * @param toml - Document contents.
+ * @param tableName - Header without brackets, e.g. `mcp_servers.muggle`.
+ * @returns The table's lines, or undefined when the document has no such table.
+ */
+function readTomlTable (toml: string, tableName: string): string | undefined {
+  const headerVariants = new Set([tableName, tableName.replaceAll('"', "'")]);
+  const lines = toml.split(/\r?\n/);
+  const headerIndex = lines.findIndex((line) => {
+    const header = /^\s*\[([^\]]+)\]\s*(?:#.*)?$/.exec(line)?.[1]?.trim();
+    return header !== undefined && headerVariants.has(header);
+  });
+  if (headerIndex < 0) {
+    return undefined;
+  }
+  const bodyLines: string[] = [];
+  for (const line of lines.slice(headerIndex + 1)) {
+    if (/^\s*\[/.test(line)) {
+      break;
+    }
+    bodyLines.push(line);
+  }
+  return bodyLines.join("\n");
+}
+
+/**
+ * Validate that Codex, when this machine has it, can reach Muggle: the plugin
+ * installed and enabled, or a hand-registered muggle MCP server whose tool timeout
+ * outlasts a local run.
+ *
+ * @returns Validation status, description, and the fix when it failed.
+ */
+function validateCodexIntegration (): { passed: boolean; description: string; suggestion?: string } {
+  const codexHome = getCodexHomePath();
+  if (!existsSync(codexHome)) {
+    return { passed: true, description: "Codex not detected (skipped)" };
+  }
+
+  const configPath = join(codexHome, "config.toml");
+  let config = "";
+  if (existsSync(configPath)) {
+    try {
+      config = readFileSync(configPath, "utf-8");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        passed: false,
+        description: `Could not read ${configPath}: ${errorMessage}`,
+        suggestion: `Check the file's permissions, then re-run 'muggle doctor'`,
+      };
+    }
+  }
+
+  const pluginTable = readTomlTable(config, `plugins."${CODEX_PLUGIN_ID}"`);
+  const mcpServerTable =
+    readTomlTable(config, "mcp_servers.muggle") ?? readTomlTable(config, 'mcp_servers."muggle"');
+  const pluginCached = existsSync(join(codexHome, ...CODEX_PLUGIN_CACHE_PATH_SEGMENTS));
+
+  if (pluginTable !== undefined && pluginCached) {
+    if (/^\s*enabled\s*=\s*false\b/m.test(pluginTable)) {
+      return {
+        passed: false,
+        description: `Plugin ${CODEX_PLUGIN_ID} is installed but disabled in ${configPath}`,
+        suggestion: `Set enabled = true under [plugins."${CODEX_PLUGIN_ID}"] in ${configPath}, then restart Codex`,
+      };
+    }
+    const duplicateNote =
+      mcpServerTable === undefined
+        ? ""
+        : " — config.toml also registers [mcp_servers.muggle]; Codex keeps only one server by that name, so remove the hand-written entry";
+    return { passed: true, description: `Plugin ${CODEX_PLUGIN_ID} installed and enabled${duplicateNote}` };
+  }
+
+  if (mcpServerTable !== undefined) {
+    const toolTimeoutSeconds = Number(/^\s*tool_timeout_sec\s*=\s*([0-9.]+)/m.exec(mcpServerTable)?.[1] ?? 0);
+    if (toolTimeoutSeconds <= LONGEST_DOCUMENTED_LOCAL_RUN_SECONDS) {
+      return {
+        passed: false,
+        description:
+          `[mcp_servers.muggle] in ${configPath} has tool_timeout_sec ${toolTimeoutSeconds || "unset (Codex default: 60)"}, ` +
+          `so Codex cancels local browser runs before they finish`,
+        suggestion: `Add tool_timeout_sec = 1800 under [mcp_servers.muggle], or install the plugin, which sets it: ${CODEX_PLUGIN_INSTALL_COMMAND}`,
+      };
+    }
+    return {
+      passed: true,
+      description: `MCP server registered in ${configPath} (MCP tools only; the plugin adds the skills and hooks)`,
+    };
+  }
+
+  return {
+    passed: false,
+    description: `Codex found at ${codexHome}, but Muggle is not registered with it`,
+    suggestion: `Install the plugin: ${CODEX_PLUGIN_INSTALL_COMMAND}`,
+  };
+}
+
 /**
  * Get the expected executable path for the current platform.
  * @param versionDir - Version directory path.
@@ -391,6 +519,15 @@ function runDiagnostics (): ICheckResult[] {
     passed: cursorMcpConfigValidationResult.passed,
     description: cursorMcpConfigValidationResult.description,
     suggestion: "Run 'muggle setup' to configure ~/.cursor/mcp.json",
+  });
+
+  // Check 9: Codex can reach Muggle, when Codex is installed
+  const codexIntegrationResult = validateCodexIntegration();
+  results.push({
+    name: "Codex Integration",
+    passed: codexIntegrationResult.passed,
+    description: codexIntegrationResult.description,
+    suggestion: codexIntegrationResult.suggestion,
   });
 
   return results;

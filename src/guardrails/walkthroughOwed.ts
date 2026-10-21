@@ -1,8 +1,10 @@
 import { execFileSync } from "child_process";
+import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
 import { GH_LOOKUP_TIMEOUT_MS, MAX_WALKTHROUGH_BLOCKS } from "./constants.js";
 import { REPORT_SENTINEL } from "./prReportPost.js";
 import {
   WalkthroughGateAction,
+  type CachedWalkthroughScan,
   type GuardrailState,
   type WalkthroughGateDecision,
 } from "./types.js";
@@ -20,10 +22,12 @@ export interface WalkthroughScan {
 }
 
 function runGh(args: string[]): string | null {
+  const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("gh", args, {
       encoding: "utf-8",
-      timeout: GH_LOOKUP_TIMEOUT_MS,
+      timeout: timeoutMs,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
     });
@@ -78,6 +82,17 @@ export function scanForOwedWalkthroughs(
     else owed.push(prUrl);
   }
   return { owed: owed, verified: verified };
+}
+
+/** Whether the walkthrough gate has anything to check: an acceptance run happened and no walkthrough was posted or skipped. */
+export function isWalkthroughGateArmed(state: GuardrailState): boolean {
+  return state.e2eRun === true && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+}
+
+/** Whether a cached scan was run for the PRs the session has handled now; a PR opened since makes it stale. */
+export function isWalkthroughScanCurrent(scan: CachedWalkthroughScan, state: GuardrailState): boolean {
+  const scanned = new Set(scan.prsHandled);
+  return scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
 }
 
 /**

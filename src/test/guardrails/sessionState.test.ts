@@ -3,7 +3,30 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { mkdtempSync, readdirSync, unlinkSync, writeFileSync } from "fs";
 import { hostname } from "os";
-import { commitState, readState, markPrHandled, isPrHandled, updateState } from "../../guardrails/sessionState";
+import {
+  commitState,
+  readState,
+  markPrHandled,
+  isPrHandled,
+  updateState,
+  readWalkthroughScan,
+  writeWalkthroughScan,
+} from "../../guardrails/sessionState";
+
+describe("walkthrough scan sidecar", () => {
+  it("reads back what was written, beside the state file rather than inside it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gr-"));
+    const scan = { prsHandled: ["https://github.com/o/r/pull/7"], owed: ["https://github.com/o/r/pull/7"], verified: [] };
+    markPrHandled("s1", "https://github.com/o/r/pull/7", dir);
+    writeWalkthroughScan("s1", scan, dir);
+    expect(readWalkthroughScan("s1", dir)).toEqual(scan);
+    expect(readState("s1", dir)).toEqual({ sessionId: "s1", prsHandled: ["https://github.com/o/r/pull/7"] });
+  });
+
+  it("is null for a session no scan has landed for", () => {
+    expect(readWalkthroughScan("never-scanned", mkdtempSync(join(tmpdir(), "gr-")))).toBeNull();
+  });
+});
 
 describe("sessionState", () => {
   let dir: string;

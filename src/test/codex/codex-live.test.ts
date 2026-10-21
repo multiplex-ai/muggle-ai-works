@@ -33,6 +33,13 @@ import type { CodexExecResult, ModelRequest, ModelTool } from "./support/types.j
 // build (`pnpm run build`); without CODEX_BIN it skips. The codex-compat CI
 // job sets both, plus MUGGLE_REQUIRE_CODEX_LIVE so a missing binary fails.
 
+// Read from the manifest Codex runs, so a hook added or retired there moves the expectation with it.
+const SESSION_START_HOOK_COUNT = (
+  JSON.parse(readFileSync(join(REPO_ROOT, "plugin", "hooks", "codex-hooks.json"), "utf-8")) as {
+    hooks: { SessionStart: { hooks: unknown[] }[] };
+  }
+).hooks.SessionStart.flatMap((group) => group.hooks).length;
+
 const ADVERTISED_TOOLS = [
   ...new Set(
     [
@@ -142,7 +149,7 @@ describe.skipIf(!CODEX_BIN)("the muggle plugin in a real Codex", () => {
     it("completes with every hook succeeding", () => {
       expect(run.status, run.stderr).toBe(0);
       noHookFailed(run);
-      expect(hookOutcomes(run.stderr).filter((outcome) => outcome === "SessionStart Completed")).toHaveLength(3);
+      expect(hookOutcomes(run.stderr).filter((outcome) => outcome === "SessionStart Completed")).toHaveLength(SESSION_START_HOOK_COUNT);
     });
 
     it("opens with Muggle's session context, worded for Codex", () => {

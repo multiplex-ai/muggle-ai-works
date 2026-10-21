@@ -41,6 +41,14 @@ export const CODEX_HOOK_HOST_STAMP = "env MUGGLE_HOOK_HOST=codex";
 /** The launcher a Windows hook runs through, as both PowerShell and cmd.exe parse it; Codex substitutes the plugin root. */
 export const CODEX_WINDOWS_HOOK_LAUNCHER = 'node "${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs"';
 
+/**
+ * Seconds a Codex hook's timeout adds to its hooks.json one. Codex counts the shell it starts each hook through —
+ * on Windows PowerShell, then this launcher and Git Bash — and a session's first, cold start of that chain on a
+ * Windows CI runner has needed more than 5 s, so a hook held to its runtime budget would be killed before its
+ * script began. The sum is the 10 s floor these hooks always had; their own runtime stays held to the budget.
+ */
+export const CODEX_LAUNCHER_ALLOWANCE_SECONDS = 9;
+
 // Every hooks.json command runs a shipped bash script; the Windows variant
 // hands the rest of the command line to Git Bash.
 const BASH_COMMAND_PREFIX = "bash ";
@@ -123,6 +131,7 @@ export function deriveCodexHooks(claudeHooks) {
                 }
                 return {
                     ...hook,
+                    ...(hook.timeout === undefined ? {} : { timeout: hook.timeout + CODEX_LAUNCHER_ALLOWANCE_SECONDS }),
                     command: `${CODEX_HOOK_HOST_STAMP} ${hook.command}`,
                     commandWindows: `${CODEX_WINDOWS_HOOK_LAUNCHER} ${hook.command.slice(BASH_COMMAND_PREFIX.length)}`,
                 };

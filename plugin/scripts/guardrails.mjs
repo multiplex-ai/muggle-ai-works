@@ -1,8 +1,8 @@
-import { readFileSync, existsSync, mkdirSync, writeFileSync, renameSync, readdirSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync, renameSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
 import { basename, join, isAbsolute, resolve, dirname } from 'path';
 import { homedir, hostname } from 'os';
+import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { execFileSync } from 'child_process';
 
 // src/guardrails/cli.ts
 
@@ -136,7 +136,14 @@ function withFileLock(lockPath, waitMs, run) {
 
 // src/guardrails/sessionState.ts
 var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
-var fileFor = (sessionId2, override) => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+var fileFor = (sessionId2, override, suffix = ".json") => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}${suffix}`);
+var WALKTHROUGH_SCAN_SUFFIX = ".walkthrough-scan.json";
+function writeAtomically(target, contents, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, JSON.stringify(contents, null, 2));
+  renameSync(staging, target);
+}
 function readState(sessionId2, dirOverride) {
   const f = fileFor(sessionId2, dirOverride);
   if (!existsSync(f)) return { sessionId: sessionId2, prsHandled: [] };
@@ -148,11 +155,17 @@ function readState(sessionId2, dirOverride) {
   }
 }
 function writeState(state, dirOverride) {
-  mkdirSync(baseDir(dirOverride), { recursive: true });
-  const target = fileFor(state.sessionId, dirOverride);
-  const staging = `${target}.${process.pid}.tmp`;
-  writeFileSync(staging, JSON.stringify(state, null, 2));
-  renameSync(staging, target);
+  writeAtomically(fileFor(state.sessionId, dirOverride), state, dirOverride);
+}
+function readWalkthroughScan(sessionId2, dirOverride) {
+  try {
+    return JSON.parse(readFileSync(fileFor(sessionId2, dirOverride, WALKTHROUGH_SCAN_SUFFIX), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+function writeWalkthroughScan(sessionId2, scan, dirOverride) {
+  writeAtomically(fileFor(sessionId2, dirOverride, WALKTHROUGH_SCAN_SUFFIX), scan, dirOverride);
 }
 function commitState(sessionId2, mutate, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
@@ -172,6 +185,34 @@ function markPrHandled(sessionId2, prUrl, dirOverride) {
   const state = readState(sessionId2, dirOverride);
   if (!state.prsHandled.includes(prUrl)) state.prsHandled.push(prUrl);
   writeState(state, dirOverride);
+}
+
+// src/guardrails/types.ts
+var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
+  GuardrailBackgroundJob2["ScanWalkthroughs"] = "scan-walkthroughs";
+  GuardrailBackgroundJob2["ReserveWalkthroughComment"] = "reserve-walkthrough-comment";
+  GuardrailBackgroundJob2["SettleWalkthroughSkipped"] = "settle-walkthrough-skipped";
+  GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
+  return GuardrailBackgroundJob2;
+})(GuardrailBackgroundJob || {});
+
+// src/guardrails/backgroundJob.ts
+function isBackgroundJob(subcommand) {
+  return Object.values(GuardrailBackgroundJob).includes(subcommand);
+}
+function startBackgroundJob(job, jobArgs2, cwd) {
+  try {
+    const child = spawn(process.execPath, [...process.execArgv, process.argv[1], job, ...jobArgs2], {
+      cwd,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true
+    });
+    child.on("error", () => void 0);
+    child.unref();
+  } catch {
+    return;
+  }
 }
 
 // src/guardrails/shellTool.ts
@@ -809,11 +850,29 @@ function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
   return { ...state, walkthroughSkipped: true };
 }
+
+// src/hook-budget/constants.ts
+var HOOK_CHILD_PROCESS_DEADLINE_MS = 600;
+
+// src/hook-budget/childProcessBudget.ts
+var childProcessDeadlineEpochMs = null;
+function enforceHookChildProcessDeadline(gatesStartEpochMs = Date.now()) {
+  childProcessDeadlineEpochMs = gatesStartEpochMs + HOOK_CHILD_PROCESS_DEADLINE_MS;
+}
+function boundedChildTimeoutMs(ceilingMs) {
+  if (childProcessDeadlineEpochMs === null) return ceilingMs;
+  const remainingMs = Math.floor(childProcessDeadlineEpochMs - Date.now());
+  return remainingMs > 0 ? Math.min(ceilingMs, remainingMs) : null;
+}
+
+// src/guardrails/walkthroughOwed.ts
 function runGh(args) {
+  const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("gh", args, {
       encoding: "utf-8",
-      timeout: GH_LOOKUP_TIMEOUT_MS,
+      timeout: timeoutMs,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true
     });
@@ -846,6 +905,13 @@ function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
     else owed.push(prUrl);
   }
   return { owed, verified: verified2 };
+}
+function isWalkthroughGateArmed(state) {
+  return state.e2eRun === true && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+}
+function isWalkthroughScanCurrent(scan, state) {
+  const scanned = new Set(scan.prsHandled);
+  return scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
 }
 function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
   const blockCount = state.walkthroughBlockCount ?? 0;
@@ -884,6 +950,7 @@ var E2E_SKIP_CODE_CLAIMS = {
 };
 var USER_WAIVE_PHRASE = "SKIP E2E";
 var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
+var GIT_PROBE_TIMEOUT_MS = 5e3;
 var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
 var BROWSER_FRAMEWORK_PACKAGES = [
   "react-dom",
@@ -942,11 +1009,13 @@ var GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
 var GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
 var defaultGhRunner = (args, input2) => {
   if (process.env[GH_CALLS_ENV] === "off") return null;
+  const timeoutMs = boundedChildTimeoutMs(GH_COMMENT_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("gh", args, {
       encoding: "utf-8",
       input: input2,
-      timeout: GH_COMMENT_TIMEOUT_MS,
+      timeout: timeoutMs,
       stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true
     });
@@ -1184,10 +1253,13 @@ var listFiles = (dir) => {
   }
 };
 var runGit = (args, cwd) => {
+  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
   try {
     return execFileSync("git", args, {
       cwd,
       encoding: "utf8",
+      timeout: timeoutMs,
       stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true
     });
@@ -1208,10 +1280,13 @@ var hostAndPort = (url) => {
 var isReachable = (url) => {
   const target = hostAndPort(url);
   if (!target) return false;
-  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${DEV_SERVER_PROBE_TIMEOUT_MS});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
+  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
+  if (spawnTimeoutMs === null) return false;
+  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
+  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${socketTimeoutMs});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
   try {
     execFileSync(process.execPath, ["-e", script], {
-      timeout: DEV_SERVER_PROBE_TIMEOUT_MS * 2,
+      timeout: spawnTimeoutMs,
       stdio: "ignore",
       windowsHide: true
     });
@@ -1614,6 +1689,7 @@ function readStdin() {
 }
 var host = resolveHookHost();
 var sub = process.argv[2];
+if (!isBackgroundJob(sub)) enforceHookChildProcessDeadline();
 var input = readStdin();
 var sessionId = input.session_id ?? "unknown";
 function releaseGate(field) {
@@ -1634,7 +1710,10 @@ function prOpened() {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
-  reserveWalkthroughComment(url);
+  startBackgroundJob("reserve-walkthrough-comment" /* ReserveWalkthroughComment */, [url]);
+  if (isWalkthroughGateArmed(readState(sessionId))) {
+    startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
+  }
   const ctx = `A pull request was just opened: ${url}
 Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
 Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
@@ -1679,7 +1758,8 @@ function terminalGate() {
 }
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
-  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const stateBefore = readState(sessionId);
+  const judgedSkip = judgeE2eSkip(input, stateBefore);
   const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
@@ -1696,6 +1776,9 @@ function recordTests() {
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
+  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
+    startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
+  }
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
@@ -1704,7 +1787,7 @@ function recordTests() {
 }
 function recordSkipReasonOnPrs(state, skip) {
   for (const prUrl of state.prsHandled) {
-    settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
+    startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [prUrl, skip.code, skip.detail]);
   }
 }
 function skillStages() {
@@ -1778,7 +1861,9 @@ function e2eGate() {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
   if (decision.action === "release" /* Release */) {
-    for (const prUrl of state.prsHandled) settleWalkthroughCommentAsUnreasoned(prUrl);
+    for (const prUrl of state.prsHandled) {
+      startBackgroundJob("settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */, [prUrl]);
+    }
     return releaseGate("e2eReleased");
   }
   if (decision.action === "none" /* None */) return "{}";
@@ -1811,10 +1896,10 @@ function buildFollowthroughGate() {
 }
 function walkthroughGate() {
   const state = readState(sessionId);
-  if (state.e2eRun !== true || state.walkthroughPosted === true || state.walkthroughSkipped === true) {
-    return "{}";
-  }
-  const scan = scanForOwedWalkthroughs(state);
+  if (!isWalkthroughGateArmed(state)) return "{}";
+  const scan = readWalkthroughScan(sessionId);
+  startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
+  if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
   if (scan.owed.length === 0) {
     if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
     return "{}";
@@ -1965,4 +2050,35 @@ var handlers = {
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate
 };
-process.stdout.write((handlers[sub] ?? (() => "{}"))());
+var jobArgs = process.argv.slice(3);
+function scanWalkthroughsJob() {
+  const scannedSessionId = jobArgs[0] ?? "unknown";
+  const state = readState(scannedSessionId);
+  const scan = scanForOwedWalkthroughs(state);
+  writeWalkthroughScan(scannedSessionId, { prsHandled: state.prsHandled, owed: scan.owed, verified: scan.verified });
+  return "{}";
+}
+function reserveWalkthroughCommentJob() {
+  const [prUrl] = jobArgs;
+  if (prUrl) reserveWalkthroughComment(prUrl);
+  return "{}";
+}
+function settleWalkthroughSkippedJob() {
+  const [prUrl, codeArg, detail] = jobArgs;
+  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
+  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
+  return "{}";
+}
+function settleWalkthroughUnreasonedJob() {
+  const [prUrl] = jobArgs;
+  if (prUrl) settleWalkthroughCommentAsUnreasoned(prUrl);
+  return "{}";
+}
+var backgroundJobs = {
+  ["scan-walkthroughs" /* ScanWalkthroughs */]: scanWalkthroughsJob,
+  ["reserve-walkthrough-comment" /* ReserveWalkthroughComment */]: reserveWalkthroughCommentJob,
+  ["settle-walkthrough-skipped" /* SettleWalkthroughSkipped */]: settleWalkthroughSkippedJob,
+  ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob
+};
+var runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
+process.stdout.write(runSubcommand());

@@ -8,7 +8,7 @@ import { join } from "node:path";
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
 const scriptPath = toBash(
-  fileURLToPath(new URL("../../../plugin/scripts/ensure-electron-app.sh", import.meta.url)),
+  fileURLToPath(new URL("../../../plugin/scripts/session-maintenance.sh", import.meta.url)),
 );
 
 let hasBash = false;
@@ -21,9 +21,9 @@ try {
 
 // Run `snippet` in bash with the script and a throwaway file exposed as
 // $SCRIPT / $TESTFILE. The script is sourced in lib-only mode so only its
-// helpers load — the hook body (muggle setup, npm view, JSON output) never runs.
+// helpers load — the upkeep (state GC, muggle setup, npm view) never runs.
 function runBash(snippet: string): { stdout: string; status: number } {
-  const dir = mkdtempSync(join(tmpdir(), "ensure-electron-"));
+  const dir = mkdtempSync(join(tmpdir(), "session-maintenance-"));
   const file = join(dir, "marker");
   writeFileSync(file, "x");
   try {
@@ -41,9 +41,9 @@ function runBash(snippet: string): { stdout: string; status: number } {
   }
 }
 
-const load = 'MUGGLE_ENSURE_ELECTRON_LIB_ONLY=1 source "$SCRIPT";';
+const load = 'MUGGLE_SESSION_MAINTENANCE_LIB_ONLY=1 source "$SCRIPT";';
 
-describe.skipIf(!hasBash)("ensure-electron-app.sh file_mtime", () => {
+describe.skipIf(!hasBash)("session-maintenance.sh file_mtime", () => {
   it("returns the file's epoch mtime as a bare number", () => {
     const { stdout } = runBash(`${load} file_mtime "$TESTFILE"`);
     expect(stdout).toMatch(/^\d+$/);
@@ -66,8 +66,8 @@ describe.skipIf(!hasBash)("ensure-electron-app.sh file_mtime", () => {
   });
 
   it("feeds the TTL arithmetic safely under set -u (the original crash)", () => {
-    // Reproduces line 22: a non-numeric mtime here aborted with
-    // `File: unbound variable`. With the fix, file_mtime yields a number.
+    // A non-numeric mtime in the TTL arithmetic aborted with
+    // `File: unbound variable`; file_mtime must always yield a number.
     const { stdout, status } = runBash(
       `set -u; stat() { printf 'File: junk\\n'; return 0; }; ${load} ` +
         `now=$(date +%s); echo $((now - $(file_mtime "$TESTFILE")))`,
@@ -77,7 +77,7 @@ describe.skipIf(!hasBash)("ensure-electron-app.sh file_mtime", () => {
   });
 
   it("matches node's view of the file mtime", () => {
-    const dir = mkdtempSync(join(tmpdir(), "ensure-electron-"));
+    const dir = mkdtempSync(join(tmpdir(), "session-maintenance-"));
     const file = join(dir, "marker");
     writeFileSync(file, "x");
     const expected = Math.floor(statSync(file).mtimeMs / 1000);

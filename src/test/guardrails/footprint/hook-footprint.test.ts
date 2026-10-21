@@ -1,8 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   HOT_PATH_SLOT_CAPS,
-  MAX_HOT_PATH_TIMEOUT_SECONDS,
-  MAX_SESSION_START_TIMEOUT_SECONDS,
   MAX_TOTAL_HOOK_COMMANDS,
   NOOP_FIRING_BUDGET_MS,
   NOOP_FIRING_TIMING_RUNS,
@@ -17,7 +15,7 @@ import {
   measureSlotFootprint,
   timeSlotNoopFiring,
 } from "./footprint.js";
-import { HookEvent, type HookSlotCap } from "./types.js";
+import type { HookSlotCap } from "./types.js";
 
 // Hooks run on every tool call, prompt and turn end in every open session, so their cost is paid
 // thousands of times a day on the user's machine. These caps turn the runtime-footprint design
@@ -31,16 +29,6 @@ function expectAtRatchet(actual: number, ceiling: number, what: string): void {
 }
 
 describe("hook manifest caps", () => {
-  it("every hook declares a timeout within its event's ceiling", () => {
-    for (const [event, groups] of Object.entries(manifest.hooks)) {
-      const ceiling = event === HookEvent.SessionStart ? MAX_SESSION_START_TIMEOUT_SECONDS : MAX_HOT_PATH_TIMEOUT_SECONDS;
-      for (const hook of groups.flatMap((group) => group.hooks)) {
-        expect(hook.timeout, `${event} hook "${hook.command}" declares no timeout`).toBeTypeOf("number");
-        expect(hook.timeout, `${event} hook "${hook.command}" timeout`).toBeLessThanOrEqual(ceiling);
-      }
-    }
-  });
-
   it("total hook commands stay at the ratchet ceiling", () => {
     expectAtRatchet(allHookCommands(manifest).length, MAX_TOTAL_HOOK_COMMANDS, "total hook commands");
   });

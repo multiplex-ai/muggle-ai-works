@@ -50,3 +50,38 @@ export interface SlotFootprint {
   /** Programs a hook tried to run that the shim directory does not provide. */
   unshimmedPrograms: string[];
 }
+
+/** How a runtime scenario's throwaway home is seeded before its hooks fire. */
+export enum HomeSeed {
+  /** An installed user with no state for the session: the irrelevant-event path. */
+  Installed = "installed",
+  /** No Electron or version cache and no upkeep stamp: the day the session-start upkeep comes due. */
+  ColdCaches = "cold-caches",
+  /** Electron and version caches fresh and the upkeep not yet due: an ordinary session start. */
+  WarmCaches = "warm-caches",
+  /** An acceptance run and an opened PR with no walkthrough: the Stop gates' `gh` lookups. */
+  WalkthroughOwed = "walkthrough-owed",
+  /** Green unit tests and an opened PR with no acceptance run: the E2E gate's comment settle. */
+  E2eOwed = "e2e-owed",
+}
+
+/** One timed firing: the slot, the payload Claude Code would send, and the state its hooks find on disk. */
+export interface HookRuntimeScenario {
+  label: string;
+  slot: HookSlot;
+  homeSeed: HomeSeed;
+  payload: Record<string, unknown>;
+}
+
+/** Wall time of one hook command across a scenario's timed runs. */
+export interface CommandRuntime {
+  command: string;
+  medianMs: number;
+  runsMs: number[];
+}
+
+/** What a scenario's timed runs cost, and the throwaway homes they ran in. */
+export interface ScenarioRuntime {
+  commandRuntimes: CommandRuntime[];
+  homes: string[];
+}

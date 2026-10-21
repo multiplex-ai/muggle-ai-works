@@ -1,7 +1,13 @@
 import { defineConfig } from "vitest/config";
 
 /** Ceiling for a single test or hook. Sized for the suites that spawn a TypeScript-compiling subprocess per assertion, not for the median test. */
-const SPAWN_HEAVY_TIMEOUT_MS = 30_000;
+export const SPAWN_HEAVY_TIMEOUT_MS = 30_000;
+
+/** The hook runtime budget suite. It times hooks by the wall clock, so it runs alone under vitest.hook-runtime.config.ts. */
+export const HOOK_RUNTIME_BUDGET_TESTS = "src/test/guardrails/footprint/hook-runtime-budget.test.ts";
+
+/** Env every vitest run here sets; why is noted where the config below applies it. */
+export const GUARDRAIL_TEST_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off" };
 
 export default defineConfig({
   test: {
@@ -20,12 +26,13 @@ export default defineConfig({
     // Guardrail hooks call `gh` for real, and the hook-execution fixtures carry
     // live PR urls. Inherited by the subprocesses those tests spawn, so no test
     // run — here or on a contributor's authenticated machine — can reach a PR.
-    env: { MUGGLE_GUARDRAIL_GH_CALLS: "off" },
+    env: GUARDRAIL_TEST_ENV,
     // First entry is Vitest's default glob (kept so packages/** and internal/**
     // stay discovered); second makes the top-level test/ tree — tests mirror
     // their src/ path there — explicit.
     include: ["**/*.{test,spec}.?(c|m)[jt]s?(x)", "test/**/*.test.ts"],
-    exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**'],
+    // Wall-clock budgets measured beside 150 other suites measure their process starts, not the hooks.
+    exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**', HOOK_RUNTIME_BUDGET_TESTS],
     coverage: {
       provider: "v8",
       all: true,

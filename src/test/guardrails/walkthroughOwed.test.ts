@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  isWalkthroughGateArmed,
+  isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
   walkthroughGateDecision,
   type PrWalkthroughLookup,
@@ -96,5 +98,34 @@ describe("walkthroughGateDecision", () => {
   it("releases once the block budget is spent so a session can't be trapped", () => {
     const decision = walkthroughGateDecision(stateWith({ walkthroughBlockCount: 3 }), [PR_OPENED]);
     expect(decision.action).toBe(WalkthroughGateAction.Release);
+  });
+});
+
+describe("isWalkthroughGateArmed", () => {
+  it("arms once an acceptance run happened and nothing settled the walkthrough", () => {
+    expect(isWalkthroughGateArmed(stateWith())).toBe(true);
+  });
+
+  it("stays disarmed without an acceptance run, or once a walkthrough was posted or skipped", () => {
+    expect(isWalkthroughGateArmed(stateWith({ e2eRun: false }))).toBe(false);
+    expect(isWalkthroughGateArmed(stateWith({ walkthroughPosted: true }))).toBe(false);
+    expect(isWalkthroughGateArmed(stateWith({ walkthroughSkipped: true }))).toBe(false);
+  });
+});
+
+describe("isWalkthroughScanCurrent", () => {
+  const scanOf = (prsHandled: string[]) => ({ prsHandled: prsHandled, owed: [], verified: [] });
+
+  it("accepts a scan run for the same handled PRs, in any order", () => {
+    const state = stateWith({ prsHandled: [PR_OPENED, PR_BRANCH] });
+    expect(isWalkthroughScanCurrent(scanOf([PR_BRANCH, PR_OPENED]), state)).toBe(true);
+  });
+
+  it("rejects a scan from before a PR was opened", () => {
+    expect(isWalkthroughScanCurrent(scanOf([]), stateWith({ prsHandled: [PR_OPENED] }))).toBe(false);
+  });
+
+  it("rejects a scan that covered a PR the state no longer holds", () => {
+    expect(isWalkthroughScanCurrent(scanOf([PR_OPENED, PR_BRANCH]), stateWith({ prsHandled: [PR_OPENED] }))).toBe(false);
   });
 });

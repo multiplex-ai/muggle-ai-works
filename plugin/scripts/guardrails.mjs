@@ -814,7 +814,8 @@ function runGh(args) {
     return execFileSync("gh", args, {
       encoding: "utf-8",
       timeout: GH_LOOKUP_TIMEOUT_MS,
-      stdio: ["ignore", "pipe", "ignore"]
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true
     });
   } catch {
     return null;
@@ -946,7 +947,8 @@ var defaultGhRunner = (args, input2) => {
       encoding: "utf-8",
       input: input2,
       timeout: GH_COMMENT_TIMEOUT_MS,
-      stdio: ["pipe", "pipe", "ignore"]
+      stdio: ["pipe", "pipe", "ignore"],
+      windowsHide: true
     });
   } catch {
     return null;
@@ -1183,7 +1185,12 @@ var listFiles = (dir) => {
 };
 var runGit = (args, cwd) => {
   try {
-    return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true
+    });
   } catch {
     return null;
   }
@@ -1205,7 +1212,8 @@ var isReachable = (url) => {
   try {
     execFileSync(process.execPath, ["-e", script], {
       timeout: DEV_SERVER_PROBE_TIMEOUT_MS * 2,
-      stdio: "ignore"
+      stdio: "ignore",
+      windowsHide: true
     });
     return true;
   } catch {

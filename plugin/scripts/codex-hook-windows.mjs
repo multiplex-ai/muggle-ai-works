@@ -48,7 +48,7 @@ export function gitBashCandidates(env, gitExecutables) {
 function gitExecutablesOnPath() {
     if (process.platform !== "win32") return [];
     try {
-        return execFileSync("where", ["git"], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] })
+        return execFileSync("where", ["git"], { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true })
             .split(/\r?\n/)
             .filter(Boolean);
     } catch {
@@ -68,7 +68,7 @@ export function runHookUnderGitBash(scriptAndArgs, env = process.env) {
         process.stdout.write("{}\n");
         return 0;
     }
-    const run = spawnSync(bash, scriptAndArgs, { stdio: "inherit", env: { ...env, ...HOOK_HOST_STAMP } });
+    const run = spawnSync(bash, scriptAndArgs, { stdio: "inherit", env: { ...env, ...HOOK_HOST_STAMP }, windowsHide: true });
     if (run.error) {
         process.stdout.write("{}\n");
         return 0;

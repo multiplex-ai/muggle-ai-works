@@ -17,7 +17,7 @@ function fail(message: string): never {
 }
 
 function commandSucceeds(executable: string, args: string[]): boolean {
-  const probe = spawnSync(executable, args, { stdio: "ignore", timeout: 10_000 });
+  const probe = spawnSync(executable, args, { stdio: "ignore", timeout: 10_000, windowsHide: true });
   return probe.error === undefined && probe.status === 0;
 }
 
@@ -25,6 +25,7 @@ function probedSystemdUserManagerState(): string | null {
   const probe = spawnSync("systemctl", ["--user", "is-system-running"], {
     encoding: "utf-8",
     timeout: 10_000,
+    windowsHide: true,
   });
   if (!probeRan(probe)) return null;
   return probe.stdout.trim();
@@ -54,6 +55,7 @@ function windowsCommandNeedsCmdShell(firstCommandToken: string): boolean {
   const lookup = spawnSync("where.exe", [firstCommandToken], {
     encoding: "utf-8",
     timeout: 10_000,
+    windowsHide: true,
   });
   if (lookup.error !== undefined || lookup.status !== 0) return false;
   const resolvedExtension = extname(lookup.stdout.split(/\r?\n/)[0] ?? "").toLowerCase();
@@ -65,6 +67,7 @@ function currentUserProcessCount(): number {
   const listing = spawnSync("ps", ["-u", uid, "-o", "pid="], {
     encoding: "utf-8",
     timeout: 10_000,
+    windowsHide: true,
   });
   if (!probeRan(listing) || listing.status !== 0) {
     return fail("cannot count current user processes for the nproc ceiling");
@@ -89,6 +92,7 @@ function registerTreeCleanup(plan: BackendLaunchPlan, childPid: number | undefin
       spawnSync("systemctl", ["--user", "stop", plan.stopsScopeUnitOnExit], {
         stdio: "ignore",
         timeout: 10_000,
+        windowsHide: true,
       });
     }
   };

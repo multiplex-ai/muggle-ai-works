@@ -25,6 +25,7 @@ function runGh(args: string[]): string | null {
       encoding: "utf-8",
       timeout: GH_LOOKUP_TIMEOUT_MS,
       stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
     });
   } catch {
     return null;

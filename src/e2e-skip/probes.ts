@@ -21,7 +21,12 @@ const listFiles = (dir: string): string[] => {
 
 const runGit = (args: string[], cwd: string): string | null => {
   try {
-    return execFileSync("git", args, { cwd: cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return execFileSync("git", args, {
+      cwd: cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
   } catch {
     return null;
   }
@@ -56,6 +61,7 @@ const isReachable = (url: string): boolean => {
     execFileSync(process.execPath, ["-e", script], {
       timeout: DEV_SERVER_PROBE_TIMEOUT_MS * 2,
       stdio: "ignore",
+      windowsHide: true,
     });
     return true;
   } catch {

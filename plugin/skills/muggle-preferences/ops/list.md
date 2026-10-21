@@ -2,6 +2,7 @@
 
 1. Read each `preference-gates/<key>.md` (skip `README.md`). First paragraph of each = description.
 2. Render `Preference | Value | Description` table titled `Muggle AI — Preferences`. Values from session context.
+   Under the table, print the line `muggle llm-source --show` reports — who supplies the model for local runs.
 3. Footer:
    ```
    Values: always · ask · never — except defaultExecutionMode (local/remote/ask),

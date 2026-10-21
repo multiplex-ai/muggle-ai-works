@@ -1,13 +1,4 @@
 {
-  "extraKnownMarketplaces": {
-    "muggle-works": {
-      "autoUpdate": true,
-      "source": {
-        "source": "github",
-        "repo": "multiplex-ai/muggle-ai-works"
-      }
-    }
-  },
   "enabledPlugins": {
     "muggleai@muggle-works": true
   },

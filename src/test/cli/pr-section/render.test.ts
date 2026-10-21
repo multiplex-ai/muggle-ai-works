@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
-import { DASHBOARD_URL_BASE } from "../../../cli/pr-section/constants.js";
+import { DASHBOARD_URL_BASE, TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
+import { parseE2eResultMarker } from "../../../e2e-result/marker.js";
 import {
   computeVerdict,
   renderOverview,
@@ -679,6 +680,30 @@ describe("renderBody", () => {
     const body = renderBody(allPassedNoMeta, { inlineDetails: true });
     expect(body).toContain("- ✅ **1.** Logout flow");
     expect(body).not.toMatch(/^- \*\*[A-Za-z]/m);
+  });
+
+  it("carries the result record the CI check reads, inline or spilled", () => {
+    for (const inlineDetails of [true, false]) {
+      const record = parseE2eResultMarker(renderBody(groupedReport, { inlineDetails: inlineDetails }));
+      expect(record?.total).toBe(3);
+      expect(record?.passed).toBe(2);
+      expect(record?.unpassed.map((c) => c.testCaseId)).toEqual(["tc-2"]);
+    }
+  });
+
+  it("lists failed and inconclusive cases under the headline, linked to their details", () => {
+    const failing = renderBody(groupedReport, { inlineDetails: true });
+    expect(failing).toContain("**Needs attention**");
+    expect(failing).toContain("- ❌ **User receives error for invalid URL format** — failed at step");
+    expect(failing).toContain(`[see details](#${TEST_DETAILS_ANCHOR_PREFIX}tc-2)`);
+    const inconclusive = renderBody(mixedWithInconclusiveReport, { inlineDetails: true });
+    expect(inconclusive).toContain("- ⚠️ **Clear search input restores full list** — inconclusive:");
+  });
+
+  it("omits the attention list when every case passed", () => {
+    const body = renderBody(allPassedWithDesc, { inlineDetails: true });
+    expect(body).not.toContain("**Needs attention**");
+    expect(parseE2eResultMarker(body)?.unpassed).toEqual([]);
   });
 
   it("empty report: no details, no horizontal rule", () => {

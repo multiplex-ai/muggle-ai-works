@@ -34,9 +34,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 24 keys", () => {
+  it("has exactly 25 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(24);
+    expect(keys).toHaveLength(25);
   });
 
   it("contains all expected keys", () => {
@@ -61,6 +61,7 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoReuseValidationContext).toBe("autoReuseValidationContext");
     expect(PreferenceKey.AutoRouteBuildToMuggleDo).toBe("autoRouteBuildToMuggleDo");
     expect(PreferenceKey.AutoWatchPR).toBe("autoWatchPR");
+    expect(PreferenceKey.AutoInstallCiWorkflow).toBe("autoInstallCiWorkflow");
     expect(PreferenceKey.ReusePreparePlan).toBe("reusePreparePlan");
     expect(PreferenceKey.WatcherLifetime).toBe("watcherLifetime");
     expect(PreferenceKey.MaxCatchUpRebases).toBe("maxCatchUpRebases");
@@ -121,6 +122,7 @@ describe("DEFAULT_PREFERENCES", () => {
     const exceptions: Partial<Record<string, PreferenceValue>> = {
       [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Local,
       [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
+      [PreferenceKey.AutoInstallCiWorkflow]: PreferenceValue.Ask,
       [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
       [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
     };
@@ -452,6 +454,21 @@ describe("watcherLifetime", () => {
 
   it("maps never to 0, the guard library's unbounded sentinel", () => {
     expect(WATCHER_LIFETIME_SECONDS[PreferenceValue.Never]).toBe(0);
+  });
+});
+
+describe("autoInstallCiWorkflow", () => {
+  // It writes a file into the user's repository; a default is not consent to do that.
+  it("defaults to ask", () => {
+    expect(DEFAULT_PREFERENCES[PreferenceKey.AutoInstallCiWorkflow]).toBe(PreferenceValue.Ask);
+  });
+
+  it("accepts always, ask and never", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.AutoInstallCiWorkflow]).toEqual([
+      PreferenceValue.Always,
+      PreferenceValue.Ask,
+      PreferenceValue.Never,
+    ]);
   });
 });
 

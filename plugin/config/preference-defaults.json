@@ -20,6 +20,7 @@
   "autoReuseValidationContext": "always",
   "autoRouteBuildToMuggleDo": "always",
   "autoWatchPR": "always",
+  "autoInstallCiWorkflow": "ask",
   "reusePreparePlan": "always",
   "watcherLifetime": "7d",
   "maxCatchUpRebases": "20"

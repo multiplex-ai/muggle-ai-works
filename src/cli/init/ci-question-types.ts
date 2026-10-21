@@ -1,7 +1,11 @@
-/** What the init walkthrough's CI question resolved to. */
+/** What init did about the CI check in the repository it ran in. */
 export enum CiOfferOutcome {
   Installed = "installed",
   Declined = "declined",
+  /** `ask`, on a surface with nobody to ask — the user is pointed at `muggle ci-install`. */
+  Deferred = "deferred",
+  /** `never` — left alone without a word. */
+  TurnedOff = "turned-off",
   AlreadyInstalled = "already-installed",
   NotApplicable = "not-applicable",
 }

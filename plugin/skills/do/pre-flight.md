@@ -36,6 +36,7 @@ Before asking anything, gather every fact you can resolve without the user:
    - Is the current checkout already a worktree? `git -C <repo> rev-parse --is-inside-work-tree` plus `git -C <repo> worktree list`.
    - How many commits behind `origin/<default>`? `git -C <repo> fetch origin && git -C <repo> rev-list --count "HEAD..origin/$(git -C <repo> symbolic-ref refs/remotes/origin/HEAD --short | sed 's|origin/||')"`.
 10. **`autoE2ETest` preference.** Read the session-context preferences line. Unset → treat as `always` (this gate's default — opposite of the system-wide `ask` default). `ask` → surface in Q13. `always` → no question; stage 6 runs.
+11. **CI check present?** For each GitHub repo, whether `.github/workflows/muggle-walkthrough.yml` exists on its default branch. Missing and [`autoInstallCiWorkflow`](../muggle-preferences/preference-gates/autoInstallCiWorkflow.md) resolves to `ask` → surface in Q14.
 
 ## The consolidated questionnaire
 
@@ -58,6 +59,7 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 11. **Worktree for this change?** — gate: [`autoUseWorktree`](../muggle-preferences/preference-gates/autoUseWorktree.md). Options: create a dedicated worktree (per [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)), or work in the current checkout.
 12. **Sync onto the base branch first?** — gate: [`autoRebase`](../muggle-preferences/preference-gates/autoRebase.md), only if `behind > 0`. The answer governs every sync this cycle, not just one: before the dev server / E2E, and again immediately before stage 7 pushes. Options: sync with the base, or run as-is.
 13. **Run E2E at the end of every cycle?** — gate: [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md), only if step 10's silent detection resolved to `ask`. Options: always run stage 6, or ask each cycle.
+14. **Add the Muggle E2E check to this repo's CI?** — gate: [`autoInstallCiWorkflow`](../muggle-preferences/preference-gates/autoInstallCiWorkflow.md), only if step 11 found the workflow missing and the gate resolved to `ask`. Record the answer in `state.md` as `CI check: add | skip`; stage 7 acts on it.
 
 If fewer than two of the above need the user, still gather them in a single turn — never open a second round.
 

@@ -52,3 +52,7 @@ Run `muggle init --apply ~/.muggle-ai/temp/onboarding-answers.json`, then delete
 ## Step 6 — confirm
 
 Print what the CLI reported. On `skip`, say it will be offered again next session and move on — a declined offer retires itself after the third time.
+
+## Step 7 — LLM source
+
+Unless the user picked `skip`, run [`llm-source.md`](llm-source.md) — who supplies the model for local runs.

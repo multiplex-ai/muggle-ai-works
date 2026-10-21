@@ -6,31 +6,21 @@
  * the MCP host. Studio itself only reads environment variables.
  */
 
-import * as fs from "node:fs";
-import * as path from "node:path";
-
-import { getDataDir } from "./data-dir.js";
-import { FORWARDABLE_LLM_ENV_NAMES, LLM_ENV_PREFERENCE_KEY } from "./llm-env-constants.js";
-import { PREFERENCES_FILE_NAME } from "./preferences-constants.js";
+import { FORWARDABLE_LLM_ENV_NAMES } from "./llm-env-constants.js";
+import { LlmEnvName } from "./llm-env-types.js";
+import { readStoredLlmApiKey } from "./llm-source/llm-credentials-store.js";
+import { readPreferencesMetadata } from "./preferences-service.js";
 
 /**
  * Read the `llmEnv` block from the preferences file, keeping only forwardable names.
  * Values are stringified so numeric entries (maxTokens, temperature) survive JSON typing.
+ * When a provider is selected and the block carries no key, the key stored in the LLM
+ * credentials file is supplied — the key lives apart from the preferences file on purpose.
  * @param dataDirOverride - Override data dir for testing.
  * @returns Env overrides, e.g. `{ MUGGLE_LLM_PROVIDER: "local", MUGGLE_LLM_MODEL: "llava" }`.
  */
 export function resolveLlmEnvOverrides(dataDirOverride?: string): Record<string, string> {
-  const filePath = path.join(dataDirOverride ?? getDataDir(), PREFERENCES_FILE_NAME);
-  let block: unknown;
-  try {
-    if (!fs.existsSync(filePath)) {
-      return {};
-    }
-    const raw = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>;
-    block = raw[LLM_ENV_PREFERENCE_KEY];
-  } catch {
-    return {};
-  }
+  const block: unknown = readPreferencesMetadata(dataDirOverride).llmEnv;
 
   if (!block || typeof block !== "object" || Array.isArray(block)) {
     return {};
@@ -45,6 +35,13 @@ export function resolveLlmEnvOverrides(dataDirOverride?: string): Record<string,
       continue;
     }
     overrides[name] = String(value);
+  }
+
+  if (overrides[LlmEnvName.Provider] && !overrides[LlmEnvName.ApiKey]) {
+    const storedApiKey = readStoredLlmApiKey(dataDirOverride);
+    if (storedApiKey) {
+      overrides[LlmEnvName.ApiKey] = storedApiKey;
+    }
   }
   return overrides;
 }

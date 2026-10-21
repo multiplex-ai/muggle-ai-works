@@ -21,6 +21,7 @@ import {
 } from "../../../packages/mcps/src/index.js";
 
 import { USER_WORKFLOW_PATH } from "../../ci-workflow/constants.js";
+import { runLlmSourceStep } from "../llm-source/llm-source-terminal-step.js";
 import { offerCiWorkflow } from "./ci-question.js";
 import { CiOfferOutcome } from "./ci-question-types.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";
@@ -130,6 +131,10 @@ export async function initCommand(options: IInitOptions): Promise<void> {
     console.log("Muggle is already set up. Re-running the walkthrough — your current values are pre-selected.");
   }
 
-  reportOutcome(applyOnboardingAnswers(await runTerminalWalkthrough()));
+  const onboardingOutcome = applyOnboardingAnswers(await runTerminalWalkthrough());
+  reportOutcome(onboardingOutcome);
+  if (!onboardingOutcome.skip) {
+    await runLlmSourceStep();
+  }
   await runCiOffer();
 }

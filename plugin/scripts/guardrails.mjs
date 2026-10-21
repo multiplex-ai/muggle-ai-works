@@ -154,20 +154,19 @@ function writeState(state, dirOverride) {
   writeFileSync(staging, JSON.stringify(state, null, 2));
   renameSync(staging, target);
 }
-function updateState(sessionId2, mutate, dirOverride) {
+function commitState(sessionId2, mutate, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
-  const committed = withFileLock(
-    `${fileFor(sessionId2, dirOverride)}.lock`,
-    SESSION_STATE_LOCK_WAIT_MS,
-    () => {
-      const current = readState(sessionId2, dirOverride);
-      const next = mutate(current);
-      if (next === current) return true;
-      writeState({ ...next, generation: (current.generation ?? 0) + 1 }, dirOverride);
-      return true;
-    }
-  );
-  return committed === true;
+  return withFileLock(`${fileFor(sessionId2, dirOverride)}.lock`, SESSION_STATE_LOCK_WAIT_MS, () => {
+    const current = readState(sessionId2, dirOverride);
+    const next = mutate(current);
+    if (next === current) return current;
+    const committed = { ...next, generation: (current.generation ?? 0) + 1 };
+    writeState(committed, dirOverride);
+    return committed;
+  });
+}
+function updateState(sessionId2, mutate, dirOverride) {
+  return commitState(sessionId2, mutate, dirOverride) !== void 0;
 }
 function markPrHandled(sessionId2, prUrl, dirOverride) {
   const state = readState(sessionId2, dirOverride);
@@ -1672,20 +1671,23 @@ function terminalGate() {
 }
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
-  const state = readState(sessionId);
-  const judgedSkip = judgeE2eSkip(input, state);
-  const recorded = applyRecordedRun(state, {
+  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: judgedSkip?.accepted === true
-  });
-  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
-  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  };
+  const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
-  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
-  if (next !== state) writeState(next);
+  const record = (state) => {
+    const recorded = applyRecordedRun(state, run);
+    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  };
+  const next = commitState(sessionId, record) ?? record(readState(sessionId));
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
@@ -1700,13 +1702,9 @@ function recordSkipReasonOnPrs(state, skip) {
 function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
-  const state = readState(sessionId);
-  const next = applySkillInvocation(
-    state,
-    skillName,
-    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot())
-  );
-  if (next !== state) writeState(next);
+  const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
+  const invoke = (state) => applySkillInvocation(state, skillName, stagePaths);
+  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   const ctx = `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;

@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { readState, writeState, updateState, markPrHandled } from "./sessionState.js";
+import { readState, writeState, updateState, commitState, markPrHandled } from "./sessionState.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
@@ -239,20 +239,27 @@ function terminalGate(): string {
 
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
-  const state = readState(sessionId);
-  const judgedSkip = judgeE2eSkip(input, state);
-  const recorded = applyRecordedRun(state, {
+  const judgedSkip = judgeE2eSkip(input, readState(sessionId));
+  const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
     e2eSkipped: judgedSkip?.accepted === true,
-  });
-  const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-  const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-  const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, detectWalkthroughPost(input));
-  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+  };
+  const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
-  const next = failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
-  if (next !== state) writeState(next);
+  const record = (state: GuardrailState): GuardrailState => {
+    const recorded = applyRecordedRun(state, run);
+    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
+    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
+    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
+    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  };
+  // Committed under the store's lock: a muggle-test skill emit reaches
+  // skill-stages at the same moment, and of two unlocked read-modify-writes
+  // the later erases the earlier — the skill and its mandatory stages with it,
+  // which disarms the stage and classification gates.
+  const next = commitState(sessionId, record) ?? record(readState(sessionId));
   if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
@@ -277,13 +284,10 @@ function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void 
 function skillStages(): string {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
-  const state = readState(sessionId);
-  const next = applySkillInvocation(
-    state,
-    skillName,
-    resolveSkillStagePaths(skillName, resolvePluginSkillsRoot()),
-  );
-  if (next !== state) writeState(next);
+  const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
+  const invoke = (state: GuardrailState): GuardrailState => applySkillInvocation(state, skillName, stagePaths);
+  // Under the store's lock, for the reason recordTests gives.
+  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   // Injected at the moment of use, which is the only moment the requirement is

@@ -296,7 +296,7 @@ jobs:
           // on its own, the same way it adds README.md. Asserted here because that
           // is an npm behaviour rather than anything this repo controls — if it
           // ever stops holding, the package ships claiming MIT with no licence text.
-          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/LICENSE", "package/scripts/postinstall.mjs", "package/scripts/onboarding-backfill.mjs", "package/plugin/config/preference-defaults.json", "package/plugin/config/onboarding-limits.json", "package/plugin/.claude-plugin/plugin.json", "package/plugin/.cursor-plugin/plugin.json", "package/plugin/.codex-plugin/plugin.json", "package/plugin/.codex-mcp.json", "package/plugin/hooks/codex-hooks.json"];
+          const required = ["package/dist/cli.js", "package/bin/muggle.js", "package/LICENSE", "package/scripts/postinstall.mjs", "package/scripts/claude-marketplace-sync.mjs", "package/scripts/onboarding-backfill.mjs", "package/.claude-plugin/marketplace.json", "package/plugin/config/preference-defaults.json", "package/plugin/config/onboarding-limits.json", "package/plugin/.claude-plugin/plugin.json", "package/plugin/.cursor-plugin/plugin.json", "package/plugin/.codex-plugin/plugin.json", "package/plugin/.codex-mcp.json", "package/plugin/hooks/codex-hooks.json"];
           for (const entry of required) {
             if (!listing.includes(entry)) {
               throw new Error(`Missing ${entry} in ${tarball}`);

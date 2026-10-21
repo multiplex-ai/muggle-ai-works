@@ -12,7 +12,9 @@
     "dist",
     "plugin",
     "bin/muggle.js",
+    ".claude-plugin/marketplace.json",
     "scripts/postinstall.mjs",
+    "scripts/claude-marketplace-sync.mjs",
     "scripts/onboarding-backfill.mjs",
     "scripts/release-integrity",
     "config/runtime-targets.json"

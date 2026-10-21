@@ -25,6 +25,7 @@ import { dirname, join } from "path";
 import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
+import { pointClaudeMarketplaceAtPackage } from "./claude-marketplace-sync.mjs";
 import { backfillOnboardingStamp } from "./onboarding-backfill.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
@@ -924,99 +925,33 @@ function upsertCursorMcpConfig() {
     log(`Cursor MCP config updated at ${cursorMcpConfigPath}`);
 }
 
-const CLAUDE_PLUGINS_DIRECTORY_NAME = ".claude";
-const CLAUDE_PLUGINS_SUBDIRECTORY_NAME = "plugins";
-const CLAUDE_INSTALLED_PLUGINS_FILE_NAME = "installed_plugins.json";
-const CLAUDE_PLUGIN_REGISTRY_KEY = "muggleai@muggle-works";
-const CLAUDE_MARKETPLACE_NAME = "muggle-works";
-const CLAUDE_PLUGIN_NAME = "muggleai";
-
 /**
- * Sync the Claude Code plugin cache after npm install.
+ * Point Claude Code's `muggle-works` marketplace at this install, so the next session or
+ * `/reload-plugins` loads the version npm just installed.
  *
- * The Claude Code plugin system caches plugin files in
- * ~/.claude/plugins/cache/{marketplace}/{plugin}/{version}/
- * and tracks installations in ~/.claude/plugins/installed_plugins.json.
- *
- * npm install does not trigger a cache refresh, so users would need
- * to restart their session to pick up new skills/hooks. This function
- * copies the updated plugin directory into the cache and updates the
- * registry so `/reload-plugins` picks up the new version immediately.
- *
- * Only runs when the muggle plugin is already installed (won't auto-install).
+ * Only a global install qualifies: `npx` and project-local copies (the plugin's own MCP server
+ * runs through `npx`) are not the install the user upgrades, and repointing at one would pin
+ * Claude Code to a throwaway or different version.
  */
-function syncClaudePluginCache() {
-    const packageJson = require("../package.json");
-    const packageVersion = packageJson.version;
-
-    const pluginsDir = join(homedir(), CLAUDE_PLUGINS_DIRECTORY_NAME, CLAUDE_PLUGINS_SUBDIRECTORY_NAME);
-    const registryPath = join(pluginsDir, CLAUDE_INSTALLED_PLUGINS_FILE_NAME);
-
-    if (!existsSync(registryPath)) {
-        log("Claude plugin sync skipped: no installed_plugins.json found.");
+function syncClaudeMarketplace() {
+    if (process.env.npm_config_global !== "true") {
+        log("Claude plugin sync skipped: not a global install.");
         return;
     }
 
-    let registry;
-    try {
-        const raw = readFileSync(registryPath, "utf-8");
-        registry = JSON.parse(raw);
-    } catch (error) {
-        log(`Claude plugin sync skipped: could not parse installed_plugins.json (${error.message})`);
-        return;
-    }
-
-    if (!registry.plugins || !registry.plugins[CLAUDE_PLUGIN_REGISTRY_KEY]) {
-        log("Claude plugin sync skipped: muggle plugin not installed in Claude Code.");
-        return;
-    }
-
-    const entries = registry.plugins[CLAUDE_PLUGIN_REGISTRY_KEY];
-    if (!Array.isArray(entries) || entries.length === 0) {
-        log("Claude plugin sync skipped: no muggle plugin entries found.");
-        return;
-    }
-
-    const currentEntry = entries[0];
-    if (currentEntry.version === packageVersion) {
-        log(`Claude plugin cache already at ${packageVersion}, no sync needed.`);
-        return;
-    }
-
-    const sourcePluginDir = join(getPackageRootDir(), "plugin");
-    if (!existsSync(sourcePluginDir)) {
-        log("Claude plugin sync skipped: plugin directory not found in package.");
-        return;
-    }
-
-    const cacheDir = join(pluginsDir, "cache", CLAUDE_MARKETPLACE_NAME, CLAUDE_PLUGIN_NAME, packageVersion);
-
-    const previousVersion = currentEntry.version;
-
-    try {
-        if (existsSync(cacheDir)) {
-            rmSync(cacheDir, { recursive: true, force: true });
-        }
-        cpSync(sourcePluginDir, cacheDir, { recursive: true });
-
-        currentEntry.installPath = cacheDir;
-        currentEntry.version = packageVersion;
-        currentEntry.lastUpdated = new Date().toISOString();
-
-        writeFileSync(registryPath, `${JSON.stringify(registry, null, 2)}\n`, "utf-8");
-
-        log(`Claude plugin cache updated: ${previousVersion} → ${packageVersion} at ${cacheDir}`);
-    } catch (error) {
-        logError(`Claude plugin sync failed: ${error.message}`);
-    }
+    const marketplaceSync = pointClaudeMarketplaceAtPackage({
+        claudeConfigDir: join(homedir(), ".claude"),
+        packageRootDir: getPackageRootDir(),
+    });
+    log(`Claude plugin sync ${marketplaceSync.changed ? "updated" : "skipped"}: ${marketplaceSync.reason}.`);
 }
 
 /**
  * Run the onboarding backfill and log only when it actually stamps.
  */
 function logOnboardingBackfill() {
-    const result = backfillOnboardingStamp(join(homedir(), ".muggle-ai"));
-    if (result.stamped) {
+    const onboardingBackfill = backfillOnboardingStamp(join(homedir(), ".muggle-ai"));
+    if (onboardingBackfill.stamped) {
         log("Existing installation: first-run walkthrough marked as already seen.");
     }
 }
@@ -1028,7 +963,7 @@ initLogFile();
 logOnboardingBackfill();
 removeVersionOverrideFile();
 syncCursorSkills();
-syncClaudePluginCache();
+syncClaudeMarketplace();
 upsertCursorMcpConfig();
 downloadElectronApp()
     .catch(logError)

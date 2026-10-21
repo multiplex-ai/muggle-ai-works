@@ -48,7 +48,7 @@ Two lanes ship on npm, each with its own dist-tag:
    - Note: `muggle upgrade` only manages the Electron runner — it does NOT upgrade the CLI npm package. That is why step 3 must run first.
    - The runner tracks published Studio releases only. When it reports "already on the latest version", that is the newest *released* runner — code merged to the Studio repo since that release is not in it, and no upgrade command can reach it until a new runner is published. Say so rather than implying the merge shipped.
 
-5. **Reload plugins** — the npm install (step 3) triggers a postinstall script that updates the plugin cache at `~/.claude/plugins/cache/`, but Claude Code only picks up new skills/agents/hooks after a reload. Tell the user:
+5. **Reload plugins** — the global npm install (step 3) runs a postinstall script that points Claude Code's `muggle-works` marketplace at the installed package, so the plugin loads from the version just installed — but Claude Code only picks up new skills/agents/hooks after a reload. Tell the user:
 
    > Run **`/reload-plugins`** to load the updated skills, agents, and hooks.
 

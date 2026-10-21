@@ -1,5 +1,5 @@
 {
-  "agent": "visual-walkthrough-builder",
+  "target": { "kind": "agent", "name": "visual-walkthrough-builder" },
   "scenarios": [
     {
       "name": "mode-b-renders-without-posting",

@@ -3,11 +3,9 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  UNSCRIPTED_BASH_RESPONSE,
-  resolveScriptedBashResponse,
-} from "../src/harness.js";
+import { UNSCRIPTED_BASH_RESPONSE } from "../src/constants.js";
 import { loadAgentScenarioFile } from "../src/scenario.js";
+import { resolveScriptedBashResponse } from "../src/tools/scripted-replies.js";
 
 const scenariosDir = path.join(
   path.dirname(path.dirname(fileURLToPath(import.meta.url))),

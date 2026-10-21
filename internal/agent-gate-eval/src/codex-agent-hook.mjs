@@ -13,9 +13,11 @@
 //     user; anything else is denied.
 //
 // Plain JavaScript rather than TypeScript under tsx, which would add half a
-// second to every tool call. Its one rule shared with harness.ts — the first
-// scripted response whose `commandContains` the command includes — is held
-// equal by test/codex-harness.test.ts.
+// second to every tool call. Its one rule shared with tools/scripted-replies.ts
+// — the first scripted response whose `commandContains` the command includes —
+// is held equal by test/codex-harness.test.ts. Each call is answered alone, so
+// a response's `sequence` has no meaning here; codex-harness.ts refuses
+// scenarios that use one.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import * as path from "node:path";
@@ -92,7 +94,7 @@ function readsOnlyThePluginTree(command, readRoot, cwd) {
     return namedAPath;
 }
 
-/** harness.ts `resolveScriptedBashResponse`: the first scripted response the command contains, else the unscripted one. */
+/** scripted-replies.ts `resolveScriptedBashResponse`: the first scripted response the command contains, else the unscripted one. */
 function scriptedOutput(command, scripted) {
     const match = (scripted.responses ?? []).find((entry) => command.includes(entry.commandContains));
     return match ? match.response : scripted.unscripted;

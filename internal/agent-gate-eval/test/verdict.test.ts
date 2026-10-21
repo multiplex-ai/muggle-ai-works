@@ -1,7 +1,11 @@
+import * as os from "node:os";
+import * as path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
-import { judgeAgentRun } from "../src/verdict.js";
-import type { AgentScenario, ToolAttempt } from "../src/types.js";
+import { summarizeScenarioVerdicts } from "../src/suite-report.js";
+import { countOrderedMatches, judgeAgentRun } from "../src/verdict.js";
+import type { AgentScenario, ArtifactSnapshot, ToolAttempt, ToolAttemptPattern } from "../src/types.js";
 
 function scenario(expectBlock: AgentScenario["expect"]): AgentScenario {
   return { name: "s", prompt: "p", expect: expectBlock };
@@ -79,5 +83,92 @@ describe("judgeAgentRun", () => {
   it("forbidAskUserQuestion=false relaxes the ask rule explicitly", () => {
     const v = judgeAgentRun(scenario({ forbidAskUserQuestion: false }), "ok", [], 1);
     expect(v.pass).toBe(true);
+  });
+});
+
+describe("requireToolSequence", () => {
+  const read = (file: string): ToolAttempt => ({ tool: "Read", args: { file_path: file } });
+  const handoff: ToolAttemptPattern[] = [
+    { tool: "muggle-local-execute-replay", argContains: "" },
+    { tool: "Bash", argContains: "gh pr create" },
+    { tool: "Bash", argContains: "pr-watch-arm.sh" },
+  ];
+  const replay: ToolAttempt = { tool: "muggle-local-execute-replay", args: {} };
+
+  it("passes when the patterns occur in order, with other attempts between them", () => {
+    const attempts = [read("do/e2e.md"), replay, bash("git push"), bash("gh pr create --title x"), read("arm.md"), bash("bash pr-watch-arm.sh")];
+    expect(countOrderedMatches(attempts, handoff)).toBe(3);
+    expect(judgeAgentRun(scenario({ requireToolSequence: handoff }), "", attempts, 0).pass).toBe(true);
+  });
+
+  it("fails when every step happened but out of order, naming the step that broke the order", () => {
+    const attempts = [bash("gh pr create --title x"), replay, bash("bash pr-watch-arm.sh")];
+    const v = judgeAgentRun(scenario({ requireToolSequence: handoff }), "", attempts, 0);
+    expect(v.pass).toBe(false);
+    expect(v.reasons[0]).toContain("matched 1/3");
+    expect(v.reasons[0]).toContain('missing Bash~"gh pr create"');
+  });
+
+  it("does not let one attempt satisfy two steps", () => {
+    const twice: ToolAttemptPattern[] = [
+      { tool: "Bash", argContains: "pnpm lint" },
+      { tool: "Bash", argContains: "pnpm lint" },
+    ];
+    expect(countOrderedMatches([bash("pnpm lint")], twice)).toBe(1);
+    expect(countOrderedMatches([bash("pnpm lint"), bash("pnpm lint")], twice)).toBe(2);
+  });
+
+  it("is satisfied by an empty sequence", () => {
+    expect(judgeAgentRun(scenario({ requireToolSequence: [] }), "", [], 0).pass).toBe(true);
+  });
+});
+
+describe("requireArtifacts", () => {
+  const root = path.join(os.tmpdir(), "muggle-agent-eval-run-verdict");
+  const snapshot = (fileContents: Record<string, string | null>): ArtifactSnapshot => ({
+    paths: { root: root, home: path.join(root, "home"), repo: path.join(root, "repo"), realHome: path.join(os.tmpdir(), "home-of-dev"), passthroughRoots: [] },
+    fileContents: fileContents,
+  });
+  const requirements = { path: "~/.muggle-ai/muggle-do/sessions/s/requirements.md", contains: "Acceptance" };
+
+  it("passes on a sandbox file carrying the content", () => {
+    const v = judgeAgentRun(scenario({ requireArtifacts: [requirements] }), "", [], 0, snapshot({ [requirements.path]: "## Acceptance\n- x" }));
+    expect(v.pass).toBe(true);
+  });
+
+  it("passes on a Bash attempt writing the path, which never ran", () => {
+    const attempts = [bash("cat > ~/.muggle-ai/muggle-do/sessions/s/requirements.md <<'EOF'\n## Acceptance\nEOF")];
+    const v = judgeAgentRun(scenario({ requireArtifacts: [requirements] }), "", attempts, 0, snapshot({ [requirements.path]: null }));
+    expect(v.pass).toBe(true);
+  });
+
+  it("fails when neither the sandbox nor any attempt has it", () => {
+    const v = judgeAgentRun(scenario({ requireArtifacts: [requirements] }), "", [], 0, snapshot({ [requirements.path]: null }));
+    expect(v.pass).toBe(false);
+    expect(v.reasons[0]).toContain(requirements.path);
+  });
+
+  it("fails rather than passing silently when the run had no sandbox", () => {
+    const v = judgeAgentRun(scenario({ requireArtifacts: [requirements] }), "", [], 0);
+    expect(v.reasons[0]).toContain("no sandbox");
+  });
+});
+
+describe("summarizeScenarioVerdicts", () => {
+  const verdict = (pass: boolean, reason?: string) => ({
+    scenario: "s",
+    pass: pass,
+    reasons: reason ? [reason] : [],
+    trace: { finalOutput: "", toolAttempts: [], askQuestionCount: 0 },
+  });
+
+  it("judges the pass rate against the suite's own threshold", () => {
+    const fourOfFive = [verdict(true), verdict(true), verdict(true), verdict(true), verdict(false, "missed arm")];
+    expect(summarizeScenarioVerdicts("s", fourOfFive, 0.8)).toMatchObject({ passes: 4, runs: 5, passed: true });
+    expect(summarizeScenarioVerdicts("s", fourOfFive, 1)).toMatchObject({ passed: false, failureReasons: ["missed arm"] });
+  });
+
+  it("never passes a scenario that ran no reps", () => {
+    expect(summarizeScenarioVerdicts("s", [], 0.8).passed).toBe(false);
   });
 });

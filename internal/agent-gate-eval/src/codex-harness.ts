@@ -43,11 +43,13 @@ import {
   CODEX_AGENT_TRACE_ENV,
   CODEX_ASK_QUESTION_TOOL,
   DEFAULT_CODEX_AGENT_SANDBOX,
+  UNSCRIPTED_BASH_RESPONSE,
 } from "./constants.js";
-import { UNSCRIPTED_BASH_RESPONSE } from "./harness.js";
+import { pluginRootOf } from "./target-definition.js";
+import { isSequencedFixture } from "./tools/sequenced-mock-mcp.js";
 import type {
-  AgentRunOptions,
   AgentRunVerdict,
+  AgentScenario,
   CodexAgentRunOptions,
   CodexAgentTraceEntry,
   CodexScriptedBash,
@@ -57,9 +59,22 @@ import { judgeAgentRun } from "./verdict.js";
 
 const AGENT_HOOK = fileURLToPath(new URL("./codex-agent-hook.mjs", import.meta.url));
 
-/** The plugin tree a definition sits in: `plugin/` for `plugin/agents/<name>.md`. */
-export function pluginTreeOf(definitionPath: string): string {
-  return path.dirname(path.dirname(path.resolve(definitionPath)));
+/**
+ * The scenario features the Codex harness cannot honor: it keeps no per-run
+ * sandbox and its hook answers each shell call statelessly.
+ *
+ * Output shape: `["bashResponses sequence", "seed"]` — empty when Codex can run the scenario.
+ */
+export function codexUnsupportedFeatures(scenario: AgentScenario): string[] {
+  const unsupported: string[] = [];
+  if ((scenario.bashResponses ?? []).some((scripted) => (scripted.sequence ?? []).length > 0)) {
+    unsupported.push("bashResponses sequence");
+  }
+  if (Object.values(scenario.fixtures ?? {}).some(isSequencedFixture)) unsupported.push("fixtures sequence");
+  if (scenario.seed) unsupported.push("seed");
+  if (scenario.toolResponses) unsupported.push("toolResponses");
+  if (scenario.expect.requireArtifacts) unsupported.push("requireArtifacts");
+  return unsupported;
 }
 
 /**
@@ -67,7 +82,7 @@ export function pluginTreeOf(definitionPath: string): string {
  * agent SDK harness's environment note, told for Codex — reads and commands go
  * through the shell, and the hook is what answers them.
  */
-export function buildCodexAgentInstructions(opts: AgentRunOptions): string {
+export function buildCodexAgentInstructions(opts: Pick<CodexAgentRunOptions, "definition" | "scenario">): string {
   const lines = [
     opts.definition.body,
     "",
@@ -140,6 +155,10 @@ export async function runAgentScenarioOnceInCodex(
   opts: CodexAgentRunOptions,
   onEvent?: (event: unknown) => void,
 ): Promise<AgentRunVerdict> {
+  const unsupported = codexUnsupportedFeatures(opts.scenario);
+  if (unsupported.length > 0) {
+    throw new Error(`Scenario "${opts.scenario.name}" uses ${unsupported.join(", ")}, which only the agent SDK harness supports`);
+  }
   const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-agent-eval-work-"));
   const profile = `agent-eval-${randomUUID()}`;
   const profilePath = path.join(opts.codexHome, `${profile}.config.toml`);
@@ -160,7 +179,7 @@ export async function runAgentScenarioOnceInCodex(
     CODEX_HOME: opts.codexHome,
     [CODEX_AGENT_TRACE_ENV]: tracePath,
     [CODEX_AGENT_BASH_ENV]: scriptedPath,
-    [CODEX_AGENT_READ_ROOT_ENV]: pluginTreeOf(opts.definition.filePath),
+    [CODEX_AGENT_READ_ROOT_ENV]: pluginRootOf(opts.definition),
   };
   const args = [
     "exec",

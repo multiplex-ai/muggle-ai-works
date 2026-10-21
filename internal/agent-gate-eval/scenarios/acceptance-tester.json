@@ -1,5 +1,5 @@
 {
-  "agent": "acceptance-tester",
+  "target": { "kind": "agent", "name": "acceptance-tester" },
   "scenarios": [
     {
       "name": "all-pass-returns-pass",

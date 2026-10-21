@@ -1,12 +1,14 @@
 /**
- * Pure verdict logic for one agent-eval run: asserts the captured final
- * report and tool-attempt trace against the scenario's `expect` block.
- * Kept side-effect-free so it is unit-testable without the SDK harness.
+ * Pure verdict logic for one eval run: asserts the captured final report,
+ * tool-attempt trace, and sandbox artifacts against the scenario's `expect`
+ * block. Kept side-effect-free so it is unit-testable without the SDK harness.
  */
 
+import { isArtifactSatisfied } from "./sandbox/artifacts.js";
 import type {
   AgentRunVerdict,
   AgentScenario,
+  ArtifactSnapshot,
   ToolAttempt,
   ToolAttemptPattern,
 } from "./types.js";
@@ -16,12 +18,35 @@ function attemptMatches(attempt: ToolAttempt, pattern: ToolAttemptPattern): bool
   return JSON.stringify(attempt.args ?? {}).includes(pattern.argContains);
 }
 
-/** Score one completed run. `finalOutput` is the agent's terminal report text. */
+function describePattern(pattern: ToolAttemptPattern): string {
+  return `${pattern.tool}~${JSON.stringify(pattern.argContains)}`;
+}
+
+/**
+ * How many leading patterns the attempts satisfy in order, each by an attempt
+ * after the one that satisfied the previous. Matching each pattern to its
+ * earliest possible attempt is optimal, so this equals `patterns.length`
+ * exactly when the patterns form an ordered subsequence of the attempts.
+ */
+export function countOrderedMatches(toolAttempts: ToolAttempt[], patterns: ToolAttemptPattern[]): number {
+  let matched = 0;
+  for (const attempt of toolAttempts) {
+    if (matched < patterns.length && attemptMatches(attempt, patterns[matched])) matched++;
+  }
+  return matched;
+}
+
+/**
+ * Score one completed run. `finalOutput` is the run's terminal report text;
+ * `artifactSnapshot` is the sandbox after the run, required when the scenario
+ * expects artifacts.
+ */
 export function judgeAgentRun(
   scenario: AgentScenario,
   finalOutput: string,
   toolAttempts: ToolAttempt[],
   askQuestionCount: number,
+  artifactSnapshot?: ArtifactSnapshot,
 ): AgentRunVerdict {
   const reasons: string[] = [];
   const expect = scenario.expect;
@@ -59,6 +84,23 @@ export function judgeAgentRun(
       reasons.push(
         `expected NO attempt of ${pattern.tool} with input containing ${JSON.stringify(pattern.argContains)}`,
       );
+    }
+  }
+
+  const sequence = expect.requireToolSequence ?? [];
+  const orderedMatches = countOrderedMatches(toolAttempts, sequence);
+  if (orderedMatches < sequence.length) {
+    reasons.push(
+      `expected tool sequence ${sequence.map(describePattern).join(" → ")}; matched ${orderedMatches}/${sequence.length}, missing ${describePattern(sequence[orderedMatches])} after the earlier steps`,
+    );
+  }
+
+  for (const artifact of expect.requireArtifacts ?? []) {
+    const label = `${artifact.path}${artifact.contains === undefined ? "" : ` containing ${JSON.stringify(artifact.contains)}`}`;
+    if (!artifactSnapshot) {
+      reasons.push(`expected artifact ${label}, but the run had no sandbox to inspect`);
+    } else if (!isArtifactSatisfied(artifact, artifactSnapshot, toolAttempts)) {
+      reasons.push(`expected artifact ${label} in the sandbox or named by a Write or Bash attempt`);
     }
   }
 

@@ -20,6 +20,7 @@ export const defaultGhRunner: GhRunner = (args, input) => {
       input: input,
       timeout: GH_COMMENT_TIMEOUT_MS,
       stdio: ["pipe", "pipe", "ignore"],
+      windowsHide: true,
     });
   } catch {
     return null;

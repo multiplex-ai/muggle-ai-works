@@ -20,7 +20,7 @@ From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + local checkout 
 
 ### Step 1 — Re-attach
 
-Check out the PR branch in the session's working tree (per `state.md`). Capture `red_sha = prs.json[0].head_sha`.
+Check out the PR branch in the session's working tree (per `state.md`). Capture `red_sha = prs.json[0].head_sha` — this cycle's `pre_cycle_sha` ([`cycle-size.md`](cycle-size.md)).
 
 ### Step 2 — Map each failing check to a local command
 
@@ -39,13 +39,13 @@ An empty-comment failure (no run ever posted) skips items 1–2: run the suite a
 ### Step 3 — Verify before push
 
 - Build (typecheck + lint on the changed surface) + unit suite must pass.
-- Run E2E (per [`../muggle-preferences/preference-gates/autoE2ETest.md`](../muggle-preferences/preference-gates/autoE2ETest.md)) only if the fix touched app logic; lint/format-only fixes skip E2E. A Step 2.5 repair always runs the full suite.
+- Size the fix per [`cycle-size.md`](cycle-size.md) with `pre_cycle_sha = red_sha`. A full fix runs E2E before the push; a minor one skips it and declares `NO_APP_LOGIC_CHANGE` after Step 4's push. A lint or format fix that edits a source file is full. A Step 2.5 repair always runs the full suite.
 
 A fix that can't be made green locally is not pushed → Step 6.
 
 ### Step 4 — Commit + push
 
-Commit per the `fix(ci): <check> — <what>` convention ([`../_shared/pr-followup-helpers/reply-routing.md`](../_shared/pr-followup-helpers/reply-routing.md)). Push. Append the new SHA to `last_seen.pushed_shas`. **No PR replies** — the fix commit is the response.
+Commit per the `fix(ci): <check> — <what>` convention ([`../_shared/pr-followup-helpers/reply-routing.md`](../_shared/pr-followup-helpers/reply-routing.md)). Push. Append the new SHA to `last_seen.pushed_shas`. Then finish the tail [`cycle-size.md`](cycle-size.md) picked: a full fix reposts the walkthrough (a Step 2.5 repair settles it there instead), a minor one declares the skip. **No PR replies** — the fix commit is the response.
 
 ### Step 5 — Update state + respawn
 

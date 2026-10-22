@@ -152,7 +152,7 @@ while :; do
     watch_read_state_fields "$state_line"
     pr_state="${STATE_FIELDS[0]-}"
     head_sha="${STATE_FIELDS[1]-}"
-    base_sha="${STATE_FIELDS[2]-}"
+    base_tip_sha="${STATE_FIELDS[2]-}"
     mergeable="${STATE_FIELDS[3]-}"
     latest_review="${STATE_FIELDS[4]-}"
     latest_comment="${STATE_FIELDS[5]-}"
@@ -201,7 +201,7 @@ while :; do
         floor_ci_red="$head_sha"
     fi
 
-    rebase_key="${head_sha}..${base_sha}"
+    rebase_key="${head_sha}..${base_tip_sha}"
     if [ "$rebase_key" != "$watermark_rebase" ] && [ "$rebase_key" != "$floor_rebase" ]; then
         behind_count=$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")
         if watch_wake_rebase "$pr_number" "$mergeable" "$behind_count" "$rebase_key" ""; then

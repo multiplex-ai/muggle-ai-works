@@ -49,14 +49,14 @@ Do not create or update a PR until each line holds, or is waived by a one-line r
 - Build clean — typecheck + lint on changed files
 - New/changed logic carries unit tests (authored in Stage 3; Stage 5 only runs the suite)
 - Unit suite run, PASS recorded
-- E2E verdict recorded with `runId` per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing one of the verified skip codes (`NO_WEB_SURFACE`, `DEV_SERVER_UNREACHABLE`, `EMPTY_DIFF`, `MUGGLE_AUTH_DOWN`, `NO_PR`, `USER_WAIVED`). Free-text reasons are rejected by the gate
+- E2E verdict recorded with `runId` per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing a verified skip code from [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md), where each code's verification rule lives. Free-text reasons are rejected by the gate
 - UI changes verified in a real browser with evidence (screenshot path or muggle `runId`); `curl` + `grep` is not verification
 
 Opening a PR with an unchecked, unwaived line is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.
 
 ## Address-reviews flow
 
-When invoked with the directive (PR URL + slug + review ids), routes to [`../do/address-reviews.md`](../do/address-reviews.md). Shares stages 3–6 + walkthrough with the forward pipeline; skips pre-flight, requirements, and PR creation. See the orchestrator for the cycle's exact step order, classification rules, and respawn logic.
+When invoked with the directive (PR URL + slug + review ids), routes to [`../do/address-reviews.md`](../do/address-reviews.md). Shares stages 3–5 with the forward pipeline, then sizes the cycle from its diff per [`../do/cycle-size.md`](../do/cycle-size.md): a full cycle adds stage 6 and a fresh walkthrough, a minor one skips E2E under a verified `NO_APP_LOGIC_CHANGE`. Skips pre-flight, requirements, and PR creation. See the orchestrator for the cycle's exact step order, classification rules, and respawn logic.
 
 ## Input routing
 

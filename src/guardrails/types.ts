@@ -5,6 +5,7 @@ export interface GuardrailState {
   unitTestsGreen?: boolean;
   e2eRun?: boolean;
   e2eSkipped?: boolean;
+  e2eSkipCycleScoped?: boolean;
   e2eBlockCount?: number;
   buildIntentRouted?: boolean;
   terminalPending?: number[];
@@ -101,6 +102,7 @@ export enum GuardrailBackgroundJob {
   ReserveWalkthroughComment = "reserve-walkthrough-comment",
   SettleWalkthroughSkipped = "settle-walkthrough-skipped",
   SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
+  SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
 }
 
 /** Outcome of the watcher-arm Stop gate for a turn end. */

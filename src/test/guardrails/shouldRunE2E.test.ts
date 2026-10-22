@@ -118,6 +118,28 @@ describe("applyRecordedRun", () => {
     expect(shouldRunE2E(afterNextUnitPass)).toBe(false);
   });
 
+  it("a cycle-scoped skip satisfies the gate for its own round", () => {
+    const skipped = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eSkipped: true, e2eSkipCycleScoped: true });
+    expect(shouldRunE2E(skipped)).toBe(false);
+  });
+
+  // "These commits touched no app logic" says nothing about the next round's
+  // commits, so the next green round owes E2E again.
+  it("a cycle-scoped skip is cleared by the next unit-green round", () => {
+    const skipped = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eSkipped: true, e2eSkipCycleScoped: true });
+    const nextRound = applyRecordedRun(skipped, { unitTestPassed: true });
+    expect(nextRound.e2eSkipped).toBe(false);
+    expect(shouldRunE2E(nextRound)).toBe(true);
+  });
+
+  it("a cycle-scoped skip never downgrades an environment skip already held", () => {
+    const environmentSkip = applyRecordedRun({ ...base, unitTestsGreen: true }, { e2eSkipped: true });
+    const thenCycleSkip = applyRecordedRun(environmentSkip, { e2eSkipped: true, e2eSkipCycleScoped: true });
+    const nextRound = applyRecordedRun(thenCycleSkip, { unitTestPassed: true });
+    expect(nextRound.e2eSkipped).toBe(true);
+    expect(shouldRunE2E(nextRound)).toBe(false);
+  });
+
   it("returns the same reference when nothing was recorded", () => {
     expect(applyRecordedRun(base, { unitTestPassed: false, e2eRan: false })).toBe(base);
   });

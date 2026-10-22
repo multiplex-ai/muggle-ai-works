@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { runPrWalkthroughCheck } from "../../../cli/pr-walkthrough/check";
 import { CHECK_SUMMARY_MAX_CASES } from "../../../cli/pr-walkthrough/constants";
 import { renderNotPassingSummary } from "../../../cli/pr-walkthrough/summary";
-import { renderReservedComment, renderSkippedComment } from "../../../pr-walkthrough/comment";
+import {
+  lastFullRunOf,
+  renderNoAppLogicChangeComment,
+  renderReservedComment,
+  renderSkippedComment,
+} from "../../../pr-walkthrough/comment";
 import { renderE2eResultMarker } from "../../../e2e-result/marker";
 import { UnpassedCaseStatus, type IE2eResultRecord, type IUnpassedCase } from "../../../e2e-result/types";
 import { E2eSkipCode } from "../../../e2e-skip/types";
@@ -152,6 +157,35 @@ describe("runPrWalkthroughCheck", () => {
     ]);
     const result = await runPrWalkthroughCheck(options, gh.run);
     expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+});
+
+describe("runPrWalkthroughCheck after a cycle that changed no app logic", () => {
+  const declared = { preCycleSha: "1a2b3c4", reason: "README typo" };
+  const NEW_HEAD = "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5";
+  const skippedOver = (lastWalkthrough: string | null): string =>
+    renderNoAppLogicChangeComment(declared, NEW_HEAD, lastWalkthrough ? lastFullRunOf(lastWalkthrough) : null);
+
+  it("passes on the new head when the carried run passed", async () => {
+    const gh = ghWithComments([skippedOver(walkthrough({ total: 3, passed: 3, unpassed: [] }))]);
+    const result = await runPrWalkthroughCheck({ ...options, headSha: NEW_HEAD }, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.Settled);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+
+  it("passes when no full run is on record", async () => {
+    const gh = ghWithComments([skippedOver(null)]);
+    const result = await runPrWalkthroughCheck({ ...options, headSha: NEW_HEAD }, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+
+  // Commits that touched no app logic cannot have repaired a failing case, so
+  // carrying the record forward keeps the failure standing until a real re-run.
+  it("stays red when the carried run had a failing case", async () => {
+    const gh = ghWithComments([skippedOver(walkthrough({ total: 2, passed: 1, unpassed: [failedCase] }))]);
+    const result = await runPrWalkthroughCheck({ ...options, headSha: NEW_HEAD }, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.E2eNotPassing);
+    expect(result.summary).toContain("Checkout");
   });
 });
 

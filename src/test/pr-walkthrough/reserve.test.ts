@@ -3,6 +3,7 @@ import {
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
+  settleWalkthroughCommentForNoAppLogicChange,
 } from "../../pr-walkthrough/reserve";
 import { renderReservedComment } from "../../pr-walkthrough/comment";
 import { E2eSkipCode } from "../../e2e-skip/types";
@@ -85,6 +86,62 @@ describe("settleWalkthroughCommentAsSkipped", () => {
     const gh = recorder({ "issues/7/comments": listedComments(["<!-- muggle-pr-section:v1 -->\n2 passed"]) });
     expect(settleWalkthroughCommentAsSkipped(PR_URL, E2eSkipCode.EmptyDiff, "", gh.run)).toBe(false);
     expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
+  });
+});
+
+describe("settleWalkthroughCommentForNoAppLogicChange", () => {
+  const DETAIL = "1a2b3c4 README typo";
+  const NEW_HEAD = "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5";
+  const WALKTHROUGH = "<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results\n\n**✅ PASS** — 3 tests ran";
+  const OVERFLOW = "<!-- muggle-pr-section:v1 -->\n## E2E acceptance evidence (overflow)";
+  const patchedBody = (calls: RecordedCall[]): string =>
+    JSON.parse(calls.find((call) => call.args.includes("PATCH"))?.input ?? "{}").body ?? "";
+
+  // The common watcher case: the slot already holds an earlier full run.
+  it("rewrites a posted walkthrough as skipped for the new head, keeping the run underneath", () => {
+    const gh = recorder({
+      "issues/7/comments": listedComments(["looks good", WALKTHROUGH, OVERFLOW]),
+      "pulls/7": `${NEW_HEAD}\n`,
+    });
+    expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, DETAIL, gh.run)).toBe(true);
+    const patched = gh.calls.filter((call) => call.args.includes("PATCH"));
+    expect(patched).toHaveLength(1);
+    expect(patched[0].args.join(" ")).toContain("issues/comments/2");
+    const body = patchedBody(gh.calls);
+    expect(body).toContain(WALKTHROUGH_SKIPPED_MARKER);
+    expect(body).toContain("no app-logic change in `9f8e7d6`");
+    expect(body).toContain("README typo");
+    expect(body).toContain("**✅ PASS** — 3 tests ran");
+    expect(body).not.toContain("muggle-pr-section");
+  });
+
+  it("settles a reserved slot that never held a run", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([renderReservedComment()]), "pulls/7": NEW_HEAD });
+    expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, DETAIL, gh.run)).toBe(true);
+    expect(patchedBody(gh.calls)).toContain("No full E2E run is on record");
+  });
+
+  it("hands an earlier skip's carried run on to the next one", () => {
+    const first = recorder({ "issues/7/comments": listedComments([WALKTHROUGH]), "pulls/7": NEW_HEAD });
+    settleWalkthroughCommentForNoAppLogicChange(PR_URL, DETAIL, first.run);
+    const second = recorder({ "issues/7/comments": listedComments([patchedBody(first.calls)]), "pulls/7": NEW_HEAD });
+    expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, "9f8e7d6 lint config", second.run)).toBe(true);
+    const body = patchedBody(second.calls);
+    expect(body).toContain("**✅ PASS** — 3 tests ran");
+    expect(body.match(/Last full E2E run on this PR/g)).toHaveLength(1);
+  });
+
+  it("posts the notice when the PR has no designated comment", () => {
+    const gh = recorder({ "issues/7/comments": listedComments(["hi"]), "pulls/7": NEW_HEAD });
+    expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, DETAIL, gh.run)).toBe(true);
+    const posted = gh.calls.find((call) => call.args.includes("POST"));
+    expect(posted?.input).toContain(WALKTHROUGH_SLOT_MARKER);
+  });
+
+  it("makes no provider call for a detail that names no commit", () => {
+    const gh = recorder({});
+    expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, "docs only", gh.run)).toBe(false);
+    expect(gh.calls).toEqual([]);
   });
 });
 

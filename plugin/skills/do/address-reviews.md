@@ -92,7 +92,7 @@ Invoke [`unit-tests.md`](unit-tests.md). Cover the surface that just changed; re
 
 #### 4d. Run ONE E2E acceptance pass
 
-Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); a poll-only session with no context (e.g. auto-track) is reported `SKIPPED`. The persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md).
+Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. When `state.md` records `Wave: on`, the pass runs against the wave stack — siblings started from their PRs' current heads — and the refreshed walkthrough goes to every sibling too, per [`wave-e2e.md`](wave-e2e.md#later-cycles-on-one-wave-pr). The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); a poll-only session with no context (e.g. auto-track) is reported `SKIPPED`. The persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md).
 
 #### 4e. Create or update the PR
 

@@ -24,6 +24,14 @@ try {
   // bash unavailable — the suite below skips
 }
 
+let hasJq = false;
+try {
+  execFileSync("jq", ["--version"], { stdio: "ignore" });
+  hasJq = true;
+} catch {
+  // jq unavailable — the suites that run the real projection skip
+}
+
 // Runs the arm script and returns its exit status. Only argument handling is
 // exercised here: everything past validation needs a live PR.
 function runArm(args: string[]): number {
@@ -254,5 +262,118 @@ describe.skipIf(!hasBash)("terminal line contract with the post-merge guardrail"
     const { command, stdout } = runAgainstMergedPr(loopPath);
     expect(detectPrTerminal({ tool_name: "Bash", tool_input: { command: command }, tool_response: { stdout: stdout } }))
       .toEqual({ prNumber: 7, verdict: PrTerminalVerdict.Merged });
+  }, 60_000);
+});
+
+interface BaseMovementFixture {
+  /** The base commit GitHub recorded at the PR's last head push. */
+  baseRefOid: string;
+  /** Where the base branch points now. */
+  baseTipOid: string;
+  behindBy: number;
+}
+
+// Unlike stubGhDir, this answers the state query by running the projection the
+// caller passed through `--jq` over a raw GraphQL snapshot, so the base half of
+// the rebase key comes out of the real fetch and filter rather than a canned line.
+function stubGhFromSnapshot(fixture: BaseMovementFixture): string {
+  const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
+  const snapshotPath = join(dir, "pr.json");
+  writeFileSync(
+    snapshotPath,
+    JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            state: "OPEN",
+            headRefOid: "HEAD1",
+            baseRefOid: fixture.baseRefOid,
+            baseRef: { target: { oid: fixture.baseTipOid } },
+            mergeable: "MERGEABLE",
+            commits: { nodes: [] },
+            reviews: { nodes: [] },
+            reviewThreads: { nodes: [] },
+          },
+        },
+      },
+    }),
+  );
+  const gh = join(dir, "gh");
+  writeFileSync(
+    gh,
+    [
+      "#!/usr/bin/env bash",
+      'if [ "$1" = "auth" ]; then echo stub-token; exit 0; fi',
+      'if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then',
+      '  while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && projection="$2"; shift; done',
+      // jq on Windows ends lines with CRLF; gh's built-in filter does not.
+      `  jq -r "$projection" "${toBash(snapshotPath)}" | tr -d '\\r'`,
+      "  exit 0",
+      "fi",
+      `echo ${fixture.behindBy}`,
+      "",
+    ].join("\n"),
+  );
+  chmodSync(gh, 0o755);
+  return dir;
+}
+
+function armAgainstBaseMovement(fixture: BaseMovementFixture): string {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  execFileSync(
+    "bash",
+    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master", "--no-exec"],
+    {
+      env: { ...process.env, PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}` },
+      stdio: "ignore",
+    },
+  );
+  return slot;
+}
+
+// Runs the loop for a few iterations over a slot whose rebase floor is
+// `rebasedFloor`, returning only the EVENT lines it printed.
+function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: string): string[] {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  writeFileSync(
+    join(slot, "watch-watermark.env"),
+    `REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED="${rebasedFloor}"\nBLOCKED_CIDIGEST=""\n`,
+  );
+  const stdout = execFileSync(
+    "bash",
+    [loopPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    {
+      env: {
+        ...process.env,
+        PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}`,
+        MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
+        MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
+      },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  return stdout.split("\n").filter((line) => line.startsWith("EVENT "));
+}
+
+// GitHub advances baseRefOid only when the head is pushed, never when the base
+// branch moves. A key built from it stays equal to an escalated or floored key
+// however far the base advances, so a blocked branch never wakes again.
+describe.skipIf(!hasBash || !hasJq)("rebase key tracks the base branch tip", () => {
+  const staleRecordedBase: BaseMovementFixture = { baseRefOid: "BASEOLD", baseTipOid: "BASENEW", behindBy: 3 };
+
+  it("wakes once when the base tip moves under an unchanged head and a stale baseRefOid", () => {
+    const events = watchAgainstBaseMovement(staleRecordedBase, "HEAD1..BASEOLD");
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain("rebase due key=HEAD1..BASENEW");
+  }, 60_000);
+
+  it("stays quiet while neither the head nor the base tip has moved", () => {
+    expect(watchAgainstBaseMovement(staleRecordedBase, "HEAD1..BASENEW")).toEqual([]);
+  }, 60_000);
+
+  it("seeds the rebase floor from the base tip", () => {
+    const watermark = readFileSync(join(armAgainstBaseMovement(staleRecordedBase), "watch-watermark.env"), "utf8");
+    expect(watermark).toContain('REBASED="HEAD1..BASENEW"');
   }, 60_000);
 });

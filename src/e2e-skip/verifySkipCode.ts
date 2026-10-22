@@ -1,6 +1,7 @@
 import { join } from "path";
 import {
   BROWSER_FRAMEWORK_PACKAGES,
+  MAX_NAMED_APP_LOGIC_PATHS,
   MUGGLE_HOME_DIR_NAME,
   OAUTH_SESSION_FILE,
   USER_WAIVE_PHRASE,
@@ -8,6 +9,7 @@ import {
   WEB_SERVER_COMMAND,
   WEB_SURFACE_CONFIG_FILES,
 } from "./constants.js";
+import { isNonAppPath, parseNoAppLogicChangeDetail } from "./noAppLogicChange.js";
 import {
   E2eSkipCode,
   type DeclaredSkip,
@@ -124,6 +126,38 @@ const verifyUserWaived: SkipVerifier = (context) => {
   return refuted(`no user turn in the transcript contains "${USER_WAIVE_PHRASE}"`);
 };
 
+const namePaths = (paths: string[]): string => {
+  const named = paths.slice(0, MAX_NAMED_APP_LOGIC_PATHS).join(", ");
+  const unnamed = paths.length - MAX_NAMED_APP_LOGIC_PATHS;
+  return unnamed > 0 ? `${named} and ${unnamed} more` : named;
+};
+
+// The claim is about trees, not ancestry: the app code at HEAD is byte-for-byte
+// the app code at the cited commit. Renames are split into a delete and an add
+// so moving a source file into docs/ still names the source path it removed.
+// One git call, peeling the SHA to a commit inline, because every child process
+// in a hook shares one short budget.
+const verifyNoAppLogicChange: SkipVerifier = (context, detail) => {
+  if (!context.cwd) return refuted("no working directory was available to inspect");
+  const declared = parseNoAppLogicChangeDetail(detail);
+  if (!declared) {
+    return refuted("the detail names no pre-cycle commit — cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>");
+  }
+  const sha = declared.preCycleSha;
+  const diff = context.probe.runGit(
+    ["diff", "--name-only", "--no-renames", "-z", `${sha}^{commit}`, "HEAD"],
+    context.cwd,
+  );
+  if (diff === null) return refuted(`${sha} does not resolve to a commit here, or its diff to HEAD could not be read`);
+  const changedPaths = diff.split("\0").filter(Boolean);
+  if (changedPaths.length === 0) {
+    return refuted(`HEAD carries no change since ${sha} — declare the skip once the cycle's commits are on HEAD`);
+  }
+  const appLogicPaths = changedPaths.filter((path) => !isNonAppPath(path));
+  if (appLogicPaths.length > 0) return refuted(`app-logic paths changed since ${sha}: ${namePaths(appLogicPaths)}`);
+  return verified;
+};
+
 const VERIFIERS: Record<E2eSkipCode, SkipVerifier> = {
   [E2eSkipCode.NoWebSurface]: verifyNoWebSurface,
   [E2eSkipCode.DevServerUnreachable]: verifyDevServerUnreachable,
@@ -131,6 +165,7 @@ const VERIFIERS: Record<E2eSkipCode, SkipVerifier> = {
   [E2eSkipCode.MuggleAuthDown]: verifyMuggleAuthDown,
   [E2eSkipCode.NoPr]: verifyNoPr,
   [E2eSkipCode.UserWaived]: verifyUserWaived,
+  [E2eSkipCode.NoAppLogicChange]: verifyNoAppLogicChange,
 };
 
 /** Run the cited code's verifier against the environment it was cited in. */

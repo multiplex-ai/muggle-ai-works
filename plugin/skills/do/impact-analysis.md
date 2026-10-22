@@ -80,3 +80,14 @@ recommendation: SKIPPED — placeholder branch, no code under test
 ```
 
 `do/e2e-acceptance.md` Step 1.5 reads this and exits the stage cleanly with a SKIPPED verdict — do not silently run tests against master.
+
+## Output state — cycleSize (watcher-dispatched cycles)
+
+When the caller passes `pre_cycle_sha` ([`cycle-size.md`](cycle-size.md)), also list the paths this cycle changed, committed or not: `git diff --name-only --no-renames <pre_cycle_sha>` for tracked files, plus `git ls-files --others --exclude-standard` for new ones. Emit:
+
+```
+cycleFiles: [<path>, ...]
+cycleSize: <minor | full>
+```
+
+`minor` only when every path in `cycleFiles` is in the `NO_APP_LOGIC_CHANGE` path set defined in [`e2e-acceptance.md`](e2e-acceptance.md); otherwise `full`. The rest of this stage still runs against the default branch, so a full cycle's E2E routes from `pathClassification` as in a forward run.

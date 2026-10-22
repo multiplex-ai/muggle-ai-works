@@ -1,5 +1,5 @@
 import { readFileSync } from "fs";
-import { defaultGhRunner } from "../../pr-walkthrough/gh.js";
+import { defaultGhRunner, readPrHeadSha } from "../../pr-walkthrough/gh.js";
 import type { GhRunner } from "../../pr-walkthrough/types.js";
 import type { PrWalkthroughCheckOptions } from "./types.js";
 
@@ -25,17 +25,6 @@ function readEvent(eventPath: string | undefined): ActionsEvent {
   }
 }
 
-// An issue_comment event names the PR but never its head commit, and its job
-// runs against the default branch — so the sha the check run has to target is
-// only reachable through the API.
-function fetchHeadSha(repo: string, prNumber: number, run: GhRunner): string | null {
-  try {
-    return run(["api", `repos/${repo}/pulls/${prNumber}`, "--jq", ".head.sha"])?.trim() ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Work out which PR this invocation judges, from flags first and the Actions
  * event payload second.
@@ -56,8 +45,13 @@ export function resolveCheckTarget(
   const prNumber = Number(flags.pr ?? event.pull_request?.number ?? commentedPrNumber ?? NaN);
   if (!Number.isInteger(prNumber) || prNumber <= 0) return null;
 
+  // An issue_comment event names the PR but never its head commit, and its job
+  // runs against the default branch — so the sha the check run has to target is
+  // only reachable through the API.
   const headSha =
-    flags.headSha ?? event.pull_request?.head?.sha ?? fetchHeadSha(repo, prNumber, run);
+    flags.headSha ??
+    event.pull_request?.head?.sha ??
+    readPrHeadSha({ repo: repo, prNumber: prNumber }, run);
   if (!headSha) return null;
 
   return {

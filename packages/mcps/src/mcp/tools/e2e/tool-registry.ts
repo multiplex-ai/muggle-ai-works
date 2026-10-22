@@ -16,6 +16,7 @@ import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/ty
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
+import { mapOrganizationList } from "./organization-list-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 
@@ -28,18 +29,20 @@ const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
 const projectTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-create",
-    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests.",
+    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project.",
     inputSchema: schemas.ProjectCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectCreateInputSchema>;
+      const body: Record<string, unknown> = {
+        name: toolInput.projectName,
+        description: toolInput.description,
+        url: toolInput.url,
+      };
+      if (toolInput.organizationId !== undefined) body.organizationId = toolInput.organizationId;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
-        body: {
-          name: toolInput.projectName,
-          description: toolInput.description,
-          url: toolInput.url,
-        },
+        body: body,
       };
     },
   },
@@ -57,7 +60,7 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-update",
-    description: "Update an existing project's details.",
+    description: "Update an existing project's details, or move a personal project into an organization the caller belongs to.",
     inputSchema: schemas.ProjectUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectUpdateInputSchema>;
@@ -65,6 +68,7 @@ const projectTools: IQaToolDefinition[] = [
       if (toolInput.projectName !== undefined) body.name = toolInput.projectName;
       if (toolInput.description !== undefined) body.description = toolInput.description;
       if (toolInput.url !== undefined) body.url = toolInput.url;
+      if (toolInput.organizationId !== undefined) body.organizationId = toolInput.organizationId;
       return {
         method: "PUT",
         path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}`,
@@ -90,6 +94,19 @@ const projectTools: IQaToolDefinition[] = [
         },
       };
     },
+  },
+  {
+    name: "muggle-remote-organization-list",
+    description:
+      "List the organizations the authenticated user is an active member of, with the user's role in each. Pass an organizationId to muggle-remote-project-create or muggle-remote-project-update to make a project organization-owned. Response shape: { organizations: [{ organizationId, name, status, role }] }.",
+    inputSchema: schemas.EmptyInputSchema,
+    mapToUpstream: () => {
+      return {
+        method: "GET",
+        path: "/v1/protected/organizations/my-organizations",
+      };
+    },
+    mapFromUpstream: mapOrganizationList,
   },
   {
     name: "muggle-remote-project-delete",

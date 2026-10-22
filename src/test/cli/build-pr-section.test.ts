@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Readable } from "stream";
 
 import { runBuildPrSection } from "../../cli/build-pr-section.js";
@@ -52,6 +52,39 @@ describe("runBuildPrSection", () => {
     const out = JSON.parse(stdoutChunks.join(""));
     expect(out.body).toContain("## E2E Acceptance Results");
     expect(out.comment).toBeNull();
+  });
+
+  it("links each test to its own viewUrl, whatever runtime target the CLI resolves", async () => {
+    const viewUrl =
+      "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=a&actionScriptId=as-a";
+    const report = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "A",
+          testCaseId: "a",
+          runId: "ra",
+          viewUrl: viewUrl,
+          status: "passed",
+          steps: [{ stepIndex: 0, action: "Click", screenshotUrl: "https://cdn/a0.png" }],
+        },
+      ],
+    };
+    vi.stubEnv("MUGGLE_MCP_PROMPT_SERVICE_TARGET", "dev");
+    try {
+      const exitCode = await runBuildPrSection({
+        stdin: makeStdin(report),
+        stdoutWrite,
+        stderrWrite,
+        maxBodyBytes: 60_000,
+      });
+      expect(exitCode).toBe(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const out = JSON.parse(stdoutChunks.join(""));
+    expect(out.body).toContain(`href="${viewUrl.replace(/&/g, "&amp;")}"`);
+    expect(out.body).not.toContain("localhost");
   });
 
   it("exits nonzero with a clear error on invalid JSON", async () => {

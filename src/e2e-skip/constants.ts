@@ -13,6 +13,9 @@ export const SKIP_CODE_TOKEN = /^[\s:]*([A-Za-z_]+)/;
 /** Every code, keyed by its wire spelling, for parsing and for the CLI's help text. */
 export const E2E_SKIP_CODES: readonly E2eSkipCode[] = Object.values(E2eSkipCode);
 
+/** The categories {@link NON_APP_PATH_PATTERNS} covers, as a reader-facing phrase. */
+export const NON_APP_PATH_SUMMARY = "docs, tests, lint/format config, or CI config";
+
 /** What each code asserts, shown in a rejection so the next attempt cites a code that fits rather than rewording the prose. */
 export const E2E_SKIP_CODE_CLAIMS: Record<E2eSkipCode, string> = {
   [E2eSkipCode.NoWebSurface]: "the repo ships no web surface to drive",
@@ -21,7 +24,55 @@ export const E2E_SKIP_CODE_CLAIMS: Record<E2eSkipCode, string> = {
   [E2eSkipCode.MuggleAuthDown]: "the stored Muggle session is missing or expired",
   [E2eSkipCode.NoPr]: "no pull request was handled this session",
   [E2eSkipCode.UserWaived]: "the user waived E2E in their own words",
+  [E2eSkipCode.NoAppLogicChange]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
 };
+
+/**
+ * Codes whose fact covers only the commits it was verified against.
+ *
+ * An environment fact still holds after the next round of edits; "this cycle
+ * touched no app logic" does not, so a later unit-green round owes E2E again.
+ */
+export const CYCLE_SCOPED_SKIP_CODES: readonly E2eSkipCode[] = [E2eSkipCode.NoAppLogicChange];
+
+/** The commit a `NO_APP_LOGIC_CHANGE` detail opens with: an abbreviated or full hex SHA, ended by anything but another word character. */
+export const PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
+
+/**
+ * Repo-relative paths that cannot change what a user's browser runs.
+ *
+ * `NO_APP_LOGIC_CHANGE` accepts a cycle only when every path it changed matches
+ * one of these. The set is a path rule, not a reading of the diff, because a
+ * path rule is what the guardrail can verify on its own — so it is deliberately
+ * narrow, and anything outside it is app logic, including a comment-only edit
+ * in a source file:
+ *
+ * - docs: `*.md`, `*.markdown`, `*.rst` (not `*.mdx`, which compiles to components);
+ * - tests: `*.test.*`, `*.spec.*`, `__tests__/`, `__snapshots__/`, `__mocks__/`,
+ *   `test_*.py`, `*_test.py`, `*_test.go`, and a root-level `test/` or `tests/`
+ *   (a nested `test/` can be a route);
+ * - lint/format config: ESLint, Prettier and Stylelint config and ignore files,
+ *   markdownlint config, `biome.json(c)`, `.editorconfig`;
+ * - CI config: `.github/workflows/`, `.gitlab-ci.yml`.
+ */
+export const NON_APP_PATH_PATTERNS: readonly RegExp[] = [
+  /\.(md|markdown|rst)$/i,
+  /(^|\/)[^/]+\.(test|spec)\.[^/]+$/,
+  /(^|\/)(__tests__|__snapshots__|__mocks__)\//,
+  /(^|\/)test_[^/]+\.py$/,
+  /(^|\/)[^/]+_test\.(py|go)$/,
+  /^tests?\//,
+  /(^|\/)\.(eslintrc|prettierrc|stylelintrc)(\.[a-z]+)?$/,
+  /(^|\/)(eslint|prettier|stylelint)\.config\.[cm]?[jt]s$/,
+  /(^|\/)\.(eslint|prettier|stylelint)ignore$/,
+  /(^|\/)\.markdownlint[^/]*$/,
+  /(^|\/)(biome\.jsonc?|\.editorconfig)$/,
+  /^\.github\/workflows\//,
+  /^\.gitlab-ci\.yml$/,
+];
+
+/** How many offending paths a `NO_APP_LOGIC_CHANGE` refutation names before summarizing the rest as a count. */
+export const MAX_NAMED_APP_LOGIC_PATHS = 5;
 
 /**
  * The literal the user types to waive E2E.

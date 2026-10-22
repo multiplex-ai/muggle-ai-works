@@ -4,7 +4,7 @@
  * hook or permission check sees them, such as a Read with a relative path.
  */
 
-import { HOST_STUB_PREFIX, MOCK_MCP_PREFIX } from "../constants.js";
+import { HOST_STUB_PREFIX, HOST_STUB_SPECS, MOCK_MCP_PREFIX, MUGGLE_TOOL_NAME_PREFIX } from "../constants.js";
 import type { ToolAttempt } from "../types.js";
 
 /** The name scenarios use for a tool: a mock muggle or host-stub call loses its server prefix. */
@@ -12,6 +12,18 @@ export function scenarioToolName(toolName: string): string {
   for (const prefix of [MOCK_MCP_PREFIX, HOST_STUB_PREFIX]) {
     if (toolName.startsWith(prefix)) return toolName.slice(prefix.length);
   }
+  return toolName;
+}
+
+/**
+ * The name a skill run's session calls a tool by, from its scenario name — the
+ * inverse of `scenarioToolName`.
+ *
+ * Output shape: `Skill` → `mcp__eval_host__Skill`, `muggle-local-execute-replay` → `mcp__eval_mock__muggle-local-execute-replay`, `Read` → `Read`.
+ */
+export function sessionToolName(toolName: string): string {
+  if (HOST_STUB_SPECS.some((spec) => spec.tool === toolName)) return `${HOST_STUB_PREFIX}${toolName}`;
+  if (toolName.startsWith(MUGGLE_TOOL_NAME_PREFIX)) return `${MOCK_MCP_PREFIX}${toolName}`;
   return toolName;
 }
 

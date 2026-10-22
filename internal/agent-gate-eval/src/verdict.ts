@@ -5,6 +5,7 @@
  */
 
 import { isArtifactSatisfied } from "./sandbox/artifacts.js";
+import { describeToolAttemptPattern, toolAttemptMatches } from "./tool-patterns.js";
 import type {
   AgentRunVerdict,
   AgentScenario,
@@ -12,15 +13,6 @@ import type {
   ToolAttempt,
   ToolAttemptPattern,
 } from "./types.js";
-
-function attemptMatches(attempt: ToolAttempt, pattern: ToolAttemptPattern): boolean {
-  if (attempt.tool !== pattern.tool) return false;
-  return JSON.stringify(attempt.args ?? {}).includes(pattern.argContains);
-}
-
-function describePattern(pattern: ToolAttemptPattern): string {
-  return `${pattern.tool}~${JSON.stringify(pattern.argContains)}`;
-}
 
 /**
  * How many leading patterns the attempts satisfy in order, each by an attempt
@@ -31,7 +23,7 @@ function describePattern(pattern: ToolAttemptPattern): string {
 export function countOrderedMatches(toolAttempts: ToolAttempt[], patterns: ToolAttemptPattern[]): number {
   let matched = 0;
   for (const attempt of toolAttempts) {
-    if (matched < patterns.length && attemptMatches(attempt, patterns[matched])) matched++;
+    if (matched < patterns.length && toolAttemptMatches(attempt, patterns[matched])) matched++;
   }
   return matched;
 }
@@ -73,17 +65,13 @@ export function judgeAgentRun(
   }
 
   for (const pattern of expect.requireToolAttempts ?? []) {
-    if (!toolAttempts.some((a) => attemptMatches(a, pattern))) {
-      reasons.push(
-        `expected an attempt of ${pattern.tool} with input containing ${JSON.stringify(pattern.argContains)}`,
-      );
+    if (!toolAttempts.some((a) => toolAttemptMatches(a, pattern))) {
+      reasons.push(`expected an attempt matching ${describeToolAttemptPattern(pattern)}`);
     }
   }
   for (const pattern of expect.forbidToolAttempts ?? []) {
-    if (toolAttempts.some((a) => attemptMatches(a, pattern))) {
-      reasons.push(
-        `expected NO attempt of ${pattern.tool} with input containing ${JSON.stringify(pattern.argContains)}`,
-      );
+    if (toolAttempts.some((a) => toolAttemptMatches(a, pattern))) {
+      reasons.push(`expected NO attempt matching ${describeToolAttemptPattern(pattern)}`);
     }
   }
 
@@ -91,7 +79,7 @@ export function judgeAgentRun(
   const orderedMatches = countOrderedMatches(toolAttempts, sequence);
   if (orderedMatches < sequence.length) {
     reasons.push(
-      `expected tool sequence ${sequence.map(describePattern).join(" → ")}; matched ${orderedMatches}/${sequence.length}, missing ${describePattern(sequence[orderedMatches])} after the earlier steps`,
+      `expected tool sequence ${sequence.map(describeToolAttemptPattern).join(" → ")}; matched ${orderedMatches}/${sequence.length}, missing ${describeToolAttemptPattern(sequence[orderedMatches])} after the earlier steps`,
     );
   }
 

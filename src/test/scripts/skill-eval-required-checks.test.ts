@@ -10,6 +10,9 @@ const workflowPath = fileURLToPath(
 // updating the protection leaves the old check pending and blocks every PR.
 const requiredEvalChecks = ["skill-gate-eval", "agent-gate-eval", "skill-routing-eval"];
 
+// LLM eval jobs that report without blocking a merge yet.
+const advisoryEvalChecks = ["muggle-do-eval"];
+
 const workflowLines = readFileSync(workflowPath, "utf8").replace(/\r\n/g, "\n").split("\n");
 
 /** Returns the lines under a top-level `key:`, up to the next top-level key. */
@@ -64,8 +67,8 @@ describe("skill-eval required checks", () => {
   });
 
   // Dependabot PRs get no Actions secrets, so an ungated secret read fails the
-  // required check on a diff the eval would have scoped out.
-  it.each(requiredEvalChecks)("reads secrets in %s only once scope says the eval runs", (jobId) => {
+  // check on a diff the eval would have scoped out.
+  it.each([...requiredEvalChecks, ...advisoryEvalChecks])("reads secrets in %s only once scope says the eval runs", (jobId) => {
     const ungatedSecretSteps = stepsOf(jobBodies.get(jobId) ?? [])
       .filter((step) => step.some((line) => line.includes("${{ secrets.")))
       .filter(
@@ -74,5 +77,15 @@ describe("skill-eval required checks", () => {
       )
       .map((step) => step[0].trim());
     expect(ungatedSecretSteps).toEqual([]);
+  });
+
+  // A scoped-out run that printed nothing would read exactly like a clean pass.
+  it("has muggle-do-eval say how many runs it skipped when scoped out", () => {
+    expect(jobBodies.get("muggle-do-eval")?.some((line) => line.includes("MUGGLE_DO_RUNS_SCOPED:"))).toBe(true);
+  });
+
+  // The agent loop names each suite with --agent, which refuses a skill target.
+  it("keeps skill suites out of the agent-gate-eval loop", () => {
+    expect(jobBodies.get("agent-gate-eval")?.some((line) => line.includes('if [ "$kind" != "agent" ]; then'))).toBe(true);
   });
 });

@@ -47,6 +47,9 @@ on:
       agent_concurrency:
         description: "agent-gate-eval: parallel reps per agent"
         default: "8"
+      muggle_do_runs:
+        description: "muggle-do-eval: runs per scenario (blank = 3 on a PR, 5 otherwise)"
+        default: ""
       claude_cli_version:
         description: "Claude Code CLI version to install (blank = the workflow's pin)"
         default: ""
@@ -279,7 +282,8 @@ jobs:
   agent-gate-eval:
     runs-on: ubuntu-latest
     # LLM-driven like skill-gate-eval, but hermetic (scripted Bash, no brain
-    # checkout) and small: 2 agents × 3 scenarios × AGENT_RUNS reps.
+    # checkout) and small: one suite per execution agent × AGENT_RUNS reps.
+    # Skill suites in the same directory run in muggle-do-eval instead.
     timeout-minutes: 90
     env:
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
@@ -364,8 +368,14 @@ jobs:
           total=0
           for scenarios in internal/agent-gate-eval/scenarios/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
-            total=$((total + 1))
             agent="$(basename "$scenarios" .json)"
+            # --agent refuses a skill target; skill suites are muggle-do-eval's.
+            kind="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).target.kind)' "$scenarios")"
+            if [ "$kind" != "agent" ]; then
+              echo "skip $agent (targets a $kind; the muggle-do-eval job runs it)"
+              continue
+            fi
+            total=$((total + 1))
             echo "::group::agent=$agent runs=$AGENT_RUNS"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
                  --agent "$agent" --runs "$AGENT_RUNS" \
@@ -378,7 +388,7 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$total" -eq 0 ]; then
-            echo "No scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No agent scenario files under internal/agent-gate-eval/scenarios" >&2
             exit 1
           fi
           exit "$fail"
@@ -408,6 +418,173 @@ jobs:
           printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             marker='<!-- muggle-skill-eval:agent-gate -->'
+            body="$(printf '%s\n%s' "$marker" "$md")"
+            pr='${{ github.event.pull_request.number }}'
+            repo='${{ github.repository }}'
+            cid="$(gh api "repos/$repo/issues/$pr/comments" --paginate --jq "map(select(.body|startswith(\"$marker\")))|last|.id" 2>/dev/null || true)"
+            if [ -n "${cid:-}" ] && [ "$cid" != "null" ]; then
+              gh api -X PATCH "repos/$repo/issues/comments/$cid" -f body="$body" >/dev/null
+            else
+              gh api -X POST "repos/$repo/issues/$pr/comments" -f body="$body" >/dev/null
+            fi
+          fi
+
+  # Behavioral evals of the muggle-do skill and its watcher: every skill-target
+  # suite in internal/agent-gate-eval/scenarios. Reports without blocking — it
+  # is not in master's required checks — until two consecutive nightlies pass
+  # clean. Each suite demands every run pass (its file's passThreshold).
+  muggle-do-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MUGGLE_DO_EVAL_RUNS: ${{ inputs.muggle_do_runs || (github.event_name == 'pull_request' && '3' || '5') }}
+      MUGGLE_DO_EVAL_CONCURRENCY: "8"
+      CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
+    steps:
+      - name: Checkout works
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # A PR runs the PR-cadence scenarios when it touches the skill, its stage
+      # files, the watcher, their shared helpers, or the harness. Nightly,
+      # dispatch, and the run-full-eval label run every scenario. A scoped-out
+      # run says how many runs it skipped, so it never reads as a clean pass.
+      - name: Determine scope
+        id: scope
+        env:
+          RUN_FULL_EVAL: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-eval') }}
+        run: |
+          set -euo pipefail
+          if [ "$RUN_FULL_EVAL" = "true" ] || [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "cadence=" >> "$GITHUB_OUTPUT"
+            echo "Full muggle-do eval (every scenario)"
+            exit 0
+          fi
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          base="origin/${{ github.base_ref }}"
+          if git diff --name-only "$base...HEAD" -- \
+               plugin/skills/muggle-do/ plugin/skills/do/ plugin/skills/muggle-pr-followup/ \
+               plugin/skills/_shared/pr-followup-helpers/ plugin/skills/_shared/vcs/ \
+               internal/agent-gate-eval/ \
+             | grep -q .; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "cadence=pr" >> "$GITHUB_OUTPUT"
+            echo "muggle-do-relevant changes detected — running the PR-cadence scenarios."
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            scenarios="$(node -e '
+              const fs = require("fs");
+              const dir = "internal/agent-gate-eval/scenarios";
+              let count = 0;
+              for (const name of fs.readdirSync(dir)) {
+                if (!name.endsWith(".json") || name.endsWith(".results.json")) continue;
+                const file = JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"));
+                if (file.target.kind !== "skill") continue;
+                count += file.scenarios.filter((scenario) => (scenario.cadence ?? "pr") === "pr").length;
+              }
+              process.stdout.write(String(count));
+            ')"
+            line="MUGGLE_DO_RUNS_SCOPED: $((scenarios * MUGGLE_DO_EVAL_RUNS)) — skipped $scenarios scenarios × $MUGGLE_DO_EVAL_RUNS runs; nothing ran (no change under the muggle-do eval's paths)"
+            echo "$line"
+            echo "$line" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Require secrets
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          : "${CLAUDE_CODE_OAUTH_TOKEN:?set the CLAUDE_CODE_OAUTH_TOKEN repo secret (run \`claude setup-token\`) to run skill evals}"
+
+      - name: Setup Node.js
+        if: steps.scope.outputs.should_run == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        if: steps.scope.outputs.should_run == 'true'
+        uses: pnpm/action-setup@v6
+
+      - name: Install dependencies
+        if: steps.scope.outputs.should_run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Claude Code CLI
+        if: steps.scope.outputs.should_run == 'true'
+        run: |
+          npm install -g "@anthropic-ai/claude-code@${CLAUDE_CLI_VERSION}"
+          claude --version
+
+      - name: Resolve subscription auth
+        if: steps.scope.outputs.should_run == 'true'
+        uses: ./.github/actions/resolve-claude-token
+        with:
+          primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+
+      - name: Run muggle-do evals (every skill suite)
+        if: steps.scope.outputs.should_run == 'true'
+        env:
+          CADENCE: ${{ steps.scope.outputs.cadence }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+          export CLAUDE_CODE_EXECUTABLE="$(command -v claude)"
+          mkdir -p "$CLAUDE_CONFIG_DIR"
+          fail=0
+          total=0
+          for scenarios in internal/agent-gate-eval/scenarios/*.json; do
+            case "$scenarios" in *.results.json) continue ;; esac
+            kind="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).target.kind)' "$scenarios")"
+            [ "$kind" = "skill" ] || continue
+            total=$((total + 1))
+            suite="$(basename "$scenarios" .json)"
+            echo "::group::suite=$suite runs=$MUGGLE_DO_EVAL_RUNS cadence=${CADENCE:-all}"
+            if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
+                 --suite "$suite" --runs "$MUGGLE_DO_EVAL_RUNS" \
+                 --concurrency "$MUGGLE_DO_EVAL_CONCURRENCY" \
+                 ${CADENCE:+--cadence "$CADENCE"}; then
+              echo "PASS $suite"
+            else
+              echo "FAIL $suite"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          if [ "$total" -eq 0 ]; then
+            echo "No skill scenario files under internal/agent-gate-eval/scenarios" >&2
+            exit 1
+          fi
+          exit "$fail"
+
+      - name: Report muggle-do results
+        if: always() && steps.scope.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          md="### 🔁 muggle-do eval"$'\n'
+          for results in internal/agent-gate-eval/scenarios/*.results.json; do
+            [ -f "$results" ] || continue
+            md+="$(node -e '
+              const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+              if (r.target.kind !== "skill") process.exit(0);
+              const lines = [`\n**${r.suite}** — model \`${r.model}\`, ${r.runsPerScenario} runs/scenario, threshold ${r.passThreshold}`];
+              lines.push("", "| Scenario | Pass rate | Mean cost / time | |", "| --- | --- | --- | --- |");
+              for (const s of r.scenarios) {
+                const spend = s.meanCostUsd === null ? "—" : `$${s.meanCostUsd.toFixed(2)} / ${Math.round(s.meanDurationMs / 1000)}s`;
+                lines.push(`| ${s.name} | ${s.passes}/${s.runs} | ${spend} | ${s.passed ? "✅" : "❌"} |`);
+              }
+              process.stdout.write(lines.join("\n"));
+            ' "$results")"$'\n'
+          done
+          printf '%s\n' "$md" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            marker='<!-- muggle-skill-eval:muggle-do -->'
             body="$(printf '%s\n%s' "$marker" "$md")"
             pr='${{ github.event.pull_request.number }}'
             repo='${{ github.repository }}'

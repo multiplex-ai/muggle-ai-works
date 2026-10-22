@@ -39,6 +39,9 @@ export const STEP_SCREENSHOT_MARKER = "📷";
 /** Separates one test's details from the next; GitHub renders it as a full-width rule. */
 export const TEST_DETAILS_DIVIDER = "---";
 
+/** Joins a short ID to the text it labels, as in `TC-42 · Checkout`. */
+export const SHORT_ID_LABEL_SEPARATOR = " · ";
+
 /** Prefix of the in-page anchor on each test's details; the summary's "see details" links point at it. */
 export const TEST_DETAILS_ANCHOR_PREFIX = "muggle-test-";
 

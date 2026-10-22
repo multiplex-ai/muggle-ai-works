@@ -236,6 +236,7 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     unitTestsGreen: true,
     e2eRun: true,
     e2eSkipped: true,
+    e2eSkipCycleScoped: true,
     e2eBlockCount: 1,
     buildIntentRouted: true,
     terminalPending: [7],

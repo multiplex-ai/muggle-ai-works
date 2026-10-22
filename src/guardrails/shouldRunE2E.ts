@@ -14,6 +14,7 @@ export interface RecordedRun {
   unitTestPassed?: boolean;
   e2eRan?: boolean;
   e2eSkipped?: boolean;
+  e2eSkipCycleScoped?: boolean;
 }
 
 // Fold a recorded test run into the gate state, returning the same reference
@@ -34,20 +35,24 @@ export interface RecordedRun {
 // one session on changes with no browser surface to test). The counter resets
 // only when an E2E run actually registers.
 //
-// A recorded skip is deliberately NOT cleared by the re-arm: the reasons E2E
-// can't run (no app to drive, CLI/library repo, no PR) don't change because
-// more unit tests passed, so re-nagging every round is pure noise. The skip
-// holds for the rest of the session.
+// An environment skip is deliberately NOT cleared by the re-arm: the reasons
+// E2E can't run (no app to drive, CLI/library repo, no PR) don't change because
+// more unit tests passed, so re-nagging every round is pure noise. That skip
+// holds for the rest of the session. A cycle-scoped skip ("these commits
+// touched no app logic") is the exception — the next green round is new
+// commits, so the re-arm clears it, unless an environment skip already holds.
 export function applyRecordedRun(state: GuardrailState, run: RecordedRun): GuardrailState {
   let next = state;
   if (run.unitTestPassed) {
     next = { ...next, unitTestsGreen: true, e2eRun: false };
+    if (next.e2eSkipCycleScoped === true) next = { ...next, e2eSkipped: false, e2eSkipCycleScoped: false };
   }
   if (run.e2eRan) {
     next = { ...next, e2eRun: true, e2eBlockCount: 0 };
   }
   if (run.e2eSkipped) {
-    next = { ...next, e2eSkipped: true };
+    const isEnvironmentSkipHeld = next.e2eSkipped === true && next.e2eSkipCycleScoped !== true;
+    next = { ...next, e2eSkipped: true, e2eSkipCycleScoped: !isEnvironmentSkipHeld && run.e2eSkipCycleScoped === true };
   }
   return next;
 }

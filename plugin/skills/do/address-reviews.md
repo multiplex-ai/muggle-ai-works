@@ -82,23 +82,27 @@ The actionable reviews together carry a flat list of change items, one per line 
 
 #### 4b. Apply design + code-logic changes
 
-Invoke [`build.md`](build.md) with the review-derived requirements: for each comment, what to change and where. `build.md` makes the edits in the working tree but does not commit.
+Record `pre_cycle_sha` per [`cycle-size.md`](cycle-size.md) before the first edit. Invoke [`build.md`](build.md) with the review-derived requirements: for each comment, what to change and where. `build.md` makes the edits in the working tree but does not commit.
 
 If `build.md` reports that the requested work requires rethinking the design (e.g. the requested change conflicts with a load-bearing invariant), exit early per Step 7 (design-adjustment escalation).
 
-#### 4c. Create or update unit tests
+#### 4c. Size the cycle
+
+Invoke [`impact-analysis.md`](impact-analysis.md) with `pre_cycle_sha` — the forward pipeline's Stage 4, plus the cycle's own diff. Its `cycleSize` picks the tail per [`cycle-size.md`](cycle-size.md): **minor** runs 4d → 4f → 4g, **full** runs 4d → 4e → 4f → 4g, and an empty `cycleFiles` goes straight to 4g. The Step 2 classification never sizes the cycle — a one-line comment can need the full tail and a long review the minor one.
+
+#### 4d. Create or update unit tests
 
 Invoke [`unit-tests.md`](unit-tests.md). Cover the surface that just changed; respect existing test conventions.
 
-#### 4d. Run ONE E2E acceptance pass
+#### 4e. Run ONE E2E acceptance pass (full cycle only)
 
-Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. When `state.md` records `Wave: on`, the pass runs against the wave stack — siblings started from their PRs' current heads — and the refreshed walkthrough goes to every sibling too, per [`wave-e2e.md`](wave-e2e.md#later-cycles-on-one-wave-pr). The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); a poll-only session with no context (e.g. auto-track) is reported `SKIPPED`. The persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md).
+Invoke [`e2e-acceptance.md`](e2e-acceptance.md). One pass covering all related test cases for this PR, not one per comment. When `state.md` records `Wave: on`, the pass runs against the wave stack — siblings started from their PRs' current heads — and the refreshed walkthrough goes to every sibling too, per [`wave-e2e.md`](wave-e2e.md#later-cycles-on-one-wave-pr). The stage reads the persisted validation context (seeded by pre-flight or by bootstrap Step 6.5); a poll-only session with no context (e.g. auto-track) is reported `SKIPPED`. The persisted `Validation` strategy is the standing decision — no per-tick `autoE2ETest` prompt. See [`e2e-acceptance.md`](e2e-acceptance.md) Step 0 and [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md). A minor cycle skips this step, wave or not.
 
-#### 4e. Create or update the PR
+#### 4f. Create or update the PR
 
-Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + existing PR number). It pushes, refreshes title/description on state change, posts a fresh walkthrough comment, and appends the new SHA to `last_seen.pushed_shas[]`. Capture the new `head_sha`.
+Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + existing PR number, the cycle size, and `pre_cycle_sha`). It pushes, refreshes title/description on state change, settles the walkthrough comment — a fresh walkthrough for a full cycle, the `NO_APP_LOGIC_CHANGE` skip for a minor one — and appends the new SHA to `last_seen.pushed_shas[]`. Capture the new `head_sha`.
 
-#### 4f. Post per-comment inline replies
+#### 4g. Post per-comment inline replies
 
 Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions) and the new SHA. One reply per comment, in its own thread, describing what was done for it. The reply is the whole of it — neither provider's threads get resolved by the loop.
 
@@ -129,7 +133,7 @@ Emit one event per [`../_shared/telemetry-events/muggle-do-cycle.md`](../_shared
 - `"mixed"` — both branches ran.
 - `"no-op"` — every input id was already in `escalated_review_ids` (the watcher shouldn't have dispatched, but defensive coverage).
 
-Emit additional events as Steps fired them (escalation event in Step 3; resolve-reminder event in Step 4g).
+Emit additional events as Steps fired them (escalation event in Step 3; resolve-reminder event in Step 5.5).
 
 ## Design-adjustment escalation (Step 4b early exit)
 

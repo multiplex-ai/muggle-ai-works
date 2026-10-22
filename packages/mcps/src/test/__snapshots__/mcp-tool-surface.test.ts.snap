@@ -139,6 +139,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-local-run-upload",
   },
   {
+    "description": "List the organizations the authenticated user is an active member of, with the user's role in each. Pass an organizationId to muggle-remote-project-create or muggle-remote-project-update to make a project organization-owned. Response shape: { organizations: [{ organizationId, name, status, role }] }.",
+    "name": "muggle-remote-organization-list",
+  },
+  {
     "description": "Delete a PRD file from a project.",
     "name": "muggle-remote-prd-file-delete",
   },
@@ -151,7 +155,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-prd-file-upload",
   },
   {
-    "description": "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests.",
+    "description": "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project.",
     "name": "muggle-remote-project-create",
   },
   {
@@ -179,7 +183,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-project-test-scripts-summary-get",
   },
   {
-    "description": "Update an existing project's details.",
+    "description": "Update an existing project's details, or move a personal project into an organization the caller belongs to.",
     "name": "muggle-remote-project-update",
   },
   {
@@ -473,6 +477,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-bulk-preview-job-get",
   "muggle-remote-bulk-preview-job-list",
   "muggle-remote-local-run-upload",
+  "muggle-remote-organization-list",
   "muggle-remote-prd-file-delete",
   "muggle-remote-prd-file-list-by-project",
   "muggle-remote-prd-file-upload",

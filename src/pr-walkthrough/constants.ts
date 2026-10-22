@@ -18,5 +18,14 @@ export const WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:ski
 /** Heading every rendering of the designated comment opens with. */
 export const WALKTHROUGH_COMMENT_HEADING = "### Muggle AI — PR visual walkthrough";
 
+/** The whole HTML comment carrying {@link REPORT_SENTINEL}, so a carried-forward walkthrough stops reading as the current report. */
+export const REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
+
+/** Opening of the collapsed block that keeps the last full run's walkthrough under a skipped notice; its closing tag ends the comment. */
+export const LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
+
+/** Characters of a commit SHA shown to reviewers, matching git's default abbreviation. */
+export const SHORT_SHA_LENGTH = 7;
+
 /** Ceiling on each `gh` call made while reserving or settling the comment; a hung call must never hold a tool call or a CI job. */
 export const GH_COMMENT_TIMEOUT_MS = 10_000;

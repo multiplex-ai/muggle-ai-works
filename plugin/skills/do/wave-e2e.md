@@ -72,13 +72,14 @@ The SHAs are what the run tested. A result is only valid for the PRs at those SH
 
 When the watcher dispatches an address-reviews or fix-ci cycle on one PR whose `state.md` records `Wave: on`:
 
-- Stage 6 re-runs the wave E2E, with every sibling's service started from its PR's current head — not from the default branch. Fetch each sibling's head into its recorded worktree first.
+- A full cycle ([`cycle-size.md`](cycle-size.md)) re-runs the wave E2E in Stage 6, with every sibling's service started from its PR's current head — not from the default branch. Fetch each sibling's head into its recorded worktree first.
 - Post the new result to the PR under review and refresh each sibling's walkthrough too, since the run tested them together and the earlier result on the siblings is now stale.
+- A minor cycle runs no E2E. Its `NO_APP_LOGIC_CHANGE` skip settles only the PR under review, with the wave's last run kept beneath it, and the siblings' walkthroughs stay as they are: no app logic changed, so that run still describes the whole wave.
 - A sibling already merged or closed leaves the wave: test against the base branch for that repo, and drop it from the `## Wave` section on the next refresh.
 
 ## Invariants
 
-- One E2E run per wave cycle; never one per repo.
+- One E2E run per full wave cycle, none for a minor one; never one per repo.
 - Every wave service starts from its member's worktree, verified by process cwd — a listening port proves nothing about the branch.
 - Every wave PR carries the same walkthrough, the same E2E title prefix, and a `## Wave` section naming its siblings.
 - Not a wave → each PR runs Stage 6 alone, with the reason recorded.

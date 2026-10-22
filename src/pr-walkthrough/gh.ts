@@ -54,6 +54,15 @@ export function listPrComments(pr: PrCoordinates, run: GhRunner): PrComment[] | 
   }
 }
 
+/** The PR's current head commit SHA, or `null` when it could not be read. */
+export function readPrHeadSha(pr: PrCoordinates, run: GhRunner): string | null {
+  try {
+    return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".head.sha"])?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function writeJson(args: string[], payload: unknown, run: GhRunner): boolean {
   try {
     return run(args, JSON.stringify(payload)) !== null;

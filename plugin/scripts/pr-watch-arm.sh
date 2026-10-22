@@ -62,7 +62,7 @@ fi
 watch_read_state_fields "$state_line"
 pr_state="${STATE_FIELDS[0]-}"
 head_sha="${STATE_FIELDS[1]-}"
-base_sha="${STATE_FIELDS[2]-}"
+base_tip_sha="${STATE_FIELDS[2]-}"
 mergeable="${STATE_FIELDS[3]-}"
 latest_review="${STATE_FIELDS[4]-}"
 latest_comment="${STATE_FIELDS[5]-}"
@@ -82,11 +82,11 @@ if [ "${pending_checks:-0}" -eq 0 ] 2>/dev/null && [ "${failed_checks:-0}" -gt 0
     ci_red_floor="$head_sha"
 fi
 
-# Same for staleness: keyed on the head/base pair, so it re-arms when either moves.
+# Same for staleness: keyed on the head/base-tip pair, so it re-arms when either moves.
 rebase_floor=""
 behind_count="$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")"
 if [ "$mergeable" = "CONFLICTING" ] || { [ -n "$behind_count" ] && [ "$behind_count" -gt 0 ] 2>/dev/null; }; then
-    rebase_floor="${head_sha}..${base_sha}"
+    rebase_floor="${head_sha}..${base_tip_sha}"
 fi
 
 thread_count=0

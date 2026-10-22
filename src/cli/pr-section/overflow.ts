@@ -17,11 +17,6 @@ import { StepScreenshotDetailEnum, type E2eReport } from "./types.js";
 export interface ISplitOptions {
   /** Maximum UTF-8 byte length of the rendered body. */
   maxBodyBytes: number;
-  /**
-   * Dashboard projects base for the ring this run happened on. Omitted falls
-   * back to production, so a caller that never resolved a target is unchanged.
-   */
-  dashboardBaseUrl?: string;
 }
 
 export interface ISplitResult {
@@ -44,7 +39,7 @@ export function splitWithOverflow (
   report: E2eReport,
   opts: ISplitOptions,
 ): ISplitResult {
-  const inlineBody = renderBody(report, { inlineDetails: true, dashboardBaseUrl: opts.dashboardBaseUrl });
+  const inlineBody = renderBody(report, { inlineDetails: true });
   const inlineBytes = Buffer.byteLength(inlineBody, "utf-8");
   if (inlineBytes <= opts.maxBodyBytes) {
     return { body: inlineBody, comment: null };
@@ -53,8 +48,8 @@ export function splitWithOverflow (
     // Nothing to spill. Return as-is; the caller decides how to handle the budget.
     return { body: inlineBody, comment: null };
   }
-  const spilledBody = renderBody(report, { inlineDetails: false, dashboardBaseUrl: opts.dashboardBaseUrl });
-  const comment = renderFittingComment(report, opts.dashboardBaseUrl);
+  const spilledBody = renderBody(report, { inlineDetails: false });
+  const comment = renderFittingComment(report);
   return {
     body: spilledBody,
     comment: comment.length > 0 ? comment : null,
@@ -65,7 +60,7 @@ export function splitWithOverflow (
  * The richest overflow comment GitHub will accept: before-and-after screenshots, then before only, then step text
  * only. A comment over the cap is rejected outright, so dropping screenshots beats losing the details.
  */
-function renderFittingComment (report: E2eReport, dashboardBaseUrl?: string): string {
+function renderFittingComment (report: E2eReport): string {
   const ladder = [
     StepScreenshotDetailEnum.BeforeAndAfter,
     StepScreenshotDetailEnum.BeforeOnly,
@@ -73,7 +68,7 @@ function renderFittingComment (report: E2eReport, dashboardBaseUrl?: string): st
   ];
   let comment = "";
   for (const screenshotDetail of ladder) {
-    comment = renderComment(report, { dashboardBaseUrl: dashboardBaseUrl, screenshotDetail: screenshotDetail });
+    comment = renderComment(report, { screenshotDetail: screenshotDetail });
     if (Buffer.byteLength(comment, "utf-8") <= MAX_COMMENT_BYTES) {
       return comment;
     }

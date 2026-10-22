@@ -64,19 +64,21 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 `state.md` records `Wave: on` → this stage runs **once for the whole wave**, not per repo, per [`wave-e2e.md`](wave-e2e.md): the wave stack starts from every member's worktree, test cases are selected against the union of diffs, each case runs once, and each failure names its `implicatedRepo`. The steps below apply with those changes.
 
-### Step 0.5: Pre-flight verification probes
+### Step 0.5: Readiness check
 
-Before launching the local runner:
+A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:
 
-1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md`). Halt on failure.
+1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md` and starts what is down). Still not ready after its start attempts → the readiness halt below.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
+
+**Readiness halt.** The cycle planned a browser run and still owes it, so an app that cannot be brought up halts the cycle and is never a `SKIPPED` exit: declare no skip code, write no waiver, run nothing downstream. Report the URL probed, what `muggle-test-prepare` tried (the start command and how it failed), and that no PR was opened or updated; then end the turn and wait for the user. This holds for unattended runs and for a request that asked for the PR. A forward cycle opens no PR, posts no walkthrough, runs no Stage 7.5 and arms no watcher; a watcher cycle pushes nothing and escalates through its own path, which keeps the watcher running. A run that failed because the app never answered (connection refused, page never loaded) returns to item 1, and still down is this halt. A Stop-hook reminder that E2E is still owed does not lift it.
 
 ### Step 1: Authentication already verified
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
 
-If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly.
+If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly. This is the only exit `DEV_SERVER_UNREACHABLE` belongs to, because pre-flight never planned a browser run; on a `local-e2e` cycle an unreachable server is the Step 0.5 readiness halt.
 
 If validation is `staging-replay`, emit `INCONCLUSIVE` with reason `staging replay not handled in Stage 6 local runner path` and exit cleanly.
 

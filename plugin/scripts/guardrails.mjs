@@ -193,6 +193,7 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["ReserveWalkthroughComment"] = "reserve-walkthrough-comment";
   GuardrailBackgroundJob2["SettleWalkthroughSkipped"] = "settle-walkthrough-skipped";
   GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
+  GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
   return GuardrailBackgroundJob2;
 })(GuardrailBackgroundJob || {});
 
@@ -703,12 +704,14 @@ function applyRecordedRun(state, run) {
   let next = state;
   if (run.unitTestPassed) {
     next = { ...next, unitTestsGreen: true, e2eRun: false };
+    if (next.e2eSkipCycleScoped === true) next = { ...next, e2eSkipped: false, e2eSkipCycleScoped: false };
   }
   if (run.e2eRan) {
     next = { ...next, e2eRun: true, e2eBlockCount: 0 };
   }
   if (run.e2eSkipped) {
-    next = { ...next, e2eSkipped: true };
+    const isEnvironmentSkipHeld = next.e2eSkipped === true && next.e2eSkipCycleScoped !== true;
+    next = { ...next, e2eSkipped: true, e2eSkipCycleScoped: !isEnvironmentSkipHeld && run.e2eSkipCycleScoped === true };
   }
   return next;
 }
@@ -785,6 +788,9 @@ var REPORT_SENTINEL = "muggle-pr-section";
 var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
 var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
 var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
+var REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
+var LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
+var SHORT_SHA_LENGTH = 7;
 var GH_COMMENT_TIMEOUT_MS = 1e4;
 
 // src/guardrails/prReportPost.ts
@@ -933,6 +939,7 @@ var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
   E2eSkipCode3["MuggleAuthDown"] = "MUGGLE_AUTH_DOWN";
   E2eSkipCode3["NoPr"] = "NO_PR";
   E2eSkipCode3["UserWaived"] = "USER_WAIVED";
+  E2eSkipCode3["NoAppLogicChange"] = "NO_APP_LOGIC_CHANGE";
   return E2eSkipCode3;
 })(E2eSkipCode || {});
 
@@ -940,14 +947,34 @@ var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
 var E2E_SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_E2E_SKIP:(.*)$/;
 var SKIP_CODE_TOKEN = /^[\s:]*([A-Za-z_]+)/;
 var E2E_SKIP_CODES = Object.values(E2eSkipCode);
+var NON_APP_PATH_SUMMARY = "docs, tests, lint/format config, or CI config";
 var E2E_SKIP_CODE_CLAIMS = {
   ["NO_WEB_SURFACE" /* NoWebSurface */]: "the repo ships no web surface to drive",
   ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: "the named dev server does not answer",
   ["EMPTY_DIFF" /* EmptyDiff */]: "the branch carries no diff against its base",
   ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
   ["NO_PR" /* NoPr */]: "no pull request was handled this session",
-  ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words"
+  ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words",
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`
 };
+var CYCLE_SCOPED_SKIP_CODES = ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */];
+var PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
+var NON_APP_PATH_PATTERNS = [
+  /\.(md|markdown|rst)$/i,
+  /(^|\/)[^/]+\.(test|spec)\.[^/]+$/,
+  /(^|\/)(__tests__|__snapshots__|__mocks__)\//,
+  /(^|\/)test_[^/]+\.py$/,
+  /(^|\/)[^/]+_test\.(py|go)$/,
+  /^tests?\//,
+  /(^|\/)\.(eslintrc|prettierrc|stylelintrc)(\.[a-z]+)?$/,
+  /(^|\/)(eslint|prettier|stylelint)\.config\.[cm]?[jt]s$/,
+  /(^|\/)\.(eslint|prettier|stylelint)ignore$/,
+  /(^|\/)\.markdownlint[^/]*$/,
+  /(^|\/)(biome\.jsonc?|\.editorconfig)$/,
+  /^\.github\/workflows\//,
+  /^\.gitlab-ci\.yml$/
+];
+var MAX_NAMED_APP_LOGIC_PATHS = 5;
 var USER_WAIVE_PHRASE = "SKIP E2E";
 var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
 var GIT_PROBE_TIMEOUT_MS = 5e3;
@@ -976,6 +1003,18 @@ var WEB_SURFACE_CONFIG_FILES = [
 var OAUTH_SESSION_FILE = /^oauth-session[\w.-]*\.json$/;
 var MUGGLE_HOME_DIR_NAME = ".muggle-ai";
 
+// src/e2e-skip/noAppLogicChange.ts
+function parseNoAppLogicChangeDetail(detail) {
+  const stated = detail.trim();
+  const preCycleSha = stated.match(PRE_CYCLE_SHA_TOKEN)?.[1];
+  if (!preCycleSha) return null;
+  const reason = stated.slice(preCycleSha.length).replace(/^[\s:,;.-]+/, "").trim();
+  return { preCycleSha, reason };
+}
+function isNonAppPath(repoRelativePath) {
+  return NON_APP_PATH_PATTERNS.some((pattern) => pattern.test(repoRelativePath));
+}
+
 // src/pr-walkthrough/comment.ts
 function renderReservedComment() {
   return `${WALKTHROUGH_SLOT_MARKER}
@@ -998,6 +1037,34 @@ ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
 **No E2E run, and no verified reason given.** The session ended still owing an acceptance run and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`;
+}
+var shortSha = (sha) => sha.slice(0, SHORT_SHA_LENGTH);
+function renderNoAppLogicChangeComment(declared, headSha, lastFullRun) {
+  const cycleStart = declared.preCycleSha.toLowerCase();
+  const head = headSha?.toLowerCase() ?? null;
+  const isHeadPastCycleStart = head !== null && !head.startsWith(cycleStart) && !cycleStart.startsWith(head);
+  const headline = isHeadPastCycleStart ? `**E2E skipped \u2014 no app-logic change in \`${shortSha(head)}\`.**` : `**E2E skipped \u2014 no app-logic change since \`${shortSha(cycleStart)}\`.**`;
+  const qualifier = declared.reason ? ` \u2014 ${declared.reason}` : "";
+  const evidence = lastFullRun ? `${LAST_FULL_RUN_OPENING}
+
+${lastFullRun}
+
+</details>` : "_No full E2E run is on record for this PR._";
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path changed since \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.
+
+` + evidence;
+}
+function lastFullRunOf(body) {
+  const status = classifyComment(body);
+  if (status === "reported" /* Reported */) return body.replace(REPORT_SENTINEL_TAG, "").trim();
+  if (status !== "skipped" /* Skipped */) return null;
+  const start = body.indexOf(LAST_FULL_RUN_OPENING);
+  if (start === -1) return null;
+  return body.slice(start + LAST_FULL_RUN_OPENING.length).replace(/\s*<\/details>\s*$/, "").trim();
 }
 function classifyComment(body) {
   if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
@@ -1039,6 +1106,13 @@ function listPrComments(pr, run) {
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function readPrHeadSha(pr, run) {
+  try {
+    return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".head.sha"])?.trim() || null;
   } catch {
     return null;
   }
@@ -1095,6 +1169,19 @@ function settleWith(prUrl, body, run) {
 }
 function settleWalkthroughCommentAsSkipped(prUrl, code, detail, run = defaultGhRunner) {
   return settleWith(prUrl, renderSkippedComment(code, detail), run);
+}
+function settleWalkthroughCommentForNoAppLogicChange(prUrl, detail, run = defaultGhRunner) {
+  const pr = parsePrUrl(prUrl);
+  const declared = parseNoAppLogicChangeDetail(detail);
+  if (!pr || !declared) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  const designated = comments.find(
+    (comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */
+  );
+  const lastFullRun = designated ? lastFullRunOf(designated.body) : null;
+  const body = renderNoAppLogicChangeComment(declared, readPrHeadSha(pr, run), lastFullRun);
+  return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
 }
 function settleWalkthroughCommentAsUnreasoned(prUrl, run = defaultGhRunner) {
   return settleWith(prUrl, renderUnreasonedSkipComment(), run);
@@ -1203,13 +1290,39 @@ var verifyUserWaived = (context) => {
   if (waived) return verified;
   return refuted(`no user turn in the transcript contains "${USER_WAIVE_PHRASE}"`);
 };
+var namePaths = (paths) => {
+  const named = paths.slice(0, MAX_NAMED_APP_LOGIC_PATHS).join(", ");
+  const unnamed = paths.length - MAX_NAMED_APP_LOGIC_PATHS;
+  return unnamed > 0 ? `${named} and ${unnamed} more` : named;
+};
+var verifyNoAppLogicChange = (context, detail) => {
+  if (!context.cwd) return refuted("no working directory was available to inspect");
+  const declared = parseNoAppLogicChangeDetail(detail);
+  if (!declared) {
+    return refuted("the detail names no pre-cycle commit \u2014 cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>");
+  }
+  const sha = declared.preCycleSha;
+  const diff = context.probe.runGit(
+    ["diff", "--name-only", "--no-renames", "-z", `${sha}^{commit}`, "HEAD"],
+    context.cwd
+  );
+  if (diff === null) return refuted(`${sha} does not resolve to a commit here, or its diff to HEAD could not be read`);
+  const changedPaths = diff.split("\0").filter(Boolean);
+  if (changedPaths.length === 0) {
+    return refuted(`HEAD carries no change since ${sha} \u2014 declare the skip once the cycle's commits are on HEAD`);
+  }
+  const appLogicPaths = changedPaths.filter((path) => !isNonAppPath(path));
+  if (appLogicPaths.length > 0) return refuted(`app-logic paths changed since ${sha}: ${namePaths(appLogicPaths)}`);
+  return verified;
+};
 var VERIFIERS = {
   ["NO_WEB_SURFACE" /* NoWebSurface */]: verifyNoWebSurface,
   ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: verifyDevServerUnreachable,
   ["EMPTY_DIFF" /* EmptyDiff */]: verifyEmptyDiff,
   ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: verifyMuggleAuthDown,
   ["NO_PR" /* NoPr */]: verifyNoPr,
-  ["USER_WAIVED" /* UserWaived */]: verifyUserWaived
+  ["USER_WAIVED" /* UserWaived */]: verifyUserWaived,
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: verifyNoAppLogicChange
 };
 function verifyDeclaredSkip(skip, context) {
   return VERIFIERS[skip.code](context, skip.detail);
@@ -1760,10 +1873,12 @@ function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const stateBefore = readState(sessionId);
   const judgedSkip = judgeE2eSkip(input, stateBefore);
+  const acceptedSkip = judgedSkip?.accepted ? judgedSkip.skip : null;
   const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
-    e2eSkipped: judgedSkip?.accepted === true
+    e2eSkipped: acceptedSkip !== null,
+    e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code)
   };
   const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
@@ -1779,13 +1894,17 @@ function recordTests() {
   if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
     startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   }
-  if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
+  if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
   }
   return "{}";
 }
 function recordSkipReasonOnPrs(state, skip) {
+  if (skip.code === "NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */) {
+    startBackgroundJob("settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */, [skip.detail], input.cwd);
+    return;
+  }
   for (const prUrl of state.prsHandled) {
     startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [prUrl, skip.code, skip.detail]);
   }
@@ -2074,11 +2193,18 @@ function settleWalkthroughUnreasonedJob() {
   if (prUrl) settleWalkthroughCommentAsUnreasoned(prUrl);
   return "{}";
 }
+function settleWalkthroughNoAppLogicChangeJob() {
+  const [detail] = jobArgs;
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl && detail) settleWalkthroughCommentForNoAppLogicChange(prUrl, detail);
+  return "{}";
+}
 var backgroundJobs = {
   ["scan-walkthroughs" /* ScanWalkthroughs */]: scanWalkthroughsJob,
   ["reserve-walkthrough-comment" /* ReserveWalkthroughComment */]: reserveWalkthroughCommentJob,
   ["settle-walkthrough-skipped" /* SettleWalkthroughSkipped */]: settleWalkthroughSkippedJob,
-  ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob
+  ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob,
+  ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob
 };
 var runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
 process.stdout.write(runSubcommand());

@@ -10,6 +10,15 @@ describe("judgeSkipDeclaration", () => {
     });
   });
 
+  it("accepts NO_APP_LOGIC_CHANGE, keeping the pre-cycle SHA at the head of the detail", () => {
+    expect(
+      judgeSkipDeclaration('echo "MUGGLE_E2E_SKIP: NO_APP_LOGIC_CHANGE: 1a2b3c4 docs and tests only"'),
+    ).toEqual({
+      accepted: true,
+      skip: { code: E2eSkipCode.NoAppLogicChange, detail: "1a2b3c4 docs and tests only" },
+    });
+  });
+
   it("accepts a code with no detail", () => {
     expect(judgeSkipDeclaration('echo "MUGGLE_E2E_SKIP: NO_PR"')).toEqual({
       accepted: true,

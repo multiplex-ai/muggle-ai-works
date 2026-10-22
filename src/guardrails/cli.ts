@@ -81,6 +81,7 @@ import {
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
 import {
+  defaultPrWalkthroughLookup,
   isWalkthroughGateArmed,
   isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
@@ -90,10 +91,11 @@ import {
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
+  settleWalkthroughCommentForNoAppLogicChange,
 } from "../pr-walkthrough/reserve.js";
-import { E2E_SKIP_CODES } from "../e2e-skip/constants.js";
+import { CYCLE_SCOPED_SKIP_CODES, E2E_SKIP_CODES } from "../e2e-skip/constants.js";
 import { explainRejection } from "../e2e-skip/resolveSkip.js";
-import type { DeclaredSkip } from "../e2e-skip/types.js";
+import { E2eSkipCode, type DeclaredSkip } from "../e2e-skip/types.js";
 import { judgeE2eSkip } from "./skipReason.js";
 import { evaluateWalkthroughHeadingPost } from "./walkthroughHeadingGate.js";
 import {
@@ -262,10 +264,12 @@ function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const stateBefore = readState(sessionId);
   const judgedSkip = judgeE2eSkip(input, stateBefore);
+  const acceptedSkip = judgedSkip?.accepted ? judgedSkip.skip : null;
   const run = {
     unitTestPassed: isTestCommand(cmd) && testsPassed(input),
     e2eRan: isE2ERun(input),
-    e2eSkipped: judgedSkip?.accepted === true,
+    e2eSkipped: acceptedSkip !== null,
+    e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code),
   };
   const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
@@ -286,7 +290,7 @@ function recordTests(): string {
   if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
     startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
   }
-  if (judgedSkip?.accepted) recordSkipReasonOnPrs(next, judgedSkip.skip);
+  if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
   // stops the next attempt being the same excuse in different words.
@@ -302,6 +306,13 @@ function recordTests(): string {
 // designated comment is what makes the declaration outlive the session and what
 // lets the CI check settle.
 function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
+  // The diff was verified in the working tree, so the PR of the branch checked
+  // out there is the only one the claim is true of — not every PR this session
+  // opened — and in a watcher cycle that PR was usually opened by an earlier one.
+  if (skip.code === E2eSkipCode.NoAppLogicChange) {
+    startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange, [skip.detail], input.cwd);
+    return;
+  }
   for (const prUrl of state.prsHandled) {
     startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [prUrl, skip.code, skip.detail]);
   }
@@ -761,11 +772,19 @@ function settleWalkthroughUnreasonedJob(): string {
   return "{}";
 }
 
+function settleWalkthroughNoAppLogicChangeJob(): string {
+  const [detail] = jobArgs;
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl && detail) settleWalkthroughCommentForNoAppLogicChange(prUrl, detail);
+  return "{}";
+}
+
 const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.ScanWalkthroughs]: scanWalkthroughsJob,
   [GuardrailBackgroundJob.ReserveWalkthroughComment]: reserveWalkthroughCommentJob,
   [GuardrailBackgroundJob.SettleWalkthroughSkipped]: settleWalkthroughSkippedJob,
   [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
+  [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
 };
 
 const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));

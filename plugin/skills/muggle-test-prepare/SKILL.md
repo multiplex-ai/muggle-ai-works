@@ -126,6 +126,13 @@ Stopped 3 services:
 
 After a test run, the caller can re-invoke for cleanup or leave services running for the next run.
 
+**Directory overrides.** A caller testing changes that span several repos at once may pass `directoryOverrides`: a map from a service's repo (its usual directory, or `owner/repo`) to the checkout that service must start from this run — typically a worktree on a feature branch. Apply them to the resolved plan before execution:
+
+- An overridden service starts from the override directory, with its recorded start command. Its install and env-file steps run there too.
+- An overridden service already listening counts as running only when its process's working directory is inside the override directory (`lsof -p <pid> -a -d cwd` on POSIX). Otherwise it is the wrong checkout: stop it and start it from the override, under the same approval rules as any restart.
+- Overrides are per-run. They never enter the saved recipe — a worktree path is not this stack's durable layout.
+- The readiness table names the directory each service runs from, so the caller can confirm every override took.
+
 ## Guardrails
 
 - **Never invent or default a host/port** — the dev-server URL is a recorded value, not a guess. Read it from the last-host cache via `muggle-local-last-host-get` (the [`autoSelectLocalHost`](../muggle-preferences/preference-gates/autoSelectLocalHost.md) cache) before probing ports; a framework default like `:3000` is never a fallback. The cache's own storage location belongs to that tool — don't restate it here. See [check-running](./steps/check-running.md).

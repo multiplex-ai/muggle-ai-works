@@ -7,6 +7,8 @@ import {
   markPrHandled,
   readWalkthroughScan,
   writeWalkthroughScan,
+  readPrStateScan,
+  writePrStateScan,
 } from "./sessionState.js";
 import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
 import { detectPrOpened } from "./prOpened.js";
@@ -29,6 +31,7 @@ import {
   MAX_WATCH_BLOCKS,
   MAX_BUILD_BLOCKS,
   NEXT_OPTIONS_OFFER_TOOL_NAMES,
+  WATCH_HEARTBEAT_STALE_MS,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
@@ -64,7 +67,10 @@ import {
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
 import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
 import {
-  findUntrackedHandledPrs,
+  findUnwatchedHandledPrs,
+  prsAwaitingStateScan,
+  resolveOwedWatchPrs,
+  scanProviderPrStates,
   watchGateDecision,
   isWatchSkipMarker,
   applyWatchSkip,
@@ -471,25 +477,35 @@ function e2eGate(): string {
 
 function watchGate(): string {
   const state = readState(sessionId);
-  const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
-  const decision = watchGateDecision(state, untrackedPrUrls);
+  const unwatchedPrUrls = findUnwatchedHandledPrs(state.prsHandled);
+  const prStateScan = readPrStateScan(sessionId);
+  // A provider lookup outlasts a hook, so a detached scan runs it and the next
+  // turn end decides on what landed — the split the walkthrough gate uses.
+  if (state.watchSkipped !== true && prsAwaitingStateScan(unwatchedPrUrls, state, prStateScan).length > 0) {
+    startBackgroundJob(GuardrailBackgroundJob.ScanWatchPrStates, [sessionId]);
+  }
+  const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
   if (decision.action === WatchGateAction.Release) return releaseGate("watchReleased");
   if (decision.action === WatchGateAction.None) return "{}";
   state.watchBlockCount = decision.blockCount;
   writeState(state);
-  const prList = decision.untracked.join(", ");
+  const prList = decision.unwatched.join(", ");
+  const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 60_000;
+  const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
   // Full instruction once; repeats are one line — same rationale as e2eGate.
   const reason =
     decision.blockCount === 1
-      ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. ` +
-        `Seed the slot and hand off per muggle-do Stage 8 — ${muggleSkill("/muggle:muggle-pr-followup")} ${decision.untracked[0]} ` +
-        `does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start ` +
-        `and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever ` +
-        `picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), ` +
-        `tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps ` +
-        `this gate quiet for the rest of the session.`
-      : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
-        `seed a slot via ${muggleSkill("/muggle:muggle-pr-followup")}, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+      ? `Do not end the turn yet. A PR opened this session is open with no live muggle-pr-followup watch: ${prList}. ` +
+        `Arm its watch per the muggle-pr-followup arming procedure (arm-watcher.md) — invoking ${armCommand} ` +
+        `bootstraps it and arms it that way (add --resume when its slot already exists). A seeded slot does not ` +
+        `count: only a running watch loop does, shown by a watch-heartbeat it touches every poll and that goes stale ` +
+        `after ${staleMinutes} minutes (a watch armed moments ago writes it on its first poll). If the PR already ` +
+        `merged or closed, end the turn again — a provider check started now clears it. If it genuinely should not ` +
+        `be watched (autoWatchPR=never, handed off elsewhere), tell the user why and run ` +
+        `\`echo "MUGGLE_WATCH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet for the rest of the session.`
+      : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): ` +
+        `arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via ` +
+        `\`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 
@@ -779,12 +795,25 @@ function settleWalkthroughNoAppLogicChangeJob(): string {
   return "{}";
 }
 
+function scanWatchPrStatesJob(): string {
+  const scannedSessionId = jobArgs[0] ?? "unknown";
+  const state = readState(scannedSessionId);
+  const previousScan = readPrStateScan(scannedSessionId);
+  const awaitingPrUrls = prsAwaitingStateScan(findUnwatchedHandledPrs(state.prsHandled), state, previousScan);
+  if (awaitingPrUrls.length === 0) return "{}";
+  // Merged over the previous scan so a PR already settled as merged keeps its entry.
+  const freshScan = scanProviderPrStates(awaitingPrUrls);
+  writePrStateScan(scannedSessionId, { states: { ...previousScan?.states, ...freshScan.states } });
+  return "{}";
+}
+
 const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.ScanWalkthroughs]: scanWalkthroughsJob,
   [GuardrailBackgroundJob.ReserveWalkthroughComment]: reserveWalkthroughCommentJob,
   [GuardrailBackgroundJob.SettleWalkthroughSkipped]: settleWalkthroughSkippedJob,
   [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
   [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
+  [GuardrailBackgroundJob.ScanWatchPrStates]: scanWatchPrStatesJob,
 };
 
 const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));

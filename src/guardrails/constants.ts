@@ -63,6 +63,15 @@ export const FILE_PRINTING_PROGRAMS = [
 /** How many times the watcher-arm Stop gate blocks a turn end before releasing, so a genuinely un-watchable PR can't trap the session. */
 export const MAX_WATCH_BLOCKS = 3;
 
+/** How old a slot's `watch-heartbeat` may grow before its watch loop counts as dead — the window reconcile re-arms a silent watcher after. */
+export const WATCH_HEARTBEAT_STALE_MS = 15 * 60_000;
+
+/** The `prs.json` states a watcher records once its PR reaches an end state, after which no watch is owed. */
+export const TERMINAL_SLOT_PR_STATES = ["merged", "closed"] as const;
+
+/** The suffix the owner's stop renames a slot dir to; nothing may revive a slot carrying it. */
+export const STOPPED_SLOT_SUFFIX = ".stopped";
+
 /** Stop-hook reminders about an unanswered build request before the gate releases the session. */
 export const MAX_BUILD_BLOCKS = 3;
 

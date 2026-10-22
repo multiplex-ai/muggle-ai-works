@@ -115,17 +115,20 @@ describe("guardrail hook execution (cli entry)", () => {
     );
     const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
     expect(gate.decision).toBe("block");
-    expect(gate.reason).toContain("no muggle-do session slot tracks it");
+    expect(gate.reason).toContain("no live muggle-pr-followup watch");
+    expect(gate.reason).toContain("arm-watcher.md");
     expect(gate.reason).toContain("https://github.com/o/r/pull/77");
     expect(gate.reason).toContain("MUGGLE_WATCH_SKIP");
   });
 
-  // Seeding the slot is the hand-off the gate asks for; arming is reconcile's
-  // job from there. A background job legitimately ends seeded-but-unarmed, and
-  // the gate firing on that state pushed the caller into the skip hatch.
-  it("watch-gate: silent once a slot tracks the opened PR, even with no watcher armed", () => {
-    const session = "watch-seeded";
-    const url = "https://github.com/o/r/pull/78";
+  const seedWatchSlot = (slug: string, url: string, files: Record<string, string> = {}): void => {
+    const slot = join(home, ".muggle-ai", "muggle-do", "sessions", slug);
+    mkdirSync(slot, { recursive: true });
+    writeFileSync(join(slot, "prs.json"), JSON.stringify([{ url: url, state: "open" }]));
+    for (const [name, body] of Object.entries(files)) writeFileSync(join(slot, name), body);
+  };
+
+  const openPr = (session: string, url: string): void => {
     runHook(
       "pr-opened",
       event({
@@ -135,11 +138,44 @@ describe("guardrail hook execution (cli entry)", () => {
         tool_response: { stdout: `${url}\n` },
       }),
     );
+  };
+
+  it("watch-gate: silent once a running watch loop's fresh heartbeat covers the opened PR", () => {
+    const session = "watch-live";
+    const url = "https://github.com/o/r/pull/78";
+    openPr(session, url);
     expect(JSON.parse(runHook("watch-gate", event({ session_id: session })).out).decision).toBe("block");
 
-    const slot = join(home, ".muggle-ai", "muggle-do", "sessions", "r-pr78");
-    mkdirSync(slot, { recursive: true });
-    writeFileSync(join(slot, "prs.json"), JSON.stringify([{ url: url }]));
+    seedWatchSlot("r-pr78", url, { "watch-heartbeat": "" });
+    expect(runHook("watch-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  // A seeded slot used to satisfy the gate on its own, and a slot nothing polls
+  // is a PR nobody watches — the gate now asks for the loop, not the files.
+  it("watch-gate: a slot with prs.json but no heartbeat still blocks", () => {
+    const session = "watch-seeded";
+    const url = "https://github.com/o/r/pull/80";
+    openPr(session, url);
+    seedWatchSlot("r-pr80", url);
+    const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
+    expect(gate.decision).toBe("block");
+    expect(gate.reason).toContain("A seeded slot does not count");
+  });
+
+  // Post-merge cleanup deletes the slot, so a merge the session saw must clear
+  // the PR without a provider round trip.
+  it("pr-terminal -> watch-gate: a merged PR whose slot cleanup removed does not block", () => {
+    const session = "watch-merged";
+    openPr(session, "https://github.com/o/r/pull/81");
+    runHook(
+      "pr-terminal",
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 81 --squash" },
+        tool_response: { stdout: "", stderr: "✓ Squashed and merged pull request o/r#81 (title)\n" },
+      }),
+    );
     expect(runHook("watch-gate", event({ session_id: session })).out).toBe("{}");
   });
 
@@ -1129,5 +1165,66 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
 
   it("fails open when no PR can be resolved for the branch", () => {
     expect(runGate("wt-nopr", "", "")).toBe("{}");
+  });
+});
+
+// The watch gate's provider check clears a PR that merged after its slot was
+// cleaned up. Its lookup runs in a detached scan, exercised here against a
+// stubbed `gh`. Bash-only, so skipped on win32 like the walkthrough block above.
+describe.skipIf(process.platform === "win32")("watch gate provider lookups", () => {
+  const CLI_ENTRY = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
+  const PR_URL = "https://github.com/o/r/pull/233";
+  let binDir: string;
+
+  beforeEach(() => {
+    binDir = mkdtempSync(join(tmpdir(), "gr-gh-"));
+    const stub = join(binDir, "gh");
+    writeFileSync(stub, `#!/usr/bin/env bash\nprintf '%s\\n' "$STUB_PR_STATE"\n`);
+    chmodSync(stub, 0o755);
+  });
+
+  function runCli(home: string, cliArgs: string[], stdin: string, prState: string): string {
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+      HOME: home,
+      USERPROFILE: home,
+      STUB_PR_STATE: prState,
+    };
+    // The suite turns provider calls off; this block's gh is a stub, so let it answer.
+    delete env.MUGGLE_GUARDRAIL_GH_CALLS;
+    const r = spawnSync(process.execPath, ["--import", "tsx", CLI_ENTRY, ...cliArgs], {
+      input: stdin,
+      encoding: "utf-8",
+      env: env,
+    });
+    return (r.stdout ?? "").trim();
+  }
+
+  // A handled PR with no slot at all — the state post-merge cleanup leaves behind.
+  function runGateAfterScan(sessionId: string, prState: string): { gateOutput: string; scan: unknown } {
+    const home = mkdtempSync(join(tmpdir(), "gr-watch-"));
+    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
+    writeFileSync(
+      join(home, ".muggle-ai", "guardrails", `${sessionId}.json`),
+      JSON.stringify({ sessionId: sessionId, prsHandled: [PR_URL] }),
+    );
+    runCli(home, ["scan-watch-pr-states", sessionId], "", prState);
+    const scanFile = join(home, ".muggle-ai", "guardrails", `${sessionId}.pr-state-scan.json`);
+    const scan = existsSync(scanFile) ? JSON.parse(readFileSync(scanFile, "utf-8")) : null;
+    const gateOutput = runCli(home, ["watch-gate"], JSON.stringify({ session_id: sessionId }), prState);
+    return { gateOutput: gateOutput, scan: scan };
+  }
+
+  it("stays silent for a PR the provider reports merged", () => {
+    const { gateOutput, scan } = runGateAfterScan("watch-provider-merged", "MERGED");
+    expect(scan).toEqual({ states: { [PR_URL]: "MERGED" } });
+    expect(gateOutput).toBe("{}");
+  });
+
+  it("blocks for a PR the provider reports open", () => {
+    const { gateOutput, scan } = runGateAfterScan("watch-provider-open", "OPEN");
+    expect(scan).toEqual({ states: { [PR_URL]: "OPEN" } });
+    expect(JSON.parse(gateOutput).decision).toBe("block");
   });
 });

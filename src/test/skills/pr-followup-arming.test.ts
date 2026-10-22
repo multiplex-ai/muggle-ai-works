@@ -67,11 +67,24 @@ describe("pr-followup arming wiring", () => {
       "muggle-pr-followup/bootstrap.md",
       "muggle-pr-followup/auto-track.md",
       "do/respawn-watcher.md",
+      "do/open-prs/forward.md",
     ]) {
       expect(read(rel), `${rel} does not arm via arm-watcher.md`).toMatch(
         /arm-watcher\.md/,
       );
     }
+  });
+
+  // Stage 8 once dispatched a recurring `/loop 1m` cron, which spends a model
+  // turn per fire and disagreed with every other arming point.
+  it("muggle-do Stage 8 arms per arm-watcher.md, never with a recurring /loop cron", () => {
+    const forward = read("do/open-prs/forward.md");
+    const stage8Start = forward.indexOf("## Stage 8 handoff");
+    const stage8End = forward.indexOf("## Invariants");
+    expect(stage8Start, "Stage 8 heading moved or was renamed").toBeGreaterThan(-1);
+    expect(stage8End).toBeGreaterThan(stage8Start);
+    expect(forward.slice(stage8Start, stage8End)).toMatch(/arm-watcher\.md/);
+    expect(forward).not.toMatch(/\/loop\s+1m/);
   });
 
   it("owns none of the tick's decision semantics", () => {

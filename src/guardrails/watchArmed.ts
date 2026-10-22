@@ -1,8 +1,23 @@
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
-import { MAX_WATCH_BLOCKS } from "./constants.js";
-import { WatchGateAction, type GuardrailState, type WatchGateDecision } from "./types.js";
+import { defaultGhRunner, parsePrUrl } from "../pr-walkthrough/gh.js";
+import type { GhRunner } from "../pr-walkthrough/types.js";
+import {
+  MAX_WATCH_BLOCKS,
+  STOPPED_SLOT_SUFFIX,
+  TERMINAL_SLOT_PR_STATES,
+  WATCH_HEARTBEAT_STALE_MS,
+} from "./constants.js";
+import {
+  ProviderPrState,
+  WatchGateAction,
+  WatchSlotStatus,
+  type CachedPrStateScan,
+  type GuardrailState,
+  type WatchGateDecision,
+  type WatchSlotEvidence,
+} from "./types.js";
 
 // A deliberate "no watcher owed here" declaration: the model runs
 // `echo "MUGGLE_WATCH_SKIP: <reason>"` and the gate stays quiet for the session
@@ -24,77 +39,197 @@ export function applyWatchSkip(state: GuardrailState, skipped: boolean): Guardra
 }
 
 /**
- * The PRs opened this session that no session slot tracks.
+ * Classify one session slot's watch from what its files say.
  *
- * Scans the muggle-do session slots and joins on the PR url — slot dirs are
- * arbitrary slugs, so the url is the only stable key back to `prsHandled`.
+ * The heartbeat is the liveness signal, not `watch.pid`: the loop runs under
+ * Git Bash, whose PIDs on Windows are MSYS ids that Node's `process.kill(pid, 0)`
+ * cannot probe, while the loop touches `watch-heartbeat` every poll on every
+ * platform. A slot that is merely seeded never gets one, so it reads as stale.
+ */
+export function resolveWatchSlotStatus(
+  evidence: WatchSlotEvidence,
+  nowMs: number,
+  staleAfterMs: number = WATCH_HEARTBEAT_STALE_MS,
+): WatchSlotStatus {
+  if (evidence.isStopped) return WatchSlotStatus.Stopped;
+  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
+  if (evidence.isFinalized || (TERMINAL_SLOT_PR_STATES as readonly string[]).includes(recordedState)) {
+    return WatchSlotStatus.Terminal;
+  }
+  const heartbeatAgeMs = evidence.heartbeatMtimeMs === undefined ? Infinity : nowMs - evidence.heartbeatMtimeMs;
+  return heartbeatAgeMs <= staleAfterMs ? WatchSlotStatus.Live : WatchSlotStatus.Stale;
+}
+
+function readHeartbeatMtimeMs(slotPath: string): number | undefined {
+  try {
+    return statSync(join(slotPath, "watch-heartbeat")).mtimeMs;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The PRs opened this session that no session slot shows a live or settled watch for.
  *
- * A slot's **existence** is the bar, not whether a watcher is live right now.
- * Watchers are session-scoped: the monitor and any recovery cron both die with
- * the session that started them, so "a poller is running" is never the durable
- * guarantee. The slot on disk is — reconcile re-arms an open slot whose poller
- * went silent, inside the session that owns it, and finalizes any slot once its
- * PR goes terminal. Since this gate only ever fires on a PR handled by the
- * running session, that session is the slot's owner and recovery applies. So a
- * seeded slot means the PR is followed, while a PR with no slot is the one
- * nothing will ever pick up, and that is what this gate exists to catch.
- * Requiring a
- * live poller instead made the gate fire on the seeded-but-not-yet-armed state
- * that a background job legitimately ends in, pushing the caller toward the
- * skip hatch the gate exists to make unnecessary.
+ * Slot dirs are arbitrary slugs, so each is joined back to `prsHandled` on its
+ * `prs.json` url. A handled PR counts as watched when any matching slot is live
+ * (a fresh heartbeat), terminal (its PR merged or closed, or the slot finalized),
+ * or stopped by its owner. A seeded slot with no running loop does not count: a
+ * PR left there is one nothing is polling, which is what the gate exists to catch.
+ *
+ * Unreadable state degrades to "not watched", never to a crash — a slot whose
+ * `prs.json` will not parse matches no PR, and a sessions dir that cannot be
+ * listed leaves every PR unwatched.
  *
  * `sessionsDirOverride` points the scan at a throwaway tree for tests.
  */
-export function findUntrackedHandledPrs(
+export function findUnwatchedHandledPrs(
   handledUrls: string[],
   sessionsDirOverride?: string,
 ): string[] {
   if (handledUrls.length === 0) return [];
   const sessionsDir =
     sessionsDirOverride ?? join(homedir(), ".muggle-ai", "muggle-do", "sessions");
-  if (!existsSync(sessionsDir)) return [...handledUrls];
+  let slugs: string[];
+  try {
+    slugs = readdirSync(sessionsDir);
+  } catch {
+    return [...handledUrls];
+  }
 
-  const trackedUrls = new Set<string>();
-  for (const slug of readdirSync(sessionsDir)) {
-    const prsFile = join(sessionsDir, slug, "prs.json");
-    if (!existsSync(prsFile)) continue;
-    let slotUrl: string | undefined;
+  const nowMs = Date.now();
+  const watchedUrls = new Set<string>();
+  for (const slug of slugs) {
+    const slotPath = join(sessionsDir, slug);
+    let slotPr: { url?: unknown; state?: unknown } | undefined;
     try {
-      const parsed = JSON.parse(readFileSync(prsFile, "utf-8")) as unknown;
-      const entry = Array.isArray(parsed) ? parsed[0] : parsed;
-      slotUrl = (entry as { url?: string } | undefined)?.url;
+      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8")) as unknown;
+      slotPr = (Array.isArray(parsed) ? parsed[0] : parsed) as typeof slotPr;
     } catch {
       continue;
     }
-    if (slotUrl) trackedUrls.add(slotUrl);
+    const slotUrl = slotPr?.url;
+    if (typeof slotUrl !== "string" || !handledUrls.includes(slotUrl)) continue;
+    const evidence: WatchSlotEvidence = {
+      isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
+      isFinalized: existsSync(join(slotPath, "result.md")),
+      recordedPrState: typeof slotPr?.state === "string" ? slotPr.state : undefined,
+      heartbeatMtimeMs: readHeartbeatMtimeMs(slotPath),
+    };
+    if (resolveWatchSlotStatus(evidence, nowMs) !== WatchSlotStatus.Stale) watchedUrls.add(slotUrl);
   }
-  return handledUrls.filter((url) => !trackedUrls.has(url));
+  return handledUrls.filter((url) => !watchedUrls.has(url));
+}
+
+// The session's own terminal records carry only the PR number, so a
+// same-numbered PR in another repo going terminal clears this one too — a
+// fail-open the gate accepts for a check that needs no network.
+function isTerminalThisSession(prUrl: string, state: GuardrailState): boolean {
+  const prNumber = parsePrUrl(prUrl)?.prNumber;
+  if (prNumber === undefined) return false;
+  return (state.terminalPending ?? []).includes(prNumber) || (state.terminalHandled ?? []).includes(prNumber);
+}
+
+function isEndState(providerState: ProviderPrState | undefined): boolean {
+  return providerState === ProviderPrState.Merged || providerState === ProviderPrState.Closed;
+}
+
+/**
+ * Narrow the unwatched PRs to the ones still open, so a merged or closed PR whose
+ * slot post-merge cleanup already deleted never holds the turn.
+ *
+ * A merge the session saw clears its PR from the terminal records; the provider
+ * scan covers the rest. A PR with no scan entry still blocks: the scan only ever
+ * grants an exemption, so before one lands the gate holds exactly where a missing
+ * slot always held it. A scan that could not reach the provider clears the PR —
+ * arming needs that same provider, so blocking would only push the session
+ * toward the skip hatch.
+ */
+export function resolveOwedWatchPrs(
+  unwatchedUrls: string[],
+  state: GuardrailState,
+  scan: CachedPrStateScan | null,
+): string[] {
+  return unwatchedUrls.filter((prUrl) => {
+    if (isTerminalThisSession(prUrl, state)) return false;
+    const providerState = scan?.states[prUrl];
+    return providerState === undefined || providerState === ProviderPrState.Open;
+  });
+}
+
+/**
+ * The unwatched PRs whose provider state is worth reading again: every one not
+ * already settled as merged or closed. An unreachable entry is re-read too, so
+ * one failed lookup never clears an open PR for the rest of the session.
+ */
+export function prsAwaitingStateScan(
+  unwatchedUrls: string[],
+  state: GuardrailState,
+  scan: CachedPrStateScan | null,
+): string[] {
+  return unwatchedUrls.filter(
+    (prUrl) => !isTerminalThisSession(prUrl, state) && !isEndState(scan?.states[prUrl]),
+  );
+}
+
+/**
+ * The provider's state for one PR, or null for a url this lookup does not cover.
+ *
+ * Only GitHub PRs are looked up. A GitLab MR stays unscanned, so it keeps
+ * blocking until a live slot covers it rather than clearing on a `gh` call that
+ * could never have reached it.
+ */
+export function lookupProviderPrState(prUrl: string, run: GhRunner = defaultGhRunner): ProviderPrState | null {
+  if (!parsePrUrl(prUrl)) return null;
+  const reportedState = run(["pr", "view", prUrl, "--json", "state", "-q", ".state"])?.trim();
+  return (
+    Object.values(ProviderPrState).find(
+      (providerState) => providerState === reportedState && providerState !== ProviderPrState.Unreachable,
+    ) ?? ProviderPrState.Unreachable
+  );
+}
+
+/**
+ * Look up each PR's provider state, leaving out the urls the lookup does not cover.
+ *
+ * Output shape: `{ states: { "https://github.com/o/r/pull/7": "MERGED" } }`
+ */
+export function scanProviderPrStates(
+  prUrls: string[],
+  lookup: (prUrl: string) => ProviderPrState | null = lookupProviderPrState,
+): CachedPrStateScan {
+  const states: Record<string, ProviderPrState> = {};
+  for (const prUrl of prUrls) {
+    const providerState = lookup(prUrl);
+    if (providerState !== null) states[prUrl] = providerState;
+  }
+  return { states: states };
 }
 
 /**
  * Decide what the Stop hook does about the watcher hand-off.
  *
- * Pure: the caller runs the sessions scan and passes the untracked urls in.
- * - `None`    — nothing owed (no PR opened, all tracked, or a skip recorded).
- * - `Block`   — a PR opened this session has no session slot; force the turn on.
+ * Pure: the caller resolves which PRs still owe a watch and passes them in.
+ * - `None`    — nothing owed (no PR opened, every PR watched or settled, or a skip recorded).
+ * - `Block`   — an open PR opened this session has no live watch; force the turn on.
  * - `Release` — blocked `maxBlocks` times already; stop nagging so a legitimately
  *               unwatchable PR can't trap the session.
  */
 export function watchGateDecision(
   state: GuardrailState,
-  untrackedPrUrls: string[],
+  unwatchedPrUrls: string[],
   maxBlocks: number = MAX_WATCH_BLOCKS,
 ): WatchGateDecision {
   const blockCount = state.watchBlockCount ?? 0;
-  if (state.watchSkipped === true || untrackedPrUrls.length === 0) {
-    return { action: WatchGateAction.None, blockCount: blockCount, untracked: untrackedPrUrls };
+  if (state.watchSkipped === true || unwatchedPrUrls.length === 0) {
+    return { action: WatchGateAction.None, blockCount: blockCount, unwatched: unwatchedPrUrls };
   }
   if (blockCount >= maxBlocks) {
-    return { action: WatchGateAction.Release, blockCount: blockCount, untracked: untrackedPrUrls };
+    return { action: WatchGateAction.Release, blockCount: blockCount, unwatched: unwatchedPrUrls };
   }
   return {
     action: WatchGateAction.Block,
     blockCount: blockCount + 1,
-    untracked: untrackedPrUrls,
+    unwatched: unwatchedPrUrls,
   };
 }

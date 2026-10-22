@@ -1,18 +1,38 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "fs";
+import { mkdtempSync, mkdirSync, utimesSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import {
   isWatchSkipMarker,
   applyWatchSkip,
-  findUntrackedHandledPrs,
+  findUnwatchedHandledPrs,
+  lookupProviderPrState,
+  prsAwaitingStateScan,
+  resolveOwedWatchPrs,
+  resolveWatchSlotStatus,
+  scanProviderPrStates,
   watchGateDecision,
 } from "../../guardrails/watchArmed.js";
-import { WatchGateAction, type GuardrailState } from "../../guardrails/types.js";
+import { WATCH_HEARTBEAT_STALE_MS } from "../../guardrails/constants.js";
+import {
+  ProviderPrState,
+  WatchGateAction,
+  WatchSlotStatus,
+  type GuardrailState,
+  type WatchSlotEvidence,
+} from "../../guardrails/types.js";
 
 const base = (over: Partial<GuardrailState> = {}): GuardrailState => ({
   sessionId: "s",
   prsHandled: [],
+  ...over,
+});
+
+const NOW_MS = 1_800_000_000_000;
+
+const evidence = (over: Partial<WatchSlotEvidence> = {}): WatchSlotEvidence => ({
+  isStopped: false,
+  isFinalized: false,
   ...over,
 });
 
@@ -46,29 +66,65 @@ describe("watchGateDecision", () => {
   it("None when nothing was opened this session", () => {
     expect(watchGateDecision(base(), []).action).toBe(WatchGateAction.None);
   });
-  it("None when a skip was recorded, even with untracked PRs", () => {
+  it("None when a skip was recorded, even with unwatched PRs", () => {
     const decision = watchGateDecision(base({ watchSkipped: true }), ["https://x/pull/1"]);
     expect(decision.action).toBe(WatchGateAction.None);
   });
-  it("Block and increments the count when a PR is untracked", () => {
+  it("Block and increments the count when a PR is unwatched", () => {
     const decision = watchGateDecision(base(), ["https://x/pull/1"]);
     expect(decision.action).toBe(WatchGateAction.Block);
     expect(decision.blockCount).toBe(1);
-    expect(decision.untracked).toEqual(["https://x/pull/1"]);
+    expect(decision.unwatched).toEqual(["https://x/pull/1"]);
   });
-  it("Release after the block budget is spent, so an untrackable PR can't trap the session", () => {
+  it("Release after the block budget is spent, so an unwatchable PR can't trap the session", () => {
     const decision = watchGateDecision(base({ watchBlockCount: 3 }), ["https://x/pull/1"]);
     expect(decision.action).toBe(WatchGateAction.Release);
   });
 });
 
-describe("findUntrackedHandledPrs", () => {
+describe("resolveWatchSlotStatus", () => {
+  it("Live when the heartbeat is inside the staleness window", () => {
+    expect(resolveWatchSlotStatus(evidence({ heartbeatMtimeMs: NOW_MS - 60_000 }), NOW_MS)).toBe(
+      WatchSlotStatus.Live,
+    );
+  });
+
+  it("Stale once the heartbeat is older than the window", () => {
+    const staleMtimeMs = NOW_MS - WATCH_HEARTBEAT_STALE_MS - 1;
+    expect(resolveWatchSlotStatus(evidence({ heartbeatMtimeMs: staleMtimeMs }), NOW_MS)).toBe(
+      WatchSlotStatus.Stale,
+    );
+  });
+
+  it("Stale for a seeded slot no loop ever touched", () => {
+    expect(resolveWatchSlotStatus(evidence(), NOW_MS)).toBe(WatchSlotStatus.Stale);
+  });
+
+  it("Terminal for a finalized slot or a recorded merged/closed state, heartbeat or not", () => {
+    expect(resolveWatchSlotStatus(evidence({ isFinalized: true }), NOW_MS)).toBe(WatchSlotStatus.Terminal);
+    expect(resolveWatchSlotStatus(evidence({ recordedPrState: "merged" }), NOW_MS)).toBe(WatchSlotStatus.Terminal);
+    expect(resolveWatchSlotStatus(evidence({ recordedPrState: "CLOSED" }), NOW_MS)).toBe(WatchSlotStatus.Terminal);
+    expect(resolveWatchSlotStatus(evidence({ recordedPrState: "open" }), NOW_MS)).toBe(WatchSlotStatus.Stale);
+  });
+
+  it("Stopped for a slot its owner stopped", () => {
+    expect(resolveWatchSlotStatus(evidence({ isStopped: true }), NOW_MS)).toBe(WatchSlotStatus.Stopped);
+  });
+});
+
+describe("findUnwatchedHandledPrs", () => {
   let sessions: string;
-  const seedSlot = (slug: string, url: string, files: Record<string, string> = {}): void => {
+  const seedSlot = (
+    slug: string,
+    url: string,
+    files: Record<string, string> = {},
+    prState: string = "open",
+  ): string => {
     const dir = join(sessions, slug);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "prs.json"), JSON.stringify([{ url: url }]));
+    writeFileSync(join(dir, "prs.json"), JSON.stringify([{ url: url, state: prState }]));
     for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
+    return dir;
   };
 
   beforeEach(() => {
@@ -76,45 +132,158 @@ describe("findUntrackedHandledPrs", () => {
   });
 
   it("reports a handled url with no slot at all", () => {
-    expect(findUntrackedHandledPrs(["https://x/pull/1"], sessions)).toEqual(["https://x/pull/1"]);
+    expect(findUnwatchedHandledPrs(["https://x/pull/1"], sessions)).toEqual(["https://x/pull/1"]);
   });
 
-  // The seeded-but-not-yet-armed slot is the state a background job legitimately
-  // ends in. Reconcile arms it at the next session start, so the gate must not
-  // fire and push the caller toward the skip hatch.
-  it("accepts a seeded slot with no watcher yet", () => {
+  it("reports a slot that is only seeded — no loop, no heartbeat", () => {
     seedSlot("seeded", "https://x/pull/2");
-    expect(findUntrackedHandledPrs(["https://x/pull/2"], sessions)).toEqual([]);
+    expect(findUnwatchedHandledPrs(["https://x/pull/2"], sessions)).toEqual(["https://x/pull/2"]);
   });
 
-  it("accepts a slot whose watcher died (stale pid, no heartbeat)", () => {
-    seedSlot("dead", "https://x/pull/3", { "watch.pid": "999999999" });
-    expect(findUntrackedHandledPrs(["https://x/pull/3"], sessions)).toEqual([]);
+  it("accepts a slot whose loop touched its heartbeat within the window", () => {
+    seedSlot("live", "https://x/pull/3", { "watch-heartbeat": "" });
+    expect(findUnwatchedHandledPrs(["https://x/pull/3"], sessions)).toEqual([]);
   });
 
-  it("accepts a live-monitor slot and a terminal slot alike", () => {
-    seedSlot("live", "https://x/pull/4", { "watch.pid": String(process.pid) });
+  // watch.pid is not consulted: a stale beacon beside a pid that looks live is a
+  // dead or deaf loop, and on Windows the pid is an MSYS id Node cannot probe.
+  it("reports a slot whose heartbeat went stale, whatever watch.pid says", () => {
+    const dir = seedSlot("dead", "https://x/pull/4", {
+      "watch-heartbeat": "",
+      "watch.pid": String(process.pid),
+    });
+    const staleSeconds = (Date.now() - WATCH_HEARTBEAT_STALE_MS - 60_000) / 1000;
+    utimesSync(join(dir, "watch-heartbeat"), staleSeconds, staleSeconds);
+    expect(findUnwatchedHandledPrs(["https://x/pull/4"], sessions)).toEqual(["https://x/pull/4"]);
+  });
+
+  it("accepts a terminal slot — finalized, or merged per prs.json — with no heartbeat", () => {
     seedSlot("done", "https://x/pull/5", { "result.md": "# merged" });
-    expect(findUntrackedHandledPrs(["https://x/pull/4", "https://x/pull/5"], sessions)).toEqual([]);
+    seedSlot("merged", "https://x/pull/6", {}, "merged");
+    expect(findUnwatchedHandledPrs(["https://x/pull/5", "https://x/pull/6"], sessions)).toEqual([]);
   });
 
-  it("reports only the urls no slot tracks", () => {
-    seedSlot("tracked", "https://x/pull/10");
-    const untracked = findUntrackedHandledPrs(
+  it("accepts a slot its owner stopped, so the gate never pushes to revive it", () => {
+    seedSlot("r-pr7.stopped", "https://x/pull/7");
+    expect(findUnwatchedHandledPrs(["https://x/pull/7"], sessions)).toEqual([]);
+  });
+
+  it("counts a PR watched when any of its slots is live", () => {
+    seedSlot("old", "https://x/pull/8");
+    seedSlot("new", "https://x/pull/8", { "watch-heartbeat": "" });
+    expect(findUnwatchedHandledPrs(["https://x/pull/8"], sessions)).toEqual([]);
+  });
+
+  it("reports only the urls no live slot covers", () => {
+    seedSlot("watched", "https://x/pull/10", { "watch-heartbeat": "" });
+    const unwatched = findUnwatchedHandledPrs(
       ["https://x/pull/10", "https://x/pull/11", "https://x/pull/12"],
       sessions,
     );
-    expect(untracked.sort()).toEqual(["https://x/pull/11", "https://x/pull/12"]);
+    expect(unwatched.sort()).toEqual(["https://x/pull/11", "https://x/pull/12"]);
   });
 
   it("ignores a slot dir with no prs.json and one with malformed json", () => {
     mkdirSync(join(sessions, "empty"), { recursive: true });
     mkdirSync(join(sessions, "broken"), { recursive: true });
     writeFileSync(join(sessions, "broken", "prs.json"), "{not json");
-    expect(findUntrackedHandledPrs(["https://x/pull/20"], sessions)).toEqual(["https://x/pull/20"]);
+    writeFileSync(join(sessions, "broken", "watch-heartbeat"), "");
+    expect(findUnwatchedHandledPrs(["https://x/pull/20"], sessions)).toEqual(["https://x/pull/20"]);
+  });
+
+  it("reports every url when the sessions dir is missing", () => {
+    expect(findUnwatchedHandledPrs(["https://x/pull/21"], join(sessions, "absent"))).toEqual([
+      "https://x/pull/21",
+    ]);
   });
 
   it("returns [] for no handled urls without scanning", () => {
-    expect(findUntrackedHandledPrs([], sessions)).toEqual([]);
+    expect(findUnwatchedHandledPrs([], sessions)).toEqual([]);
+  });
+});
+
+describe("resolveOwedWatchPrs", () => {
+  const PR = "https://github.com/o/r/pull/233";
+
+  it("keeps a PR no scan has reached yet, so a missing slot still blocks", () => {
+    expect(resolveOwedWatchPrs([PR], base(), null)).toEqual([PR]);
+    expect(resolveOwedWatchPrs([PR], base(), { states: {} })).toEqual([PR]);
+  });
+
+  it("keeps a PR the provider reports open", () => {
+    expect(resolveOwedWatchPrs([PR], base(), { states: { [PR]: ProviderPrState.Open } })).toEqual([PR]);
+  });
+
+  // The post-merge cleanup deletes the slot, so a merged PR reaches the gate as
+  // unwatched; the provider's verdict is what clears it.
+  it("clears a PR the provider reports merged or closed", () => {
+    expect(resolveOwedWatchPrs([PR], base(), { states: { [PR]: ProviderPrState.Merged } })).toEqual([]);
+    expect(resolveOwedWatchPrs([PR], base(), { states: { [PR]: ProviderPrState.Closed } })).toEqual([]);
+  });
+
+  it("fails open on a lookup that could not reach the provider", () => {
+    expect(resolveOwedWatchPrs([PR], base(), { states: { [PR]: ProviderPrState.Unreachable } })).toEqual([]);
+  });
+
+  it("clears a PR the session saw go terminal, with no scan at all", () => {
+    expect(resolveOwedWatchPrs([PR], base({ terminalPending: [233] }), null)).toEqual([]);
+    expect(resolveOwedWatchPrs([PR], base({ terminalHandled: [233] }), null)).toEqual([]);
+    expect(resolveOwedWatchPrs([PR], base({ terminalHandled: [234] }), null)).toEqual([PR]);
+  });
+});
+
+describe("prsAwaitingStateScan", () => {
+  const OPEN_PR = "https://github.com/o/r/pull/1";
+  const MERGED_PR = "https://github.com/o/r/pull/2";
+  const UNREACHED_PR = "https://github.com/o/r/pull/3";
+  const SEEN_TERMINAL_PR = "https://github.com/o/r/pull/4";
+
+  it("re-reads open, unscanned, and unreachable PRs, never settled ones", () => {
+    const awaiting = prsAwaitingStateScan(
+      [OPEN_PR, MERGED_PR, UNREACHED_PR, SEEN_TERMINAL_PR, "https://github.com/o/r/pull/5"],
+      base({ terminalHandled: [4] }),
+      {
+        states: {
+          [OPEN_PR]: ProviderPrState.Open,
+          [MERGED_PR]: ProviderPrState.Merged,
+          [UNREACHED_PR]: ProviderPrState.Unreachable,
+        },
+      },
+    );
+    expect(awaiting).toEqual([OPEN_PR, UNREACHED_PR, "https://github.com/o/r/pull/5"]);
+  });
+});
+
+describe("lookupProviderPrState", () => {
+  const PR = "https://github.com/o/r/pull/9";
+
+  it("asks gh for the PR's state and maps its answer", () => {
+    const calls: string[][] = [];
+    const providerState = lookupProviderPrState(PR, (args) => {
+      calls.push(args);
+      return "MERGED\n";
+    });
+    expect(providerState).toBe(ProviderPrState.Merged);
+    expect(calls).toEqual([["pr", "view", PR, "--json", "state", "-q", ".state"]]);
+  });
+
+  it("reports Unreachable when gh fails or answers something unknown", () => {
+    expect(lookupProviderPrState(PR, () => null)).toBe(ProviderPrState.Unreachable);
+    expect(lookupProviderPrState(PR, () => "UNREACHABLE")).toBe(ProviderPrState.Unreachable);
+    expect(lookupProviderPrState(PR, () => "gh: not found")).toBe(ProviderPrState.Unreachable);
+  });
+
+  it("skips a url gh cannot answer for, such as a GitLab MR", () => {
+    const gitlabMr = "https://gitlab.com/g/p/-/merge_requests/3";
+    expect(lookupProviderPrState(gitlabMr, () => "OPEN")).toBeNull();
+  });
+});
+
+describe("scanProviderPrStates", () => {
+  it("records each covered PR's state and leaves out the uncovered ones", () => {
+    const scan = scanProviderPrStates(["https://github.com/o/r/pull/1", "https://gitlab.com/g/p/-/merge_requests/2"], (prUrl) =>
+      prUrl.includes("github.com") ? ProviderPrState.Merged : null,
+    );
+    expect(scan).toEqual({ states: { "https://github.com/o/r/pull/1": ProviderPrState.Merged } });
   });
 });

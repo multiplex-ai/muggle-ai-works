@@ -1,6 +1,6 @@
 # Open PR — forward mode
 
-Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 5 — then seeds session state and dispatches the first watcher.
+Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fresh feature. Opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 5 — then seeds session state and arms the first watch.
 
 ## Turn preamble
 
@@ -57,7 +57,7 @@ The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once this stag
 
 ## Stage 8 handoff
 
-After every repo is processed and Stage 7.5 has cleared, build the watcher manifest and dispatch one watcher loop per opened PR. The dispatches are the LAST action this stage takes.
+After every repo is processed and Stage 7.5 has cleared, build the watcher manifest and arm one watch per opened PR. The arms are the LAST action this stage takes.
 
 Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
 
@@ -69,16 +69,13 @@ Seed `~/.muggle-ai/muggle-do/sessions/<slug>/last_seen.json` per [`../../muggle-
 
 **Do not** seed `cycle.json` or `requirements.md`. The watcher is a dumb pipe; `/muggle-do` reads reviews off GitHub.
 
-For each entry in `prs.json`, dispatch its watcher:
-```
-/loop 1m /muggle:muggle-pr-followup <slug> <pr-number>
-```
+For each entry in `prs.json`, arm its watch per [`../../muggle-pr-followup/arm-watcher.md`](../../muggle-pr-followup/arm-watcher.md) — the same procedure [`../respawn-watcher.md`](../respawn-watcher.md) settles every later watch with: one drain tick, the watermark seeded from it, then one persistent labeled monitor. Never a recurring `/loop` cron — every cron fire is a model turn, while the monitor polls token-free. The PR counts as watched only once that monitor's loop is running; a seeded slot alone is not a watch.
 
-If `prs.json` is empty, **do not dispatch** — record the reason in `result.md` and exit.
+If `prs.json` is empty, **do not arm** — record the reason in `result.md` and exit.
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; PR creation per non-skipped repo; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before the dispatch; `/loop` dispatch is the last action.
+- Branch synced with its base before the push, never after; PR creation per non-skipped repo; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before arming; arming per `arm-watcher.md` is the last action.
 
 ## Output
 
@@ -87,7 +84,7 @@ If `prs.json` is empty, **do not dispatch** — record the reason in `result.md`
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Overflow comments posted:** repo → PR #
 **Stage 7.5:** `green` | `waived — <reason>` | `iteration-cap`
-**Stage 8:** `Watching <N> PR(s) — one /loop 1m /muggle:muggle-pr-followup <slug> <pr#> per PR` | `No PRs to watch — stage 8 not dispatched`
+**Stage 8:** `Watching <N> PR(s) — one monitor per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
 **Errors:** repo → message
 
 ## Post-merge cleanup

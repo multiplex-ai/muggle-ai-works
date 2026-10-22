@@ -591,6 +591,15 @@ describe("step collapsibles", () => {
     expect(md).toContain('<img src="https://cdn/summary.png" width="720"');
   });
 
+  // GitHub strips `target` from an author's link and adds `target="_blank"` only to the link it wraps around a bare image.
+  it("leaves the ending screenshot unwrapped so GitHub opens it in a new tab", () => {
+    const md = renderTestDetails(
+      latest({ ...passedWithDesc, endingScreenshotUrl: "https://cdn/summary.png" }),
+      1,
+    );
+    expect(md).not.toContain('<a href="https://cdn/summary.png"');
+  });
+
   it("captions an inconclusive run's last frame as cut short", () => {
     const md = renderTestDetails(latest(inconclusiveWithSteps), 4);
     expect(md).toContain("**Ending screen** — Last frame before run was cut short");

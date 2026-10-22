@@ -191,12 +191,13 @@ function endingFrame (test: TestResult): IEndingFrame | null {
 }
 
 /**
- * Clickable full-width image. The alt text is a test name, which can carry a
- * quote — unescaped, it closes the attribute early and GitHub prints the whole
- * tag as text instead of the screenshot.
+ * Full-width image, left bare: GitHub wraps it in a link to itself that opens in a new tab, while a link of our
+ * own would open in the same tab because GitHub strips its `target`. The alt text is a test name, which can carry
+ * a quote — unescaped, it closes the attribute early and GitHub prints the whole tag as text instead of the
+ * screenshot.
  */
 function fullSizeImage (url: string, alt: string): string {
-  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}"></a>`;
+  return `<img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}">`;
 }
 
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */

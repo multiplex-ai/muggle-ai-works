@@ -383,7 +383,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-wf-get-ts-replay-bulk-latest-run",
   },
   {
-    "description": "Get the latest run status for a test script replay workflow runtime.",
+    "description": "Get the latest run status for a test script replay workflow runtime. A replay short ID such as R-2051 resolves to that replay's workflow runtime, and the tool returns that runtime's latest run.",
     "name": "muggle-remote-wf-get-ts-replay-latest-run",
   },
   {

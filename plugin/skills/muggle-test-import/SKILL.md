@@ -357,13 +357,11 @@ avoid exceeding the 3 in-flight job cap per project.
 When all imports are done, print a clean summary. Include:
 - The project name
 - Total use cases and test cases created
-- A line per use case with its test case count and a link to view it
-- A link to the project overview
+- A line per use case with its test case count
+- A link to the project's test cases
 - If any items failed during preview (partial status), list them so the user can retry
 
-Construct view URLs using the Muggle Test dashboard URL pattern:
-- Project test cases: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/testcases`
-- Use case within project: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/testcases?useCaseId=<useCaseId>`
+The link is the `dashboardUrl` field the create calls return (`muggle-remote-use-case-create` / `muggle-remote-test-case-create`), already resolved against the dashboard of the lane the MCP runs on. Never write a dashboard host yourself — a production URL is a dead link for a staging user.
 
 Example:
 
@@ -371,19 +369,14 @@ Example:
 ✅ Import complete!
 
 Project:  Acme App
-  → https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj_abc123/testcases
+  → {dashboardUrl}
 Source:   e2e/auth.spec.ts, e2e/cart.spec.ts
 
 Imported: 3 use cases · 8 test cases
 
   1. User Authentication  (3 test cases)
-     → https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj_abc123/testcases?useCaseId=uc_111
-
   2. Shopping Cart  (3 test cases)
-     → https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj_abc123/testcases?useCaseId=uc_222
-
   3. Checkout  (2 test cases)
-     → https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj_abc123/testcases?useCaseId=uc_333
 
 Next step: run /muggle:do to generate executable browser test scripts for these test cases.
 ```

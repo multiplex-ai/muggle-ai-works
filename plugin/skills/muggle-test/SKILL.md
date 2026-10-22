@@ -281,15 +281,15 @@ Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the
 
 ## Step 8: Open Results in Browser
 
-After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. The studio published every local run during execution, so each run result already carries its `viewUrl` (read it from `muggle-local-run-result-get`). Key off the uniform runs list:
+After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. Every link comes from a tool, never from a host you write: the MCP resolves them against the dashboard of the lane it runs on (production, staging, or local), so a hand-built `www.muggle-ai.com` URL sends a staging user to a project that does not exist there. Key off the uniform runs list:
 
-- **Runs carry a `viewUrl` and there are ≤3** — open each:
+- **Runs carry a `viewUrl` and there are ≤3** — open each run's `viewUrl` verbatim (from `muggle-local-run-result-get`); it pins the exact run:
   ```bash
-  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
+  open "{viewUrl}"
   ```
-- **Otherwise** (more than 3 runs, or a run with no `viewUrl`) — open the project runs page:
+- **Otherwise** (more than 3 runs, or a run with no `viewUrl`) — open the project runs page: the `dashboardUrl` field of `muggle-remote-project-test-runs-summary-get` for the project (`pageSize: 1` is enough):
   ```bash
-  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
+  open "{dashboardUrl}"
   ```
 
 Tell the user:

@@ -25,6 +25,7 @@ Read the Stage 6 run-level verdict, defined in [`../_shared/failure-mode-handlin
 
 - `PASS` or `SKIPPED` → nothing to repair. Append `e2e-repair: clear (<verdict>)` to the iteration log and hand to Stage 8.
 - A verdict the user waived earlier in this session → clear on the recorded waiver; never re-ask.
+- An entry whose run never reached the app — connection refused, page never loaded — is the readiness halt of [`e2e-acceptance.md`](e2e-acceptance.md) Step 0.5 arriving late. Nothing ran, so there is nothing to repair and nothing to waive, attended or not: re-check readiness there, and if the app is still down, stop as Step 4's **Stop here** and report the halt.
 - `FAIL`, `PARTIAL`, `INCONCLUSIVE`, or `BLOCKED` → the loop runs over every entry in the Failed and Inconclusive blocks.
 
 ## Step 1: Root-cause each failure
@@ -73,7 +74,7 @@ One question, listing each unrepairable failure with its bucket, failing step, a
 3. **Waive and ship** — record the waiver in `state.md`, retitle the PR `[E2E FAILING]`, and clear to Stage 8.
 4. **Stop here** — leave the PR open and unwatched; the user takes it from there.
 
-**Unattended runs.** When the cycle was started autonomously there is nobody to ask. Do not skip the loop — run Steps 1–3 in full, then treat a surviving `ask` as an automatic waive: emit the escalation event, retitle `[E2E FAILING]`, and clear to Stage 8. Silently arming the watcher on a red run is the failure this stage exists to prevent.
+**Unattended runs.** When the cycle was started autonomously there is nobody to ask. Do not skip the loop — run Steps 1–3 in full, then treat a surviving `ask` as an automatic waive: emit the escalation event, retitle `[E2E FAILING]`, and clear to Stage 8. A readiness halt (Step 0) is not an `ask` and is never auto-waived. Silently arming the watcher on a red run is the failure this stage exists to prevent.
 
 ## Step 5: Close the loop
 

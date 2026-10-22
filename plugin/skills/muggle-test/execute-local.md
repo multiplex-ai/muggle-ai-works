@@ -52,9 +52,9 @@ Fetch every `runId` per [`../_shared/dev-loop/failures.md`](../_shared/dev-loop/
 ```
 Test Case                  Status    Duration   Steps   View Steps on Muggle AI
 ─────────────────────────────────────────────────────────────────────────
-Login with valid creds     PASSED    12.3s      8       https://www.muggle-ai.com/...
-Login with invalid creds   PASSED    9.1s       6       https://www.muggle-ai.com/...
-Checkout flow              FAILED    15.7s      12      https://www.muggle-ai.com/...
+Login with valid creds     PASSED    12.3s      8       <viewUrl>
+Login with invalid creds   PASSED    9.1s       6       <viewUrl>
+Checkout flow              FAILED    15.7s      12      <viewUrl>
 ─────────────────────────────────────────────────────────────────────────
 Total: 3 tests | 2 passed | 1 failed | 37.1s
 ```

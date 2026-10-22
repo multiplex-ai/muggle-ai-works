@@ -1,4 +1,4 @@
-import { GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT, GUARD_RUN_USAGE } from "./constants.js";
+import { GUARD_RUN_USAGE } from "./constants.js";
 import { GuardRunParseResult } from "./types.js";
 
 function parseError(errorMessage: string): GuardRunParseResult {
@@ -11,8 +11,8 @@ function parsePositiveInteger(rawValue: string | undefined): number | null {
   return parsed >= 1 ? parsed : null;
 }
 
-export function parseGuardRunArguments(argv: string[]): GuardRunParseResult {
-  let activeProcessLimit = GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT;
+export function parseGuardRunArguments(argv: string[], defaultActiveProcessLimit: number): GuardRunParseResult {
+  let activeProcessLimit = defaultActiveProcessLimit;
   let isServiceMode = false;
   let index = 0;
   while (index < argv.length) {

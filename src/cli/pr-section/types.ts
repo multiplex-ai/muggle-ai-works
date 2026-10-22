@@ -19,10 +19,18 @@ const StepSchema = z.object({
   afterScreenshotUrl: z.string().url().optional(),
 });
 
+// The project short IDs of the test case (TC-42) and of the run (R-2051); optional because entities created
+// before short IDs existed carry none.
+const TEST_SHORT_ID_FIELDS = {
+  testCaseShortId: z.string().min(1).optional(),
+  replayShortId: z.string().min(1).optional(),
+};
+
 const PassedTestSchema = z.object({
   name: z.string().min(1),
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
+  ...TEST_SHORT_ID_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("passed"),
@@ -37,6 +45,7 @@ const FailedTestSchema = z.object({
   name: z.string().min(1),
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
+  ...TEST_SHORT_ID_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("failed"),
@@ -60,6 +69,7 @@ const InconclusiveTestSchema = z.object({
   name: z.string().min(1),
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
+  ...TEST_SHORT_ID_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("inconclusive"),

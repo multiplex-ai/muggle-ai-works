@@ -19,3 +19,6 @@ export const SCREENSHOT_FILE_EXTENSION = ".jpg";
  * gap this viewer was built to close.
  */
 export const HTML_VIEW_OFFER_LINE = "See the frames: re-run with --html (add --open to open it).";
+
+/** Label on the line linking a published run to its dashboard page. */
+export const RUN_VIEW_DASHBOARD_LINK_LABEL = "Open on Muggle AI";

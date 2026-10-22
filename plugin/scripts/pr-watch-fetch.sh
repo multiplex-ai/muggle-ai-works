@@ -16,7 +16,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       state
       headRefOid
-      baseRefOid
+      baseRef { target { oid } }
       mergeable
       commits(last: 1) {
         nodes {
@@ -48,7 +48,7 @@ query($owner: String!, $name: String!, $number: Int!) {
 }
 
 # behind_by needs its own call — see watch_wake_rebase for why no field on the
-# PR carries it. The loop makes it only when the head/base pair moved, so the
+# PR carries it. The loop makes it only when the head/base-tip pair moved, so the
 # steady state stays one request per iteration.
 watch_fetch_behind_count() {
     local repo="$1" base_branch="$2" head_sha="$3" slot="$4"

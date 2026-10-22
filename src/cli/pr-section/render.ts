@@ -13,7 +13,6 @@
  */
 
 import {
-  DASHBOARD_URL_BASE,
   DETAIL_IMAGE_WIDTH,
   STEP_ELEMENT_ID_SUFFIX,
   STEP_IMAGE_WIDTH,
@@ -27,7 +26,7 @@ import {
   TEST_DETAILS_ANCHOR_PREFIX,
   TEST_DETAILS_DIVIDER,
 } from "./constants.js";
-import { escapeHtml, renderUnpassedCaseBullet } from "../../e2e-result/format.js";
+import { escapeHtml, escapeHtmlAttribute, renderUnpassedCaseBullet } from "../../e2e-result/format.js";
 import { renderE2eResultMarker } from "../../e2e-result/marker.js";
 import type { IE2eResultRecord } from "../../e2e-result/types.js";
 import { buildE2eResultRecord, failureOrdinal } from "./result-record.js";
@@ -196,7 +195,7 @@ function endingFrame (test: TestResult): IEndingFrame | null {
  * tag as text instead of the screenshot.
  */
 function fullSizeImage (url: string, alt: string): string {
-  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtml(alt).replace(/"/g, "&quot;")}"></a>`;
+  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}"></a>`;
 }
 
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */
@@ -209,9 +208,12 @@ function stepText (step: Step): string {
   return escapeHtml((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
 }
 
-function dashboardLink (test: TestResult, projectId: string, dashboardBaseUrl: string): string {
-  const url = `${dashboardBaseUrl}/${projectId}/scripts?modal=script-details&testCaseId=${encodeURIComponent(test.testCaseId)}`;
-  return `<a href="${url}" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a>`;
+/**
+ * Link to the run on the dashboard it was published to. The run's own `viewUrl` names that ring and pins this
+ * run; a link rebuilt from the renderer's runtime target can point at another ring, or at localhost.
+ */
+function dashboardLink (test: TestResult): string {
+  return `<a href="${escapeHtmlAttribute(test.viewUrl)}" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a>`;
 }
 
 /**
@@ -360,9 +362,7 @@ function buildGroupedLayout (latestRuns: readonly ILatestRun[]): GroupedEntry[] 
  */
 export function renderTestDetails (
   entry: ILatestRun,
-  projectId: string,
   testNumber: number,
-  dashboardBaseUrl: string = DASHBOARD_URL_BASE,
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
@@ -370,8 +370,8 @@ export function renderTestDetails (
   if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
-  lines.push(...renderResultTable(entry, projectId, dashboardBaseUrl));
-  const steps = renderSteps(test, projectId, dashboardBaseUrl, screenshotDetail) ?? [];
+  lines.push(...renderResultTable(entry));
+  const steps = renderSteps(test, screenshotDetail) ?? [];
   const frame = renderEndingFrame(test) ?? [];
   const evidence = [...steps, ...(steps.length > 0 && frame.length > 0 ? [""] : []), ...frame];
   if (evidence.length > 0) {
@@ -477,8 +477,6 @@ function thumbnailUrl (url: string): string {
  */
 function renderSteps (
   test: TestResult,
-  projectId: string,
-  dashboardBaseUrl: string,
   screenshotDetail: StepScreenshotDetailEnum,
 ): string[] | null {
   const { steps } = test;
@@ -504,18 +502,14 @@ function renderSteps (
     ...heading,
     ...steps.slice(0, STEP_LIST_HEAD_COUNT).map((step, i) => collapsible(step, i + 1)),
     "",
-    `_… ${hidden} more ${hidden === 1 ? "step" : "steps"} — ${dashboardLink(test, projectId, dashboardBaseUrl)}_`,
+    `_… ${hidden} more ${hidden === 1 ? "step" : "steps"} — ${dashboardLink(test)}_`,
     "",
     ...steps.slice(tailStart).map((step, i) => collapsible(step, tailStart + i + 1)),
   ];
 }
 
 /** The run's outcome as a two-column table, so each label stands apart from its value. */
-function renderResultTable (
-  entry: ILatestRun,
-  projectId: string,
-  dashboardBaseUrl: string,
-): string[] {
+function renderResultTable (entry: ILatestRun): string[] {
   const { test } = entry;
   // GFM requires a header row; the result fills it, rather than an empty row that renders as a blank band.
   const rows: string[] = [];
@@ -532,27 +526,18 @@ function renderResultTable (
     rows.push(`| **Attempts** | ${entry.attempts} — showing the latest |`);
   }
   const count = test.steps.length;
-  rows.push(`| **Run** | ${count} browser ${count === 1 ? "step" : "steps"} · ${dashboardLink(test, projectId, dashboardBaseUrl)} |`);
+  rows.push(`| **Run** | ${count} browser ${count === 1 ? "step" : "steps"} · ${dashboardLink(test)} |`);
   return rows;
 }
 
-/** Options shared by both render entry points. */
-export interface IDashboardLinkOptions {
-  /**
-   * Dashboard projects base for the ring this run happened on, without a
-   * trailing slash. Omitted falls back to production.
-   */
-  dashboardBaseUrl?: string;
-}
-
 /** Options for renderComment. */
-export interface IRenderCommentOptions extends IDashboardLinkOptions {
+export interface IRenderCommentOptions {
   /** How much of each step's screenshots to include; omitted means before and after. */
   screenshotDetail?: StepScreenshotDetailEnum;
 }
 
 /** Options for renderBody. */
-export interface IRenderBodyOptions extends IDashboardLinkOptions {
+export interface IRenderBodyOptions {
   /**
    * When true, the per-test `<details>` blocks are included inline in the body.
    * When false, a single pointer line is written instead and the details are expected
@@ -563,12 +548,10 @@ export interface IRenderBodyOptions extends IDashboardLinkOptions {
 
 function renderDetailBlocks (
   report: E2eReport,
-  dashboardBaseUrl?: string,
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   return resolveLatestRuns(report.tests)
-    .map((entry, i) =>
-      renderTestDetails(entry, report.projectId, i + 1, dashboardBaseUrl ?? DASHBOARD_URL_BASE, screenshotDetail))
+    .map((entry, i) => renderTestDetails(entry, i + 1, screenshotDetail))
     .join(`\n\n${TEST_DETAILS_DIVIDER}\n\n`);
 }
 
@@ -602,7 +585,7 @@ export function renderBody (report: E2eReport, opts: IRenderBodyOptions): string
     "",
     "### Test details",
     "",
-    renderDetailBlocks(report, opts.dashboardBaseUrl),
+    renderDetailBlocks(report),
   ].join("\n");
 }
 
@@ -622,6 +605,6 @@ export function renderComment (report: E2eReport, opts: IRenderCommentOptions = 
     "",
     "### Test details",
     "",
-    renderDetailBlocks(report, opts.dashboardBaseUrl, screenshotDetail),
+    renderDetailBlocks(report, screenshotDetail),
   ].join("\n");
 }

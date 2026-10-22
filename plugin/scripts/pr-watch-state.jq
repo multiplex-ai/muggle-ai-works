@@ -4,8 +4,14 @@
 # which is how the echo wake below survived unnoticed.
 #
 # Field order is the contract pr-watch-loop.sh reads positionally:
-#   state, headRefOid, baseRefOid, mergeable, latest-review, latest-comment,
+#   state, headRefOid, base-tip, mergeable, latest-review, latest-comment,
 #   unresolved-thread-ids, pending-checks, failed-checks, check-digest
+#
+# base-tip is where the base branch points now, the base half of the rebase key.
+# Not baseRefOid: GitHub moves that only when the head is pushed, so a key built
+# from it stays equal to an escalated or floored key however far the base
+# advances, and the branch never wakes again. A deleted base branch projects as
+# an empty field rather than a missing one, so no later field shifts.
 
 def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
 
@@ -40,7 +46,7 @@ def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
 [
   $pr.state,
   $pr.headRefOid,
-  $pr.baseRefOid,
+  ($pr.baseRef.target.oid // ""),
   $pr.mergeable,
   (([$pr.reviews.nodes[] | select(is_echo_review | not) | .databaseId] | max) // 0),
   (($liveComments | map(select(loop_marked | not) | .databaseId) | max) // 0),

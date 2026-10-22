@@ -6,6 +6,11 @@ export function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Escape text placed inside a double-quoted HTML attribute, so a `"` cannot end the attribute early. */
+export function escapeHtmlAttribute(s: string): string {
+  return escapeHtml(s).replace(/"/g, "&quot;");
+}
+
 /**
  * Why a case did not pass, as one markdown-safe phrase.
  *

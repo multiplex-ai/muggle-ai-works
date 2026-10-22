@@ -1,4 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { execFileSync } from "child_process";
+import { mkdtempSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { defaultSkipProbes } from "../../e2e-skip/probes";
 import { resolveSkipDeclaration } from "../../e2e-skip/resolveSkip";
 import { E2eSkipCode, SkipRejection, type SkipProbes, type SkipVerificationContext } from "../../e2e-skip/types";
 
@@ -163,6 +168,147 @@ describe("NO_PR", () => {
       contextFor({}, { prsHandled: ["https://github.com/o/r/pull/1"] }),
     );
     expect(judged?.accepted).toBe(false);
+  });
+});
+
+describe("NO_APP_LOGIC_CHANGE", () => {
+  const PRE_CYCLE = "1a2b3c4";
+  const changed = (...paths: string[]) => ({
+    [`diff --name-only --no-renames -z ${PRE_CYCLE}^{commit} HEAD`]: paths.map((path) => `${path}\0`).join(""),
+  });
+  const declareSince = (reason: string) => declare(E2eSkipCode.NoAppLogicChange, `${PRE_CYCLE} ${reason}`);
+
+  it("verifies a cycle that changed only docs", () => {
+    const judged = resolveSkipDeclaration(
+      declareSince("README typo"),
+      contextFor({ git: changed("README.md", "docs/guide/setup.md") }),
+    );
+    expect(judged).toEqual({
+      accepted: true,
+      skip: { code: E2eSkipCode.NoAppLogicChange, detail: `${PRE_CYCLE} README typo` },
+    });
+  });
+
+  it("verifies tests, lint/format config, and CI config", () => {
+    const judged = resolveSkipDeclaration(
+      declareSince("test rename, lint and CI tweaks"),
+      contextFor({
+        git: changed(
+          "src/cart/cart.test.ts",
+          "src/__tests__/checkout.tsx",
+          "tests/conftest.py",
+          ".eslintrc.json",
+          "eslint.config.mjs",
+          ".prettierrc",
+          ".github/workflows/ci.yml",
+        ),
+      }),
+    );
+    expect(judged?.accepted).toBe(true);
+  });
+
+  it("refutes a cycle that changed a source file", () => {
+    const judged = resolveSkipDeclaration(declareSince("renamed a helper"), contextFor({ git: changed("src/app.ts") }));
+    expect(judged).toMatchObject({
+      accepted: false,
+      rejection: SkipRejection.VerificationFailed,
+      claimedCode: E2eSkipCode.NoAppLogicChange,
+    });
+    expect(judged?.accepted === false && judged.failure).toContain("src/app.ts");
+  });
+
+  // Conservative by design: a path rule is what makes the skip verifiable, so
+  // the guardrail never reads the diff's content to excuse a source file.
+  it("refutes a comment-only edit in a source file", () => {
+    const judged = resolveSkipDeclaration(
+      declareSince("only a code comment changed"),
+      contextFor({ git: changed("src/checkout/total.ts") }),
+    );
+    expect(judged?.accepted).toBe(false);
+  });
+
+  it("refutes a mix of docs and source, naming only the source path", () => {
+    const judged = resolveSkipDeclaration(
+      declareSince("docs and a fix"),
+      contextFor({ git: changed("README.md", "src/app.ts") }),
+    );
+    expect(judged?.accepted).toBe(false);
+    const failure = judged?.accepted === false ? judged.failure : "";
+    expect(failure).toContain("src/app.ts");
+    expect(failure).not.toContain("README.md");
+  });
+
+  it("refutes MDX and nested test folders, which can render as pages", () => {
+    expect(resolveSkipDeclaration(declareSince("copy"), contextFor({ git: changed("app/about.mdx") }))?.accepted).toBe(false);
+    expect(
+      resolveSkipDeclaration(declareSince("route"), contextFor({ git: changed("app/test/page.tsx") }))?.accepted,
+    ).toBe(false);
+  });
+
+  it("refutes a SHA that resolves to no commit", () => {
+    const judged = resolveSkipDeclaration(declareSince("docs"), contextFor({ git: {} }));
+    expect(judged?.accepted === false && judged.failure).toContain("does not resolve to a commit");
+  });
+
+  it("refutes a detail that opens with no SHA", () => {
+    const judged = resolveSkipDeclaration(
+      declare(E2eSkipCode.NoAppLogicChange, "docs and tests only"),
+      contextFor({ git: changed("README.md") }),
+    );
+    expect(judged?.accepted === false && judged.failure).toContain("names no pre-cycle commit");
+  });
+
+  it("refutes an empty diff, which means the cycle's commits are not on HEAD", () => {
+    const judged = resolveSkipDeclaration(declareSince("docs"), contextFor({ git: changed() }));
+    expect(judged?.accepted === false && judged.failure).toContain("carries no change");
+  });
+
+  it("names the first offending paths and counts the rest", () => {
+    const sources = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts", "f.ts", "g.ts"].map((name) => `src/${name}`);
+    const judged = resolveSkipDeclaration(declareSince("big"), contextFor({ git: changed(...sources) }));
+    const failure = judged?.accepted === false ? judged.failure : "";
+    expect(failure).toContain("src/e.ts and 2 more");
+    expect(failure).not.toContain("src/f.ts");
+  });
+
+  // Pins the real git invocations the fakes above stand in for: the `^{commit}`
+  // peel, two-tree diff, and NUL-separated names.
+  it("verifies and refutes against a real repository", () => {
+    const repo = mkdtempSync(join(tmpdir(), "no-app-logic-"));
+    const git = (...args: string[]): string =>
+      execFileSync("git", args, {
+        cwd: repo,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          HOME: repo,
+          USERPROFILE: repo,
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_AUTHOR_NAME: "t",
+          GIT_AUTHOR_EMAIL: "t@example.com",
+          GIT_COMMITTER_NAME: "t",
+          GIT_COMMITTER_EMAIL: "t@example.com",
+        },
+      });
+    git("init", "-q");
+    writeFileSync(join(repo, "app.ts"), "export const total = 1;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "app");
+    const preCycleSha = git("rev-parse", "--short", "HEAD").trim();
+    writeFileSync(join(repo, "README.md"), "# docs\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "docs");
+    const context = { cwd: repo, prsHandled: [], homeDir: repo, probe: defaultSkipProbes };
+
+    expect(resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, `${preCycleSha} docs`), context)?.accepted).toBe(true);
+    const unknownSha = resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, "deadbeef0 docs"), context);
+    expect(unknownSha?.accepted === false && unknownSha.failure).toContain("does not resolve to a commit");
+
+    writeFileSync(join(repo, "app.ts"), "// a comment only\nexport const total = 1;\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "comment");
+    const judged = resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, `${preCycleSha} docs`), context);
+    expect(judged?.accepted === false && judged.failure).toContain("app.ts");
   });
 });
 

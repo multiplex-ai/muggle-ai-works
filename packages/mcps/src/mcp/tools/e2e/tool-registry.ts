@@ -16,12 +16,17 @@ import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/ty
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
+import { resolveEntityReferencesAsync } from "./entity-reference-resolver.js";
+import {
+  REPLAY_WORKFLOW_RUNTIME_ID_REFERENCE_FIELD,
+  TEST_CASE_ID_REFERENCE_FIELD,
+  TEST_SCRIPT_ID_REFERENCE_FIELD,
+  USE_CASE_ID_REFERENCE_FIELD,
+} from "./entity-reference-resolver-constants.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
-
-/** Muggle Test API prefix. */
-const MUGGLE_TEST_PREFIX = "/v1/protected/muggle-test";
+import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
 
 /** Default workflow timeout. */
 const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
@@ -172,6 +177,7 @@ const useCaseTools: IQaToolDefinition[] = [
     name: "muggle-remote-use-case-get",
     description: "Get details of a specific use case by ID.",
     inputSchema: schemas.UseCaseGetInputSchema,
+    entityReferenceFields: [USE_CASE_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UseCaseGetInputSchema>;
       return {
@@ -321,6 +327,7 @@ const testCaseTools: IQaToolDefinition[] = [
     name: "muggle-remote-test-case-get",
     description: "Get details of a specific test case.",
     inputSchema: schemas.TestCaseGetInputSchema,
+    entityReferenceFields: [TEST_CASE_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseGetInputSchema>;
       return {
@@ -359,6 +366,7 @@ const testCaseTools: IQaToolDefinition[] = [
     name: "muggle-remote-test-case-list-by-use-case",
     description: "List test cases for a specific use case.",
     inputSchema: schemas.TestCaseListByUseCaseInputSchema,
+    entityReferenceFields: [USE_CASE_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseListByUseCaseInputSchema>;
       return {
@@ -539,6 +547,7 @@ const testScriptTools: IQaToolDefinition[] = [
     name: "muggle-remote-test-script-get",
     description: "Get details of a specific test script.",
     inputSchema: schemas.TestScriptGetInputSchema,
+    entityReferenceFields: [TEST_SCRIPT_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestScriptGetInputSchema>;
       return {
@@ -753,6 +762,7 @@ const workflowTools: IQaToolDefinition[] = [
     name: "muggle-remote-workflow-start-test-script-replay",
     description: "Start a test script replay workflow to execute a single test script.",
     inputSchema: schemas.WorkflowStartTestScriptReplayInputSchema,
+    entityReferenceFields: [USE_CASE_ID_REFERENCE_FIELD, TEST_CASE_ID_REFERENCE_FIELD, TEST_SCRIPT_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayInputSchema>;
       return {
@@ -772,10 +782,11 @@ const workflowTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-wf-get-ts-replay-latest-run",
-    description: "Get the latest run status for a test script replay workflow runtime.",
-    inputSchema: schemas.WorkflowGetLatestRunInputSchema,
+    description: "Get the latest run status for a test script replay workflow runtime. A replay short ID such as R-2051 resolves to that replay's workflow runtime, and the tool returns that runtime's latest run.",
+    inputSchema: schemas.WorkflowGetReplayLatestRunInputSchema,
+    entityReferenceFields: [REPLAY_WORKFLOW_RUNTIME_ID_REFERENCE_FIELD],
     mapToUpstream: (input) => {
-      const toolInput = input as z.infer<typeof schemas.WorkflowGetLatestRunInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.WorkflowGetReplayLatestRunInputSchema>;
       return {
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/workflow/test-script/test-script-replay/${toolInput.workflowRuntimeId}/run/latest`,
@@ -1805,16 +1816,22 @@ export async function executeQaTool(
 
     // Get credentials (async with auto-refresh)
     const credentials = await getCallerCredentialsAsync();
+    const resolvedInput = await resolveEntityReferencesAsync({
+      entityReferenceFields: tool.entityReferenceFields ?? [],
+      input: validatedInput as Record<string, unknown>,
+      credentials: credentials,
+      correlationId: correlationId,
+    });
 
     // Execute upstream call
     try {
-      const upstreamCall = tool.mapToUpstream(validatedInput);
+      const upstreamCall = tool.mapToUpstream(resolvedInput);
       const client = getPromptServiceClient();
       const response = await client.execute(upstreamCall, credentials, correlationId);
 
       // Map response
       const mapper = tool.mapFromUpstream || defaultResponseMapper;
-      const mappedResponse = mapper(response, validatedInput);
+      const mappedResponse = mapper(response, resolvedInput);
 
       return {
         content: JSON.stringify(mappedResponse, null, 2),
@@ -1824,7 +1841,7 @@ export async function executeQaTool(
       if (error instanceof Error && error.message === "RECOMMENDATION_ONLY") {
         // This is a recommendation tool, return static response
         const mapper = tool.mapFromUpstream || defaultResponseMapper;
-        const mappedResponse = mapper({ statusCode: 200, data: {}, headers: {} }, validatedInput);
+        const mappedResponse = mapper({ statusCode: 200, data: {}, headers: {} }, resolvedInput);
         return {
           content: JSON.stringify(mappedResponse, null, 2),
           isError: false,

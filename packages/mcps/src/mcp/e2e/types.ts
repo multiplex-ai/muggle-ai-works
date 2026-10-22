@@ -4,6 +4,8 @@
 
 import type { ZodSchema } from "zod";
 
+import type { IEntityReferenceField } from "../contracts/entity-reference-types.js";
+
 /**
  * MCP error codes.
  */
@@ -112,6 +114,9 @@ export interface IQaToolDefinition {
 
   /** Whether this tool requires authentication (default: true). */
   requiresAuth?: boolean;
+
+  /** Input fields that take a full ID or a project short ID; short IDs are resolved before `mapToUpstream`. */
+  entityReferenceFields?: IEntityReferenceField[];
 
   /** Map validated input to upstream call. */
   mapToUpstream: (input: unknown) => IUpstreamCall;

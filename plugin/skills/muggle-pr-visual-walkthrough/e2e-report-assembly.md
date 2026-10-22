@@ -40,6 +40,8 @@ Reach this branch only when the run result carries no `viewUrl` / `cloudActionSc
 
 On every entry: `description` (test case title/description — drives the collapsible header) and `useCaseName` (parent use case title — when present, the overview groups by use case) are optional but recommended. Prefer values already in context; only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` if missing.
 
+Set `testCaseShortId` to the test case's `shortId` and `replayShortId` to the run's `shortId` (e.g. `TC-42`, `R-2051`) whenever the record you already fetched carries one; the walkthrough then labels the test `TC-42 · <name>` and leads its run row with `R-2051`. Omit either when absent — entities created before short IDs existed have none.
+
 If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — pass it through unchanged.
 
 ## Shape
@@ -53,8 +55,10 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "description": "<one-line description (recommended)>",
       "useCaseName": "<parent use case title (recommended)>",
       "testCaseId": "<testCaseId from execution step>",
+      "testCaseShortId": "<test case shortId, when it has one>",
       "testScriptId": "<cloudTestScriptId from run result>",
       "runId": "<runId from muggle-local-execute-test-generation>",
+      "replayShortId": "<run shortId, when it has one>",
       "viewUrl": "<viewUrl from run result>",
       "status": "passed",
       "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Accept all' to dismiss the cookie consent dialog.", "screenshotUrl": "..." }]

@@ -14,6 +14,7 @@
 
 import {
   DETAIL_IMAGE_WIDTH,
+  SHORT_ID_LABEL_SEPARATOR,
   STEP_ELEMENT_ID_SUFFIX,
   STEP_IMAGE_WIDTH,
   STEP_LIST_ELISION_THRESHOLD,
@@ -208,6 +209,11 @@ function stepText (step: Step): string {
   return escapeHtml((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
 }
 
+/** A short ID, when present, in front of the text it labels: `TC-42 · Checkout`. */
+function withShortId (shortId: string | undefined, labelledText: string): string {
+  return shortId ? `${shortId}${SHORT_ID_LABEL_SEPARATOR}${labelledText}` : labelledText;
+}
+
 /**
  * Link to the run on the dashboard it was published to. The run's own `viewUrl` names that ring and pins this
  * run; a link rebuilt from the renderer's runtime target can point at another ring, or at localhost.
@@ -314,7 +320,8 @@ function renderOverviewBullet (
 ): string {
   const rerunNote = entry.attempts > 1 ? ` _(${entry.attempts} runs)_` : "";
   const detailsLink = ` · [see details](#${testAnchor(entry.test.testCaseId)})`;
-  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${entry.test.name}${rerunNote}${detailsLink}`;
+  const testLabel = withShortId(entry.test.testCaseShortId, entry.test.name);
+  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${testLabel}${rerunNote}${detailsLink}`;
 }
 
 /** A use-case group and its members, or a single ungrouped test at its report position. */
@@ -366,7 +373,8 @@ export function renderTestDetails (
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
-  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
+  const testLabel = withShortId(test.testCaseShortId, test.name);
+  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
@@ -526,7 +534,8 @@ function renderResultTable (entry: ILatestRun): string[] {
     rows.push(`| **Attempts** | ${entry.attempts} — showing the latest |`);
   }
   const count = test.steps.length;
-  rows.push(`| **Run** | ${count} browser ${count === 1 ? "step" : "steps"} · ${dashboardLink(test)} |`);
+  const runSummary = withShortId(test.replayShortId, `${count} browser ${count === 1 ? "step" : "steps"}`);
+  rows.push(`| **Run** | ${runSummary} · ${dashboardLink(test)} |`);
   return rows;
 }
 

@@ -23,6 +23,8 @@ Only reviews that survive the self-loop check proceed to classify below.
 
 Default to **actionable**. CI catches wrong attempts; reviewers correct on the next round. Escalation is a round-trip with an absent user — reserve it.
 
+Classification decides only whether to act. How much of the cycle runs is decided later, by the caller, from the diff the work produced — never from how the review was worded or how many comments it carried.
+
 Reply shape (all replies for one review reference the same SHA):
 
 - **threaded** (default): `Done in <sha> — <attribution>. (Review #<review_id>, cycle <status>.)`

@@ -1,6 +1,6 @@
 # Update PR — address-reviews mode
 
-Invoked by `/muggle-do`'s address-reviews orchestrator after stages 3–6 ran on the existing PR. The PR already exists; this stage pushes the branch, refreshes title/description if state changed, and posts a fresh walkthrough.
+Invoked by `/muggle-do`'s address-reviews orchestrator after build, impact analysis, unit tests, and — for a full cycle — E2E ran on the existing PR. The PR already exists; this stage pushes the branch, refreshes title/description if state changed, and settles the walkthrough comment.
 
 Does **not** create a PR, seed session state, or dispatch a watcher (`/muggle-do` respawns the watcher at the end of its address-reviews cycle).
 
@@ -15,6 +15,7 @@ Does **not** create a PR, seed session state, or dispatch a watcher (`/muggle-do
 - Per-repo: path, branch (head ref name).
 - The existing PR URL + number from `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json`.
 - **Optional** E2E acceptance report from stage 6. Produced by [`../e2e-acceptance.md`](../e2e-acceptance.md); schema in [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md).
+- The cycle size and `pre_cycle_sha` per [`../cycle-size.md`](../cycle-size.md).
 
 ## Procedure
 
@@ -40,7 +41,9 @@ Resolve the provider once per [`../../_shared/vcs/detect-vcs.md`](../../_shared/
 
 4. **Refresh body when validation outcome changed** — only when the `## Validation` section's content differs from what's in the body. Use the `--body-file` form in [`../../_shared/vcs/github/pr-edit.md`](../../_shared/vcs/github/pr-edit.md). Preserve `## Goal` and `## Acceptance Criteria` verbatim. Re-stamp the signature: delete the existing block from the `<!-- muggle-works:signature -->` marker to the end, then append the editable-body signature (command `/muggle-do`) as the last thing in the body per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md) — this keeps exactly one signature across refreshes.
 
-5. **Visual walkthrough comment** — only when an E2E report exists. Fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md) (PR number from `prs.json`); on skip, record `skipped (gate)` and continue. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A, which settles the PR's designated walkthrough comment in place — one walkthrough per PR, always reflecting the latest run.
+5. **Visual walkthrough comment.**
+   - **An E2E report exists** (a full cycle, or Step 0's verify gate ran E2E) — fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md) (PR number from `prs.json`); on skip, record `skipped (gate)` and continue. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A, which settles the PR's designated walkthrough comment in place — one walkthrough per PR, always reflecting the latest run.
+   - **No report, minor cycle** — declare the `NO_APP_LOGIC_CHANGE` skip per [`../cycle-size.md`](../cycle-size.md) Minor tail. Step 1's push has landed, so HEAD is what the PR carries; the accepted declaration settles the designated comment. A rejected one makes the cycle full: run [`../e2e-acceptance.md`](../e2e-acceptance.md) on the pushed head, then take the branch above.
 
 6. **Overflow comment** — same rule as forward mode: post when the walkthrough skill returns non-null `comment`, via [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md).
 
@@ -50,7 +53,7 @@ Return control to `/muggle-do`'s address-reviews orchestrator. The orchestrator 
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; push; new SHA appended to `pushed_shas`; title/body refreshed only on state change; walkthrough comment via Mode A.
+- Branch synced with its base before the push, never after; push; new SHA appended to `pushed_shas`; title/body refreshed only on state change; walkthrough comment via Mode A, or via the `NO_APP_LOGIC_CHANGE` skip after the push for a minor cycle.
 - No `gh pr create`, no `/loop` dispatch.
 
 ## Output
@@ -59,5 +62,5 @@ Return control to `/muggle-do`'s address-reviews orchestrator. The orchestrator 
 **PR updated:** URL (new SHA: `<short-sha>`)
 **Title refreshed:** yes | no
 **Body refreshed:** yes | no
-**Walkthrough comment:** posted | skipped (no report) | skipped (gate)
+**Walkthrough comment:** posted | settled as skipped (`NO_APP_LOGIC_CHANGE`) | skipped (no report) | skipped (gate)
 **Overflow comment:** posted | skipped

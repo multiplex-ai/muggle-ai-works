@@ -1,6 +1,9 @@
+import { parseNoAppLogicChangeDetail } from "../e2e-skip/noAppLogicChange.js";
 import type { E2eSkipCode } from "../e2e-skip/types.js";
 import {
   classifyComment,
+  lastFullRunOf,
+  renderNoAppLogicChangeComment,
   renderReservedComment,
   renderSkippedComment,
   renderUnreasonedSkipComment,
@@ -11,6 +14,7 @@ import {
   parsePrUrl,
   patchPrComment,
   postPrComment,
+  readPrHeadSha,
 } from "./gh.js";
 import { WalkthroughCommentStatus, type GhRunner, type PrComment, type PrCoordinates } from "./types.js";
 
@@ -82,6 +86,37 @@ export function settleWalkthroughCommentAsSkipped(
   run: GhRunner = defaultGhRunner,
 ): boolean {
   return settleWith(prUrl, renderSkippedComment(code, detail), run);
+}
+
+/**
+ * Record on the PR that its newest commits changed no app logic.
+ *
+ * Unlike every other skip, this one supersedes a posted walkthrough: the run
+ * that walkthrough shows predates the head now under review, so leaving it as
+ * the PR's current verdict would vouch for commits it never saw. The run is not
+ * lost — it moves under the notice as the last full run, result record and
+ * all, so a run that failed keeps the walkthrough check red: commits that
+ * changed no app logic cannot have repaired it.
+ *
+ * @param detail - The verified declaration's detail: the pre-cycle SHA, then the reason.
+ * @returns Whether the notice reached the PR.
+ */
+export function settleWalkthroughCommentForNoAppLogicChange(
+  prUrl: string,
+  detail: string,
+  run: GhRunner = defaultGhRunner,
+): boolean {
+  const pr = parsePrUrl(prUrl);
+  const declared = parseNoAppLogicChangeDetail(detail);
+  if (!pr || !declared) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  const designated = comments.find(
+    (comment) => classifyComment(comment.body) !== WalkthroughCommentStatus.NotDesignated,
+  );
+  const lastFullRun = designated ? lastFullRunOf(designated.body) : null;
+  const body = renderNoAppLogicChangeComment(declared, readPrHeadSha(pr, run), lastFullRun);
+  return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
 }
 
 /**

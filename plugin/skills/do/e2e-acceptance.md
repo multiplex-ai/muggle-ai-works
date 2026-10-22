@@ -58,6 +58,10 @@ Otherwise the block was seeded by pre-flight or bootstrap per [`../_shared/resol
 
 For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path from `state.md`. Missing any → seeding bug; escalate with the session path and halt; do not ask the user.
 
+### Step 0.4: Wave cycles
+
+`state.md` records `Wave: on` → this stage runs **once for the whole wave**, not per repo, per [`wave-e2e.md`](wave-e2e.md): the wave stack starts from every member's worktree, test cases are selected against the union of diffs, each case runs once, and each failure names its `implicatedRepo`. The steps below apply with those changes.
+
 ### Step 0.5: Pre-flight verification probes
 
 Before launching the local runner:

@@ -14,6 +14,10 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 - Requirements: goal, acceptance criteria.
 - **Optional** E2E acceptance report from stage 6. Produced by [`../e2e-acceptance.md`](../e2e-acceptance.md); schema in [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md).
 
+## Wave cycles
+
+`state.md` records `Wave: on` → follow the Stage 7 ordering in [`../wave-e2e.md`](../wave-e2e.md): open every wave PR before settling any walkthrough, add the `## Wave` section to each body, give every member the same title prefix, and settle each PR's walkthrough with the same report (Mode A, PR number + repo passed explicitly). The per-repo steps below run with those changes.
+
 ## Per repo
 
 0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.

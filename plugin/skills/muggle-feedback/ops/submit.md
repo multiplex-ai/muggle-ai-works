@@ -8,9 +8,10 @@ Pick the first applicable path. Stop at the first that yields an `actionScriptId
 
 ### 1a. Dashboard URL in user's prompt
 
-A Muggle dashboard URL looks like `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/<projectId>/...`. Scan the user's recent message for any `https://www.muggle-ai.com/...` URL.
+A Muggle dashboard URL contains `/muggleTestV0/dashboard/projects/<projectId>/` on any lane's host — `www.muggle-ai.com` (production), `staging.muggle-ai.com` (staging), or `localhost:3999` (local). Scan the user's recent message for a URL with that path; match the path, never the host.
 
 - Extract any UUID-shaped path segments. If `/projects/<uuid>` is present, capture as `projectId`. If `/test-scripts/<uuid>` is present, capture as `testScriptId`.
+- If the URL carries an `actionScriptId` query parameter (a run's `viewUrl` does), that is the anchor. Done — proceed to step 2.
 - If a `testScriptId` was captured: call `muggle-remote-test-script-get` to get the script and read `actionScriptId` off it. Done — proceed to step 2.
 - If only a `projectId` was captured: use it as the project for path 1c and continue to picker.
 - If parsing yields nothing actionable: fall through to 1b.

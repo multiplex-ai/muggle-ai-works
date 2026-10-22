@@ -250,6 +250,13 @@ jobs:
       - name: Sync the bumped version into every manifest
         run: pnpm run sync:versions
 
+      # Unpinned, `npx -y @muggleai/works serve` resolves the `latest` dist-tag, so a staging
+      # plugin ran a production MCP and every link it returned pointed at the production
+      # dashboard. Pinned here rather than in source, where package.json lags the published
+      # version and the pin would hold GitHub-marketplace installs on an old MCP.
+      - name: Pin the plugin's MCP launch to this exact version
+        run: pnpm run pin:plugin-mcp
+
       # dist/plugin/ was assembled by the earlier Build step, before the bump, so
       # it still holds the pre-bump version. package.json `files` ships dist as
       # well as plugin, which means a stale built manifest reaches users too.

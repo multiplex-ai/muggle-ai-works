@@ -1,4 +1,4 @@
-import { HTML_VIEW_OFFER_LINE } from "./run-view-constants.js";
+import { HTML_VIEW_OFFER_LINE, RUN_VIEW_DASHBOARD_LINK_LABEL } from "./run-view-constants.js";
 import type { IRunView } from "./run-view-types.js";
 
 /**
@@ -19,6 +19,7 @@ export function renderRunViewText(
     `Run ${runView.runId}${runView.title ? ` — ${runView.title}` : ""}`,
     `${runView.status ?? "status unrecorded"} · ${runView.steps.length} steps · ${runView.screenshotCount} frames`,
     runView.sessionPath,
+    ...(runView.viewUrl ? [`${RUN_VIEW_DASHBOARD_LINK_LABEL}: ${runView.viewUrl}`] : []),
     "",
   ];
 

@@ -21,11 +21,20 @@ vi.mock("../shared/data-dir.js", () => ({
 /** Outcome the run storage reports for the next read; null stands for "storage has no record". */
 let recordedRunOutcome: string | null = null;
 
+/** Dashboard link the run storage reports for the next read; null stands for an unpublished run. */
+let recordedRunViewUrl: string | null = null;
+
 vi.mock("../mcp/local/services/run-result-storage-service.js", () => ({
   getRunResultStorageService: () => ({
-    getRunResult: () => (recordedRunOutcome === null ? undefined : { status: recordedRunOutcome }),
+    getRunResult: () =>
+      recordedRunOutcome === null
+        ? undefined
+        : { status: recordedRunOutcome, ...(recordedRunViewUrl ? { viewUrl: recordedRunViewUrl } : {}) },
   }),
 }));
+
+const STAGING_VIEW_URL =
+  "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p1/scripts?modal=script-details&testCaseId=tc1&actionScriptId=as1";
 
 const sessionsDir = path.join(tempRoot, "sessions");
 
@@ -66,6 +75,39 @@ beforeEach(() => {
   fs.rmSync(sessionsDir, { recursive: true, force: true });
   fs.mkdirSync(sessionsDir, { recursive: true });
   recordedRunOutcome = null;
+  recordedRunViewUrl = null;
+});
+
+describe("run view dashboard link", () => {
+  it("links a published run to the dashboard page the publish returned", async () => {
+    writeRun("cccccccc-aaaa-4aaa-8aaa-aaaaaaaaaaaa", navigateRun, ["aaa_screenshot.jpg"]);
+    recordedRunOutcome = "passed";
+    recordedRunViewUrl = STAGING_VIEW_URL;
+    const { readRunView, renderRunViewText, renderRunViewHtml, RUN_VIEW_DASHBOARD_LINK_LABEL } = await import(
+      "../mcp/local/services/run-view/index.js"
+    );
+
+    const runView = readRunView("cccccccc");
+
+    expect(runView.viewUrl).toBe(STAGING_VIEW_URL);
+    expect(renderRunViewText(runView, { includeHtmlOffer: false })).toContain(
+      `${RUN_VIEW_DASHBOARD_LINK_LABEL}: ${STAGING_VIEW_URL}`,
+    );
+    expect(renderRunViewHtml(runView)).toContain(`href="${STAGING_VIEW_URL.replace(/&/g, "&amp;")}"`);
+  });
+
+  it("prints no link for a run that never published", async () => {
+    writeRun("dddddddd-aaaa-4aaa-8aaa-aaaaaaaaaaaa", navigateRun, ["aaa_screenshot.jpg"]);
+    recordedRunOutcome = "failed";
+    const { readRunView, renderRunViewText, RUN_VIEW_DASHBOARD_LINK_LABEL } = await import(
+      "../mcp/local/services/run-view/index.js"
+    );
+
+    const runView = readRunView("dddddddd");
+
+    expect(runView.viewUrl).toBeNull();
+    expect(renderRunViewText(runView, { includeHtmlOffer: false })).not.toContain(RUN_VIEW_DASHBOARD_LINK_LABEL);
+  });
 });
 
 afterEach(() => {

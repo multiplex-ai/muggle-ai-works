@@ -52,7 +52,7 @@ Do not create or update a PR until each line holds, or is waived by a one-line r
 - E2E verdict recorded with `runId` per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing one of the verified skip codes (`NO_WEB_SURFACE`, `DEV_SERVER_UNREACHABLE`, `EMPTY_DIFF`, `MUGGLE_AUTH_DOWN`, `NO_PR`, `USER_WAIVED`). Free-text reasons are rejected by the gate
 - UI changes verified in a real browser with evidence (screenshot path or muggle `runId`); `curl` + `grep` is not verification
 
-Opening a PR with an unchecked, unwaived line is a cycle failure.
+Opening a PR with an unchecked, unwaived line is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.
 
 ## Address-reviews flow
 

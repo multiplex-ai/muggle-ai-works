@@ -58,21 +58,21 @@
     "typecheck:browser-bench": "tsc --noEmit -p internal/browser-bench/tsconfig.json"
   },
   "muggleConfig": {
-    "electronAppVersion": "1.10.6",
+    "electronAppVersion": "1.13.9",
     "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
     "runtimeTargetDefault": "dev",
     "checksumsByStream": {
       "production": {
-        "win32-x64": "c20acdc2fd7a05039c62f9e5b079e3068d1b3a23a1b3b37b75e2a650b5401de6",
-        "linux-x64": "5167eaed4b82fdf57b09c0525437f9c1e0942bc05418a4f993d3b7fc9c807d1f",
-        "darwin-arm64": "f3f41d4fcd8dc9669d79215d349e9ec1e3dff82d34dce75b028ab30715530835",
-        "darwin-x64": "eeb41783e9c1e6ca8afebd480623ccc194c9aba4349dd52992f0e514fa19f168"
+        "win32-x64": "807123fb84ba60a0fa38addd4477663e1f69a7bd3080639241b75ac3f25e3a82",
+        "linux-x64": "697c22d2cdbbe5b2a846c1a1fb9e8b10f51eaad025fa1f2d299d63f7e3a11ec6",
+        "darwin-arm64": "5e8ab3b3ef436e1cae23ec044795569e69343a5f7bacfd3bd4a9ef3e681b1e9b",
+        "darwin-x64": "1aedbd6d8ed93b63a16d9078e73d4dd8ccc21b5a7e0199cbc8f164484f27542f"
       },
       "staging": {
-        "darwin-arm64": "58fab257672df1fe34c9bd787a4892c6bf4a62dc930794bd5b51b2491080967d",
-        "linux-x64": "e2daf1ac47d33fb7a3c02b59abf0a29eaa9e346966fc21cd5ffa3dbd62494244",
-        "win32-x64": "978328942eea108396917e9a0796141b588983118c45034c97f3db6431637ddc",
-        "darwin-x64": "8892a29a91b318811012c1d74bb3f5668ed4481ce1e739e7283cb783e0b54e54"
+        "darwin-arm64": "3b143eb69817b3548b49ed2684059acbb09d84a47fbfacdb2c0dbe642d2475c1",
+        "linux-x64": "a1016173104c2df2a7479f268d6ba36114897656ac5788250bd52a6ca24f94b6",
+        "win32-x64": "e5f3efa7bdb26f4520fa53a6b2c39cb07ea50599a0ddd5f02729a98b38977d35",
+        "darwin-x64": "0346dd828f280c8a49ead29003deae2421bc443806afc5de0fc33a82efcf7e0f"
       }
     },
     "electronAppSignedFromVersion": "1.10.0",

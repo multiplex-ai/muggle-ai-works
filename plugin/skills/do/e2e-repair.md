@@ -15,6 +15,10 @@ Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch. A fail
 - The PR opened by [`open-prs/forward.md`](open-prs/forward.md) — repo and number, for the escalation event and the refresh path.
 - `repairIteration` — how many times this stage has already run in this session, read from `iterations/<NNN>.md`.
 
+## Wave cycles
+
+`state.md` records `Wave: on` → the loop runs once for the wave per [`wave-e2e.md`](wave-e2e.md): repairs land in each failure's `implicatedRepo` (`unknown` is `ask`), re-runs use the wave stack, and every wave PR's walkthrough and title are refreshed after each pass.
+
 ## Step 0: Clearance check
 
 Read the Stage 6 run-level verdict, defined in [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F.

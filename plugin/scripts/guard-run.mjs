@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'child_process';
 import { existsSync } from 'fs';
+import { availableParallelism } from 'os';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -119,17 +120,26 @@ function buildBackendLaunchPlan(args) {
   });
 }
 
+// src/guard-run/constants.ts
+var GUARD_RUN_MIN_DEFAULT_ACTIVE_PROCESS_LIMIT = 64;
+var GUARD_RUN_PROCESSES_PER_CPU = 8;
+var WINDOWS_SHELL_SCRIPT_EXTENSIONS = [".cmd", ".bat"];
+var GUARD_RUN_USAGE = `usage: guard-run [--limit N] [--service] -- <command...>
+  Runs <command> with its whole process tree kernel-capped at N processes
+  (default ${GUARD_RUN_PROCESSES_PER_CPU} per logical CPU, at least ${GUARD_RUN_MIN_DEFAULT_ACTIVE_PROCESS_LIMIT}). Default mode also ties the tree
+  to the launcher: killing guard-run reaps every descendant. --service keeps
+  the cap but lets the tree outlive the launcher (for dev servers).`;
+
 // src/guard-run/headroom.ts
+function computeDefaultActiveProcessLimit(logicalCpuCount) {
+  return Math.max(GUARD_RUN_MIN_DEFAULT_ACTIVE_PROCESS_LIMIT, logicalCpuCount * GUARD_RUN_PROCESSES_PER_CPU);
+}
 function countProcessListLines(psOutput) {
   return psOutput.split("\n").filter((line) => line.trim() !== "").length;
 }
 function computeNprocCeiling(args) {
   return args.currentUserProcessCount + args.activeProcessLimit;
 }
-
-// src/guard-run/constants.ts
-var GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT = 64;
-var GUARD_RUN_USAGE = "usage: guard-run [--limit N] [--service] -- <command...>\n  Runs <command> with its whole process tree kernel-capped at N processes\n  (default 64). Default mode also ties the tree to the launcher: killing\n  guard-run reaps every descendant. --service keeps the cap but lets the\n  tree outlive the launcher (for dev servers).";
 
 // src/guard-run/parseArguments.ts
 function parseError(errorMessage) {
@@ -141,8 +151,8 @@ function parsePositiveInteger(rawValue) {
   const parsed = Number(rawValue);
   return parsed >= 1 ? parsed : null;
 }
-function parseGuardRunArguments(argv) {
-  let activeProcessLimit = GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT;
+function parseGuardRunArguments(argv, defaultActiveProcessLimit) {
+  let activeProcessLimit = defaultActiveProcessLimit;
   let isServiceMode = false;
   let index = 0;
   while (index < argv.length) {
@@ -182,6 +192,14 @@ function parseGuardRunArguments(argv) {
 // src/guard-run/probeRan.ts
 function probeRan(probe) {
   return probe.status !== null && typeof probe.stdout === "string";
+}
+function isShellScript(path) {
+  return WINDOWS_SHELL_SCRIPT_EXTENSIONS.includes(extname(path).toLowerCase());
+}
+function windowsCommandNeedsCmdShell(args) {
+  if (extname(args.firstCommandToken) !== "") return isShellScript(args.firstCommandToken);
+  const launchableCandidate = (args.whereOutput ?? "").split(/\r?\n/).map((candidate) => candidate.trim()).find((candidate) => extname(candidate) !== "");
+  return launchableCandidate !== void 0 && isShellScript(launchableCandidate);
 }
 
 // src/guard-run/selectBackend.ts
@@ -246,18 +264,14 @@ function resolveJobObjectShimPath() {
   if (existsSync(pluginTreePath)) return pluginTreePath;
   return fail(`cannot locate ${JOB_OBJECT_SHIM_FILENAME}; refusing to run the command unguarded`);
 }
-function windowsCommandNeedsCmdShell(firstCommandToken) {
-  const knownExtension = extname(firstCommandToken).toLowerCase();
-  if (knownExtension === ".cmd" || knownExtension === ".bat") return true;
-  if (knownExtension !== "") return false;
+function whereExeOutput(firstCommandToken) {
+  if (extname(firstCommandToken) !== "") return null;
   const lookup = spawnSync("where.exe", [firstCommandToken], {
     encoding: "utf-8",
     timeout: 1e4,
     windowsHide: true
   });
-  if (lookup.error !== void 0 || lookup.status !== 0) return false;
-  const resolvedExtension = extname(lookup.stdout.split(/\r?\n/)[0] ?? "").toLowerCase();
-  return resolvedExtension === ".cmd" || resolvedExtension === ".bat";
+  return lookup.error === void 0 && lookup.status === 0 ? lookup.stdout : null;
 }
 function currentUserProcessCount() {
   const uid = typeof process.getuid === "function" ? String(process.getuid()) : "";
@@ -299,7 +313,10 @@ function registerTreeCleanup(plan2, childPid) {
     });
   }
 }
-var parseResult = parseGuardRunArguments(process.argv.slice(2));
+var parseResult = parseGuardRunArguments(
+  process.argv.slice(2),
+  computeDefaultActiveProcessLimit(availableParallelism())
+);
 if (parseResult.options === null) fail(parseResult.errorMessage ?? "invalid arguments");
 var options = parseResult.options;
 var isLinux = process.platform === "linux";
@@ -317,7 +334,10 @@ var plan = buildBackendLaunchPlan({
   options,
   jobObjectShimPath: backend === "windows-job-object" /* WindowsJobObject */ ? resolveJobObjectShimPath() : void 0,
   launcherPid: process.pid,
-  commandNeedsCmdShell: backend === "windows-job-object" /* WindowsJobObject */ ? windowsCommandNeedsCmdShell(options.command[0]) : false,
+  commandNeedsCmdShell: backend === "windows-job-object" /* WindowsJobObject */ ? windowsCommandNeedsCmdShell({
+    firstCommandToken: options.command[0],
+    whereOutput: whereExeOutput(options.command[0])
+  }) : false,
   scopeUnitName: `muggle-guard-${process.pid}-${Date.now()}.scope`,
   nprocCeiling: needsNprocCeiling ? computeNprocCeiling({
     currentUserProcessCount: currentUserProcessCount(),

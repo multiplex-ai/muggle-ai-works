@@ -70,7 +70,7 @@ _Verify that a returning user can sign in with valid credentials and land on the
 
 **Ending screen** — Final page after the test completed
 
-<a href="https://cdn.muggle.ai/run-1/2.png"><img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow"></a>
+<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow">
 
 </dd></dl>
 </details>
@@ -117,7 +117,7 @@ _Verify a shopper can complete checkout with a saved payment method._
 
 **Ending screen** — Failure at step 3
 
-<a href="https://cdn.muggle.ai/run-2/2.png"><img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow"></a>
+<img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow">
 
 </dd></dl>
 </details>
@@ -147,7 +147,7 @@ _Verify a shopper can complete checkout with a saved payment method._
 
 **Ending screen** — Final page after the test completed
 
-<a href="https://cdn.muggle.ai/run-3/0.png"><img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page"></a>
+<img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page">
 
 </dd></dl>
 </details>

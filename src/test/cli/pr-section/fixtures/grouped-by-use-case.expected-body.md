@@ -70,7 +70,7 @@ _Verify that a logged-in user can create a new project by entering a valid proje
 
 **Ending screen** — Final page after the test completed
 
-<a href="https://cdn.muggle.ai/run-1/2.png"><img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="User creates a new project with valid URL"></a>
+<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="User creates a new project with valid URL">
 
 </dd></dl>
 </details>
@@ -124,7 +124,7 @@ _Verify invalid URL shows an inline validation error._
 
 **Ending screen** — Failure at step 4
 
-<a href="https://cdn.muggle.ai/run-2/3.png"><img src="https://cdn.muggle.ai/run-2/3.png" width="720" alt="User receives error for invalid URL format"></a>
+<img src="https://cdn.muggle.ai/run-2/3.png" width="720" alt="User receives error for invalid URL format">
 
 </dd></dl>
 </details>
@@ -170,7 +170,7 @@ _Verify a returning user can log in with correct email and password._
 
 **Ending screen** — Final page after the test completed
 
-<a href="https://cdn.muggle.ai/run-3/2.png"><img src="https://cdn.muggle.ai/run-3/2.png" width="720" alt="Login with valid credentials"></a>
+<img src="https://cdn.muggle.ai/run-3/2.png" width="720" alt="Login with valid credentials">
 
 </dd></dl>
 </details>

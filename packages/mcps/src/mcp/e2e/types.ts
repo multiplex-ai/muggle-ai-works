@@ -5,6 +5,7 @@
 import type { ZodSchema } from "zod";
 
 import type { IEntityReferenceField } from "../contracts/entity-reference-types.js";
+import type { DashboardLinkTarget } from "../../shared/dashboard-link/index.js";
 
 /**
  * MCP error codes.
@@ -123,6 +124,12 @@ export interface IQaToolDefinition {
 
   /** Map upstream response to tool output. */
   mapFromUpstream?: (response: IUpstreamResponse, input?: unknown) => unknown;
+
+  /**
+   * Dashboard page the response is viewable on, or null when the ids it needs are missing. The
+   * executor resolves it against the MCP's own lane and attaches it as `dashboardUrl`.
+   */
+  dashboardLink?: (input: unknown, response: IUpstreamResponse) => DashboardLinkTarget | null;
 
   /**
    * Local handler for tools that don't make upstream calls.

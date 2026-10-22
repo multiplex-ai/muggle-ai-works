@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { getCallerCredentialsAsync } from "../../../shared/auth.js";
 import { getConfig } from "../../../shared/config.js";
+import { buildDashboardUrl, DashboardPage, withDashboardUrl } from "../../../shared/dashboard-link/index.js";
 import { createChildLogger } from "../../../shared/logger.js";
 import { registerAccount } from "../../../shared/register.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
@@ -23,6 +24,14 @@ import {
   TEST_SCRIPT_ID_REFERENCE_FIELD,
   USE_CASE_ID_REFERENCE_FIELD,
 } from "./entity-reference-resolver-constants.js";
+import {
+  linkToCreatedProject,
+  linkToFetchedTestCase,
+  linkToFetchedTestScript,
+  linkToInputProjectPage,
+  linkToInputScriptDetails,
+  linkToProjects,
+} from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
@@ -36,6 +45,7 @@ const projectTools: IQaToolDefinition[] = [
     name: "muggle-remote-project-create",
     description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project.",
     inputSchema: schemas.ProjectCreateInputSchema,
+    dashboardLink: linkToCreatedProject,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectCreateInputSchema>;
       const body: Record<string, unknown> = {
@@ -55,6 +65,7 @@ const projectTools: IQaToolDefinition[] = [
     name: "muggle-remote-project-get",
     description: "Get details of a specific project by ID.",
     inputSchema: schemas.ProjectGetInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Project),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectGetInputSchema>;
       return {
@@ -86,6 +97,7 @@ const projectTools: IQaToolDefinition[] = [
     description:
       "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.ProjectListInputSchema,
+    dashboardLink: linkToProjects,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectListInputSchema>;
       return {
@@ -158,6 +170,7 @@ const useCaseTools: IQaToolDefinition[] = [
     description:
       "List use cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.UseCaseListInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UseCaseListInputSchema>;
       return {
@@ -255,6 +268,7 @@ const useCaseTools: IQaToolDefinition[] = [
     name: "muggle-remote-use-case-create",
     description: "Create a single use case from a fully-specified payload. Use this to persist use cases returned by muggle-remote-use-case-bulk-preview-submit — no LLM is invoked.",
     inputSchema: schemas.UseCaseCreateInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UseCaseCreateInputSchema>;
       return {
@@ -308,6 +322,7 @@ const testCaseTools: IQaToolDefinition[] = [
     description:
       "List test cases for a project. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestCaseListInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseListInputSchema>;
       return {
@@ -328,6 +343,7 @@ const testCaseTools: IQaToolDefinition[] = [
     description: "Get details of a specific test case.",
     inputSchema: schemas.TestCaseGetInputSchema,
     entityReferenceFields: [TEST_CASE_ID_REFERENCE_FIELD],
+    dashboardLink: linkToFetchedTestCase,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseGetInputSchema>;
       return {
@@ -392,6 +408,7 @@ const testCaseTools: IQaToolDefinition[] = [
     name: "muggle-remote-test-case-create",
     description: "Create a new test case for a use case.",
     inputSchema: schemas.TestCaseCreateInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseCreateInputSchema>;
       return {
@@ -526,6 +543,7 @@ const testScriptTools: IQaToolDefinition[] = [
     description:
       "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.TestScriptListInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Scripts),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestScriptListInputSchema>;
       return {
@@ -548,6 +566,7 @@ const testScriptTools: IQaToolDefinition[] = [
     description: "Get details of a specific test script.",
     inputSchema: schemas.TestScriptGetInputSchema,
     entityReferenceFields: [TEST_SCRIPT_ID_REFERENCE_FIELD],
+    dashboardLink: linkToFetchedTestScript,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestScriptGetInputSchema>;
       return {
@@ -693,6 +712,7 @@ const workflowTools: IQaToolDefinition[] = [
     name: "muggle-remote-workflow-start-test-script-generation",
     description: "Start a test script generation workflow.",
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
+    dashboardLink: linkToInputScriptDetails,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationInputSchema>;
       return {
@@ -719,6 +739,7 @@ const workflowTools: IQaToolDefinition[] = [
     name: "muggle-remote-workflow-start-test-script-generation-bulk",
     description: "Start a bulk test script generation workflow to generate scripts for multiple test cases in a single request.",
     inputSchema: schemas.WorkflowStartTestScriptGenerationBulkInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Scripts),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptGenerationBulkInputSchema>;
       return {
@@ -763,6 +784,7 @@ const workflowTools: IQaToolDefinition[] = [
     description: "Start a test script replay workflow to execute a single test script.",
     inputSchema: schemas.WorkflowStartTestScriptReplayInputSchema,
     entityReferenceFields: [USE_CASE_ID_REFERENCE_FIELD, TEST_CASE_ID_REFERENCE_FIELD, TEST_SCRIPT_ID_REFERENCE_FIELD],
+    dashboardLink: linkToInputScriptDetails,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayInputSchema>;
       return {
@@ -797,6 +819,7 @@ const workflowTools: IQaToolDefinition[] = [
     name: "muggle-remote-workflow-start-test-script-replay-bulk",
     description: "Start a bulk test script replay workflow to execute multiple test scripts.",
     inputSchema: schemas.WorkflowStartTestScriptReplayBulkInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Runs),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WorkflowStartTestScriptReplayBulkInputSchema>;
       return {
@@ -922,6 +945,7 @@ const reportTools: IQaToolDefinition[] = [
     name: "muggle-remote-project-test-results-summary-get",
     description: "Get a summary of test results for a project.",
     inputSchema: schemas.ProjectTestResultsSummaryInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Runs),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectTestResultsSummaryInputSchema>;
       return {
@@ -935,6 +959,7 @@ const reportTools: IQaToolDefinition[] = [
     description:
       "Get a paginated, slimmed script-generation summary for a project. One row per TEST CASE, not per script: a test case with no script yet still gets a row, with `testScriptId` absent and a status such as TEST_CASE_DRAFTED. Row count is therefore a test-case count — do not read it as a number of scripts, and do not infer from a row's presence that a script exists. Response shape: { page, pageSize, totalCount, totalPages, hasMore, scripts: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, testScriptId, lastRunAt, error }] }. Returns 20 rows per page by default (max 100). Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-script-get for full per-script detail.",
     inputSchema: schemas.ProjectTestScriptsSummaryInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Scripts),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectTestScriptsSummaryInputSchema>;
       return {
@@ -955,6 +980,7 @@ const reportTools: IQaToolDefinition[] = [
     description:
       "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { page, pageSize, totalCount, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). `totalCount` is the project-wide total after the replay-status filter; `runs` is the page slice. Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-case-get / muggle-remote-wf-get-ts-replay-latest-run for full per-run detail.",
     inputSchema: schemas.ProjectTestRunsSummaryInputSchema,
+    dashboardLink: linkToInputProjectPage(DashboardPage.Runs),
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectTestRunsSummaryInputSchema>;
       return {
@@ -1832,9 +1858,13 @@ export async function executeQaTool(
       // Map response
       const mapper = tool.mapFromUpstream || defaultResponseMapper;
       const mappedResponse = mapper(response, resolvedInput);
+      const dashboardLinkTarget = tool.dashboardLink?.(resolvedInput, response) ?? null;
+      const toolOutput = dashboardLinkTarget
+        ? withDashboardUrl(mappedResponse, buildDashboardUrl(dashboardLinkTarget))
+        : mappedResponse;
 
       return {
-        content: JSON.stringify(mappedResponse, null, 2),
+        content: JSON.stringify(toolOutput, null, 2),
         isError: false,
       };
     } catch (error) {

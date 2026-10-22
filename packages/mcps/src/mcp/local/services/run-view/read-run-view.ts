@@ -154,7 +154,8 @@ export function readRunView(runId?: string): IRunView {
   // run that failed. The run result is the authoritative outcome, and is absent for a run the
   // storage never recorded — in which case saying nothing beats repeating the script's word.
   const resolvedRunId = path.basename(sessionPath);
-  const recordedOutcome = getRunResultStorageService().getRunResult(resolvedRunId)?.status ?? null;
+  const storedRunResult = getRunResultStorageService().getRunResult(resolvedRunId);
+  const recordedOutcome = storedRunResult?.status ?? null;
 
   const screenshotFileNames = listScreenshotFileNames(sessionPath);
   const steps: IRunViewStep[] = (actionScript.steps ?? []).map((step, index) => ({
@@ -171,6 +172,7 @@ export function readRunView(runId?: string): IRunView {
     title: actionScript.actionScriptName ?? null,
     status: recordedOutcome,
     verdict: actionScript.summaryStep?.briefExplanation ?? null,
+    viewUrl: storedRunResult?.viewUrl ?? null,
     steps: steps,
     screenshotCount: screenshotFileNames.length,
   };

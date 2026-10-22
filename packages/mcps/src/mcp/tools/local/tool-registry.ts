@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { buildDashboardUrl, DashboardPage } from "../../../shared/dashboard-link/index.js";
 import { getLogger } from "../../../shared/logger.js";
 import { readRunView, renderRunViewText, RunViewError } from "../../local/services/run-view/index.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
@@ -213,6 +214,15 @@ const runResultGetTool: ILocalMcpTool = {
       return { content: `Run result not found: ${input.runId}`, isError: true };
     }
 
+    // An unpublished run has no page of its own; its test case's script details are the closest one.
+    const fallbackDashboardUrl = storedRunResult.viewUrl
+      ? undefined
+      : buildDashboardUrl({
+          page: DashboardPage.ScriptDetails,
+          projectId: storedRunResult.projectId,
+          testCaseId: storedRunResult.cloudTestCaseId,
+        });
+
     const contentParts = [
       "## Run Result Details",
       "",
@@ -223,7 +233,7 @@ const runResultGetTool: ILocalMcpTool = {
       `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",
       // The studio publishes the run during execution; these are its returned cloud refs.
-      storedRunResult.viewUrl ? `**View URL:** ${storedRunResult.viewUrl}` : "",
+      storedRunResult.viewUrl ? `**View URL:** ${storedRunResult.viewUrl}` : `**Dashboard:** ${fallbackDashboardUrl}`,
       storedRunResult.cloudTestScriptId ? `**Cloud Test Script ID:** ${storedRunResult.cloudTestScriptId}` : "",
       storedRunResult.cloudActionScriptId ? `**Cloud Action Script ID:** ${storedRunResult.cloudActionScriptId}` : "",
     ];
@@ -283,7 +293,11 @@ const runResultGetTool: ILocalMcpTool = {
 
     const content = contentParts.filter(Boolean).join("\n");
 
-    return { content: content, isError: false, data: storedRunResult };
+    return {
+      content: content,
+      isError: false,
+      data: fallbackDashboardUrl ? { ...storedRunResult, dashboardUrl: fallbackDashboardUrl } : storedRunResult,
+    };
   },
 };
 

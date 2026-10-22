@@ -40,6 +40,9 @@ export interface IRunView {
   /** The run's closing verdict — the claim the steps below should be read against. */
   verdict: string | null;
 
+  /** The run's page on the dashboard of the lane that published it, or null for an unpublished run. */
+  viewUrl: string | null;
+
   /** Steps in execution order. */
   steps: IRunViewStep[];
 

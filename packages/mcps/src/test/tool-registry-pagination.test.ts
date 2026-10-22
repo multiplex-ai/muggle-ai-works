@@ -4,7 +4,7 @@
  * Covers:
  *   - muggle-remote-test-script-list-paginated is removed
  *   - snapshot of the four list-tool specs catches accidental drift
- *   - smoke test per list tool: mocked upstream response is relayed unchanged
+ *   - smoke test per list tool: mocked upstream response is relayed unchanged beside its dashboardUrl
  *
  * See designs/list-endpoint-pagination.md Section 5 (MCP testing).
  */
@@ -25,6 +25,7 @@ vi.mock("../shared/config.js", () => ({
       workflowTimeoutMs: 1000,
     },
   }),
+  getDashboardBaseUrl: () => "https://dashboard.test/muggleTestV0/dashboard/projects",
 }));
 
 vi.mock("../shared/logger.js", () => {
@@ -228,8 +229,9 @@ describe("cloud E2E tool registry — pagination", () => {
 
         const result = await executeQaTool(c.name, c.input, "test-correlation-id");
         expect(result.isError).toBe(false);
-        const parsed = JSON.parse(result.content as string);
-        expect(parsed).toEqual(envelope);
+        const { dashboardUrl, ...relayedEnvelope } = JSON.parse(result.content as string);
+        expect(relayedEnvelope).toEqual(envelope);
+        expect(dashboardUrl).toMatch(/^https:\/\/dashboard\.test\/muggleTestV0\/dashboard\/projects/);
       });
 
       it(`${c.name} invokes upstream with pagination defaults applied`, async () => {

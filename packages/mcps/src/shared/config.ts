@@ -371,6 +371,14 @@ function getActiveProfile(): IRuntimeTargetProfile {
 }
 
 /**
+ * Get the dashboard projects base for the lane this MCP is running on.
+ * @returns Base URL ending in `/dashboard/projects`, without a trailing slash.
+ */
+export function getDashboardBaseUrl(): string {
+  return getActiveProfile().dashboardBaseUrl;
+}
+
+/**
  * Build Auth0 configuration from environment.
  * @returns Auth0 configuration.
  */

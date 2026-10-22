@@ -76,8 +76,11 @@ vi.mock("fs", () => ({
 
 vi.mock("child_process", () => childProcessMock);
 vi.mock("stream/promises", () => streamMock);
-vi.mock("../../../packages/mcps/src/index.js", () => ({
+vi.mock("../../../packages/mcps/src/index.js", async () => ({
   ...mcpsMocks,
+  ...(await vi.importActual<typeof import("../../../packages/mcps/src/shared/electron-app-executable.js")>(
+    "../../../packages/mcps/src/shared/electron-app-executable.js",
+  )),
   DEFAULT_PREFERENCES: { autoLogin: "ask" },
   PREFERENCES_FILE_NAME: "preferences.json",
   ProjectPreferencesReconcileOutcome: {
@@ -308,6 +311,14 @@ describe("setupCommand", () => {
     expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalled();
     const [cmd] = childProcessMock.execFile.mock.calls[0];
     expect(cmd).toBe("unzip");
+  });
+
+  it("finds the Linux executable under its electron-builder name", async () => {
+    osState.platform = "linux";
+    fsState.existing.add(join(VERSION_DIR, "muggle-ai-studio"));
+    await setupCommand({ force: true });
+    expect(exitSpy).not.toHaveBeenCalledWith(1);
+    expect(fsState.written.has(META_PATH)).toBe(true);
   });
 
   it("exits 1 when extraction itself fails", async () => {

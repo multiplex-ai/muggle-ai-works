@@ -18,6 +18,7 @@ import {
   getElectronAppVersionSource,
   getLogger,
   hasApiKey,
+  resolveElectronAppExecutablePath,
 } from "../../packages/mcps/src/index.js";
 import * as fs from "fs";
 import { platform } from "os";
@@ -201,26 +202,6 @@ function validateCodexIntegration (): { passed: boolean; description: string; su
 }
 
 /**
- * Get the expected executable path for the current platform.
- * @param versionDir - Version directory path.
- * @returns Path to the expected executable.
- */
-function getExpectedExecutablePath(versionDir: string): string {
-  const os = platform();
-
-  switch (os) {
-    case "darwin":
-      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
-    case "win32":
-      return path.join(versionDir, "MuggleAI.exe");
-    case "linux":
-      return path.join(versionDir, "MuggleAI");
-    default:
-      throw new Error(`Unsupported platform: ${os}`);
-  }
-}
-
-/**
  * Detailed installation verification result.
  */
 interface IInstallVerification {
@@ -249,7 +230,7 @@ interface IInstallVerification {
 function verifyElectronAppInstallation(): IInstallVerification {
   const version = getElectronAppVersion();
   const versionDir = getElectronAppDir(version);
-  const executablePath = getExpectedExecutablePath(versionDir);
+  const executablePath = resolveElectronAppExecutablePath({ installDir: versionDir, platformName: platform() });
   const metadataPath = path.join(versionDir, ".install-metadata.json");
 
   const installVerification: IInstallVerification = {

@@ -25,6 +25,8 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 | 7.5 | E2E repair loop | [`../do/e2e-repair.md`](../do/e2e-repair.md) |
 | 8 | Hand off to watcher | [`../muggle-pr-followup/SKILL.md`](../muggle-pr-followup/SKILL.md) |
 
+**Multi-repo waves.** When a task spans several repos with one PR each, the PRs form a wave: every repo's service starts from its branch, Stage 6 runs **one** E2E pass against the combined stack, and that same result is posted to every PR in the wave. See [`../do/wave-e2e.md`](../do/wave-e2e.md); pre-flight decides whether a cycle is a wave.
+
 Stage 7 dispatches one watcher per opened PR as its last action, gated on Stage 7.5's clearance — a cycle with unrepaired E2E failures never reaches a watcher.
 
 ## Execution protocol (non-negotiable)

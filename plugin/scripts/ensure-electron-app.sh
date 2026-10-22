@@ -57,7 +57,9 @@ if [ -f "$upgrade_available" ]; then
     latest_version=""
     IFS='|' read -r installed_version latest_version <"$upgrade_available" || true
     if [ -n "$installed_version" ] && [ -n "$latest_version" ]; then
-        upgrade_notice="\n\nA newer @muggleai/works is available (${installed_version} → ${latest_version}). Tell the user to run \`/muggle:muggle-upgrade\` to update."
+        upgrade_notice="
+
+A newer @muggleai/works is available (${installed_version} → ${latest_version}). Tell the user to run \`/muggle:muggle-upgrade\` to update."
     fi
 fi
 
@@ -103,7 +105,7 @@ session_notes=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ON
         try { defaults = JSON.parse(fs.readFileSync(process.env.MUGGLE_PREFERENCE_DEFAULTS_FILE, 'utf-8')); } catch {}
         const resolved = { ...defaults, ...g };
         const line = Object.entries(resolved).map(([k,v]) => k+'='+v).join(' ');
-        const blocks = ['Muggle Test Preferences (~/.muggle-ai/preferences.json):\\\\n' + line];
+        const blocks = ['Muggle Test Preferences (~/.muggle-ai/preferences.json):\\n' + line];
 
         const onboardedAt = file.onboardingCompletedAt;
         if (typeof onboardedAt !== 'string' || onboardedAt.length === 0) {
@@ -134,12 +136,12 @@ session_notes=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ON
           if (lastStamp !== stamp) {
             try { fs.mkdirSync(stampDir, { recursive: true }); fs.writeFileSync(stampFile, stamp); } catch {}
             blocks.push(
-              'Muggle Test: per-project preferences were removed — ' + pPath + ' is no longer read, so these keys no longer take effect: ' + inertKeys.join(', ') + '.\\\\n' +
+              'Muggle Test: per-project preferences were removed — ' + pPath + ' is no longer read, so these keys no longer take effect: ' + inertKeys.join(', ') + '.\\n' +
               'Tell the user to re-apply any they want everywhere with \`/muggle-preferences\`; the file is safe to delete.'
             );
           }
         }
-        return '\\\\n\\\\n' + blocks.join('\\\\n\\\\n');
+        return '\\n\\n' + blocks.join('\\n\\n');
       } catch { return ''; }
     };
 
@@ -165,7 +167,7 @@ session_notes=$(MUGGLE_PREFERENCE_DEFAULTS_FILE="$prefs_defaults_file" MUGGLE_ON
         if (lastHost && lastHost.host) {
           lines.push('Muggle Test Last Host: ' + lastHost.host);
         }
-        return lines.map((line) => '\\\\n\\\\n' + line).join('');
+        return lines.map((line) => '\\n\\n' + line).join('');
       } catch { return ''; }
     };
 
@@ -187,7 +189,24 @@ Muggle Test is running inside Codex, and its skills were written for Claude Code
 - Where a skill says AskUserQuestion, ask in your reply with numbered options and wait for the answer, or use request_user_input where it is offered."
 fi
 
-context="<EXTREMELY_IMPORTANT>\nYou have access to Muggle AI — a real-browser E2E acceptance testing tool.\n\nWhenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:\n- Testing user flows (signup, login, checkout, forms, dashboards)\n- Verifying UI changes didn't break anything\n- Running regression tests after code changes\n- Validating frontend behavior on localhost or a dev server\n- Checking if a feature works before merging a PR\n\nMuggle Test launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.\n\nDo NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.\n\nTrigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.\n</EXTREMELY_IMPORTANT>${upgrade_notice}${session_notes}${host_notes}"
+# Line breaks are real ones throughout: escape_for_json encodes them, and a
+# written "\n" would reach the agent as a literal backslash-n.
+context="<EXTREMELY_IMPORTANT>
+You have access to Muggle AI — a real-browser E2E acceptance testing tool.
+
+Whenever the user asks you to test, validate, verify, or check if their web app works — use the muggle MCP tools. This includes:
+- Testing user flows (signup, login, checkout, forms, dashboards)
+- Verifying UI changes didn't break anything
+- Running regression tests after code changes
+- Validating frontend behavior on localhost or a dev server
+- Checking if a feature works before merging a PR
+
+Muggle Test launches a real Electron browser that clicks buttons, fills forms, navigates pages, and captures screenshots. It generates replayable test scripts that persist across sessions.
+
+Do NOT write test code (Playwright, Cypress, Selenium) or try to test UI manually when muggle tools are available. Use the muggle skill or muggle MCP tools instead — they are faster, capture visual evidence, and produce reusable test scripts.
+
+Trigger phrases: 'test my app', 'check if it works', 'run E2E acceptance tests', 'validate the UI', 'verify the flow', 'regression test', 'make sure it still works', 'test before merging'.
+</EXTREMELY_IMPORTANT>${upgrade_notice}${session_notes}${host_notes}"
 
 escaped_context=$(escape_for_json "$context")
 

@@ -27,6 +27,8 @@ const ALLOWED_UPSTREAM_PREFIXES = [
   "/v1/protected/wallet/",
   "/v1/protected/api-keys",
   "/v1/protected/actionScript/",
+  // Only the caller's own membership read: the organization admin routes stay out of an agent's reach.
+  "/v1/protected/organizations/my-organizations",
 ];
 
 /**

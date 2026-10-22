@@ -446,6 +446,9 @@ function getBinaryName() {
 
 /**
  * Get the expected extracted executable path for the current platform.
+ *
+ * Mirrors ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS in packages/mcps: this script runs at
+ * install time as plain JavaScript and cannot import the TypeScript sources.
  * @param {string} versionDir - Version directory path
  * @returns {string} Expected executable path
  */
@@ -458,7 +461,7 @@ function getExpectedExecutablePath(versionDir) {
         case "win32":
             return join(versionDir, "MuggleAI.exe");
         case "linux":
-            return join(versionDir, "MuggleAI");
+            return join(versionDir, "muggle-ai-studio");
         default:
             throw new Error(`Unsupported platform: ${os}`);
     }

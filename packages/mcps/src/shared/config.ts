@@ -9,6 +9,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { getDataDir as getSharedDataDir } from "./data-dir.js";
+import { isElectronAppPlatform, resolveElectronAppExecutablePath } from "./electron-app-executable.js";
 import { readReleaseManifest } from "./release_manifest.js";
 import { DEFAULT_AUTH0_SCOPE, DEFAULT_WEB_SERVICE_URL } from "./runtime-target-constants.js";
 import {
@@ -224,32 +225,21 @@ function buildOAuthSessionFileName(params: { runtimeTarget: RuntimeTarget }): st
  */
 function getDownloadedElectronAppPath(): string | null {
   const platformName = os.platform();
-  const version = getElectronAppVersion();
+
+  if (!isElectronAppPlatform(platformName)) {
+    return null;
+  }
 
   const baseDir = path.join(
     getDataDir(),
     ELECTRON_APP_DIR,
     buildElectronAppDirName({
-      version: version,
+      version: getElectronAppVersion(),
       releaseStream: getActiveElectronAppReleaseStream(),
     }),
   );
 
-  let binaryPath: string;
-
-  switch (platformName) {
-    case "darwin":
-      binaryPath = path.join(baseDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
-      break;
-    case "win32":
-      binaryPath = path.join(baseDir, "MuggleAI.exe");
-      break;
-    case "linux":
-      binaryPath = path.join(baseDir, "MuggleAI");
-      break;
-    default:
-      return null;
-  }
+  const binaryPath = resolveElectronAppExecutablePath({ installDir: baseDir, platformName: platformName });
 
   if (fs.existsSync(binaryPath)) {
     return binaryPath;
@@ -266,21 +256,23 @@ function getSystemElectronAppPath(): string | null {
   const platformName = os.platform();
   const homeDir = os.homedir();
 
-  let binaryPath: string;
+  let installDir: string;
 
   switch (platformName) {
     case "darwin":
-      binaryPath = path.join(homeDir, "Applications", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+      installDir = path.join(homeDir, "Applications");
       break;
     case "win32":
-      binaryPath = path.join(homeDir, "AppData", "Local", "Programs", "MuggleAI", "MuggleAI.exe");
+      installDir = path.join(homeDir, "AppData", "Local", "Programs", "MuggleAI");
       break;
     case "linux":
-      binaryPath = path.join(homeDir, ".local", "share", "muggle-ai", "MuggleAI");
+      installDir = path.join(homeDir, ".local", "share", "muggle-ai");
       break;
     default:
       return null;
   }
+
+  const binaryPath = resolveElectronAppExecutablePath({ installDir: installDir, platformName: platformName });
 
   if (fs.existsSync(binaryPath)) {
     return binaryPath;

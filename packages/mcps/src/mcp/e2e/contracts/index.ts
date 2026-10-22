@@ -100,6 +100,9 @@ export const ProjectCreateInputSchema = z.object({
   projectName: z.string().min(1).max(255).describe("Name of the project"),
   description: z.string().min(1).describe("Project description"),
   url: z.string().url().describe("Target website URL to test"),
+  organizationId: IdSchema.optional().describe(
+    "Organization (UUID) that owns the project; its runs are billed to that organization. Omit for a personal project. The caller must be an active member: list memberships with muggle-remote-organization-list.",
+  ),
 });
 
 export const ProjectGetInputSchema = z.object({
@@ -115,6 +118,9 @@ export const ProjectUpdateInputSchema = z.object({
   projectName: z.string().min(1).max(255).optional().describe("New project name"),
   description: z.string().optional().describe("Updated description"),
   url: z.string().url().optional().describe("Updated target URL"),
+  organizationId: IdSchema.optional().describe(
+    "Move a personal project into this organization (UUID). One-way: an organization's project cannot move to another organization or back to personal. The caller must be an active member.",
+  ),
 });
 
 export const ProjectListInputSchema = PaginationInputSchema.extend({});

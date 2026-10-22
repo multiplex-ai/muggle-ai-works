@@ -52,6 +52,7 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace MuggleGuardRun
 {
@@ -91,6 +92,13 @@ namespace MuggleGuardRun
         public UIntPtr PeakJobMemoryUsed;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct JOBOBJECT_ASSOCIATE_COMPLETION_PORT
+    {
+        public IntPtr CompletionKey;
+        public IntPtr CompletionPort;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct STARTUPINFO
     {
@@ -128,6 +136,9 @@ namespace MuggleGuardRun
         const uint JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 0x00000008;
         const uint JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000;
         const int JobObjectExtendedLimitInformation = 9;
+        const int JobObjectAssociateCompletionPortInformation = 7;
+        const uint JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT = 3;
+        const int LIMIT_WATCHER_DRAIN_TIMEOUT_MS = 2000;
         const uint CREATE_SUSPENDED = 0x00000004;
         const uint SYNCHRONIZE = 0x00100000;
         const uint INFINITE = 0xFFFFFFFF;
@@ -140,6 +151,22 @@ namespace MuggleGuardRun
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern bool SetInformationJobObject(IntPtr hJob, int jobObjectInfoClass,
             ref JOBOBJECT_EXTENDED_LIMIT_INFORMATION lpJobObjectInfo, uint cbJobObjectInfoLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool SetInformationJobObject(IntPtr hJob, int jobObjectInfoClass,
+            ref JOBOBJECT_ASSOCIATE_COMPLETION_PORT lpJobObjectInfo, uint cbJobObjectInfoLength);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr CreateIoCompletionPort(IntPtr fileHandle, IntPtr existingCompletionPort,
+            UIntPtr completionKey, uint numberOfConcurrentThreads);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool GetQueuedCompletionStatus(IntPtr completionPort, out uint numberOfBytes,
+            out UIntPtr completionKey, out IntPtr overlapped, uint milliseconds);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool PostQueuedCompletionStatus(IntPtr completionPort, uint numberOfBytes,
+            UIntPtr completionKey, IntPtr overlapped);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern bool AssignProcessToJobObject(IntPtr hJob, IntPtr hProcess);
@@ -178,6 +205,49 @@ namespace MuggleGuardRun
                 Marshal.GetLastWin32Error() + ")");
         }
 
+        // A creation the job refuses reaches the caller only as a bare Win32
+        // failure (libuv: "spawn UNKNOWN"), which never names the cap. The job's
+        // completion port does, so a background thread drains it and says so —
+        // draining continuously also keeps a long --service run's per-process
+        // messages from piling up in the port.
+        static Thread StartLimitWatcher(IntPtr port, int activeProcessLimit)
+        {
+            Thread watcher = new Thread(() =>
+            {
+                bool hasReported = false;
+                while (true)
+                {
+                    uint message;
+                    UIntPtr completionKey;
+                    IntPtr overlapped;
+                    if (!GetQueuedCompletionStatus(port, out message, out completionKey,
+                        out overlapped, INFINITE))
+                    {
+                        return;
+                    }
+                    if (completionKey == UIntPtr.Zero) return;
+                    if (message == JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT && !hasReported)
+                    {
+                        hasReported = true;
+                        Console.Error.WriteLine("guard-run: the process tree reached its active-process " +
+                            "limit of " + activeProcessLimit + "; the kernel refused process creation past it, " +
+                            "which the refused caller reports as \"spawn UNKNOWN\". Raise it with --limit.");
+                    }
+                }
+            });
+            watcher.IsBackground = true;
+            watcher.Start();
+            return watcher;
+        }
+
+        // The stop marker queues behind every job message already posted, so the
+        // watcher reports a refusal that happened just before the tree exited.
+        static void StopLimitWatcher(IntPtr port, Thread watcher)
+        {
+            PostQueuedCompletionStatus(port, 0, UIntPtr.Zero, IntPtr.Zero);
+            watcher.Join(LIMIT_WATCHER_DRAIN_TIMEOUT_MS);
+        }
+
         public static int Run(string commandLine, int activeProcessLimit, bool killOnClose,
             int launcherPid)
         {
@@ -195,6 +265,18 @@ namespace MuggleGuardRun
             {
                 throw LastError("SetInformationJobObject");
             }
+
+            IntPtr port = CreateIoCompletionPort(new IntPtr(-1), IntPtr.Zero, UIntPtr.Zero, 1);
+            if (port == IntPtr.Zero) throw LastError("CreateIoCompletionPort");
+            JOBOBJECT_ASSOCIATE_COMPLETION_PORT association = new JOBOBJECT_ASSOCIATE_COMPLETION_PORT();
+            association.CompletionKey = job;
+            association.CompletionPort = port;
+            if (!SetInformationJobObject(job, JobObjectAssociateCompletionPortInformation,
+                ref association, (uint)Marshal.SizeOf(typeof(JOBOBJECT_ASSOCIATE_COMPLETION_PORT))))
+            {
+                throw LastError("SetInformationJobObject (completion port)");
+            }
+            Thread limitWatcher = StartLimitWatcher(port, activeProcessLimit);
 
             STARTUPINFO startupInfo = new STARTUPINFO();
             startupInfo.cb = (uint)Marshal.SizeOf(typeof(STARTUPINFO));
@@ -233,6 +315,7 @@ namespace MuggleGuardRun
             {
                 WaitForSingleObject(processInfo.hProcess, INFINITE);
             }
+            StopLimitWatcher(port, limitWatcher);
 
             uint exitCode;
             if (!GetExitCodeProcess(processInfo.hProcess, out exitCode))

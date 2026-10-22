@@ -1,11 +1,13 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBackendLaunchPlan } from "./buildLaunchPlan.js";
-import { computeNprocCeiling, countProcessListLines } from "./headroom.js";
+import { computeDefaultActiveProcessLimit, computeNprocCeiling, countProcessListLines } from "./headroom.js";
 import { parseGuardRunArguments } from "./parseArguments.js";
 import { probeRan } from "./probeRan.js";
+import { windowsCommandNeedsCmdShell } from "./resolveWindowsCommand.js";
 import { selectGuardRunBackend } from "./selectBackend.js";
 import { BackendLaunchPlan, GuardRunBackend } from "./types.js";
 
@@ -48,18 +50,14 @@ function resolveJobObjectShimPath(): string {
   return fail(`cannot locate ${JOB_OBJECT_SHIM_FILENAME}; refusing to run the command unguarded`);
 }
 
-function windowsCommandNeedsCmdShell(firstCommandToken: string): boolean {
-  const knownExtension = extname(firstCommandToken).toLowerCase();
-  if (knownExtension === ".cmd" || knownExtension === ".bat") return true;
-  if (knownExtension !== "") return false;
+function whereExeOutput(firstCommandToken: string): string | null {
+  if (extname(firstCommandToken) !== "") return null;
   const lookup = spawnSync("where.exe", [firstCommandToken], {
     encoding: "utf-8",
     timeout: 10_000,
     windowsHide: true,
   });
-  if (lookup.error !== undefined || lookup.status !== 0) return false;
-  const resolvedExtension = extname(lookup.stdout.split(/\r?\n/)[0] ?? "").toLowerCase();
-  return resolvedExtension === ".cmd" || resolvedExtension === ".bat";
+  return lookup.error === undefined && lookup.status === 0 ? lookup.stdout : null;
 }
 
 function currentUserProcessCount(): number {
@@ -105,7 +103,10 @@ function registerTreeCleanup(plan: BackendLaunchPlan, childPid: number | undefin
   }
 }
 
-const parseResult = parseGuardRunArguments(process.argv.slice(2));
+const parseResult = parseGuardRunArguments(
+  process.argv.slice(2),
+  computeDefaultActiveProcessLimit(availableParallelism()),
+);
 if (parseResult.options === null) fail(parseResult.errorMessage ?? "invalid arguments");
 const options = parseResult.options;
 
@@ -130,7 +131,10 @@ const plan = buildBackendLaunchPlan({
   launcherPid: process.pid,
   commandNeedsCmdShell:
     backend === GuardRunBackend.WindowsJobObject
-      ? windowsCommandNeedsCmdShell(options.command[0])
+      ? windowsCommandNeedsCmdShell({
+          firstCommandToken: options.command[0],
+          whereOutput: whereExeOutput(options.command[0]),
+        })
       : false,
   scopeUnitName: `muggle-guard-${process.pid}-${Date.now()}.scope`,
   nprocCeiling: needsNprocCeiling

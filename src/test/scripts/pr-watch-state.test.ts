@@ -37,7 +37,7 @@ const LOOP_MARKER = "<!-- muggle-do:bot -->";
 enum Field {
   State = 0,
   HeadOid = 1,
-  BaseOid = 2,
+  BaseTip = 2,
   Mergeable = 3,
   LatestReview = 4,
   LatestComment = 5,
@@ -57,10 +57,13 @@ interface ThreadFixture {
   reviewState?: string;
 }
 
+// `baseRef` is the base branch itself; null is what GitHub returns once that
+// branch is gone.
 function snapshot(
   reviews: Array<{ databaseId: number; body: string }>,
   threads: ThreadFixture[],
   contexts: unknown[] = [],
+  baseRef: { target: { oid: string } } | null = { target: { oid: "ccc" } },
 ): string {
   return JSON.stringify({
     data: {
@@ -69,6 +72,7 @@ function snapshot(
           state: "OPEN",
           headRefOid: "aaa",
           baseRefOid: "bbb",
+          baseRef: baseRef,
           mergeable: "MERGEABLE",
           commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: contexts } } } }] },
           reviews: { nodes: reviews },
@@ -222,6 +226,19 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
       ),
     );
     expect(fields).toHaveLength(10);
+  });
+
+  // baseRefOid ("bbb") only moves when the head is pushed, so a rebase key built
+  // from it never notices the base branch advancing.
+  it("projects the base branch tip, not the base recorded at the last push", () => {
+    expect(project(snapshot([], []))[Field.BaseTip]).toBe("ccc");
+  });
+
+  it("keeps the base tip's slot when the base branch is gone", () => {
+    const fields = project(snapshot([], [], [], null));
+    expect(fields).toHaveLength(10);
+    expect(fields[Field.BaseTip]).toBe("");
+    expect(fields[Field.Mergeable]).toBe("MERGEABLE");
   });
 
   // The read moved into pr-watch-fetch.sh so the arm step and the loop see the

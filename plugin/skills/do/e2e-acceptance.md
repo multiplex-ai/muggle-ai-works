@@ -47,7 +47,7 @@ You receive everything from `state.md` already — pre-flight resolved it:
 - Test-user credential status (existing / new / skip), when credentials are needed
 - The list of changed repos, files, and a summary of changes
 - The requirements goal
-- The `e2eScope` from impact analysis — the impacted, superseded, and new use cases and test cases this stage runs
+- The `e2eScope` from impact analysis — the impacted, retired, and new use cases and test cases this stage runs
 
 ## Your Job
 
@@ -104,7 +104,7 @@ The cases to run are the `e2eScope` impact analysis recorded in its `iterations/
 
 - **No scope, or `not-scoped`, on a cycle that reached this step** → run that file's scope procedure now and record it before going on. Never fall back to every case in the project.
 - **A Stage 7.5 re-run** passes its affected test cases; they replace the scope for that run, and cases already created are not created again.
-- **Superseded test cases** are not run — their expectation changed by design. The report lists them for the user to retire or edit in Muggle.
+- **Retired use cases and test cases** are not run — the change replaced or removed what they verify. Nothing is deleted here: the report lists them as planned deletions, and [`cleanup.md`](cleanup.md) deletes them once the PR merges.
 - **A flow the run shows the change reaches that no scoped case covers** is added with a one-line reason under the report's scope amendments. A scoped case is never dropped.
 
 ### Step 3: Create the new cases
@@ -172,7 +172,7 @@ For each test case:
 **Scope:** (from `e2eScope`, after Step 3)
 - impacted: `<testCaseId>`, ...
 - new: `<key>` → `<testCaseId>`, ...
-- superseded (not run — retire or edit in Muggle): `<testCaseId>` → replaced by `<testCaseId>`, ...
+- retired (not run — deleted after merge): use case `<useCaseId>`, ...; test case `<testCaseId>` → replaced by `<testCaseId>` | removed, ...
 - amendments: `<testCaseId>` — `<reason>`, ...
 
 **Metadata:**

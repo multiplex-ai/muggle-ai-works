@@ -106,7 +106,11 @@ The criteria are the acceptance criteria in the session's `requirements.md`, plu
 1. **List the project's cases.** `muggle-remote-use-case-list` for the project the classification routes to (single-project repos: `projectId` from `state.md`), then `muggle-remote-test-case-list-by-use-case` for every use case, all in one message. `e2eScope` holds one entry per project, so `mixed` scopes each classification's project as its own entry.
 2. **Impacted use cases.** A use case is impacted when its flow passes through a page, route, component, endpoint, or data flow the diff changes, or when an acceptance criterion falls inside it.
 3. **Impacted test cases.** Under each impacted use case, a test case is impacted when it exercises a changed surface or verifies a behavior a criterion touches. When in doubt, include it: an extra replay costs minutes, a missed regression ships.
-4. **Superseded test cases.** An impacted test case whose expected outcome the change deliberately alters — a renamed label, a removed step, a new validation rule — fails by design. List it as superseded, not impacted, and plan a new test case for the new expectation. Stage 6 cannot edit a remote test case, and replaying the old one would send Stage 7.5 to repair the product back to the old behavior.
+4. **Retired cases.** A test case the change makes wrong fails by design, so it is retired, never impacted. Replaying it would send Stage 7.5 to repair the product back to the old behavior.
+   - **Replaced** — the change alters its expected outcome (a renamed label, a removed step, a new validation rule). Plan a new test case for the new expectation and name it in `replacedBy`.
+   - **Removed** — the change removes the feature it verifies. `replacedBy: none`.
+
+   A use case is retired only when the change removes its whole flow **and** every test case under it is retired: deleting a use case cascades to all its test cases and scripts, so one surviving test case keeps the use case. Retired cases are deleted after the PR merges ([`cleanup.md`](cleanup.md)), never during the cycle — an unmerged change must leave the project's suite intact for the default branch.
 5. **Map every criterion.** Each criterion carries `coveredBy` (impacted or new test cases that verify it) or `unobservable` (why no browser can observe it: a log line, a unit-test requirement, a config value). A criterion with neither is a scoping failure.
 6. **Plan the new cases.** Each uncovered criterion gets a new test case under the impacted use case its behavior belongs to, or under a new use case when none fits. A test case instruction names one atomic behavior to verify, with no signup, login, navigation, or seed-data steps, per [`../_shared/test-case-design.md`](../_shared/test-case-design.md); prerequisites come from the test-plan graph at run time ([`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md)).
 
@@ -126,11 +130,15 @@ e2eScope:
         useCaseId: <id>
         title: <title>
         reason: <changed path or criterion>
-    supersededTestCases:
+    retiredUseCases:
+      - useCaseId: <id>
+        title: <title>
+        reason: <the flow the change removes>
+    retiredTestCases:
       - testCaseId: <id>
         title: <title>
-        reason: <the expectation the change alters>
-        replacedBy: <new test case key>
+        reason: <the expectation the change alters, or the feature it removes>
+        replacedBy: <new test case key | none>
     newUseCases:
       - key: NUC1
         instruction: <plain-English description of the use case>

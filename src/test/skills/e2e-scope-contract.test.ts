@@ -28,11 +28,13 @@ const E2E_ACCEPTANCE = read(DO_DIR, "e2e-acceptance.md");
 const WAVE_E2E = read(DO_DIR, "wave-e2e.md");
 const ADDRESS_REVIEWS = read(DO_DIR, "address-reviews.md");
 const MUGGLE_DO = read(SKILLS_DIR, "muggle-do", "SKILL.md");
+const CLEANUP = read(DO_DIR, "cleanup.md");
 
 const SCOPE_LISTS = [
   "impactedUseCases",
   "impactedTestCases",
-  "supersededTestCases",
+  "retiredUseCases",
+  "retiredTestCases",
   "newUseCases",
   "newTestCases",
   "criteria",
@@ -83,10 +85,19 @@ describe("impact analysis scopes the E2E cases", () => {
     expect(scopeSection).toMatch(/criterion with neither is a scoping failure/);
   });
 
-  it("supersedes a test case the change alters instead of replaying it", () => {
-    expect(scopeSection).toMatch(/fails by design/);
-    expect(scopeSection).toMatch(/Stage 6 cannot edit a remote test case/);
-    expect(scopeSection).toMatch(/replacedBy/);
+  it("retires a test case the change replaces or removes instead of replaying it", () => {
+    expect(scopeSection).toMatch(/fails by design, so it is retired, never impacted/);
+    expect(scopeSection).toMatch(/\*\*Replaced\*\*.*`replacedBy`/);
+    expect(scopeSection).toMatch(/\*\*Removed\*\*.*`replacedBy: none`/);
+  });
+
+  it("retires a use case only when every test case under it goes too, because the delete cascades", () => {
+    expect(scopeSection).toMatch(/every test case under it is retired/);
+    expect(scopeSection).toMatch(/one surviving test case keeps the use case/);
+  });
+
+  it("defers every deletion until the PR merges", () => {
+    expect(scopeSection).toMatch(/deleted after the PR merges \(\[`cleanup\.md`\]\(cleanup\.md\)\), never during the cycle/);
   });
 
   it("plans new cases under the atomic test case rule and creates nothing", () => {
@@ -116,9 +127,11 @@ describe("E2E acceptance runs the scope it was handed", () => {
     expect(E2E_ACCEPTANCE).not.toMatch(/fetch all test cases/);
   });
 
-  it("never drops a scoped case and never runs a superseded one", () => {
+  it("never drops a scoped case, and neither runs nor deletes a retired one", () => {
     expect(loadScopeStep).toMatch(/A scoped case is never dropped/);
-    expect(loadScopeStep).toMatch(/\*\*Superseded test cases\*\* are not run/);
+    expect(loadScopeStep).toMatch(/\*\*Retired use cases and test cases\*\* are not run/);
+    expect(loadScopeStep).toMatch(/Nothing is deleted here/);
+    expect(E2E_ACCEPTANCE).not.toMatch(/muggle-remote-(test|use)-case-delete/);
   });
 
   it("creates the planned use cases, then generates and creates the test cases", () => {
@@ -139,6 +152,28 @@ describe("E2E acceptance runs the scope it was handed", () => {
   it("reports the scope it ran", () => {
     expect(E2E_ACCEPTANCE).toMatch(/\*\*Scope:\*\* \(from `e2eScope`, after Step 3\)/);
     expect(E2E_ACCEPTANCE).not.toMatch(/every relevant test case/);
+  });
+});
+
+describe("post-merge cleanup deletes the retired cases", () => {
+  const retireStep = CLEANUP.match(/^3\. \*\*Retire the cases.*$/m)?.[0] ?? "";
+
+  it("runs on a merged PR only, before teardown", () => {
+    expect(retireStep).toMatch(/\(`merged` only\)/);
+    expect(retireStep).toMatch(/On `closed` nothing is deleted/);
+    expect(CLEANUP.indexOf("**Retire the cases")).toBeLessThan(CLEANUP.indexOf("**Teardown (`merged` only).**"));
+  });
+
+  it("soft-deletes test cases, then use cases, from the newest recorded scope", () => {
+    expect(retireStep).toMatch(/newest `e2eScope`/);
+    expect(retireStep.indexOf("`muggle-remote-test-case-delete`")).toBeGreaterThan(-1);
+    expect(retireStep.indexOf("`muggle-remote-use-case-delete`")).toBeGreaterThan(
+      retireStep.indexOf("`muggle-remote-test-case-delete`"),
+    );
+  });
+
+  it("re-checks a use case's test cases before the cascading delete", () => {
+    expect(retireStep).toMatch(/`muggle-remote-test-case-list-by-use-case` that every test case under it is in the retired list/);
   });
 });
 

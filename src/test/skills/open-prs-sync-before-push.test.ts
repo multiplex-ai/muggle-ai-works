@@ -15,6 +15,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sectionBody } from "./helpers/markdown-sections";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -25,15 +26,6 @@ const FORWARD_DOC = path.join(SKILLS_DIR, "do", "open-prs", "forward.md");
 const UPDATE_DOC = path.join(SKILLS_DIR, "do", "open-prs", "update.md");
 
 const read = (file: string): string => fs.readFileSync(file, "utf8");
-
-/** Body of one `## <heading>` section, up to the next `## ` heading. */
-function sectionBody(doc: string, heading: string): string {
-  const start = doc.indexOf(heading);
-  if (start === -1) return "";
-  const rest = doc.slice(start + heading.length);
-  const end = rest.search(/^## /m);
-  return end === -1 ? rest : rest.slice(0, end);
-}
 
 /** Character offset of the numbered step with this bolded label, or -1. */
 function stepOffset(body: string, label: string): number {
@@ -102,7 +94,7 @@ describe("no skill file references the pre-rename path", () => {
 });
 
 describe("forward mode syncs before opening the PR", () => {
-  const perRepo = sectionBody(read(FORWARD_DOC), "## Per repo");
+  const perRepo = sectionBody(read(FORWARD_DOC), /^## Per repo$/m);
 
   it("orders the sync step ahead of the push step", () => {
     const syncAt = stepOffset(perRepo, "Sync with the base");
@@ -151,7 +143,7 @@ describe("forward mode syncs before opening the PR", () => {
 
 describe("update mode syncs before pushing to an open PR", () => {
   const doc = read(UPDATE_DOC);
-  const procedure = sectionBody(doc, "## Procedure");
+  const procedure = sectionBody(doc, /^## Procedure$/m);
 
   it("orders the sync step ahead of the push step", () => {
     const syncAt = stepOffset(procedure, "Sync with the base");

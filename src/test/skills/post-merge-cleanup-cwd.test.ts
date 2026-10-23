@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sectionBody } from "./helpers/markdown-sections";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -27,23 +28,14 @@ const SKILLS = path.join(REPO_ROOT, "plugin", "skills");
 const CLEANUP_DOC = path.join(SKILLS, "_shared", "post-merge-cleanup.md");
 const WORKTREES_DOC = path.join(SKILLS, "_shared", "use-worktrees.md");
 const DO_CLEANUP_DOC = path.join(SKILLS, "do", "cleanup.md");
+const LEAVE_WORKTREE_HEADING = /^## \d+\. Leave the worktree.*$/m;
 
 const read = (file: string): string => fs.readFileSync(file, "utf8");
-
-/** Body of a `## <n>. <title>` section, up to the next `## ` heading. */
-const sectionBody = (doc: string, heading: RegExp): string => {
-  const lines = doc.split("\n");
-  const start = lines.findIndex((line) => heading.test(line));
-  if (start < 0) return "";
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => line.startsWith("## "));
-  return (end < 0 ? rest : rest.slice(0, end)).join("\n");
-};
 
 describe("post-merge cleanup leaves the worktree before removing it", () => {
   it("has a leave-the-worktree step, and it comes before the removal", () => {
     const doc = read(CLEANUP_DOC);
-    const leaveAt = doc.search(/^## \d+\. Leave the worktree/m);
+    const leaveAt = doc.search(LEAVE_WORKTREE_HEADING);
     const removeAt = doc.search(/^## \d+\. Remove the worktree/m);
     expect(leaveAt, "no `## N. Leave the worktree` step").toBeGreaterThanOrEqual(0);
     expect(removeAt).toBeGreaterThanOrEqual(0);
@@ -51,7 +43,7 @@ describe("post-merge cleanup leaves the worktree before removing it", () => {
   });
 
   it("names the two failures that make an occupied worktree look unfixable", () => {
-    const leave = sectionBody(read(CLEANUP_DOC), /^## \d+\. Leave the worktree/);
+    const leave = sectionBody(read(CLEANUP_DOC), LEAVE_WORKTREE_HEADING);
     // `git worktree remove` refusing from inside the tree...
     expect(leave).toMatch(/refuses to remove the worktree the command is standing in/i);
     // ...and the deleted-cwd shell that breaks every later command.
@@ -59,13 +51,13 @@ describe("post-merge cleanup leaves the worktree before removing it", () => {
   });
 
   it("resolves an anchor outside the worktree to move to", () => {
-    const leave = sectionBody(read(CLEANUP_DOC), /^## \d+\. Leave the worktree/);
+    const leave = sectionBody(read(CLEANUP_DOC), LEAVE_WORKTREE_HEADING);
     expect(leave).toMatch(/git .*worktree list --porcelain/);
     expect(leave).toMatch(/main working tree/i);
   });
 
   it("compares resolved paths rather than strings", () => {
-    const leave = sectionBody(read(CLEANUP_DOC), /^## \d+\. Leave the worktree/);
+    const leave = sectionBody(read(CLEANUP_DOC), LEAVE_WORKTREE_HEADING);
     expect(leave).toMatch(/resolved paths, not strings/i);
     expect(leave).toMatch(/symlink/i);
     // A sibling `<name>-old` must not read as inside `<name>`.
@@ -73,12 +65,12 @@ describe("post-merge cleanup leaves the worktree before removing it", () => {
   });
 
   it("pins later commands to an explicit repo so nothing re-enters the tree", () => {
-    const leave = sectionBody(read(CLEANUP_DOC), /^## \d+\. Leave the worktree/);
+    const leave = sectionBody(read(CLEANUP_DOC), LEAVE_WORKTREE_HEADING);
     expect(leave).toMatch(/git -C/);
   });
 
   it("verifies the cwd is both outside the worktree and still present", () => {
-    const leave = sectionBody(read(CLEANUP_DOC), /^## \d+\. Leave the worktree/);
+    const leave = sectionBody(read(CLEANUP_DOC), LEAVE_WORKTREE_HEADING);
     const verify = leave.slice(leave.search(/\*\*Verify:\*\*/));
     expect(verify).toMatch(/outside/i);
     // Left, not deleted — a deleted cwd is the same stall one step later.

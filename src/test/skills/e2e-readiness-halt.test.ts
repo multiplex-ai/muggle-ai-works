@@ -16,6 +16,7 @@ import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { sectionBody } from "./helpers/markdown-sections";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -25,16 +26,6 @@ const E2E_REPAIR_DOC = path.join(SKILLS_DIR, "do", "e2e-repair.md");
 const MUGGLE_DO_SKILL_DOC = path.join(SKILLS_DIR, "muggle-do", "SKILL.md");
 
 const read = (docPath: string): string => fs.readFileSync(docPath, "utf8");
-
-/** Body of the first heading matching `headingPattern`, up to the next heading of the same or higher level. */
-function sectionBody(doc: string, headingPattern: RegExp): string {
-  const heading = doc.match(headingPattern);
-  if (!heading || heading.index === undefined) return "";
-  const level = heading[0].match(/^#+/)![0].length;
-  const rest = doc.slice(heading.index + heading[0].length);
-  const nextHeading = rest.search(new RegExp(String.raw`^#{1,${level}} `, "m"));
-  return nextHeading === -1 ? rest : rest.slice(0, nextHeading);
-}
 
 const readinessStep = sectionBody(read(E2E_ACCEPTANCE_DOC), /^### Step 0\.5\b.*$/m);
 const authStep = sectionBody(read(E2E_ACCEPTANCE_DOC), /^### Step 1:.*$/m);

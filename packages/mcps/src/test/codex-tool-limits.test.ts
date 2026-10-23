@@ -26,6 +26,7 @@ vi.mock("../shared/auth.js", () => ({
 
 import { allQaToolDefinitions } from "../mcp/tools/e2e/tool-registry.js";
 import { allLocalQaTools } from "../mcp/tools/local/index.js";
+import { buildToolInputJsonSchema } from "../shared/tool-input-schema/tool-input-schema.js";
 
 // Codex 0.163.0 offers an MCP tool to the model as `mcp__<server>__<tool>`,
 // every character outside [A-Za-z0-9_] turned into `_` (codex-rs/codex-mcp).
@@ -54,7 +55,7 @@ describe("the muggle MCP tool surface under Codex", () => {
 
   // The same conversion the server answers tools/list with (src/server/mcp-server.ts).
   it.each(tools.map((tool) => [tool.name, tool] as const))("%s keeps its argument descriptions", (_name, tool) => {
-    const schema = z.toJSONSchema(tool.inputSchema) as { type?: unknown };
+    const schema = buildToolInputJsonSchema(tool.inputSchema);
     expect(schema.type).toBe("object");
     expect(Buffer.byteLength(JSON.stringify(schema))).toBeLessThanOrEqual(CODEX_TOOL_INPUT_SCHEMA_MAX_BYTES);
   });

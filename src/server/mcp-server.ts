@@ -14,6 +14,7 @@ import { v4 as uuidv4 } from "uuid";
 import { ZodError, z } from "zod";
 
 import {
+  buildToolInputJsonSchema,
   createChildLogger,
   getCallerCredentials,
   getConfig,
@@ -65,7 +66,7 @@ function zodToJsonSchema (schema: unknown): object {
   // Prefer native Zod v4 JSON schema conversion when available.
   try {
     if (schema && typeof schema === "object" && "safeParse" in (schema as Record<string, unknown>)) {
-      return z.toJSONSchema(schema as z.ZodType);
+      return buildToolInputJsonSchema(schema as z.ZodType);
     }
   } catch {
     // Fall through to legacy converter for compatibility.
@@ -132,71 +133,71 @@ function convertZodDef (schema: unknown): object {
         }
       }
 
-      const result: Record<string, unknown> = {
+      const jsonSchema: Record<string, unknown> = {
         type: "object",
         properties: properties,
       };
       if (required.length > 0) {
-        result.required = required;
+        jsonSchema.required = required;
       }
-      return result;
+      return jsonSchema;
     }
 
     case "ZodString":
     case "string": {
-      const result: Record<string, unknown> = { type: "string" };
-      if (def.description) result.description = def.description;
+      const jsonSchema: Record<string, unknown> = { type: "string" };
+      if (def.description) jsonSchema.description = def.description;
       if (def.checks) {
         for (const check of def.checks) {
-          if (check.kind === "min") result.minLength = check.value;
-          if (check.kind === "max") result.maxLength = check.value;
-          if (check.kind === "url") result.format = "uri";
-          if (check.kind === "email") result.format = "email";
+          if (check.kind === "min") jsonSchema.minLength = check.value;
+          if (check.kind === "max") jsonSchema.maxLength = check.value;
+          if (check.kind === "url") jsonSchema.format = "uri";
+          if (check.kind === "email") jsonSchema.format = "email";
         }
       }
-      return result;
+      return jsonSchema;
     }
 
     case "ZodNumber":
     case "number": {
-      const result: Record<string, unknown> = { type: "number" };
-      if (def.description) result.description = def.description;
+      const jsonSchema: Record<string, unknown> = { type: "number" };
+      if (def.description) jsonSchema.description = def.description;
       if (def.checks) {
         for (const check of def.checks) {
-          if (check.kind === "int") result.type = "integer";
-          if (check.kind === "min") result.minimum = check.value;
-          if (check.kind === "max") result.maximum = check.value;
+          if (check.kind === "int") jsonSchema.type = "integer";
+          if (check.kind === "min") jsonSchema.minimum = check.value;
+          if (check.kind === "max") jsonSchema.maximum = check.value;
         }
       }
-      return result;
+      return jsonSchema;
     }
 
     case "ZodBoolean":
     case "boolean": {
-      const result: Record<string, unknown> = { type: "boolean" };
-      if (def.description) result.description = def.description;
-      return result;
+      const jsonSchema: Record<string, unknown> = { type: "boolean" };
+      if (def.description) jsonSchema.description = def.description;
+      return jsonSchema;
     }
 
     case "ZodArray":
     case "array": {
-      const result: Record<string, unknown> = {
+      const jsonSchema: Record<string, unknown> = {
         type: "array",
         items: def.innerType ? convertZodDef(def.innerType) : def.element ? convertZodDef(def.element) : {},
       };
-      if (def.description) result.description = def.description;
-      return result;
+      if (def.description) jsonSchema.description = def.description;
+      return jsonSchema;
     }
 
     case "ZodEnum":
     case "enum": {
       const enumValues = Array.isArray(def.values) ? def.values : def.values ? Object.values(def.values) : [];
-      const result: Record<string, unknown> = {
+      const jsonSchema: Record<string, unknown> = {
         type: "string",
         enum: enumValues,
       };
-      if (def.description) result.description = def.description;
-      return result;
+      if (def.description) jsonSchema.description = def.description;
+      return jsonSchema;
     }
 
     case "ZodOptional":
@@ -339,7 +340,7 @@ export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Serv
 
       // Execute the tool
       const startTime = Date.now();
-      const result = await tool.execute({
+      const toolOutcome = await tool.execute({
         input: toolInput,
         correlationId: correlationId,
       });
@@ -348,17 +349,17 @@ export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Serv
       childLogger.info("Tool call completed", {
         tool: toolName,
         latencyMs: latency,
-        isError: result.isError,
+        isError: toolOutcome.isError,
       });
 
       return {
         content: [
           {
             type: "text",
-            text: result.content,
+            text: toolOutcome.content,
           },
         ],
-        isError: result.isError,
+        isError: toolOutcome.isError,
       };
     } catch (error) {
       if (error instanceof ZodError) {

@@ -6,7 +6,12 @@ const { toolRequiresAuth, getCallerCredentials } = vi.hoisted(() => ({
   getCallerCredentials: vi.fn(() => ({})),
 }));
 
-vi.mock("../../../packages/mcps/src/index.js", () => ({
+vi.mock("../../../packages/mcps/src/index.js", async () => ({
+  buildToolInputJsonSchema: (
+    await vi.importActual<typeof import("../../../packages/mcps/src/shared/tool-input-schema/tool-input-schema.js")>(
+      "../../../packages/mcps/src/shared/tool-input-schema/tool-input-schema.js",
+    )
+  ).buildToolInputJsonSchema,
   createChildLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
   getCallerCredentials,
   getConfig: vi.fn(() => ({ serverName: "muggle", serverVersion: "1.2.3" })),
@@ -91,6 +96,15 @@ describe("createUnifiedMcpServer handlers", () => {
     expect(result.tools).toHaveLength(1);
     expect(result.tools[0].name).toBe("t1");
     expect(result.tools[0].inputSchema.type).toBe("object");
+  });
+
+  it("ListTools serves the compact schema without restated keywords", () => {
+    registerTools([makeTool({ name: "t3", inputSchema: z.object({ projectId: z.string().uuid() }) })]);
+    createUnifiedMcpServer({ enableQaTools: true, enableLocalTools: true });
+
+    const listing = handlerFor("listTools")({}) as { tools: Array<{ inputSchema: Record<string, unknown> }> };
+    expect(listing.tools[0].inputSchema).not.toHaveProperty("$schema");
+    expect(listing.tools[0].inputSchema.properties).toEqual({ projectId: { type: "string", format: "uuid" } });
   });
 
   it("ListTools falls back to a generic schema for non-zod inputs", () => {

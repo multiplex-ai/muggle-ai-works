@@ -94,7 +94,7 @@ const readBranchCreationAsync = async (
   return { sha: sha, startPoint: startPoint };
 };
 
-const finish = (
+const withVerdict = (
   report: ICheckoutFreshnessReport,
   verdict: CheckoutFreshnessVerdict,
   reason: string,
@@ -129,16 +129,16 @@ export async function evaluateCheckoutFreshness(request: ICheckoutFreshnessReque
   };
 
   const checkoutRoot = await runGit(["rev-parse", "--show-toplevel"], cwd);
-  if (!checkoutRoot) return finish(report, CheckoutFreshnessVerdict.NotApplicable, "not inside a git checkout");
+  if (!checkoutRoot) return withVerdict(report, CheckoutFreshnessVerdict.NotApplicable, "not inside a git checkout");
   report.checkoutRoot = checkoutRoot;
   report.mainWorktreeRoot = await resolveMainWorktreeRootAsync(runGit, cwd);
 
   if ((await runGit(["remote", "get-url", BASE_REMOTE_NAME], cwd)) === null) {
-    return finish(report, CheckoutFreshnessVerdict.NotApplicable, `the checkout has no ${BASE_REMOTE_NAME} remote`);
+    return withVerdict(report, CheckoutFreshnessVerdict.NotApplicable, `the checkout has no ${BASE_REMOTE_NAME} remote`);
   }
   const baseBranch = request.baseBranch ?? (await resolveDefaultBranchAsync(runGit, cwd));
   if (!baseBranch) {
-    return finish(
+    return withVerdict(
       report,
       CheckoutFreshnessVerdict.NotApplicable,
       `${BASE_REMOTE_NAME}'s default branch is unknown — name the base branch explicitly`,
@@ -153,14 +153,14 @@ export async function evaluateCheckoutFreshness(request: ICheckoutFreshnessReque
 
   const base = await resolveBaseAsync(runGit, cwd, baseBranch);
   if (!base) {
-    return finish(
+    return withVerdict(
       report,
       CheckoutFreshnessVerdict.NotApplicable,
       `base branch ${baseBranch} exists neither on ${BASE_REMOTE_NAME} nor locally`,
     );
   }
   const headSha = await runGit(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"], cwd);
-  if (!headSha) return finish(report, CheckoutFreshnessVerdict.NotApplicable, "the checkout has no commits");
+  if (!headSha) return withVerdict(report, CheckoutFreshnessVerdict.NotApplicable, "the checkout has no commits");
   const baseName = toDisplayRef(base.ref);
   report = {
     ...report,
@@ -188,7 +188,7 @@ export async function evaluateCheckoutFreshness(request: ICheckoutFreshnessReque
         cwd,
       );
       report.inheritedCommits = inheritedLog ? inheritedLog.split("\n") : [];
-      return finish(
+      return withVerdict(
         report,
         CheckoutFreshnessVerdict.ForeignBase,
         `${report.branch} was created from ${creation.startPoint} at ${shortSha(creation.sha)}, which ${baseName} ` +
@@ -198,11 +198,11 @@ export async function evaluateCheckoutFreshness(request: ICheckoutFreshnessReque
   }
 
   if (report.behindBy > 0) {
-    return finish(
+    return withVerdict(
       report,
       CheckoutFreshnessVerdict.BehindBase,
       `HEAD is ${pluralCommits(report.behindBy)} behind ${baseName} (${shortSha(base.sha)})`,
     );
   }
-  return finish(report, CheckoutFreshnessVerdict.Fresh, `HEAD contains ${baseName} (${shortSha(base.sha)})`);
+  return withVerdict(report, CheckoutFreshnessVerdict.Fresh, `HEAD contains ${baseName} (${shortSha(base.sha)})`);
 }

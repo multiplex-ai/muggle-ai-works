@@ -55,11 +55,11 @@ import {
   executeReplay,
   executeTestGeneration,
   findRunCheckoutRefusal,
-  formatRunCheckoutRefusal,
   getAuthService,
   getStorageService,
   getRunResultStorageService,
 } from "../../local/services/index.js";
+import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 
 /**
  * Create a child logger for correlation.

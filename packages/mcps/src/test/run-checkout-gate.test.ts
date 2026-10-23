@@ -2,51 +2,75 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CheckoutFreshnessVerdict, type ICheckoutFreshnessReport } from "../shared/checkout-freshness.js";
+import {
+  CheckoutFreshnessVerdict,
+  type ICheckoutFreshnessReport,
+} from "../shared/checkout-freshness.js";
 
 vi.mock("../shared/config.js", () => ({
   getConfig: () => ({
     logLevel: "silent",
     serverName: "test",
     serverVersion: "0.0.0",
-    e2e: { promptServiceBaseUrl: "http://test.invalid", requestTimeoutMs: 1000, workflowTimeoutMs: 1000 },
+    e2e: {
+      promptServiceBaseUrl: "http://test.invalid",
+      requestTimeoutMs: 1000,
+      workflowTimeoutMs: 1000,
+    },
   }),
-  getDashboardBaseUrl: () => "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
+  getDashboardBaseUrl: () =>
+    "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
 }));
 
 vi.mock("../shared/logger.js", () => {
   const noop = () => undefined;
-  const fakeLogger = { info: noop, warn: noop, error: noop, debug: noop, verbose: noop, silly: noop, child: () => fakeLogger };
-  return { getLogger: () => fakeLogger, createChildLogger: () => fakeLogger, resetLogger: noop };
+  const fakeLogger = {
+    info: noop,
+    warn: noop,
+    error: noop,
+    debug: noop,
+    verbose: noop,
+    silly: noop,
+    child: () => fakeLogger,
+  };
+  return {
+    getLogger: () => fakeLogger,
+    createChildLogger: () => fakeLogger,
+    resetLogger: noop,
+  };
 });
 
-const { mockFindRunCheckoutRefusal, mockExecuteTestGeneration, mockExecuteReplay } = vi.hoisted(() => ({
+const {
+  mockFindRunCheckoutRefusal,
+  mockExecuteTestGeneration,
+  mockExecuteReplay,
+} = vi.hoisted(() => ({
   mockFindRunCheckoutRefusal: vi.fn(),
   mockExecuteTestGeneration: vi.fn(),
   mockExecuteReplay: vi.fn(),
 }));
 
-vi.mock("../mcp/local/services/index.js", async () => {
-  const gate = await vi.importActual<typeof import("../mcp/local/services/run-checkout-gate.js")>(
-    "../mcp/local/services/run-checkout-gate.js",
-  );
-  return {
-    cancelExecution: vi.fn(),
-    executeReplay: mockExecuteReplay,
-    executeTestGeneration: mockExecuteTestGeneration,
-    findRunCheckoutRefusal: mockFindRunCheckoutRefusal,
-    formatRunCheckoutRefusal: gate.formatRunCheckoutRefusal,
-    getAuthService: () => ({ getAuthStatus: () => ({ authenticated: true }) }),
-    getStorageService: () => ({ getDataDir: () => "/tmp", getSessionsDir: () => "/tmp" }),
-    getRunResultStorageService: () => ({ getRunResult: vi.fn(), getTestScript: vi.fn() }),
-  };
-});
+vi.mock("../mcp/local/services/index.js", () => ({
+  cancelExecution: vi.fn(),
+  executeReplay: mockExecuteReplay,
+  executeTestGeneration: mockExecuteTestGeneration,
+  findRunCheckoutRefusal: mockFindRunCheckoutRefusal,
+  getAuthService: () => ({ getAuthStatus: () => ({ authenticated: true }) }),
+  getStorageService: () => ({
+    getDataDir: () => "/tmp",
+    getSessionsDir: () => "/tmp",
+  }),
+  getRunResultStorageService: () => ({
+    getRunResult: vi.fn(),
+    getTestScript: vi.fn(),
+  }),
+}));
 
 import {
   findRunCheckoutRefusal,
-  formatRunCheckoutRefusal,
   isLoopbackUrl,
 } from "../mcp/local/services/run-checkout-gate.js";
+import { formatRunCheckoutRefusal } from "../mcp/tools/local/run-checkout-refusal.js";
 import { getTool } from "../mcp/tools/local/tool-registry.js";
 
 const CWD = "/work/repo/.claude/worktrees/change";
@@ -75,7 +99,8 @@ const BEHIND_REPORT: ICheckoutFreshnessReport = {
 const FOREIGN_REPORT: ICheckoutFreshnessReport = {
   ...BEHIND_REPORT,
   verdict: CheckoutFreshnessVerdict.ForeignBase,
-  reason: "users/me/change was created from users/peer/other at 2222222, which origin/master does not contain",
+  reason:
+    "users/me/change was created from users/peer/other at 2222222, which origin/master does not contain",
   inheritedCommitCount: 1,
   inheritedCommits: ["2222222 peer's unmerged work"],
 };
@@ -106,7 +131,11 @@ describe("isLoopbackUrl", () => {
     expect(isLoopbackUrl(url)).toBe(true);
   });
 
-  it.each(["https://staging.muggle-ai.com", "http://192.168.1.4:3000", "not a url"])("leaves %s alone", (url) => {
+  it.each([
+    "https://staging.muggle-ai.com",
+    "http://192.168.1.4:3000",
+    "not a url",
+  ])("leaves %s alone", (url) => {
     expect(isLoopbackUrl(url)).toBe(false);
   });
 });
@@ -114,18 +143,34 @@ describe("isLoopbackUrl", () => {
 describe("findRunCheckoutRefusal", () => {
   it("never consults git for a target off this machine", async () => {
     const runGit = vi.fn();
-    expect(await findRunCheckoutRefusal({ cwd: CWD, localUrl: "https://staging.muggle-ai.com", runGit: runGit })).toBeNull();
+    expect(
+      await findRunCheckoutRefusal({
+        cwd: CWD,
+        localUrl: "https://staging.muggle-ai.com",
+        runGit: runGit,
+      }),
+    ).toBeNull();
     expect(runGit).not.toHaveBeenCalled();
   });
 
   it("lets a run proceed when the cwd is not a git checkout", async () => {
     const runGit = vi.fn(async () => null);
-    expect(await findRunCheckoutRefusal({ cwd: CWD, localUrl: "http://localhost:3999", runGit: runGit })).toBeNull();
+    expect(
+      await findRunCheckoutRefusal({
+        cwd: CWD,
+        localUrl: "http://localhost:3999",
+        runGit: runGit,
+      }),
+    ).toBeNull();
   });
 
   it("never fetches — the check reads local refs only", async () => {
     const runGit = vi.fn(async () => null);
-    await findRunCheckoutRefusal({ cwd: CWD, localUrl: "http://localhost:3999", runGit: runGit });
+    await findRunCheckoutRefusal({
+      cwd: CWD,
+      localUrl: "http://localhost:3999",
+      runGit: runGit,
+    });
     expect(runGit.mock.calls.some(([args]) => args[0] === "fetch")).toBe(false);
   });
 });
@@ -133,7 +178,9 @@ describe("findRunCheckoutRefusal", () => {
 describe("formatRunCheckoutRefusal", () => {
   it("names the verdict, the checkout, and the command that re-checks it", () => {
     const text = formatRunCheckoutRefusal(BEHIND_REPORT, CWD);
-    expect(text).toContain("Run refused — checkout is not on the latest origin/master");
+    expect(text).toContain(
+      "Run refused — checkout is not on the latest origin/master",
+    );
     expect(text).toContain("**Verdict:** BEHIND_BASE");
     expect(text).toContain(`muggle checkout-freshness --cwd "${CWD}"`);
     expect(text).toContain("Rebase this checkout onto `origin/master`");
@@ -153,7 +200,9 @@ describe("execute tools", () => {
 
   it("refuse a stale checkout before anything launches", async () => {
     mockFindRunCheckoutRefusal.mockResolvedValue(BEHIND_REPORT);
-    const result = await getTool("muggle-local-execute-test-generation")!.execute({
+    const result = await getTool(
+      "muggle-local-execute-test-generation",
+    )!.execute({
       input: GENERATION_INPUT,
       correlationId: "c1",
     });
@@ -191,8 +240,15 @@ describe("execute tools", () => {
 
   it("run as before when the gate clears the checkout", async () => {
     mockFindRunCheckoutRefusal.mockResolvedValue(null);
-    mockExecuteTestGeneration.mockResolvedValue({ id: "run-1", testScriptId: "ts-1", status: "passed", executionTimeMs: 10 });
-    const result = await getTool("muggle-local-execute-test-generation")!.execute({
+    mockExecuteTestGeneration.mockResolvedValue({
+      id: "run-1",
+      testScriptId: "ts-1",
+      status: "passed",
+      executionTimeMs: 10,
+    });
+    const result = await getTool(
+      "muggle-local-execute-test-generation",
+    )!.execute({
       input: GENERATION_INPUT,
       correlationId: "c3",
     });

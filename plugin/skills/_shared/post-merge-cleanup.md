@@ -88,7 +88,7 @@ Clear it only when `prs.json` records a terminal state. A slot for a still-open 
 
 ## 6. Clear this run's prepare artifacts
 
-The services environment prep started from the merged change's worktree, with their tracker and logs — `~/.muggle-ai/prepare/running/<source-key>.json` and `~/.muggle-ai/prepare/logs/<source-key>/`, where `<source-key>` is that worktree's path made filename-safe (every path separator and any drive-letter colon replaced with `-`). Stop any tracked PID still alive (step 2 normally already has), then delete both.
+The services environment prep started from the merged change's worktree, with their tracker and logs — that worktree's tracking file and log directory, per [`muggle-test-prepare`'s PID Tracking](../muggle-test-prepare/SKILL.md#pid-tracking). Stop any tracked PID still alive (step 2 normally already has), then delete both.
 
 **Only this run's worktree.** Another checkout's tracker belongs to another session, which may be mid-prepare with services running; a base checkout's services are shared by every session. Neither is yours to stop or delete.
 

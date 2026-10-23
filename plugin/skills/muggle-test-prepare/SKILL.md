@@ -33,7 +33,7 @@ Every launched process is tracked by the **checkout it runs from**, one file per
 ~/.muggle-ai/prepare/logs/<source-key>/<name>.log  their logs
 ```
 
-`<source-key>` is the checkout root's absolute path made filename-safe: every path separator and any drive-letter colon replaced with `-`.
+`<source-key>` is the checkout root's absolute path, made filename-safe exactly as the E2E instructions key is ([e2e-instructions](./steps/e2e-instructions.md#resolve-the-saved-file)).
 
 ```json
 {

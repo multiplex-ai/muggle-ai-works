@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 
+import { EntityReferenceProjectIdSchema, EntityReferenceSchema } from "../../contracts/entity-reference-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
@@ -197,7 +198,8 @@ export const UseCaseListInputSchema = z.object({
 }).merge(PaginationInputSchema);
 
 export const UseCaseGetInputSchema = z.object({
-  useCaseId: IdSchema.describe("Use case ID (UUID) to retrieve"),
+  useCaseId: EntityReferenceSchema.describe("Use case to retrieve: full ID (UUID) or short ID, e.g. UC-7"),
+  projectId: EntityReferenceProjectIdSchema,
 });
 
 export const UseCaseDeleteInputSchema = z.object({
@@ -320,7 +322,8 @@ export const TestCaseListInputSchema = z.object({
 }).merge(PaginationInputSchema);
 
 export const TestCaseGetInputSchema = z.object({
-  testCaseId: IdSchema.describe("Test case ID (UUID) to retrieve"),
+  testCaseId: EntityReferenceSchema.describe("Test case to retrieve: full ID (UUID) or short ID, e.g. TC-42"),
+  projectId: EntityReferenceProjectIdSchema,
 });
 
 export const TestCaseDeleteInputSchema = z.object({
@@ -336,7 +339,8 @@ export const TestPlanGraphRebuildInputSchema = z.object({
 });
 
 export const TestCaseListByUseCaseInputSchema = z.object({
-  useCaseId: IdSchema.describe("Use case ID (UUID) to list test cases for"),
+  useCaseId: EntityReferenceSchema.describe("Use case to list test cases for: full ID (UUID) or short ID, e.g. UC-7"),
+  projectId: EntityReferenceProjectIdSchema,
 });
 
 export const TestCaseGenerateFromPromptInputSchema = z.object({
@@ -397,7 +401,8 @@ export const TestScriptListInputSchema = z.object({
 }).merge(PaginationInputSchema);
 
 export const TestScriptGetInputSchema = z.object({
-  testScriptId: IdSchema.describe("Test script ID (UUID) to retrieve"),
+  testScriptId: EntityReferenceSchema.describe("Test script to retrieve: full ID (UUID) or short ID, e.g. TS-118"),
+  projectId: EntityReferenceProjectIdSchema,
 });
 
 export const TestScriptDeleteInputSchema = z.object({
@@ -426,6 +431,11 @@ export const WorkflowListRuntimesInputSchema = z.object({
 
 export const WorkflowGetLatestRunInputSchema = z.object({
   workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID)"),
+});
+
+export const WorkflowGetReplayLatestRunInputSchema = z.object({
+  workflowRuntimeId: EntityReferenceSchema.describe("Replay workflow runtime ID (UUID), or the replay's short ID, e.g. R-2051"),
+  projectId: EntityReferenceProjectIdSchema,
 });
 
 export const WorkflowStartTestCaseDetectionInputSchema = z.object({
@@ -464,9 +474,9 @@ export const WorkflowGetLatestScriptGenByTestCaseInputSchema = z.object({
 
 export const WorkflowStartTestScriptReplayInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID)"),
-  useCaseId: IdSchema.describe("Use case ID (UUID)"),
-  testCaseId: IdSchema.describe("Test case ID (UUID)"),
-  testScriptId: IdSchema.describe("Test script ID (UUID) to replay"),
+  useCaseId: EntityReferenceSchema.describe("Use case: full ID (UUID) or short ID, e.g. UC-7"),
+  testCaseId: EntityReferenceSchema.describe("Test case: full ID (UUID) or short ID, e.g. TC-42"),
+  testScriptId: EntityReferenceSchema.describe("Test script to replay: full ID (UUID) or short ID, e.g. TS-118"),
   name: z.string().min(1).describe("Workflow name"),
   workflowParams: WorkflowParamsSchema,
 });

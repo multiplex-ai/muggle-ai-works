@@ -21,6 +21,7 @@ import {
   getLogger,
   getPlatformKey,
   getReleaseSignerIdentityUri,
+  resolveElectronAppExecutablePath,
   verifyFileChecksum,
 } from "../../packages/mcps/src/index.js";
 import {
@@ -233,26 +234,6 @@ async function checkForUpdates (): Promise<IUpdateCheckResult> {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.warn("Failed to check for updates", { error: errorMessage });
     throw new Error(`Failed to check for updates: ${errorMessage}`, { cause: error });
-  }
-}
-
-/**
- * Get the expected executable path after extraction.
- * @param versionDir - Version directory path.
- * @returns Path to the expected executable.
- */
-function getExpectedExecutablePath(versionDir: string): string {
-  const os = platform();
-
-  switch (os) {
-    case "darwin":
-      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
-    case "win32":
-      return path.join(versionDir, "MuggleAI.exe");
-    case "linux":
-      return path.join(versionDir, "MuggleAI");
-    default:
-      throw new Error(`Unsupported platform: ${os}`);
   }
 }
 
@@ -489,7 +470,7 @@ async function downloadAndInstall(
   }
 
   // Verify extraction succeeded
-  const executablePath = getExpectedExecutablePath(versionDir);
+  const executablePath = resolveElectronAppExecutablePath({ installDir: versionDir, platformName: platform() });
   if (!existsSync(executablePath)) {
     rmSync(versionDir, { recursive: true, force: true });
     throw new Error(

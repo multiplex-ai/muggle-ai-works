@@ -218,4 +218,18 @@ describe("a replay that fails on its own", () => {
       cloudActionScriptId: "cloud-as-9",
     });
   });
+
+  it("keeps the runSettings record the upload filed the run under", async () => {
+    const runPromise = _startReplay();
+    const studio = await _spawnedStudio();
+
+    await fs.writeFile(
+      path.join(harness.dataDir, "temp", `cloudrefs_${RUN_ID}_input.json`),
+      JSON.stringify({ viewUrl: "https://www.muggle-ai.com/run/failed", runSettingsId: "rs-390" }),
+    );
+    studio.exit(1, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({ cloudRunSettingsId: "rs-390" });
+  });
 });

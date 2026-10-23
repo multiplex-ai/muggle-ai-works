@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { fileURLToPath } from "url";
 import { renderCodexHooks } from "./build-codex-hooks.mjs";
+import { isMcpPackageSpec, MCP_PACKAGE_NAME } from "./pin-plugin-mcp-package.mjs";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const scriptsDirectoryPath = dirname(currentFilePath);
@@ -91,6 +92,12 @@ function verifyPluginMarketplace() {
     assertValue({
         condition: serverJson.packages[0].version === version,
         message: `server.json packages[0].version (${serverJson.packages[0].version}) must match package.json version (${version}).`,
+    });
+
+    const mcpPackageSpec = (readJsonFile(claudeMcpConfigPath).mcpServers?.muggle?.args ?? []).find(isMcpPackageSpec);
+    assertValue({
+        condition: mcpPackageSpec === MCP_PACKAGE_NAME || mcpPackageSpec === `${MCP_PACKAGE_NAME}@${version}`,
+        message: `plugin/.mcp.json must launch ${MCP_PACKAGE_NAME} unpinned or pinned to ${version}; found ${mcpPackageSpec}.`,
     });
 
     console.log("Plugin marketplace verification passed.");

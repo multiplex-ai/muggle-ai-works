@@ -11,11 +11,23 @@ vi.mock("os", async (importOriginal) => {
   return { ...actual, homedir: vi.fn(() => homeDir) };
 });
 
-vi.mock("../../../packages/mcps/src/index.js", () => ({
-  getDataDir: vi.fn(() => dataDir),
-  getElectronAppVersion: vi.fn(() => "1.0.5"),
-  getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
-}));
+vi.mock("../../../packages/mcps/src/index.js", async () => {
+  const installDirModule = await vi.importActual<
+    typeof import("../../../packages/mcps/src/shared/electron-app-install-dir.js")
+  >("../../../packages/mcps/src/shared/electron-app-install-dir.js");
+  const runtimeTargetTypes = await vi.importActual<
+    typeof import("../../../packages/mcps/src/shared/runtime-target-types.js")
+  >("../../../packages/mcps/src/shared/runtime-target-types.js");
+
+  return {
+    ElectronAppReleaseStream: runtimeTargetTypes.ElectronAppReleaseStream,
+    parseElectronAppDirName: installDirModule.parseElectronAppDirName,
+    getDataDir: vi.fn(() => dataDir),
+    getActiveElectronAppReleaseStream: vi.fn(() => runtimeTargetTypes.ElectronAppReleaseStream.Production),
+    getElectronAppDir: vi.fn(() => join(dataDir, "electron-app", "1.0.5")),
+    getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
+  };
+});
 
 import { listObsoleteSkills, cleanupObsoleteSkills, cleanupCommand } from "../../cli/cleanup.js";
 

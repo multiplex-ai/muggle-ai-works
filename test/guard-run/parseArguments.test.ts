@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT } from "../../src/guard-run/constants.js";
-import { parseGuardRunArguments } from "../../src/guard-run/parseArguments.js";
+import { parseGuardRunArguments as parseWithDefault } from "../../src/guard-run/parseArguments.js";
+
+const DEFAULT_LIMIT = 96;
+
+function parseGuardRunArguments(argv: string[]) {
+  return parseWithDefault(argv, DEFAULT_LIMIT);
+}
 
 describe("parseGuardRunArguments", () => {
   it("parses flags, separator, and command", () => {
@@ -13,14 +18,13 @@ describe("parseGuardRunArguments", () => {
     });
   });
 
-  it("defaults to limit 64, non-service", () => {
+  it("defaults to the limit the caller computed, non-service", () => {
     const result = parseGuardRunArguments(["--", "npm", "test"]);
     expect(result.options).toEqual({
-      activeProcessLimit: GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT,
+      activeProcessLimit: DEFAULT_LIMIT,
       isServiceMode: false,
       command: ["npm", "test"],
     });
-    expect(GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT).toBe(64);
   });
 
   it("accepts --limit=N form", () => {
@@ -36,7 +40,7 @@ describe("parseGuardRunArguments", () => {
   it("leaves the command's own flags untouched after --", () => {
     const result = parseGuardRunArguments(["--", "vitest", "run", "--limit", "3", "--service"]);
     expect(result.options).toEqual({
-      activeProcessLimit: GUARD_RUN_DEFAULT_ACTIVE_PROCESS_LIMIT,
+      activeProcessLimit: DEFAULT_LIMIT,
       isServiceMode: false,
       command: ["vitest", "run", "--limit", "3", "--service"],
     });

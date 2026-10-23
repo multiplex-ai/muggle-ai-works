@@ -36,7 +36,7 @@ Run [`e2e-acceptance.md`](e2e-acceptance.md) **once**, not once per repo, with t
 
 1. **Start the wave stack.** Invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) with the wave members as `directoryOverrides` (repo → worktree path): every service whose repo is a wave member starts from that member's worktree path, not from the repo's usual checkout. Services from repos outside the wave start as the saved recipe says.
 2. **Confirm each wave service runs the wave branch.** A port that answers is not enough — the process on it may be a dev server the user left running from the default checkout. Check the readiness table: every wave service must report its member's worktree as its directory. A service that doesn't → halt and escalate with the table; never test a wave against a service running another branch.
-3. **Select test cases against the union of diffs.** Steps 1.5–3 read impact analysis for every wave repo. A test case is relevant when any member's change touches its flow. `EMPTY_DIFF` applies only when every member's diff is empty.
+3. **Merge every member's scope.** Steps 1.5–3 read impact analysis for every wave repo, and the run's scope is the union of each member's `e2eScope`: a test case several members scope runs once, and a new case two members plan for the same criterion is created once. `EMPTY_DIFF` applies only when every member's diff is empty.
 4. **Run each selected test case once** against the combined stack. Do not repeat a case per repo.
 5. **Attribute failures.** For each Failed entry, name the member whose change the failing step implicates (`implicatedRepo: <owner/repo>`), or `unknown` when the evidence does not point at one. Stage 7.5 repairs in that repo.
 

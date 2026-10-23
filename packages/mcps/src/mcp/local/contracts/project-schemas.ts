@@ -14,8 +14,10 @@
 
 import { z } from "zod";
 
+import { DisplayParamsSchema } from "../../contracts/display-params-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
+import { RunEnvironmentSchema } from "../../e2e/contracts/run-environment.js";
 import { DisplayResolution } from "../types/enums.js";
 
 /** Resolution a run executes at, accepted wherever a caller may name one. */
@@ -83,6 +85,12 @@ export const TestScriptDetailsSchema = z.object({
   projectId: MuggleEntityIdSchema.describe("Cloud project ID (UUID)"),
   /** Cloud use case ID (required for electron workflow context). */
   useCaseId: MuggleEntityIdSchema.describe("Cloud use case ID (UUID)"),
+  /** The runSettings record the script was recorded under; a local-lane script's replay is recorded against it. */
+  runSettingsId: z.string().optional(),
+  /** The window size the script was recorded at; sizes the replay unless the caller names a resolution. */
+  displayParams: DisplayParamsSchema.optional(),
+  /** The lane the script belongs to; only a local-lane script's record names the replay's. */
+  type: RunEnvironmentSchema.optional(),
 });
 
 export type TestScriptDetails = z.infer<typeof TestScriptDetailsSchema>;
@@ -109,6 +117,10 @@ export const ExecuteTestGenerationInputSchema = z.object({
   /** Resolution for this run. Overrides `testCase.displayOptions`; both absent means 1920x1080. */
   displayResolution: DisplayResolutionSchema.optional().describe(
     "Browser resolution for this run, e.g. R_0390x0844 for a 390x844 phone viewport. Overrides testCase.displayOptions; defaults to R_1920x1080 when neither is given.",
+  ),
+  /** The local-lane runSettings record to generate the script for. */
+  runSettingsId: z.string().optional().describe(
+    "Local runSettings record to record this run against, e.g. a local script's runSettingsId. Pass its resolution as displayResolution.",
   ),
 });
 
@@ -137,9 +149,9 @@ export const ExecuteReplayInputSchema = z.object({
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
   /** Pinned account the script was recorded with, copied from the recording. */
   pinnedAccount: PinnedAccountSchema.nullable().optional().describe("Copy from actionParams.pinnedAccount of the muggle-remote-action-script-get result: the account the script was recorded as, not the test case's current pin. A pinned replay runs in that account's own browser session; omit when the recording carries none."),
-  /** Resolution for this run. A test script carries no stored resolution, so this is replay's only sizing input. */
+  /** Resolution for this run; defaults to the size the script was recorded at. */
   displayResolution: DisplayResolutionSchema.optional().describe(
-    "Browser resolution for this run, e.g. R_0390x0844 for a 390x844 phone viewport. Defaults to R_1920x1080.",
+    "Browser resolution, e.g. R_0390x0844. Defaults to the script's recorded size.",
   ),
 });
 

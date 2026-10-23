@@ -26,6 +26,7 @@ import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { pointClaudeMarketplaceAtPackage } from "./claude-marketplace-sync.mjs";
+import { buildElectronAppDirName, isOutdatedStreamInstall } from "./electron-app-install-dir.mjs";
 import { backfillOnboardingStamp } from "./onboarding-backfill.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
@@ -34,7 +35,6 @@ import {
 } from "./release-integrity/index.mjs";
 
 const require = createRequire(import.meta.url);
-const VERSION_DIRECTORY_NAME_PATTERN = /^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
 const LOG_FILE_NAME = "postinstall.log";
@@ -325,15 +325,6 @@ function getPlatformKey() {
 }
 
 /**
- * Check whether a directory name looks like a version folder.
- * @param {string} directoryName - Directory name to validate
- * @returns {boolean} True when the directory name is a version
- */
-function isVersionDirectoryName(directoryName) {
-    return VERSION_DIRECTORY_NAME_PATTERN.test(directoryName);
-}
-
-/**
  * Calculate SHA256 checksum of a file.
  * @param {string} filePath - Path to the file
  * @returns {Promise<string>} SHA256 checksum as hex string
@@ -381,12 +372,13 @@ async function verifyFileChecksum(filePath, expectedChecksum) {
 }
 
 /**
- * Remove Electron app version directories that do not match the current version.
+ * Remove this release stream's Electron app directories other than the current install.
  * @param {object} params - Cleanup parameters
  * @param {string} params.appDir - Base Electron app directory
- * @param {string} params.currentVersion - Version that should be kept
+ * @param {string} params.releaseStream - Stream the current install belongs to
+ * @param {string} params.currentDirectoryName - Directory the current install uses
  */
-function cleanupNonCurrentVersions({ appDir, currentVersion }) {
+function cleanupOutdatedStreamInstalls({ appDir, releaseStream, currentDirectoryName }) {
     if (!existsSync(appDir)) {
         return;
     }
@@ -398,11 +390,13 @@ function cleanupNonCurrentVersions({ appDir, currentVersion }) {
             continue;
         }
 
-        if (!isVersionDirectoryName(appEntry.name)) {
-            continue;
-        }
-
-        if (appEntry.name === currentVersion) {
+        if (
+            !isOutdatedStreamInstall({
+                directoryName: appEntry.name,
+                releaseStream: releaseStream,
+                currentDirectoryName: currentDirectoryName,
+            })
+        ) {
             continue;
         }
 
@@ -446,6 +440,9 @@ function getBinaryName() {
 
 /**
  * Get the expected extracted executable path for the current platform.
+ *
+ * Mirrors ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS in packages/mcps: this script runs at
+ * install time as plain JavaScript and cannot import the TypeScript sources.
  * @param {string} versionDir - Version directory path
  * @returns {string} Expected executable path
  */
@@ -458,7 +455,7 @@ function getExpectedExecutablePath(versionDir) {
         case "win32":
             return join(versionDir, "MuggleAI.exe");
         case "linux":
-            return join(versionDir, "MuggleAI");
+            return join(versionDir, "muggle-ai-studio");
         default:
             throw new Error(`Unsupported platform: ${os}`);
     }
@@ -654,7 +651,8 @@ async function downloadElectronApp() {
         const downloadUrl = `${baseUrl}/${releaseTagPrefix}${version}/${binaryName}`;
 
         const appDir = getElectronAppDir();
-        const versionDir = join(appDir, version);
+        const versionDirectoryName = buildElectronAppDirName({ version: version, releaseStream: releaseStream });
+        const versionDir = join(appDir, versionDirectoryName);
         const metadataPath = getInstallMetadataPath(versionDir);
 
         // Check if already downloaded and extracted correctly
@@ -671,7 +669,11 @@ async function downloadElectronApp() {
                 });
 
                 if (existingInstallVerification.valid) {
-                    cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
+                    cleanupOutdatedStreamInstalls({
+                        appDir: appDir,
+                        releaseStream: releaseStream,
+                        currentDirectoryName: versionDirectoryName,
+                    });
                     log(`Electron app v${version} already installed at ${versionDir}`);
                     return;
                 }
@@ -812,7 +814,11 @@ async function downloadElectronApp() {
             expectedArchiveChecksum: expectedChecksum,
         });
 
-        cleanupNonCurrentVersions({ appDir: appDir, currentVersion: version });
+        cleanupOutdatedStreamInstalls({
+            appDir: appDir,
+            releaseStream: releaseStream,
+            currentDirectoryName: versionDirectoryName,
+        });
 
         log(`Electron app installed to ${versionDir}`);
     } catch (error) {

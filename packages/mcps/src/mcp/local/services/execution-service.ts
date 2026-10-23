@@ -113,6 +113,8 @@ interface IStudioCloudRefs {
   cloudTestScriptId?: string;
   /** Cloud action script ID. */
   cloudActionScriptId?: string;
+  /** Cloud runSettings record the run was recorded against (absent for a run that named no record and sent no size). */
+  cloudRunSettingsId?: string;
 }
 
 /**
@@ -135,9 +137,11 @@ function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs
   const viewUrl = asString(source.viewUrl);
   const cloudTestScriptId = asString(source.testScriptId);
   const cloudActionScriptId = asString(source.actionScriptId);
+  const cloudRunSettingsId = asString(source.runSettingsId);
   if (viewUrl !== undefined) refs.viewUrl = viewUrl;
   if (cloudTestScriptId !== undefined) refs.cloudTestScriptId = cloudTestScriptId;
   if (cloudActionScriptId !== undefined) refs.cloudActionScriptId = cloudActionScriptId;
+  if (cloudRunSettingsId !== undefined) refs.cloudRunSettingsId = cloudRunSettingsId;
   return refs;
 }
 
@@ -720,6 +724,7 @@ async function executeElectronAppAsync(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
+ * @param params.runSettingsId - Local runSettings record the cloud records the generation against.
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
@@ -731,6 +736,7 @@ export async function executeTestGeneration(params: {
   showUi?: boolean;
   freshSession?: boolean;
   displayResolution?: DisplayResolution;
+  runSettingsId?: string;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
   try {
@@ -748,6 +754,7 @@ async function runTestGenerationLocked(params: {
   showUi?: boolean;
   freshSession?: boolean;
   displayResolution?: DisplayResolution;
+  runSettingsId?: string;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? 300000;
@@ -804,6 +811,7 @@ async function runTestGenerationLocked(params: {
       ownerUserId: authContent.userId,
       displayResolution: params.displayResolution,
       freshSession: effectiveFreshSession,
+      runSettingsId: params.runSettingsId,
     });
 
     // Write temp files

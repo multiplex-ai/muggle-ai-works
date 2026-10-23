@@ -7,8 +7,11 @@
 import type { ArtifactExpectation, ArtifactSnapshot, ToolAttempt } from "../types.js";
 import { normalizePathText, resolveSandboxPath, sandboxPathSpellings } from "./paths.js";
 
-function carries(text: unknown, needle: string | undefined): boolean {
-  return needle === undefined || (typeof text === "string" && text.includes(needle));
+function carriesExpectedContent(text: unknown, artifact: ArtifactExpectation): boolean {
+  const hasContains = artifact.contains === undefined || (typeof text === "string" && text.includes(artifact.contains));
+  const hasMatch =
+    artifact.matches === undefined || (typeof text === "string" && new RegExp(artifact.matches).test(text));
+  return hasContains && hasMatch;
 }
 
 function writeAttemptNamesArtifact(
@@ -20,7 +23,7 @@ function writeAttemptNamesArtifact(
   if (attempt.tool !== "Write" || typeof filePath !== "string") return false;
   const written = normalizePathText(resolveSandboxPath(filePath, snapshot.paths));
   const expected = normalizePathText(resolveSandboxPath(artifact.path, snapshot.paths));
-  return written === expected && carries(attempt.args.content, artifact.contains);
+  return written === expected && carriesExpectedContent(attempt.args.content, artifact);
 }
 
 function bashAttemptNamesArtifact(
@@ -33,13 +36,14 @@ function bashAttemptNamesArtifact(
   const normalizedCommand = normalizePathText(command);
   return (
     spellings.some((spelling) => normalizedCommand.includes(spelling)) &&
-    carries(command, artifact.contains)
+    carriesExpectedContent(command, artifact)
   );
 }
 
 /**
- * True when the sandbox holds the artifact (carrying `contains`, when set), or
- * a recorded Write or Bash attempt names its path and carries `contains`.
+ * True when the sandbox holds the artifact (carrying `contains` and matching
+ * `matches`, when set), or a recorded Write or Bash attempt names its path and
+ * carries the same.
  */
 export function isArtifactSatisfied(
   artifact: ArtifactExpectation,
@@ -47,7 +51,7 @@ export function isArtifactSatisfied(
   toolAttempts: ToolAttempt[],
 ): boolean {
   const fileContent = snapshot.fileContents[artifact.path];
-  if (typeof fileContent === "string" && carries(fileContent, artifact.contains)) return true;
+  if (typeof fileContent === "string" && carriesExpectedContent(fileContent, artifact)) return true;
   const spellings = sandboxPathSpellings(artifact.path, snapshot.paths);
   return toolAttempts.some(
     (attempt) =>

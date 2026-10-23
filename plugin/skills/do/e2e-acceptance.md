@@ -47,6 +47,7 @@ You receive everything from `state.md` already — pre-flight resolved it:
 - Test-user credential status (existing / new / skip), when credentials are needed
 - The list of changed repos, files, and a summary of changes
 - The requirements goal
+- The `e2eScope` from impact analysis — the impacted, retired, and new use cases and test cases this stage runs
 
 ## Your Job
 
@@ -64,19 +65,21 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 `state.md` records `Wave: on` → this stage runs **once for the whole wave**, not per repo, per [`wave-e2e.md`](wave-e2e.md): the wave stack starts from every member's worktree, test cases are selected against the union of diffs, each case runs once, and each failure names its `implicatedRepo`. The steps below apply with those changes.
 
-### Step 0.5: Pre-flight verification probes
+### Step 0.5: Readiness check
 
-Before launching the local runner:
+A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:
 
-1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md`). Halt on failure.
+1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md` and starts what is down). Still not ready after its start attempts → the readiness halt below.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
+
+**Readiness halt.** The cycle planned a browser run and still owes it, so an app that cannot be brought up halts the cycle and is never a `SKIPPED` exit: declare no skip code, write no waiver, run nothing downstream. Report the URL probed, what `muggle-test-prepare` tried (the start command and how it failed), and that no PR was opened or updated; then end the turn and wait for the user. This holds for unattended runs and for a request that asked for the PR. A forward cycle opens no PR, posts no walkthrough, runs no Stage 7.5 and arms no watcher; a watcher cycle pushes nothing and escalates through its own path, which keeps the watcher running. A run that failed because the app never answered (connection refused, page never loaded) returns to item 1, and still down is this halt. A Stop-hook reminder that E2E is still owed does not lift it.
 
 ### Step 1: Authentication already verified
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
 
-If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly.
+If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly. This is the only exit `DEV_SERVER_UNREACHABLE` belongs to, because pre-flight never planned a browser run; on a `local-e2e` cycle an unreachable server is the Step 0.5 readiness halt.
 
 If validation is `staging-replay`, emit `INCONCLUSIVE` with reason `staging replay not handled in Stage 6 local runner path` and exit cleanly.
 
@@ -95,20 +98,28 @@ Consume `pathClassification` from impact-analysis and resolve the dispatch targe
 
 The `devServerUrl` and project resolved here override any defaults in `state.md` for the remainder of this stage. Treat classification labels as routing hints provided by impact-analysis; do not hardcode product-specific paths in this stage.
 
-### Step 2: Get Test Cases
+### Step 2: Load the scope
 
-Use `muggle-remote-test-case-list` with the project ID to fetch all test cases.
+The cases to run are the `e2eScope` impact analysis recorded in its `iterations/<NNN>.md` marker ([`impact-analysis.md`](impact-analysis.md#output-state--e2escope)): every impacted test case plus every new one. Do not re-list the project or re-select by judgment here; the scope was decided where the diff and the criteria were both in hand.
 
-### Step 3: Filter Relevant Test Cases
+- **No scope, or `not-scoped`, on a cycle that reached this step** → run that file's scope procedure now and record it before going on. Never fall back to every case in the project.
+- **A Stage 7.5 re-run** passes its affected test cases; they replace the scope for that run, and cases already created are not created again.
+- **Retired use cases and test cases** are not run — the change replaced or removed what they verify. Nothing is deleted here: the report lists them as planned deletions, and [`cleanup.md`](cleanup.md) deletes them once the PR merges.
+- **A flow the run shows the change reaches that no scoped case covers** is added with a one-line reason under the report's scope amendments. A scoped case is never dropped.
 
-Based on the changed files and the requirements goal, determine which test cases are relevant:
-- Test cases whose use cases directly relate to the changed functionality
-- Test cases that cover areas potentially affected by the changes
-- When in doubt, include the test case (better to over-test than miss a regression)
+### Step 3: Create the new cases
+
+Create what the scope planned, before any run:
+
+1. **New use cases** — one `muggle-remote-use-case-create-from-prompts` call with every `newUseCases` instruction in its `instructions` array. Map each created use case back to its key.
+2. **New test cases** — one `muggle-remote-test-case-generate-from-prompt` per `newTestCases` entry, all in one message, with `projectId`, the resolved `useCaseId`, and the entry's `instruction`.
+3. **Create every generated case** — `muggle-remote-test-case-create` for each, in parallel. Accept the generator's decomposition as-is ([`../_shared/test-case-design.md`](../_shared/test-case-design.md)): N micro-tests from one instruction are N test cases. Record each `testCaseId` against its key; the report and a Stage 7.5 re-run name new cases by id.
+
+A failed create leaves its entry `INCONCLUSIVE` with reason `case creation failed: <error>`; it stays in the report.
 
 ### Step 3.5: Satisfy each target's prerequisite chain
 
-For every test case selected in Step 3, resolve its prerequisite chain from the backend's test-plan graph and make each ancestor ready before the target runs, per [`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md). This stage is unattended, so follow that file's unattended-caller rule: a target whose chain cannot be satisfied is reported `INCONCLUSIVE` with reason `prerequisites unmet` and is not run.
+For every test case in scope after Step 3, resolve its prerequisite chain from the backend's test-plan graph and make each ancestor ready before the target runs, per [`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md). This stage is unattended, so follow that file's unattended-caller rule: a target whose chain cannot be satisfied is reported `INCONCLUSIVE` with reason `prerequisites unmet` and is not run.
 
 A target that runs without its prerequisite state spends its step budget re-creating that state — signing in, seeding data — and reports on what it lacked rather than on the change under test. That verdict reads as a product failure and is worth less than no verdict.
 
@@ -116,7 +127,7 @@ Ancestors generated here are prerequisites, not results: they belong in neither 
 
 ### Step 4: Run the dev loop, gather screenshots
 
-For each relevant test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
+For each scoped test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
 
@@ -125,7 +136,7 @@ Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from
 For each test case:
 - Record pass or fail from the run result
 - If failed, capture the error message, failure step index, and `artifactsDir` for local debugging
-- In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips)
+- In `local-e2e` mode, every scoped test case must be executed — generate a new script if none exists (no skips)
 
 ## Output
 
@@ -158,6 +169,12 @@ For each test case:
   - reason: `<one short sentence>`
   - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]` (empty only when the run produced no steps)
 
+**Scope:** (from `e2eScope`, after Step 3)
+- impacted: `<testCaseId>`, ...
+- new: `<key>` → `<testCaseId>`, ...
+- retired (not run — deleted after merge): use case `<useCaseId>`, ...; test case `<testCaseId>` → replaced by `<testCaseId>` | removed, ...
+- amendments: `<testCaseId>` — `<reason>`, ...
+
 **Metadata:**
 - projectId: `<projectId>`
 
@@ -180,6 +197,6 @@ Failed runs use the same evidence + diagnosis assembly as the interactive debug 
 - No silent auth skip; always verify with `muggle-remote-auth-status` first.
 - Replay/timeout/result discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`, always pass `timeoutMs`, read structured run-result fields.
 - No hiding failures: surface errors, exit codes, and artifact paths.
-- In `local-e2e` mode, every relevant test case must be executed — generate a new script if none exists (no skips).
+- In `local-e2e` mode, every scoped test case must be executed — generate a new script if none exists (no skips).
 - The studio publishes every run during execution, so screenshots are cloud-accessible for PR comments — read the refs off the run result, never re-publish.
 - **Never drop a test case from the report because it "couldn't run cleanly."** A test that didn't reach its assertion is `inconclusive`, not absent. Dropping it produces misleading verdicts and pushes downstream PR-comment renderers to hand-write the comment — which is the failure mode this stage exists to prevent.

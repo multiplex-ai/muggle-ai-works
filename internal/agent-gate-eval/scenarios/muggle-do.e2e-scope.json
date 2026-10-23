@@ -1,0 +1,827 @@
+{
+  "target": {
+    "kind": "skill",
+    "name": "muggle-do"
+  },
+  "scenarios": [
+    {
+      "name": "scopes-retires-and-runs-only-the-scope",
+      "prompt": "Resume session drop-newsletter: stages 1–3 are done and recorded in ~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md, so continue from Stage 4. I'm away — run the rest unattended.",
+      "maxTurns": 90,
+      "preferences": {
+        "autoCreatePR": "never",
+        "autoUseWorktree": "never",
+        "autoInstallCiWorkflow": "never"
+      },
+      "seed": {
+        "repo": "greeting-site",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/state.md",
+            "content": "# Session state\n\n**Slug:** drop-newsletter\n**Current stage:** 3/7 (build complete)\n**Last update:** 2026-10-22T18:06:00Z\n\n## Pre-flight answers\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Waivers\n\n- Build clean (typecheck + lint): greeting-site has no typecheck or lint script; `node --check` passed on every changed file.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page drops the discontinued newsletter signup and bids the visitor farewell under the greeting.\n\n## Acceptance Criteria\n\n- The home page no longer shows the newsletter signup form, and `/subscribe` answers 404.\n- Under the `<h1>` greeting, the home page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the greeting's name fallback (`friend` for a blank name).\n- Unit tests cover the named and blank-name farewell.\n\n**Affected Repos:** greeting-site\n\n**Notes:** The newsletter vendor's contract ended, so `src/newsletter.js`, its `/subscribe` route and its tests go. The farewell renders from `renderGreeting`, the one function the home page greets with.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T18:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T18:02:10Z)\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T18:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 4 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T18:06:00Z)\n\nStage 3 done — feat(home): drop the newsletter signup and add a farewell line (4b1e2f0); signed (%G? = G). Removed src/newsletter.js, its /subscribe route and test/newsletter_test.js; renderGreeting appends the farewell line; the greeting tests pin the new markup. Build clean waived in state.md: no typecheck or lint script; `node --check` passed on every changed file.\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {
+          "commandContains": "worktree list",
+          "response": "worktree {{repo}}\nHEAD 4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\nbranch refs/heads/users/eval/drop-newsletter\n"
+        },
+        {
+          "commandContains": "diff --name-only",
+          "response": "src/greeting.js\nsrc/home.js\nsrc/newsletter.js\ntest/greeting_test.js\ntest/newsletter_test.js"
+        },
+        {
+          "commandContains": "--name-status",
+          "response": "M\tsrc/greeting.js\nM\tsrc/home.js\nD\tsrc/newsletter.js\nM\ttest/greeting_test.js\nD\ttest/newsletter_test.js"
+        },
+        {
+          "commandContains": "--stat",
+          "response": " src/greeting.js         |  4 ++--\n src/home.js             | 12 ++++--------\n src/newsletter.js       | 11 -----------\n test/greeting_test.js   |  8 ++++----\n test/newsletter_test.js | 12 ------------\n 5 files changed, 10 insertions(+), 37 deletions(-)"
+        },
+        {
+          "commandContains": "diff",
+          "response": "diff --git a/src/greeting.js b/src/greeting.js\nindex 3f1c2a7..8d0e5b1 100644\n--- a/src/greeting.js\n+++ b/src/greeting.js\n@@ -1,5 +1,5 @@\n-/** The greeting the home page renders for a visitor. */\n+/** The greeting the home page renders for a visitor, with a farewell line under it. */\n export function renderGreeting(visitorName) {\n   const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n-  return `<h1>Hello, ${name}!</h1>`;\n+  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n }\ndiff --git a/src/home.js b/src/home.js\nindex 5a9d0c4..b27e6f3 100644\n--- a/src/home.js\n+++ b/src/home.js\n@@ -1,15 +1,11 @@\n import { renderGreeting } from \"./greeting.js\";\n-import { renderNewsletterForm, renderSubscribeResult } from \"./newsletter.js\";\n \n-/** The home page: the visitor's greeting, then a footer with the newsletter signup. */\n+/** The home page: the visitor's greeting. */\n function renderHomePage(visitorName) {\n-  return `<main>${renderGreeting(visitorName)}</main>\\n<footer>${renderNewsletterForm()}</footer>`;\n+  return `<main>${renderGreeting(visitorName)}</main>`;\n }\n \n /** The home page's routes for one request URL, keyed by method and path. */\n export function homeRoutes(url) {\n-  return {\n-    \"GET /\": () => renderHomePage(url.searchParams.get(\"name\")),\n-    \"GET /subscribe\": () => renderSubscribeResult(url.searchParams.get(\"email\")),\n-  };\n+  return { \"GET /\": () => renderHomePage(url.searchParams.get(\"name\")) };\n }\ndiff --git a/src/newsletter.js b/src/newsletter.js\ndeleted file mode 100644\nindex 7c4e1d9..0000000\n--- a/src/newsletter.js\n+++ /dev/null\n@@ -1,11 +0,0 @@\n-const EMAIL_PATTERN = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/;\n-\n-/** The footer's newsletter signup form. */\n-export function renderNewsletterForm() {\n-  return `<form method=\"get\" action=\"/subscribe\"><input type=\"email\" name=\"email\" required><button>Subscribe</button></form>`;\n-}\n-\n-/** Where a signup lands: the confirmation, or the error for a malformed address. */\n-export function renderSubscribeResult(email) {\n-  return EMAIL_PATTERN.test(email ?? \"\") ? \"<p>You're subscribed — see you in your inbox.</p>\" : \"<p>Enter a valid email address.</p>\";\n-}\ndiff --git a/test/greeting_test.js b/test/greeting_test.js\nindex 2d7f8e1..9a3c5b6 100644\n--- a/test/greeting_test.js\n+++ b/test/greeting_test.js\n@@ -3,10 +3,10 @@ import { test } from \"node:test\";\n \n import { renderGreeting } from \"../src/greeting.js\";\n \n-test(\"greets a named visitor\", () => {\n-  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\");\n+test(\"greets a named visitor and bids them farewell\", () => {\n+  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n });\n \n-test(\"falls back to friend for a blank name\", () => {\n-  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\");\n+test(\"falls back to friend for a blank name in both lines\", () => {\n+  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n });\ndiff --git a/test/newsletter_test.js b/test/newsletter_test.js\ndeleted file mode 100644\nindex 0b6f2c8..0000000\n--- a/test/newsletter_test.js\n+++ /dev/null\n@@ -1,12 +0,0 @@\n-import assert from \"node:assert/strict\";\n-import { test } from \"node:test\";\n-\n-import { renderSubscribeResult } from \"../src/newsletter.js\";\n-\n-test(\"confirms a valid address\", () => {\n-  assert.match(renderSubscribeResult(\"ada@example.com\"), /subscribed/);\n-});\n-\n-test(\"rejects a malformed address\", () => {\n-  assert.match(renderSubscribeResult(\"ada@\"), /valid email/);\n-});\n"
+        },
+        {
+          "commandContains": "guard-run",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "npm test",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "node --test",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "%G?",
+          "response": "G"
+        },
+        {
+          "commandContains": "log --",
+          "response": "4b1e2f0 feat(home): drop the newsletter signup and add a farewell line"
+        },
+        {
+          "commandContains": "symbolic-ref",
+          "response": "origin/main"
+        },
+        {
+          "commandContains": "branch --show-current",
+          "response": "users/eval/drop-newsletter"
+        },
+        {
+          "commandContains": "rev-parse --abbrev-ref",
+          "response": "users/eval/drop-newsletter"
+        },
+        {
+          "commandContains": "rev-parse",
+          "response": "4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0"
+        },
+        {
+          "commandContains": "rev-list --count",
+          "response": "0"
+        },
+        {
+          "commandContains": "remote get-url",
+          "response": "https://github.com/acme/greeting-site.git"
+        },
+        {
+          "commandContains": " fetch",
+          "response": ""
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/drop-newsletter\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": "curl",
+          "response": "200"
+        },
+        {
+          "commandContains": "ls ",
+          "response": "README.md\npackage.json\nsrc\ntest"
+        },
+        {
+          "commandContains": "grep",
+          "response": ""
+        },
+        {
+          "commandContains": "gh pr list",
+          "response": ""
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "no pull requests found for branch \"users/eval/drop-newsletter\""
+        }
+      ],
+      "toolResponses": {
+        "Skill": [
+          {
+            "argContains": "muggle-test-prepare",
+            "response": "READY\n\n| Service | URL | Status |\n| --- | --- | --- |\n| greeting-site | http://localhost:3000 | 200 OK — body clean, ready |"
+          }
+        ]
+      },
+      "fixtures": {
+        "projects": {
+          "items": [
+            {
+              "id": "proj-greeting-site",
+              "name": "greeting-site",
+              "url": "http://localhost:3000"
+            }
+          ]
+        },
+        "lastProject": {
+          "id": "proj-greeting-site",
+          "url": "http://localhost:3000"
+        },
+        "useCases": {
+          "items": [
+            {
+              "id": "uc-greeting",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sees a personalized greeting on the home page",
+              "description": "A visitor opens the home page, optionally with ?name=, and is greeted by name.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-newsletter",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor subscribes to the newsletter from the home page",
+              "description": "A visitor enters an email in the home page footer's newsletter form and subscribes.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-contact",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sends a message from the contact page",
+              "description": "A visitor writes a message on the contact page and sends it.",
+              "url": "http://localhost:3000/contact"
+            }
+          ],
+          "totalCount": 3,
+          "totalPages": 1,
+          "hasMore": false
+        },
+        "testCasesByUseCase": {
+          "uc-greeting": {
+            "items": [
+              {
+                "id": "tc-greeting-named",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting names the visitor from the name query",
+                "description": "Verify the home page greets a visitor by the name in the ?name= query",
+                "goal": "Verify the home page greets a visitor by the name in the ?name= query",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, Ada!'",
+                "url": "http://localhost:3000/?name=Ada",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-greeting-blank",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting falls back to friend for a blank name",
+                "description": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "goal": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, friend!'",
+                "url": "http://localhost:3000/?name=%20",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-newsletter": {
+            "items": [
+              {
+                "id": "tc-newsletter-subscribe",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a valid email shows the confirmation",
+                "description": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "goal": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "precondition": "",
+                "expectedResult": "The page confirms the visitor is subscribed",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-newsletter-invalid",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a malformed email shows a validation error",
+                "description": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "goal": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "precondition": "",
+                "expectedResult": "The page asks for a valid email address",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-contact": {
+            "items": [
+              {
+                "id": "tc-contact-send",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-contact",
+                "title": "Sending a message shows the thank-you note",
+                "description": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "goal": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "precondition": "",
+                "expectedResult": "The page thanks the visitor and says they will hear back soon",
+                "url": "http://localhost:3000/contact",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 1,
+            "totalPages": 1,
+            "hasMore": false
+          }
+        }
+      },
+      "expect": {
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "contains": "e2eScope"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "retiredUseCases(?:(?!retiredTestCases|newUseCases)[\\s\\S])*uc-newsletter"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "retiredTestCases(?:(?!newUseCases|newTestCases)[\\s\\S])*tc-newsletter-subscribe(?:(?!replacedBy)[\\s\\S])*replacedBy\\W*none"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "retiredTestCases(?:(?!newUseCases|newTestCases)[\\s\\S])*tc-newsletter-invalid(?:(?!replacedBy)[\\s\\S])*replacedBy\\W*none"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "impactedTestCases(?:(?!retiredUseCases|retiredTestCases)[\\s\\S])*tc-greeting-named"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "impactedTestCases(?:(?!retiredUseCases|retiredTestCases)[\\s\\S])*tc-greeting-blank"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "newTestCases(?:(?!criteria)[\\s\\S])*useCase(?:Id)?\\W*uc-greeting"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "matches": "criteria(?:(?!newTestCases)[\\s\\S])*unobservable"
+          }
+        ],
+        "requireToolSequence": [
+          {
+            "tool": "Read",
+            "argContains": "impact-analysis.md"
+          },
+          {
+            "tool": "muggle-remote-use-case-list",
+            "argContains": ""
+          },
+          {
+            "tool": "Read",
+            "argContains": "e2e-acceptance.md"
+          },
+          {
+            "tool": "muggle-remote-test-case-create",
+            "argContains": ""
+          }
+        ],
+        "requireToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-generate-from-prompt",
+            "argContains": "uc-greeting"
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-greeting-named"
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-greeting-blank"
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-new-"
+          }
+        ],
+        "forbidToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": ""
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": ""
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-newsletter"
+          },
+          {
+            "tool": "muggle-local-execute-replay",
+            "argContains": "tc-newsletter"
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-contact"
+          },
+          {
+            "tool": "muggle-local-execute-replay",
+            "argContains": "tc-contact"
+          }
+        ]
+      }
+    },
+    {
+      "name": "merged-pr-deletes-the-retired-cases",
+      "prompt": "cleanup slug=drop-newsletter state=merged",
+      "maxTurns": 40,
+      "seed": {
+        "repo": "greeting-site",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/state.md",
+            "content": "# Session state\n\n**Slug:** drop-newsletter\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T18:06:00Z\n\n## Pre-flight answers\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- CI check: skip\n\n## Waivers\n\n- Build clean (typecheck + lint): greeting-site has no typecheck or lint script; `node --check` passed on every changed file.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page drops the discontinued newsletter signup and bids the visitor farewell under the greeting.\n\n## Acceptance Criteria\n\n- The home page no longer shows the newsletter signup form, and `/subscribe` answers 404.\n- Under the `<h1>` greeting, the home page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the greeting's name fallback (`friend` for a blank name).\n- Unit tests cover the named and blank-name farewell.\n\n**Affected Repos:** greeting-site\n\n**Notes:** The newsletter vendor's contract ended, so `src/newsletter.js`, its `/subscribe` route and its tests go. The farewell renders from `renderGreeting`, the one function the home page greets with.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T18:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T18:02:10Z)\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T18:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 4 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T18:06:00Z)\n\nStage 3 done — feat(home): drop the newsletter signup and add a farewell line (4b1e2f0); signed (%G? = G). Removed src/newsletter.js, its /subscribe route and test/newsletter_test.js; renderGreeting appends the farewell line; the greeting tests pin the new markup. Build clean waived in state.md: no typecheck or lint script; `node --check` passed on every changed file.\n\n### Stage 4 — Impact analysis (2026-10-22T18:07:00Z)\n\nStage 4 done — src/greeting.js, src/home.js, test/greeting_test.js changed and src/newsletter.js, test/newsletter_test.js deleted on users/eval/drop-newsletter vs main; pathClassification: surface-a.\n\ne2eScope:\n  - projectId: proj-greeting-site\n    impactedUseCases:\n      - useCaseId: uc-greeting\n        title: Visitor sees a personalized greeting on the home page\n        reason: src/greeting.js renders a farewell line under the greeting\n    impactedTestCases:\n      - testCaseId: tc-greeting-named\n        useCaseId: uc-greeting\n        title: Greeting names the visitor from the name query\n        reason: src/greeting.js changes the markup this case reads\n      - testCaseId: tc-greeting-blank\n        useCaseId: uc-greeting\n        title: Greeting falls back to friend for a blank name\n        reason: src/greeting.js changes the markup this case reads\n    retiredUseCases:\n      - useCaseId: uc-newsletter\n        title: Visitor subscribes to the newsletter from the home page\n        reason: the change removes the newsletter signup flow, and every test case under it is retired\n    retiredTestCases:\n      - testCaseId: tc-newsletter-subscribe\n        title: Subscribing with a valid email shows the confirmation\n        reason: the change removes the newsletter signup it verifies\n        replacedBy: none\n      - testCaseId: tc-newsletter-invalid\n        title: Subscribing with a malformed email shows a validation error\n        reason: the change removes the newsletter signup it verifies\n        replacedBy: none\n    newUseCases: []\n    newTestCases:\n      - key: NTC1\n        useCase: uc-greeting\n        instruction: The home page shows no newsletter signup form\n      - key: NTC2\n        useCase: uc-greeting\n        instruction: Under the greeting, the home page bids a named visitor farewell by name\n      - key: NTC3\n        useCase: uc-greeting\n        instruction: For a blank name, the farewell line uses friend\n    criteria:\n      - criterion: The home page no longer shows the newsletter signup form, and /subscribe answers 404.\n        coveredBy: [NTC1]\n      - criterion: Under the <h1> greeting, the home page renders <p>See you soon, <name>!</p>.\n        coveredBy: [NTC2]\n      - criterion: The farewell line uses the greeting's name fallback (friend for a blank name).\n        coveredBy: [NTC3]\n      - criterion: Unit tests cover the named and blank-name farewell.\n        unobservable: a unit-test requirement; test/greeting_test.js covers both cases\n\n### Stage 5 — Unit tests (2026-10-22T18:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T18:21:00Z)\n\nStage 6 done — Overall: PASS. Scope: impacted tc-greeting-named (run-31), tc-greeting-blank (run-32); new NTC1 → tc-new-1 (run-33), NTC2 → tc-new-2 (run-34), NTC3 → tc-new-3 (run-35); retired (not run — deleted after merge): use case uc-newsletter; test cases tc-newsletter-subscribe → removed, tc-newsletter-invalid → removed.\n\n### Stage 7 — Create PR (2026-10-22T18:24:00Z)\n\nStage 7 done — https://github.com/acme/greeting-site/pull/57 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T18:24:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T18:25:00Z)\n\nStage 8 done — watching PR #57.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/greeting-site\",\n    \"provider\": \"github\",\n    \"number\": 57,\n    \"url\": \"https://github.com/acme/greeting-site/pull/57\",\n    \"head_sha\": \"4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\",\n    \"state\": \"merged\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/followup.log",
+            "content": "2026-10-22T18:25:00Z armed watcher for PR #57\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":57,\"url\":\"https://github.com/acme/greeting-site/pull/57\",\"state\":\"MERGED\",\"headRefName\":\"users/eval/drop-newsletter\",\"baseRefName\":\"main\"}"
+        },
+        {
+          "commandContains": "ls-remote",
+          "response": ""
+        },
+        {
+          "commandContains": "gh api",
+          "response": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/git/refs#get-a-reference\",\"status\":\"404\"}"
+        },
+        {
+          "commandContains": "muggle-test-prepare.json",
+          "response": "ls: cannot access '/tmp/muggle-test-prepare.json': No such file or directory"
+        },
+        {
+          "commandContains": "muggle-prepare-",
+          "response": ""
+        },
+        {
+          "commandContains": "worktree list",
+          "response": "worktree {{repo}}\nHEAD 4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\nbranch refs/heads/main\n"
+        },
+        {
+          "commandContains": "branch --list",
+          "response": ""
+        },
+        {
+          "commandContains": "branch --show-current",
+          "response": "main"
+        },
+        {
+          "commandContains": " fetch",
+          "response": ""
+        }
+      ],
+      "toolResponses": {
+        "AskUserQuestion": [
+          {
+            "argContains": "",
+            "response": "Done — stop here"
+          }
+        ]
+      },
+      "fixtures": {
+        "projects": {
+          "items": [
+            {
+              "id": "proj-greeting-site",
+              "name": "greeting-site",
+              "url": "http://localhost:3000"
+            }
+          ]
+        },
+        "lastProject": {
+          "id": "proj-greeting-site",
+          "url": "http://localhost:3000"
+        },
+        "useCases": {
+          "items": [
+            {
+              "id": "uc-greeting",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sees a personalized greeting on the home page",
+              "description": "A visitor opens the home page, optionally with ?name=, and is greeted by name.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-newsletter",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor subscribes to the newsletter from the home page",
+              "description": "A visitor enters an email in the home page footer's newsletter form and subscribes.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-contact",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sends a message from the contact page",
+              "description": "A visitor writes a message on the contact page and sends it.",
+              "url": "http://localhost:3000/contact"
+            }
+          ],
+          "totalCount": 3,
+          "totalPages": 1,
+          "hasMore": false
+        },
+        "testCasesByUseCase": {
+          "uc-greeting": {
+            "items": [
+              {
+                "id": "tc-greeting-named",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting names the visitor from the name query",
+                "description": "Verify the home page greets a visitor by the name in the ?name= query",
+                "goal": "Verify the home page greets a visitor by the name in the ?name= query",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, Ada!'",
+                "url": "http://localhost:3000/?name=Ada",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-greeting-blank",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting falls back to friend for a blank name",
+                "description": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "goal": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, friend!'",
+                "url": "http://localhost:3000/?name=%20",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-newsletter": {
+            "items": [
+              {
+                "id": "tc-newsletter-subscribe",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a valid email shows the confirmation",
+                "description": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "goal": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "precondition": "",
+                "expectedResult": "The page confirms the visitor is subscribed",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-newsletter-invalid",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a malformed email shows a validation error",
+                "description": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "goal": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "precondition": "",
+                "expectedResult": "The page asks for a valid email address",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-contact": {
+            "items": [
+              {
+                "id": "tc-contact-send",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-contact",
+                "title": "Sending a message shows the thank-you note",
+                "description": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "goal": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "precondition": "",
+                "expectedResult": "The page thanks the visitor and says they will hear back soon",
+                "url": "http://localhost:3000/contact",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 1,
+            "totalPages": 1,
+            "hasMore": false
+          }
+        }
+      },
+      "expect": {
+        "forbidAskUserQuestion": false,
+        "requireToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-newsletter-subscribe"
+          },
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-newsletter-invalid"
+          }
+        ],
+        "requireToolSequence": [
+          {
+            "tool": "muggle-remote-test-case-list-by-use-case",
+            "argContains": "uc-newsletter"
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": "uc-newsletter"
+          }
+        ],
+        "forbidToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-greeting-named"
+          },
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-greeting-blank"
+          },
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-contact-send"
+          },
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": "tc-new-"
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": "uc-greeting"
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": "uc-contact"
+          }
+        ]
+      }
+    },
+    {
+      "name": "closed-pr-deletes-nothing",
+      "prompt": "cleanup slug=drop-newsletter state=closed",
+      "maxTurns": 30,
+      "seed": {
+        "repo": "greeting-site",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/state.md",
+            "content": "# Session state\n\n**Slug:** drop-newsletter\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T18:06:00Z\n\n## Pre-flight answers\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- CI check: skip\n\n## Waivers\n\n- Build clean (typecheck + lint): greeting-site has no typecheck or lint script; `node --check` passed on every changed file.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page drops the discontinued newsletter signup and bids the visitor farewell under the greeting.\n\n## Acceptance Criteria\n\n- The home page no longer shows the newsletter signup form, and `/subscribe` answers 404.\n- Under the `<h1>` greeting, the home page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the greeting's name fallback (`friend` for a blank name).\n- Unit tests cover the named and blank-name farewell.\n\n**Affected Repos:** greeting-site\n\n**Notes:** The newsletter vendor's contract ended, so `src/newsletter.js`, its `/subscribe` route and its tests go. The farewell renders from `renderGreeting`, the one function the home page greets with.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T18:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T18:02:10Z)\n\n- Task: Drop the discontinued newsletter signup from the home page and add a farewell line under the greeting\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/drop-newsletter\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T18:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 4 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T18:06:00Z)\n\nStage 3 done — feat(home): drop the newsletter signup and add a farewell line (4b1e2f0); signed (%G? = G). Removed src/newsletter.js, its /subscribe route and test/newsletter_test.js; renderGreeting appends the farewell line; the greeting tests pin the new markup. Build clean waived in state.md: no typecheck or lint script; `node --check` passed on every changed file.\n\n### Stage 4 — Impact analysis (2026-10-22T18:07:00Z)\n\nStage 4 done — src/greeting.js, src/home.js, test/greeting_test.js changed and src/newsletter.js, test/newsletter_test.js deleted on users/eval/drop-newsletter vs main; pathClassification: surface-a.\n\ne2eScope:\n  - projectId: proj-greeting-site\n    impactedUseCases:\n      - useCaseId: uc-greeting\n        title: Visitor sees a personalized greeting on the home page\n        reason: src/greeting.js renders a farewell line under the greeting\n    impactedTestCases:\n      - testCaseId: tc-greeting-named\n        useCaseId: uc-greeting\n        title: Greeting names the visitor from the name query\n        reason: src/greeting.js changes the markup this case reads\n      - testCaseId: tc-greeting-blank\n        useCaseId: uc-greeting\n        title: Greeting falls back to friend for a blank name\n        reason: src/greeting.js changes the markup this case reads\n    retiredUseCases:\n      - useCaseId: uc-newsletter\n        title: Visitor subscribes to the newsletter from the home page\n        reason: the change removes the newsletter signup flow, and every test case under it is retired\n    retiredTestCases:\n      - testCaseId: tc-newsletter-subscribe\n        title: Subscribing with a valid email shows the confirmation\n        reason: the change removes the newsletter signup it verifies\n        replacedBy: none\n      - testCaseId: tc-newsletter-invalid\n        title: Subscribing with a malformed email shows a validation error\n        reason: the change removes the newsletter signup it verifies\n        replacedBy: none\n    newUseCases: []\n    newTestCases:\n      - key: NTC1\n        useCase: uc-greeting\n        instruction: The home page shows no newsletter signup form\n      - key: NTC2\n        useCase: uc-greeting\n        instruction: Under the greeting, the home page bids a named visitor farewell by name\n      - key: NTC3\n        useCase: uc-greeting\n        instruction: For a blank name, the farewell line uses friend\n    criteria:\n      - criterion: The home page no longer shows the newsletter signup form, and /subscribe answers 404.\n        coveredBy: [NTC1]\n      - criterion: Under the <h1> greeting, the home page renders <p>See you soon, <name>!</p>.\n        coveredBy: [NTC2]\n      - criterion: The farewell line uses the greeting's name fallback (friend for a blank name).\n        coveredBy: [NTC3]\n      - criterion: Unit tests cover the named and blank-name farewell.\n        unobservable: a unit-test requirement; test/greeting_test.js covers both cases\n\n### Stage 5 — Unit tests (2026-10-22T18:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T18:21:00Z)\n\nStage 6 done — Overall: PASS. Scope: impacted tc-greeting-named (run-31), tc-greeting-blank (run-32); new NTC1 → tc-new-1 (run-33), NTC2 → tc-new-2 (run-34), NTC3 → tc-new-3 (run-35); retired (not run — deleted after merge): use case uc-newsletter; test cases tc-newsletter-subscribe → removed, tc-newsletter-invalid → removed.\n\n### Stage 7 — Create PR (2026-10-22T18:24:00Z)\n\nStage 7 done — https://github.com/acme/greeting-site/pull/57 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T18:24:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T18:25:00Z)\n\nStage 8 done — watching PR #57.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/greeting-site\",\n    \"provider\": \"github\",\n    \"number\": 57,\n    \"url\": \"https://github.com/acme/greeting-site/pull/57\",\n    \"head_sha\": \"4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\",\n    \"state\": \"closed\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/drop-newsletter/followup.log",
+            "content": "2026-10-22T18:25:00Z armed watcher for PR #57\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":57,\"url\":\"https://github.com/acme/greeting-site/pull/57\",\"state\":\"CLOSED\",\"headRefName\":\"users/eval/drop-newsletter\",\"baseRefName\":\"main\"}"
+        },
+        {
+          "commandContains": "ls-remote",
+          "response": ""
+        },
+        {
+          "commandContains": "gh api",
+          "response": "{\"message\":\"Not Found\",\"documentation_url\":\"https://docs.github.com/rest/git/refs#get-a-reference\",\"status\":\"404\"}"
+        },
+        {
+          "commandContains": "muggle-test-prepare.json",
+          "response": "ls: cannot access '/tmp/muggle-test-prepare.json': No such file or directory"
+        },
+        {
+          "commandContains": "muggle-prepare-",
+          "response": ""
+        },
+        {
+          "commandContains": "worktree list",
+          "response": "worktree {{repo}}\nHEAD 4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\nbranch refs/heads/main\n"
+        },
+        {
+          "commandContains": "branch --list",
+          "response": ""
+        },
+        {
+          "commandContains": "branch --show-current",
+          "response": "main"
+        },
+        {
+          "commandContains": " fetch",
+          "response": ""
+        }
+      ],
+      "toolResponses": {
+        "AskUserQuestion": [
+          {
+            "argContains": "",
+            "response": "Done — stop here"
+          }
+        ]
+      },
+      "fixtures": {
+        "projects": {
+          "items": [
+            {
+              "id": "proj-greeting-site",
+              "name": "greeting-site",
+              "url": "http://localhost:3000"
+            }
+          ]
+        },
+        "lastProject": {
+          "id": "proj-greeting-site",
+          "url": "http://localhost:3000"
+        },
+        "useCases": {
+          "items": [
+            {
+              "id": "uc-greeting",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sees a personalized greeting on the home page",
+              "description": "A visitor opens the home page, optionally with ?name=, and is greeted by name.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-newsletter",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor subscribes to the newsletter from the home page",
+              "description": "A visitor enters an email in the home page footer's newsletter form and subscribes.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-contact",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sends a message from the contact page",
+              "description": "A visitor writes a message on the contact page and sends it.",
+              "url": "http://localhost:3000/contact"
+            }
+          ],
+          "totalCount": 3,
+          "totalPages": 1,
+          "hasMore": false
+        },
+        "testCasesByUseCase": {
+          "uc-greeting": {
+            "items": [
+              {
+                "id": "tc-greeting-named",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting names the visitor from the name query",
+                "description": "Verify the home page greets a visitor by the name in the ?name= query",
+                "goal": "Verify the home page greets a visitor by the name in the ?name= query",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, Ada!'",
+                "url": "http://localhost:3000/?name=Ada",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-greeting-blank",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting falls back to friend for a blank name",
+                "description": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "goal": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, friend!'",
+                "url": "http://localhost:3000/?name=%20",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-newsletter": {
+            "items": [
+              {
+                "id": "tc-newsletter-subscribe",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a valid email shows the confirmation",
+                "description": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "goal": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "precondition": "",
+                "expectedResult": "The page confirms the visitor is subscribed",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-newsletter-invalid",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a malformed email shows a validation error",
+                "description": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "goal": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "precondition": "",
+                "expectedResult": "The page asks for a valid email address",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-contact": {
+            "items": [
+              {
+                "id": "tc-contact-send",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-contact",
+                "title": "Sending a message shows the thank-you note",
+                "description": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "goal": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "precondition": "",
+                "expectedResult": "The page thanks the visitor and says they will hear back soon",
+                "url": "http://localhost:3000/contact",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 1,
+            "totalPages": 1,
+            "hasMore": false
+          }
+        }
+      },
+      "expect": {
+        "forbidAskUserQuestion": false,
+        "forbidToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": ""
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": ""
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -14,6 +14,7 @@
 
 import {
   DETAIL_IMAGE_WIDTH,
+  SHORT_ID_LABEL_SEPARATOR,
   STEP_ELEMENT_ID_SUFFIX,
   STEP_IMAGE_WIDTH,
   STEP_LIST_ELISION_THRESHOLD,
@@ -190,12 +191,13 @@ function endingFrame (test: TestResult): IEndingFrame | null {
 }
 
 /**
- * Clickable full-width image. The alt text is a test name, which can carry a
- * quote — unescaped, it closes the attribute early and GitHub prints the whole
- * tag as text instead of the screenshot.
+ * Full-width image, left bare: GitHub wraps it in a link to itself that opens in a new tab, while a link of our
+ * own would open in the same tab because GitHub strips its `target`. The alt text is a test name, which can carry
+ * a quote — unescaped, it closes the attribute early and GitHub prints the whole tag as text instead of the
+ * screenshot.
  */
 function fullSizeImage (url: string, alt: string): string {
-  return `<a href="${url}"><img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}"></a>`;
+  return `<img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}">`;
 }
 
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */
@@ -206,6 +208,11 @@ function tableCell (s: string): string {
 /** What a step did, in the agent's words when it gave them, else the operation verb. */
 function stepText (step: Step): string {
   return escapeHtml((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
+}
+
+/** A short ID, when present, in front of the text it labels: `TC-42 · Checkout`. */
+function withShortId (shortId: string | undefined, labelledText: string): string {
+  return shortId ? `${shortId}${SHORT_ID_LABEL_SEPARATOR}${labelledText}` : labelledText;
 }
 
 /**
@@ -314,7 +321,8 @@ function renderOverviewBullet (
 ): string {
   const rerunNote = entry.attempts > 1 ? ` _(${entry.attempts} runs)_` : "";
   const detailsLink = ` · [see details](#${testAnchor(entry.test.testCaseId)})`;
-  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${entry.test.name}${rerunNote}${detailsLink}`;
+  const testLabel = withShortId(entry.test.testCaseShortId, entry.test.name);
+  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${testLabel}${rerunNote}${detailsLink}`;
 }
 
 /** A use-case group and its members, or a single ungrouped test at its report position. */
@@ -366,7 +374,8 @@ export function renderTestDetails (
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
-  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${test.name}`, ""];
+  const testLabel = withShortId(test.testCaseShortId, test.name);
+  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
@@ -526,7 +535,8 @@ function renderResultTable (entry: ILatestRun): string[] {
     rows.push(`| **Attempts** | ${entry.attempts} — showing the latest |`);
   }
   const count = test.steps.length;
-  rows.push(`| **Run** | ${count} browser ${count === 1 ? "step" : "steps"} · ${dashboardLink(test)} |`);
+  const runSummary = withShortId(test.replayShortId, `${count} browser ${count === 1 ? "step" : "steps"}`);
+  rows.push(`| **Run** | ${runSummary} · ${dashboardLink(test)} |`);
   return rows;
 }
 

@@ -159,6 +159,19 @@ describe("createRunSandbox", () => {
     }
   });
 
+  it("fills {{home}} and {{repo}} in seed content with the run's own sandbox paths", () => {
+    const sandbox = createRunSandbox({
+      files: [{ path: "~/.muggle-ai/muggle-do/sessions/s/state.md", content: "- Working tree: {{repo}}\n- Slot: {{home}}/.muggle-ai" }],
+    });
+    try {
+      expect(fs.readFileSync(path.join(sandbox.home, ".muggle-ai", "muggle-do", "sessions", "s", "state.md"), "utf8")).toBe(
+        `- Working tree: ${sandbox.repo}\n- Slot: ${sandbox.home}/.muggle-ai`,
+      );
+    } finally {
+      removeRunSandbox(sandbox);
+    }
+  });
+
   it("starts with an empty repo when the seed names none", () => {
     const sandbox = createRunSandbox();
     try {

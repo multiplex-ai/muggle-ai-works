@@ -5,6 +5,7 @@ mandatoryStages:
   - ../_shared/failure-mode-handling.md
   - ../_shared/debug-failed-run.md
   - ../_shared/identity-and-inbox.md
+  - ../_shared/test-case-design.md
 ---
 
 # Muggle Test — Change-Driven E2E Acceptance Router
@@ -41,16 +42,7 @@ Reach for these when the user is weighing Muggle Test against hand-written specs
 
 ## Test Case Design: One Atomic Behavior Per Test Case
 
-Every test case verifies exactly **one** user-observable behavior. Never bundle multiple concerns, sequential flows, or bootstrap/setup into a single test case — even if you think it would be "cleaner" or "more efficient."
-
-**Ordering and dependencies belong to the test-plan graph, not to the test case body.** The backend records which case depends on which; the run path reads that chain and runs the prerequisites first ([`_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md)). Your job is to describe the *atomic behavior to verify* — never the flow that gets there.
-
-- ❌ Wrong: one test case that "signs up, logs in, navigates to the detail modal, verifies icon stacking, verifies tab order, verifies history format, and verifies reference layout."
-- ✅ Right: four separate test cases — one per verifiable behavior — each with instruction text like "Verify the detail modal shows stacked pair of icons per card" with **no** signup / login / navigation / setup language.
-
-**Never bake bootstrap into a test case description.** Signup, login, seed data, prerequisite navigation, tear-down — none of these belong inside the test case body. Write only the verification itself. Setup arrives as its own prerequisite case: the chain runs ahead of the target, and the session it leaves behind is what the target starts from. Nothing is spliced into the case body.
-
-**Never consolidate the generator's output.** When `muggle-remote-test-case-generate-from-prompt` returns N micro-tests from a single prompt, that decomposition is the authoritative one. Do not "merge them into 1 for simplicity," do not "rewrite them to share bootstrap," do not "collapse them to match a 4 UC / 4 TC plan." Accept what the generator gave you.
+Every test case verifies exactly **one** user-observable behavior, carries no signup, login, navigation, or seed-data steps, and the generator's decomposition is kept as-is. The full rule, with examples: [`_shared/test-case-design.md`](../_shared/test-case-design.md).
 
 **Never skip the generate→review cycle.** Even when you are 100% confident about the right shape, always present the generated test cases to the user before calling `muggle-remote-test-case-create`. "I'll skip the generate→review cycle and create directly" is a sign you're about to get it wrong.
 
@@ -281,15 +273,15 @@ Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the
 
 ## Step 8: Open Results in Browser
 
-After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. The studio published every local run during execution, so each run result already carries its `viewUrl` (read it from `muggle-local-run-result-get`). Key off the uniform runs list:
+After execution, open the Muggle AI dashboard so the user can inspect results and screenshots. Every link comes from a tool, never from a host you write: the MCP resolves them against the dashboard of the lane it runs on (production, staging, or local), so a hand-built `www.muggle-ai.com` URL sends a staging user to a project that does not exist there. Key off the uniform runs list:
 
-- **Runs carry a `viewUrl` and there are ≤3** — open each:
+- **Runs carry a `viewUrl` and there are ≤3** — open each run's `viewUrl` verbatim (from `muggle-local-run-result-get`); it pins the exact run:
   ```bash
-  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts?modal=script-details&testCaseId={testCaseId}"
+  open "{viewUrl}"
   ```
-- **Otherwise** (more than 3 runs, or a run with no `viewUrl`) — open the project runs page:
+- **Otherwise** (more than 3 runs, or a run with no `viewUrl`) — open the project runs page: the `dashboardUrl` field of `muggle-remote-project-test-runs-summary-get` for the project (`pageSize: 1` is enough):
   ```bash
-  open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs"
+  open "{dashboardUrl}"
   ```
 
 Tell the user:

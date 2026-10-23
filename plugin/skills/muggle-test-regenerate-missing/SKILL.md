@@ -183,10 +183,10 @@ Bulk regen does not run replays, so the section B (replay) router does not apply
 
 ### Step 8 — Open the Dashboard
 
-Open the Muggle AI dashboard so the user can watch progress visually. Point them at the **scripts** page (where DRAFT → GENERATING → ACTIVE transitions are visible), not `/runs` (which is for replay batches and shows nothing for a regen):
+Open the Muggle AI dashboard so the user can watch progress visually. Point them at the **scripts** page (where DRAFT → GENERATING → ACTIVE transitions are visible), not `/runs` (which is for replay batches and shows nothing for a regen). That is the `dashboardUrl` field `muggle-remote-workflow-start-test-script-generation-bulk` returned in Step 7 — resolved against the lane the MCP runs on, so never substitute a hand-written host:
 
 ```bash
-open "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/scripts"
+open "{dashboardUrl}"
 ```
 
 Tell them:

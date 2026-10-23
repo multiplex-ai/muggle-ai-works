@@ -27,6 +27,7 @@ import {
   reconcileProjectPreferences,
   PREFERENCES_FILE_NAME,
   ProjectPreferencesReconcileOutcome,
+  resolveElectronAppExecutablePath,
   verifyFileChecksum,
   writePreferences,
 } from "../../packages/mcps/src/index.js";
@@ -90,26 +91,6 @@ function getBinaryName(): string {
       return "MuggleAI-win32-x64.zip";
     case "linux":
       return "MuggleAI-linux-x64.zip";
-    default:
-      throw new Error(`Unsupported platform: ${os}`);
-  }
-}
-
-/**
- * Get the expected executable path after extraction.
- * @param versionDir - Version directory path.
- * @returns Path to the expected executable.
- */
-function getExpectedExecutablePath(versionDir: string): string {
-  const os = platform();
-
-  switch (os) {
-    case "darwin":
-      return path.join(versionDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
-    case "win32":
-      return path.join(versionDir, "MuggleAI.exe");
-    case "linux":
-      return path.join(versionDir, "MuggleAI");
     default:
       throw new Error(`Unsupported platform: ${os}`);
   }
@@ -426,7 +407,7 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     }
 
     // Verify extraction succeeded
-    const executablePath = getExpectedExecutablePath(versionDir);
+    const executablePath = resolveElectronAppExecutablePath({ installDir: versionDir, platformName: platform() });
     if (!existsSync(executablePath)) {
       cleanupFailedInstall(versionDir);
       throw new Error(

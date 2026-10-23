@@ -65,6 +65,8 @@ export interface IRunResult {
   cloudTestScriptId?: string;
   /** Cloud action script ID the studio published, from the studio result. */
   cloudActionScriptId?: string;
+  /** Cloud runSettings record the run was recorded against, from the studio result. */
+  cloudRunSettingsId?: string;
   /** Path to run artifacts directory (action script, screenshots, results). */
   artifactsDir?: string;
   /** Execution time in ms. */

@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 
 import { TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
 import { parseE2eResultMarker } from "../../../e2e-result/marker.js";
@@ -11,8 +14,9 @@ import {
   resolveLatestRuns,
   type ILatestRun,
 } from "../../../cli/pr-section/render.js";
-import type { E2eReport, FailedTest, InconclusiveTest, PassedTest, Step, TestResult } from "../../../cli/pr-section/types.js";
+import { E2eReportSchema, type E2eReport, type FailedTest, type InconclusiveTest, type PassedTest, type Step, type TestResult } from "../../../cli/pr-section/types.js";
 
+const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const PROJECT_ID = "p1";
 const CHECKOUT_USE_CASE = "Checkout";
 const OVERVIEW_ORDINAL = /\*\*\d+\.\*\*/g;
@@ -587,6 +591,15 @@ describe("step collapsibles", () => {
     expect(md).toContain('<img src="https://cdn/summary.png" width="720"');
   });
 
+  // GitHub strips `target` from an author's link and adds `target="_blank"` only to the link it wraps around a bare image.
+  it("leaves the ending screenshot unwrapped so GitHub opens it in a new tab", () => {
+    const md = renderTestDetails(
+      latest({ ...passedWithDesc, endingScreenshotUrl: "https://cdn/summary.png" }),
+      1,
+    );
+    expect(md).not.toContain('<a href="https://cdn/summary.png"');
+  });
+
   it("captions an inconclusive run's last frame as cut short", () => {
     const md = renderTestDetails(latest(inconclusiveWithSteps), 4);
     expect(md).toContain("**Ending screen** — Last frame before run was cut short");
@@ -755,5 +768,51 @@ describe("collapsing repeated runs of one test case", () => {
     const body = renderBody(flatRerunReport, { inlineDetails: true });
     expect(body).toContain("Checkout completes with a saved card (rerun)");
     expect(body).not.toContain("Timed out waiting for the confirmation banner");
+  });
+});
+
+describe("short IDs", () => {
+  const checkoutWithShortIds: PassedTest = {
+    ...passedNoMeta,
+    name: "Checkout",
+    testCaseShortId: "TC-42",
+    replayShortId: "R-2051",
+  };
+
+  /** Load a report fixture and the body today's renderer produces for it, which a report without short IDs must keep. */
+  function loadFixtureWithExpectedBody (name: string): { report: E2eReport; expectedBody: string } {
+    return {
+      report: E2eReportSchema.parse(JSON.parse(readFileSync(join(FIXTURES_DIR, `${name}.json`), "utf-8"))),
+      // A Windows checkout may rewrite the fixture's line endings; the renderer only ever emits LF.
+      expectedBody: readFileSync(join(FIXTURES_DIR, `${name}.expected-body.md`), "utf-8").replace(/\r\n/g, "\n"),
+    };
+  }
+
+  it("labels the summary line with the test case short ID", () => {
+    const md = renderOverview({ projectId: PROJECT_ID, tests: [checkoutWithShortIds] });
+    expect(md).toContain("- ✅ **1.** TC-42 · Checkout · [see details](#muggle-test-tc-4)");
+  });
+
+  it("labels the details heading with the test case short ID", () => {
+    const md = renderTestDetails(latest(checkoutWithShortIds), 1);
+    expect(md.split("\n").find((line) => line.startsWith("#### "))).toBe("#### ✅ 1. TC-42 · Checkout");
+  });
+
+  it("leads the run row with the replay short ID, still linking the run's own viewUrl", () => {
+    const md = renderTestDetails(latest(checkoutWithShortIds), 1);
+    expect(md).toContain(`| **Run** | R-2051 · 2 browser steps · <a href="${checkoutWithShortIds.viewUrl}"`);
+  });
+
+  it("keeps both short IDs through the report schema", () => {
+    const parsed = E2eReportSchema.parse({ projectId: PROJECT_ID, tests: [checkoutWithShortIds] });
+    expect(parsed.tests[0].testCaseShortId).toBe("TC-42");
+    expect(parsed.tests[0].replayShortId).toBe("R-2051");
+  });
+
+  it("renders a report without short IDs byte-identical to the output before they existed", () => {
+    for (const fixtureName of ["grouped-by-use-case", "one-failed"]) {
+      const { report, expectedBody } = loadFixtureWithExpectedBody(fixtureName);
+      expect(renderBody(report, { inlineDetails: true }), fixtureName).toBe(expectedBody);
+    }
   });
 });

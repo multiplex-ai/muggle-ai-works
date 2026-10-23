@@ -20,7 +20,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 ## Per repo
 
-0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md). On skip, record the reason in `result.md` and move on.
+0. **`autoCreatePR` gate** — apply per [`../../muggle-preferences/preference-gates/autoCreatePR.md`](../../muggle-preferences/preference-gates/autoCreatePR.md), its explicit-request rule included. On skip, record the reason in `result.md` and move on.
 
 1. **Sync with the base:** run [`../../_shared/sync-branch-with-base.md`](../../_shared/sync-branch-with-base.md) with `base` set to the PR target recorded in `state.md` — gated by [`autoRebase`](../../muggle-preferences/preference-gates/autoRebase.md), fires only when `behind > 0`. The branch is not on the remote yet, so the rebase lands without a force-push. Sync here rather than trusting stage 6: a `unit-only` or `skip` run never reaches the E2E stage's sync at all, and on a run that does, the base moves freely while stages 3–6 build and test. If the sync escalates — conflicts under `autoResolveConflicts=never`, or a resolution that fails the verify-or-rollback gate — stop and report; never open a PR on a tree that did not verify.
 
@@ -47,7 +47,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 6. **Settle the designated walkthrough comment.** Creating the PR reserves one comment for the walkthrough, marked `muggle-pr-walkthrough` and empty until settled — the PR's walkthrough check fails while it stays that way.
    - E2E report exists → fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, leave the comment to the gate's own skip record. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the PR number — it fills the reserved comment in place.
-   - No E2E report (validation was `unit-only` or `skip`) → state the reason on the PR with `echo "MUGGLE_E2E_SKIP: <reason>"`, which settles the comment as a declared skip. A PR whose title says `[UNIT-ONLY]` still owes reviewers the why.
+   - No E2E report (validation was `unit-only` or `skip`) → now that the PR exists, re-declare the skip Stage 6 recorded with the same code: `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"`, codes per [`../e2e-acceptance.md`](../e2e-acceptance.md). An accepted code settles the comment as a declared skip; a free-text reason is rejected and leaves it unsettled. A PR whose title says `[UNIT-ONLY]` still owes reviewers the why.
 
 7. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 

@@ -117,6 +117,7 @@ describe("loadAgentScenarioFile", () => {
     ["a seed file without content", { seed: { files: [{ path: "~/x" }] } }, /seed\.files/],
     ["a fixture sequence that is empty", { fixtures: { executeResult: { sequence: [] } } }, /fixtures\.executeResult/],
     ["a fixture sequence with sibling keys", { fixtures: { executeResult: { sequence: [{}], status: "x" } } }, /fixtures\.executeResult/],
+    ["an artifact regex that does not compile", { expect: { requireArtifacts: [{ path: "~/x", matches: "(" }] } }, /invalid matches regex/],
   ])("rejects %s", (_label, extra, message) => {
     const p = writeScenarios("a", { target: agentTarget, scenarios: [{ ...minimalScenario, ...extra }] });
     expect(() => loadAgentScenarioFile(p)).toThrow(message);
@@ -150,10 +151,10 @@ describe("scenario suites", () => {
     expect(() => loadScenarioSuites(tmpDir, "missing")).toThrow(/No scenario file/);
   });
 
-  it("loads every scenario file the repo ships", () => {
+  it("loads every scenario file the repo ships, agent and skill suites alike", () => {
     const suites = loadScenarioSuites(repoScenariosDir);
-    expect(suites.length).toBeGreaterThan(0);
-    for (const suite of suites) expect(suite.file.target.kind).toBe(EvalTargetKind.Agent);
+    expect(suites.map((suite) => suite.file.target.kind)).toContain(EvalTargetKind.Agent);
+    expect(suites.map((suite) => suite.file.target.kind)).toContain(EvalTargetKind.Skill);
   });
 });
 

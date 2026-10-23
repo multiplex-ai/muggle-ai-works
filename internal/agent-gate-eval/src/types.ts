@@ -7,7 +7,7 @@
 
 import type { ZodRawShape } from "zod";
 
-import type { EvalHost, Fixtures, ScenarioReport } from "../../skill-gate-eval/src/types.js";
+import type { EvalHost, Fixtures, MockToolSpec, ScenarioReport } from "../../skill-gate-eval/src/types.js";
 
 /** What a scenario file evaluates: a plugin agent definition or a skill. */
 export enum EvalTargetKind {
@@ -47,7 +47,10 @@ export interface ScriptedReply {
   sequence?: string[];
 }
 
-/** A canned response for an intercepted Bash command. First match wins; `commandContains: ""` is the catch-all. */
+/**
+ * A canned response for an intercepted Bash command. First match wins; `commandContains: ""` is the catch-all.
+ * `{{home}}` and `{{repo}}` in the output become the run's sandbox paths.
+ */
 export interface ScriptedBashResponse extends ScriptedReply {
   commandContains: string;
 }
@@ -65,6 +68,24 @@ export interface SequencedFixture {
   sequence: unknown[];
 }
 
+/**
+ * A mock muggle tool whose reply may read the call's input. The shared
+ * skill-gate-eval tools ignore their input; this eval's supplemental tools
+ * answer per id. Only fields the `shape` declares reach `reply`.
+ */
+export interface InputAwareMockToolSpec extends Omit<MockToolSpec, "reply"> {
+  reply: (input: Record<string, unknown>) => unknown;
+}
+
+/**
+ * Run-specific paths a scenario names by placeholder in seed file content and
+ * scripted Bash output; each is filled in for the run's sandbox.
+ */
+export enum SandboxPathToken {
+  Home = "{{home}}",
+  Repo = "{{repo}}",
+}
+
 /** A tool-attempt pattern: `argContains` is matched against the JSON-serialized tool input. */
 export interface ToolAttemptPattern {
   tool: string;
@@ -77,9 +98,14 @@ export interface ArtifactExpectation {
   path: string;
   /** A substring the file, or the attempt that wrote it, must carry. */
   contains?: string;
+  /** A regex source (no flags) the file, or the attempt that wrote it, must match — for where a value sits, not only that it appears. */
+  matches?: string;
 }
 
-/** A file written into the sandbox before the run; `~/…` lands in the sandbox home, a relative path in the repo. */
+/**
+ * A file written into the sandbox before the run; `~/…` lands in the sandbox home, a relative path in the repo.
+ * `{{home}}` and `{{repo}}` in `content` become the run's sandbox paths.
+ */
 export interface SeedFile {
   path: string;
   content: string;

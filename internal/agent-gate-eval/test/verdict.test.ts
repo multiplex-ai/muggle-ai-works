@@ -148,6 +148,20 @@ describe("requireArtifacts", () => {
     expect(v.reasons[0]).toContain(requirements.path);
   });
 
+  it("checks `matches` for where a value sits, not only that it appears", () => {
+    const iteration = "~/.muggle-ai/muggle-do/sessions/s/iterations/001.md";
+    const retiredAsRemoved = {
+      path: iteration,
+      matches: "retiredTestCases:(?:(?!newUseCases)[\\s\\S])*tc-old(?:(?!replacedBy)[\\s\\S])*replacedBy: none",
+    };
+    const retired = "retiredTestCases:\n  - testCaseId: tc-old\n    replacedBy: none\nnewUseCases: []";
+    const impacted = "impactedTestCases:\n  - testCaseId: tc-old\nretiredTestCases: []\nnewUseCases: []\n  replacedBy: none";
+    expect(judgeAgentRun(scenario({ requireArtifacts: [retiredAsRemoved] }), "", [], 0, snapshot({ [iteration]: retired })).pass).toBe(true);
+    const misplaced = judgeAgentRun(scenario({ requireArtifacts: [retiredAsRemoved] }), "", [], 0, snapshot({ [iteration]: impacted }));
+    expect(misplaced.pass).toBe(false);
+    expect(misplaced.reasons[0]).toContain("matching /retiredTestCases:");
+  });
+
   it("fails rather than passing silently when the run had no sandbox", () => {
     const v = judgeAgentRun(scenario({ requireArtifacts: [requirements] }), "", [], 0);
     expect(v.reasons[0]).toContain("no sandbox");

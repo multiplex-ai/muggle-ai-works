@@ -1,9 +1,19 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
-import { delimiter, dirname, join } from "path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
+import { GUARDRAIL_CLI_ENTRY } from "./hook-harness/constants.js";
+import {
+  createHookHome,
+  createStubProgramDirectory,
+  createWalkthroughProbeGhStub,
+  pathWithDirectoryFirst,
+  runGuardrailCli,
+  walkthroughProbeAnswerEnvironment,
+  writeGuardrailState,
+  writeSessionSlotFiles,
+} from "./hook-harness/hookHarness.js";
 
 // End-to-end hook contract. The per-function guardrail logic is unit-tested
 // elsewhere; this file exercises the *entry* the way Claude Code runs it —
@@ -12,25 +22,18 @@ import { delimiter, dirname, join } from "path";
 // It pins stdin parsing, subcommand dispatch, cross-hook state I/O, and stdout
 // emission: the observable contract the "Lazy core" footprint refactor must
 // preserve when it drops the bash wrappers and collapses the per-event fan-out.
-const CLI = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
 const SCRIPTS = fileURLToPath(new URL("../../../plugin/scripts", import.meta.url));
 const HOOKS = fileURLToPath(new URL("../../../plugin/hooks/hooks.json", import.meta.url));
 
 describe("guardrail hook execution (cli entry)", () => {
   let home: string;
   beforeEach(() => {
-    // sessionState persists under os.homedir(); redirect it to a throwaway dir
-    // so a hook run never touches the real ~/.muggle-ai and tests stay isolated.
-    home = mkdtempSync(join(tmpdir(), "gr-hook-"));
+    home = createHookHome("gr-hook-");
   });
 
   function runHook(sub: string, stdin: string): { status: number | null; out: string } {
-    const r = spawnSync(process.execPath, ["--import", "tsx", CLI, sub], {
-      input: stdin,
-      encoding: "utf-8",
-      env: { ...process.env, HOME: home, USERPROFILE: home },
-    });
-    return { status: r.status, out: (r.stdout ?? "").trim() };
+    const cliRun = runGuardrailCli({ home: home, cliArgs: [sub], stdin: stdin });
+    return { status: cliRun.status, out: cliRun.stdout };
   }
   const event = (o: unknown): string => JSON.stringify(o);
 
@@ -482,15 +485,8 @@ describe("guardrail hook execution (cli entry)", () => {
   // a flow test has to stand up both: the slot the PR maps to, and the session
   // state naming that PR as handled.
   function seedSlot(sid: string): string {
-    const slotPath = join(home, ".muggle-ai", "muggle-do", "sessions", "slug");
-    mkdirSync(slotPath, { recursive: true });
-    writeFileSync(join(slotPath, "prs.json"), JSON.stringify([{ url: PR_URL }]));
-    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
-    writeFileSync(
-      join(home, ".muggle-ai", "guardrails", `${sid}.json`),
-      JSON.stringify({ sessionId: sid, prsHandled: [PR_URL] }),
-    );
-    return slotPath;
+    writeGuardrailState(home, { sessionId: sid, prsHandled: [PR_URL] });
+    return writeSessionSlotFiles(home, "slug", { "prs.json": JSON.stringify([{ url: PR_URL }]) });
   }
 
   const threadFetchEvent = (sid: string, comments: Array<{ databaseId: number; body: string; createdAt: string }>) =>
@@ -624,16 +620,16 @@ describe("guardrail hook execution (cli entry)", () => {
 describe("guardrail hook execution under Codex (cli entry)", () => {
   let home: string;
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "gr-codex-hook-"));
+    home = createHookHome("gr-codex-hook-");
   });
 
   function runHook(sub: string, payload: unknown, hookHost: string = "codex"): string {
-    const r = spawnSync(process.execPath, ["--import", "tsx", CLI, sub], {
-      input: JSON.stringify(payload),
-      encoding: "utf-8",
-      env: { ...process.env, HOME: home, USERPROFILE: home, MUGGLE_HOOK_HOST: hookHost },
-    });
-    return (r.stdout ?? "").trim();
+    return runGuardrailCli({
+      home: home,
+      cliArgs: [sub],
+      stdin: JSON.stringify(payload),
+      env: { ...process.env, MUGGLE_HOOK_HOST: hookHost },
+    }).stdout;
   }
 
   it("pr-opened: reads the PR url out of Codex's string output and names the skill as Codex spells it", () => {
@@ -768,14 +764,13 @@ describe("guardrail never-block fallback", () => {
   });
 
   it("run: a throwing or unknown gate degrades to {} without silencing the others", () => {
-    const home = mkdtempSync(join(tmpdir(), "gr-run-"));
-    const r = spawnSync(process.execPath, ["--import", "tsx", CLI, "run", "no-such-gate", "build-router"], {
-      input: JSON.stringify({ session_id: "iso", prompt: "implement dark mode" }),
-      encoding: "utf-8",
-      env: { ...process.env, HOME: home, USERPROFILE: home },
+    const cliRun = runGuardrailCli({
+      home: createHookHome("gr-run-"),
+      cliArgs: ["run", "no-such-gate", "build-router"],
+      stdin: JSON.stringify({ session_id: "iso", prompt: "implement dark mode" }),
     });
-    expect(r.status).toBe(0);
-    expect(JSON.parse(r.stdout).hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
+    expect(cliRun.status).toBe(0);
+    expect(JSON.parse(cliRun.stdout).hookSpecificOutput.hookEventName).toBe("UserPromptSubmit");
   });
 });
 
@@ -793,28 +788,18 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
 
   beforeEach(() => {
     root = dirname(SCRIPTS); // plugin/, so ${root}/scripts/guardrails.mjs resolves
-    binDir = mkdtempSync(join(tmpdir(), "gr-stub-"));
-    const stub = join(binDir, "node");
-    writeFileSync(stub, `#!/usr/bin/env bash\nprintf '%s' '${NODE_RAN}'\n`);
-    chmodSync(stub, 0o755);
+    binDir = createStubProgramDirectory("node", `printf '%s' '${NODE_RAN}'\n`);
   });
 
   function runWrapper(script: string, stdin: string, seededState?: { sessionId: string } & Record<string, unknown>): string {
-    const home = mkdtempSync(join(tmpdir(), "gr-home-"));
-    if (seededState) {
-      const stateDir = join(home, ".muggle-ai", "guardrails");
-      mkdirSync(stateDir, { recursive: true });
-      writeFileSync(
-        join(stateDir, `${seededState.sessionId}.json`),
-        JSON.stringify(seededState, null, 2),
-      );
-    }
+    const home = createHookHome("gr-home-");
+    if (seededState) writeGuardrailState(home, seededState);
     const r = spawnSync("bash", [join(SCRIPTS, script)], {
       input: stdin,
       encoding: "utf-8",
       env: {
         ...process.env,
-        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
+        PATH: pathWithDirectoryFirst(binDir),
         CLAUDE_PLUGIN_ROOT: root,
         HOME: home,
         USERPROFILE: home,
@@ -1065,7 +1050,7 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
   // release-capable gate added later is covered the moment it exists. Gates with
   // no block budget (the capability-claim nudge) never release and need no flag.
   it("every release-capable gate stamps a flag, and every flag is pre-filtered on", () => {
-    const cliBody = readFileSync(fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url)), "utf-8");
+    const cliBody = readFileSync(GUARDRAIL_CLI_ENTRY, "utf-8");
     const stampedFlags = [...cliBody.matchAll(/releaseGate\("(\w+)"\)/g)].map(([, field]) => field);
     const releaseBranches = [...cliBody.matchAll(/Action\.Release/g)].length;
 
@@ -1088,46 +1073,30 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
 // its lookups are exercised against a stubbed `gh` rather than the network.
 // Bash-only, so skipped on win32 (covered by the Linux/macOS platform-compat jobs).
 describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups", () => {
-  const CLI_ENTRY = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
   const PR_URL = "https://github.com/o/r/pull/5";
   let binDir: string;
 
   beforeEach(() => {
-    binDir = mkdtempSync(join(tmpdir(), "gr-gh-"));
-    const stub = join(binDir, "gh");
-    // `--json body,comments` is the walkthrough probe; anything else is the
-    // branch-PR lookup, which prints the url alone.
-    writeFileSync(
-      stub,
-      `#!/usr/bin/env bash\nfor a in "$@"; do\n  if [ "$a" = "body,comments" ]; then printf '%s' "$STUB_PR_CONTENT"; exit 0; fi\ndone\nprintf '%s' "$STUB_PR_URL"\n`,
-    );
-    chmodSync(stub, 0o755);
+    binDir = createWalkthroughProbeGhStub();
   });
 
   function seedArmedSession(sessionId: string): string {
-    const home = mkdtempSync(join(tmpdir(), "gr-wt-"));
-    mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
-    writeFileSync(
-      join(home, ".muggle-ai", "guardrails", `${sessionId}.json`),
-      JSON.stringify({ sessionId: sessionId, prsHandled: [], e2eRun: true }),
-    );
+    const home = createHookHome("gr-wt-");
+    writeGuardrailState(home, { sessionId: sessionId, prsHandled: [], e2eRun: true });
     return home;
   }
 
   function runCli(home: string, cliArgs: string[], stdin: string, prContent: string, prUrl: string): string {
-    const r = spawnSync(process.execPath, ["--import", "tsx", CLI_ENTRY, ...cliArgs], {
-      input: stdin,
-      encoding: "utf-8",
+    return runGuardrailCli({
+      home: home,
+      cliArgs: cliArgs,
+      stdin: stdin,
       env: {
         ...process.env,
-        PATH: `${binDir}${delimiter}${process.env.PATH ?? ""}`,
-        HOME: home,
-        USERPROFILE: home,
-        STUB_PR_URL: prUrl,
-        STUB_PR_CONTENT: prContent,
+        PATH: pathWithDirectoryFirst(binDir),
+        ...walkthroughProbeAnswerEnvironment({ branchPrUrl: prUrl, prContentJson: prContent }),
       },
-    });
-    return (r.stdout ?? "").trim();
+    }).stdout;
   }
 
   // The gate decides on the scan the detached job left, so the job runs to completion first.

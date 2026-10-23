@@ -20,6 +20,7 @@ vi.mock("../shared/config.js", () => ({
       workflowTimeoutMs: 1000,
     },
   }),
+  getDashboardBaseUrl: () => "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects",
 }));
 
 vi.mock("../shared/logger.js", () => {
@@ -99,5 +100,46 @@ describe("local tool registry — studio publishes", () => {
       cloudTestScriptId: "cloud-ts-1",
       cloudActionScriptId: "cloud-as-1",
     });
+    expect(result.content).not.toContain("**Dashboard:**");
+  });
+
+  it("surfaces the runSettings record the run was recorded against", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "generation",
+      status: "passed",
+      cloudTestCaseId: "tc-1",
+      executionTimeMs: 1234,
+      viewUrl: "https://www.muggle-ai.com/run/abc",
+      cloudRunSettingsId: "rs-390",
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.content).toContain("**Cloud Run Settings ID:** rs-390");
+  });
+
+  it("links an unpublished run to its test case on the MCP's lane", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "generation",
+      status: "failed",
+      projectId: "p-1",
+      cloudTestCaseId: "tc-1",
+      executionTimeMs: 1234,
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    const expectedUrl =
+      "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p-1/scripts?modal=script-details&testCaseId=tc-1";
+    expect(result.content).toContain(`**Dashboard:** ${expectedUrl}`);
+    expect(result.data).toMatchObject({ dashboardUrl: expectedUrl });
   });
 });

@@ -58,7 +58,12 @@ const fsImpl = vi.hoisted(() => ({
 vi.mock("fs", () => fsImpl);
 vi.mock("child_process", () => childProcessMock);
 vi.mock("stream/promises", () => streamMock);
-vi.mock("../../../packages/mcps/src/index.js", () => mcpsMocks);
+vi.mock("../../../packages/mcps/src/index.js", async () => ({
+  ...mcpsMocks,
+  ...(await vi.importActual<typeof import("../../../packages/mcps/src/shared/electron-app-executable.js")>(
+    "../../../packages/mcps/src/shared/electron-app-executable.js",
+  )),
+}));
 vi.mock("../../cli/cleanup.js", () => cleanupMock);
 
 import {
@@ -391,5 +396,17 @@ describe("upgradeCommand", () => {
     ]);
     await upgradeCommand({});
     expect(childProcessMock.execFile.mock.calls[0][0]).toBe("unzip");
+  });
+
+  it("finds the Linux executable under its electron-builder name", async () => {
+    osMock.platform.mockReturnValue("linux");
+    fsState.existing.add(join("/data/electron-app/1.0.6", "muggle-ai-studio"));
+    stubFetchSequence([
+      releasesResponse(["electron-app-v1.0.6"]),
+      downloadResponse(),
+      checksumsResponse(),
+    ]);
+    await upgradeCommand({});
+    expect(fsState.written.has(join("/data/electron-app/1.0.6", ".install-metadata.json"))).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-/** Tests for local action-script builders: executionSource tag, SharedTestMemory id, webview sizing. */
+/** Tests for local action-script builders: executionSource tag, SharedTestMemory id, webview sizing, record naming. */
 
 import { describe, expect, it } from "vitest";
 
@@ -6,6 +6,7 @@ import {
   buildGenerationActionScript,
   buildReplayActionScript,
 } from "../mcp/local/services/action-script-builders.js";
+import { RunEnvironment } from "../mcp/e2e/contracts/run-environment.js";
 import type { TestCaseDetails, TestScriptDetails } from "../mcp/local/contracts/project-schemas.js";
 import { DisplayResolution } from "../mcp/local/types/enums.js";
 
@@ -202,6 +203,79 @@ describe("buildGenerationActionScript run identity", () => {
 
     expect("pinnedAccount" in params).toBe(false);
     expect("freshSession" in params).toBe(false);
+  });
+});
+
+describe("runSettings record naming", () => {
+  function generationParams(runSettingsId?: string): Record<string, unknown> {
+    return actionParams(
+      buildGenerationActionScript({
+        testCase: makeTestCase(),
+        localUrl: "http://localhost:3999",
+        runId: "run-1",
+        localTestScriptId: "lts-1",
+        ownerUserId: "user-1",
+        runSettingsId: runSettingsId,
+      }),
+    );
+  }
+
+  function replayParams(params: {
+    testScriptExtra: Record<string, unknown>;
+    displayResolution?: DisplayResolution;
+  }): Record<string, unknown> {
+    return actionParams(
+      buildReplayActionScript({
+        testScript: { ...makeTestScript(), ...params.testScriptExtra } as TestScriptDetails,
+        actionScript: [],
+        localUrl: "http://localhost:3999",
+        runId: "run-2",
+        ownerUserId: "user-1",
+        displayResolution: params.displayResolution,
+      }),
+    );
+  }
+
+  it("names the record a generation is asked to record against", () => {
+    expect(generationParams("rs-390").runSettingsId).toBe("rs-390");
+  });
+
+  it("names no record for a generation given none", () => {
+    expect("runSettingsId" in generationParams()).toBe(false);
+  });
+
+  it("names the record of the local script a replay replays", () => {
+    const params = replayParams({ testScriptExtra: { runSettingsId: "rs-390", type: RunEnvironment.Local } });
+
+    expect(params.runSettingsId).toBe("rs-390");
+  });
+
+  it("never names a remote script's record, which belongs to the other lane", () => {
+    const params = replayParams({ testScriptExtra: { runSettingsId: "rs-remote", type: RunEnvironment.Remote } });
+
+    expect("runSettingsId" in params).toBe(false);
+  });
+
+  it("sizes a replay at the size its script was recorded at", () => {
+    expect(replayParams({ testScriptExtra: { displayParams: PHONE_PARAMS } }).displayParams).toEqual(PHONE_PARAMS);
+  });
+
+  it("accepts a requested resolution equal to the recorded size", () => {
+    const params = replayParams({
+      testScriptExtra: { displayParams: PHONE_PARAMS },
+      displayResolution: DisplayResolution.R_0390x0844,
+    });
+
+    expect(params.displayParams).toEqual(PHONE_PARAMS);
+  });
+
+  it("refuses to replay a recording at another resolution than it was recorded at", () => {
+    expect(() =>
+      replayParams({
+        testScriptExtra: { displayParams: PHONE_PARAMS, runSettingsId: "rs-390", type: RunEnvironment.Local },
+        displayResolution: DisplayResolution.R_1920x1080,
+      }),
+    ).toThrow("recorded at 390x844");
   });
 });
 

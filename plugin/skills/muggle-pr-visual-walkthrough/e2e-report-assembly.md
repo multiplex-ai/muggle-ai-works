@@ -10,7 +10,7 @@ Include **all** runs — passed, failed, **and inconclusive**. Never drop a run.
 | `failed` | Run completed and the assertion failed, or the product itself broke before the assertion could be made (server error, 500, broken page). | `failureStepIndex`, `error` |
 | `inconclusive` | Run could not yield a pass/fail signal for reasons **outside the product**: no replayable script existed, environment precondition unmet, infra/Electron error, agent stalled on a cookie banner or login wall, missing secrets, agent went off-course. | `reason` (one short sentence). Include every step the run produced; `steps[]` is empty only when it produced none. |
 
-If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: synthesize a UUID-shaped runId and use `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs` as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
+If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: synthesize a UUID-shaped runId and use the project runs page as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
 
 ## Published run (passed or failed; the common path)
 
@@ -34,11 +34,13 @@ For each result:
 Reach this branch only when the run result carries no `viewUrl` / `cloudActionScriptId` (the studio publish never landed — older Electron build, network failure, auth issue). Don't drop the run; render a stub entry so reviewers still see something happened.
 
 1. `steps: []`.
-2. `viewUrl`: `https://www.muggle-ai.com/muggleTestV0/dashboard/projects/{projectId}/runs` (generic dashboard).
+2. `viewUrl`: the project runs page — the `dashboardUrl` field of `muggle-remote-project-test-runs-summary-get` for the project. It is resolved against the lane the MCP runs on; a hand-written `www.muggle-ai.com` URL is a dead link on staging.
 3. `status: "failed"`, `failureStepIndex: 0`, `error` from run result.
 4. `testCaseId` — from execution step selection. `runId` — from `muggle-local-execute-test-generation` (always present even on failure).
 
 On every entry: `description` (test case title/description — drives the collapsible header) and `useCaseName` (parent use case title — when present, the overview groups by use case) are optional but recommended. Prefer values already in context; only call `muggle-remote-test-case-get` / `muggle-remote-use-case-get` if missing.
+
+Set `testCaseShortId` to the test case's `shortId` and `replayShortId` to the run's `shortId` (e.g. `TC-42`, `R-2051`) whenever the record you already fetched carries one; the walkthrough then labels the test `TC-42 · <name>` and leads its run row with `R-2051`. Omit either when absent — entities created before short IDs existed have none.
 
 If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — pass it through unchanged.
 
@@ -53,8 +55,10 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "description": "<one-line description (recommended)>",
       "useCaseName": "<parent use case title (recommended)>",
       "testCaseId": "<testCaseId from execution step>",
+      "testCaseShortId": "<test case shortId, when it has one>",
       "testScriptId": "<cloudTestScriptId from run result>",
       "runId": "<runId from muggle-local-execute-test-generation>",
+      "replayShortId": "<run shortId, when it has one>",
       "viewUrl": "<viewUrl from run result>",
       "status": "passed",
       "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Accept all' to dismiss the cookie consent dialog.", "screenshotUrl": "..." }]

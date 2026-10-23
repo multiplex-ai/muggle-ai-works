@@ -9,6 +9,8 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { getDataDir as getSharedDataDir } from "./data-dir.js";
+import { isElectronAppPlatform, resolveElectronAppExecutablePath } from "./electron-app-executable.js";
+import { buildElectronAppDirName } from "./electron-app-install-dir.js";
 import { readReleaseManifest } from "./release_manifest.js";
 import { DEFAULT_AUTH0_SCOPE, DEFAULT_WEB_SERVICE_URL } from "./runtime-target-constants.js";
 import {
@@ -169,33 +171,6 @@ export function getDataDir(): string {
 }
 
 /**
- * Build the install directory name for an electron-app version.
- *
- * Both release streams publish the same version deliberately, so a version
- * alone does not identify a binary. Without the stream in the path, installing
- * a staging harness on a machine that already has the production studio finds
- * the directory present, skips the download, and runs the production studio
- * against the staging backend — and no checksum catches it, because
- * verification only happens on download.
- *
- * The production stream keeps the bare version so existing installs are not
- * orphaned and nobody re-downloads on upgrade.
- * @param params - Directory parameters.
- * @param params.version - Electron app version.
- * @param params.releaseStream - Release stream the binary came from.
- * @returns Directory name, for example "1.9.0" or "1.9.0-staging".
- */
-function buildElectronAppDirName(params: {
-  version: string;
-  releaseStream: ElectronAppReleaseStream;
-}): string {
-  if (params.releaseStream === ElectronAppReleaseStream.Production) {
-    return params.version;
-  }
-  return `${params.version}-${params.releaseStream}`;
-}
-
-/**
  * Build the OAuth session file name for a runtime target.
  *
  * Tokens are tenant-specific: a token minted for one target is rejected by
@@ -224,32 +199,21 @@ function buildOAuthSessionFileName(params: { runtimeTarget: RuntimeTarget }): st
  */
 function getDownloadedElectronAppPath(): string | null {
   const platformName = os.platform();
-  const version = getElectronAppVersion();
+
+  if (!isElectronAppPlatform(platformName)) {
+    return null;
+  }
 
   const baseDir = path.join(
     getDataDir(),
     ELECTRON_APP_DIR,
     buildElectronAppDirName({
-      version: version,
+      version: getElectronAppVersion(),
       releaseStream: getActiveElectronAppReleaseStream(),
     }),
   );
 
-  let binaryPath: string;
-
-  switch (platformName) {
-    case "darwin":
-      binaryPath = path.join(baseDir, "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
-      break;
-    case "win32":
-      binaryPath = path.join(baseDir, "MuggleAI.exe");
-      break;
-    case "linux":
-      binaryPath = path.join(baseDir, "MuggleAI");
-      break;
-    default:
-      return null;
-  }
+  const binaryPath = resolveElectronAppExecutablePath({ installDir: baseDir, platformName: platformName });
 
   if (fs.existsSync(binaryPath)) {
     return binaryPath;
@@ -266,21 +230,23 @@ function getSystemElectronAppPath(): string | null {
   const platformName = os.platform();
   const homeDir = os.homedir();
 
-  let binaryPath: string;
+  let installDir: string;
 
   switch (platformName) {
     case "darwin":
-      binaryPath = path.join(homeDir, "Applications", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+      installDir = path.join(homeDir, "Applications");
       break;
     case "win32":
-      binaryPath = path.join(homeDir, "AppData", "Local", "Programs", "MuggleAI", "MuggleAI.exe");
+      installDir = path.join(homeDir, "AppData", "Local", "Programs", "MuggleAI");
       break;
     case "linux":
-      binaryPath = path.join(homeDir, ".local", "share", "muggle-ai", "MuggleAI");
+      installDir = path.join(homeDir, ".local", "share", "muggle-ai");
       break;
     default:
       return null;
   }
+
+  const binaryPath = resolveElectronAppExecutablePath({ installDir: installDir, platformName: platformName });
 
   if (fs.existsSync(binaryPath)) {
     return binaryPath;
@@ -368,6 +334,14 @@ export function getActiveRuntimeTarget(): RuntimeTarget {
  */
 function getActiveProfile(): IRuntimeTargetProfile {
   return resolveActiveProfile(getMuggleConfig().runtimeTargetDefault);
+}
+
+/**
+ * Get the dashboard projects base for the lane this MCP is running on.
+ * @returns Base URL ending in `/dashboard/projects`, without a trailing slash.
+ */
+export function getDashboardBaseUrl(): string {
+  return getActiveProfile().dashboardBaseUrl;
 }
 
 /**

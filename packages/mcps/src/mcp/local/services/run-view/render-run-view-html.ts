@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
+import { RUN_VIEW_DASHBOARD_LINK_LABEL } from "./run-view-constants.js";
 import type { IRunView, IRunViewStep } from "./run-view-types.js";
 
 const escapeHtml = (value: string): string =>
@@ -91,6 +92,11 @@ export function renderRunViewHtml(runView: IRunView): string {
   <h1>${escapeHtml(title)}</h1>
   <p class="sub">${escapeHtml(runView.status ?? "status unrecorded")} · ${runView.steps.length} steps · ${runView.screenshotCount} frames</p>
   <p class="path">${escapeHtml(runView.sessionPath)}</p>
+  ${
+    runView.viewUrl
+      ? `<p class="sub"><a href="${escapeHtml(runView.viewUrl)}" target="_blank" rel="noopener noreferrer">${RUN_VIEW_DASHBOARD_LINK_LABEL} →</a></p>`
+      : ""
+  }
   ${
     runView.verdict
       ? `<div class="verdict"><h2>Verdict the run recorded</h2><p>${escapeHtml(runView.verdict)}</p></div>`

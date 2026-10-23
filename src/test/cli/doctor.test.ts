@@ -43,7 +43,12 @@ vi.mock("os", async (importOriginal) => {
   const actual = await importOriginal<typeof import("os")>();
   return { ...actual, platform: vi.fn(() => platformState.value), homedir: vi.fn(() => platformState.home) };
 });
-vi.mock("../../../packages/mcps/src/index.js", () => mcpsMocks);
+vi.mock("../../../packages/mcps/src/index.js", async () => ({
+  ...mcpsMocks,
+  ...(await vi.importActual<typeof import("../../../packages/mcps/src/shared/electron-app-executable.js")>(
+    "../../../packages/mcps/src/shared/electron-app-executable.js",
+  )),
+}));
 
 import { doctorCommand } from "../../cli/doctor.js";
 
@@ -97,6 +102,19 @@ describe("doctorCommand", () => {
     expect(out).toContain("Installed (v1.0.5)");
     expect(out).toContain("Authenticated as u@e.com");
     expect(out).toContain("All checks passed");
+  });
+
+  it("reports a Linux install as installed when its electron-builder executable is present", async () => {
+    platformState.value = "linux";
+    const linuxExe = join(VERSION_DIR, "muggle-ai-studio");
+    fsState.existing.add(VERSION_DIR);
+    fsState.existing.add(linuxExe);
+    fsState.existing.add(META);
+    fsState.isFile.add(linuxExe);
+
+    await doctorCommand();
+
+    expect(output(logSpy)).toContain("Installed (v1.0.5)");
   });
 
   it("flags a missing executable and counts issues", async () => {

@@ -9,6 +9,8 @@ export * from "./shared/checksum.js";
 export * from "./shared/electron-app-executable-types.js";
 export * from "./shared/electron-app-executable-constants.js";
 export * from "./shared/electron-app-executable.js";
+export * from "./shared/electron-app-install-dir-types.js";
+export * from "./shared/electron-app-install-dir.js";
 export * from "./shared/logger.js";
 export * from "./shared/open-browser.js";
 export * from "./mcp/local/services/run-view/index.js";

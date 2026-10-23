@@ -24,7 +24,7 @@ One file per stack:
 ~/.muggle-ai/e2e-instructions/<key>.md
 ```
 
-`<key>` is the absolute path of the working directory's parent — the same stack identity the global prepare plan keys its entries on — reduced to a filename-safe token by replacing every path separator, and any drive-letter colon, with `-`. Derive it from the resolved absolute path rather than assuming a separator character; they differ per platform.
+`<key>` is the stack key from [reuse-plan](./reuse-plan.md) — the same stack identity the global prepare plan keys its entries on — reduced to a filename-safe token by replacing every path separator, and any drive-letter colon, with `-`. A file saved under an older key is adopted and renamed the same way the plan entry is. Derive it from the resolved absolute path rather than assuming a separator character; they differ per platform.
 
 Missing → no saved instructions; run the capture below.
 

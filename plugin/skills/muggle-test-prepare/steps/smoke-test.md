@@ -1,12 +1,12 @@
 # Comprehensive smoke test
 
-Runs for **every** service in the tracking file, including `external: true`. Port-listening is not proof a service works — a stale dev server binds and returns 200 with a webpack error overlay.
+Runs for **every** service in the resolved plan, including `external: true`. Port-listening is not proof a service works — a stale dev server binds and returns 200 with a webpack error overlay.
 
 All three probes must pass:
 
 1. **HTTP** — `GET <serviceUrl>`, 3 s timeout, accept `2xx`/`3xx` (one redirect).
 2. **Body sniff** — match response body against broken-build markers in [`../../_shared/dev-server-readiness.md`](../../_shared/dev-server-readiness.md) → "Body sniff patterns".
-3. **Log tail** — scan last 200 lines of `/tmp/muggle-prepare-<service-name>.log` for failure patterns after the latest ready signal. Skip for `external: true` (no log).
+3. **Log tail** — scan last 200 lines of the service's `log` (its tracking entry, [PID Tracking](../SKILL.md#pid-tracking)) for failure patterns after the latest ready signal. Skip for `external: true` (no log).
 
 Use the primitives in `dev-server-readiness.md`. Don't re-implement.
 

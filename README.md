@@ -352,6 +352,7 @@ muggle doctor                 # Diagnose installation problems
 muggle run-view [runId]       # A run's steps beside the frames they produced (newest run by default)
 muggle run-view --html        # Render those frames as a self-contained page
 muggle run-view --open        # Render it and open it in the browser
+muggle checkout-freshness     # Fetch the base and check this checkout is built on its latest commit
 
 # Authentication
 muggle login [--key-expiry 90d]

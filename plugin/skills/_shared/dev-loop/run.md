@@ -10,7 +10,8 @@ The caller resolves these before the loop and supplies them per test case:
 
 - `mode` — `replay` or `regen`, already chosen (by the user, or by [`../failure-mode-handling.md`](../failure-mode-handling.md) for change-driven callers).
 - `localUrl` — local execution target. Local-only; never changes the cloud project or test definitions.
-- `cwd` — absolute path of the active working tree (PR-branch worktree if one exists, else repo root). Drives the cross-worktree single-flight lock so concurrent runs serialize.
+- `cwd` — absolute path of the active working tree (PR-branch worktree if one exists, else repo root). Drives the cross-worktree single-flight lock so concurrent runs serialize, and names the checkout the execute tools check for freshness.
+- `baseBranch` — the change's base, only when it is not the remote default (a stacked change, a PR into a release branch). Omitted, the tools check `cwd` against the remote default.
 - `testCase` / `cloudTestCaseId` — the cloud test case and its id.
 - `showUi` — from the caller's `showElectronBrowser` resolution: omit for visible, `false` for headless.
 
@@ -32,3 +33,5 @@ Per test case, branch on `mode`:
 2. `muggle-local-execute-test-generation` with `testCase`, `localUrl`, `cwd`, `showUi`, `freshSession` (omit it so the stored flag decides; pass it only to override for this run, per [`fresh-session.md`](fresh-session.md)), `timeoutMs`.
 
 Store the returned `runId`, tagged with its `mode`. If a run fails, log it and continue the batch — never abort. Read the result per [`failures.md`](failures.md), then [`publish.md`](publish.md).
+
+**A refused run is not a failure.** A result headed `Run refused — checkout is not on the latest …` launched nothing and has no `runId`: the `cwd` checkout lacks its base's latest commit (`BEHIND_BASE`) or carries another branch's commits (`FOREIGN_BASE`). Sync it per [`../sync-branch-with-base.md`](../sync-branch-with-base.md), re-invoke [`muggle-test-prepare`](../../muggle-test-prepare/SKILL.md) so the dev server serves the synced code, and run the case again. Never route it through failure handling or count it as a result.

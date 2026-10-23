@@ -24,6 +24,12 @@ export {
 } from "./execution-service.js";
 
 export {
+  findRunCheckoutRefusal,
+  formatRunCheckoutRefusal,
+  isLoopbackUrl,
+} from "./run-checkout-gate.js";
+
+export {
   acquireLocalExecutionLock,
   readLocalExecutionLockState,
 } from "./local-execution-lock.js";

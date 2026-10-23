@@ -106,6 +106,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
   cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
+  /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
+  baseBranch: z.string().min(1).optional().describe("Branch the change merges into, when it is not the remote's default branch — e.g. the parent of a stacked change. A loopback run is refused unless the cwd checkout contains this branch's latest fetched commit. Defaults to origin's default branch."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -139,6 +141,8 @@ export const ExecuteReplayInputSchema = z.object({
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
   cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
+  /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
+  baseBranch: z.string().min(1).optional().describe("Branch the change merges into, when it is not the remote's default branch — e.g. the parent of a stacked change. A loopback run is refused unless the cwd checkout contains this branch's latest fetched commit. Defaults to origin's default branch."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */

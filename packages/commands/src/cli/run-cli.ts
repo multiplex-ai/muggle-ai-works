@@ -7,6 +7,7 @@ import { Command } from "commander";
 import { getLogger } from "@muggleai/mcp";
 import {
   buildPrSectionCommand,
+  checkoutFreshnessCommand,
   ciInstallCommand,
   prWalkthroughCheckCommand,
   runViewCommand,
@@ -149,6 +150,15 @@ function createProgram (): Command {
     .option("--head-sha <sha>", "Commit the check run attaches to (default: the PR head)")
     .option("--check-run", "Publish the verdict as a check run instead of failing the process")
     .action(prWalkthroughCheckCommand);
+
+  program
+    .command("checkout-freshness")
+    .description("Fetch the base branch and check that a checkout is built on its latest commit")
+    .option("--cwd <dir>", "Directory inside the checkout (default: the current directory)")
+    .option("--base <branch>", "Branch the change merges into (default: origin's default branch)")
+    .option("--no-fetch", "Check against the last fetched base instead of fetching")
+    .option("--json", "Print the full report as JSON")
+    .action(checkoutFreshnessCommand);
 
   program
     .command("ci-install")

@@ -69,7 +69,7 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:
 
-1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md), the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md` and starts what is down). Still not ready after its start attempts → the readiness halt below.
+1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from the cycle's worktree, passing the PR target as `base` — the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md` and starts what is down). It syncs the worktree onto the latest base before starting anything, and serves every other repo from its latest default branch. Its readiness table must show the cycle's worktree as the `Source` of the changed repo's services, at the worktree's current HEAD; any other source is not ready. Still not ready after its start attempts → the readiness halt below.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
 

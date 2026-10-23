@@ -26,12 +26,12 @@ The local URL only changes where the browser opens; it does not change the remot
 Three gates apply, each per the standard procedure in [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md):
 
 - `autoUseWorktree` at pre-flight (see [`_shared/use-worktrees.md`](../_shared/use-worktrees.md)).
-- `autoRebase` before Step 7 (Execute) when `behind > 0` (see [`_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md)).
+- `autoRebase` before any service starts — `muggle-test-prepare` syncs the checkout first — and again before Step 7 (Execute) when the base moved meanwhile, re-invoking `muggle-test-prepare` after that rebase so the dev server serves it. Stale code is never tested (see [`_shared/sync-branch-with-base.md`](../_shared/sync-branch-with-base.md)).
 - `autoCleanup` after the PR is merged (see [`_shared/post-merge-cleanup.md`](../_shared/post-merge-cleanup.md)).
 
 ## Local environment prerequisites
 
-Before any workflow step, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md). Halt on what it surfaces.
+Before any workflow step, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from the checkout under test. Halt on what it surfaces — a checkout it cannot bring onto the latest base included.
 
 Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. A gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
 
@@ -112,12 +112,7 @@ Prompt for projects: "Pick the project to group this test into:"
 
 ### 3. Ensure Local Services Are Ready
 
-Before detecting the local URL, verify that the services the user needs are actually running. Use the `muggle:muggle-test-prepare` integration contract:
-
-1. Check if `/tmp/muggle-test-prepare.json` exists.
-2. If it exists, verify tracked PIDs are alive with `kill -0`.
-3. If all live → services are ready, proceed to Step 4 (Local URL).
-4. If the file is missing or has stale PIDs → invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool to get services started. Once it completes, proceed to Step 4.
+Before detecting the local URL, invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool from the checkout under test — every run, even when services look up. Live PIDs prove nothing about which code they serve: prepare syncs this checkout onto the latest base, starts sibling services from base checkouts on the latest default branch, and keeps a running service only when it still serves the right commit. It fast-exits when everything is proven. Once it reports ready, check its readiness table: this checkout's services must show this checkout as their `Source` at its current HEAD. Then proceed to Step 4.
 
 This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
 

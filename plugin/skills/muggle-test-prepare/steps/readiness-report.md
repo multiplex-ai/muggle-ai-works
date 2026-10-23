@@ -3,14 +3,16 @@
 Only after every service passes [smoke-test](./smoke-test.md) or is skipped.
 
 ```
-Service              PID      Port     Status         Smoke Test
-─────────────────────────────────────────────────────────────────
-backend-api          12345    3001     Running        ✓
-auth-service         12346    8080     Running        ✓
-frontend             12347    3000     Running        ✓
-─────────────────────────────────────────────────────────────────
+Service       PID     Port   Source                                      Commit              Smoke Test
+──────────────────────────────────────────────────────────────────────────────────────────────────────
+backend-api   12345   3001   ~/Github/api/.claude/worktrees/base-main    a1b2c3d             ✓
+auth-service  12346   8080   ~/Github/auth/.claude/worktrees/base-main   4d5e6f7 (2 behind)  ✓
+frontend      12347   3000   ~/Github/app/.claude/worktrees/feat-x       9f8e7d6             ✓
+──────────────────────────────────────────────────────────────────────────────────────────────────────
 All services verified. Ready for E2E.
 ```
+
+`Source` is the run directory's checkout and `Commit` the HEAD it serves — what the caller checks to confirm its own change is the code under test. A base checkout that could not be refreshed this run (a peer's run held the lock) shows how far it trails `origin/<default>`.
 
 Surface skipped services so the caller knows the gap:
 
@@ -21,7 +23,7 @@ Skipped: payment-gateway — HTTP 500 on /
 If you launched the services:
 
 ```
-Logs: /tmp/muggle-prepare-*.log
+Logs: ~/.muggle-ai/prepare/logs/<source-key>/
 Cleanup: say "stop services" or re-invoke this skill.
 ```
 
@@ -31,19 +33,21 @@ Only on a learning run, and only once the user has accepted the gate in [confirm
 
 A replay run writes nothing here; it already has the recipe.
 
-Build the JSON from the in-memory tracking file, dropping runtime fields:
+Build the JSON from the resolved plan, keeping only the durable fields:
 
-```bash
-jq '{
-  version: 1,
-  updated: now | todate,
-  testing_scope: .testing_scope,
-  excluded_services: .excluded_services,
-  services: [.services[] | {name, dir, command, port}]
-}' /tmp/muggle-test-prepare.json
+```json
+{
+  "version": 1,
+  "updated": "<now, ISO-8601>",
+  "testing_scope": "<testingScope>",
+  "excluded_services": [{ "name": "…", "reason": "…" }],
+  "services": [{ "name": "…", "dir": "…", "command": "…", "port": 3000 }]
+}
 ```
 
-Upsert it under the stack's key — the absolute path of the working directory's parent — in `~/.muggle-ai/prepare-plans.json`, creating the file as `{}` if missing. The plan is machine-local, user-level data: it never goes inside the user's project, and resolving it requires no version-control tool.
+Each service's `dir` names its **repo**, never a checkout: the repo's main working-tree root plus the service's sub-directory — never a linked worktree or base-checkout path, which is a per-run choice [resolve-sources](./resolve-sources.md) makes again every time.
+
+Upsert it under the stack key ([reuse-plan](./reuse-plan.md)) in `~/.muggle-ai/prepare-plans.json`, creating the file as `{}` if missing. The plan is machine-local, user-level data: it never goes inside the user's project.
 
 Then print, once:
 
@@ -52,7 +56,7 @@ Then print, once:
   (Disable with `/muggle-preferences reusePreparePlan`.)
 ```
 
-If this run short-circuited via [reuse-plan](./reuse-plan.md), don't rewrite — but **do** refresh `updated` and any `command` that was re-derived during validation. Skip the announcement on the refresh path.
+If this run short-circuited via [reuse-plan](./reuse-plan.md), don't rewrite — but **do** refresh `updated`, any `command` re-derived during validation, any legacy `dir` normalized by [resolve-sources](./resolve-sources.md#legacy-plan-entries), and an adopted entry's key. Skip the announcement on the refresh path.
 
 ## Save the E2E run instructions
 

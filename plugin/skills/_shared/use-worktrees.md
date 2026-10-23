@@ -10,13 +10,18 @@ Use this for feature development, local validation, and PR iteration.
 
 ## Start new change work
 
-1. Update the base branch (usually `main`).
-2. Create a new worktree and branch:
+Every new branch starts at the latest `origin/<base>` — never at HEAD, never at a local branch. The directory a session stands in may be a detached main checkout months old, or a sibling worktree on someone else's feature branch; a branch created without a start point silently inherits that code. A local `<base>` branch is no better: it is often checked out, stale, in another worktree.
+
+1. Resolve `<main-root>` — the clone's main working tree, the first `worktree` line of `git worktree list --porcelain` — and `<base>` (the change's target branch; the remote default when none was chosen).
+2. Fetch and create from the remote-tracking ref:
    ```bash
-   git worktree add <repo>/.claude/worktrees/<sanitized-branch> -b <branch>
+   git -C <main-root> fetch --no-tags origin "+refs/heads/<base>:refs/remotes/origin/<base>"
+   git -C <main-root> worktree add <main-root>/.claude/worktrees/<sanitized-branch> -b <branch> origin/<base>
    ```
-3. Install dependencies and run setup in that worktree.
-4. Keep all edits and commits for the change in that same worktree.
+   Under `<main-root>` even when the session stands in another worktree, so worktrees never nest.
+3. Confirm with `muggle checkout-freshness --cwd <worktree>` — it must report `FRESH`.
+4. Install dependencies and run setup in that worktree.
+5. Keep all edits and commits for the change in that same worktree.
 
 ## Test in the worktree
 
@@ -27,7 +32,7 @@ Use this for feature development, local validation, and PR iteration.
 
 ## E2E + worktree checklist
 
-1. Confirm command cwd, checked-out branch, and server source are the same worktree.
+1. Confirm command cwd, checked-out branch, and server source are the same worktree, and that the worktree is still on the latest base per [`sync-branch-with-base.md`](sync-branch-with-base.md).
 2. Start the app from that worktree and verify readiness first (see [`dev-server-readiness.md`](dev-server-readiness.md)).
 3. Run local E2E acceptance checks in that same session.
 4. Isolate test data across parallel branches (separate users/accounts/orgs or resettable fixtures).
@@ -39,6 +44,7 @@ Use this for feature development, local validation, and PR iteration.
 - **Port collision:** Multiple branches share a dev-server port.
 - **Shared mutable state:** Parallel runs mutate the same account or fixtures.
 - **Stale server:** Old process still serves previous branch code.
+- **Inherited base:** A branch created from whatever HEAD the session stood on carries that checkout's age or another branch's commits.
 
 ## Pull request workflow
 

@@ -54,6 +54,8 @@ import {
   cancelExecution,
   executeReplay,
   executeTestGeneration,
+  findRunCheckoutRefusal,
+  formatRunCheckoutRefusal,
   getAuthService,
   getStorageService,
   getRunResultStorageService,
@@ -374,6 +376,16 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
     const showUi = input.showUi !== false;
 
+    const checkoutRefusal = await findRunCheckoutRefusal({
+      cwd: input.cwd,
+      localUrl: input.localUrl,
+      baseBranch: input.baseBranch,
+    });
+    if (checkoutRefusal) {
+      logger.warn("Test generation refused: stale checkout", { verdict: checkoutRefusal.verdict, cwd: input.cwd });
+      return { content: formatRunCheckoutRefusal(checkoutRefusal, input.cwd), isError: true, data: checkoutRefusal };
+    }
+
     try {
       const generationRun = await executeTestGeneration({
         testCase: input.testCase,
@@ -422,6 +434,16 @@ const executeReplayTool: ILocalMcpTool = {
     const input = ExecuteReplayInputSchema.parse(ctx.input);
 
     const showUi = input.showUi !== false;
+
+    const checkoutRefusal = await findRunCheckoutRefusal({
+      cwd: input.cwd,
+      localUrl: input.localUrl,
+      baseBranch: input.baseBranch,
+    });
+    if (checkoutRefusal) {
+      logger.warn("Test replay refused: stale checkout", { verdict: checkoutRefusal.verdict, cwd: input.cwd });
+      return { content: formatRunCheckoutRefusal(checkoutRefusal, input.cwd), isError: true, data: checkoutRefusal };
+    }
 
     try {
       const replayRun = await executeReplay({

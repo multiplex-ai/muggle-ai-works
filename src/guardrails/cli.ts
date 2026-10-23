@@ -85,9 +85,11 @@ import {
   isWalkthroughSkipMarker,
   applyWalkthroughPosted,
   applyWalkthroughSkip,
+  detectWalkthroughPostTargets,
 } from "./walkthroughPosted.js";
 import {
   applyPrOpenedToWalkthroughs,
+  withoutPostedPrs,
   defaultPrWalkthroughLookup,
   isWalkthroughGateArmed,
   isWalkthroughScanCurrent,
@@ -282,12 +284,18 @@ function recordTests(): string {
     e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code),
   };
   const walkthroughPosted = detectWalkthroughPost(input);
+  const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
   const failedRunId = detectFailedRunId(input);
   const record = (state: GuardrailState): GuardrailState => {
     const recorded = applyRecordedRun(state, run);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted, Date.now());
+    const withWalkthroughPost = applyWalkthroughPosted(
+      withBuildSkip,
+      walkthroughPosted,
+      Date.now(),
+      walkthroughPostTargets,
+    );
     const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
@@ -556,13 +564,16 @@ function walkthroughGate(): string {
   const scan = readWalkthroughScan(sessionId);
   startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
   if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
-  if (scan.owed.length === 0) {
-    // Cache a walkthrough found on the PR itself, so later turn ends settle from
-    // state and never repeat the provider lookups.
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughsVerified: true });
+  // A post this session was seen making settles its PR even before the provider
+  // shows it, so a scan that read the PR a moment too early cannot block on it.
+  const unposted = withoutPostedPrs(scan.owed, state);
+  if (unposted.length === 0) {
+    // Cache the settled state, so later turn ends settle from state and never
+    // repeat the provider lookups — until another PR opens.
+    if (scan.verified.length + scan.owed.length > 0) writeState({ ...state, walkthroughsVerified: true });
     return "{}";
   }
-  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(scan.owed, state, Date.now()));
+  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(unposted, state, Date.now()));
   if (decision.action === WalkthroughGateAction.Release) return releaseGate("walkthroughReleased");
   if (decision.action !== WalkthroughGateAction.Block) return "{}";
   state.walkthroughBlockCount = decision.blockCount;

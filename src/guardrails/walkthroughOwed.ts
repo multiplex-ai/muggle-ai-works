@@ -105,6 +105,12 @@ export function isWalkthroughScanCurrent(scan: CachedWalkthroughScan, state: Gua
   return coversHandledPrs && followsLastPost;
 }
 
+/** The PRs left once those this session was seen posting a walkthrough to are set aside. */
+export function withoutPostedPrs(prUrls: string[], state: GuardrailState): string[] {
+  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
+  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
+}
+
 /**
  * Reopen the walkthrough check for a newly opened PR.
  *

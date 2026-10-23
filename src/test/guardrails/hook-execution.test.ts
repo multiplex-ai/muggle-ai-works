@@ -272,6 +272,41 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("walkthrough-gate", event({ session_id: session })).out).toBe("{}");
   });
 
+  it("record-tests -> walkthrough-gate: a post settles the PR it reached, before the provider shows it, and only that PR", () => {
+    const prA = "https://github.com/o/r/pull/7";
+    const prB = "https://github.com/o/other/pull/8";
+    const seedSession = (session: string, prsHandled: string[]): void => {
+      writeGuardrailState(home, { sessionId: session, prsHandled: prsHandled, e2eRun: true });
+      // A scan that read every PR before the post reached it, as a provider can.
+      writeFileSync(
+        join(home, ".muggle-ai", "guardrails", `${session}.walkthrough-scan.json`),
+        JSON.stringify({ prsHandled: prsHandled, owed: prsHandled, verified: [], startedAt: 1 }),
+      );
+    };
+    const postTo = (session: string, prUrl: string): void => {
+      runHook(
+        "record-tests",
+        event({
+          session_id: session,
+          tool_name: "Bash",
+          tool_input: { command: "gh pr comment --body '<!-- muggle-pr-section:v1 --> results'" },
+          tool_response: { stdout: `${prUrl}#issuecomment-1` },
+        }),
+      );
+    };
+
+    seedSession("posted-one", [prA]);
+    postTo("posted-one", prA);
+    expect(runHook("walkthrough-gate", event({ session_id: "posted-one" })).out).toBe("{}");
+
+    seedSession("posted-first-of-two", [prA, prB]);
+    postTo("posted-first-of-two", prA);
+    const blocked = JSON.parse(runHook("walkthrough-gate", event({ session_id: "posted-first-of-two" })).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain(prB);
+    expect(blocked.reason).not.toContain(prA);
+  });
+
   it("record-tests -> walkthrough-gate: a MUGGLE_WALKTHROUGH_SKIP marker settles the gate", () => {
     const session = "walkthrough-skip";
     runHook(

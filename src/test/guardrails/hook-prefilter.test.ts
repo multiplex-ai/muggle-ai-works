@@ -247,6 +247,7 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     buildSkipped: true,
     buildBlockCount: 1,
     walkthroughPostedAt: 1,
+    walkthroughPostedPrUrls: ["https://github.com/o/r/pull/1"],
     walkthroughsVerified: true,
     walkthroughSkipped: true,
     walkthroughBlockCount: 1,

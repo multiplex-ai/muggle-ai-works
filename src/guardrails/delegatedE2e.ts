@@ -3,21 +3,14 @@ import {
   ACCEPTANCE_REPORT_MARKERS,
   ACCEPTANCE_TESTER_SUBAGENT_TYPE,
   DELEGATED_E2E_WINDOW_MS,
-  GITHUB_PR_URL,
-  GITLAB_MR_URL,
   SUBAGENT_DISPATCH_TOOL_NAMES,
 } from "./constants.js";
+import { extractPrUrls } from "./prUrls.js";
 import type { E2eDelegation, GuardrailState, HookInput } from "./types.js";
 
 function carriesAcceptanceReport(input: HookInput): boolean {
   const response = JSON.stringify(input.tool_response ?? "");
   return ACCEPTANCE_REPORT_MARKERS.some((marker) => response.includes(marker));
-}
-
-function quotedPrUrls(brief: string): string[] {
-  const githubPrUrls = [...brief.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
-  const gitlabMrUrls = [...brief.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
-  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
 }
 
 /**
@@ -32,7 +25,7 @@ export function detectBackgroundAcceptanceDispatch(input: HookInput): string[] |
   if (!(SUBAGENT_DISPATCH_TOOL_NAMES as readonly string[]).includes(input.tool_name ?? "")) return null;
   if (!ACCEPTANCE_TESTER_SUBAGENT_TYPE.test(input.tool_input?.subagent_type ?? "")) return null;
   if (callFailed(input) || carriesAcceptanceReport(input)) return null;
-  return quotedPrUrls(input.tool_input?.prompt ?? "");
+  return extractPrUrls(input.tool_input?.prompt ?? "");
 }
 
 function liveDelegations(state: GuardrailState, now: number): E2eDelegation[] {

@@ -5,6 +5,7 @@ import {
   isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
   walkthroughGateDecision,
+  withoutPostedPrs,
   type PrWalkthroughLookup,
 } from "../../guardrails/walkthroughOwed";
 import { WalkthroughGateAction, type GuardrailState } from "../../guardrails/types";
@@ -120,6 +121,14 @@ describe("isWalkthroughGateArmed", () => {
 
   it("stays armed after a post — the post settles one PR, not every PR in play", () => {
     expect(isWalkthroughGateArmed(stateWith({ walkthroughPostedAt: 5 }))).toBe(true);
+  });
+});
+
+describe("withoutPostedPrs", () => {
+  it("sets aside only the PRs this session was seen posting to", () => {
+    const state = stateWith({ walkthroughPostedPrUrls: [PR_OPENED] });
+    expect(withoutPostedPrs([PR_OPENED, PR_BRANCH], state)).toEqual([PR_BRANCH]);
+    expect(withoutPostedPrs([PR_OPENED, PR_BRANCH], stateWith())).toEqual([PR_OPENED, PR_BRANCH]);
   });
 });
 

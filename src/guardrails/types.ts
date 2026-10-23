@@ -16,6 +16,7 @@ export interface GuardrailState {
   buildSkipped?: boolean;
   buildBlockCount?: number;
   walkthroughPostedAt?: number;
+  walkthroughPostedPrUrls?: string[];
   walkthroughsVerified?: boolean;
   walkthroughSkipped?: boolean;
   e2eDelegations?: E2eDelegation[];

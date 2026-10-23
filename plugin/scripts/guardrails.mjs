@@ -636,21 +636,23 @@ function classificationGateDecision(state, input2) {
   return { deny: true, testCaseId };
 }
 
+// src/guardrails/prUrls.ts
+function extractPrUrls(text) {
+  const githubPrUrls = [...text.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
+  const gitlabMrUrls = [...text.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
+  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
+}
+
 // src/guardrails/delegatedE2e.ts
 function carriesAcceptanceReport(input2) {
   const response = JSON.stringify(input2.tool_response ?? "");
   return ACCEPTANCE_REPORT_MARKERS.some((marker) => response.includes(marker));
 }
-function quotedPrUrls(brief) {
-  const githubPrUrls = [...brief.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
-  const gitlabMrUrls = [...brief.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
-  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
-}
 function detectBackgroundAcceptanceDispatch(input2) {
   if (!SUBAGENT_DISPATCH_TOOL_NAMES.includes(input2.tool_name ?? "")) return null;
   if (!ACCEPTANCE_TESTER_SUBAGENT_TYPE.test(input2.tool_input?.subagent_type ?? "")) return null;
   if (callFailed(input2) || carriesAcceptanceReport(input2)) return null;
-  return quotedPrUrls(input2.tool_input?.prompt ?? "");
+  return extractPrUrls(input2.tool_input?.prompt ?? "");
 }
 function liveDelegations(state, now) {
   return (state.e2eDelegations ?? []).filter((delegation) => now - delegation.dispatchedAt < DELEGATED_E2E_WINDOW_MS);
@@ -1052,9 +1054,15 @@ function detectWalkthroughPost(input2, read = defaultFileReader) {
   if (callFailed(input2)) return false;
   return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
 }
-function applyWalkthroughPosted(state, posted, postedAt) {
+function detectWalkthroughPostTargets(input2) {
+  return extractPrUrls(`${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`);
+}
+function applyWalkthroughPosted(state, posted, postedAt, targetPrUrls) {
   if (!posted) return state;
-  return { ...state, walkthroughPostedAt: postedAt };
+  if (targetPrUrls.length === 0) return { ...state, walkthroughPostedAt: postedAt };
+  const postedPrUrls = /* @__PURE__ */ new Set([...state.walkthroughPostedPrUrls ?? [], ...targetPrUrls]);
+  return { ...state, walkthroughPostedPrUrls: [...postedPrUrls] };
 }
 function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
@@ -1109,6 +1117,10 @@ function isWalkthroughScanCurrent(scan, state) {
   const postedAt = state.walkthroughPostedAt;
   const followsLastPost = postedAt === void 0 || (scan.startedAt ?? 0) >= postedAt;
   return coversHandledPrs && followsLastPost;
+}
+function withoutPostedPrs(prUrls, state) {
+  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
+  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
 }
 function applyPrOpenedToWalkthroughs(state) {
   return state.walkthroughsVerified === true ? { ...state, walkthroughsVerified: false } : state;
@@ -2010,12 +2022,18 @@ function recordTests() {
     e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code)
   };
   const walkthroughPosted = detectWalkthroughPost(input);
+  const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
   const failedRunId = detectFailedRunId(input);
   const record = (state) => {
     const recorded = applyRecordedRun(state, run);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted, Date.now());
+    const withWalkthroughPost = applyWalkthroughPosted(
+      withBuildSkip,
+      walkthroughPosted,
+      Date.now(),
+      walkthroughPostTargets
+    );
     const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
@@ -2159,11 +2177,12 @@ function walkthroughGate() {
   const scan = readWalkthroughScan(sessionId);
   startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
-  if (scan.owed.length === 0) {
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughsVerified: true });
+  const unposted = withoutPostedPrs(scan.owed, state);
+  if (unposted.length === 0) {
+    if (scan.verified.length + scan.owed.length > 0) writeState({ ...state, walkthroughsVerified: true });
     return "{}";
   }
-  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(scan.owed, state, Date.now()));
+  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(unposted, state, Date.now()));
   if (decision.action === "release" /* Release */) return releaseGate("walkthroughReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.walkthroughBlockCount = decision.blockCount;

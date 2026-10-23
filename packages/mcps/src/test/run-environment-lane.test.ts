@@ -128,6 +128,29 @@ describe("muggle-remote-local-run-upload lane forwarding", () => {
     const call = tool.mapToUpstream(baseUploadInput());
     expect(call.body as Record<string, unknown>).not.toHaveProperty("runEnvironmentType");
   });
+
+  it("forwards the run's runSettings record and window size into the upload body", () => {
+    const tool = getQaToolByName("muggle-remote-local-run-upload")!;
+    const displayParams = { browserWindowWidth: 390, browserWindowHeight: 844 };
+    const input = LocalRunUploadInputSchema.parse({
+      ...baseUploadInput(),
+      runSettingsId: "44444444-4444-4444-8444-444444444444",
+      displayParams: displayParams,
+    });
+
+    const body = tool.mapToUpstream(input).body as Record<string, unknown>;
+
+    expect(body.runSettingsId).toBe("44444444-4444-4444-8444-444444444444");
+    expect(body.displayParams).toEqual(displayParams);
+  });
+
+  it("omits the record and window size from the upload body when the run carried neither", () => {
+    const body = getQaToolByName("muggle-remote-local-run-upload")!.mapToUpstream(baseUploadInput())
+      .body as Record<string, unknown>;
+
+    expect(body).not.toHaveProperty("runSettingsId");
+    expect(body).not.toHaveProperty("displayParams");
+  });
 });
 
 describe("muggle-remote-workflow-start-test-script-generation lane forwarding", () => {

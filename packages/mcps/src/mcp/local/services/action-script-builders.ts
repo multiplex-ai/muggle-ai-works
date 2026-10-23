@@ -4,8 +4,9 @@
  * unit-testable in isolation.
  */
 
+import { RunEnvironment } from "../../e2e/contracts/run-environment.js";
 import type { PinnedAccount, TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
-import { resolveDisplayParams } from "./display-resolution.js";
+import { resolveDisplayParams, resolveReplayDisplayParams } from "./display-resolution.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
 import type { DisplayResolution } from "../types/enums.js";
 
@@ -33,6 +34,7 @@ function getRequiredStringField(params: {
  * @param params.displayResolution - Resolution for this run; overrides the test
  * case's stored `displayOptions`. Neither given sizes the run at 1920x1080.
  * @param params.freshSession - The run's effective fresh-session value; recorded only when true.
+ * @param params.runSettingsId - The local runSettings record the run is recorded against; written only when given.
  */
 export function buildGenerationActionScript(params: {
   testCase: TestCaseDetails;
@@ -42,6 +44,7 @@ export function buildGenerationActionScript(params: {
   ownerUserId: string;
   displayResolution?: DisplayResolution;
   freshSession?: boolean;
+  runSettingsId?: string;
 }): Record<string, unknown> {
   const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -93,6 +96,9 @@ export function buildGenerationActionScript(params: {
       // a legacy test case must produce exactly the params it always did.
       ...(params.testCase.pinnedAccount ? { pinnedAccount: params.testCase.pinnedAccount } : {}),
       ...(params.freshSession === true ? { freshSession: true } : {}),
+      // The studio loads this record's managed profile and secrets, and the cloud files the run
+      // under it; without it the cloud picks the local record at displayParams.
+      ...(params.runSettingsId ? { runSettingsId: params.runSettingsId } : {}),
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -115,11 +121,12 @@ export function buildGenerationActionScript(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.runId - Run ID for this execution.
  * @param params.ownerUserId - Owner user ID.
- * @param params.displayResolution - Resolution for this run. A test script
- * carries no stored resolution, so this is replay's only sizing input; absent,
- * the run is sized at 1920x1080.
+ * @param params.displayResolution - Resolution for this run. Absent, the run is
+ * sized at the test script's recorded `displayParams`, else 1920x1080; present,
+ * it must match the recorded size.
  * @param params.pinnedAccount - The account the script was recorded as; when set, the run uses that account's browser session.
  * @param params.freshSession - Whether the script was recorded from an empty session; written only when true.
+ * @throws Error when `displayResolution` differs from the script's recorded size.
  */
 export function buildReplayActionScript(params: {
   testScript: TestScriptDetails;
@@ -178,11 +185,17 @@ export function buildReplayActionScript(params: {
       runEnvironmentType: "local",
       // Sizes the studio's webview. Absent, the electron-app falls back to its
       // own hardcoded 1920x1080, which is why a phone-viewport run needs this.
-      displayParams: resolveDisplayParams({
+      displayParams: resolveReplayDisplayParams({
         requestedResolution: params.displayResolution,
+        recordedDisplayParams: params.testScript.displayParams,
       }),
       ...(params.pinnedAccount ? { pinnedAccount: params.pinnedAccount } : {}),
       ...(params.freshSession ? { freshSession: true } : {}),
+      // A replay runs under the record of the script it replays. A remote-lane script's record
+      // belongs to the other lane, so its replay is filed by size instead.
+      ...(params.testScript.type === RunEnvironment.Local && params.testScript.runSettingsId
+        ? { runSettingsId: params.testScript.runSettingsId }
+        : {}),
     },
     goal: params.testScript.name,
     url: params.localUrl,

@@ -236,6 +236,7 @@ const runResultGetTool: ILocalMcpTool = {
       storedRunResult.viewUrl ? `**View URL:** ${storedRunResult.viewUrl}` : `**Dashboard:** ${fallbackDashboardUrl}`,
       storedRunResult.cloudTestScriptId ? `**Cloud Test Script ID:** ${storedRunResult.cloudTestScriptId}` : "",
       storedRunResult.cloudActionScriptId ? `**Cloud Action Script ID:** ${storedRunResult.cloudActionScriptId}` : "",
+      storedRunResult.cloudRunSettingsId ? `**Cloud Run Settings ID:** ${storedRunResult.cloudRunSettingsId}` : "",
     ];
 
     let testScriptSteps: number | undefined;
@@ -383,6 +384,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         showUi: showUi,
         freshSession: input.freshSession,
         displayResolution: input.displayResolution,
+        runSettingsId: input.runSettingsId,
       });
 
       const content = [

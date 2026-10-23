@@ -10,7 +10,7 @@ The external state a block is waiting on. Recompute from live state each blocked
 
 - `head_sha` — from the tick's [`contract.md`](contract.md) Step 1 refresh.
 - `latest_review_id` — `max(id)` over submitted reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md) (`0` if none).
-- `ci_digest` — the CI rollup digest for `head_sha` per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md): the bucket plus each check's name and conclusion, sorted into one stable string.
+- `ci_digest` — the CI rollup digest for `head_sha`: each check's `name:state` from [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md), sorted by name and joined with `,`. This is the signature the watch loop computes (the last field of [`../../scripts/pr-watch-state.jq`](../../scripts/pr-watch-state.jq)), so the loop's live digest equals the fingerprint until CI actually moves; any other shape wakes the loop on every arm.
 
 Any component moving means the block may have cleared — a new push (`head_sha`, which also clears the per-SHA escalation sets), a new review (`latest_review_id`), or a CI/deploy state change (`ci_digest`, which is how an external staging deploy is caught).
 

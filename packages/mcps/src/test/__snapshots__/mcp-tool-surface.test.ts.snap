@@ -63,7 +63,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-run-steps-get",
   },
   {
-    "description": "Emit a structured failure-mode telemetry event recording how a Muggle Test skill classified a situation and what action the user took. Used at five decision points: 'pre-execution-classification' (replay vs regen), 'replay-failure-classified', 'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved'. Records to ~/.muggle-ai/telemetry/failure-events.jsonl. Never fails the skill on telemetry errors.",
+    "description": "Emit a structured Muggle Test skill telemetry event. Failure-mode events ('pre-execution-classification', 'replay-failure-classified', 'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved') record how a skill classified a replay or regen situation and what action the user took — recorded to ~/.muggle-ai/telemetry/failure-events.jsonl. Workflow events ('muggle-do:cycle', 'muggle-do:escalation', 'muggle-do:resolve-reminder', 'muggle-pr-followup:tick', 'muggle-pr-followup:bootstrap') carry their catalog payload in metadata — recorded to ~/.muggle-ai/telemetry/workflow-events.jsonl. Never fails the skill on telemetry errors.",
     "name": "muggle-local-telemetry-event-emit",
   },
   {

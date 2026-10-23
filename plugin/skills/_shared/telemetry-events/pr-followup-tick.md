@@ -4,21 +4,23 @@ One per watcher iteration (idle or not).
 
 ```json
 {
-  "skill": "muggle-pr-followup",
-  "event": "tick",
-  "session_slug": "<slug>",
-  "repo": "<owner>/<repo>",
-  "pr_number": <int>,
-  "actionable_threads": <int>,
-  "dispatched_review_ids": [<int>, ...],
-  "rebase_needed": true | false,
-  "dispatched_rebase": true | false,
-  "checks_red": <int>,
-  "dispatched_ci_fix": true | false,
-  "terminal": true | false,
-  "idle": true | false,
-  "blocked": true | false,
-  "tick_duration_ms": <int>
+  "eventType": "muggle-pr-followup:tick",
+  "skillName": "muggle-pr-followup",
+  "metadata": {
+    "session_slug": "<slug>",
+    "repo": "<owner>/<repo>",
+    "pr_number": <int>,
+    "actionable_threads": <int>,
+    "dispatched_review_ids": [<int>, ...],
+    "rebase_needed": true | false,
+    "dispatched_rebase": true | false,
+    "checks_red": <int>,
+    "dispatched_ci_fix": true | false,
+    "terminal": true | false,
+    "idle": true | false,
+    "blocked": true | false,
+    "tick_duration_ms": <int>
+  }
 }
 ```
 

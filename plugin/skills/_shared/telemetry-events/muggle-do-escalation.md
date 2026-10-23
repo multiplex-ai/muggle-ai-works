@@ -4,13 +4,15 @@ Zero or one per address-reviews invocation, plus zero or one per forward cycle t
 
 ```json
 {
-  "skill": "muggle-do",
-  "event": "escalation",
-  "session_slug": "<slug>",
-  "repo": "<owner>/<repo>",
-  "pr_number": <int>,
-  "kind": "ambiguous-review" | "design-adjustment" | "rebase-conflict" | "e2e-unrepairable",
-  "review_ids": [<int>, ...]
+  "eventType": "muggle-do:escalation",
+  "skillName": "muggle-do",
+  "metadata": {
+    "session_slug": "<slug>",
+    "repo": "<owner>/<repo>",
+    "pr_number": <int>,
+    "kind": "ambiguous-review" | "design-adjustment" | "rebase-conflict" | "e2e-unrepairable",
+    "review_ids": [<int>, ...]
+  }
 }
 ```
 

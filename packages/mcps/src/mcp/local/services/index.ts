@@ -25,6 +25,8 @@ export {
 
 export { findRunCheckoutRefusal, isLoopbackUrl } from "./run-checkout-gate.js";
 
+export { recordTelemetryEvent } from "./telemetry-event-service.js";
+
 export {
   acquireLocalExecutionLock,
   readLocalExecutionLockState,

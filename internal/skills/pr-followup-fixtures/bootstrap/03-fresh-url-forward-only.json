@@ -43,14 +43,16 @@
     },
     "telemetry_events": [
       {
-        "skill": "muggle-pr-followup",
-        "event": "bootstrap",
-        "caller": "user",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "cursor_review_id": 4295962850,
-        "resume": false
+        "eventType": "muggle-pr-followup:bootstrap",
+        "skillName": "muggle-pr-followup",
+        "metadata": {
+          "caller": "user",
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "cursor_review_id": 4295962850,
+          "resume": false
+        }
       }
     ],
     "side_effects": [

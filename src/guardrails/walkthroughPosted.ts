@@ -44,10 +44,16 @@ export function detectWalkthroughPost(
   return collectPrPostText(cmd, input.cwd, read).includes(REPORT_SENTINEL);
 }
 
-/** Record a walkthrough post, returning the same reference when nothing changed so the caller can skip a redundant write. */
-export function applyWalkthroughPosted(state: GuardrailState, posted: boolean): GuardrailState {
-  if (!posted || state.walkthroughPosted === true) return state;
-  return { ...state, walkthroughPosted: true };
+/**
+ * Record when a walkthrough post was seen, returning the same reference when nothing was posted.
+ *
+ * The post settles only the PR it went to, which the command does not reliably
+ * name — a settle edits a comment by id — so the gate learns which PRs now carry
+ * one from a scan begun after this moment, never from the post itself.
+ */
+export function applyWalkthroughPosted(state: GuardrailState, posted: boolean, postedAt: number): GuardrailState {
+  if (!posted) return state;
+  return { ...state, walkthroughPostedAt: postedAt };
 }
 
 /** Record a walkthrough skip, returning the same reference when nothing changed so the caller can skip a redundant write. */

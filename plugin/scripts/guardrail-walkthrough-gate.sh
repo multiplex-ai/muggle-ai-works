@@ -9,7 +9,7 @@ set -uo pipefail
 # it fires on EVERY turn end. There is no command payload to key off, so the
 # pre-filter reads the same per-session state file guardrails.mjs uses and only
 # spawns Node when the gate could actually fire — i.e. an acceptance run is
-# recorded and the walkthrough is neither posted nor skipped. On the
+# recorded and the walkthrough is neither verified on every PR nor skipped. On the
 # overwhelming majority of turns (no E2E this session) the state file is absent
 # or e2eRun is unset, so we return {} in-shell and never pay Node cold-start —
 # which also means the gate's `gh` lookups only ever run on turns that could
@@ -24,7 +24,7 @@ GUARDRAIL_SUBCOMMAND="walkthrough-gate"
 guardrail_wants() {
   guardrail_load_state \
     && guardrail_state_has '"e2eRun": true' \
-    && ! guardrail_state_has '"walkthroughPosted": true' \
+    && ! guardrail_state_has '"walkthroughsVerified": true' \
     && ! guardrail_state_has '"walkthroughReleased": true' \
     && ! guardrail_state_has '"walkthroughSkipped": true'
 }

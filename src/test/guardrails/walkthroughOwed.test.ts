@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyPrOpenedToWalkthroughs,
   isWalkthroughGateArmed,
   isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
@@ -81,9 +82,14 @@ describe("walkthroughGateDecision", () => {
     expect(decision.action).toBe(WalkthroughGateAction.None);
   });
 
-  it("stays quiet once a walkthrough is recorded", () => {
-    const decision = walkthroughGateDecision(stateWith({ walkthroughPosted: true }), [PR_OPENED]);
+  it("stays quiet once every PR in play was verified carrying one", () => {
+    const decision = walkthroughGateDecision(stateWith({ walkthroughsVerified: true }), [PR_OPENED]);
     expect(decision.action).toBe(WalkthroughGateAction.None);
+  });
+
+  it("still blocks for a second PR after a walkthrough was posted to the first", () => {
+    const state = stateWith({ prsHandled: [PR_OPENED, PR_BRANCH], walkthroughPostedAt: 5 });
+    expect(walkthroughGateDecision(state, [PR_BRANCH]).action).toBe(WalkthroughGateAction.Block);
   });
 
   it("stays quiet once a skip is declared", () => {
@@ -106,15 +112,47 @@ describe("isWalkthroughGateArmed", () => {
     expect(isWalkthroughGateArmed(stateWith())).toBe(true);
   });
 
-  it("stays disarmed without an acceptance run, or once a walkthrough was posted or skipped", () => {
+  it("stays disarmed without an acceptance run, or once every PR was verified or a skip declared", () => {
     expect(isWalkthroughGateArmed(stateWith({ e2eRun: false }))).toBe(false);
-    expect(isWalkthroughGateArmed(stateWith({ walkthroughPosted: true }))).toBe(false);
+    expect(isWalkthroughGateArmed(stateWith({ walkthroughsVerified: true }))).toBe(false);
     expect(isWalkthroughGateArmed(stateWith({ walkthroughSkipped: true }))).toBe(false);
+  });
+
+  it("stays armed after a post — the post settles one PR, not every PR in play", () => {
+    expect(isWalkthroughGateArmed(stateWith({ walkthroughPostedAt: 5 }))).toBe(true);
+  });
+});
+
+describe("applyPrOpenedToWalkthroughs", () => {
+  it("re-arms the check when a PR opens after every earlier one was verified", () => {
+    const verified = stateWith({ walkthroughsVerified: true });
+    expect(isWalkthroughGateArmed(applyPrOpenedToWalkthroughs(verified))).toBe(true);
+  });
+
+  it("returns the same reference when nothing was verified", () => {
+    const unverified = stateWith();
+    expect(applyPrOpenedToWalkthroughs(unverified)).toBe(unverified);
   });
 });
 
 describe("isWalkthroughScanCurrent", () => {
-  const scanOf = (prsHandled: string[]) => ({ prsHandled: prsHandled, owed: [], verified: [] });
+  const scanOf = (prsHandled: string[], startedAt?: number) => ({
+    prsHandled: prsHandled,
+    owed: [],
+    verified: [],
+    startedAt: startedAt,
+  });
+
+  it("rejects a scan begun before the last walkthrough post, which may have settled a PR it found owed", () => {
+    const state = stateWith({ prsHandled: [PR_OPENED], walkthroughPostedAt: 10 });
+    expect(isWalkthroughScanCurrent(scanOf([PR_OPENED], 9), state)).toBe(false);
+    expect(isWalkthroughScanCurrent(scanOf([PR_OPENED]), state)).toBe(false);
+  });
+
+  it("accepts a scan begun after the last walkthrough post", () => {
+    const state = stateWith({ prsHandled: [PR_OPENED], walkthroughPostedAt: 10 });
+    expect(isWalkthroughScanCurrent(scanOf([PR_OPENED], 11), state)).toBe(true);
+  });
 
   it("accepts a scan run for the same handled PRs, in any order", () => {
     const state = stateWith({ prsHandled: [PR_OPENED, PR_BRANCH] });

@@ -37,6 +37,7 @@ Before asking anything, gather every fact you can resolve without the user:
    - Is the current checkout on the latest base? `muggle checkout-freshness --cwd <repo> --json` fetches and reports the verdict and `behindBy`. However stale or foreign the current checkout, a new worktree starts from `origin/<base>`, never from it.
 10. **`autoE2ETest` preference.** Read the session-context preferences line. Unset → treat as `always` (this gate's default — opposite of the system-wide `ask` default). `ask` → surface in Q13. `always` → no question; stage 6 runs.
 11. **Wave candidate?** Two or more candidate repos, one PR each, and validation leaning `local-e2e` → the cycle is a wave per [`wave-e2e.md`](wave-e2e.md): the repos' services start together from their branches and one E2E run covers every PR. Record each repo's worktree path for the `Wave members` block. Not a wave → note why.
+11.5. **Several changes?** A task that bundles unrelated fixes — "fix these three bugs" — is one change per fix, per [`background-e2e.md`](background-e2e.md): each gets its own slug, session directory, branch, worktree and PR, and its own E2E run. Several repos carrying parts of *one* fix is a wave, not several changes. The questionnaire's answers apply to every change unless a fix names another repo; state the split in Q1's options so the user sees how many PRs ship.
 12. **CI check present?** For each GitHub repo, whether `.github/workflows/muggle-walkthrough.yml` exists on its default branch. Missing and [`autoInstallCiWorkflow`](../muggle-preferences/preference-gates/autoInstallCiWorkflow.md) resolves to `ask` → surface in Q14.
 
 ## The consolidated questionnaire
@@ -81,6 +82,7 @@ After the user answers, write **`state.md`** with every resolved value, verbatim
 - Repos: <repo1>, <repo2>
 - Wave: <on | off — reason | N/A (single repo)>
 - Wave members: <one line per repo when on — `<owner/repo> → <worktree path> (branch <branch>)`; see wave-e2e.md>
+- Sibling changes: <slugs of this session's other changes, or none; see background-e2e.md>
 - Branch: <branch-name>
 - Validation: <strategy>
 - Local URL: <url or N/A>
@@ -113,4 +115,4 @@ Return control to the muggle-do driver with a one-line summary: `pre-flight comp
 - Exactly **one** user turn. Zero follow-up questions inside this stage.
 - Silent detection **must** run before the questionnaire — never ask for a value you can detect.
 - Every detected value is a default, not a lock — the user can always override via "Type a different …".
-- Missing `state.md` or `iterations/001.md` at the end of this stage is a stage failure.
+- Missing `state.md` or `iterations/001.md` at the end of this stage is a stage failure. Several changes → one session directory each, all written before Stage 2 starts on the first.

@@ -87,12 +87,14 @@ import {
   applyWalkthroughSkip,
 } from "./walkthroughPosted.js";
 import {
+  applyPrOpenedToWalkthroughs,
   defaultPrWalkthroughLookup,
   isWalkthroughGateArmed,
   isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
   walkthroughGateDecision,
 } from "./walkthroughOwed.js";
+import { applyE2eDelegation, detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
 import {
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
@@ -190,6 +192,7 @@ function prOpened(): string {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
+  updateState(sessionId, applyPrOpenedToWalkthroughs);
   // Reserved at open rather than at post time: a PR whose slot exists from the
   // first minute shows reviewers that evidence is coming, and gives both the
   // Stop gate and the CI check one fixed comment to settle instead of guessing
@@ -200,8 +203,9 @@ function prOpened(): string {
   }
   const ctx =
     `A pull request was just opened: ${url}\n` +
-    `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
-    `walkthrough there once E2E runs, or by recording why E2E does not apply.\n` +
+    `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it with the E2E run of ` +
+    `this PR's own change (a wave's PRs share one run; any other PR gets its own), or by recording ` +
+    `why E2E does not apply.\n` +
     `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. ` +
     `If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; ` +
     `if =ask, offer it to the user; if =never, do nothing.`;
@@ -283,7 +287,7 @@ function recordTests(): string {
     const recorded = applyRecordedRun(state, run);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted, Date.now());
     const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
@@ -292,11 +296,12 @@ function recordTests(): string {
   // the later erases the earlier — the skill and its mandatory stages with it,
   // which disarms the stage and classification gates.
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
-  // Scanned the moment the gate arms, so the turn end that follows reads a finished scan.
-  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
+  // Scanned the moment the gate arms, and again after each post, so the turn
+  // end that follows reads a finished scan that saw the post.
+  if (isWalkthroughGateArmed(next) && (walkthroughPosted || !isWalkthroughGateArmed(stateBefore))) {
     startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
   }
-  if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
+  if (acceptedSkip) recordSkipReasonOnBranchPr(acceptedSkip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
   // stops the next attempt being the same excuse in different words.
@@ -311,17 +316,27 @@ function recordTests(): string {
 // deliberate skip from a cycle that forgot. Writing the stated reason into the
 // designated comment is what makes the declaration outlive the session and what
 // lets the CI check settle.
-function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
-  // The diff was verified in the working tree, so the PR of the branch checked
-  // out there is the only one the claim is true of — not every PR this session
-  // opened — and in a watcher cycle that PR was usually opened by an earlier one.
+//
+// Every code is verified in the working tree, so the PR of the branch checked
+// out there is the only one the claim is true of. Any other PR the session
+// opened is a different change, often in another repo, with its own run still
+// owed — and in a watcher cycle the tree's PR was usually opened by an earlier
+// session, so it need not be among the handled ones.
+function recordSkipReasonOnBranchPr(skip: DeclaredSkip): void {
   if (skip.code === E2eSkipCode.NoAppLogicChange) {
     startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange, [skip.detail], input.cwd);
     return;
   }
-  for (const prUrl of state.prsHandled) {
-    startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [prUrl, skip.code, skip.detail]);
-  }
+  startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [skip.code, skip.detail], input.cwd);
+}
+
+function recordDelegation(): string {
+  const prUrls = detectBackgroundAcceptanceDispatch(input);
+  if (prUrls === null) return "{}";
+  const delegate = (state: GuardrailState): GuardrailState =>
+    applyE2eDelegation(state, { dispatchedAt: Date.now(), prUrls: prUrls });
+  updateState(sessionId, delegate);
+  return "{}";
 }
 
 function skillStages(): string {
@@ -544,10 +559,10 @@ function walkthroughGate(): string {
   if (scan.owed.length === 0) {
     // Cache a walkthrough found on the PR itself, so later turn ends settle from
     // state and never repeat the provider lookups.
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+    if (scan.verified.length > 0) writeState({ ...state, walkthroughsVerified: true });
     return "{}";
   }
-  const decision = walkthroughGateDecision(state, scan.owed);
+  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(scan.owed, state, Date.now()));
   if (decision.action === WalkthroughGateAction.Release) return releaseGate("walkthroughReleased");
   if (decision.action !== WalkthroughGateAction.Block) return "{}";
   state.walkthroughBlockCount = decision.blockCount;
@@ -557,14 +572,19 @@ function walkthroughGate(): string {
   const reason =
     decision.blockCount === 1
       ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough ` +
-        `has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now ` +
-        `via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} — include the failed runs, which are the ones reviewers ` +
-        `most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, ` +
-        `someone else's PR, nothing renderable), tell the user why and run ` +
+        `has reached ${prList}. Each PR carries the run of its own change — a wave's PRs share one run, ` +
+        `every other PR gets its own — so never post one change's run to another change's PR. If this PR's ` +
+        `change was tested, post that run now per the postPRVisualWalkthrough preference (default: always) ` +
+        `via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} — include the failed runs, which are the ones ` +
+        `reviewers most need to see. If it was not, run E2E for it first: inline via ` +
+        `${muggleSkill("/muggle:muggle-test")}, or in a background muggle:acceptance-tester per ` +
+        `do/background-e2e.md while other work continues. If this result genuinely should not be posted ` +
+        `(postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
         `for the rest of the session.`
       : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): ` +
-        `post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via ` +
+        `post that PR's own run via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, run E2E for it ` +
+        `first if its change was never tested, or record a legitimate skip via ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
@@ -740,6 +760,7 @@ const handlers: Record<string, () => string> = {
   "pr-terminal": prTerminal,
   "offer-ran": offerRan,
   "record-tests": recordTests,
+  "record-delegation": recordDelegation,
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
@@ -763,9 +784,15 @@ const jobArgs = process.argv.slice(3);
 
 function scanWalkthroughsJob(): string {
   const scannedSessionId = jobArgs[0] ?? "unknown";
+  const startedAt = Date.now();
   const state = readState(scannedSessionId);
   const scan = scanForOwedWalkthroughs(state);
-  writeWalkthroughScan(scannedSessionId, { prsHandled: state.prsHandled, owed: scan.owed, verified: scan.verified });
+  writeWalkthroughScan(scannedSessionId, {
+    prsHandled: state.prsHandled,
+    owed: scan.owed,
+    verified: scan.verified,
+    startedAt: startedAt,
+  });
   return "{}";
 }
 
@@ -776,9 +803,11 @@ function reserveWalkthroughCommentJob(): string {
 }
 
 function settleWalkthroughSkippedJob(): string {
-  const [prUrl, codeArg, detail] = jobArgs;
+  const [codeArg, detail] = jobArgs;
   const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
-  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
+  if (!code) return "{}";
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
   return "{}";
 }
 

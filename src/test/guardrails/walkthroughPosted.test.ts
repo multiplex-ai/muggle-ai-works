@@ -70,14 +70,16 @@ describe("state reducers", () => {
   const base: GuardrailState = { sessionId: "s", prsHandled: [] };
 
   it("returns the same reference when nothing changed", () => {
-    expect(applyWalkthroughPosted(base, false)).toBe(base);
+    expect(applyWalkthroughPosted(base, false, 5)).toBe(base);
     expect(applyWalkthroughSkip(base, false)).toBe(base);
-    const posted = { ...base, walkthroughPosted: true };
-    expect(applyWalkthroughPosted(posted, true)).toBe(posted);
   });
 
-  it("records the post and the skip", () => {
-    expect(applyWalkthroughPosted(base, true).walkthroughPosted).toBe(true);
+  it("records when the post was seen, and the skip", () => {
+    expect(applyWalkthroughPosted(base, true, 5).walkthroughPostedAt).toBe(5);
     expect(applyWalkthroughSkip(base, true).walkthroughSkipped).toBe(true);
+  });
+
+  it("never marks the walkthrough verified — one post settles only the PR it reached", () => {
+    expect(applyWalkthroughPosted(base, true, 5).walkthroughsVerified).toBeUndefined();
   });
 });

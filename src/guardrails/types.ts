@@ -15,8 +15,10 @@ export interface GuardrailState {
   watchBlockCount?: number;
   buildSkipped?: boolean;
   buildBlockCount?: number;
-  walkthroughPosted?: boolean;
+  walkthroughPostedAt?: number;
+  walkthroughsVerified?: boolean;
   walkthroughSkipped?: boolean;
+  e2eDelegations?: E2eDelegation[];
   walkthroughBlockCount?: number;
   lastInvokedSkillName?: string;
   mandatoryStages?: string[];
@@ -39,6 +41,12 @@ export interface GuardrailState {
   commentReplyReleased?: boolean;
   stageReleased?: boolean;
   debugReleased?: boolean;
+}
+
+/** An acceptance-tester launched into the background to run E2E, and the PRs its brief names. */
+export interface E2eDelegation {
+  dispatchedAt: number;
+  prUrls: string[];
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */
@@ -89,11 +97,12 @@ export interface WalkthroughGateDecision {
   owed: string[];
 }
 
-/** A walkthrough scan finished off the hook path, with the session's handled PRs it was run for. */
+/** A walkthrough scan finished off the hook path, with the session's handled PRs it was run for and when it began. */
 export interface CachedWalkthroughScan {
   prsHandled: string[];
   owed: string[];
   verified: string[];
+  startedAt?: number;
 }
 
 /** Work a hook hands to a detached run of the guardrails CLI, because it waits on the network. */
@@ -229,6 +238,8 @@ export interface ToolInput {
   runId?: string;
   testCase?: { id?: string };
   testScript?: { testCaseId?: string };
+  subagent_type?: string;
+  prompt?: string;
 }
 
 /** Any one hook response a guardrail handler emits, parsed back so several can be merged into one. */

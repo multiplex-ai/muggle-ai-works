@@ -102,6 +102,38 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(parsed.reason).toContain("E2E");
   });
 
+  it("record-delegation -> e2e-gate: a background acceptance-tester holds the gate off; a foreground one does not", () => {
+    const unitGreen = (session: string): void => {
+      runHook(
+        "record-tests",
+        event({
+          session_id: session,
+          tool_name: "Bash",
+          tool_input: { command: "pnpm test" },
+          tool_response: { stdout: "Tests: 18 passed", stderr: "" },
+        }),
+      );
+    };
+    const dispatchAcceptanceTester = (session: string, response: string): string =>
+      runHook(
+        "record-delegation",
+        event({
+          session_id: session,
+          tool_name: "Agent",
+          tool_input: { subagent_type: "muggle:acceptance-tester", prompt: "Run E2E for fix-login" },
+          tool_response: { output: response },
+        }),
+      ).out;
+
+    unitGreen("delegated");
+    expect(dispatchAcceptanceTester("delegated", "Async agent launched.")).toBe("{}");
+    expect(runHook("e2e-gate", event({ session_id: "delegated" })).out).toBe("{}");
+
+    unitGreen("foreground");
+    dispatchAcceptanceTester("foreground", "## Test Summary\n- **Verdict:** PASS");
+    expect(JSON.parse(runHook("e2e-gate", event({ session_id: "foreground" })).out).decision).toBe("block");
+  });
+
   it("e2e-gate: stays silent when no unit-test pass was recorded", () => {
     expect(runHook("e2e-gate", event({ session_id: "fresh" })).out).toBe("{}");
   });
@@ -831,6 +863,13 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "b", prompt: "implement dark mode" }))).toContain(NODE_RAN);
   });
 
+  it("record-delegation: skips Node for any other agent, spawns it for an acceptance-tester", () => {
+    const dispatchOf = (subagentType: string): string =>
+      event({ session_id: "d", tool_name: "Agent", tool_input: { subagent_type: subagentType, prompt: "go" } });
+    expect(runWrapper("guardrail-record-delegation.sh", dispatchOf("general-purpose"))).toBe("{}");
+    expect(runWrapper("guardrail-record-delegation.sh", dispatchOf("muggle:acceptance-tester"))).toContain(NODE_RAN);
+  });
+
   it("pr-opened: skips Node on a plain command, spawns it on gh pr create", () => {
     expect(
       runWrapper("guardrail-pr-opened.sh", event({ tool_name: "Bash", tool_input: { command: "ls -la" } })),
@@ -1024,10 +1063,11 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-resolve-gate.sh"))).toBe(true);
   });
 
-  it("fires the offer observer on AskUserQuestion and the terminal detector on Monitor", () => {
-    const ask = hooks.PostToolUse.find((g) => g.matcher === "AskUserQuestion");
+  it("fires the offer observer on AskUserQuestion, the delegation recorder on Agent/Task, and the terminal detector on Monitor", () => {
+    const ask = hooks.PostToolUse.find((g) => g.matcher.split("|").includes("AskUserQuestion"));
+    expect(ask!.matcher.split("|").sort()).toEqual(["Agent", "AskUserQuestion", "Task"]);
     expect(ask!.hooks.map((h) => h.command)).toEqual([
-      expect.stringContaining("guardrail-offer-ran.sh"),
+      expect.stringMatching(/guardrail-offer-ran\.sh.*guardrail-record-delegation\.sh/),
     ]);
     const monitor = hooks.PostToolUse.find((g) => g.matcher === "Monitor");
     expect(monitor!.hooks.map((h) => h.command)).toEqual([

@@ -221,3 +221,28 @@ export const WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
 
 /** Joins the reasons or context of several gates that fired on one event into one hook response. */
 export const MERGED_GATE_OUTPUT_SEPARATOR = "\n\n";
+
+/** A GitHub pull request's web URL, as `gh` prints it and as a brief quotes it. */
+export const GITHUB_PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
+
+/** A GitLab merge request's web URL, as `glab` prints it and as a brief quotes it. */
+export const GITLAB_MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
+
+/** The tools a host dispatches a subagent through; the name has differed across harness versions. */
+export const SUBAGENT_DISPATCH_TOOL_NAMES = ["Agent", "Task"] as const;
+
+/** The acceptance-tester agent's subagent type, bare or plugin-namespaced (`muggle:acceptance-tester`). */
+export const ACCEPTANCE_TESTER_SUBAGENT_TYPE = /(?:^|:)acceptance-tester$/;
+
+// The headings an acceptance-tester's finished report always carries: its own
+// output contract's summary, and Stage 6's verdict line. A dispatch whose tool
+// response already holds one ran in the foreground and is over; one that
+// returned without it was launched into the background and is still running.
+export const ACCEPTANCE_REPORT_MARKERS = ["## Test Summary", "**Overall:**"] as const;
+
+// How long a background acceptance-tester counts as still running. Sized to a
+// full Stage 6 scope on one local browser, because the cost is asymmetric:
+// closing early steers the main session into a second browser run alongside the
+// agent's, and two studio runs corrupt each other; staying open late only delays
+// a reminder that the PR's own walkthrough check keeps enforcing regardless.
+export const DELEGATED_E2E_WINDOW_MS = 60 * 60_000;

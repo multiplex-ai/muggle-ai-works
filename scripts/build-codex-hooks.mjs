@@ -57,7 +57,8 @@ const BASH_COMMAND_PREFIX = "bash ";
  * Claude Code tool name → the Codex tool that plays its part, or null where
  * Codex has none. Codex reports every shell call as Bash, reads files and skills
  * through the shell, and delivers a background command's output as that
- * command's own Bash event, so Read, Skill and Monitor have no counterpart.
+ * command's own Bash event, so Read, Skill and Monitor have no counterpart; it
+ * dispatches no subagents, so neither do Agent and Task.
  */
 export const CODEX_TOOL_EQUIVALENTS = {
     Bash: "Bash",
@@ -66,6 +67,8 @@ export const CODEX_TOOL_EQUIVALENTS = {
     Skill: null,
     Monitor: null,
     AskUserQuestion: "request_user_input",
+    Agent: null,
+    Task: null,
 };
 
 const CODEX_HOOKS_DESCRIPTION =

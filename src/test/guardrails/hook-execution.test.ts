@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { spawnSync } from "child_process";
 import { fileURLToPath } from "url";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "fs";
+import { tmpdir } from "os";
+import { delimiter, dirname, join } from "path";
 import { GUARDRAIL_CLI_ENTRY } from "./hook-harness/constants.js";
 import {
   createHookHome,

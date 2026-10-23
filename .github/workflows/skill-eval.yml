@@ -279,7 +279,8 @@ jobs:
   agent-gate-eval:
     runs-on: ubuntu-latest
     # LLM-driven like skill-gate-eval, but hermetic (scripted Bash, no brain
-    # checkout) and small: 2 agents × 3 scenarios × AGENT_RUNS reps.
+    # checkout) and small: one suite per execution agent × AGENT_RUNS reps.
+    # Skill suites in the same directory are skipped here.
     timeout-minutes: 90
     env:
       AGENT_RUNS: ${{ inputs.agent_runs || '5' }}
@@ -364,8 +365,14 @@ jobs:
           total=0
           for scenarios in internal/agent-gate-eval/scenarios/*.json; do
             case "$scenarios" in *.results.json) continue ;; esac
-            total=$((total + 1))
             agent="$(basename "$scenarios" .json)"
+            # --agent refuses a skill target; skill suites run by hand with --suite.
+            kind="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).target.kind)' "$scenarios")"
+            if [ "$kind" != "agent" ]; then
+              echo "skip $agent (targets a $kind; run it with --suite)"
+              continue
+            fi
+            total=$((total + 1))
             echo "::group::agent=$agent runs=$AGENT_RUNS"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
                  --agent "$agent" --runs "$AGENT_RUNS" \
@@ -378,7 +385,7 @@ jobs:
             echo "::endgroup::"
           done
           if [ "$total" -eq 0 ]; then
-            echo "No scenario files under internal/agent-gate-eval/scenarios" >&2
+            echo "No agent scenario files under internal/agent-gate-eval/scenarios" >&2
             exit 1
           fi
           exit "$fail"

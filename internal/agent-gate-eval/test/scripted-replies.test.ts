@@ -87,7 +87,7 @@ describe("createToolResponder", () => {
 
 describe("sequenced mock MCP fixtures", () => {
   const replyOf = (specs: ReturnType<typeof sequencedMockToolSpecs>, toolName: string): unknown =>
-    specs.find((spec) => spec.name === toolName)!.reply();
+    specs.find((spec) => spec.name === toolName)!.reply({});
 
   it("recognizes only a lone non-empty sequence key as a sequenced slot", () => {
     expect(isSequencedFixture({ sequence: [1] })).toBe(true);

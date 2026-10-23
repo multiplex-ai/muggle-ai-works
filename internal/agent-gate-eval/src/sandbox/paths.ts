@@ -10,7 +10,12 @@
 import * as path from "node:path";
 
 import { HOME_PATH_PREFIXES } from "../constants.js";
-import type { SandboxPathContext } from "../types.js";
+import { SandboxPathToken, type RunSandbox, type SandboxPathContext } from "../types.js";
+
+/** `text` with every `{{home}}` and `{{repo}}` replaced by this run's sandbox home and repo. */
+export function fillSandboxPathTokens(text: string, sandbox: RunSandbox): string {
+  return text.replaceAll(SandboxPathToken.Home, sandbox.home).replaceAll(SandboxPathToken.Repo, sandbox.repo);
+}
 
 /** True when `candidate` is `directory` or inside it; case-insensitive where the platform's paths are. */
 export function isInsideDirectory(directory: string, candidate: string): boolean {

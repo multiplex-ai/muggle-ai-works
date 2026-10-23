@@ -96,7 +96,9 @@ export function judgeAgentRun(
   }
 
   for (const artifact of expect.requireArtifacts ?? []) {
-    const label = `${artifact.path}${artifact.contains === undefined ? "" : ` containing ${JSON.stringify(artifact.contains)}`}`;
+    const containsLabel = artifact.contains === undefined ? "" : ` containing ${JSON.stringify(artifact.contains)}`;
+    const matchesLabel = artifact.matches === undefined ? "" : ` matching /${artifact.matches}/`;
+    const label = `${artifact.path}${containsLabel}${matchesLabel}`;
     if (!artifactSnapshot) {
       reasons.push(`expected artifact ${label}, but the run had no sandbox to inspect`);
     } else if (!isArtifactSatisfied(artifact, artifactSnapshot, toolAttempts)) {

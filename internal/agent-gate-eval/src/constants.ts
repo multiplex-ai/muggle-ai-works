@@ -147,6 +147,27 @@ export const SCRIPTED_BASH_NOTE_LINES = [
   "ran and printed it; do not re-run a command whose output you already have.",
 ];
 
+/** `muggle-remote-test-case-ancestors-get`'s answer when the scenario scripts none: a root case with no prerequisites. */
+export const DEFAULT_TEST_CASE_ANCESTORS = { testCaseId: "tc-stub", ancestors: [], orphan: false };
+
+/** `muggle-remote-test-script-get`'s answer when the scenario scripts none. */
+export const DEFAULT_TEST_SCRIPT = { id: "cloud-ts-stub", steps: [] };
+
+/** `muggle-remote-action-script-get`'s answer when the scenario scripts none. */
+export const DEFAULT_ACTION_SCRIPT = { id: "cloud-as-stub", steps: [], actionParams: {} };
+
+/** A list tool's answer when the scenario scripts none. */
+export const EMPTY_MOCK_LIST = { items: [] };
+
+/** Id prefix of the use cases a run creates, numbered from 1 in creation order. */
+export const CREATED_USE_CASE_ID_PREFIX = "uc-new-";
+
+/** Id prefix of the test cases a run creates, numbered from 1 in creation order. */
+export const CREATED_TEST_CASE_ID_PREFIX = "tc-new-";
+
+/** The status a test case the run creates starts in, before any script is generated for it. */
+export const CREATED_TEST_CASE_STATUS = "DRAFT";
+
 /** How the environment note points a run at the mock muggle tools. */
 export const MOCK_MCP_NOTE_LINES = [
   "The production `mcp__plugin_muggle_muggle__*` tools are NOT available;",

@@ -8,7 +8,8 @@
  * criterion with no existing test case went untested and nothing noticed.
  *
  * Prose is the implementation here. These assertions do NOT catch an agent that
- * reads the contract and ignores it.
+ * reads the contract and ignores it; the agent-gate eval's muggle-do.e2e-scope
+ * suite does.
  */
 
 import { describe, it, expect } from "vitest";

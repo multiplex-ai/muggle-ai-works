@@ -48,15 +48,17 @@
     },
     "telemetry_events": [
       {
-        "skill": "muggle-pr-followup",
-        "event": "tick",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "reviews_seen": 1,
-        "dispatched_review_ids": [4295962900],
-        "terminal": false,
-        "idle": false
+        "eventType": "muggle-pr-followup:tick",
+        "skillName": "muggle-pr-followup",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "reviews_seen": 1,
+          "dispatched_review_ids": [4295962900],
+          "terminal": false,
+          "idle": false
+        }
       }
     ],
     "side_effects": [

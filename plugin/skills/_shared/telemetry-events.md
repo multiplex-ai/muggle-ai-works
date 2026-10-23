@@ -2,7 +2,7 @@
 
 Canonical shapes for `muggle-local-telemetry-event-emit` events. Emission mechanics: [`telemetry-emit.md`](telemetry-emit.md).
 
-All events share two top-level fields: `skill` and `event`. The rest is event-specific — read only the file for the event you're emitting.
+Each event is one call: `eventType` is its name from the index below, `skillName` the emitting skill, and `metadata` the event-specific payload — read only the file for the event you're emitting. The tool records them to `~/.muggle-ai/telemetry/workflow-events.jsonl`.
 
 ## Index
 

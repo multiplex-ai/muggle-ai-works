@@ -63,28 +63,32 @@
     ],
     "telemetry_events": [
       {
-        "skill": "muggle-do",
-        "event": "cycle",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "review_ids_in": [4295962900],
-        "review_ids_actionable": [4295962900],
-        "review_ids_ambiguous": [],
-        "head_sha_before": "abc1230",
-        "head_sha_after": "def4560",
-        "outcome": "pushed"
+        "eventType": "muggle-do:cycle",
+        "skillName": "muggle-do",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "review_ids_in": [4295962900],
+          "review_ids_actionable": [4295962900],
+          "review_ids_ambiguous": [],
+          "head_sha_before": "abc1230",
+          "head_sha_after": "def4560",
+          "outcome": "pushed"
+        }
       },
       {
-        "skill": "muggle-do",
-        "event": "resolve-reminder",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "addressed_by_loop": 2,
-        "addressed_by_human": 0,
-        "not_addressed": 0,
-        "comment_posted": true
+        "eventType": "muggle-do:resolve-reminder",
+        "skillName": "muggle-do",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "addressed_by_loop": 2,
+          "addressed_by_human": 0,
+          "not_addressed": 0,
+          "comment_posted": true
+        }
       }
     ],
     "respawned": true

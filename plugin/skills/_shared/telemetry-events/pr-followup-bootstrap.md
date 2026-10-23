@@ -4,14 +4,16 @@ One per successful bootstrap, after state seeding and before the first watcher d
 
 ```json
 {
-  "skill": "muggle-pr-followup",
-  "event": "bootstrap",
-  "caller": "<caller-name>",
-  "session_slug": "<slug>",
-  "repo": "<owner>/<repo>",
-  "pr_number": <int>,
-  "cursor_review_id": <int>,
-  "resume": true | false
+  "eventType": "muggle-pr-followup:bootstrap",
+  "skillName": "muggle-pr-followup",
+  "metadata": {
+    "caller": "<caller-name>",
+    "session_slug": "<slug>",
+    "repo": "<owner>/<repo>",
+    "pr_number": <int>,
+    "cursor_review_id": <int>,
+    "resume": true | false
+  }
 }
 ```
 

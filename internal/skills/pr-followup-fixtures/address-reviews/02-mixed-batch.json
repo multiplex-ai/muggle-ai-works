@@ -66,37 +66,43 @@
     ],
     "telemetry_events": [
       {
-        "skill": "muggle-do",
-        "event": "cycle",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "review_ids_in": [4295962900, 4295962950],
-        "review_ids_actionable": [4295962900],
-        "review_ids_ambiguous": [4295962950],
-        "head_sha_before": "abc1230",
-        "head_sha_after": "def4560",
-        "outcome": "mixed"
+        "eventType": "muggle-do:cycle",
+        "skillName": "muggle-do",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "review_ids_in": [4295962900, 4295962950],
+          "review_ids_actionable": [4295962900],
+          "review_ids_ambiguous": [4295962950],
+          "head_sha_before": "abc1230",
+          "head_sha_after": "def4560",
+          "outcome": "mixed"
+        }
       },
       {
-        "skill": "muggle-do",
-        "event": "escalation",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "kind": "ambiguous-review",
-        "review_ids": [4295962950]
+        "eventType": "muggle-do:escalation",
+        "skillName": "muggle-do",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "kind": "ambiguous-review",
+          "review_ids": [4295962950]
+        }
       },
       {
-        "skill": "muggle-do",
-        "event": "resolve-reminder",
-        "session_slug": "acme-widget-pr142",
-        "repo": "acme/widget",
-        "pr_number": 142,
-        "addressed_by_loop": 1,
-        "addressed_by_human": 0,
-        "not_addressed": 0,
-        "comment_posted": true
+        "eventType": "muggle-do:resolve-reminder",
+        "skillName": "muggle-do",
+        "metadata": {
+          "session_slug": "acme-widget-pr142",
+          "repo": "acme/widget",
+          "pr_number": 142,
+          "addressed_by_loop": 1,
+          "addressed_by_human": 0,
+          "not_addressed": 0,
+          "comment_posted": true
+        }
       }
     ],
     "respawned": true,

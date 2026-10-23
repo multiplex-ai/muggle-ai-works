@@ -105,7 +105,9 @@ export const ExecuteTestGenerationInputSchema = z.object({
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
-  cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the single-flight lock. A loopback run is refused unless it holds its base's latest commit."),
+  /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
+  baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -138,13 +140,15 @@ export const ExecuteReplayInputSchema = z.object({
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
-  cwd: z.string().min(1).describe("Absolute path of the caller's worktree. Required — this keys the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize."),
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the single-flight lock. A loopback run is refused unless it holds its base's latest commit."),
+  /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
+  baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
   showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
   /** Whether the replay starts from an emptied browser session, copied from the recording. */
-  freshSession: z.boolean().optional().describe("Copy from actionParams.freshSession of the muggle-remote-action-script-get result, so the replay starts the way the script was recorded: true clears all session storage (cookies, localStorage, etc.) before execution. A recording without it may predate run identities; pass true then only for a test that needs clean browser state (registration, login, cookie consent). Default: false."),
+  freshSession: z.boolean().optional().describe("Copy actionParams.freshSession from muggle-remote-action-script-get so the replay starts as recorded: true clears all session storage (cookies, localStorage) first. Absent there (an older recording): true only for clean-state tests (registration, login, cookie consent). Default: false."),
   /** Mutation parameters passed to the LLM step predictor — a string[] where each element is an instruction describing what varies this run. Supports plain-English instructions (e.g. "The post content should be 'Hello world'") and local file paths for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */
   mutations: z.array(z.string()).optional().describe("Mutation parameters: string[] where each element is a plain-English instruction or a local file path (e.g. [\"The post content should be 'Hello'\", \"Attach the image at C:\\\\Users\\\\user\\\\photo.jpg\"])."),
   /** Pinned account the script was recorded with, copied from the recording. */

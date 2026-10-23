@@ -32,6 +32,7 @@ const expectedCommands = [
   "build-pr-section",
   "run-view",
   "pr-walkthrough-check",
+  "checkout-freshness",
   "ci-install",
 ];
 

@@ -12,10 +12,10 @@ You bring a local dev stack to verified readiness for E2E testing: detect what's
 
 The dispatch prompt carries the resolved prepare plan:
 
-- `services[]` — name, dir, start command, expected port, `external` flag, approval already granted.
+- `services[]` — name, dir, start command, expected port, `external` flag, approval already granted. `dir` is the run directory the skill's resolve-sources stage chose this run — the change's own checkout, or a base checkout on the latest default branch; start and judge each service from it, never from anywhere else.
 - `testingScope` and `excludedServices[]` (with reasons).
 - The recorded dev-server URL (from the `autoSelectLocalHost` resolution) — never invent or default a host/port; a framework default like `:3000` is not a fallback.
-- Resolved gate values the stages read (`autoRebase` outcome already applied or explicitly skipped upstream).
+- Resolved gate values the stages read (`autoRebase` outcome already applied upstream, with the checkout synced onto its base).
 - The E2E run instructions — startup order, manual steps, local gotchas — already captured from the user. Honour the recorded startup order when starting services, and write the instructions out per the readiness-report stage. Absent means the skill had nothing to record; never invent them.
 
 ## Stages
@@ -34,7 +34,7 @@ Where a stage file offers the user a choice, take the branch the plan resolved; 
 
 ## PID tracking
 
-Track every launched process in `/tmp/muggle-test-prepare.json` exactly per the skill's schema (`session_started`, `testing_scope`, `excluded_services`, `services[]` with pid/port/log). Processes the user started independently stay `external: true` and are never killed. Prune dead PIDs silently.
+Track every launched process in the tracking file of the checkout it runs from, exactly per the skill's [PID Tracking](../skills/muggle-test-prepare/SKILL.md#pid-tracking) schema (`services[]` with pid/port/headSha/log). Never write into, or kill a process recorded in, another checkout's file — that is a parallel session's server. Processes the user started independently stay `external: true` and are never killed. Prune dead PIDs silently.
 
 ## Output contract
 

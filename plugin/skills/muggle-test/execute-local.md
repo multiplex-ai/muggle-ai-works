@@ -10,7 +10,7 @@
 
 ## Local environment readiness
 
-Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) — the readiness/service-start owner (idempotent; halt on what it surfaces). The URL gate below only *selects* the target; prepare is what guarantees something is listening and compiled.
+Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from `cwd` — the readiness/service-start owner (idempotent; halt on what it surfaces). It syncs `cwd` onto the latest base before starting anything, and serves every other repo from its latest default branch. The URL gate below only *selects* the target; prepare is what guarantees the right code is listening and compiled. Confirm its readiness table shows `cwd` as the `Source` of this repo's services, at `cwd`'s current HEAD — a different source means the run would test someone else's code; halt.
 
 Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. Use it to interpret what you see: a gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
 
@@ -40,7 +40,7 @@ Execute each test case via the shared loop in [`../_shared/dev-loop/run.md`](../
 
 Caller glue:
 - `mode` per test case is the input from the router; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
-- `cwd` is the input from the router — it drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize.
+- `cwd` is the input from the router — it drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize, and the execute tools refuse it when it is not on the latest base. For a PR whose base is not the remote default, pass its `baseRefName` as `baseBranch`.
 - On a failed run, continue the batch; the router routes failures through the debug path after this path returns.
 
 ## Collect results

@@ -37,11 +37,12 @@ A worktree's dependency dir (`node_modules`, and nested workspace copies) is oft
 `git worktree remove` refuses for two unrelated reasons, and **both texts lead to the same forbidden flag** — one because it is the obvious fix, the other because git prints it as the suggestion. Clear each cause at its source; neither is a reason to reconsider the flag.
 
 1. **Never `--force`.** It is the one flag that follows links.
-2. Clear the dependency and build dirs first, nested workspace ones included (`packages/*/node_modules`, `dist`). A plain `git worktree remove` fails with `Directory not empty` while they remain, and the obvious fix for that error is exactly the forbidden flag.
+2. Stop the services environment prep started from this worktree (step 6 names their tracker) — a running dev server holds files open, and on Windows the removal then fails.
+3. Clear the dependency and build dirs first, nested workspace ones included (`packages/*/node_modules`, `dist`). A plain `git worktree remove` fails with `Directory not empty` while they remain, and the obvious fix for that error is exactly the forbidden flag.
    - A **link** → unlink it first with the host OS's unlink, removing the link only and never its target.
    - A **real directory** → delete it in place.
    Check which it is before deleting; the two are indistinguishable from a listing but not from a `rm -r`.
-3. Clear the worktree's own dirty state — what the merge already landed, and nothing else. While anything remains, removal fails with `contains modified or untracked files, use --force to delete it`, an error that prescribes the forbidden flag in its own text.
+4. Clear the worktree's own dirty state — what the merge already landed, and nothing else. While anything remains, removal fails with `contains modified or untracked files, use --force to delete it`, an error that prescribes the forbidden flag in its own text.
 
    Expect this on any cycle that pushed through a server-side signed commit: that mutation writes to the remote only, so the worktree keeps the edits as modifications of a commit it never made locally. The dirt is this cycle's own landed work, not something the user left behind.
 
@@ -50,8 +51,8 @@ A worktree's dependency dir (`node_modules`, and nested workspace copies) is oft
    - **Untracked files** — never on the base, so no diff can clear them. Delete only the paths this procedure itself created: the dependency and build dirs cleared above. Anything else stops the sequence and is reported by name; an untracked file is the one thing in the worktree with no copy anywhere.
 
    **Never `git clean -x`.** `-x` is what reaches the ignored dependency dir, and clean recurses through a link exactly as a forced remove does — it undoes the unlink above under a different name.
-4. Then plain `git worktree remove {worktreePath}`.
-5. `git worktree prune` to drop the administrative entry when the directory went away out from under git.
+5. Then plain `git worktree remove {worktreePath}`.
+6. `git worktree prune` to drop the administrative entry when the directory went away out from under git.
 
 **Verify:** the path is gone, it no longer appears in `git worktree list`, the removal ran without `--force`, **and** the shared dependency tree the links pointed at still exists. That last check is the one that catches a link-follow.
 
@@ -87,9 +88,9 @@ Clear it only when `prs.json` records a terminal state. A slot for a still-open 
 
 ## 6. Clear this run's prepare artifacts
 
-The PID tracker and per-service logs written during environment prep — `/tmp/muggle-test-prepare.json` and `/tmp/muggle-prepare-*.log`.
+The services environment prep started from the merged change's worktree, with their tracker and logs — that worktree's tracking file and log directory, per [`muggle-test-prepare`'s PID Tracking](../muggle-test-prepare/SKILL.md#pid-tracking). Stop any tracked PID still alive (step 2 normally already has), then delete both.
 
-**Only this run's.** Artifacts belonging to another session are not yours to delete; it may be mid-prepare with services running. When the tracker is absent no services are tracked, so any remaining logs are orphaned — report them rather than removing them.
+**Only this run's worktree.** Another checkout's tracker belongs to another session, which may be mid-prepare with services running; a base checkout's services are shared by every session. Neither is yours to stop or delete.
 
 Cloud results always stay.
 

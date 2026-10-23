@@ -26,42 +26,46 @@ This skill touches the user's local machine — processes, ports, directories ou
 
 ## PID Tracking
 
-All launched processes are tracked in `/tmp/muggle-test-prepare.json`:
+Every launched process is tracked by the **checkout it runs from**, one file per checkout, so parallel sessions never share — or tear down — each other's state:
+
+```
+~/.muggle-ai/prepare/running/<source-key>.json     services started from that checkout
+~/.muggle-ai/prepare/logs/<source-key>/<name>.log  their logs
+```
+
+`<source-key>` is the checkout root's absolute path, made filename-safe exactly as the E2E instructions key is ([e2e-instructions](./steps/e2e-instructions.md#resolve-the-saved-file)).
 
 ```json
 {
-  "session_started": "2025-01-15T10:30:00Z",
-  "testing_scope": "frontend",
-  "excluded_services": [
-    {"name": "payment-gateway", "reason": "Needs production certificates"}
-  ],
+  "source": "/Users/user/Github/app/.claude/worktrees/feat-x",
   "services": [
     {
-      "name": "backend-api",
-      "dir": "/Users/user/Github/backend-api",
+      "name": "frontend",
+      "dir": "/Users/user/Github/app/.claude/worktrees/feat-x/web",
       "command": "npm run dev",
       "pid": 12345,
-      "port": 3001,
-      "log": "/tmp/muggle-prepare-backend-api.log"
+      "port": 3999,
+      "headSha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5",
+      "startedAt": "2026-10-22T10:30:00Z",
+      "log": "/Users/user/.muggle-ai/prepare/logs/-Users-user-Github-app-.claude-worktrees-feat-x/frontend.log"
     }
   ]
 }
 ```
 
-`testing_scope` records what the user is testing (from [scope](./steps/scope.md)). `excluded_services` records services the user said can't run locally (from [viability-check](./steps/viability-check.md)).
+`headSha` is the commit the checkout had out when the service started — what [check-running](./steps/check-running.md) compares against before trusting a listener. These files are machine-wide and readable by every session: they are how one session learns that a port belongs to another.
 
-This file is **ephemeral runtime state**, not the saved recipe. The durable plan lives in `~/.muggle-ai/prepare-plans.json`, under the entry keyed on this stack, and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two files never merge. The `test-prepare-runner` agent writes this file during execution; the triage below and Cleanup read it.
+This is **ephemeral runtime state**, not the saved recipe. The durable plan lives in `~/.muggle-ai/prepare-plans.json`, under the entry keyed on this stack, and is consulted in [reuse-plan](./steps/reuse-plan.md) before any other stage. The two never merge. The `test-prepare-runner` agent writes the tracking files during execution; Cleanup reads them.
 
 The prose companion to the plan is `~/.muggle-ai/e2e-instructions/<key>.md`, written by [e2e-instructions](./steps/e2e-instructions.md), holding startup order, manual steps, and local gotchas. The plan remains the single source of truth for each service's start command; the markdown never restates one.
 
 **Everything this skill saves is machine-local, user-level data and lives under the Muggle home directory — never inside the user's project.** A project directory is shared, versioned, and cloned onto machines set up differently; a local run recipe is none of those things. Both files are keyed on the same stack identity, so they stay in lockstep.
 
-**On every invocation**, check this file first. If it exists with live PIDs (verify with `kill -0`), `AskUserQuestion`:
-- Option 1: "Keep them running — skip to testing"
-- Option 2: "Tear down and start fresh"
-- Option 3: "Add more services to the running set"
+**On every invocation**, prune dead PIDs from the tracking files silently (verify with `kill -0`). Whether a live service is kept is never asked: [check-running](./steps/check-running.md) keeps one still serving its checkout's current HEAD and restarts one serving older code.
 
-Prune dead PIDs silently.
+## Code freshness
+
+Every service runs code built on the latest base: the caller's own checkout, synced onto `origin/<base>`, for the repo under test; a base checkout pinned to the latest `origin/<default>` for every other repo. [rebase-check](./steps/rebase-check.md) and [resolve-sources](./steps/resolve-sources.md) run on **every** invocation, replays included — a saved recipe makes the start commands reusable, never the code they start.
 
 ## Preferences
 
@@ -69,7 +73,7 @@ Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-ga
 
 | Preference | Gates |
 |------------|-------|
-| `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<default>` before starting dev servers |
+| `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<base>` without asking before starting dev servers; not rebasing stops the run |
 | `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover; also [e2e-instructions](./steps/e2e-instructions.md), which goes stale for the same reason |
 | `autoSelectLocalHost` | [check-running](./steps/check-running.md) — reuse the recorded dev-server URL silently, or confirm it each run |
 
@@ -85,13 +89,16 @@ Decide stages, in order; read each detail file when you reach it:
 |:------|:--------|
 | [replay-or-learn](./steps/replay-or-learn.md) | Replay the saved recipe, or learn a new one |
 | [derive-service-graph](./steps/derive-service-graph.md) | Derive services from workspace manifests |
-| [rebase-check](./steps/rebase-check.md) | Rebase onto default branch |
+| [rebase-check](./steps/rebase-check.md) | Sync every checkout under test onto the latest base — replays too |
+| [resolve-sources](./steps/resolve-sources.md) | Pick the checkout each service runs from — replays too |
 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
 | [identify-services](./steps/identify-services.md) | Confirm the derived graph; fill the gaps |
 | [e2e-instructions](./steps/e2e-instructions.md) | Startup order, manual steps, local gotchas |
 
-The Decide phase's output is the **resolved prepare plan**: `services[]` (name, dir, start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
+The Decide phase's output is the **resolved prepare plan**: `services[]` (name, run directory from [resolve-sources](./steps/resolve-sources.md), start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
+
+A replay runs [rebase-check](./steps/rebase-check.md) and [resolve-sources](./steps/resolve-sources.md) before dispatching — they ask nothing unless a checkout cannot be brought up to date.
 
 **Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan; it returns `READY` / `DEGRADED` plus the readiness table. The agent's own definition lists its stage files; in a harness with no agent/subagent facility, run the execute-phase stages ([check-running](./steps/check-running.md) through [readiness-report](./steps/readiness-report.md)) inline instead.
 
@@ -103,13 +110,14 @@ The agent also returns the problems it hit and what cleared them. On a learning 
 
 Triggered when the user says "stop services", "tear down", "clean up", "I'm done testing", another skill signals run complete, or this skill is re-invoked with "tear down and start fresh". Runs in-session, not in the agent.
 
-1. Read `/tmp/muggle-test-prepare.json`
+Cleanup stops only what runs from the caller's own checkout. Another checkout's services may be mid-run in a peer session, and base-checkout services are shared — they stay up unless the user explicitly asks to stop everything.
+
+1. Read the caller's checkout's tracking file (see [PID Tracking](#pid-tracking))
 2. Skip services marked `external: true`
 3. For each managed service: `kill <pid>` (SIGTERM)
 4. Wait ~2 s, verify with `kill -0`
 5. If still alive: `kill -9 <pid>`
-6. `rm -f /tmp/muggle-prepare-*.log`
-7. `rm -f /tmp/muggle-test-prepare.json`
+6. Delete that checkout's log directory and tracking file
 
 Report:
 
@@ -126,12 +134,15 @@ Stopped 3 services:
 
 After a test run, the caller can re-invoke for cleanup or leave services running for the next run.
 
-**Directory overrides.** A caller testing changes that span several repos at once may pass `directoryOverrides`: a map from a service's repo (its usual directory, or `owner/repo`) to the checkout that service must start from this run — typically a worktree on a feature branch. Apply them to the resolved plan before execution:
+**The caller's checkout.** Invoke from the checkout under test — the worktree the change lives in. Its repo is the repo under test, and its services start from that checkout; every other repo's services start from that repo's base checkout ([resolve-sources](./steps/resolve-sources.md)). Pass `base` when the change targets a branch other than the remote default.
 
-- An overridden service starts from the override directory, with its recorded start command. Its install and env-file steps run there too.
-- An overridden service already listening counts as running only when its process's working directory is inside the override directory (`lsof -p <pid> -a -d cwd` on POSIX). Otherwise it is the wrong checkout: stop it and start it from the override, under the same approval rules as any restart.
+**Directory overrides.** A caller testing changes that span several repos at once may pass `directoryOverrides`: a map from a service's repo (its usual directory, or `owner/repo`) to the checkout that service must start from this run — typically a worktree on a feature branch. Each override makes its repo a repo under test, exactly like the caller's own checkout:
+
+- An overridden service starts from the override directory, with its recorded start command. Its install and env-file steps run there too, and [rebase-check](./steps/rebase-check.md) syncs the override first.
+- An overridden service already listening counts as running only when [check-running](./steps/check-running.md) proves it serves the override's current HEAD. Otherwise it is the wrong checkout: it is never tested against, and is restarted from the override under the same approval rules as any restart.
 - Overrides are per-run. They never enter the saved recipe — a worktree path is not this stack's durable layout.
-- The readiness table names the directory each service runs from, so the caller can confirm every override took.
+
+The readiness table names the directory and commit each service runs from, so the caller can confirm its own code is the code being served.
 
 ## Guardrails
 
@@ -142,11 +153,13 @@ After a test run, the caller can re-invoke for cleanup or leave services running
 - **Never start a process the user didn't approve** — approvals are granted in Decide and travel in the plan; the agent starts nothing outside it.
 - **Never read file contents outside confirmed directories** — folder names are discoverable; file contents require explicit user selection.
 - **Never write a credential into the E2E run instructions** — plaintext notes are not a secret store, and this is the file a user pastes when asking why their stack won't start. Record the env-var or secret name, never its value.
-- **Never leave orphan processes untracked** — every background PID goes into the tracking file.
+- **Never leave orphan processes untracked** — every background PID goes into its checkout's tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
+- **Never kill or test against another checkout's service** — a listener tracked under a different checkout belongs to a peer session; see [check-running](./steps/check-running.md).
+- **Never start code that is not on the latest base** — no replay, preference, or approval skips [rebase-check](./steps/rebase-check.md) or [resolve-sources](./steps/resolve-sources.md).
 - **Never assume start commands** — verify via indicator file; confirm with user.
 - **Bail early on non-viable services** — don't start what can't run locally.
-- **Idempotent** — already-tracked alive services are kept; [smoke-test](./steps/smoke-test.md) still runs against them.
+- **Idempotent** — a tracked, alive service still serving its checkout's current HEAD is kept; [smoke-test](./steps/smoke-test.md) still runs against it.
 - **Port-listening is never enough** — smoke-test (HTTP + body sniff + log tail) is mandatory before the final report.
 - **Clean Restart is the recommended fix** — first option in the smoke-test diagnose-and-fix loop; lint/build/missing-deps issues need nuke-and-reinstall.
 - **Fresh install is automatic** — [fresh-install](./steps/fresh-install.md) notifies, doesn't ask.

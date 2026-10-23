@@ -23,6 +23,8 @@ export {
   listActiveExecutions,
 } from "./execution-service.js";
 
+export { findRunCheckoutRefusal, isLoopbackUrl } from "./run-checkout-gate.js";
+
 export {
   acquireLocalExecutionLock,
   readLocalExecutionLockState,

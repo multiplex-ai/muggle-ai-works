@@ -17,6 +17,7 @@ export * from "./mcp/local/services/run-view/index.js";
 export * from "./shared/api-key.js";
 export * from "./shared/config.js";
 export * from "./shared/auth.js";
+export * from "./shared/checkout-freshness.js";
 export * as mcp from "./mcp/index.js";
 export * as e2e from "./mcp/e2e/index.js";
 export * as qa from "./mcp/e2e/index.js";

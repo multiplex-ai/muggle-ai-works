@@ -54,10 +54,11 @@ const declaration = (preCycleSha: string): string =>
 
 const MAX_DECLARATION_ATTEMPTS = 3;
 
-// The verifier's git call shares the hook's child-process budget, which a test
-// machine running every suite at once can overrun. An overrun refutes the
-// declaration (fail closed, nothing recorded), so a bounded retry keeps these
-// tests about the verdict rather than the machine's load.
+// The verifier's git call must finish inside the hook's 600ms child-process
+// deadline, and an overrun refutes the declaration (fail closed, nothing
+// recorded). That is why this file runs alone (WALL_CLOCK_HOOK_TESTS in
+// vitest.config.ts); the bounded retry absorbs a slow runner's occasional
+// overrun so the tests stay about the verdict.
 function retryDeclaration(declare: () => string, isVerdict: (reply: string) => boolean): string {
   let reply = declare();
   for (let attempt = 1; attempt < MAX_DECLARATION_ATTEMPTS && !isVerdict(reply); attempt++) reply = declare();

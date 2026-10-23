@@ -33,6 +33,7 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
+import { mapSecret, mapSecretList } from "./secret-metadata-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
@@ -1070,7 +1071,8 @@ const reportTools: IQaToolDefinition[] = [
 const secretTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-secret-list",
-    description: "List all secrets for a project. Secret values are not returned for security.",
+    description:
+      "List all secrets for a project: each secret's id, name, description, source and timestamps. Secret values are never returned.",
     inputSchema: schemas.SecretListInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.SecretListInputSchema>;
@@ -1080,10 +1082,12 @@ const secretTools: IQaToolDefinition[] = [
         queryParams: { projectId: toolInput.projectId },
       };
     },
+    mapFromUpstream: mapSecretList,
   },
   {
     name: "muggle-remote-secret-create",
-    description: "Create a new secret (credential) for a project.",
+    description:
+      "Create a new secret (credential) for a project. Returns the created secret's metadata; the value is never echoed back.",
     inputSchema: schemas.SecretCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.SecretCreateInputSchema>;
@@ -1099,10 +1103,11 @@ const secretTools: IQaToolDefinition[] = [
         },
       };
     },
+    mapFromUpstream: mapSecret,
   },
   {
     name: "muggle-remote-secret-get",
-    description: "Get details of a specific secret. The secret value is not returned for security.",
+    description: "Get a specific secret's metadata: id, name, description, source and timestamps. The secret value is never returned.",
     inputSchema: schemas.SecretGetInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.SecretGetInputSchema>;
@@ -1111,10 +1116,11 @@ const secretTools: IQaToolDefinition[] = [
         path: `${MUGGLE_TEST_PREFIX}/secrets/${toolInput.secretId}`,
       };
     },
+    mapFromUpstream: mapSecret,
   },
   {
     name: "muggle-remote-secret-update",
-    description: "Update an existing secret.",
+    description: "Update an existing secret. Returns the updated secret's metadata; the value is never echoed back.",
     inputSchema: schemas.SecretUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.SecretUpdateInputSchema>;
@@ -1128,10 +1134,11 @@ const secretTools: IQaToolDefinition[] = [
         body: body,
       };
     },
+    mapFromUpstream: mapSecret,
   },
   {
     name: "muggle-remote-secret-delete",
-    description: "Delete a secret from a project.",
+    description: "Delete a secret from a project. Returns the deleted secret's metadata; the value is never returned.",
     inputSchema: schemas.SecretDeleteInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.SecretDeleteInputSchema>;
@@ -1140,6 +1147,7 @@ const secretTools: IQaToolDefinition[] = [
         path: `${MUGGLE_TEST_PREFIX}/secrets/${toolInput.secretId}`,
       };
     },
+    mapFromUpstream: mapSecret,
   },
 ];
 

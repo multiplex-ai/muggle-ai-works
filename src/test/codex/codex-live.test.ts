@@ -189,7 +189,7 @@ describe.skipIf(!CODEX_BIN)("the muggle plugin in a real Codex", () => {
   // regressed gate cannot start a real run — the server rejects it.
   describe("guardrails keyed on muggle MCP calls", () => {
     let run: CodexExecResult;
-    const stages = ["failure-mode-handling.md", "debug-failed-run.md", "identity-and-inbox.md"];
+    const stages = ["failure-mode-handling.md", "debug-failed-run.md", "identity-and-inbox.md", "test-case-design.md"];
 
     beforeAll(async () => {
       const stagePaths = stages.map((file) => `${pluginRoot}/skills/_shared/${file}`);

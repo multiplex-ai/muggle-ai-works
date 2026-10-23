@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { DisplayParamsSchema } from "../../contracts/display-params-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
@@ -39,5 +40,11 @@ export const LocalRunUploadInputSchema = z.object({
   ),
   freshSession: z.boolean().optional().describe(
     "True when the run started from an emptied browser session, copied from the run's actionParams. Omit otherwise",
+  ),
+  runSettingsId: z.string().optional().describe(
+    "runSettings record the run executed under, copied from the run's actionParams. Omit when it named none",
+  ),
+  displayParams: DisplayParamsSchema.optional().describe(
+    "Window size the run executed at, copied from the run's actionParams",
   ),
 });

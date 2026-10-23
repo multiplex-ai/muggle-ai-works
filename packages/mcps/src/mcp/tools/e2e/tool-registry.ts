@@ -935,6 +935,8 @@ const workflowTools: IQaToolDefinition[] = [
           errorMessage: toolInput.errorMessage,
           ...(toolInput.pinnedAccount && { pinnedAccount: toolInput.pinnedAccount }),
           ...(toolInput.freshSession === true && { freshSession: true }),
+          ...(toolInput.runSettingsId && { runSettingsId: toolInput.runSettingsId }),
+          ...(toolInput.displayParams && { displayParams: toolInput.displayParams }),
         },
       };
     },

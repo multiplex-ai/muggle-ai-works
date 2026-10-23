@@ -103,6 +103,25 @@ describe("local tool registry — studio publishes", () => {
     expect(result.content).not.toContain("**Dashboard:**");
   });
 
+  it("surfaces the runSettings record the run was recorded against", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "generation",
+      status: "passed",
+      cloudTestCaseId: "tc-1",
+      executionTimeMs: 1234,
+      viewUrl: "https://www.muggle-ai.com/run/abc",
+      cloudRunSettingsId: "rs-390",
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.content).toContain("**Cloud Run Settings ID:** rs-390");
+  });
+
   it("links an unpublished run to its test case on the MCP's lane", async () => {
     mockGetRunResult.mockReturnValue({
       id: RUN_ID,

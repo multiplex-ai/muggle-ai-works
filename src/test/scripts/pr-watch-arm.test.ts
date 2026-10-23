@@ -94,9 +94,13 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
 
 // The claim happens after the state fetch, so reaching it needs the two calls
 // arming makes: the tab-separated state projection and the behind-by compare.
-// `prState` is the PR state the projection reports.
-function stubGhDir(prState = "OPEN"): string {
+// `prState` is the PR state the projection reports and `ciDigest` its check
+// digest. The line is served from a file so a digest's quotes and `$` reach the
+// script byte for byte rather than through the stub's own quoting.
+function stubGhDir(prState = "OPEN", ciDigest = ""): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
+  const stateLinePath = join(dir, "state.tsv");
+  writeFileSync(stateLinePath, `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t0\t${ciDigest}\n`);
   const gh = join(dir, "gh");
   writeFileSync(
     gh,
@@ -104,7 +108,7 @@ function stubGhDir(prState = "OPEN"): string {
       "#!/usr/bin/env bash",
       'if [ "$1" = "auth" ]; then echo stub-token; exit 0; fi',
       'if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then',
-      `  printf '${prState}\\tHEAD1\\tBASE1\\tMERGEABLE\\t0\\t0\\t\\t0\\t0\\t\\n'`,
+      `  cat "${toBash(stateLinePath)}"`,
       "  exit 0",
       "fi",
       "echo 0",
@@ -375,5 +379,115 @@ describe.skipIf(!hasBash || !hasJq)("rebase key tracks the base branch tip", () 
   it("seeds the rebase floor from the base tip", () => {
     const watermark = readFileSync(join(armAgainstBaseMovement(staleRecordedBase), "watch-watermark.env"), "utf8");
     expect(watermark).toContain('REBASED="HEAD1..BASENEW"');
+  }, 60_000);
+});
+
+// Spaces, parens, colons and commas: every separator the real projection emits.
+const blockedDigest = "agent-gate-eval:SUCCESS,codex-compat (macos-latest):FAILURE,node-compat (22):CANCELLED";
+const rerunDigest = "agent-gate-eval:SUCCESS,codex-compat (macos-latest):SUCCESS,node-compat (22):CANCELLED";
+
+// One last_seen.json entry, blocked on `ciDigest`, in the slot schema's shape.
+function blockedEntry(ciDigest: string): object {
+  return {
+    lastBodyReviewId: 0,
+    blocked: {
+      reason: "ci_escalated",
+      since: "2026-01-01T00:00:00Z",
+      fingerprint: { head_sha: "HEAD1", latest_review_id: 0, ci_digest: ciDigest },
+    },
+  };
+}
+
+// Arms PR o/n#1 over a slot holding `lastSeen` as its last_seen.json (none when
+// undefined) while the live checks read `liveDigest`. With `watch` the loop then
+// runs out a 3s window. Throws if arming fails.
+function armOverLastSeen(
+  lastSeen: string | undefined,
+  liveDigest: string,
+  watch: boolean,
+): { watermarkLines: string[]; stdout: string } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  if (lastSeen !== undefined) writeFileSync(join(slot, "last_seen.json"), lastSeen);
+  const args = [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"];
+  const stdout = execFileSync("bash", watch ? args : [...args, "--no-exec"], {
+    env: {
+      ...process.env,
+      PATH: `${stubGhDir("OPEN", liveDigest)}${delimiter}${process.env.PATH ?? ""}`,
+      MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
+      MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
+    },
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  return {
+    watermarkLines: readFileSync(join(slot, "watch-watermark.env"), "utf8").split("\n"),
+    stdout: stdout,
+  };
+}
+
+const eventLines = (stdout: string) => stdout.split("\n").filter((line) => line.startsWith("EVENT "));
+
+// Re-arming happens every monitor window, blocked or not. Seeding the floor
+// empty on a blocked slot disarmed the resume probe at the first rollover, and
+// the watch then slept through the CI rerun the block was waiting on.
+describe.skipIf(!hasBash)("pr-watch-arm.sh blocked-resume floor", () => {
+  it("seeds the floor from the blocked fingerprint's ci digest", () => {
+    const { watermarkLines } = armOverLastSeen(JSON.stringify({ "o/n#1": blockedEntry(blockedDigest) }), blockedDigest, false);
+    expect(watermarkLines).toContain(`BLOCKED_CIDIGEST="${blockedDigest}"`);
+  }, 60_000);
+
+  // Any byte lost between the write and the loop's read would read as a digest
+  // move and wake a block whose CI never changed.
+  it("reads back unchanged, so a blocked watch stays quiet while its CI holds", () => {
+    expect(eventLines(armOverLastSeen(JSON.stringify({ "o/n#1": blockedEntry(blockedDigest) }), blockedDigest, true).stdout))
+      .toEqual([]);
+  }, 60_000);
+
+  it("wakes a re-armed blocked watch when a CI rerun moves the digest", () => {
+    const events = eventLines(armOverLastSeen(JSON.stringify({ "o/n#1": blockedEntry(blockedDigest) }), rerunDigest, true).stdout);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain("ci digest moved while blocked");
+  }, 60_000);
+
+  // Another PR's block in the same file is not this PR's.
+  it("leaves the floor empty for an unblocked PR", () => {
+    const lastSeen = JSON.stringify({ "o/n#1": { lastBodyReviewId: 0 }, "o/n#2": blockedEntry(blockedDigest) });
+    expect(armOverLastSeen(lastSeen, blockedDigest, false).watermarkLines).toContain('BLOCKED_CIDIGEST=""');
+  }, 60_000);
+
+  it("arms with an empty floor when last_seen.json is missing", () => {
+    expect(armOverLastSeen(undefined, blockedDigest, false).watermarkLines).toContain('BLOCKED_CIDIGEST=""');
+  }, 60_000);
+
+  // Truncated mid-write, yet still holding a complete `"ci_digest": "..."` pair
+  // a pattern match would take.
+  it("arms with an empty floor when last_seen.json is malformed", () => {
+    const truncated = JSON.stringify({ "o/n#1": blockedEntry(blockedDigest) }).slice(0, -1);
+    const { watermarkLines, stdout } = armOverLastSeen(truncated, blockedDigest, false);
+    expect(watermarkLines).toContain('BLOCKED_CIDIGEST=""');
+    expect(stdout).toMatch(/^ARMED pr=1 /m);
+  }, 60_000);
+
+  // The watermark is line-based and the last match wins, so a digest carrying a
+  // newline would forge whatever floor follows it.
+  it("drops a digest spanning lines rather than letting it forge a floor", () => {
+    const { watermarkLines } = armOverLastSeen(JSON.stringify({ "o/n#1": blockedEntry("x\nREV=999999") }), "", false);
+    expect(watermarkLines).toContain('BLOCKED_CIDIGEST=""');
+    expect(watermarkLines.filter((line) => line.startsWith("REV="))).toEqual(["REV=0"]);
+  }, 60_000);
+
+  // Check names come from the PR's own workflow files, so the digest is
+  // author-controlled text and must never be evaluated on either side.
+  it("carries shell syntax in a digest as inert text", () => {
+    const marker = toBash(join(mkdtempSync(join(tmpdir(), "pr-watch-marker-")), "evaluated"));
+    const hostileDigest = `deploy $(touch ${marker}) \`touch ${marker}\` "quoted":SUCCESS`;
+    const { watermarkLines, stdout } = armOverLastSeen(
+      JSON.stringify({ "o/n#1": blockedEntry(hostileDigest) }),
+      hostileDigest,
+      true,
+    );
+    expect(watermarkLines).toContain(`BLOCKED_CIDIGEST="${hostileDigest}"`);
+    expect(eventLines(stdout)).toEqual([]);
+    expect(existsSync(marker)).toBe(false);
   }, 60_000);
 });

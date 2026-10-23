@@ -89,6 +89,25 @@ if [ "$mergeable" = "CONFLICTING" ] || { [ -n "$behind_count" ] && [ "$behind_co
     rebase_floor="${head_sha}..${base_tip_sha}"
 fi
 
+# A slot re-armed while blocked keeps its resume probe live. Empty is the
+# not-blocked state, so seeding it empty here would leave the loop asleep
+# through the very CI move the block is waiting on.
+#
+# node rather than sed or jq: the digest sits under a per-PR key, jq is not
+# guaranteed present, and a malformed file must read as not blocked rather than
+# yield a partial match. The file goes in on stdin because Windows node cannot
+# open the POSIX path Git Bash hands it. A digest spanning lines is dropped:
+# written into the line-based watermark, it could forge another floor.
+blocked_digest_floor=""
+if [ -f "${slot}/last_seen.json" ]; then
+    blocked_digest_floor="$(PR_KEY="${repo}#${pr_number}" node -e '
+        try {
+            const digest = JSON.parse(require("fs").readFileSync(0, "utf8"))[process.env.PR_KEY]?.blocked?.fingerprint?.ci_digest;
+            if (typeof digest === "string" && !/[\r\n]/.test(digest)) process.stdout.write(digest);
+        } catch {}
+    ' < "${slot}/last_seen.json" 2>/dev/null)"
+fi
+
 thread_count=0
 [ -n "$unresolved_threads" ] && thread_count=$(printf '%s' "$unresolved_threads" | tr ';' '\n' | grep -c .)
 
@@ -107,7 +126,7 @@ echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behin
     printf 'THREADS="%s"\n' "$unresolved_threads"
     printf 'CIRED="%s"\n' "$ci_red_floor"
     printf 'REBASED="%s"\n' "$rebase_floor"
-    printf 'BLOCKED_CIDIGEST=""\n'
+    printf 'BLOCKED_CIDIGEST="%s"\n' "$blocked_digest_floor"
 } > "${slot}/watch-watermark.env"
 
 # Claim the slot for this session. watcher_lease_is_foreign reads an absent

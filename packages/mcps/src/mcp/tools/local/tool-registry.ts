@@ -34,8 +34,14 @@ import {
   LastHostClearInputSchema,
   SkillTelemetryEmitInputSchema,
   EventTelemetryEmitInputSchema,
+  FailureEventType,
+  WorkflowEventType,
 } from "../../local/contracts/index.js";
-import { appendFailureEvent } from "../../../shared/failure-events.js";
+import {
+  FAILURE_EVENTS_FILE_NAME,
+  TELEMETRY_DIR_NAME,
+  WORKFLOW_EVENTS_FILE_NAME,
+} from "../../../shared/telemetry-event-log-constants.js";
 import { writePreferences } from "../../../shared/preferences-service.js";
 import {
   readLastProject,
@@ -58,6 +64,7 @@ import {
   getAuthService,
   getStorageService,
   getRunResultStorageService,
+  recordTelemetryEvent,
 } from "../../local/services/index.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 
@@ -710,32 +717,27 @@ const telemetrySkillEmitTool: ILocalMcpTool = {
   },
 };
 
+function formatQuotedEventTypes(eventTypes: string[]): string {
+  return eventTypes.map((eventType) => `'${eventType}'`).join(", ");
+}
+
 // Records structured failure-mode events (AI classification + suggested action +
 // user's actual choice) so we can later measure classification accuracy and
-// refine guidance. See plugin/skills/_shared/failure-mode-handling.md.
+// refine guidance — see plugin/skills/_shared/failure-mode-handling.md — and the
+// skill workflow events catalogued in plugin/skills/_shared/telemetry-events.md.
 const telemetryEventEmitTool: ILocalMcpTool = {
   name: "muggle-local-telemetry-event-emit",
   description:
-    "Emit a structured failure-mode telemetry event recording how a Muggle Test skill " +
-    "classified a situation and what action the user took. Used at five decision points: " +
-    "'pre-execution-classification' (replay vs regen), 'replay-failure-classified', " +
-    "'replay-failure-resolved', 'regen-failure-classified', 'regen-failure-resolved'. " +
-    "Records to ~/.muggle-ai/telemetry/failure-events.jsonl. Never fails the skill on telemetry errors.",
+    `Emit a structured Muggle Test skill telemetry event. Failure-mode events (${formatQuotedEventTypes(Object.values(FailureEventType))}) ` +
+    "record how a skill classified a replay or regen situation and what action the user took — recorded to " +
+    `${MUGGLE_HOME_DISPLAY_DIR}/${TELEMETRY_DIR_NAME}/${FAILURE_EVENTS_FILE_NAME}. ` +
+    `Workflow events (${formatQuotedEventTypes(Object.values(WorkflowEventType))}) carry their catalog payload ` +
+    `in metadata — recorded to ${MUGGLE_HOME_DISPLAY_DIR}/${TELEMETRY_DIR_NAME}/${WORKFLOW_EVENTS_FILE_NAME}. ` +
+    "Never fails the skill on telemetry errors.",
   inputSchema: EventTelemetryEmitInputSchema,
   execute: async (ctx) => {
     const input = EventTelemetryEmitInputSchema.parse(ctx.input);
-    appendFailureEvent({
-      eventType: input.eventType,
-      skillName: input.skillName,
-      aiClassification: input.aiClassification,
-      aiSuggestion: input.aiSuggestion,
-      userAction: input.userAction,
-      runId: input.runId,
-      testCaseId: input.testCaseId,
-      projectId: input.projectId,
-      signals: input.signals,
-      metadata: input.metadata,
-    });
+    recordTelemetryEvent(input);
     return { content: "ok", isError: false, data: { recorded: true } };
   },
 };

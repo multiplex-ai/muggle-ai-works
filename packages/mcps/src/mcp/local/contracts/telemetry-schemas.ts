@@ -15,6 +15,7 @@ export const SkillTelemetryEmitInputSchema = z.object({
 
 export type SkillTelemetryEmitInput = z.infer<typeof SkillTelemetryEmitInputSchema>;
 
+/** Failure-mode decision points from `plugin/skills/_shared/failure-mode-handling.md`. */
 export enum FailureEventType {
     PreExecutionClassification = "pre-execution-classification",
     ReplayFailureClassified = "replay-failure-classified",
@@ -23,12 +24,21 @@ export enum FailureEventType {
     RegenFailureResolved = "regen-failure-resolved",
 }
 
+/** Skill workflow events from the telemetry catalog (`plugin/skills/_shared/telemetry-events.md`), named `<skill>:<event>`. */
+export enum WorkflowEventType {
+    MuggleDoCycle = "muggle-do:cycle",
+    MuggleDoEscalation = "muggle-do:escalation",
+    MuggleDoResolveReminder = "muggle-do:resolve-reminder",
+    PrFollowupTick = "muggle-pr-followup:tick",
+    PrFollowupBootstrap = "muggle-pr-followup:bootstrap",
+}
+
 export const EventTelemetryEmitInputSchema = z.object({
     eventType: z
-        .nativeEnum(FailureEventType)
+        .union([z.nativeEnum(FailureEventType), z.nativeEnum(WorkflowEventType)])
         .describe(
-            "Which decision point this event records. Five values cover the AI's pre-execution " +
-            "replay-vs-regen choice and the four post-failure classify→resolve pairs.",
+            "What this event records: a failure-mode decision point (the pre-execution replay-vs-regen " +
+            "choice or a classify→resolve pair) or a skill workflow event from the telemetry catalog.",
         ),
     skillName: z
         .string()
@@ -70,7 +80,7 @@ export const EventTelemetryEmitInputSchema = z.object({
     metadata: z
         .record(z.string(), z.unknown())
         .optional()
-        .describe("Free-form additional context (e.g. error excerpt, last step name)."),
+        .describe("Free-form additional context (e.g. error excerpt). A workflow event's catalog payload goes here."),
 });
 
 export type EventTelemetryEmitInput = z.infer<typeof EventTelemetryEmitInputSchema>;

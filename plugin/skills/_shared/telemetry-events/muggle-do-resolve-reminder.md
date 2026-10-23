@@ -4,15 +4,17 @@ Zero or one per cycle. Fires after the resolve-reminder stage scans threads — 
 
 ```json
 {
-  "skill": "muggle-do",
-  "event": "resolve-reminder",
-  "session_slug": "<slug>",
-  "repo": "<owner>/<repo>",
-  "pr_number": <int>,
-  "addressed_by_loop": <int>,
-  "addressed_by_human": <int>,
-  "not_addressed": <int>,
-  "comment_posted": true | false
+  "eventType": "muggle-do:resolve-reminder",
+  "skillName": "muggle-do",
+  "metadata": {
+    "session_slug": "<slug>",
+    "repo": "<owner>/<repo>",
+    "pr_number": <int>,
+    "addressed_by_loop": <int>,
+    "addressed_by_human": <int>,
+    "not_addressed": <int>,
+    "comment_posted": true | false
+  }
 }
 ```
 

@@ -49,7 +49,8 @@ Do not create or update a PR until each line holds, or is waived by a one-line r
 - Build clean — typecheck + lint on changed files
 - New/changed logic carries unit tests (authored in Stage 3; Stage 5 only runs the suite)
 - Unit suite run, PASS recorded
-- E2E verdict recorded with `runId` per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing a verified skip code from [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md), where each code's verification rule lives. Free-text reasons are rejected by the gate
+- Stage 4's `e2eScope` recorded, mapping every acceptance criterion to a test case or to `unobservable` — or `not-scoped` with the condition that failed
+- E2E verdict recorded with `runId` for every case in that scope, per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing a verified skip code from [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md), where each code's verification rule lives. Free-text reasons are rejected by the gate
 - UI changes verified in a real browser with evidence (screenshot path or muggle `runId`); `curl` + `grep` is not verification
 
 Opening a PR with an unchecked, unwaived line is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.

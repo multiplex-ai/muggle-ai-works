@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { CachedWalkthroughScan, GuardrailState } from "./types.js";
+import type { CachedPrStateScan, CachedWalkthroughScan, GuardrailState } from "./types.js";
 import { withFileLock } from "./store/fileLock.js";
 import { SESSION_STATE_LOCK_WAIT_MS } from "./constants.js";
 
@@ -14,6 +14,7 @@ const fileFor = (sessionId: string, override?: string, suffix = ".json"): string
 // A sidecar rather than a state field: the detached scan writes it while the
 // session's hooks rewrite the state file, and neither may clobber the other.
 const WALKTHROUGH_SCAN_SUFFIX = ".walkthrough-scan.json";
+const PR_STATE_SCAN_SUFFIX = ".pr-state-scan.json";
 
 function writeAtomically(target: string, contents: unknown, dirOverride?: string): void {
   mkdirSync(baseDir(dirOverride), { recursive: true });
@@ -50,6 +51,21 @@ export function readWalkthroughScan(sessionId: string, dirOverride?: string): Ca
 /** Replace the session's walkthrough scan atomically. */
 export function writeWalkthroughScan(sessionId: string, scan: CachedWalkthroughScan, dirOverride?: string): void {
   writeAtomically(fileFor(sessionId, dirOverride, WALKTHROUGH_SCAN_SUFFIX), scan, dirOverride);
+}
+
+/** The session's last provider lookup of its unwatched PRs, or null when none has landed or its file is unreadable. */
+export function readPrStateScan(sessionId: string, dirOverride?: string): CachedPrStateScan | null {
+  try {
+    const parsed = JSON.parse(readFileSync(fileFor(sessionId, dirOverride, PR_STATE_SCAN_SUFFIX), "utf-8")) as Partial<CachedPrStateScan> | null;
+    return parsed?.states && typeof parsed.states === "object" ? { states: parsed.states } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Replace the session's provider PR-state lookup atomically. */
+export function writePrStateScan(sessionId: string, scan: CachedPrStateScan, dirOverride?: string): void {
+  writeAtomically(fileFor(sessionId, dirOverride, PR_STATE_SCAN_SUFFIX), scan, dirOverride);
 }
 
 /**

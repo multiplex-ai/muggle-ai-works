@@ -1,5 +1,5 @@
-import { readFileSync, existsSync, mkdirSync, readdirSync, writeFileSync, renameSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
-import { basename, join, isAbsolute, resolve, dirname } from 'path';
+import { readFileSync, existsSync, readdirSync, mkdirSync, statSync, writeFileSync, renameSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
+import { join, basename, isAbsolute, resolve, dirname } from 'path';
 import { homedir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -31,6 +31,9 @@ var FILE_PRINTING_PROGRAMS = [
   "type"
 ];
 var MAX_WATCH_BLOCKS = 3;
+var WATCH_HEARTBEAT_STALE_MS = 15 * 6e4;
+var TERMINAL_SLOT_PR_STATES = ["merged", "closed"];
+var STOPPED_SLOT_SUFFIX = ".stopped";
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
@@ -138,6 +141,7 @@ function withFileLock(lockPath, waitMs, run) {
 var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
 var fileFor = (sessionId2, override, suffix = ".json") => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}${suffix}`);
 var WALKTHROUGH_SCAN_SUFFIX = ".walkthrough-scan.json";
+var PR_STATE_SCAN_SUFFIX = ".pr-state-scan.json";
 function writeAtomically(target, contents, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
   const staging = `${target}.${process.pid}.tmp`;
@@ -167,6 +171,17 @@ function readWalkthroughScan(sessionId2, dirOverride) {
 function writeWalkthroughScan(sessionId2, scan, dirOverride) {
   writeAtomically(fileFor(sessionId2, dirOverride, WALKTHROUGH_SCAN_SUFFIX), scan, dirOverride);
 }
+function readPrStateScan(sessionId2, dirOverride) {
+  try {
+    const parsed = JSON.parse(readFileSync(fileFor(sessionId2, dirOverride, PR_STATE_SCAN_SUFFIX), "utf-8"));
+    return parsed?.states && typeof parsed.states === "object" ? { states: parsed.states } : null;
+  } catch {
+    return null;
+  }
+}
+function writePrStateScan(sessionId2, scan, dirOverride) {
+  writeAtomically(fileFor(sessionId2, dirOverride, PR_STATE_SCAN_SUFFIX), scan, dirOverride);
+}
 function commitState(sessionId2, mutate, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
   return withFileLock(`${fileFor(sessionId2, dirOverride)}.lock`, SESSION_STATE_LOCK_WAIT_MS, () => {
@@ -194,8 +209,16 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["SettleWalkthroughSkipped"] = "settle-walkthrough-skipped";
   GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
   GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
+  GuardrailBackgroundJob2["ScanWatchPrStates"] = "scan-watch-pr-states";
   return GuardrailBackgroundJob2;
 })(GuardrailBackgroundJob || {});
+var ProviderPrState = /* @__PURE__ */ ((ProviderPrState2) => {
+  ProviderPrState2["Open"] = "OPEN";
+  ProviderPrState2["Merged"] = "MERGED";
+  ProviderPrState2["Closed"] = "CLOSED";
+  ProviderPrState2["Unreachable"] = "UNREACHABLE";
+  return ProviderPrState2;
+})(ProviderPrState || {});
 
 // src/guardrails/backgroundJob.ts
 function isBackgroundJob(subcommand) {
@@ -721,6 +744,100 @@ function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
   if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
+
+// src/hook-budget/constants.ts
+var HOOK_CHILD_PROCESS_DEADLINE_MS = 600;
+
+// src/hook-budget/childProcessBudget.ts
+var childProcessDeadlineEpochMs = null;
+function enforceHookChildProcessDeadline(gatesStartEpochMs = Date.now()) {
+  childProcessDeadlineEpochMs = gatesStartEpochMs + HOOK_CHILD_PROCESS_DEADLINE_MS;
+}
+function boundedChildTimeoutMs(ceilingMs) {
+  if (childProcessDeadlineEpochMs === null) return ceilingMs;
+  const remainingMs = Math.floor(childProcessDeadlineEpochMs - Date.now());
+  return remainingMs > 0 ? Math.min(ceilingMs, remainingMs) : null;
+}
+
+// src/pr-walkthrough/constants.ts
+var REPORT_SENTINEL = "muggle-pr-section";
+var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
+var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
+var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
+var REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
+var LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
+var SHORT_SHA_LENGTH = 7;
+var GH_COMMENT_TIMEOUT_MS = 1e4;
+
+// src/pr-walkthrough/gh.ts
+var GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
+var GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
+var defaultGhRunner = (args, input2) => {
+  if (process.env[GH_CALLS_ENV] === "off") return null;
+  const timeoutMs = boundedChildTimeoutMs(GH_COMMENT_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
+  try {
+    return execFileSync("gh", args, {
+      encoding: "utf-8",
+      input: input2,
+      timeout: timeoutMs,
+      stdio: ["pipe", "pipe", "ignore"],
+      windowsHide: true
+    });
+  } catch {
+    return null;
+  }
+};
+function parsePrUrl(prUrl) {
+  const parts = prUrl.match(GITHUB_PR_URL);
+  if (!parts) return null;
+  return { repo: `${parts[1]}/${parts[2]}`, prNumber: Number(parts[3]) };
+}
+function listPrComments(pr, run) {
+  let raw;
+  try {
+    raw = run(["api", "--paginate", `repos/${pr.repo}/issues/${pr.prNumber}/comments`]);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function readPrHeadSha(pr, run) {
+  try {
+    return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".head.sha"])?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+function writeJson(args, payload, run) {
+  try {
+    return run(args, JSON.stringify(payload)) !== null;
+  } catch {
+    return false;
+  }
+}
+function postPrComment(pr, body, run) {
+  return writeJson(
+    ["api", "--method", "POST", `repos/${pr.repo}/issues/${pr.prNumber}/comments`, "--input", "-"],
+    { body },
+    run
+  );
+}
+function patchPrComment(pr, commentId, body, run) {
+  return writeJson(
+    ["api", "--method", "PATCH", `repos/${pr.repo}/issues/comments/${commentId}`, "--input", "-"],
+    { body },
+    run
+  );
+}
+
+// src/guardrails/watchArmed.ts
 var WATCH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WATCH_SKIP\b/;
 function isWatchSkipMarker(cmd) {
   return WATCH_SKIP_MARKER.test(cmd);
@@ -729,38 +846,101 @@ function applyWatchSkip(state, skipped) {
   if (!skipped || state.watchSkipped === true) return state;
   return { ...state, watchSkipped: true };
 }
-function findUntrackedHandledPrs(handledUrls, sessionsDirOverride) {
+function resolveWatchSlotStatus(evidence, nowMs, staleAfterMs = WATCH_HEARTBEAT_STALE_MS) {
+  if (evidence.isStopped) return "stopped" /* Stopped */;
+  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
+  if (evidence.isFinalized || TERMINAL_SLOT_PR_STATES.includes(recordedState)) {
+    return "terminal" /* Terminal */;
+  }
+  const heartbeatAgeMs = evidence.heartbeatMtimeMs === void 0 ? Infinity : nowMs - evidence.heartbeatMtimeMs;
+  return heartbeatAgeMs <= staleAfterMs ? "live" /* Live */ : "stale" /* Stale */;
+}
+function readHeartbeatMtimeMs(slotPath) {
+  try {
+    return statSync(join(slotPath, "watch-heartbeat")).mtimeMs;
+  } catch {
+    return void 0;
+  }
+}
+function findUnwatchedHandledPrs(handledUrls, sessionsDirOverride) {
   if (handledUrls.length === 0) return [];
   const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
-  if (!existsSync(sessionsDir)) return [...handledUrls];
-  const trackedUrls = /* @__PURE__ */ new Set();
-  for (const slug of readdirSync(sessionsDir)) {
-    const prsFile = join(sessionsDir, slug, "prs.json");
-    if (!existsSync(prsFile)) continue;
-    let slotUrl;
+  let slugs;
+  try {
+    slugs = readdirSync(sessionsDir);
+  } catch {
+    return [...handledUrls];
+  }
+  const nowMs = Date.now();
+  const watchedUrls = /* @__PURE__ */ new Set();
+  for (const slug of slugs) {
+    const slotPath = join(sessionsDir, slug);
+    let slotPr;
     try {
-      const parsed = JSON.parse(readFileSync(prsFile, "utf-8"));
-      const entry = Array.isArray(parsed) ? parsed[0] : parsed;
-      slotUrl = entry?.url;
+      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8"));
+      slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
     } catch {
       continue;
     }
-    if (slotUrl) trackedUrls.add(slotUrl);
+    const slotUrl = slotPr?.url;
+    if (typeof slotUrl !== "string" || !handledUrls.includes(slotUrl)) continue;
+    const evidence = {
+      isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
+      isFinalized: existsSync(join(slotPath, "result.md")),
+      recordedPrState: typeof slotPr?.state === "string" ? slotPr.state : void 0,
+      heartbeatMtimeMs: readHeartbeatMtimeMs(slotPath)
+    };
+    if (resolveWatchSlotStatus(evidence, nowMs) !== "stale" /* Stale */) watchedUrls.add(slotUrl);
   }
-  return handledUrls.filter((url) => !trackedUrls.has(url));
+  return handledUrls.filter((url) => !watchedUrls.has(url));
 }
-function watchGateDecision(state, untrackedPrUrls, maxBlocks = MAX_WATCH_BLOCKS) {
+function isTerminalThisSession(prUrl, state) {
+  const prNumber = parsePrUrl(prUrl)?.prNumber;
+  if (prNumber === void 0) return false;
+  return (state.terminalPending ?? []).includes(prNumber) || (state.terminalHandled ?? []).includes(prNumber);
+}
+function isEndState(providerState) {
+  return providerState === "MERGED" /* Merged */ || providerState === "CLOSED" /* Closed */;
+}
+function resolveOwedWatchPrs(unwatchedUrls, state, scan) {
+  return unwatchedUrls.filter((prUrl) => {
+    if (isTerminalThisSession(prUrl, state)) return false;
+    const providerState = scan?.states[prUrl];
+    return providerState === void 0 || providerState === "OPEN" /* Open */;
+  });
+}
+function prsAwaitingStateScan(unwatchedUrls, state, scan) {
+  return unwatchedUrls.filter(
+    (prUrl) => !isTerminalThisSession(prUrl, state) && !isEndState(scan?.states[prUrl])
+  );
+}
+function lookupProviderPrState(prUrl, run = defaultGhRunner) {
+  if (!parsePrUrl(prUrl)) return null;
+  const reportedState = run(["pr", "view", prUrl, "--json", "state", "-q", ".state"])?.trim();
+  return Object.values(ProviderPrState).find(
+    (providerState) => providerState === reportedState && providerState !== "UNREACHABLE" /* Unreachable */
+  ) ?? "UNREACHABLE" /* Unreachable */;
+}
+function scanProviderPrStates(prUrls, lookup = lookupProviderPrState) {
+  const states = {};
+  for (const prUrl of prUrls) {
+    const providerState = lookup(prUrl);
+    if (providerState !== null) states[prUrl] = providerState;
+  }
+  return { states };
+}
+function watchGateDecision(state, unwatchedPrUrls, maxBlocks = MAX_WATCH_BLOCKS) {
   const blockCount = state.watchBlockCount ?? 0;
-  if (state.watchSkipped === true || untrackedPrUrls.length === 0) {
-    return { action: "none" /* None */, blockCount, untracked: untrackedPrUrls };
+  if (state.watchSkipped === true || unwatchedPrUrls.length === 0) {
+    return { action: "none" /* None */, blockCount, unwatched: unwatchedPrUrls };
   }
   if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount, untracked: untrackedPrUrls };
+    return { action: "release" /* Release */, blockCount, unwatched: unwatchedPrUrls };
   }
   return {
     action: "block" /* Block */,
     blockCount: blockCount + 1,
-    untracked: untrackedPrUrls
+    unwatched: unwatchedPrUrls
   };
 }
 
@@ -782,18 +962,6 @@ function buildFollowthroughDecision(state, maxBlocks = MAX_BUILD_BLOCKS) {
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
-
-// src/pr-walkthrough/constants.ts
-var REPORT_SENTINEL = "muggle-pr-section";
-var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
-var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
-var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
-var REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
-var LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
-var SHORT_SHA_LENGTH = 7;
-var GH_COMMENT_TIMEOUT_MS = 1e4;
-
-// src/guardrails/prReportPost.ts
 var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
 var GH_API_CMD = /\bgh\s+api\b/;
 var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
@@ -856,22 +1024,6 @@ function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
   return { ...state, walkthroughSkipped: true };
 }
-
-// src/hook-budget/constants.ts
-var HOOK_CHILD_PROCESS_DEADLINE_MS = 600;
-
-// src/hook-budget/childProcessBudget.ts
-var childProcessDeadlineEpochMs = null;
-function enforceHookChildProcessDeadline(gatesStartEpochMs = Date.now()) {
-  childProcessDeadlineEpochMs = gatesStartEpochMs + HOOK_CHILD_PROCESS_DEADLINE_MS;
-}
-function boundedChildTimeoutMs(ceilingMs) {
-  if (childProcessDeadlineEpochMs === null) return ceilingMs;
-  const remainingMs = Math.floor(childProcessDeadlineEpochMs - Date.now());
-  return remainingMs > 0 ? Math.min(ceilingMs, remainingMs) : null;
-}
-
-// src/guardrails/walkthroughOwed.ts
 function runGh(args) {
   const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
   if (timeoutMs === null) return null;
@@ -1071,72 +1223,6 @@ function classifyComment(body) {
   if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return "not-designated" /* NotDesignated */;
   if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
   return "pending" /* Pending */;
-}
-var GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
-var GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
-var defaultGhRunner = (args, input2) => {
-  if (process.env[GH_CALLS_ENV] === "off") return null;
-  const timeoutMs = boundedChildTimeoutMs(GH_COMMENT_TIMEOUT_MS);
-  if (timeoutMs === null) return null;
-  try {
-    return execFileSync("gh", args, {
-      encoding: "utf-8",
-      input: input2,
-      timeout: timeoutMs,
-      stdio: ["pipe", "pipe", "ignore"],
-      windowsHide: true
-    });
-  } catch {
-    return null;
-  }
-};
-function parsePrUrl(prUrl) {
-  const parts = prUrl.match(GITHUB_PR_URL);
-  if (!parts) return null;
-  return { repo: `${parts[1]}/${parts[2]}`, prNumber: Number(parts[3]) };
-}
-function listPrComments(pr, run) {
-  let raw;
-  try {
-    raw = run(["api", "--paginate", `repos/${pr.repo}/issues/${pr.prNumber}/comments`]);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-function readPrHeadSha(pr, run) {
-  try {
-    return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".head.sha"])?.trim() || null;
-  } catch {
-    return null;
-  }
-}
-function writeJson(args, payload, run) {
-  try {
-    return run(args, JSON.stringify(payload)) !== null;
-  } catch {
-    return false;
-  }
-}
-function postPrComment(pr, body, run) {
-  return writeJson(
-    ["api", "--method", "POST", `repos/${pr.repo}/issues/${pr.prNumber}/comments`, "--input", "-"],
-    { body },
-    run
-  );
-}
-function patchPrComment(pr, commentId, body, run) {
-  return writeJson(
-    ["api", "--method", "PATCH", `repos/${pr.repo}/issues/comments/${commentId}`, "--input", "-"],
-    { body },
-    run
-  );
 }
 
 // src/pr-walkthrough/reserve.ts
@@ -1993,14 +2079,20 @@ function e2eGate() {
 }
 function watchGate() {
   const state = readState(sessionId);
-  const untrackedPrUrls = findUntrackedHandledPrs(state.prsHandled);
-  const decision = watchGateDecision(state, untrackedPrUrls);
+  const unwatchedPrUrls = findUnwatchedHandledPrs(state.prsHandled);
+  const prStateScan = readPrStateScan(sessionId);
+  if (state.watchSkipped !== true && prsAwaitingStateScan(unwatchedPrUrls, state, prStateScan).length > 0) {
+    startBackgroundJob("scan-watch-pr-states" /* ScanWatchPrStates */, [sessionId]);
+  }
+  const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
   if (decision.action === "release" /* Release */) return releaseGate("watchReleased");
   if (decision.action === "none" /* None */) return "{}";
   state.watchBlockCount = decision.blockCount;
   writeState(state);
-  const prList = decision.untracked.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR was opened this session but no muggle-do session slot tracks it: ${prList}. Seed the slot and hand off per muggle-do Stage 8 \u2014 ${muggleSkill("/muggle:muggle-pr-followup")} ${decision.untracked[0]} does both. Seeding is what matters: once a slot exists, reconcile arms it at the next session start and finalizes it when the PR goes terminal, so an unarmed slot is fine but no slot means nothing ever picks this PR up. If it genuinely should not be tracked (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR hand-off still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): seed a slot via ${muggleSkill("/muggle:muggle-pr-followup")}, or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
+  const prList = decision.unwatched.join(", ");
+  const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 6e4;
+  const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR opened this session is open with no live muggle-pr-followup watch: ${prList}. Arm its watch per the muggle-pr-followup arming procedure (arm-watcher.md) \u2014 invoking ${armCommand} bootstraps it and arms it that way (add --resume when its slot already exists). A seeded slot does not count: only a running watch loop does, shown by a watch-heartbeat it touches every poll and that goes stale after ${staleMinutes} minutes (a watch armed moments ago writes it on its first poll). If the PR already merged or closed, end the turn again \u2014 a provider check started now clears it. If it genuinely should not be watched (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function buildFollowthroughGate() {
@@ -2199,12 +2291,23 @@ function settleWalkthroughNoAppLogicChangeJob() {
   if (prUrl && detail) settleWalkthroughCommentForNoAppLogicChange(prUrl, detail);
   return "{}";
 }
+function scanWatchPrStatesJob() {
+  const scannedSessionId = jobArgs[0] ?? "unknown";
+  const state = readState(scannedSessionId);
+  const previousScan = readPrStateScan(scannedSessionId);
+  const awaitingPrUrls = prsAwaitingStateScan(findUnwatchedHandledPrs(state.prsHandled), state, previousScan);
+  if (awaitingPrUrls.length === 0) return "{}";
+  const freshScan = scanProviderPrStates(awaitingPrUrls);
+  writePrStateScan(scannedSessionId, { states: { ...previousScan?.states, ...freshScan.states } });
+  return "{}";
+}
 var backgroundJobs = {
   ["scan-walkthroughs" /* ScanWalkthroughs */]: scanWalkthroughsJob,
   ["reserve-walkthrough-comment" /* ReserveWalkthroughComment */]: reserveWalkthroughCommentJob,
   ["settle-walkthrough-skipped" /* SettleWalkthroughSkipped */]: settleWalkthroughSkippedJob,
   ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob,
-  ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob
+  ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob,
+  ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob
 };
 var runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
 process.stdout.write(runSubcommand());

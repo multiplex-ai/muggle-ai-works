@@ -103,6 +103,7 @@ export enum GuardrailBackgroundJob {
   SettleWalkthroughSkipped = "settle-walkthrough-skipped",
   SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
   SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
+  ScanWatchPrStates = "scan-watch-pr-states",
 }
 
 /** Outcome of the watcher-arm Stop gate for a turn end. */
@@ -123,11 +124,40 @@ export interface BuildFollowthroughDecision {
   blockCount: number;
 }
 
-/** A watcher-arm gate decision: the action, the running block count, and the opened-but-untracked PR urls that drove it. */
+/** A watcher-arm gate decision: the action, the running block count, and the opened PR urls that still owe a live watch. */
 export interface WatchGateDecision {
   action: WatchGateAction;
   blockCount: number;
-  untracked: string[];
+  unwatched: string[];
+}
+
+/** What one muggle-do session slot says about the watch on its PR. */
+export enum WatchSlotStatus {
+  Live = "live",
+  Terminal = "terminal",
+  Stopped = "stopped",
+  Stale = "stale",
+}
+
+/** The on-disk facts the watcher-arm gate reads from one session slot. */
+export interface WatchSlotEvidence {
+  isStopped: boolean;
+  isFinalized: boolean;
+  recordedPrState?: string;
+  heartbeatMtimeMs?: number;
+}
+
+/** A PR's state as the provider reports it, or that the lookup could not reach the provider. */
+export enum ProviderPrState {
+  Open = "OPEN",
+  Merged = "MERGED",
+  Closed = "CLOSED",
+  Unreachable = "UNREACHABLE",
+}
+
+/** The last provider lookup of a session's unwatched PRs, keyed by PR url. */
+export interface CachedPrStateScan {
+  states: Record<string, ProviderPrState>;
 }
 
 export enum PrTerminalVerdict {

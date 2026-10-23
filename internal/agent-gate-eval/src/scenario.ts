@@ -57,6 +57,16 @@ function validateScenario(scenario: AgentScenario, filePath: string): void {
       throw new Error(`${label}: each seed.files entry needs a path and content`);
     }
   }
+  for (const artifact of scenario.expect.requireArtifacts ?? []) {
+    if (artifact.matches === undefined) continue;
+    try {
+      new RegExp(artifact.matches);
+    } catch (error) {
+      throw new Error(`${label}: requireArtifacts ${artifact.path} has an invalid matches regex: ${String(error)}`, {
+        cause: error,
+      });
+    }
+  }
 }
 
 /**

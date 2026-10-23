@@ -18,7 +18,7 @@ import type {
   SandboxPathContext,
   ScenarioSeed,
 } from "../types.js";
-import { isInsideDirectory, resolveSandboxPath } from "./paths.js";
+import { fillSandboxPathTokens, isInsideDirectory, resolveSandboxPath } from "./paths.js";
 
 /**
  * The fixture repository a seed names, as an absolute directory.
@@ -44,7 +44,8 @@ export function sandboxPathContext(sandbox: RunSandbox, passthroughRoots: string
 
 /**
  * Make a fresh sandbox: an empty home, the seed's fixture repository copied in
- * as the repo (or an empty repo), then the seed's files written over both.
+ * as the repo (or an empty repo), then the seed's files written over both, with
+ * their `{{home}}` and `{{repo}}` filled in.
  *
  * Output shape: `{ root: "<tmp>/muggle-agent-eval-run-XXXX", home: "<root>/home", repo: "<root>/repo" }`
  *
@@ -68,7 +69,7 @@ export function createRunSandbox(seed?: ScenarioSeed, fixturesDir: string = FIXT
         throw new Error(`seed file "${seedFile.path}" must be ~/… or relative, inside the sandbox home or repo`);
       }
       fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, seedFile.content);
+      fs.writeFileSync(target, fillSandboxPathTokens(seedFile.content, sandbox));
     }
   } catch (error) {
     removeRunSandbox(sandbox);

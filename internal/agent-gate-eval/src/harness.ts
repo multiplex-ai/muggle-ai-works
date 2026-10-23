@@ -47,6 +47,7 @@ import {
   SCRIPTED_BASH_NOTE_LINES,
   SKILL_BUILTIN_TOOLS,
 } from "./constants.js";
+import { fillSandboxPathTokens } from "./sandbox/paths.js";
 import { createRunSandbox, removeRunSandbox, sandboxPathContext, snapshotArtifacts } from "./sandbox/sandbox.js";
 import { buildPreferencesContext } from "./session-context.js";
 import { buildSkillInvocationMessage } from "./skill-definition.js";
@@ -137,13 +138,14 @@ export async function runAgentScenarioOnce(
   try {
     const paths = sandboxPathContext(sandbox, [pluginRoot]);
     const answerTool = createToolResponder(scenario.toolResponses);
+    const answerScriptedBash = createBashResponder(scenario.bashResponses);
     const builtinTools = isSkillTarget ? SKILL_BUILTIN_TOOLS : AGENT_BUILTIN_TOOLS;
     const policyContext: ToolPolicyContext = {
       paths: paths,
       pluginRoot: pluginRoot,
       builtinTools: builtinTools,
       hasHostStubs: isSkillTarget,
-      answerBash: createBashResponder(scenario.bashResponses),
+      answerBash: (command) => fillSandboxPathTokens(answerScriptedBash(command), sandbox),
       answerQuestion: (serializedInput) => answerTool(ScriptedTool.AskUserQuestion, serializedInput),
     };
 

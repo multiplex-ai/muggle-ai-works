@@ -25,7 +25,9 @@ A port that answers proves nothing about which code answers it — a peer sessio
 | The plan marks the service `external: true` | **Vouched** — the user confirmed in Decide that they run it from this checkout; keep it, never kill it |
 | Tracked under the run directory's checkout at an older `headSha` | **Stale** — restart it per [start-services](./start-services.md) |
 | Tracked under a different checkout, PID alive | **A peer's** — never test against it, never kill it; [Port already held](#port-already-held) |
-| Untracked | **Unknown code** — restart it from the run directory when the plan approves a restart for this service; otherwise [Port already held](#port-already-held) |
+| Untracked | **Unknown code** — when the plan approves a restart for this service, treat it as stale: Clean Restart it through [smoke-test](./smoke-test.md)'s loop (kill → [fresh-install](./fresh-install.md) → [start-services](./start-services.md) → re-test). Otherwise [Port already held](#port-already-held) |
+
+An approved restart settles whose port it is. When the restart cannot free or claim the port — the old process survives the kill, or the port keeps answering with code this run did not start — the service is broken, not contested: it stays in the smoke-test loop and ends `DEGRADED` with that diagnosis, never `needs-input`. `DEGRADED` already stops the caller from testing, so nothing foreign is ever reported `READY`. [Port already held](#port-already-held) is only for a peer's service, or for unknown code the plan gives no restart approval for.
 
 > "**backend-api** on port 3001 (PID 54321) serves `api/.claude/worktrees/base-main` @ `a1b2c3d` — proven."
 

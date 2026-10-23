@@ -1,7 +1,7 @@
 /** Tests for the checkout-freshness evaluator, against real repositories. */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -49,8 +49,10 @@ const evaluateAt = (name: string, overrides: { baseBranch?: string; shouldFetchB
     runGit: runGitCommand,
   });
 
+// Real paths on both sides: git reports symlink-resolved roots, and macOS's temp dir sits behind /var → /private/var.
 const samePath = (actual: string | null, expected: string): void => {
-  expect(resolve(actual ?? "").toLowerCase()).toBe(resolve(expected).toLowerCase());
+  const realPath = (path: string): string => realpathSync.native(resolve(path)).toLowerCase();
+  expect(realPath(actual ?? "")).toBe(realPath(expected));
 };
 
 // origin: master = base → m2, feat-a = base → a1. The clone's worktrees each take one shape.

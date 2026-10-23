@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
+import parallelConfig, { WALL_CLOCK_HOOK_TESTS } from "../../vitest.config";
+import hookRuntimeConfig from "../../vitest.hook-runtime.config";
 
 // The timeout is the only thing standing between this suite and the flake it
 // was raised for, and nothing else would notice if it were dropped: a shorter
@@ -23,5 +25,19 @@ describe("vitest config", () => {
   it("applies it to both tests and hooks", () => {
     expect(configBody).toContain("testTimeout: SPAWN_HEAVY_TIMEOUT_MS");
     expect(configBody).toContain("hookTimeout: SPAWN_HEAVY_TIMEOUT_MS");
+  });
+});
+
+// A renamed wall-clock test drops out of the isolated lane without a word: the
+// parallel suite's glob picks it up again, and its flake returns there.
+describe("wall-clock hook tests", () => {
+  it("run alone in the hook-runtime lane and never in the parallel suite", () => {
+    expect(WALL_CLOCK_HOOK_TESTS).toContain("src/test/guardrails/no-app-logic-change-hook.test.ts");
+    for (const testPath of WALL_CLOCK_HOOK_TESTS) {
+      expect(existsSync(fileURLToPath(new URL(`../../${testPath}`, import.meta.url))), testPath).toBe(true);
+      expect(parallelConfig.test?.exclude).toContain(testPath);
+      expect(hookRuntimeConfig.test?.include).toContain(testPath);
+    }
+    expect(hookRuntimeConfig.test?.fileParallelism).toBe(false);
   });
 });

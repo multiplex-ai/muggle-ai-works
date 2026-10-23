@@ -3,8 +3,15 @@ import { defineConfig } from "vitest/config";
 /** Ceiling for a single test or hook. Sized for the suites that spawn a TypeScript-compiling subprocess per assertion, not for the median test. */
 export const SPAWN_HEAVY_TIMEOUT_MS = 30_000;
 
-/** The hook runtime budget suite. It times hooks by the wall clock, so it runs alone under vitest.hook-runtime.config.ts. */
-export const HOOK_RUNTIME_BUDGET_TESTS = "src/test/guardrails/footprint/hook-runtime-budget.test.ts";
+/**
+ * Hook suites the wall clock decides, so they run alone under vitest.hook-runtime.config.ts: the runtime budget times
+ * the hooks, and the NO_APP_LOGIC_CHANGE suite's verdict hangs on a git call finishing inside the hook's 600ms
+ * child-process deadline. Beside ~150 other suites spawning at once, both measure process-start contention instead.
+ */
+export const WALL_CLOCK_HOOK_TESTS = [
+  "src/test/guardrails/footprint/hook-runtime-budget.test.ts",
+  "src/test/guardrails/no-app-logic-change-hook.test.ts",
+];
 
 /** Env every vitest run here sets; why is noted where the config below applies it. */
 export const GUARDRAIL_TEST_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off" };
@@ -31,8 +38,7 @@ export default defineConfig({
     // stay discovered); second makes the top-level test/ tree — tests mirror
     // their src/ path there — explicit.
     include: ["**/*.{test,spec}.?(c|m)[jt]s?(x)", "test/**/*.test.ts"],
-    // Wall-clock budgets measured beside 150 other suites measure their process starts, not the hooks.
-    exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**', HOOK_RUNTIME_BUDGET_TESTS],
+    exclude: ['apps/**', '**/node_modules/**', '**/.claude/worktrees/**', ...WALL_CLOCK_HOOK_TESTS],
     coverage: {
       provider: "v8",
       all: true,

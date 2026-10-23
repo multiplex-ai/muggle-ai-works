@@ -211,23 +211,23 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-report-stats-summary-get",
   },
   {
-    "description": "Create a new secret (credential) for a project.",
+    "description": "Create a new secret (credential) for a project. Returns the created secret's metadata; the value is never echoed back.",
     "name": "muggle-remote-secret-create",
   },
   {
-    "description": "Delete a secret from a project.",
+    "description": "Delete a secret from a project. Returns the deleted secret's metadata; the value is never returned.",
     "name": "muggle-remote-secret-delete",
   },
   {
-    "description": "Get details of a specific secret. The secret value is not returned for security.",
+    "description": "Get a specific secret's metadata: id, name, description, source and timestamps. The secret value is never returned.",
     "name": "muggle-remote-secret-get",
   },
   {
-    "description": "List all secrets for a project. Secret values are not returned for security.",
+    "description": "List all secrets for a project: each secret's id, name, description, source and timestamps. Secret values are never returned.",
     "name": "muggle-remote-secret-list",
   },
   {
-    "description": "Update an existing secret.",
+    "description": "Update an existing secret. Returns the updated secret's metadata; the value is never echoed back.",
     "name": "muggle-remote-secret-update",
   },
   {

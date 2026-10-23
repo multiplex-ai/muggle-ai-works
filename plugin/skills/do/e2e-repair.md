@@ -78,7 +78,7 @@ One question, listing each unrepairable failure with its bucket, failing step, a
 
 ## Step 5: Close the loop
 
-After a `repair`, `regenerate`, or `retry` pass, re-run [`e2e-acceptance.md`](e2e-acceptance.md) over the affected test cases only, increment `repairIteration`, and return to Step 0.
+After a `repair`, `regenerate`, or `retry` pass, re-run [`e2e-acceptance.md`](e2e-acceptance.md) over the affected test cases only, increment `repairIteration`, and return to Step 0. A change whose `state.md` records `E2E lane: background` re-runs through that lane ([`background-e2e.md`](background-e2e.md)), queued behind any local run in flight, with this PR's URL in the brief.
 
 The loop is bounded at **3** repair iterations, the same bound the cycle guardrail already applies to E2E failures. On the third exhausted iteration, waive automatically: retitle `[E2E FAILING]`, record the surviving failures in `result.md`, and clear to Stage 8. A PR a reviewer can see is worth more than a loop that never terminates.
 

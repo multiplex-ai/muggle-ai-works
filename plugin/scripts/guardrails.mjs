@@ -75,6 +75,12 @@ var CALL_FAILURE_SIGNALS = [
 var FORGE_TERMINAL_CMD = /\b(?:gh\s+pr\s+(?:merge|close|reopen)|glab\s+mr\s+(?:merge|close|reopen))\b/;
 var WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
 var MERGED_GATE_OUTPUT_SEPARATOR = "\n\n";
+var GITHUB_PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
+var GITLAB_MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
+var SUBAGENT_DISPATCH_TOOL_NAMES = ["Agent", "Task"];
+var ACCEPTANCE_TESTER_SUBAGENT_TYPE = /(?:^|:)acceptance-tester$/;
+var ACCEPTANCE_REPORT_MARKERS = ["## Test Summary", "**Overall:**"];
+var DELEGATED_E2E_WINDOW_MS = 60 * 6e4;
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -245,8 +251,6 @@ function isShellToolCall(input2) {
 }
 
 // src/guardrails/prOpened.ts
-var PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
-var MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
 var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
 var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
 function detectPrOpened(input2) {
@@ -255,7 +259,7 @@ function detectPrOpened(input2) {
   if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
   const out = `${input2.tool_response?.stdout ?? ""}
 ${input2.tool_response?.output ?? ""}`;
-  const m = out.match(PR_URL) ?? out.match(MR_URL);
+  const m = out.match(GITHUB_PR_URL) ?? out.match(GITLAB_MR_URL);
   return m ? m[0] : null;
 }
 
@@ -632,6 +636,38 @@ function classificationGateDecision(state, input2) {
   return { deny: true, testCaseId };
 }
 
+// src/guardrails/prUrls.ts
+function extractPrUrls(text) {
+  const githubPrUrls = [...text.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
+  const gitlabMrUrls = [...text.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
+  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
+}
+
+// src/guardrails/delegatedE2e.ts
+function carriesAcceptanceReport(input2) {
+  const response = JSON.stringify(input2.tool_response ?? "");
+  return ACCEPTANCE_REPORT_MARKERS.some((marker) => response.includes(marker));
+}
+function detectBackgroundAcceptanceDispatch(input2) {
+  if (!SUBAGENT_DISPATCH_TOOL_NAMES.includes(input2.tool_name ?? "")) return null;
+  if (!ACCEPTANCE_TESTER_SUBAGENT_TYPE.test(input2.tool_input?.subagent_type ?? "")) return null;
+  if (callFailed(input2) || carriesAcceptanceReport(input2)) return null;
+  return extractPrUrls(input2.tool_input?.prompt ?? "");
+}
+function liveDelegations(state, now) {
+  return (state.e2eDelegations ?? []).filter((delegation) => now - delegation.dispatchedAt < DELEGATED_E2E_WINDOW_MS);
+}
+function applyE2eDelegation(state, delegation) {
+  return { ...state, e2eDelegations: [...liveDelegations(state, delegation.dispatchedAt), delegation] };
+}
+function isE2eDelegationInFlight(state, now) {
+  return liveDelegations(state, now).length > 0;
+}
+function withoutDelegatedPrs(prUrls, state, now) {
+  const delegatedPrUrls = new Set(liveDelegations(state, now).flatMap((delegation) => delegation.prUrls));
+  return prUrls.filter((prUrl) => !delegatedPrUrls.has(prUrl));
+}
+
 // src/guardrails/debugPath.ts
 var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
 var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
@@ -685,10 +721,10 @@ function undebuggedFailedRuns(state) {
   const debugged = new Set(state.debuggedRuns ?? []);
   return (state.failedRuns ?? []).filter((runId) => !debugged.has(runId));
 }
-function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS) {
+function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS, now = Date.now()) {
   const blockCount = state.debugBlockCount ?? 0;
   const undebugged = undebuggedFailedRuns(state);
-  if (state.debugSkipped === true || undebugged.length === 0) {
+  if (state.debugSkipped === true || undebugged.length === 0 || isE2eDelegationInFlight(state, now)) {
     return { action: "none" /* None */, blockCount, undebugged };
   }
   if (blockCount >= maxBlocks) {
@@ -738,9 +774,11 @@ function applyRecordedRun(state, run) {
   }
   return next;
 }
-function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS) {
+function e2eGateDecision(state, maxBlocks = MAX_E2E_BLOCKS, now = Date.now()) {
   const blockCount = state.e2eBlockCount ?? 0;
-  if (!shouldRunE2E(state)) return { action: "none" /* None */, blockCount };
+  if (!shouldRunE2E(state) || isE2eDelegationInFlight(state, now)) {
+    return { action: "none" /* None */, blockCount };
+  }
   if (blockCount >= maxBlocks) return { action: "release" /* Release */, blockCount };
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
@@ -770,7 +808,7 @@ var SHORT_SHA_LENGTH = 7;
 var GH_COMMENT_TIMEOUT_MS = 1e4;
 
 // src/pr-walkthrough/gh.ts
-var GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
+var GITHUB_PR_URL2 = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
 var GH_CALLS_ENV = "MUGGLE_GUARDRAIL_GH_CALLS";
 var defaultGhRunner = (args, input2) => {
   if (process.env[GH_CALLS_ENV] === "off") return null;
@@ -789,7 +827,7 @@ var defaultGhRunner = (args, input2) => {
   }
 };
 function parsePrUrl(prUrl) {
-  const parts = prUrl.match(GITHUB_PR_URL);
+  const parts = prUrl.match(GITHUB_PR_URL2);
   if (!parts) return null;
   return { repo: `${parts[1]}/${parts[2]}`, prNumber: Number(parts[3]) };
 }
@@ -1016,9 +1054,15 @@ function detectWalkthroughPost(input2, read = defaultFileReader) {
   if (callFailed(input2)) return false;
   return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
 }
-function applyWalkthroughPosted(state, posted) {
-  if (!posted || state.walkthroughPosted === true) return state;
-  return { ...state, walkthroughPosted: true };
+function detectWalkthroughPostTargets(input2) {
+  return extractPrUrls(`${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`);
+}
+function applyWalkthroughPosted(state, posted, postedAt, targetPrUrls) {
+  if (!posted) return state;
+  if (targetPrUrls.length === 0) return { ...state, walkthroughPostedAt: postedAt };
+  const postedPrUrls = /* @__PURE__ */ new Set([...state.walkthroughPostedPrUrls ?? [], ...targetPrUrls]);
+  return { ...state, walkthroughPostedPrUrls: [...postedPrUrls] };
 }
 function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
@@ -1065,15 +1109,25 @@ function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
   return { owed, verified: verified2 };
 }
 function isWalkthroughGateArmed(state) {
-  return state.e2eRun === true && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+  return state.e2eRun === true && state.walkthroughsVerified !== true && state.walkthroughSkipped !== true;
 }
 function isWalkthroughScanCurrent(scan, state) {
   const scanned = new Set(scan.prsHandled);
-  return scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
+  const coversHandledPrs = scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
+  const postedAt = state.walkthroughPostedAt;
+  const followsLastPost = postedAt === void 0 || (scan.startedAt ?? 0) >= postedAt;
+  return coversHandledPrs && followsLastPost;
+}
+function withoutPostedPrs(prUrls, state) {
+  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
+  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
+}
+function applyPrOpenedToWalkthroughs(state) {
+  return state.walkthroughsVerified === true ? { ...state, walkthroughsVerified: false } : state;
 }
 function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
   const blockCount = state.walkthroughBlockCount ?? 0;
-  const alreadySettled = state.walkthroughPosted === true || state.walkthroughSkipped === true || state.e2eRun !== true;
+  const alreadySettled = state.walkthroughsVerified === true || state.walkthroughSkipped === true || state.e2eRun !== true;
   if (alreadySettled || owedPrUrls.length === 0) {
     return { action: "none" /* None */, blockCount, owed: owedPrUrls };
   }
@@ -1909,12 +1963,13 @@ function prOpened() {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
+  updateState(sessionId, applyPrOpenedToWalkthroughs);
   startBackgroundJob("reserve-walkthrough-comment" /* ReserveWalkthroughComment */, [url]);
   if (isWalkthroughGateArmed(readState(sessionId))) {
     startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   }
   const ctx = `A pull request was just opened: ${url}
-Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
+Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it with the E2E run of this PR's own change (a wave's PRs share one run; any other PR gets its own), or by recording why E2E does not apply.
 Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
@@ -1967,33 +2022,44 @@ function recordTests() {
     e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code)
   };
   const walkthroughPosted = detectWalkthroughPost(input);
+  const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
   const failedRunId = detectFailedRunId(input);
   const record = (state) => {
     const recorded = applyRecordedRun(state, run);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
+    const withWalkthroughPost = applyWalkthroughPosted(
+      withBuildSkip,
+      walkthroughPosted,
+      Date.now(),
+      walkthroughPostTargets
+    );
     const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
-  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
+  if (isWalkthroughGateArmed(next) && (walkthroughPosted || !isWalkthroughGateArmed(stateBefore))) {
     startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   }
-  if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
+  if (acceptedSkip) recordSkipReasonOnBranchPr(acceptedSkip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
   }
   return "{}";
 }
-function recordSkipReasonOnPrs(state, skip) {
+function recordSkipReasonOnBranchPr(skip) {
   if (skip.code === "NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */) {
     startBackgroundJob("settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */, [skip.detail], input.cwd);
     return;
   }
-  for (const prUrl of state.prsHandled) {
-    startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [prUrl, skip.code, skip.detail]);
-  }
+  startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [skip.code, skip.detail], input.cwd);
+}
+function recordDelegation() {
+  const prUrls = detectBackgroundAcceptanceDispatch(input);
+  if (prUrls === null) return "{}";
+  const delegate = (state) => applyE2eDelegation(state, { dispatchedAt: Date.now(), prUrls });
+  updateState(sessionId, delegate);
+  return "{}";
 }
 function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
@@ -2111,17 +2177,18 @@ function walkthroughGate() {
   const scan = readWalkthroughScan(sessionId);
   startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
-  if (scan.owed.length === 0) {
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+  const unposted = withoutPostedPrs(scan.owed, state);
+  if (unposted.length === 0) {
+    if (scan.verified.length + scan.owed.length > 0) writeState({ ...state, walkthroughsVerified: true });
     return "{}";
   }
-  const decision = walkthroughGateDecision(state, scan.owed);
+  const decision = walkthroughGateDecision(state, withoutDelegatedPrs(unposted, state, Date.now()));
   if (decision.action === "release" /* Release */) return releaseGate("walkthroughReleased");
   if (decision.action !== "block" /* Block */) return "{}";
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.owed.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Each PR carries the run of its own change \u2014 a wave's PRs share one run, every other PR gets its own \u2014 so never post one change's run to another change's PR. If this PR's change was tested, post that run now per the postPRVisualWalkthrough preference (default: always) via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If it was not, run E2E for it first: inline via ${muggleSkill("/muggle:muggle-test")}, or in a background muggle:acceptance-tester per do/background-e2e.md while other work continues. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post that PR's own run via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, run E2E for it first if its change was never tested, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function slotForSession(state) {
@@ -2243,6 +2310,7 @@ var handlers = {
   "pr-terminal": prTerminal,
   "offer-ran": offerRan,
   "record-tests": recordTests,
+  "record-delegation": recordDelegation,
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
@@ -2264,9 +2332,15 @@ var handlers = {
 var jobArgs = process.argv.slice(3);
 function scanWalkthroughsJob() {
   const scannedSessionId = jobArgs[0] ?? "unknown";
+  const startedAt = Date.now();
   const state = readState(scannedSessionId);
   const scan = scanForOwedWalkthroughs(state);
-  writeWalkthroughScan(scannedSessionId, { prsHandled: state.prsHandled, owed: scan.owed, verified: scan.verified });
+  writeWalkthroughScan(scannedSessionId, {
+    prsHandled: state.prsHandled,
+    owed: scan.owed,
+    verified: scan.verified,
+    startedAt
+  });
   return "{}";
 }
 function reserveWalkthroughCommentJob() {
@@ -2275,9 +2349,11 @@ function reserveWalkthroughCommentJob() {
   return "{}";
 }
 function settleWalkthroughSkippedJob() {
-  const [prUrl, codeArg, detail] = jobArgs;
+  const [codeArg, detail] = jobArgs;
   const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
-  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
+  if (!code) return "{}";
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
   return "{}";
 }
 function settleWalkthroughUnreasonedJob() {

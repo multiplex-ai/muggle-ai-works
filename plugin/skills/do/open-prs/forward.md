@@ -12,7 +12,7 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
 
 - Per-repo: name, path, branch.
 - Requirements: goal, acceptance criteria.
-- **Optional** E2E acceptance report from stage 6. Produced by [`../e2e-acceptance.md`](../e2e-acceptance.md); schema in [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md).
+- **Optional** E2E acceptance report from stage 6. Produced by [`../e2e-acceptance.md`](../e2e-acceptance.md) — inline, or returned by this change's background acceptance-tester ([`../background-e2e.md`](../background-e2e.md)); schema in [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md). Only this change's own report: a sibling change's run never settles this PR.
 
 ## Wave cycles
 
@@ -46,8 +46,8 @@ Forward pipeline's Stage 7. Invoked by `/muggle-do` after stages 1–6 of a fres
    - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
 
 6. **Settle the designated walkthrough comment.** Creating the PR reserves one comment for the walkthrough, marked `muggle-pr-walkthrough` and empty until settled — the PR's walkthrough check fails while it stays that way.
-   - E2E report exists → fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, leave the comment to the gate's own skip record. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the PR number — it fills the reserved comment in place.
-   - No E2E report (validation was `unit-only` or `skip`) → now that the PR exists, re-declare the skip Stage 6 recorded with the same code: `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"`, codes per [`../e2e-acceptance.md`](../e2e-acceptance.md). An accepted code settles the comment as a declared skip; a free-text reason is rejected and leaves it unsettled. A PR whose title says `[UNIT-ONLY]` still owes reviewers the why.
+   - E2E report exists → fire [`postPRVisualWalkthrough`](../../muggle-preferences/preference-gates/postPRVisualWalkthrough.md); on skip, leave the comment to the gate's own skip record. Otherwise invoke [`../../muggle-pr-visual-walkthrough/SKILL.md`](../../muggle-pr-visual-walkthrough/SKILL.md) Mode A with the PR number and repo passed explicitly — it fills the reserved comment in place. Explicit because a session carrying several changes may sit in another change's worktree, where the current branch's PR is the wrong one.
+   - No E2E report (validation was `unit-only` or `skip`), or a `SKIPPED` report → now that the PR exists, re-declare the skip Stage 6 recorded with the same code, from this PR's worktree: `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"`, codes per [`../e2e-acceptance.md`](../e2e-acceptance.md). An accepted code settles only the comment of the PR whose branch that worktree has checked out; a free-text reason is rejected and leaves it unsettled. A PR whose title says `[UNIT-ONLY]` still owes reviewers the why.
 
 7. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once using the provider resolved in Step 5 — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 

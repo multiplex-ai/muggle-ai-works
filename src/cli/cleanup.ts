@@ -2,17 +2,36 @@
  * Cleanup command - removes old electron-app versions and obsolete skills to free disk space.
  */
 
-import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "fs";
+import {
+  type Dirent,
+  existsSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+  statSync,
+} from "fs";
 import { homedir } from "os";
 import * as path from "path";
 import { fileURLToPath } from "url";
 
-import { getDataDir, getElectronAppVersion, getLogger } from "../../packages/mcps/src/index.js";
+import {
+  ElectronAppReleaseStream,
+  getActiveElectronAppReleaseStream,
+  getDataDir,
+  getElectronAppDir,
+  getLogger,
+  parseElectronAppDirName,
+} from "../../packages/mcps/src/index.js";
+import {
+  ElectronAppInstallKind,
+  type ICleanupOptions,
+  type IInstalledVersion,
+  type IObsoleteSkill,
+} from "./cleanup-types.js";
 
 const logger = getLogger();
-
-/** Subdirectory name for electron-app versions. */
-const ELECTRON_APP_DIR = "electron-app";
 
 /** Cursor skills directory path components. */
 const CURSOR_SKILLS_DIR = ".cursor";
@@ -46,44 +65,6 @@ const MUGGLE_ALIAS_SKILLS = loadMuggleAliasSkills();
 const INSTALL_MANIFEST_FILE = "install-manifest.json";
 
 /**
- * Options for the cleanup command.
- */
-export interface ICleanupOptions {
-  /** Remove all versions except current (default: keep current + 1 previous). */
-  all?: boolean;
-  /** Dry run - show what would be deleted without deleting. */
-  dryRun?: boolean;
-  /** Also clean up obsolete skills. */
-  skills?: boolean;
-}
-
-/**
- * Installed version info.
- */
-export interface IInstalledVersion {
-  /** Version string. */
-  version: string;
-  /** Full path to version directory. */
-  path: string;
-  /** Size in bytes. */
-  sizeBytes: number;
-  /** Whether this is the current active version. */
-  isCurrent: boolean;
-}
-
-/**
- * Obsolete skill info.
- */
-export interface IObsoleteSkill {
-  /** Skill directory name. */
-  name: string;
-  /** Full path to skill directory. */
-  path: string;
-  /** Size in bytes. */
-  sizeBytes: number;
-}
-
-/**
  * Install manifest structure.
  */
 interface IInstallManifest {
@@ -96,11 +77,11 @@ interface IInstallManifest {
 }
 
 /**
- * Get the electron-app base directory.
+ * Get the electron-app base directory: the parent of the install the runtime launches.
  * @returns Path to ~/.muggle-ai/electron-app
  */
 function getElectronAppBaseDir (): string {
-  return path.join(getDataDir(), ELECTRON_APP_DIR);
+  return path.dirname(getElectronAppDir());
 }
 
 /**
@@ -304,12 +285,82 @@ function compareVersions (a: string, b: string): number {
 }
 
 /**
- * List all installed electron-app versions.
- * @returns Array of installed version info, sorted by version descending.
+ * Order installs by release stream, then newest version first within a stream.
+ * @param first - First install.
+ * @param second - Second install.
+ * @returns Negative when `first` lists before `second`.
+ */
+function compareInstallsByStreamThenVersion (first: IInstalledVersion, second: IInstalledVersion): number {
+  const releaseStreams = Object.values(ElectronAppReleaseStream);
+  const streamOrder =
+    releaseStreams.indexOf(first.releaseStream) - releaseStreams.indexOf(second.releaseStream);
+  if (streamOrder !== 0) {
+    return streamOrder;
+  }
+  return compareVersions(second.version, first.version);
+}
+
+/**
+ * Classify an electron-app entry as a directory, a live link, or a broken link.
+ * @param entry - Directory entry, typed without following links.
+ * @param entryPath - Full path to the entry.
+ * @returns The entry's kind, or null when it is neither a directory nor a link.
+ */
+function resolveInstallKind (entry: Dirent, entryPath: string): ElectronAppInstallKind | null {
+  if (entry.isDirectory()) {
+    return ElectronAppInstallKind.Directory;
+  }
+  if (!entry.isSymbolicLink()) {
+    return null;
+  }
+  try {
+    return statSync(entryPath).isDirectory() ? ElectronAppInstallKind.Link : ElectronAppInstallKind.BrokenLink;
+  } catch {
+    return ElectronAppInstallKind.BrokenLink;
+  }
+}
+
+/**
+ * Read where a link points, as stored in the link.
+ * @param linkPath - Path to the link.
+ * @returns The stored target, or undefined when it cannot be read.
+ */
+function readLinkTarget (linkPath: string): string | undefined {
+  try {
+    return readlinkSync(linkPath);
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve a path through every link to the directory it lands on.
+ * @param entryPath - Path to resolve.
+ * @returns The canonical path, or the input when it cannot be resolved.
+ */
+function resolveCanonicalPath (entryPath: string): string {
+  try {
+    return realpathSync.native(entryPath);
+  } catch {
+    return entryPath;
+  }
+}
+
+/**
+ * List every studio install under `~/.muggle-ai/electron-app`, across release streams.
+ *
+ * Entry names are classified by {@link parseElectronAppDirName}, the inverse of
+ * the rule the runtime uses to pick its install directory, so a staging install
+ * (`1.13.13-staging`) lists alongside production ones (`1.13.9`). Links are
+ * listed too, since the runtime launches through a live one.
+ * @returns Installs grouped by release stream, newest version first within each.
+ *
+ * Output shape: `[{ directoryName: "1.13.13-staging", version: "1.13.13", releaseStream: "staging",
+ * kind: "directory", sizeBytes: 502792192, isActive: true, path: "..." }]`
  */
 export function listInstalledVersions (): IInstalledVersion[] {
   const baseDir = getElectronAppBaseDir();
-  const currentVersion = getElectronAppVersion();
+  const activeDirectoryName = path.basename(getElectronAppDir());
   const versions: IInstalledVersion[] = [];
 
   if (!existsSync(baseDir)) {
@@ -320,23 +371,28 @@ export function listInstalledVersions (): IInstalledVersion[] {
     const entries = readdirSync(baseDir, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      // Check if directory name looks like a version (e.g., "1.0.1")
-      if (!/^\d+\.\d+\.\d+$/.test(entry.name)) {
+      const installDirName = parseElectronAppDirName(entry.name);
+      if (!installDirName) {
         continue;
       }
 
       const versionPath = path.join(baseDir, entry.name);
-      const sizeBytes = getDirectorySize(versionPath);
+      const installKind = resolveInstallKind(entry, versionPath);
+      if (!installKind) {
+        continue;
+      }
+
+      const isDirectory = installKind === ElectronAppInstallKind.Directory;
 
       versions.push({
-        version: entry.name,
+        directoryName: entry.name,
+        version: installDirName.version,
+        releaseStream: installDirName.releaseStream,
         path: versionPath,
-        sizeBytes: sizeBytes,
-        isCurrent: entry.name === currentVersion,
+        kind: installKind,
+        linkTarget: isDirectory ? undefined : readLinkTarget(versionPath),
+        sizeBytes: isDirectory ? getDirectorySize(versionPath) : 0,
+        isActive: entry.name === activeDirectoryName,
       });
     }
   } catch (error) {
@@ -344,14 +400,46 @@ export function listInstalledVersions (): IInstalledVersion[] {
     logger.warn("Failed to list installed versions", { error: errorMessage });
   }
 
-  // Sort by version descending (newest first)
-  versions.sort((a, b) => compareVersions(b.version, a.version));
+  versions.sort(compareInstallsByStreamThenVersion);
 
   return versions;
 }
 
 /**
- * Remove old electron-app versions.
+ * Select the real install directories of one release stream, which are all cleanup may delete.
+ * @param installs - Installs from {@link listInstalledVersions}.
+ * @param releaseStream - Stream to select.
+ * @returns That stream's directories, in listing order.
+ */
+function selectStreamDirectories (
+  installs: IInstalledVersion[],
+  releaseStream: ElectronAppReleaseStream,
+): IInstalledVersion[] {
+  return installs.filter(
+    (install) => install.releaseStream === releaseStream && install.kind === ElectronAppInstallKind.Directory,
+  );
+}
+
+/**
+ * Resolve the directories that live links land on, in any stream.
+ * @param installs - Installs from {@link listInstalledVersions}.
+ * @returns Canonical paths of every live link's target.
+ */
+function resolveLinkedDirectoryPaths (installs: IInstalledVersion[]): Set<string> {
+  return new Set(
+    installs
+      .filter((install) => install.kind === ElectronAppInstallKind.Link)
+      .map((install) => resolveCanonicalPath(install.path)),
+  );
+}
+
+/**
+ * Remove old electron-app versions of the active release stream.
+ *
+ * Only real directories in the active stream are candidates. The other stream's
+ * installs, every link, and any directory a live link lands on are kept: the
+ * other stream's CLI launches its own runner, and deleting a link's target
+ * would break whatever launches through that link — including the active one.
  * @param options - Cleanup options.
  * @returns Object with removed versions and freed bytes.
  */
@@ -360,21 +448,22 @@ export function cleanupOldVersions (options: ICleanupOptions = {}): {
   freedBytes: number;
 } {
   const { all = false, dryRun = false } = options;
-  const versions = listInstalledVersions();
+  const installs = listInstalledVersions();
+  const linkedDirectoryPaths = resolveLinkedDirectoryPaths(installs);
   const removed: IInstalledVersion[] = [];
   let freedBytes = 0;
 
-  // Determine which versions to keep
-  // - Always keep current version
-  // - By default, also keep one previous version (for rollback)
-  // - With --all, only keep current
-
+  // The active version always stays; by default one previous version stays too, for rollback.
   const versionsToKeep = all ? 1 : 2;
   let keptCount = 0;
 
-  for (const version of versions) {
-    if (version.isCurrent) {
+  for (const version of selectStreamDirectories(installs, getActiveElectronAppReleaseStream())) {
+    if (version.isActive) {
       keptCount++;
+      continue;
+    }
+
+    if (linkedDirectoryPaths.has(resolveCanonicalPath(version.path))) {
       continue;
     }
 
@@ -383,18 +472,17 @@ export function cleanupOldVersions (options: ICleanupOptions = {}): {
       continue;
     }
 
-    // This version should be removed
     if (!dryRun) {
       try {
         rmSync(version.path, { recursive: true, force: true });
         logger.info("Removed old version", {
-          version: version.version,
+          version: version.directoryName,
           freedBytes: version.sizeBytes,
         });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error("Failed to remove version", {
-          version: version.version,
+          version: version.directoryName,
           error: errorMessage,
         });
         continue;
@@ -409,32 +497,74 @@ export function cleanupOldVersions (options: ICleanupOptions = {}): {
 }
 
 /**
+ * Format an install's version and release stream.
+ * @param install - Install to label.
+ * @returns Label such as "v1.13.13 [staging]".
+ */
+function formatInstallLabel (install: IInstalledVersion): string {
+  return `v${install.version} [${install.releaseStream}]`;
+}
+
+/**
+ * Format where a link points.
+ * @param install - Link install.
+ * @returns The stored target, or a placeholder when it could not be read.
+ */
+function formatLinkTarget (install: IInstalledVersion): string {
+  return install.linkTarget ?? "(unreadable target)";
+}
+
+/**
+ * Format one line of the versions listing.
+ * @param install - Directory or live link.
+ * @returns Line such as "v1.13.13 [staging] (active) - 479.5 MB".
+ */
+function formatInstallListing (install: IInstalledVersion): string {
+  const activeMarker = install.isActive ? " (active)" : "";
+  const location =
+    install.kind === ElectronAppInstallKind.Link
+      ? `-> ${formatLinkTarget(install)}`
+      : `- ${formatBytes(install.sizeBytes)}`;
+  return `${formatInstallLabel(install)}${activeMarker} ${location}`;
+}
+
+/**
  * Execute the versions command - list installed versions.
  */
 export async function versionsCommand (): Promise<void> {
   console.log("\nInstalled Electron App Versions");
   console.log("================================\n");
 
-  const versions = listInstalledVersions();
+  const installs = listInstalledVersions();
+  const launchableInstalls = installs.filter((install) => install.kind !== ElectronAppInstallKind.BrokenLink);
+  const brokenLinks = installs.filter((install) => install.kind === ElectronAppInstallKind.BrokenLink);
 
-  if (versions.length === 0) {
+  if (launchableInstalls.length === 0) {
     console.log("No versions installed.");
     console.log("Run 'muggle setup' to download the Electron app.\n");
-    return;
+  } else {
+    for (const install of launchableInstalls) {
+      console.log(`  ${formatInstallListing(install)}`);
+    }
+
+    const directories = launchableInstalls.filter(
+      (install) => install.kind === ElectronAppInstallKind.Directory,
+    );
+    const totalSize = directories.reduce((sizeSoFar, install) => sizeSoFar + install.sizeBytes, 0);
+
+    console.log("");
+    console.log(`Total: ${directories.length} version(s), ${formatBytes(totalSize)}`);
+    console.log("");
   }
 
-  let totalSize = 0;
-
-  for (const version of versions) {
-    const marker = version.isCurrent ? " (current)" : "";
-    const size = formatBytes(version.sizeBytes);
-    console.log(`  v${version.version}${marker} - ${size}`);
-    totalSize += version.sizeBytes;
+  if (brokenLinks.length > 0) {
+    console.log("Broken links (target missing; nothing launches from them):");
+    for (const brokenLink of brokenLinks) {
+      const activeMarker = brokenLink.isActive ? " (active)" : "";
+      console.log(`  ${brokenLink.directoryName}${activeMarker} -> ${formatLinkTarget(brokenLink)}`);
+    }
+    console.log("");
   }
-
-  console.log("");
-  console.log(`Total: ${versions.length} version(s), ${formatBytes(totalSize)}`);
-  console.log("");
 }
 
 /**
@@ -449,27 +579,29 @@ export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
   console.log("\nElectron App Cleanup");
   console.log("====================\n");
 
-  const versions = listInstalledVersions();
+  const activeReleaseStream = getActiveElectronAppReleaseStream();
+  const streamDirectories = selectStreamDirectories(listInstalledVersions(), activeReleaseStream);
 
-  if (versions.length === 0) {
-    console.log("No versions installed. Nothing to clean up.\n");
-  } else if (versions.length === 1) {
-    console.log("Only the current version is installed. Nothing to clean up.\n");
+  if (streamDirectories.length === 0) {
+    console.log(`No ${activeReleaseStream} versions installed. Nothing to clean up.\n`);
+  } else if (streamDirectories.length === 1) {
+    console.log(`Only one ${activeReleaseStream} version is installed. Nothing to clean up.\n`);
   } else {
-    const currentVersion = versions.find((v) => v.isCurrent);
-    const oldVersions = versions.filter((v) => !v.isCurrent);
+    const activeVersion = streamDirectories.find((v) => v.isActive);
+    const oldVersions = streamDirectories.filter((v) => !v.isActive);
 
-    console.log(`Current version: v${currentVersion?.version ?? "unknown"}`);
-    console.log(`Old versions: ${oldVersions.length}`);
+    console.log(`Active version: ${activeVersion ? formatInstallLabel(activeVersion) : "unknown"}`);
+    console.log(`Old ${activeReleaseStream} versions: ${oldVersions.length}`);
+    console.log("Other release streams and linked installs are left alone.");
     console.log("");
 
     if (options.dryRun) {
       console.log("Dry run - showing what would be deleted:\n");
     }
 
-    const result = cleanupOldVersions(options);
+    const versionCleanupOutcome = cleanupOldVersions(options);
 
-    if (result.removed.length === 0) {
+    if (versionCleanupOutcome.removed.length === 0) {
       if (options.all) {
         console.log("No old versions to remove.\n");
       } else {
@@ -479,12 +611,12 @@ export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
     } else {
       console.log(options.dryRun ? "Would remove:" : "Removed:");
 
-      for (const version of result.removed) {
-        console.log(`  v${version.version} (${formatBytes(version.sizeBytes)})`);
+      for (const version of versionCleanupOutcome.removed) {
+        console.log(`  ${formatInstallLabel(version)} (${formatBytes(version.sizeBytes)})`);
       }
 
-      totalFreedBytes += result.freedBytes;
-      totalRemovedCount += result.removed.length;
+      totalFreedBytes += versionCleanupOutcome.freedBytes;
+      totalRemovedCount += versionCleanupOutcome.removed.length;
       console.log("");
     }
   }
@@ -538,4 +670,3 @@ export async function cleanupCommand (options: ICleanupOptions): Promise<void> {
     includeSkills: options.skills,
   });
 }
-

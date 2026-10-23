@@ -1,3 +1,5 @@
+import { ELECTRON_APP_DIR_VERSION_PREFIX_PATTERN } from "./electron-app-install-dir-constants.js";
+import type { IElectronAppInstallDirName } from "./electron-app-install-dir-types.js";
 import { ElectronAppReleaseStream } from "./runtime-target-types.js";
 
 /**
@@ -26,4 +28,33 @@ export function buildElectronAppDirName(params: {
     return params.version;
   }
   return `${params.version}-${params.releaseStream}`;
+}
+
+/**
+ * Read the version and release stream back out of an install directory name.
+ *
+ * A name parses only when {@link buildElectronAppDirName} rebuilds it exactly,
+ * so listing and pruning installs can never disagree with where the runtime
+ * looks for them.
+ * @param directoryName - Entry name under `~/.muggle-ai/electron-app`.
+ * @returns The encoded version and stream, or null when no stream builds this name.
+ *
+ * Output shape: `{ version: "1.13.9", releaseStream: "staging" }` for "1.13.9-staging".
+ */
+export function parseElectronAppDirName(directoryName: string): IElectronAppInstallDirName | null {
+  const versionMatch = ELECTRON_APP_DIR_VERSION_PREFIX_PATTERN.exec(directoryName);
+  if (!versionMatch) {
+    return null;
+  }
+
+  const version = versionMatch[0];
+  const releaseStream = Object.values(ElectronAppReleaseStream).find(
+    (candidateStream) =>
+      buildElectronAppDirName({ version: version, releaseStream: candidateStream }) === directoryName,
+  );
+
+  if (!releaseStream) {
+    return null;
+  }
+  return { version: version, releaseStream: releaseStream };
 }

@@ -2,7 +2,10 @@ import { readFileSync } from "fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { buildElectronAppDirName as buildRuntimeDirName } from "../../../packages/mcps/src/shared/electron-app-install-dir.js";
+import {
+  buildElectronAppDirName as buildRuntimeDirName,
+  parseElectronAppDirName,
+} from "../../../packages/mcps/src/shared/electron-app-install-dir.js";
 import { ElectronAppReleaseStream } from "../../../packages/mcps/src/shared/runtime-target-types.js";
 import {
   buildElectronAppDirName as buildInstallerDirName,
@@ -64,4 +67,33 @@ describe("isOutdatedStreamInstall", () => {
     expect(isOutdatedStreamInstall({ ...productionInstall, directoryName: "logs" })).toBe(false);
     expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "logs-staging" })).toBe(false);
   });
+});
+
+describe("parseElectronAppDirName", () => {
+  it.each(Object.values(ElectronAppReleaseStream))(
+    "reads back the %s stream's directory name",
+    (releaseStream) => {
+      const directoryName = buildRuntimeDirName({ version: "1.13.9", releaseStream: releaseStream });
+      expect(parseElectronAppDirName(directoryName)).toEqual({ version: "1.13.9", releaseStream: releaseStream });
+    },
+  );
+
+  it("rejects names no stream installs into", () => {
+    const foreignDirectoryNames = ["logs", "logs-staging", "1.13.9-beta", "1.13.9-staging-old", "v1.13.9", "1.13", "1.13.9.1"];
+    for (const directoryName of foreignDirectoryNames) {
+      expect(parseElectronAppDirName(directoryName)).toBeNull();
+    }
+  });
+
+  it.each(Object.keys(runtimeTargets.streams))(
+    "agrees with the postinstall on which directories belong to the %s stream",
+    (releaseStream) => {
+      const directoryNames = ["1.13.9", "1.13.9-staging", "1.10.6-staging", "logs", "logs-staging", "1.13.9-beta", "1.13.9-production"];
+      for (const directoryName of directoryNames) {
+        expect(
+          isOutdatedStreamInstall({ directoryName: directoryName, releaseStream: releaseStream, currentDirectoryName: "" }),
+        ).toBe(parseElectronAppDirName(directoryName)?.releaseStream === releaseStream);
+      }
+    },
+  );
 });

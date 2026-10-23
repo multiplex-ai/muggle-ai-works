@@ -15,6 +15,7 @@
     ".claude-plugin/marketplace.json",
     "scripts/postinstall.mjs",
     "scripts/claude-marketplace-sync.mjs",
+    "scripts/electron-app-install-dir.mjs",
     "scripts/onboarding-backfill.mjs",
     "scripts/release-integrity",
     "config/runtime-targets.json"

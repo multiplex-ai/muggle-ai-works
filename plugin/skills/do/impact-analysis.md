@@ -1,21 +1,21 @@
 # Impact Analysis Agent (Stage 4)
 
-You are analyzing git repositories to determine which ones have actual code changes that need to go through the dev cycle pipeline.
+You are analyzing git repositories to determine which ones have actual code changes that need to go through the dev cycle pipeline, and which use cases and test cases the E2E acceptance stage must run for them.
 
 ## Turn preamble
 
 Start the turn with:
 
 ```
-**Stage 4 — Impact analysis** — diffing each affected repo against its default branch.
+**Stage 4 — Impact analysis** — diffing each affected repo against its default branch and scoping the E2E cases.
 ```
 
 ## Input
 
 You receive:
 - A list of repos with their local filesystem paths
-- The requirements goal and affected repos from the requirements stage
-- Pre-flight state, including `worktreePath` when a worktree was selected (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md))
+- The requirements goal, acceptance criteria, and affected repos from the requirements stage (`requirements.md`); in an address-reviews cycle, also the review-derived change items `build.md` was given
+- Pre-flight state, including `worktreePath` when a worktree was selected (see [`../_shared/use-worktrees.md`](../_shared/use-worktrees.md)), and the `## Pre-flight answers` block's `Validation` and `projectId`
 
 ## Your Job
 
@@ -35,6 +35,7 @@ For each repo path provided:
 6. **List changed files:** Run `git diff --name-only <default-branch>...HEAD` to find files changed on this branch relative to the default branch. If no merge base exists, fall back to `git diff --name-only HEAD`.
 7. **Get the diff:** Run `git diff <default-branch>...HEAD` for the full diff.
 8. **Classify changed paths** to drive downstream test routing — emit `pathClassification` (see "Output state — pathClassification" below).
+9. **Scope the E2E cases** — map the diff and the acceptance criteria to the impacted existing use cases and test cases and the new ones to add; emit `e2eScope` (see "Output state — e2eScope" below).
 
 ## Output
 
@@ -91,3 +92,59 @@ cycleSize: <minor | full>
 ```
 
 `minor` only when every path in `cycleFiles` is in the `NO_APP_LOGIC_CHANGE` path set defined in [`e2e-acceptance.md`](e2e-acceptance.md); otherwise `full`. The rest of this stage still runs against the default branch, so a full cycle's E2E routes from `pathClassification` as in a forward run.
+
+## Output state — e2eScope
+
+The case selection [`e2e-acceptance.md`](e2e-acceptance.md) runs. Stage 6 executes this scope rather than choosing its own, so the choice is made here, where the diff and the acceptance criteria are both in hand.
+
+Scope only when this cycle runs E2E: `Validation` is `local-e2e`, `pathClassification` is not `none`, and in a watcher cycle `cycleSize` is `full`. Otherwise emit `e2eScope: not-scoped — <the condition that failed>`.
+
+The criteria are the acceptance criteria in the session's `requirements.md`, plus each review-derived change item that alters behavior in an address-reviews cycle. A session with no `requirements.md` (an adopted PR) scopes from the diff alone and writes `criteria: []`.
+
+### Procedure
+
+1. **List the project's cases.** `muggle-remote-use-case-list` for the project the classification routes to (single-project repos: `projectId` from `state.md`), then `muggle-remote-test-case-list-by-use-case` for every use case, all in one message. `e2eScope` holds one entry per project, so `mixed` scopes each classification's project as its own entry.
+2. **Impacted use cases.** A use case is impacted when its flow passes through a page, route, component, endpoint, or data flow the diff changes, or when an acceptance criterion falls inside it.
+3. **Impacted test cases.** Under each impacted use case, a test case is impacted when it exercises a changed surface or verifies a behavior a criterion touches. When in doubt, include it: an extra replay costs minutes, a missed regression ships.
+4. **Superseded test cases.** An impacted test case whose expected outcome the change deliberately alters — a renamed label, a removed step, a new validation rule — fails by design. List it as superseded, not impacted, and plan a new test case for the new expectation. Stage 6 cannot edit a remote test case, and replaying the old one would send Stage 7.5 to repair the product back to the old behavior.
+5. **Map every criterion.** Each criterion carries `coveredBy` (impacted or new test cases that verify it) or `unobservable` (why no browser can observe it: a log line, a unit-test requirement, a config value). A criterion with neither is a scoping failure.
+6. **Plan the new cases.** Each uncovered criterion gets a new test case under the impacted use case its behavior belongs to, or under a new use case when none fits. A test case instruction names one atomic behavior to verify, with no signup, login, navigation, or seed-data steps, per [`../_shared/test-case-design.md`](../_shared/test-case-design.md); prerequisites come from the test-plan graph at run time ([`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md)).
+
+This stage plans new cases and creates nothing. Stage 6 creates them, so a cycle that never reaches E2E leaves no cases behind in the project.
+
+### Shape
+
+```
+e2eScope:
+  - projectId: <id>
+    impactedUseCases:
+      - useCaseId: <id>
+        title: <title>
+        reason: <changed path or criterion that puts it in scope>
+    impactedTestCases:
+      - testCaseId: <id>
+        useCaseId: <id>
+        title: <title>
+        reason: <changed path or criterion>
+    supersededTestCases:
+      - testCaseId: <id>
+        title: <title>
+        reason: <the expectation the change alters>
+        replacedBy: <new test case key>
+    newUseCases:
+      - key: NUC1
+        instruction: <plain-English description of the use case>
+    newTestCases:
+      - key: NTC1
+        useCase: <useCaseId | new use case key>
+        instruction: <one atomic behavior to verify>
+    criteria:
+      - criterion: <acceptance criterion>
+        coveredBy: [<testCaseId | new test case key>, ...]
+      - criterion: <acceptance criterion>
+        unobservable: <why no browser can observe it>
+```
+
+An empty list is written empty, never omitted; an absent list reads as "not scoped". Record the scope in this stage's marker in `iterations/<NNN>.md`, so Stage 6, a Stage 7.5 re-run, and a resumed session read the same one.
+
+In a wave each member repo emits its own `e2eScope`, and [`wave-e2e.md`](wave-e2e.md) merges them.

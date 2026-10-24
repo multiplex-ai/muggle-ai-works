@@ -12,6 +12,7 @@ import { RunEnvironmentInputSchema } from "./run-environment.js";
 export { MuggleEntityIdSchema };
 export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
+export * from "./run-settings-schemas.js";
 
 /**
  * Pagination input schema shared by list tools.

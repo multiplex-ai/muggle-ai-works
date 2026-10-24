@@ -8,8 +8,8 @@
  *   2. Test details: one <details> block per test case, in report order, holding a
  *      result table, one collapsible per step with its screenshot, and the ending screen.
  *
- * A test case that ran more than once collapses to a single entry carrying its
- * latest run; see resolveLatestRuns.
+ * A test case that ran more than once at one runSettings record collapses to a
+ * single entry carrying its latest run; see resolveLatestRuns.
  */
 
 import {
@@ -27,18 +27,23 @@ import {
   TEST_DETAILS_ANCHOR_PREFIX,
   TEST_DETAILS_DIVIDER,
 } from "./constants.js";
-import { escapeHtml, escapeHtmlAttribute, renderUnpassedCaseBullet } from "../../e2e-result/format.js";
+import {
+  escapeHtml,
+  escapeHtmlAttribute,
+  renderUnpassedCaseBullet,
+  withResolutionLabel,
+} from "../../e2e-result/format.js";
 import { renderE2eResultMarker } from "../../e2e-result/marker.js";
 import type { IE2eResultRecord } from "../../e2e-result/types.js";
 import { buildE2eResultRecord, failureOrdinal } from "./result-record.js";
 import { IMAGE_PROXY_PREFIX } from "./resolve-urls-types.js";
 import { StepScreenshotDetailEnum, type E2eReport, type Step, type TestResult } from "./types.js";
 
-/** A test case reduced to its latest run, plus how many runs it had. */
+/** A test case at one runSettings record reduced to its latest run, plus how many runs it had. */
 export interface ILatestRun {
-  /** The most recent run recorded for this test case. */
+  /** The most recent run recorded for this test case and record. */
   test: TestResult;
-  /** Total runs recorded for the test case, including the one rendered. */
+  /** Total runs recorded for the test case and record, including the one rendered. */
   attempts: number;
 }
 
@@ -58,31 +63,46 @@ interface ICounts {
   inconclusive: number;
 }
 
+/** What tells one walkthrough entry from another: the test case and, when the report names it, its record. */
+type WalkthroughEntryIdentity = Pick<TestResult, "testCaseId" | "runSettingsId">;
+
 /**
- * Collapse repeated runs of the same test case to one entry holding the latest.
+ * The key repeated runs collapse on: the test case and the runSettings record it ran at, or the test case alone
+ * for an entry that names no record.
+ *
+ * Output shape: `tc-1-rs-390` / `tc-1`
+ */
+function walkthroughEntryKey (identity: WalkthroughEntryIdentity): string {
+  return identity.runSettingsId ? `${identity.testCaseId}-${identity.runSettingsId}` : identity.testCaseId;
+}
+
+/**
+ * Collapse repeated runs of the same test case at the same runSettings record to one entry holding the latest.
  *
  * A report legitimately repeats a testCaseId when a run is followed by a rerun.
  * Listing each run separately shows the reader the same test case twice and
  * counts it twice, so the last occurrence — the outcome that currently stands —
- * replaces the earlier ones. Entries keep their first-seen position so the
- * ordering stays stable when a rerun is appended.
+ * replaces the earlier ones. Runs naming different records (two resolutions of
+ * one test case) are separate entries, each verified on its own. Entries keep
+ * their first-seen position so the ordering stays stable when a rerun is appended.
  *
  * Output shape: `[{ test, attempts: 2 }, { test, attempts: 1 }]`
  */
 export function resolveLatestRuns (tests: readonly TestResult[]): ILatestRun[] {
-  const byCaseId = new Map<string, ILatestRun>();
+  const byEntryKey = new Map<string, ILatestRun>();
   const order: string[] = [];
   for (const test of tests) {
-    const existing = byCaseId.get(test.testCaseId);
+    const entryKey = walkthroughEntryKey(test);
+    const existing = byEntryKey.get(entryKey);
     if (existing) {
       existing.test = test;
       existing.attempts += 1;
       continue;
     }
-    byCaseId.set(test.testCaseId, { test: test, attempts: 1 });
-    order.push(test.testCaseId);
+    byEntryKey.set(entryKey, { test: test, attempts: 1 });
+    order.push(entryKey);
   }
-  return order.map((id) => byCaseId.get(id)!);
+  return order.map((entryKey) => byEntryKey.get(entryKey)!);
 }
 
 function countTests (latestRuns: readonly ILatestRun[]): ICounts {
@@ -215,6 +235,11 @@ function withShortId (shortId: string | undefined, labelledText: string): string
   return shortId ? `${shortId}${SHORT_ID_LABEL_SEPARATOR}${labelledText}` : labelledText;
 }
 
+/** How the summary and the details name a test: `TC-42 · Checkout (390×844)`. */
+function testLabel (test: TestResult): string {
+  return withResolutionLabel(withShortId(test.testCaseShortId, test.name), test.resolutionLabel);
+}
+
 /**
  * Link to the run on the dashboard it was published to. The run's own `viewUrl` names that ring and pins this
  * run; a link rebuilt from the renderer's runtime target can point at another ring, or at localhost.
@@ -273,7 +298,7 @@ function renderNeedsAttention (record: IE2eResultRecord): string[] {
     "**Needs attention**",
     "",
     ...record.unpassed.map((unpassed) =>
-      renderUnpassedCaseBullet(unpassed, "see details", `#${testAnchor(unpassed.testCaseId)}`)),
+      renderUnpassedCaseBullet(unpassed, "see details", `#${testAnchor(unpassed)}`)),
   ];
 }
 
@@ -302,15 +327,15 @@ function renderUseCaseGroup (
 }
 
 /**
- * Assign each test case its 1-based position after repeated runs collapse, so
+ * Assign each entry its 1-based position after repeated runs collapse, so
  * the summary list and the details blocks carry the same ordinals.
  */
 function buildTestNumbering (latestRuns: readonly ILatestRun[]): Map<string, number> {
-  const map = new Map<string, number>();
+  const ordinalByEntryKey = new Map<string, number>();
   latestRuns.forEach((entry, i) => {
-    map.set(entry.test.testCaseId, i + 1);
+    ordinalByEntryKey.set(walkthroughEntryKey(entry.test), i + 1);
   });
-  return map;
+  return ordinalByEntryKey;
 }
 
 /** One summary bullet, state-first so the list scans by outcome. */
@@ -320,9 +345,8 @@ function renderOverviewBullet (
   indent: string,
 ): string {
   const rerunNote = entry.attempts > 1 ? ` _(${entry.attempts} runs)_` : "";
-  const detailsLink = ` · [see details](#${testAnchor(entry.test.testCaseId)})`;
-  const testLabel = withShortId(entry.test.testCaseShortId, entry.test.name);
-  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(entry.test.testCaseId)}.** ${testLabel}${rerunNote}${detailsLink}`;
+  const detailsLink = ` · [see details](#${testAnchor(entry.test)})`;
+  return `${indent}- ${statusEmoji(entry.test)} **${numbering.get(walkthroughEntryKey(entry.test))}.** ${testLabel(entry.test)}${rerunNote}${detailsLink}`;
 }
 
 /** A use-case group and its members, or a single ungrouped test at its report position. */
@@ -374,8 +398,7 @@ export function renderTestDetails (
   screenshotDetail: StepScreenshotDetailEnum = StepScreenshotDetailEnum.BeforeAndAfter,
 ): string {
   const { test } = entry;
-  const testLabel = withShortId(test.testCaseShortId, test.name);
-  const lines: string[] = [`<a name="${testAnchor(test.testCaseId)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel}`, ""];
+  const lines: string[] = [`<a name="${testAnchor(test)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel(test)}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
@@ -398,11 +421,12 @@ function indented (content: readonly string[]): string[] {
 }
 
 /**
- * The in-page anchor on a test's details, which its summary line links to. Keyed by test case so it stays unique
- * on the PR page and resolves whether the details are inline or in the overflow comment.
+ * The in-page anchor on a test's details, which its summary line links to. Keyed like the entry itself — test
+ * case plus record — so it stays unique on the PR page and resolves whether the details are inline or in the
+ * overflow comment.
  */
-function testAnchor (testCaseId: string): string {
-  return `${TEST_DETAILS_ANCHOR_PREFIX}${testCaseId}`;
+function testAnchor (identity: WalkthroughEntryIdentity): string {
+  return `${TEST_DETAILS_ANCHOR_PREFIX}${walkthroughEntryKey(identity)}`;
 }
 
 /**

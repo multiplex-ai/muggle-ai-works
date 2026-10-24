@@ -816,3 +816,113 @@ describe("short IDs", () => {
     }
   });
 });
+
+describe("runSettings records", () => {
+  const checkoutAtPhone: FailedTest = {
+    ...failedNoMeta,
+    name: "Checkout",
+    testCaseId: "tc-9",
+    runId: "run-9-phone",
+    viewUrl: "https://www.muggle-ai.com/x/run-9-phone",
+    runSettingsId: "rs-390",
+    resolutionLabel: "390×844",
+  };
+  const checkoutAtDesktop: PassedTest = {
+    ...passedNoMeta,
+    name: "Checkout",
+    testCaseId: "tc-9",
+    runId: "run-9-desktop",
+    viewUrl: "https://www.muggle-ai.com/x/run-9-desktop",
+    runSettingsId: "rs-1920",
+    resolutionLabel: "1920×1080",
+  };
+  const checkoutAtPhoneRerun: PassedTest = {
+    ...passedNoMeta,
+    name: "Checkout",
+    testCaseId: "tc-9",
+    runId: "run-9-phone-rerun",
+    viewUrl: "https://www.muggle-ai.com/x/run-9-phone-rerun",
+    runSettingsId: "rs-390",
+    resolutionLabel: "390×844",
+  };
+  const twoResolutionsReport: E2eReport = {
+    projectId: PROJECT_ID,
+    tests: [checkoutAtPhone, checkoutAtDesktop, passedNoMeta],
+  };
+
+  /** Every in-page anchor a rendering declares, in document order. */
+  function declaredAnchors (markdown: string): string[] {
+    return [...markdown.matchAll(/<a name="([^"]+)"><\/a>/g)].map((m) => m[1]);
+  }
+
+  /** Every in-page anchor a rendering links to, in document order. */
+  function linkedAnchors (markdown: string): string[] {
+    return [...markdown.matchAll(/\]\(#([^)]+)\)/g)].map((m) => m[1]);
+  }
+
+  it("keeps two resolutions of one test case as two entries, each run once", () => {
+    const resolved = resolveLatestRuns(twoResolutionsReport.tests);
+    expect(resolved.map((e) => [e.test.runSettingsId, e.attempts])).toEqual([
+      ["rs-390", 1],
+      ["rs-1920", 1],
+      [undefined, 1],
+    ]);
+  });
+
+  it("collapses a rerun at the same record onto its latest run", () => {
+    const resolved = resolveLatestRuns([checkoutAtPhone, checkoutAtDesktop, checkoutAtPhoneRerun]);
+    expect(resolved).toHaveLength(2);
+    expect(resolved[0].test).toBe(checkoutAtPhoneRerun);
+    expect(resolved[0].attempts).toBe(2);
+    expect(resolved[1].attempts).toBe(1);
+  });
+
+  it("counts and lists each resolution, labelled with its size, without an attempts row", () => {
+    const body = renderBody(twoResolutionsReport, { inlineDetails: true });
+    expect(body).toContain("**❌ FAIL** — 3 tests ran · 2 passed / 1 failed / 0 inconclusive");
+    expect(body).toContain("- ❌ **1.** Checkout (390×844) · [see details](#muggle-test-tc-9-rs-390)");
+    expect(body).toContain("- ✅ **2.** Checkout (1920×1080) · [see details](#muggle-test-tc-9-rs-1920)");
+    expect(body).toContain("#### ❌ 1. Checkout (390×844)");
+    expect(body).toContain("#### ✅ 2. Checkout (1920×1080)");
+    expect(body).not.toContain("**Attempts**");
+    expect(testBlocks(body)).toBe(3);
+  });
+
+  it("gives every entry a unique anchor that its summary and attention links resolve to", () => {
+    const body = renderBody(twoResolutionsReport, { inlineDetails: true });
+    const anchors = declaredAnchors(body);
+    expect(anchors).toEqual(["muggle-test-tc-9-rs-390", "muggle-test-tc-9-rs-1920", "muggle-test-tc-4"]);
+    expect(new Set(anchors).size).toBe(anchors.length);
+    for (const linked of linkedAnchors(body)) {
+      expect(anchors).toContain(linked);
+    }
+  });
+
+  it("names the failing resolution under Needs attention and in the result record", () => {
+    const body = renderBody(twoResolutionsReport, { inlineDetails: false });
+    expect(body).toContain("- ❌ **Checkout (390×844)** — failed at step");
+    expect(body).toContain(`[see details](#${TEST_DETAILS_ANCHOR_PREFIX}tc-9-rs-390)`);
+    const record = parseE2eResultMarker(body);
+    expect(record?.total).toBe(3);
+    expect(record?.unpassed.map((c) => [c.testCaseId, c.runSettingsId, c.resolutionLabel])).toEqual([
+      ["tc-9", "rs-390", "390×844"],
+    ]);
+  });
+
+  it("keeps the test-case-only key and anchor for an entry that names no record", () => {
+    const resolved = resolveLatestRuns(flatRerunReport.tests);
+    expect(resolved.find((e) => e.test.testCaseId === "tc-8")?.attempts).toBe(2);
+    const body = renderBody(flatRerunReport, { inlineDetails: true });
+    expect(declaredAnchors(body)).toEqual(["muggle-test-tc-4", "muggle-test-tc-8", "muggle-test-tc-5"]);
+    expect(parseE2eResultMarker(body)?.unpassed[0]).not.toHaveProperty("runSettingsId");
+  });
+
+  it("keeps the record and its label through the report schema", () => {
+    const parsed = E2eReportSchema.parse(twoResolutionsReport);
+    expect(parsed.tests.map((t) => [t.runSettingsId, t.resolutionLabel])).toEqual([
+      ["rs-390", "390×844"],
+      ["rs-1920", "1920×1080"],
+      [undefined, undefined],
+    ]);
+  });
+});

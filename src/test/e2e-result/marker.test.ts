@@ -27,6 +27,14 @@ describe("E2E result marker", () => {
     expect(parseE2eResultMarker(body)).toEqual(failing);
   });
 
+  it("round-trips the runSettings record a case ran at", () => {
+    const atRecord: IE2eResultRecord = {
+      ...failing,
+      unpassed: [{ ...failing.unpassed[0], runSettingsId: "rs-390", resolutionLabel: "390×844" }],
+    };
+    expect(parseE2eResultMarker(renderE2eResultMarker(atRecord))).toEqual(atRecord);
+  });
+
   it("keeps an error holding --> inside the hidden comment", () => {
     const hostile: IE2eResultRecord = {
       ...failing,

@@ -10,6 +10,10 @@ export interface IUnpassedCase {
   name: string;
   /** Test case id, so a repair can re-run exactly this case. */
   testCaseId: string;
+  /** runSettings record the run executed under, so a repair re-runs that record; absent when the report named none. */
+  runSettingsId?: string;
+  /** The record's window size as the walkthrough shows it, e.g. `390×844`. */
+  resolutionLabel?: string;
   status: UnpassedCaseStatus;
   /** 1-based position of the failing step; absent for an inconclusive run. */
   failedStep?: number;
@@ -25,7 +29,7 @@ export interface IUnpassedCase {
  * Output shape: `{ total: 3, passed: 1, unpassed: [{ name, testCaseId, status: "failed", failedStep: 3, detail, viewUrl }] }`
  */
 export interface IE2eResultRecord {
-  /** Test cases in the run, after repeated runs of one case collapse to the latest. */
+  /** Entries in the run — one per test case and runSettings record — after repeated runs of one collapse to the latest. */
   total: number;
   passed: number;
   /** Every failed or inconclusive case, in report order. */

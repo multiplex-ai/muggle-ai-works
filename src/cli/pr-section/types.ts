@@ -26,11 +26,19 @@ const TEST_SHORT_ID_FIELDS = {
   replayShortId: z.string().min(1).optional(),
 };
 
+// The runSettings record the run executed under and its window size (`390×844`). One test case run at two
+// records is two entries; an entry without `runSettingsId` collapses with the other runs of its test case.
+const RUN_SETTINGS_FIELDS = {
+  runSettingsId: z.string().min(1).optional(),
+  resolutionLabel: z.string().min(1).optional(),
+};
+
 const PassedTestSchema = z.object({
   name: z.string().min(1),
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
   ...TEST_SHORT_ID_FIELDS,
+  ...RUN_SETTINGS_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("passed"),
@@ -46,6 +54,7 @@ const FailedTestSchema = z.object({
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
   ...TEST_SHORT_ID_FIELDS,
+  ...RUN_SETTINGS_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("failed"),
@@ -70,6 +79,7 @@ const InconclusiveTestSchema = z.object({
   testCaseId: z.string().min(1),
   testScriptId: z.string().min(1).optional(),
   ...TEST_SHORT_ID_FIELDS,
+  ...RUN_SETTINGS_FIELDS,
   runId: z.string().min(1),
   viewUrl: z.string().url(),
   status: z.literal("inconclusive"),

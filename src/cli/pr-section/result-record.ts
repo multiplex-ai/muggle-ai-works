@@ -20,11 +20,20 @@ function oneLineDetail (text: string): string {
   return flat.length > UNPASSED_DETAIL_MAX_CHARS ? `${flat.slice(0, UNPASSED_DETAIL_MAX_CHARS - 1)}…` : flat;
 }
 
+/** The record a run executed under, carried only when the report names one so legacy records stay unchanged. */
+function runSettingsFields (test: TestResult): Pick<IUnpassedCase, "runSettingsId" | "resolutionLabel"> {
+  return {
+    ...(test.runSettingsId && { runSettingsId: test.runSettingsId }),
+    ...(test.resolutionLabel && { resolutionLabel: test.resolutionLabel }),
+  };
+}
+
 function toUnpassedCase (test: TestResult): IUnpassedCase | null {
   if (test.status === "failed") {
     return {
       name: test.name,
       testCaseId: test.testCaseId,
+      ...runSettingsFields(test),
       status: UnpassedCaseStatus.Failed,
       failedStep: failureOrdinal(test, test.failureStepIndex),
       detail: oneLineDetail(test.error),
@@ -35,6 +44,7 @@ function toUnpassedCase (test: TestResult): IUnpassedCase | null {
     return {
       name: test.name,
       testCaseId: test.testCaseId,
+      ...runSettingsFields(test),
       status: UnpassedCaseStatus.Inconclusive,
       detail: oneLineDetail(test.reason),
       viewUrl: test.viewUrl,
@@ -46,7 +56,7 @@ function toUnpassedCase (test: TestResult): IUnpassedCase | null {
 /**
  * Reduce a report's latest runs to the record its walkthrough carries.
  *
- * @param latestTests - One entry per test case, already collapsed to its latest run.
+ * @param latestTests - One entry per test case and runSettings record, already collapsed to its latest run.
  */
 export function buildE2eResultRecord (latestTests: readonly TestResult[]): IE2eResultRecord {
   const unpassed = latestTests

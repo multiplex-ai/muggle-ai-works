@@ -234,7 +234,6 @@ these on any tool result and act accordingly:
 | Error code / symptom | What happened | What to do |
 |---|---|---|
 | `TOO_MANY_IN_FLIGHT_JOBS` (HTTP 429) | Already 3 in-flight jobs for this project | Tell the user: "There are already 3 bulk-preview jobs in progress for this project. Wait for them to finish, then retry." Stop. |
-| `QUOTA_EXCEEDED_PREFLIGHT` (HTTP 409) | Batch would blow past the account's quota for this resource | Show: "Your quota allows at most `<maxPromptsAllowed>` prompts in this batch (current headroom: `<headroom>`). Please reduce the batch and try again." Stop. |
 | `NOT_FOUND` on submit (HTTP 404) | Project or parent use case does not exist, or this server version doesn't expose bulk-preview yet | Tell the user which — double-check the IDs you passed. If you're confident the IDs are right, ask the user to make sure the prompt-service is up to date. Stop. |
 | `VALIDATION_ERROR` (HTTP 400) | A prompt exceeds limits (e.g. >4000 chars) or the prompt list is empty | Fix the offending prompts and retry. |
 | Payload > 1 MB (HTTP 413) | Body too large | Split into smaller batches. |

@@ -136,6 +136,24 @@ export class PromptServiceClient {
   }
 
   /**
+   * Build the multipart body for a file upload.
+   * @param multipartFormData - File part to send, with base64-encoded bytes.
+   * @returns Form data holding the decoded file under its field name.
+   */
+  private buildMultipartBody(
+    multipartFormData: NonNullable<IUpstreamCall["multipartFormData"]>,
+  ): FormData {
+    const uploadForm = new FormData();
+    const fileBytes = Buffer.from(multipartFormData.fileBase64, "base64");
+    uploadForm.append(
+      multipartFormData.fileFieldName,
+      new Blob([fileBytes], { type: multipartFormData.contentType }),
+      multipartFormData.fileName,
+    );
+    return uploadForm;
+  }
+
+  /**
    * Map HTTP status code to MCP error code.
    * @param statusCode - HTTP status code.
    * @returns MCP error code.
@@ -258,7 +276,11 @@ export class PromptServiceClient {
         timeout: timeout,
       };
 
-      if (call.body && ["POST", "PUT", "PATCH"].includes(call.method)) {
+      if (call.multipartFormData) {
+        // No Content-Type here: axios writes multipart/form-data with the part boundary, and a
+        // JSON Content-Type would make it serialize the form as JSON instead.
+        requestConfig.data = this.buildMultipartBody(call.multipartFormData);
+      } else if (call.body && ["POST", "PUT", "PATCH"].includes(call.method)) {
         requestConfig.data = call.body;
         requestConfig.headers = {
           ...headers,

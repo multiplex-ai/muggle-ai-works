@@ -11,7 +11,12 @@ set -euo pipefail
 # run, because re-arming a stranger's PR would hand review work to a session with
 # no context for it. Slots owned by another session (or none) are reported as
 # orphans with the adopt command, never as work to pick up. A pure directory scan
-# — no gh, no writes — so it stays cheap enough for every session start.
+# — no gh, no writes, bash builtins only — so it stays cheap enough for every
+# session start however many slots have piled up.
+
+hook_dir="${BASH_SOURCE[0]%/*}"
+[ "$hook_dir" = "${BASH_SOURCE[0]}" ] && hook_dir=.
+. "${hook_dir}/guardrail-lib.sh"
 
 escape_for_json() {
     local s="$1"
@@ -23,15 +28,26 @@ escape_for_json() {
     printf '%s' "$s"
 }
 
-# Extract the first "session_id": "..." from a JSON file or string. Deliberately
-# sed rather than jq: jq is not guaranteed present, and on Windows it appends CRLF
-# that makes an empty field compare non-empty.
-read_session_id() {
-    sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" 2>/dev/null | head -1 | tr -d '\r'
+# Sets owner_session_id to the first "session_id": "..." in an owner.json, read
+# in-shell: this runs for every open slot on every session start, and a
+# sed|head|tr pipeline per slot costs seconds on Windows. jq is not guaranteed
+# present, and on Windows it appends CRLF that makes an empty field compare
+# non-empty.
+read_owner_session_id() {
+    local owner_json=""
+    local session_id_pattern='"session_id"[[:space:]]*:[[:space:]]*"([^"]*)"'
+    owner_session_id=""
+    IFS= read -r -d '' owner_json <"$1" || true
+    if [[ $owner_json =~ $session_id_pattern ]]; then
+        owner_session_id="${BASH_REMATCH[1]}"
+    fi
 }
 
-hook_payload=$(cat 2>/dev/null || true)
-current_session_id=$(printf '%s' "$hook_payload" | read_session_id /dev/stdin)
+guardrail_read_payload
+current_session_id=""
+if guardrail_payload_field session_id; then
+    current_session_id="$GUARDRAIL_FIELD_VALUE"
+fi
 
 # A slot is an open watcher iff it has prs.json (a tracked PR) and no result.md
 # (not yet finalized). A *.stopped dir is the owner's kill switch — it keeps its
@@ -52,7 +68,8 @@ if [ -d "$sessions_dir" ]; then
 
         slot_owner=""
         if [ -f "${slot}owner.json" ]; then
-            slot_owner=$(read_session_id "${slot}owner.json")
+            read_owner_session_id "${slot}owner.json"
+            slot_owner="$owner_session_id"
         fi
 
         # Fail closed: an unidentifiable session owns nothing. Absent owner.json
@@ -62,7 +79,8 @@ if [ -d "$sessions_dir" ]; then
         else
             orphan_count=$((orphan_count + 1))
             if [ -z "$first_orphan_slug" ]; then
-                first_orphan_slug=$(basename "$slot")
+                first_orphan_slug="${slot%/}"
+                first_orphan_slug="${first_orphan_slug##*/}"
             fi
         fi
     done

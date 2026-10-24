@@ -1,21 +1,41 @@
 import { fileURLToPath } from "url";
 import { EVENT_HOOK_RUNTIME_BUDGET_MS, HOOK_RUNTIME_BUDGET_MS } from "../../../hook-budget/constants.js";
-import { HomeSeed, HookEvent, type HookRuntimeScenario, type HookSlotCap } from "./types.js";
+import { HomeSeed, HookEvent, type HookRuntimeScenario, type HookSlotCap, type HookTimeoutCaps } from "./types.js";
 
 /** The plugin tree whose hooks.json and scripts the harness fires. */
 export const PLUGIN_ROOT = fileURLToPath(new URL("../../../../plugin", import.meta.url));
 
-/** Longest `timeout` (seconds) any hook may declare: the harness kills a hook at its timeout, so this caps its runtime. */
-export const MAX_HOOK_TIMEOUT_SECONDS = HOOK_RUNTIME_BUDGET_MS / 1_000;
+// The harness kills a hook at its timeout, so on the events that fire per tool call, prompt or turn end the timeout
+// is the runtime cap itself.
+const PER_EVENT_TIMEOUT_CAPS: HookTimeoutCaps = {
+  perHookSeconds: HOOK_RUNTIME_BUDGET_MS / 1_000,
+  perFiringSeconds: EVENT_HOOK_RUNTIME_BUDGET_MS / 1_000,
+};
 
-/** Longest summed `timeout` (seconds) of the hooks one event firing launches. */
-export const MAX_EVENT_TIMEOUT_SECONDS = EVENT_HOOK_RUNTIME_BUDGET_MS / 1_000;
+/**
+ * Timeout ceilings per hook event. A SessionStart hook fires once per session and carries the session's whole muggle
+ * context, so a loaded machine gets room to start bash and Node rather than drop that context at 1 s; the timed
+ * scenarios still hold its runtime to HOOK_RUNTIME_BUDGET_MS.
+ */
+export const HOOK_TIMEOUT_CAPS: Record<HookEvent, HookTimeoutCaps> = {
+  [HookEvent.SessionStart]: { perHookSeconds: 5, perFiringSeconds: 10 },
+  [HookEvent.PreToolUse]: PER_EVENT_TIMEOUT_CAPS,
+  [HookEvent.PostToolUse]: PER_EVENT_TIMEOUT_CAPS,
+  [HookEvent.Stop]: PER_EVENT_TIMEOUT_CAPS,
+  [HookEvent.UserPromptSubmit]: PER_EVENT_TIMEOUT_CAPS,
+};
+
+/** A hook's `if` rule: the tool it names, and the wildcard pattern over that tool's command. */
+export const HOOK_IF_RULE = /^(\w+)\((.*)\)$/s;
+
+/** Characters a RegExp reads as syntax, escaped when an `if` pattern's literal text becomes one. */
+export const REGEXP_SYNTAX_CHARACTERS = /[.*+?^${}()|[\]\\]/g;
 
 /** Per-slot ceiling for firing every hook in the slot under the spawn-counting shims. */
 export const NOOP_MEASUREMENT_TIMEOUT_MS = 120_000;
 
-/** Ratchet ceiling on hook commands across the whole manifest, every event and matcher. */
-export const MAX_TOTAL_HOOK_COMMANDS = 14;
+/** Ratchet ceiling on distinct hook commands across the whole manifest, every event and matcher. */
+export const MAX_TOTAL_HOOK_COMMANDS = 13;
 
 /** Programs whose cold start dwarfs a hook's real work; none may run when the event is irrelevant. */
 export const NOOP_FORBIDDEN_PROGRAMS = ["node", "gh", "python", "python3"];
@@ -46,7 +66,8 @@ export const NOOP_FIRING_TIMING_RUNS = 5;
 export const HOT_PATH_SLOT_CAPS: HookSlotCap[] = [
   {
     slot: { event: HookEvent.PreToolUse, toolName: "Bash" },
-    maxCommands: 1,
+    // The deny gates' `if` rules name gh and glab, so Claude Code launches nothing for any other command.
+    maxCommands: 0,
     maxNoopSpawns: 0,
     noopPayload: { session_id: NOOP_SESSION_ID, tool_name: "Bash", tool_input: { command: "ls" } },
   },
@@ -276,12 +297,6 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
       tool_input: { file_path: "/home/user/.claude/plugins/muggle/skills/muggle-do/SKILL.md" },
       tool_response: { type: "text" },
     },
-  },
-  {
-    label: "watcher reported terminal",
-    slot: { event: HookEvent.PostToolUse, toolName: "Monitor" },
-    homeSeed: HomeSeed.WalkthroughOwed,
-    payload: { ...RUNTIME_PAYLOAD_BASE, tool_name: "Monitor", tool_input: {}, tool_response: { output: "TERMINAL pr=1 state=MERGED" } },
   },
   {
     label: "next options offered",

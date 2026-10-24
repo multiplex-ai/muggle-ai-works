@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-# PR-terminal guardrail (PostToolUse/Bash + Monitor). When a PR just went
-# terminal — a `gh pr merge`/`gh pr close` success line or the pr-followup
-# watch monitor's `TERMINAL pr=N` exit line — arm the post-merge handoff:
+# PR-terminal guardrail (PostToolUse/Bash). When a PR just went terminal — a
+# `gh pr merge`/`gh pr close` success line, or the `TERMINAL pr=N` line the
+# pr-followup watch scripts print in a shell result — arm the post-merge handoff:
 # record the PR as pending, nudge the model to finalize/tear down and offer
 # next options, and hold the Stop gate (guardrail-terminal-gate.sh) until the
 # AskUserQuestion offer runs. Decision logic lives in the bundled guardrails.mjs.

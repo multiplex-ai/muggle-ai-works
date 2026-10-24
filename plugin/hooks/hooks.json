@@ -8,13 +8,13 @@
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
             "async": false,
-            "timeout": 1
+            "timeout": 5
           },
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\"",
             "async": false,
-            "timeout": 1
+            "timeout": 5
           }
         ]
       }
@@ -25,6 +25,28 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash(*gh *)",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "Bash(*glab *)",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*gh *)",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*glab *)",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
             "async": false,
             "timeout": 1
@@ -105,17 +127,6 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-read.sh\"",
-            "async": false,
-            "timeout": 1
-          }
-        ]
-      },
-      {
-        "matcher": "Monitor",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-pr-terminal.sh\"",
             "async": false,
             "timeout": 1
           }

@@ -12,6 +12,10 @@ set -uo pipefail
 # then applies the real detectBuildIntent logic (question/slash exclusions,
 # once-per-session dedupe). Over-matching here only costs an occasional needless
 # spawn; it can never emit a spurious offer. Degrades to {} so it never blocks.
+#
+# The verbs are matched in the prompt alone, since a hex session id can spell
+# "add" and a cwd can hold "build". Once the session has been routed the offer can
+# never fire again, so its state flag ends the check in-shell.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -20,7 +24,10 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="build-router"
 
 guardrail_wants() {
-  guardrail_payload_matches '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green)'
+  if guardrail_load_state && guardrail_state_has '"buildIntentRouted": true'; then
+    return 1
+  fi
+  guardrail_fields_match prompt '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green)'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

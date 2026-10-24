@@ -12,6 +12,15 @@ export const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url))
 /** The shipped hook runtime: every script the plugin's hooks run, bundles and hand-written launchers alike. */
 export const PLUGIN_SCRIPTS_DIR = fileURLToPath(new URL("../../../../plugin/scripts", import.meta.url));
 
+/** A wrapper's whole-payload pre-filter call: `guardrail_payload_matches '<pattern>'`. */
+export const PAYLOAD_PREFILTER_CALL = /guardrail_payload_matches '([^']+)'/g;
+
+/** A wrapper's field-scoped pre-filter call: `guardrail_fields_match <field>... '<pattern>'`. */
+export const FIELDS_PREFILTER_CALL = /guardrail_fields_match((?:\s+[a-z_]+)+)\s+'([^']+)'/g;
+
+/** The POSIX class the wrappers spell whitespace with, which JavaScript spells `\s`. */
+export const POSIX_SPACE_CLASS = "[[:space:]]";
+
 /** The tsup entries bundled into plugin/scripts — the sources whose import graph the bundles are built from. */
 export const HOOK_RUNTIME_SOURCE_ENTRIES = [
   fileURLToPath(new URL("../../../guardrails/cli.ts", import.meta.url)),

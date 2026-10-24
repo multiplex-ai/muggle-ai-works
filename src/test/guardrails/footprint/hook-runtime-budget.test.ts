@@ -1,14 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { EVENT_HOOK_RUNTIME_BUDGET_MS, HOOK_RUNTIME_BUDGET_MS } from "../../../hook-budget/constants.js";
-import {
-  HOOK_RUNTIME_SCENARIOS,
-  MAX_EVENT_TIMEOUT_SECONDS,
-  MAX_HOOK_TIMEOUT_SECONDS,
-  RUNTIME_MEASUREMENT_TIMEOUT_MS,
-} from "./constants.js";
-import { allHookCommands, commandsForSlot, groupFiresForSlot, loadHooksManifest } from "./footprint.js";
+import { HOOK_RUNTIME_SCENARIOS, HOOK_TIMEOUT_CAPS, RUNTIME_MEASUREMENT_TIMEOUT_MS } from "./constants.js";
+import { commandsForSlot, groupFiresForSlot, loadHooksManifest } from "./footprint.js";
 import { createSlowProgramShimDirectory, timeScenarioRuntime, waitForUpkeepSweeps } from "./runtime.js";
-import { HomeSeed } from "./types.js";
+import { HomeSeed, type HookEvent } from "./types.js";
 
 // Hooks fire on every tool call, prompt and turn end, so a slow one is paid for constantly. The harness kills a
 // hook at its declared timeout, which makes the timeout the hard cap; the timed firings hold each hook inside it
@@ -17,16 +12,22 @@ const manifest = loadHooksManifest();
 const scenarioRows = HOOK_RUNTIME_SCENARIOS.map((scenario) => [scenario.label, scenario] as const);
 
 describe("hook runtime caps in the manifest", () => {
-  it(`every hook declares a timeout of at most ${MAX_HOOK_TIMEOUT_SECONDS}s`, () => {
-    for (const hook of allHookCommands(manifest)) {
-      expect(hook.timeout, `"${hook.command}" declares no timeout`).toBeTypeOf("number");
-      expect(hook.timeout, `"${hook.command}" timeout`).toBeLessThanOrEqual(MAX_HOOK_TIMEOUT_SECONDS);
+  it("every hook declares a timeout within its event's per-hook cap", () => {
+    for (const [event, groups] of Object.entries(manifest.hooks)) {
+      const caps = HOOK_TIMEOUT_CAPS[event as HookEvent];
+      for (const hook of groups.flatMap((group) => group.hooks)) {
+        expect(hook.timeout, `"${hook.command}" declares no timeout`).toBeTypeOf("number");
+        expect(hook.timeout, `${event} "${hook.command}" timeout`).toBeLessThanOrEqual(caps.perHookSeconds);
+      }
     }
   });
 
-  it.each(scenarioRows)(`%s: the hooks it fires declare at most ${MAX_EVENT_TIMEOUT_SECONDS}s between them`, (label, scenario) => {
-    const declaredSeconds = commandsForSlot(manifest, scenario.slot).reduce((sum, hook) => sum + (hook.timeout ?? 0), 0);
-    expect(declaredSeconds, `${label} summed timeouts`).toBeLessThanOrEqual(MAX_EVENT_TIMEOUT_SECONDS);
+  it.each(scenarioRows)("%s: the hooks it fires declare no more between them than their event's per-firing cap", (label, scenario) => {
+    const declaredSeconds = commandsForSlot(manifest, scenario.slot, scenario.payload).reduce(
+      (sum, hook) => sum + (hook.timeout ?? 0),
+      0,
+    );
+    expect(declaredSeconds, `${label} summed timeouts`).toBeLessThanOrEqual(HOOK_TIMEOUT_CAPS[scenario.slot.event].perFiringSeconds);
   });
 
   it("every hook group is fired by at least one timed scenario", () => {

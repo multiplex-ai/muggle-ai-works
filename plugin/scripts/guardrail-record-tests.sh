@@ -14,6 +14,10 @@ set -uo pipefail
 # publish carrying a rendered walkthrough reaches guardrails.mjs, which then
 # inspects the output for pass/fail and updates state. Degrades to {}.
 #
+# Each arm reads only the field guardrails.mjs judges it by — the command, or the
+# tool's name. Against the whole payload, a jest config in a command's output or
+# a cwd inside a muggle checkout would start Node on unrelated shell calls.
+#
 # The marker arm matches the MUGGLE_<GATE>_SKIP shape, never one token: every
 # Stop gate documents its own marker as the escape hatch, and a per-token list
 # left the watcher and walkthrough markers unreachable — the gates instructed
@@ -28,7 +32,8 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="record-tests"
 
 guardrail_wants() {
-  guardrail_payload_matches '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|muggle.*(execute|test[-_]generation|replay)|muggle[-_]local[-_]telemetry[-_]skill[-_]emit|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
+  guardrail_fields_match command '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]' \
+    || guardrail_fields_match tool_name 'muggle.*(execute|test[-_]generation|replay)|muggle[-_]local[-_]telemetry[-_]skill[-_]emit'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

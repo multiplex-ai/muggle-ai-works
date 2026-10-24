@@ -6,6 +6,8 @@ import { UnpassedCaseStatus, type IE2eResultRecord } from "./types.js";
 const UnpassedCaseSchema = z.object({
   name: z.string(),
   testCaseId: z.string(),
+  runSettingsId: z.string().optional(),
+  resolutionLabel: z.string().optional(),
   status: z.enum(UnpassedCaseStatus),
   failedStep: z.number().int().positive().optional(),
   detail: z.string(),

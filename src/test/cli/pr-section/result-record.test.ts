@@ -63,6 +63,17 @@ describe("buildE2eResultRecord", () => {
     expect(unpassed.failedStep).toBeUndefined();
   });
 
+  it("carries the runSettings record a case ran at, and omits it when the report named none", () => {
+    const [atRecord] = buildE2eResultRecord([
+      { ...failed, runSettingsId: "rs-390", resolutionLabel: "390×844" },
+    ]).unpassed;
+    expect(atRecord.runSettingsId).toBe("rs-390");
+    expect(atRecord.resolutionLabel).toBe("390×844");
+    const [withoutRecord] = buildE2eResultRecord([failed]).unpassed;
+    expect(withoutRecord).not.toHaveProperty("runSettingsId");
+    expect(withoutRecord).not.toHaveProperty("resolutionLabel");
+  });
+
   it("reports an all-passed run with nothing unpassed", () => {
     expect(buildE2eResultRecord([passed])).toEqual({ total: 1, passed: 1, unpassed: [] });
   });

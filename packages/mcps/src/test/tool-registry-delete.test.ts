@@ -84,6 +84,11 @@ const DELETE_TOOL_CONTRACTS = [
     idField: "secretId",
     expectedPath: `/v1/protected/muggle-test/secrets/${VALID_UUID}`,
   },
+  {
+    name: "muggle-remote-secret-group-delete",
+    idField: "groupId",
+    expectedPath: `/v1/protected/muggle-test/secret-groups/${VALID_UUID}`,
+  },
 ] as const;
 
 describe("cloud E2E tool registry — delete by id", () => {

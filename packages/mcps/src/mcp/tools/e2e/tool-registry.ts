@@ -33,7 +33,12 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
-import { mapSecret, mapSecretList } from "./secret-metadata-transform.js";
+import {
+  mapSecret,
+  mapSecretGroupListing,
+  mapSecretGroupSummary,
+  mapSecretList,
+} from "./secret-metadata-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
@@ -1150,6 +1155,86 @@ const secretTools: IQaToolDefinition[] = [
       };
     },
     mapFromUpstream: mapSecret,
+  },
+  {
+    name: "muggle-remote-secret-type-list",
+    description:
+      "List the types a secret group can have, each with its fields in order: field key, label (which carries the expected format, e.g. 'Expiry (MM/YY)'), whether it is required, and whether it is masked. Call before muggle-remote-secret-group-create or muggle-remote-secret-group-update. Response shape: [{ secretType, label, fields: [{ field, label, isRequired, isMasked }] }].",
+    inputSchema: schemas.EmptyInputSchema,
+    mapToUpstream: () => {
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/secret-types`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-secret-group-list",
+    description:
+      "List a project's typed secret groups, each with its member secrets in field order, plus the project's ungrouped user-provided secrets. Secret values are never returned. Response shape: { groups: [{ group, members: [{ field, secret }] }], adhocSecrets: [secret] }.",
+    inputSchema: schemas.SecretGroupListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.SecretGroupListInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/secret-groups`,
+        queryParams: { projectId: toolInput.projectId },
+      };
+    },
+    mapFromUpstream: mapSecretGroupListing,
+  },
+  {
+    name: "muggle-remote-secret-group-create",
+    description:
+      "Create a typed secret group for a project: one named credential, such as a login or a payment card, whose fields are stored as member secrets and offered to test runs together. Pass `fields` as a map of field name to value; call muggle-remote-secret-type-list first for each secretType's fields, which are required, and their formats. Member secret names are the groupName slug plus the field ('Visa test' gives visa_test_card_number); a name that collides with an existing secret or group is rejected. Secret values are never returned.",
+    inputSchema: schemas.SecretGroupCreateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.SecretGroupCreateInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/secret-groups`,
+        body: {
+          projectId: toolInput.projectId,
+          secretType: toolInput.secretType,
+          groupName: toolInput.groupName,
+          description: toolInput.description,
+          fields: toolInput.fields,
+        },
+      };
+    },
+    mapFromUpstream: mapSecretGroupSummary,
+  },
+  {
+    name: "muggle-remote-secret-group-update",
+    description:
+      "Update a secret group's description or field values; its secretType and groupName are fixed. In `fields`, a non-empty value sets the field (adding a missing optional one), an empty string clears an optional field (a required field cannot be cleared), and an omitted field stays unchanged. Call muggle-remote-secret-type-list for each secretType's fields, which are required, and their formats. Secret values are never returned.",
+    inputSchema: schemas.SecretGroupUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.SecretGroupUpdateInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.description !== undefined) body.description = toolInput.description;
+      if (toolInput.fields !== undefined) body.fields = toolInput.fields;
+      return {
+        method: "PUT",
+        path: `${MUGGLE_TEST_PREFIX}/secret-groups/${toolInput.groupId}`,
+        body: body,
+      };
+    },
+    mapFromUpstream: mapSecretGroupSummary,
+  },
+  {
+    name: "muggle-remote-secret-group-delete",
+    description:
+      "Delete a secret group together with its member secrets. This is a soft delete. Secret values are never returned.",
+    inputSchema: schemas.SecretGroupDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.SecretGroupDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${MUGGLE_TEST_PREFIX}/secret-groups/${toolInput.groupId}`,
+      };
+    },
+    mapFromUpstream: mapSecretGroupSummary,
   },
 ];
 

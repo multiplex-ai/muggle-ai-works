@@ -9,14 +9,14 @@
             "type": "command",
             "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
             "async": false,
-            "timeout": 10,
+            "timeout": 14,
             "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\""
           },
           {
             "type": "command",
             "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\"",
             "async": false,
-            "timeout": 10,
+            "timeout": 14,
             "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\""
           }
         ]

@@ -3,7 +3,13 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileS
 import { tmpdir } from "os";
 import { join } from "path";
 import { performance } from "perf_hooks";
-import { NOOP_TRANSCRIPT_PLACEHOLDER, PLUGIN_ROOT, SHIMMED_PROGRAMS } from "./constants.js";
+import {
+  HOOK_IF_RULE,
+  NOOP_TRANSCRIPT_PLACEHOLDER,
+  PLUGIN_ROOT,
+  REGEXP_SYNTAX_CHARACTERS,
+  SHIMMED_PROGRAMS,
+} from "./constants.js";
 import type { HookCommand, HookGroup, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
 
 const MANIFEST_PATH = join(PLUGIN_ROOT, "hooks", "hooks.json");
@@ -19,15 +25,48 @@ export function allHookCommands(manifest: HooksManifest): HookCommand[] {
   return Object.values(manifest.hooks).flatMap((groups) => groups.flatMap((group) => group.hooks));
 }
 
+/** Each group's distinct command strings: the `if` variants of one command are one thing the plugin runs. */
+export function distinctGroupCommands(manifest: HooksManifest): string[] {
+  return Object.values(manifest.hooks).flatMap((groups) =>
+    groups.flatMap((group) => [...new Set(group.hooks.map((hook) => hook.command))]),
+  );
+}
+
 /** Whether a group of `slot`'s event fires for it: the group has no matcher, the slot is not tool-scoped, or its tool name fully matches the matcher regex. */
 export function groupFiresForSlot(group: HookGroup, slot: HookSlot): boolean {
   return !group.matcher || !slot.toolName || new RegExp(`^(?:${group.matcher})$`).test(slot.toolName);
 }
 
-/** The commands the harness launches when `slot` fires, honoring each group's tool-name regex. */
-export function commandsForSlot(manifest: HooksManifest, slot: HookSlot): HookCommand[] {
+/**
+ * Whether Claude Code launches `hook` for a `toolName` call running `toolCommand`. With no command to judge, every
+ * hook counts, so an inventory of a slot sees each gate it can reach.
+ * @throws When the rule's pattern does not start and end with `*`: matching it against the whole command, as this
+ * does, agrees with Claude Code matching each subcommand only for such a pattern.
+ */
+export function hookRunsForToolCommand(hook: HookCommand, toolName: string | undefined, toolCommand: string | undefined): boolean {
+  if (hook.if === undefined || toolCommand === undefined) return true;
+  const rule = HOOK_IF_RULE.exec(hook.if);
+  if (!rule || !rule[2].startsWith("*") || !rule[2].endsWith("*")) {
+    throw new Error(`footprint harness cannot model the if rule ${hook.if}`);
+  }
+  if (rule[1] !== toolName) return false;
+  const literalParts = rule[2].split("*").map((part) => part.replace(REGEXP_SYNTAX_CHARACTERS, "\\$&"));
+  return new RegExp(`^${literalParts.join("[\\s\\S]*")}$`).test(toolCommand);
+}
+
+/**
+ * The commands Claude Code launches when `slot` fires with `payload`, honoring each group's tool-name regex and each
+ * hook's `if` rule against the payload's command. Claude Code runs every hook whose rule matches, even two holding
+ * the same command. Without a payload, every hook of the matching groups.
+ */
+export function commandsForSlot(manifest: HooksManifest, slot: HookSlot, payload?: Record<string, unknown>): HookCommand[] {
+  const toolInput = payload?.tool_input as { command?: unknown } | undefined;
+  const toolCommand = typeof toolInput?.command === "string" ? toolInput.command : undefined;
   const groups = manifest.hooks[slot.event] ?? [];
-  return groups.filter((group) => groupFiresForSlot(group, slot)).flatMap((group) => group.hooks);
+  return groups
+    .filter((group) => groupFiresForSlot(group, slot))
+    .flatMap((group) => group.hooks)
+    .filter((hook) => hookRunsForToolCommand(hook, slot.toolName, toolCommand));
 }
 
 function runBash(script: string, env: NodeJS.ProcessEnv = process.env, input = ""): { stdout: string; stderr: string } {
@@ -98,7 +137,7 @@ export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): n
   const payload = hookPayloadJson(cap.noopPayload, home);
   const env = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PLUGIN_ROOT: toBashPathArg(PLUGIN_ROOT) };
   const startedAt = performance.now();
-  for (const command of commandsForSlot(manifest, cap.slot)) runBash(command.command, env, payload);
+  for (const command of commandsForSlot(manifest, cap.slot, cap.noopPayload)) runBash(command.command, env, payload);
   return performance.now() - startedAt;
 }
 
@@ -111,7 +150,7 @@ export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): n
  * Output shape: `{ commandCount: 9, spawnedPrograms: ["cat", "grep", "head", "sed"], unshimmedPrograms: [] }`
  */
 export function measureSlotFootprint(manifest: HooksManifest, cap: HookSlotCap, shimDirectory: string): SlotFootprint {
-  const commands = commandsForSlot(manifest, cap.slot);
+  const commands = commandsForSlot(manifest, cap.slot, cap.noopPayload);
   const home = createInstalledUserHome();
   const payload = hookPayloadJson(cap.noopPayload, home);
   const shimPathForBash = toBashPathArg(shimDirectory);

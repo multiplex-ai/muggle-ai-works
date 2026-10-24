@@ -69,6 +69,11 @@ describe("plugin/hooks/codex-hooks.json", () => {
     }
   });
 
+  // Codex has no `if` rule; what it would make of one is unspecified, so none reaches it.
+  it("carries no if rule", () => {
+    for (const hook of allCommands(codex)) expect(hook, hook.command).not.toHaveProperty("if");
+  });
+
   it("names no Claude Code tool Codex does not have", () => {
     const missingInCodex = Object.entries(CODEX_TOOL_EQUIVALENTS)
       .filter(([, codexName]) => codexName === null)
@@ -129,6 +134,29 @@ describe("deriveCodexHooks", () => {
   it("drops an event whose every group selects only tools Codex lacks", () => {
     const derived = deriveCodexHooks({ hooks: { PostToolUse: [{ matcher: "Skill|Monitor", hooks: [command("x.sh")] }] } });
     expect(derived.hooks).not.toHaveProperty("PostToolUse");
+  });
+
+  it("drops each if rule and runs the command its variants shared once", () => {
+    const derived = deriveCodexHooks({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash|PowerShell",
+            hooks: [
+              { ...command("gate.sh"), if: "Bash(*gh *)" },
+              { ...command("gate.sh"), if: "PowerShell(*gh *)" },
+              { ...command("other-gate.sh"), if: "Bash(*glab *)" },
+            ],
+          },
+        ],
+      },
+    });
+    const codexHooks = derived.hooks.PreToolUse[0].hooks;
+    expect(codexHooks.map((hook) => hook.command)).toEqual([
+      `${CODEX_HOOK_HOST_STAMP} ${command("gate.sh").command}`,
+      `${CODEX_HOOK_HOST_STAMP} ${command("other-gate.sh").command}`,
+    ]);
+    for (const hook of codexHooks) expect(hook).not.toHaveProperty("if");
   });
 
   it("refuses a command that is not a bash script, which would have no Windows form", () => {

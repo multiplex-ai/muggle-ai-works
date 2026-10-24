@@ -14,7 +14,10 @@ set -uo pipefail
 # loose on purpose: a shell command quotes its path inside an escaped JSON
 # string, or names it relative to a `cd` into the skills tree or to the `cwd`
 # the payload carries. Over-matching costs one Node start; Node resolves the
-# path for real. Degrades to {}.
+# path for real. Only those three fields are read, cwd first so a relative read
+# from inside the tree still matches: a Read's payload carries the whole file, so
+# the whole payload would start Node for any doc that names a skills-tree path.
+# Degrades to {}.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -23,7 +26,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="record-stage-read"
 
 guardrail_wants() {
-  guardrail_payload_matches 'skills.*\.md'
+  guardrail_fields_match cwd file_path command 'skills.*\.md'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

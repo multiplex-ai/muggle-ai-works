@@ -831,6 +831,16 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "b", prompt: "implement dark mode" }))).toContain(NODE_RAN);
   });
 
+  // The offer fires once per session, so every later build ask would start Node only to answer {}.
+  it("build-router: skips Node on a build ask once the session has been routed", () => {
+    expect(
+      runWrapper("guardrail-build-router.sh", event({ session_id: "routed", prompt: "implement dark mode" }), {
+        sessionId: "routed",
+        buildIntentRouted: true,
+      }),
+    ).toBe("{}");
+  });
+
   it("pr-opened: skips Node on a plain command, spawns it on gh pr create", () => {
     expect(
       runWrapper("guardrail-pr-opened.sh", event({ tool_name: "Bash", tool_input: { command: "ls -la" } })),
@@ -1024,15 +1034,14 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-resolve-gate.sh"))).toBe(true);
   });
 
-  it("fires the offer observer on AskUserQuestion and the terminal detector on Monitor", () => {
+  // A Monitor call returns as its script starts; every line it prints arrives later as a notification, so the
+  // call's PostToolUse result never carries a terminal line and a hook there would only cost a launch per watch.
+  it("fires the offer observer on AskUserQuestion and registers nothing on Monitor", () => {
     const ask = hooks.PostToolUse.find((g) => g.matcher === "AskUserQuestion");
     expect(ask!.hooks.map((h) => h.command)).toEqual([
       expect.stringContaining("guardrail-offer-ran.sh"),
     ]);
-    const monitor = hooks.PostToolUse.find((g) => g.matcher === "Monitor");
-    expect(monitor!.hooks.map((h) => h.command)).toEqual([
-      expect.stringContaining("guardrail-pr-terminal.sh"),
-    ]);
+    expect(hooks.PostToolUse.find((g) => g.matcher?.split("|").includes("Monitor"))).toBeUndefined();
   });
 
   it("runs all five gates on Stop (e2e + post-merge handoff + watcher-arm + walkthrough + comment-reply)", () => {

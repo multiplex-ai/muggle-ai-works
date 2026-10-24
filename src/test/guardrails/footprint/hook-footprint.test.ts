@@ -8,9 +8,9 @@ import {
   NOOP_MEASUREMENT_TIMEOUT_MS,
 } from "./constants.js";
 import {
-  allHookCommands,
   commandsForSlot,
   createSpawnShimDirectory,
+  distinctGroupCommands,
   loadHooksManifest,
   measureSlotFootprint,
   timeSlotNoopFiring,
@@ -30,13 +30,13 @@ function expectAtRatchet(actual: number, ceiling: number, what: string): void {
 
 describe("hook manifest caps", () => {
   it("total hook commands stay at the ratchet ceiling", () => {
-    expectAtRatchet(allHookCommands(manifest).length, MAX_TOTAL_HOOK_COMMANDS, "total hook commands");
+    expectAtRatchet(distinctGroupCommands(manifest).length, MAX_TOTAL_HOOK_COMMANDS, "total hook commands");
   });
 
   it.each(HOT_PATH_SLOT_CAPS.map((cap) => [slotLabel(cap), cap] as const))(
-    "%s launches no more commands than its ceiling",
+    "%s launches no more commands than its ceiling on an irrelevant event",
     (label, cap) => {
-      expectAtRatchet(commandsForSlot(manifest, cap.slot).length, cap.maxCommands, `${label} command count`);
+      expectAtRatchet(commandsForSlot(manifest, cap.slot, cap.noopPayload).length, cap.maxCommands, `${label} command count`);
     },
   );
 });

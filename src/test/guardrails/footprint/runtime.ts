@@ -82,7 +82,7 @@ export function timeScenarioRuntime(
   scenario: HookRuntimeScenario,
   slowShimDirectory: string,
 ): ScenarioRuntime {
-  const commands = commandsForSlot(manifest, scenario.slot);
+  const commands = commandsForSlot(manifest, scenario.slot, scenario.payload);
   const runsMs: number[][] = commands.map(() => []);
   const homes: string[] = [];
   const slowShimPathForBash = toBashPathArg(slowShimDirectory);

@@ -21,6 +21,10 @@
  *   Codex does not have is dropped. An MCP tool reaches a Codex hook as
  *   `mcp__<server>__<tool>` with every character outside [A-Za-z0-9_] turned
  *   into `_`, so a matcher spelling the muggle tools with hyphens is respelled.
+ * - Codex has no `if` rule, which Claude Code uses to launch a hook only for the
+ *   commands it names. The rule is dropped, so under Codex the hook runs on every
+ *   event of its group and its own pre-filter decides; the identical commands one
+ *   hook's `if` variants leave behind collapse into one.
  *
  * hooks.json stays the one hand-edited manifest. `--check` exits non-zero when
  * the committed file differs from what this script would write.
@@ -123,19 +127,25 @@ export function deriveCodexHooks(claudeHooks) {
             const codexMatcher = deriveCodexMatcher(group.matcher);
             if (codexMatcher === null) continue;
             const codexGroup = codexMatcher === undefined ? {} : { matcher: codexMatcher };
-            codexGroup.hooks = group.hooks.map((hook) => {
+            codexGroup.hooks = [];
+            for (const hook of group.hooks) {
                 if (!hook.command.startsWith(BASH_COMMAND_PREFIX)) {
                     throw new Error(
                         `hooks.json command does not run a bash script, so it has no Windows form for Codex: ${hook.command}`,
                     );
                 }
-                return {
-                    ...hook,
+                const portableHook = { ...hook };
+                delete portableHook.if;
+                const codexHook = {
+                    ...portableHook,
                     ...(hook.timeout === undefined ? {} : { timeout: hook.timeout + CODEX_LAUNCHER_ALLOWANCE_SECONDS }),
                     command: `${CODEX_HOOK_HOST_STAMP} ${hook.command}`,
                     commandWindows: `${CODEX_WINDOWS_HOOK_LAUNCHER} ${hook.command.slice(BASH_COMMAND_PREFIX.length)}`,
                 };
-            });
+                if (!codexGroup.hooks.some((existing) => existing.command === codexHook.command)) {
+                    codexGroup.hooks.push(codexHook);
+                }
+            }
             codexGroups.push(codexGroup);
         }
         if (codexGroups.length > 0) codexEvents[eventName] = codexGroups;

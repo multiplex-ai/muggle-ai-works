@@ -3,6 +3,9 @@ import { readFileSync, readdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { join } from "path";
 import type { GuardrailState } from "../../guardrails/types.js";
+import { commandsForSlot, loadHooksManifest } from "./footprint/footprint.js";
+import { HookEvent } from "./footprint/types.js";
+import { wrapperPayloadPrefilter } from "./support/wrapperPrefilter.js";
 
 // Each bash wrapper re-encodes, in shell, the payloads its guardrails.mjs
 // subcommand acts on. Nothing ties the two together, so a marker a gate's own
@@ -26,13 +29,6 @@ function guardrailSourceFiles(dir: string = GUARDRAIL_SOURCE): string[] {
 }
 
 
-function payloadPrefilter(wrapperScriptName: string): RegExp {
-  const wrapperBody = readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
-  const prefilter = wrapperBody.match(/guardrail_payload_matches '([^']+)'/);
-  if (!prefilter) throw new Error(`${wrapperScriptName} has no payload pre-filter`);
-  return new RegExp(prefilter[1].replaceAll("[[:space:]]", "\\s"), "i");
-}
-
 const commandPayload = (command: string): string =>
   JSON.stringify({ tool_name: "Bash", tool_input: { command: command } });
 
@@ -40,7 +36,7 @@ const outputPayload = (stderr: string): string =>
   JSON.stringify({ tool_name: "Bash", tool_response: { stderr: stderr } });
 
 describe("record-tests pre-filter reaches every payload the recorder acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-record-tests.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-record-tests.sh");
   const reaching: Array<[string, string]> = [
     ["a unit-test run", commandPayload("pnpm test")],
     ["a muggle replay tool call", JSON.stringify({ tool_name: "mcp__muggle__muggle-local-execute-replay" })],
@@ -80,16 +76,37 @@ describe("record-tests pre-filter reaches every payload the recorder acts on", (
   it("short-circuits an unrelated command", () => {
     expect(prefilter.test(commandPayload("git log --oneline -5"))).toBe(false);
   });
+
+  // Only the command and the tool's name are judged, so the text around them never starts Node.
+  it.each([
+    [
+      "an unrelated command whose output names a test runner",
+      JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" }, tool_response: { stdout: "jest.config.js\nvitest.config.ts\n" } }),
+    ],
+    [
+      "an unrelated command run inside a muggle checkout",
+      JSON.stringify({ cwd: "/repo/muggle-ai-works/plugin/scripts/replay", tool_name: "Bash", tool_input: { command: "git status" } }),
+    ],
+  ])("short-circuits %s", (_label, payload) => {
+    expect(prefilter.test(payload)).toBe(false);
+  });
 });
 
 describe("pr-terminal pre-filter reaches every payload the detector acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-pr-terminal.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-pr-terminal.sh");
   const reaching: Array<[string, string]> = [
     ["a merge success line", outputPayload("✓ Merged pull request o/r#341 (feat: thing)")],
     ["a squash-merge success line", outputPayload("✓ Squashed and merged pull request o/r#341 (feat: thing)")],
     ["a close success line", outputPayload("✓ Closed pull request o/r#369 (stale)")],
     ["a reopen success line", outputPayload("✓ Reopened pull request o/r#369 (gate fix)")],
-    ["the watch monitor's terminal exit line", JSON.stringify({ tool_name: "Monitor", tool_response: { stdout: "TERMINAL pr=331 state=MERGED" } })],
+    [
+      "the watch arm's terminal line",
+      JSON.stringify({
+        tool_name: "Bash",
+        tool_input: { command: "bash pr-watch-arm.sh --slot /s" },
+        tool_response: { stdout: "TERMINAL pr=331 state=MERGED" },
+      }),
+    ],
   ];
 
   it.each(reaching)("spawns Node for %s", (_label, payload) => {
@@ -102,7 +119,7 @@ describe("pr-terminal pre-filter reaches every payload the detector acts on", ()
 });
 
 describe("report-format pre-filter reaches every command the gate can deny", () => {
-  const prefilter = payloadPrefilter("guardrail-report-format.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-report-format.sh");
   const reaching: Array<[string, string]> = [
     ["a new PR comment", commandPayload("gh pr comment 1 --body 'results'")],
     ["a PR description at creation", commandPayload("gh pr create --title x --body y")],
@@ -123,7 +140,7 @@ describe("report-format pre-filter reaches every command the gate can deny", () 
 });
 
 describe("resolve-gate pre-filter reaches every command the gate can deny", () => {
-  const prefilter = payloadPrefilter("guardrail-resolve-gate.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-resolve-gate.sh");
   const reaching: Array<[string, string]> = [
     [
       "a GitHub thread resolve",
@@ -145,7 +162,7 @@ describe("resolve-gate pre-filter reaches every command the gate can deny", () =
 });
 
 describe("pr-opened pre-filter reaches every command the detector acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-pr-opened.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-pr-opened.sh");
   const reaching: Array<[string, string]> = [
     ["gh pr create", commandPayload("gh pr create --fill")],
     ["gh pr ready", commandPayload("gh pr ready 12")],
@@ -163,7 +180,7 @@ describe("pr-opened pre-filter reaches every command the detector acts on", () =
 });
 
 describe("record-comment-replies pre-filter reaches every payload the recorder acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-record-comment-replies.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-record-comment-replies.sh");
   const reaching: Array<[string, string]> = [
     [
       "the github unresolved-threads query",
@@ -203,7 +220,7 @@ describe("record-comment-replies pre-filter reaches every payload the recorder a
 });
 
 describe("build-router pre-filter reaches every prompt detectBuildIntent accepts", () => {
-  const prefilter = payloadPrefilter("guardrail-build-router.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-build-router.sh");
   const reaching: Array<[string, string]> = [
     ["a build verb", JSON.stringify({ prompt: "implement a dark-mode toggle" })],
     ["a wire-up ask", JSON.stringify({ prompt: "wire up the export button" })],
@@ -218,6 +235,49 @@ describe("build-router pre-filter reaches every prompt detectBuildIntent accepts
   it("short-circuits a question", () => {
     expect(prefilter.test(JSON.stringify({ prompt: "what time is it?" }))).toBe(false);
   });
+
+  it("short-circuits a question whose session id and cwd spell a build verb", () => {
+    const payload = JSON.stringify({ session_id: "0add4f2e", cwd: "/repo/build", prompt: "what time is it?" });
+    expect(prefilter.test(payload)).toBe(false);
+  });
+});
+
+// The deny gates run only where Claude Code's `if` rules launch them, so a rule narrower than the gates' own
+// pre-filters retires them on exactly the commands they exist for, with nothing failing.
+describe("PreToolUse deny-gate if rules launch the gates for every command they act on", () => {
+  const manifest = loadHooksManifest();
+  const DENY_GATE_SCRIPTS = ["guardrail-report-format.sh", "guardrail-resolve-gate.sh", "guardrail-walkthrough-heading.sh"];
+  const launchedGateCommands = (toolName: string, command: string): string[] =>
+    commandsForSlot(manifest, { event: HookEvent.PreToolUse, toolName: toolName }, { tool_input: { command: command } })
+      .map((hook) => hook.command)
+      .filter((hookCommand) => DENY_GATE_SCRIPTS.every((script) => hookCommand.includes(script)));
+
+  const reaching = [
+    "gh pr comment 1 --body-file report.md",
+    'gh pr create --title x --body "## Summary"',
+    "gh pr edit 1 --body y",
+    "gh api --method PATCH repos/o/r/issues/comments/12345 -f body=@report.md",
+    `gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"T"}){thread{id}}}'`,
+    "glab api --method PUT 'projects/1/merge_requests/2/discussions/a?resolved=true'",
+    "cd /repo && gh pr create --fill",
+    "GH_TOKEN=x gh pr edit 1 --body y",
+    'bash -c "gh pr comment 1 --body-file report.md"',
+  ];
+
+  it.each(["Bash", "PowerShell"].flatMap((toolName) => reaching.map((command) => [toolName, command] as const)))(
+    "%s: launches the gates for %s",
+    (toolName, command) => {
+      expect(launchedGateCommands(toolName, command).length).toBeGreaterThan(0);
+    },
+  );
+
+  it.each(["ls -la", "git status", "pnpm test", "Get-ChildItem | Select-Object -First 1"])(
+    "launches nothing for %s",
+    (command) => {
+      expect(launchedGateCommands("Bash", command)).toEqual([]);
+      expect(launchedGateCommands("PowerShell", command)).toEqual([]);
+    },
+  );
 });
 
 // The Stop gates pre-filter on the per-session state file instead of a payload,

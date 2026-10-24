@@ -10,9 +10,19 @@ export enum HookEvent {
 /** One command entry inside a hooks.json group. */
 export interface HookCommand {
   type: string;
+  /** Claude Code permission-rule syntax, e.g. `Bash(*gh *)`: the hook launches only for the calls it matches. */
+  if?: string;
   command: string;
   timeout?: number;
   async?: boolean;
+}
+
+/** Timeout ceilings, in seconds, for the hooks of one event. */
+export interface HookTimeoutCaps {
+  /** Longest `timeout` any one hook may declare. */
+  perHookSeconds: number;
+  /** Longest summed `timeout` of the hooks one firing launches. */
+  perFiringSeconds: number;
 }
 
 /** A hooks.json group: an optional tool-name regex and the commands it runs. */

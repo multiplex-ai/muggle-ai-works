@@ -5,6 +5,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFile
 import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 import { MUGGLE_EXECUTION_TOOL, SKILL_NAME_INPUT_KEYS } from "../../guardrails/constants.js";
+import { wrapperPayloadPrefilter } from "./support/wrapperPrefilter.js";
 
 // The three stage guardrails only ever fire through a bash wrapper, so the
 // wrapper's pre-filter — not the TypeScript — decides whether they exist at all.
@@ -32,12 +33,6 @@ function wrapperBody(wrapperScriptName: string): string {
   return readFileSync(join(SCRIPTS, wrapperScriptName), "utf-8");
 }
 
-function payloadPrefilter(wrapperScriptName: string): RegExp {
-  const prefilter = wrapperBody(wrapperScriptName).match(/guardrail_payload_matches '([^']+)'/);
-  if (!prefilter) throw new Error(`${wrapperScriptName} has no payload pre-filter`);
-  return new RegExp(prefilter[1].replaceAll("[[:space:]]", "\\s"), "i");
-}
-
 const readPayload = (filePath: string): string =>
   JSON.stringify({ tool_name: "Read", tool_input: { file_path: filePath } });
 
@@ -45,7 +40,7 @@ const commandPayload = (command: string): string =>
   JSON.stringify({ tool_name: "Bash", tool_input: { command: command } });
 
 describe("stage-read pre-filter reaches every path a mandatory stage can live at", () => {
-  const prefilter = payloadPrefilter("guardrail-record-stage-read.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-record-stage-read.sh");
 
   it.each([
     ["a shared stage read on posix", readPayload("/home/u/.claude/plugins/muggle/skills/_shared/debug-failed-run.md")],
@@ -62,6 +57,16 @@ describe("stage-read pre-filter reaches every path a mandatory stage can live at
   it("short-circuits a read outside any skills tree", () => {
     expect(prefilter.test(readPayload("/repo/src/index.ts"))).toBe(false);
     expect(prefilter.test(readPayload("/repo/README.md"))).toBe(false);
+  });
+
+  // A Read's payload carries the file it returned, and a repo doc routinely names stage files.
+  it("short-circuits a read outside any skills tree whose contents name a stage file", () => {
+    const payload = JSON.stringify({
+      tool_name: "Read",
+      tool_input: { file_path: "/repo/README.md" },
+      tool_response: { type: "text", file: { content: "See plugin/skills/muggle-do/SKILL.md and skills/_shared/debug-failed-run.md" } },
+    });
+    expect(prefilter.test(payload)).toBe(false);
   });
 
   // A host with no Read tool (Codex) opens stages through the shell.
@@ -84,7 +89,7 @@ describe("stage-read pre-filter reaches every path a mandatory stage can live at
 });
 
 describe("stage-signal pre-filter reaches every payload the recorder acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-record-stage-signals.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-record-stage-signals.sh");
 
   it.each([
     [
@@ -128,7 +133,7 @@ describe("stage-signal pre-filter reaches every payload the recorder acts on", (
 // pre-filter must name the same pair the decision does — a filter that drifts
 // from the matcher denies nothing while the gate still claims to.
 describe("classify-gate pre-filter names the same execution tools the gate acts on", () => {
-  const prefilter = payloadPrefilter("guardrail-classify-gate.sh");
+  const prefilter = wrapperPayloadPrefilter("guardrail-classify-gate.sh");
 
   it.each([
     "mcp__plugin_muggle_muggle__muggle-local-execute-test-generation",
@@ -488,6 +493,23 @@ describe.skipIf(process.platform === "win32")("stage wrapper pre-filter (no Node
   it("record-stage-read: spawns Node on a shell read of a stage, not on an unrelated command", () => {
     expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Bash", tool_input: { command: 'cat "/p/skills/_shared/debug-failed-run.md"' } })).toContain(NODE_RAN);
     expect(runWrapper("guardrail-record-stage-read.sh", { tool_name: "Bash", tool_input: { command: "git status" } })).toBe("{}");
+  });
+
+  it("record-stage-read: reads the path fields, not the file a Read returned", () => {
+    expect(
+      runWrapper("guardrail-record-stage-read.sh", {
+        cwd: "/p/skills/muggle-test",
+        tool_name: "Bash",
+        tool_input: { command: "cat ../_shared/debug-failed-run.md" },
+      }),
+    ).toContain(NODE_RAN);
+    expect(
+      runWrapper("guardrail-record-stage-read.sh", {
+        tool_name: "Read",
+        tool_input: { file_path: "/repo/README.md" },
+        tool_response: { type: "text", file: { content: "See skills/_shared/debug-failed-run.md" } },
+      }),
+    ).toBe("{}");
   });
 
   it("record-stage-signals: spawns Node on a classification emit and on every skip marker", () => {

@@ -50,14 +50,17 @@ function seedSessionsDir(slots: SlotFixture[]): string {
   return home;
 }
 
-function runHook(home: string, sessionId: string | null): string {
-  return execFileSync("bash", [scriptPath], {
+function runHook(home: string, sessionId: string | null, bashArgs: string[] = [scriptPath]): string {
+  return execFileSync("bash", bashArgs, {
     env: { ...process.env, HOME: toBash(home), CLAUDE_PLUGIN_ROOT: "x" },
     input: sessionId === null ? "{}" : JSON.stringify({ session_id: sessionId }),
     encoding: "utf8",
     stdio: ["pipe", "pipe", "ignore"],
   });
 }
+
+// The hook script, run by a bash whose PATH holds no programs, so anything but a builtin fails.
+const BUILTINS_ONLY_BASH_ARGS = ["-c", 'PATH=/no-programs-on-this-path exec "$BASH" "$1"', "_", scriptPath];
 
 describe.skipIf(!hasBash)("reconcile-stale-watchers.sh", () => {
   it("counts only this session's slots as re-armable and reports the rest as orphans", () => {
@@ -101,6 +104,20 @@ describe.skipIf(!hasBash)("reconcile-stale-watchers.sh", () => {
     const nudge = runHook(home, OWNING_SESSION_ID);
 
     expect(nudge).toBe("");
+  }, 30_000);
+
+  // Every open slot is visited on every session start, so a program started per slot is paid over and over.
+  it("answers in bash builtins alone, however many slots are open", () => {
+    const home = seedSessionsDir([
+      { slug: "mine-pr1", ownerSessionId: OWNING_SESSION_ID },
+      { slug: "theirs-pr2", ownerSessionId: FOREIGN_SESSION_ID },
+      { slug: "legacy-pr3" },
+    ]);
+
+    const nudge = runHook(home, OWNING_SESSION_ID, BUILTINS_ONLY_BASH_ARGS);
+
+    expect(nudge).toContain("1 open watcher owned by this session");
+    expect(nudge).toBe(runHook(home, OWNING_SESSION_ID));
   }, 30_000);
 
   it("ignores finalized slots and stays silent when nothing is open", () => {

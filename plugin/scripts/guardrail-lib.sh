@@ -15,6 +15,7 @@ GUARDRAIL_STATE_FILE=""
 GUARDRAIL_STATE=""
 GUARDRAIL_STATE_LOADED=""
 GUARDRAIL_HAS_STATE=""
+GUARDRAIL_FIELD_VALUE=""
 
 guardrail_read_payload() {
   IFS= read -r -d '' GUARDRAIL_PAYLOAD || true
@@ -27,6 +28,33 @@ guardrail_payload_matches() {
   local matched=1
   shopt -s nocasematch
   [[ $GUARDRAIL_PAYLOAD =~ $pattern ]] && matched=0
+  shopt -u nocasematch
+  return "$matched"
+}
+
+# Sets GUARDRAIL_FIELD_VALUE to the first "<name>": "<string>" in the payload, still JSON-escaped;
+# returns 1 when the payload carries no such string field.
+guardrail_payload_field() {
+  local field_pattern='"'"$1"'"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
+  GUARDRAIL_FIELD_VALUE=""
+  [[ $GUARDRAIL_PAYLOAD =~ $field_pattern ]] || return 1
+  GUARDRAIL_FIELD_VALUE="${BASH_REMATCH[1]}"
+}
+
+# Case-insensitive ERE over the named payload fields, joined with a space in the order given;
+# the last argument is the pattern. A tool's output and a read file's contents never reach it,
+# so text that merely mentions a trigger cannot start Node on a pre-filter meant for the
+# command that ran, the path that was read or the prompt that was sent.
+guardrail_fields_match() {
+  local pattern="${!#}"
+  local haystack=""
+  local field_name
+  for field_name in "${@:1:$#-1}"; do
+    guardrail_payload_field "$field_name" && haystack+=" $GUARDRAIL_FIELD_VALUE"
+  done
+  local matched=1
+  shopt -s nocasematch
+  [[ $haystack =~ $pattern ]] && matched=0
   shopt -u nocasematch
   return "$matched"
 }

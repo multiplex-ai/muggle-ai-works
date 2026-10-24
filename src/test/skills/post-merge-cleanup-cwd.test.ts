@@ -113,6 +113,6 @@ describe("post-merge cleanup reports blocked steps instead of waiting", () => {
   it("keeps the do/cleanup stage running through to its next-step suggestion", () => {
     const doc = read(DO_CLEANUP_DOC);
     expect(doc).toMatch(/teardown never returns a question/i);
-    expect(doc).toMatch(/steps 4 and 5 always run|not complete until/i);
+    expect(doc).toMatch(/steps 6 and 7 always run|not complete until/i);
   });
 });

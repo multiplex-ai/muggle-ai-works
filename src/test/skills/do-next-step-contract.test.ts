@@ -6,6 +6,10 @@
  * whole directory surfaces work this chat never touched while saying nothing
  * about the work it did. The step reports this chat's work first, offers only
  * follow-ups that report shows, and keeps other chats behind one explicit option.
+ *
+ * Teardown deletes the terminal slug's slot before this step runs, so that
+ * slug's line comes from the record `do/cleanup.md` captured beforehand and
+ * nothing is appended to the deleted slot's log.
  */
 
 import { describe, it, expect } from "vitest";
@@ -19,10 +23,41 @@ const DO_DIR = path.resolve(__dirname, "../../../plugin/skills/do");
 const NEXT_STEP_PATH = path.join(DO_DIR, "next-step.md");
 
 const NEXT_STEP = fs.readFileSync(NEXT_STEP_PATH, "utf8");
+const INPUT = sectionBody(NEXT_STEP, /^## Input$/m);
 const SCOPE = sectionBody(NEXT_STEP, /^## This chat's work$/m);
 const PROCEDURE = sectionBody(NEXT_STEP, /^## Procedure$/m);
 const STATUS_BLOCK = sectionBody(NEXT_STEP, /^## Status block$/m);
 const SELECTOR = sectionBody(NEXT_STEP, /^## Selector$/m);
+
+describe("do/next-step.md — the terminal slug comes from a record, not its slot", () => {
+  it("takes the terminal record alongside the slug and whether teardown ran", () => {
+    expect(INPUT).toMatch(/^- `slug` — /m);
+    expect(INPUT).toMatch(/^- `teardownRan` — /m);
+    expect(INPUT).toMatch(/^- `terminalRecord` — .*\]\(cleanup\.md#terminal-record\), captured before teardown/m);
+  });
+
+  it("builds the terminal slug's line from the record, never from the slot on disk", () => {
+    expect(STATUS_BLOCK).toMatch(/\*\*`<slug>`\*\* is built from `terminalRecord`, never from the slot on disk/);
+  });
+
+  it("takes the terminal slug's teardown note from this turn's teardown report", () => {
+    expect(STATUS_BLOCK).toMatch(/teardown note comes from teardown's report printed this turn/i);
+    expect(STATUS_BLOCK).toMatch(/`branch kept` when `teardownRan` is false/);
+  });
+
+  it("draws the terminal slug's left-over items from the record", () => {
+    expect(STATUS_BLOCK).toMatch(/for `<slug>`, the record's `waivers`, `e2eFailing` and `escalatedReviewIds`/);
+  });
+
+  it("still reads this chat's other terminal slots from disk", () => {
+    expect(STATUS_BLOCK).toMatch(/\*\*Other terminal slots\*\* \(`merged`, `closed`\) read `prs\.json` and `result\.md`/);
+    expect(STATUS_BLOCK).toMatch(/cleanup line in `followup\.log`/);
+  });
+
+  it("appends nothing to a slot teardown cleared", () => {
+    expect(PROCEDURE).toMatch(/both appends target `<slug>`'s `followup\.log` and are skipped once teardown's report marks `Session slot cleared` ✅/i);
+  });
+});
 
 describe("do/next-step.md — scope is this chat", () => {
   it("identifies this chat's slots by owner.json against the running session id", () => {

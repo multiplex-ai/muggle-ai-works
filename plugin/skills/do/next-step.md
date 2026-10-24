@@ -6,6 +6,7 @@ Closing step of a terminal `/muggle-do` turn (post-merge or post-close). Advance
 
 - `slug` — the session.
 - `teardownRan` — whether [`cleanup.md`](cleanup.md) already ran teardown (true on `merged` + `autoCleanup: always`; false on `closed` or a skipped gate).
+- `terminalRecord` — `<slug>`'s [terminal record](cleanup.md#terminal-record), captured before teardown could delete its slot.
 
 ## This chat's work
 
@@ -20,6 +21,8 @@ The sessions directory holds every chat's slots, so a selector drawn from the wh
 3. **No pending items** → print the [status block](#status-block), then ask with one `AskUserQuestion` [selector](#selector). The status block always comes first: a selector without it asks the user to decide blind.
 4. Append the chosen outcome to `followup.log`.
 
+Both appends target `<slug>`'s `followup.log` and are skipped once teardown's report marks `Session slot cleared` ✅ — the log went with the slot, and an append would recreate the directory.
+
 ## Status block
 
 One line per slot of this chat's work, `<slug>` first, the rest newest first, then the `Left over` line:
@@ -33,10 +36,11 @@ This chat's work:
 Left over: #145 shipped [E2E FAILING]; review 2210 on #142 escalated
 ```
 
-- **Terminal slots** (`merged`, `closed`) read `prs.json` and `result.md`; the teardown note comes from the cleanup line in `followup.log`.
+- **`<slug>`** is built from `terminalRecord`, never from the slot on disk — teardown may have deleted it. The teardown note comes from teardown's report printed this turn: `cleaned up` when no row is `❌`, the first `❌` row's reason otherwise, `branch kept` when `teardownRan` is false.
+- **Other terminal slots** (`merged`, `closed`) read `prs.json` and `result.md`; the teardown note comes from the cleanup line in `followup.log`.
 - **Open slots** refresh live. Resolve the provider per [`detect-vcs.md`](../_shared/vcs/detect-vcs.md) and use its PR-metadata and unresolved-thread recipes ([`github.md`](../_shared/vcs/github.md), [`gitlab.md`](../_shared/vcs/gitlab.md)); CI per [`ci-rollup.md`](../_shared/vcs/common/ci-rollup.md). The watcher reads `live` when [`watch-heartbeat`](../muggle-pr-followup/state-schemas.md#watch-heartbeat) is fresh, `stopped` otherwise.
 - **Blocked** replaces `open` when `last_seen.json` carries `blocked`; the line names the pending act per [`blocked-reminder.md`](../muggle-pr-followup/output-templates/blocked-reminder.md).
-- **`Left over`** lists what this chat's slots recorded as unfinished: a waiver or Blocker in `state.md`, an `[E2E FAILING]` ship, escalated review ids in `result.md`. `nothing` when empty.
+- **`Left over`** lists what this chat's slots recorded as unfinished: a waiver or Blocker in `state.md`, an `[E2E FAILING]` ship, escalated review ids in `result.md` — for `<slug>`, the record's `waivers`, `e2eFailing` and `escalatedReviewIds`. `nothing` when empty.
 
 No other chat's slot appears in the block.
 

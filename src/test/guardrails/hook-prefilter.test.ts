@@ -40,13 +40,6 @@ describe("record-tests pre-filter reaches every payload the recorder acts on", (
   const reaching: Array<[string, string]> = [
     ["a unit-test run", commandPayload("pnpm test")],
     ["a muggle replay tool call", JSON.stringify({ tool_name: "mcp__muggle__muggle-local-execute-replay" })],
-    [
-      "a muggle-test skill telemetry emit",
-      JSON.stringify({
-        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
-        tool_input: { skillName: "muggle-test" },
-      }),
-    ],
     ["a walkthrough posted as a PR comment", commandPayload("gh pr comment 7 --body-file walkthrough.md")],
     [
       "a walkthrough edited into an existing comment",
@@ -75,6 +68,15 @@ describe("record-tests pre-filter reaches every payload the recorder acts on", (
 
   it("short-circuits an unrelated command", () => {
     expect(prefilter.test(commandPayload("git log --oneline -5"))).toBe(false);
+  });
+
+  // skill-stages is a skill emit's one writer; a second would race it for the session's lock.
+  it("short-circuits a muggle-test skill telemetry emit", () => {
+    const skillEmit = JSON.stringify({
+      tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+      tool_input: { skillName: "muggle-test" },
+    });
+    expect(prefilter.test(skillEmit)).toBe(false);
   });
 
   // Only the command and the tool's name are judged, so the text around them never starts Node.

@@ -9,10 +9,9 @@ set -uo pipefail
 # Fires after every Bash call and every muggle execute/replay, so a keyword
 # pre-filter for test runners and the muggle E2E tool names keeps Node off the
 # hot path. Only a `test` command (npm/pnpm/yarn/jest/vitest/pytest/go/cargo),
-# a muggle execute/replay/test-generation event, a muggle-test skill telemetry
-# emit (registers a clean-SKIP verdict as an E2E run), a skip marker, or a PR
-# publish carrying a rendered walkthrough reaches guardrails.mjs, which then
-# inspects the output for pass/fail and updates state. Degrades to {}.
+# a muggle execute/replay/test-generation event, a skip marker, or a PR publish
+# carrying a rendered walkthrough reaches guardrails.mjs, which then inspects
+# the output for pass/fail and updates state. Degrades to {}.
 #
 # Each arm reads only the field guardrails.mjs judges it by — the command, or the
 # tool's name. Against the whole payload, a jest config in a command's output or
@@ -33,7 +32,7 @@ GUARDRAIL_SUBCOMMAND="record-tests"
 
 guardrail_wants() {
   guardrail_fields_match command '(pnpm|npm|yarn)[[:space:]]+(run[[:space:]]+)?test|jest|vitest|pytest|go[[:space:]]+test|cargo[[:space:]]+test|MUGGLE_[A-Z0-9_]+_SKIP|gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]' \
-    || guardrail_fields_match tool_name 'muggle.*(execute|test[-_]generation|replay)|muggle[-_]local[-_]telemetry[-_]skill[-_]emit'
+    || guardrail_fields_match tool_name 'muggle.*(execute|test[-_]generation|replay)'
 }
 
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then

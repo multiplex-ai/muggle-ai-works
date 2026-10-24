@@ -1955,6 +1955,11 @@ function terminalGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user ${nextOptionsOfferMethod()} \u2014 release, queued work, deferred items. Only that offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then offer the next options ${nextOptionsOfferMethod()}.`;
   return blockStop(reason, host);
 }
+function startWalkthroughScanOnGateArming(stateBefore, committed) {
+  if (isWalkthroughGateArmed(committed) && !isWalkthroughGateArmed(stateBefore)) {
+    startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
+  }
+}
 function recordTests() {
   const cmd = input.tool_input?.command ?? "";
   const stateBefore = readState(sessionId);
@@ -1977,9 +1982,7 @@ function recordTests() {
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
-  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
-    startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
-  }
+  startWalkthroughScanOnGateArming(stateBefore, next);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   if (judgedSkip && !judgedSkip.accepted) {
     return envelope("PostToolUse", explainRejection(judgedSkip), host);
@@ -1999,8 +2002,16 @@ function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
   const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
-  const invoke = (state) => applySkillInvocation(state, skillName, stagePaths);
+  const emittedRun = {
+    unitTestPassed: false,
+    e2eRan: isE2ERun(input),
+    e2eSkipped: false,
+    e2eSkipCycleScoped: false
+  };
+  const stateBefore = readState(sessionId);
+  const invoke = (state) => applyRecordedRun(applySkillInvocation(state, skillName, stagePaths), emittedRun);
   const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
+  startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   const ctx = `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;

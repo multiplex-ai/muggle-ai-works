@@ -5,16 +5,26 @@ import { hostname, tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import type { GuardrailState } from "../../guardrails/types.js";
+import type { HookGroup, HooksManifest } from "./footprint/types.js";
+import { MUGGLE_TELEMETRY_SKILL_EMIT_TOOL } from "./handoff-replay/constants.js";
 
-// A muggle skill emit reaches two hooks at once — record-tests and
-// skill-stages, separate entries in hooks.json that every host runs in
-// parallel — and both write the session's state. Written unlocked, the later
-// write erased the earlier about one emit in six, and with it the skill and its
-// mandatory stages: the stage gate and the classification gate went unarmed.
+// A muggle skill emit has one writer, skill-stages, which records the skill,
+// its mandatory stages and the muggle-test E2E run in one commit. Every host
+// runs a tool's matching hook groups in parallel, and the state store drops a
+// write that cannot take the session's lock within its wait. Were a second
+// hook to match the emit, a slow disk lets one writer hold the lock past the
+// other's wait; losing skill-stages' record leaves the stage and
+// classification gates unarmed.
 
 const CLI = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugin", import.meta.url));
-const WRITERS = ["record-tests", "skill-stages"];
+const CLAUDE_HOOKS = join(PLUGIN_ROOT, "hooks", "hooks.json");
+const CODEX_HOOKS = join(PLUGIN_ROOT, "hooks", "codex-hooks.json");
+const CODEX_SKILL_EMIT_TOOL = "mcp__muggle__muggle_local_telemetry_skill_emit";
+const CODEX_EXECUTE_REPLAY_TOOL = "mcp__muggle__muggle_local_execute_replay";
+const GUARDRAIL_SCRIPT = /guardrail-[a-z-]+\.sh/g;
+// A matcher made only of names and `|` lists tools compared whole; any other is an unanchored regex.
+const NAME_LIST_MATCHER = /^[A-Za-z0-9_|]+$/;
 const ROUNDS = 12;
 
 interface HookOutcome {
@@ -37,12 +47,20 @@ function runHook(subcommand: string, home: string, payload: unknown): Promise<Ho
   });
 }
 
-const skillEmit = (sessionId: string) => ({
+const skillEmitPayload = (sessionId: string) => ({
   session_id: sessionId,
   hook_event_name: "PostToolUse",
-  tool_name: "mcp__muggle__muggle_local_telemetry_skill_emit",
+  tool_name: CODEX_SKILL_EMIT_TOOL,
   tool_input: { skillName: "muggle-test" },
   tool_response: [{ type: "text", text: '{"ok":true}' }],
+});
+
+const executeReplayPayload = (sessionId: string) => ({
+  session_id: sessionId,
+  hook_event_name: "PostToolUse",
+  tool_name: CODEX_EXECUTE_REPLAY_TOOL,
+  tool_input: { testScriptId: "ts-1" },
+  tool_response: [{ type: "text", text: "Replay PASSED" }],
 });
 
 const statePath = (home: string, sessionId: string): string => join(home, ".muggle-ai", "guardrails", `${sessionId}.json`);
@@ -52,42 +70,59 @@ function stateOf(home: string, sessionId: string): GuardrailState | undefined {
   return existsSync(file) ? (JSON.parse(readFileSync(file, "utf-8")) as GuardrailState) : undefined;
 }
 
-describe("the two hooks a skill emit reaches", () => {
+function groupMatchesTool(group: HookGroup, toolName: string): boolean {
+  if (!group.matcher) return true;
+  return NAME_LIST_MATCHER.test(group.matcher)
+    ? group.matcher.split("|").includes(toolName)
+    : new RegExp(group.matcher).test(toolName);
+}
+
+/** The guardrail scripts a manifest's PostToolUse groups run for `toolName`, one entry per group naming each. */
+function postToolUseScriptsFor(manifestPath: string, toolName: string): string[][] {
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as HooksManifest;
+  return (manifest.hooks.PostToolUse ?? [])
+    .filter((group) => groupMatchesTool(group, toolName))
+    .map((group) => group.hooks.flatMap((hook) => hook.command.match(GUARDRAIL_SCRIPT) ?? []));
+}
+
+describe("the hook a skill emit reaches", () => {
   let home: string;
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "gr-skill-emit-"));
   });
 
-  // Whether a given run interleaves badly is up to the scheduler, so this shows
-  // the outcome rather than pinning the race; the lock tests below pin that.
-  it("leave the session with both writers' records when they run at once", async () => {
-    const sessions = Array.from({ length: ROUNDS }, (_, round) => `emit-${round}`);
-    const runs = sessions.flatMap((sessionId) => WRITERS.map((writer) => ({ sessionId: sessionId, writer: writer })));
-    const outcomes = await Promise.all(runs.map((run) => runHook(run.writer, home, skillEmit(run.sessionId))));
-    // A record goes missing either because its writer crashed or because it exited
-    // cleanly without committing. The losing run is rare and only seen on CI, so
-    // the failure has to carry both writers' exits and stderr to tell which.
-    const describeWriters = (sessionId: string): string =>
-      runs
-        .map((run, index) => ({ writer: run.writer, sessionId: run.sessionId, outcome: outcomes[index] }))
-        .filter((run) => run.sessionId === sessionId)
-        .map((run) => `${run.writer} exit=${run.outcome.exitCode} stderr=${JSON.stringify(run.outcome.stderr.trim().slice(0, 400))}`)
-        .join("; ");
-    for (const sessionId of sessions) {
-      const state = stateOf(home, sessionId);
-      const writers = `${sessionId} (${describeWriters(sessionId)})`;
-      expect(state?.lastInvokedSkillName, writers).toBe("muggle-test");
-      expect(state?.mandatoryStages?.length, writers).toBeGreaterThan(0);
-      expect(state?.e2eRun, writers).toBe(true);
-    }
+  it.each([
+    ["Claude Code", CLAUDE_HOOKS, MUGGLE_TELEMETRY_SKILL_EMIT_TOOL],
+    ["Codex", CODEX_HOOKS, CODEX_SKILL_EMIT_TOOL],
+  ])("is skill-stages alone, in one PostToolUse group of the %s manifest", (_host, manifestPath, toolName) => {
+    expect(postToolUseScriptsFor(manifestPath, toolName)).toEqual([["guardrail-skill-stages.sh"]]);
   });
 
-  it.each(WRITERS)("%s commits only under the session's lock", async (writer) => {
+  // Each session's one writer runs alongside every other session's, so a record
+  // missing here is a writer that crashed or exited without committing; the
+  // failure carries its exit and stderr to tell which.
+  it("leaves the skill, its mandatory stages and the E2E run in every session when emits run at once", async () => {
+    const sessions = Array.from({ length: ROUNDS }, (_, round) => `emit-${round}`);
+    const outcomes = await Promise.all(sessions.map((sessionId) => runHook("skill-stages", home, skillEmitPayload(sessionId))));
+    sessions.forEach((sessionId, index) => {
+      const state = stateOf(home, sessionId);
+      const outcome = outcomes[index];
+      const writer = `${sessionId} (skill-stages exit=${outcome.exitCode} stderr=${JSON.stringify(outcome.stderr.trim().slice(0, 400))})`;
+      expect(state?.lastInvokedSkillName, writer).toBe("muggle-test");
+      expect(state?.mandatoryStages?.length, writer).toBeGreaterThan(0);
+      expect(state?.e2eRun, writer).toBe(true);
+    });
+  });
+
+  it.each([
+    { writer: "skill-stages", payload: skillEmitPayload },
+    { writer: "record-tests", payload: executeReplayPayload },
+  ])("$writer commits only under the session's lock", async ({ writer, payload }) => {
     const lock = `${statePath(home, "held")}.lock`;
     mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
     writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
     try {
-      expect((await runHook(writer, home, skillEmit("held"))).exitCode).toBe(0);
+      expect((await runHook(writer, home, payload("held"))).exitCode).toBe(0);
       expect(stateOf(home, "held")).toBeUndefined();
     } finally {
       unlinkSync(lock);

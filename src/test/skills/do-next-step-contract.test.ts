@@ -9,7 +9,8 @@
  *
  * Teardown deletes the terminal slug's slot before this step runs, so that
  * slug's line comes from the record `do/cleanup.md` captured beforehand and
- * nothing is appended to the deleted slot's log.
+ * nothing is appended to the deleted slot's log. PRs the chat finished earlier
+ * come from its ledger, since their slots are gone too.
  */
 
 import { describe, it, expect } from "vitest";
@@ -40,18 +41,29 @@ describe("do/next-step.md — the terminal slug comes from a record, not its slo
     expect(STATUS_BLOCK).toMatch(/\*\*`<slug>`\*\* is built from `terminalRecord`, never from the slot on disk/);
   });
 
-  it("takes the terminal slug's teardown note from this turn's teardown report", () => {
-    expect(STATUS_BLOCK).toMatch(/teardown note comes from teardown's report printed this turn/i);
-    expect(STATUS_BLOCK).toMatch(/`branch kept` when `teardownRan` is false/);
+  it("takes the terminal slug's teardown note from the record", () => {
+    expect(INPUT).toMatch(/^- `terminalRecord` — .*completed with its `teardown` note/m);
+    expect(STATUS_BLOCK).toMatch(/Its teardown note is the record's `teardown`/);
   });
 
-  it("draws the terminal slug's left-over items from the record", () => {
-    expect(STATUS_BLOCK).toMatch(/for `<slug>`, the record's `waivers`, `e2eFailing` and `escalatedReviewIds`/);
+  it("draws left-over items from the terminal slug's and the ledger's records", () => {
+    expect(STATUS_BLOCK).toMatch(/for `<slug>` and every ledger record, the record's `waivers`, `e2eFailing` and `escalatedReviewIds`/);
   });
 
-  it("still reads this chat's other terminal slots from disk", () => {
-    expect(STATUS_BLOCK).toMatch(/\*\*Other terminal slots\*\* \(`merged`, `closed`\) read `prs\.json` and `result\.md`/);
+  it("still reads this chat's terminal slots the ledger lacks from disk", () => {
+    expect(STATUS_BLOCK).toMatch(/\*\*Other terminal slots\*\* \(`merged`, `closed`\) not in the ledger read `prs\.json` and `result\.md`/);
     expect(STATUS_BLOCK).toMatch(/cleanup line in `followup\.log`/);
+  });
+});
+
+describe("do/next-step.md — PRs finished earlier come from the chat ledger", () => {
+  it("counts the ledger's PRs as this chat's work", () => {
+    expect(SCOPE).toMatch(/every PR in its \[chat ledger\]\(cleanup\.md#chat-ledger\) — PRs it finished, whose slots teardown may have deleted/);
+  });
+
+  it("lists each ledger PR once, from its record", () => {
+    expect(STATUS_BLOCK).toMatch(/\*\*Finished PRs\*\* — the ledger's other records, each line built from its record and its `teardown` note/);
+    expect(STATUS_BLOCK).toMatch(/A PR in the ledger is listed once, from the ledger, even while its slot is still on disk/);
   });
 
   it("appends nothing to a slot teardown cleared", () => {
@@ -77,8 +89,8 @@ describe("do/next-step.md — status before the question", () => {
     expect(PROCEDURE).toMatch(/status block always comes first/i);
   });
 
-  it("reports every slot of this chat's work, the terminal slug first", () => {
-    expect(STATUS_BLOCK).toMatch(/one line per slot of this chat's work, `<slug>` first/i);
+  it("reports every PR of this chat's work, the terminal slug first", () => {
+    expect(STATUS_BLOCK).toMatch(/one line per PR of this chat's work, `<slug>` first/i);
     for (const state of ["merged", "open", "blocked", "closed"]) {
       expect(STATUS_BLOCK).toMatch(new RegExp(`^  ${state} `, "m"));
     }
@@ -90,7 +102,7 @@ describe("do/next-step.md — status before the question", () => {
   });
 
   it("keeps other chats out of the block", () => {
-    expect(STATUS_BLOCK).toMatch(/no other chat's slot appears in the block/i);
+    expect(STATUS_BLOCK).toMatch(/no other chat's slot or ledger appears in the block/i);
   });
 });
 

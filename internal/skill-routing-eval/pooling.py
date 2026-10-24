@@ -5,7 +5,8 @@ the per-skill view the report and the disconnect guard need is a partition of
 one pooled run rather than a subprocess per skill.
 """
 
-from pool_constants import MAX_DISCONNECT_ATTEMPTS
+from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD, MAX_DISCONNECT_ATTEMPTS
+from pool_types import SweepArm
 from regression_gate import skill_tally
 from scoring import NONE
 
@@ -13,6 +14,26 @@ from scoring import NONE
 def plan_pooled_items(skills: list[str], by_skill: dict) -> list[dict]:
     """Every selected skill's queries flattened into one pool, in `skills` order."""
     return [item for skill in skills for item in by_skill.get(skill, [])]
+
+
+def pair_with_control(items: list[dict], control_config_dir: str) -> list[dict]:
+    """Each query twice, candidate then control, so the two arms of a query run side by side.
+
+    Whatever makes the model route worse for a stretch of time moves every session
+    inside it. Adjacent arms share that stretch, so it cancels in their difference.
+
+    Output shape: `[{..., "arm": "candidate"}, {..., "arm": "control", "claude_config_dir": "/x"}]`
+    """
+    paired = []
+    for item in items:
+        paired.append({**item, ARM_FIELD: SweepArm.CANDIDATE.value})
+        paired.append({**item, ARM_FIELD: SweepArm.CONTROL.value, CLAUDE_CONFIG_DIR_FIELD: control_config_dir})
+    return paired
+
+
+def rows_of_arm(results: list[dict], arm: SweepArm) -> list[dict]:
+    """The result rows a paired sweep measured under `arm`, in plan order."""
+    return [row for row in results if row.get(ARM_FIELD) == arm.value]
 
 
 def partition_results_by_skill(results: list[dict], skills: list[str]) -> dict[str, list[dict]]:

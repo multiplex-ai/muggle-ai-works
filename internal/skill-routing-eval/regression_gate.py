@@ -7,6 +7,12 @@ absolute pass bar therefore either fails honest runs or means nothing. This
 gate compares a run against a recorded per-skill baseline instead, and fails
 only on a drop wider than the baseline's own sampling noise, or on a collapse
 toward zero.
+
+A recorded baseline was measured in another stretch of time, and the model
+routes worse in some stretches than others: identical descriptions have scored
+16/26 and 26/26 twenty minutes apart. So a scoped run's failing verdict is
+confirmed before it fails, against the base ref's plugin measured side by side
+with the PR's (`judge_confirmation`).
 """
 
 import json
@@ -16,11 +22,12 @@ from pathlib import Path
 from gate_constants import (
     COLLAPSE_RECALL,
     FAILING_STATUSES,
+    GATE_AGAINST_RECORDED_BASELINE,
     LAPLACE_PSEUDO_COUNT,
     NOISE_SIGMA_MULTIPLIER,
     PAIRED_MEASUREMENT_FACTOR,
 )
-from gate_types import RunGateVerdict, SkillGateStatus, SkillGateVerdict
+from gate_types import PairedTally, RunGateVerdict, SkillGateStatus, SkillGateVerdict
 from scoring import scored_pass
 
 
@@ -135,12 +142,107 @@ def gate_failures(verdict: RunGateVerdict) -> list[SkillGateVerdict]:
     return [v for v in verdict.skill_verdicts if v.status in FAILING_STATUSES]
 
 
-def format_gate_report(verdict: RunGateVerdict) -> list[str]:
+def is_failing(verdict: RunGateVerdict) -> bool:
+    """True when a skill or the pooled recall fails the build."""
+    return bool(gate_failures(verdict)) or verdict.overall_regressed
+
+
+def confirmation_skills(verdict: RunGateVerdict) -> list[str]:
+    """The skills a failing verdict re-measures against the control arm before it may fail.
+
+    Failing skills are re-measured alone, and the confirmation's pooled row then
+    covers only them. A pooled regression with no failing skill is a claim about
+    every comparable skill together, so it re-measures all of them.
+
+    Output shape: `["muggle-test"]`
+    """
+    failing = [v.skill for v in gate_failures(verdict)]
+    if failing or not verdict.overall_regressed:
+        return failing
+    ungated = (SkillGateStatus.INCONCLUSIVE, SkillGateStatus.UNBASELINED)
+    return [v.skill for v in verdict.skill_verdicts if v.status not in ungated]
+
+
+def paired_tally(candidate_rows: list[dict], control_rows: list[dict], skill: str) -> PairedTally:
+    """One skill's single-run passes in each arm, paired query by query.
+
+    Each query's pass rate is pooled across both arms for the variance, so a
+    query that routes reliably adds little and the borderline ones carry the
+    noise. A query either arm is missing is left out of both.
+
+    Output shape: `PairedTally(candidate_passed=118, control_passed=121, total=130, difference_variance=14.2)`
+    """
+    control_by_query = {row["query"]: row for row in control_rows if row["expected_skill"] == skill}
+    candidate_passed = control_passed = total = 0
+    difference_variance = 0.0
+    for candidate in (row for row in candidate_rows if row["expected_skill"] == skill):
+        control = control_by_query.get(candidate["query"])
+        if control is None:
+            continue
+        query_candidate_passed = sum(1 for route in candidate["fired"] if scored_pass(skill, route))
+        query_control_passed = sum(1 for route in control["fired"] if scored_pass(skill, route))
+        query_runs = len(candidate["fired"]) + len(control["fired"])
+        pooled_rate = (query_candidate_passed + query_control_passed + LAPLACE_PSEUDO_COUNT) / (
+            query_runs + 2 * LAPLACE_PSEUDO_COUNT
+        )
+        candidate_passed += query_candidate_passed
+        control_passed += query_control_passed
+        total += len(candidate["fired"])
+        difference_variance += query_runs * pooled_rate * (1.0 - pooled_rate)
+    return PairedTally(candidate_passed, control_passed, total, difference_variance)
+
+
+def paired_noise_band(tally: PairedTally) -> float:
+    """Recall points the candidate arm may sit below the control arm before the drop outruns noise."""
+    if tally.total <= 0:
+        return 1.0
+    return NOISE_SIGMA_MULTIPLIER * math.sqrt(tally.difference_variance) / tally.total
+
+
+def judge_confirmed_skill(skill: str, tally: PairedTally) -> SkillGateVerdict:
+    """Judge one skill's candidate arm against the control arm measured beside it."""
+    recall = tally.candidate_passed / tally.total if tally.total else 0.0
+    control_recall = tally.control_passed / tally.total if tally.total else 0.0
+    if tally.control_passed == 0:
+        return SkillGateVerdict(skill, tally.candidate_passed, tally.total, recall, control_recall, 0.0,
+                                SkillGateStatus.UNCONFIRMED)
+    if recall < COLLAPSE_RECALL:
+        return SkillGateVerdict(skill, tally.candidate_passed, tally.total, recall, control_recall, 0.0,
+                                SkillGateStatus.COLLAPSED)
+    band = paired_noise_band(tally)
+    status = SkillGateStatus.REGRESSED if recall < control_recall - band else SkillGateStatus.HELD
+    return SkillGateVerdict(skill, tally.candidate_passed, tally.total, recall, control_recall, band, status)
+
+
+def judge_confirmation(candidate_rows: list[dict], control_rows: list[dict], skills: list[str]) -> RunGateVerdict:
+    """Judge a paired sweep's candidate arm against its control arm, per skill and pooled.
+
+    Both arms ran inside the same stretch of time, so a stretch in which the model
+    routes worse moves them together and only the PR's own effect separates them.
+    """
+    tallies = {skill: paired_tally(candidate_rows, control_rows, skill) for skill in skills}
+    verdicts = [judge_confirmed_skill(skill, tally) for skill, tally in tallies.items()]
+    comparable = [tallies[v.skill] for v in verdicts if v.status is not SkillGateStatus.UNCONFIRMED]
+    pooled = PairedTally(
+        candidate_passed=sum(t.candidate_passed for t in comparable),
+        control_passed=sum(t.control_passed for t in comparable),
+        total=sum(t.total for t in comparable),
+        difference_variance=sum(t.difference_variance for t in comparable),
+    )
+    if not pooled.total:
+        return RunGateVerdict(verdicts, None, None, 0.0, False)
+    recall = pooled.candidate_passed / pooled.total
+    control_recall = pooled.control_passed / pooled.total
+    band = paired_noise_band(pooled)
+    return RunGateVerdict(verdicts, recall, control_recall, band, recall < control_recall - band)
+
+
+def format_gate_report(verdict: RunGateVerdict, compared_against: str = GATE_AGAINST_RECORDED_BASELINE) -> list[str]:
     """Gate lines for the CI log: one row per skill, the pooled row, then the headline.
 
-    Output shape: `["Routing regression gate", "  muggle-test  19/26 = 73.1% ...", "GATE PASSED ..."]`
+    Output shape: `["Routing regression gate (vs ...)", "  muggle-test  19/26 = 73.1% ...", "GATE PASSED ..."]`
     """
-    lines = ["Routing regression gate (vs recorded baseline)"]
+    lines = [f"Routing regression gate (vs {compared_against})"]
     for v in verdict.skill_verdicts:
         measured = f"{v.passed}/{v.total} = {v.recall:.1%}"
         if v.baseline_recall is None:
@@ -158,7 +260,7 @@ def format_gate_report(verdict: RunGateVerdict) -> list[str]:
     failures = gate_failures(verdict)
     if failures:
         for v in failures:
-            lines.append(f"GATE FAILED: {v.skill} {v.status.value} — {v.recall:.1%} of {v.total} queries")
+            lines.append(f"GATE FAILED: {v.skill} {v.status.value} — {v.passed}/{v.total} = {v.recall:.1%}")
     if verdict.overall_regressed:
         lines.append(f"GATE FAILED: pooled recall {verdict.overall_recall:.1%} regressed against baseline")
     if not failures and not verdict.overall_regressed:

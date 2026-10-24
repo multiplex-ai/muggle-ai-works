@@ -28,7 +28,7 @@ from threading import Lock
 
 import codex_session
 import throttle
-from pool_constants import DEFAULT_ROUTING_WORKERS
+from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD, DEFAULT_ROUTING_WORKERS
 from route_constants import (
     COMMAND_VERB_EDGE_CHARS,
     DISCARDED_REDIRECT,
@@ -275,9 +275,15 @@ def stream_error_text(out: str) -> str:
     return ""
 
 
-def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None) -> tuple[str, str]:
+def run_claude_once(
+    query: str, repo_root: str, timeout: int, model: str | None, claude_config_dir: str | None = None
+) -> tuple[str, str]:
     """One isolated `claude -p` session. Returns (status, stdout) where status is
-    OK | TIMEOUT | THROTTLED | ERROR."""
+    OK | TIMEOUT | THROTTLED | ERROR.
+
+    `claude_config_dir` runs the session against the plugin installed in that
+    config dir instead of the one the runner's own config dir holds.
+    """
     cmd = [
         "claude", "-p", query,
         "--output-format", "stream-json",
@@ -288,6 +294,8 @@ def run_claude_once(query: str, repo_root: str, timeout: int, model: str | None)
         cmd.extend(["--model", model])
 
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    if claude_config_dir:
+        env["CLAUDE_CONFIG_DIR"] = claude_config_dir
 
     try:
         proc = subprocess.run(
@@ -358,17 +366,27 @@ def last_assistant_text(out: str, host: Host = Host.CLAUDE) -> str:
 
 
 def detect_route(
-    query: str, repo_root: str, timeout: int, model: str | None, host: Host = Host.CLAUDE
+    query: str,
+    repo_root: str,
+    timeout: int,
+    model: str | None,
+    host: Host = Host.CLAUDE,
+    claude_config_dir: str | None = None,
 ) -> RouteOutcome:
     """One query's route, carrying why it never routed when the route is `none`.
 
+    `claude_config_dir` applies to Claude sessions only; a Codex session's plugin
+    comes from $CODEX_HOME.
+
     Output shape: `RouteOutcome(route="none", none_reason=NoneReason.ORIENTED_ONLY)`
     """
-    run_session_once = codex_session.run_codex_once if host is Host.CODEX else run_claude_once
     attempt = 1
     while True:
         THROTTLE_GATE.wait_until_clear()
-        status, out = run_session_once(query, repo_root, timeout, model)
+        if host is Host.CODEX:
+            status, out = codex_session.run_codex_once(query, repo_root, timeout, model)
+        else:
+            status, out = run_claude_once(query, repo_root, timeout, model, claude_config_dir)
         if status == "THROTTLED" and attempt <= throttle.MAX_THROTTLE_RETRIES:
             backoff = throttle.backoff_seconds(attempt)
             THROTTLE_GATE.report_throttle(backoff)
@@ -429,22 +447,24 @@ def main():
     jobs = []
     for qi, item in enumerate(eval_set):
         for _ in range(args.runs):
-            jobs.append((qi, item["query"]))
+            jobs.append((qi, item["query"], item.get(CLAUDE_CONFIG_DIR_FIELD)))
 
     results = [None] * len(jobs)
     done = 0
     lock = Lock()
 
     def work(i):
-        qi, query = jobs[i]
-        return i, detect_route(query, args.repo_root, args.timeout, args.model, host=host)
+        _qi, query, claude_config_dir = jobs[i]
+        return i, detect_route(
+            query, args.repo_root, args.timeout, args.model, host=host, claude_config_dir=claude_config_dir
+        )
 
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
         futs = [ex.submit(work, i) for i in range(len(jobs))]
         for fut in as_completed(futs):
             i, outcome = fut.result()
             results[i] = outcome
-            qi, query = jobs[i]
+            qi, query, _claude_config_dir = jobs[i]
             expected = eval_set[qi].get("expected_skill", NONE)
             with lock:
                 done += 1
@@ -472,7 +492,7 @@ def main():
         expected = item.get("expected_skill", NONE)
         ok = scored_pass(expected, majority)
         passed += int(ok)
-        out.append({
+        row = {
             "query": item["query"],
             "expected_skill": expected,
             "fired": runs,
@@ -480,7 +500,10 @@ def main():
             "majority": majority,
             "pass": ok,
             "note": item.get("note", ""),
-        })
+        }
+        if ARM_FIELD in item:
+            row[ARM_FIELD] = item[ARM_FIELD]
+        out.append(row)
 
     report = {
         "host": host.value,

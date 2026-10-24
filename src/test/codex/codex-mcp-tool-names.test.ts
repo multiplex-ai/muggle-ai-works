@@ -129,11 +129,12 @@ describe.skipIf(process.platform === "win32")("guardrail pre-filters for a Codex
     expect(wrapperRanNode("guardrail-record-stage-signals.sh", codexToolName("muggle-local-check-status"))).toBe(false);
   });
 
-  it("record-tests: wakes for a Codex skill emit and a Codex execution result", () => {
+  // A skill emit has one writer, skill-stages, so record-tests stays asleep for it.
+  it("record-tests: wakes for a Codex execution result, not a Codex skill emit", () => {
+    expect(wrapperRanNode("guardrail-record-tests.sh", codexToolName("muggle-local-execute-replay"))).toBe(true);
     expect(
       wrapperRanNode("guardrail-record-tests.sh", codexToolName("muggle-local-telemetry-skill-emit"), { skillName: "muggle-test" }),
-    ).toBe(true);
-    expect(wrapperRanNode("guardrail-record-tests.sh", codexToolName("muggle-local-execute-replay"))).toBe(true);
+    ).toBe(false);
   });
 
   it("skill-stages: wakes for a Codex skill emit naming a shipped skill", () => {

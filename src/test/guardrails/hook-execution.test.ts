@@ -218,10 +218,10 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("walkthrough-gate", event({ session_id: "no-e2e" })).out).toBe("{}");
   });
 
-  it("record-tests -> walkthrough-gate: a sentinel-carrying post settles the gate", () => {
+  it("skill-stages -> record-tests -> walkthrough-gate: a sentinel-carrying post settles the gate", () => {
     const session = "walkthrough-posted";
     runHook(
-      "record-tests",
+      "skill-stages",
       event({
         session_id: session,
         tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
@@ -240,10 +240,10 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("walkthrough-gate", event({ session_id: session })).out).toBe("{}");
   });
 
-  it("record-tests -> walkthrough-gate: a MUGGLE_WALKTHROUGH_SKIP marker settles the gate", () => {
+  it("skill-stages -> record-tests -> walkthrough-gate: a MUGGLE_WALKTHROUGH_SKIP marker settles the gate", () => {
     const session = "walkthrough-skip";
     runHook(
-      "record-tests",
+      "skill-stages",
       event({
         session_id: session,
         tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
@@ -417,7 +417,7 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("e2e-gate", event({ session_id: session })).out).not.toBe("{}");
   });
 
-  it("record-tests -> e2e-gate: a muggle-test skill emit (clean SKIP path) releases an armed gate", () => {
+  it("record-tests -> skill-stages -> e2e-gate: a muggle-test skill emit (clean SKIP path) releases an armed gate", () => {
     const session = "skill-emit-chain";
     runHook(
       "record-tests",
@@ -430,7 +430,7 @@ describe("guardrail hook execution (cli entry)", () => {
     );
     expect(JSON.parse(runHook("e2e-gate", event({ session_id: session })).out).decision).toBe("block");
     runHook(
-      "record-tests",
+      "skill-stages",
       event({
         session_id: session,
         tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
@@ -868,16 +868,14 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     ).toContain(NODE_RAN);
   });
 
-  it("record-tests: spawns Node on a muggle-test skill telemetry emit", () => {
-    expect(
-      runWrapper(
-        "guardrail-record-tests.sh",
-        event({
-          tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
-          tool_input: { skillName: "muggle-test" },
-        }),
-      ),
-    ).toContain(NODE_RAN);
+  // skill-stages is the emit's one writer, so record-tests must stay off it.
+  it("skill emit: spawns Node in skill-stages only, never in record-tests", () => {
+    const skillEmit = event({
+      tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+      tool_input: { skillName: "muggle-test" },
+    });
+    expect(runWrapper("guardrail-skill-stages.sh", skillEmit)).toContain(NODE_RAN);
+    expect(runWrapper("guardrail-record-tests.sh", skillEmit)).toBe("{}");
   });
 
   // Every Stop gate documents its own marker as the way out, so all three must

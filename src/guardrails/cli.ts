@@ -65,7 +65,13 @@ import {
   undebuggedFailedRuns,
 } from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "./shouldRunE2E.js";
+import {
+  e2eGateDecision,
+  E2eGateAction,
+  MAX_E2E_BLOCKS,
+  applyRecordedRun,
+  type RecordedRun,
+} from "./shouldRunE2E.js";
 import {
   findUnwatchedHandledPrs,
   prsAwaitingStateScan,
@@ -266,6 +272,13 @@ function terminalGate(): string {
   return blockStop(reason, host);
 }
 
+/** Starts the walkthrough scan when a commit arms the gate, so the turn end that follows reads a finished scan. */
+function startWalkthroughScanOnGateArming(stateBefore: GuardrailState, committed: GuardrailState): void {
+  if (isWalkthroughGateArmed(committed) && !isWalkthroughGateArmed(stateBefore)) {
+    startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
+  }
+}
+
 function recordTests(): string {
   const cmd = input.tool_input?.command ?? "";
   const stateBefore = readState(sessionId);
@@ -287,15 +300,11 @@ function recordTests(): string {
     const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
     return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
   };
-  // Committed under the store's lock: a muggle-test skill emit reaches
-  // skill-stages at the same moment, and of two unlocked read-modify-writes
-  // the later erases the earlier — the skill and its mandatory stages with it,
-  // which disarms the stage and classification gates.
+  // Committed under the store's lock: other observers write the session's state
+  // concurrently, and of two unlocked read-modify-writes the later erases the
+  // earlier. A skill emit's E2E run is skillStages' to record, not this hook's.
   const next = commitState(sessionId, record) ?? record(readState(sessionId));
-  // Scanned the moment the gate arms, so the turn end that follows reads a finished scan.
-  if (isWalkthroughGateArmed(next) && !isWalkthroughGateArmed(stateBefore)) {
-    startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
-  }
+  startWalkthroughScanOnGateArming(stateBefore, next);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   // A rejected declaration is the moment the session is still trying to skip,
   // so it is the moment worth answering — naming the failed check here is what
@@ -328,9 +337,22 @@ function skillStages(): string {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
   const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
-  const invoke = (state: GuardrailState): GuardrailState => applySkillInvocation(state, skillName, stagePaths);
-  // Under the store's lock, for the reason recordTests gives.
+  const emittedRun: RecordedRun = {
+    unitTestPassed: false,
+    e2eRan: isE2ERun(input),
+    e2eSkipped: false,
+    e2eSkipCycleScoped: false,
+  };
+  const stateBefore = readState(sessionId);
+  const invoke = (state: GuardrailState): GuardrailState =>
+    applyRecordedRun(applySkillInvocation(state, skillName, stagePaths), emittedRun);
+  // A muggle-test emit is also an E2E run (the clean-SKIP verdict), committed
+  // here with the skill so the emit has one writer: the store drops a write
+  // that cannot take the session's lock in time, and with two hooks recording
+  // one emit a slow disk could drop the skill and its stages, disarming the
+  // stage and classification gates.
   const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
+  startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
   // Injected at the moment of use, which is the only moment the requirement is

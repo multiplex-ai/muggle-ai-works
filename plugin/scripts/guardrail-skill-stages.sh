@@ -5,6 +5,8 @@ set -uo pipefail
 # and, when its SKILL.md declares `mandatoryStages`, returns those files as
 # required reading at the moment of use. The Stop gate
 # (guardrail-stage-gate.sh) blocks the turn end while any of them is unread.
+# For a muggle-test skill telemetry emit it also records the E2E run, so the
+# emit has one writer and no lost write to race for.
 #
 # Skill calls are rare, so the pre-filter is a file test rather than a keyword
 # scan: the invoked name is pulled out of the payload and Node runs only when it

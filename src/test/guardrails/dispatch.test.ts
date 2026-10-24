@@ -68,7 +68,9 @@ describe.skipIf(process.platform === "win32")("guardrail-dispatch.sh", () => {
       hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ command: string }> }>>;
     }).hooks;
     const group = hooks[event].find((candidate) => candidate.matcher === matcher);
-    if (!group || group.hooks.length !== 1) throw new Error(`${event}[${matcher}] is not a single dispatcher command`);
+    // A group's `if` variants all launch the one dispatcher command, each for the calls its rule names.
+    const distinctCommands = new Set(group?.hooks.map((hook) => hook.command));
+    if (!group || distinctCommands.size !== 1) throw new Error(`${event}[${matcher}] is not a single dispatcher command`);
     return group.hooks[0].command;
   };
 

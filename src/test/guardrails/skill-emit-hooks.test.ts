@@ -17,14 +17,23 @@ const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugin", import.meta.url));
 const WRITERS = ["record-tests", "skill-stages"];
 const ROUNDS = 12;
 
-function runHook(subcommand: string, home: string, payload: unknown): Promise<number | null> {
+interface HookOutcome {
+  exitCode: number | null;
+  stderr: string;
+}
+
+function runHook(subcommand: string, home: string, payload: unknown): Promise<HookOutcome> {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, ["--import", "tsx", CLI, subcommand], {
       env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, MUGGLE_HOOK_HOST: "codex" },
-      stdio: ["pipe", "ignore", "ignore"],
+      stdio: ["pipe", "ignore", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
     });
     child.stdin.end(JSON.stringify(payload));
-    child.on("close", resolve);
+    child.on("close", (exitCode) => resolve({ exitCode: exitCode, stderr: stderr }));
   });
 }
 
@@ -53,12 +62,23 @@ describe("the two hooks a skill emit reaches", () => {
   // the outcome rather than pinning the race; the lock tests below pin that.
   it("leave the session with both writers' records when they run at once", async () => {
     const sessions = Array.from({ length: ROUNDS }, (_, round) => `emit-${round}`);
-    await Promise.all(sessions.flatMap((sessionId) => WRITERS.map((writer) => runHook(writer, home, skillEmit(sessionId)))));
+    const runs = sessions.flatMap((sessionId) => WRITERS.map((writer) => ({ sessionId: sessionId, writer: writer })));
+    const outcomes = await Promise.all(runs.map((run) => runHook(run.writer, home, skillEmit(run.sessionId))));
+    // A record goes missing either because its writer crashed or because it exited
+    // cleanly without committing. The losing run is rare and only seen on CI, so
+    // the failure has to carry both writers' exits and stderr to tell which.
+    const describeWriters = (sessionId: string): string =>
+      runs
+        .map((run, index) => ({ writer: run.writer, sessionId: run.sessionId, outcome: outcomes[index] }))
+        .filter((run) => run.sessionId === sessionId)
+        .map((run) => `${run.writer} exit=${run.outcome.exitCode} stderr=${JSON.stringify(run.outcome.stderr.trim().slice(0, 400))}`)
+        .join("; ");
     for (const sessionId of sessions) {
       const state = stateOf(home, sessionId);
-      expect(state?.lastInvokedSkillName, sessionId).toBe("muggle-test");
-      expect(state?.mandatoryStages?.length, sessionId).toBeGreaterThan(0);
-      expect(state?.e2eRun, sessionId).toBe(true);
+      const writers = `${sessionId} (${describeWriters(sessionId)})`;
+      expect(state?.lastInvokedSkillName, writers).toBe("muggle-test");
+      expect(state?.mandatoryStages?.length, writers).toBeGreaterThan(0);
+      expect(state?.e2eRun, writers).toBe(true);
     }
   });
 
@@ -67,7 +87,7 @@ describe("the two hooks a skill emit reaches", () => {
     mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
     writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
     try {
-      expect(await runHook(writer, home, skillEmit("held"))).toBe(0);
+      expect((await runHook(writer, home, skillEmit("held"))).exitCode).toBe(0);
       expect(stateOf(home, "held")).toBeUndefined();
     } finally {
       unlinkSync(lock);

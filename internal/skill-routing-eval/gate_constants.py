@@ -9,6 +9,10 @@ CODEX_BASELINE_FILENAME = "recall-baseline.codex.json"
 
 BASELINE_SOURCE_FULL_SWEEP = "full routing sweep on master"
 
+GATE_AGAINST_RECORDED_BASELINE = "recorded baseline, majority-voted queries"
+
+GATE_AGAINST_CONTROL_ARM = "base ref's plugin measured side by side, single runs"
+
 # Two-sided ~95% band: a run inside it is indistinguishable from sampling noise.
 NOISE_SIGMA_MULTIPLIER = 2.0
 
@@ -24,4 +28,4 @@ LAPLACE_PSEUDO_COUNT = 1.0
 # for a skill with no recorded baseline, and for a baseline recorded degraded.
 COLLAPSE_RECALL = 0.10
 
-FAILING_STATUSES = (SkillGateStatus.REGRESSED, SkillGateStatus.COLLAPSED)
+FAILING_STATUSES = (SkillGateStatus.REGRESSED, SkillGateStatus.COLLAPSED, SkillGateStatus.UNCONFIRMED)

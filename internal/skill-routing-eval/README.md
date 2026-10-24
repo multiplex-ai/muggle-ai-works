@@ -72,6 +72,7 @@ refactor that touches no `SKILL.md`).
 - `--gate` — compare the run against `recall-baseline.json`; exit non-zero on a regression, a collapse, or a sweep where no chunk could be verified. Off by default, so dev runs stay informational. CI passes it in both modes.
 - `--baseline PATH` — the recorded baseline to compare against (default: `recall-baseline.json` beside the runner).
 - `--record-baseline PATH` — write this run's per-skill tallies for a human to promote. Full sweeps only; a scoped run would drop every skill it did not measure.
+- `--control-config-dir DIR` — a Claude config dir with the base ref's plugin installed. A failing gate re-measures its failing skills against it before it fails (see [Confirmation](#confirmation)). CI passes it on scoped runs.
 - `router_eval.py --probe "<query>"` — route one query and print the result; CI uses it to fail fast when the plugin didn't load.
 
 CI installs the plugin from the PR checkout (`claude plugin marketplace add "$GITHUB_WORKSPACE"`), so it tests the PR's descriptions rather than master — no `--sync-cache` needed. Requires the `CLAUDE_CODE_OAUTH_TOKEN` repo secret (subscription auth from `claude setup-token`, not a pay-per-use API key). Set the optional `CLAUDE_CODE_OAUTH_TOKEN_2` secret to a spare token and the job falls back to it for that run when the primary is rejected or throttled, with a workflow warning.
@@ -106,6 +107,23 @@ Three independent estimates agree on the width at `n = 26`, `p ~ 0.85`:
 So muggle-test tolerates a drop to 18/26 against its 23/26 baseline and fails at 17/26, while a near-perfect baseline stays tight on its own terms: 24/24 may fall to 22/24, and the 48/48 negative class to 46/48.
 
 A scoped PR run also votes over 5 runs per query rather than the sweep's 3. One chunk is cheap — 26 queries at 6 workers measured 3.1 min at 3 runs, so about 5 min at 5 — and a majority over 5 flips on fewer queries, which is the noise the gate then has to tolerate.
+
+### Confirmation
+
+The band above models sampling noise inside one sweep. It does not model the stretches of time in which the model routes worse across the board. With muggle-test's name and description unchanged from master, three consecutive scoped runs scored 16/26, 16/26 and 26/26; the second and third tested byte-identical plugin and harness trees twenty minutes apart, and their single runs passed 84/130 and 126/130. Ten steady measurements of that skill over the five days before had passed 85% to 94% of their runs, so a fall to 65% is no binomial wobble. Every kind of miss grew at once: against the 26/26 run, `oriented_only` went from 4 runs to 19, `acted_without_routing` from 0 to 18 and `no_tool_call` from 0 to 9. Majority voting cannot absorb it, because a query's five runs share the stretch.
+
+So a scoped run's failing verdict is confirmed before it fails. Its failing skills run again, each query once under the PR's plugin and once under the base ref's (`--control-config-dir`), side by side, so both arms share whatever stretch they land in. The candidate arm fails only if its single-run recall sits below the control arm's by more than `2 * sqrt(sum over queries of 2r * p(1-p))`, divided by the run count. Here `p` is that query's pass rate pooled across both arms, Laplace-smoothed, and `r` is its runs per arm. A control arm that routes nothing leaves the failure standing (`unconfirmed`). Full sweeps get no confirmation, because they gate the harness itself.
+
+Simulated for muggle-test from the per-query pass rates CI measured, at 5 runs per query. A drop of k queries means the k most reliably routed queries stop routing.
+
+| | false failure | catches a 4-query drop | 5-query | 6-query |
+|---|---|---|---|---|
+| steady stretch, recorded baseline only | 0.0% | 58% | 100% | 100% |
+| steady stretch, with confirmation | 0.0% | 57% | 99.9% | 100% |
+| depressed stretch, recorded baseline only | 99.7% | 100% | 100% | 100% |
+| depressed stretch, with confirmation | 1.8% | 82% | 95% | 99% |
+
+A confirmation sweep costs about twice a first sweep, and it only runs when the first one fails.
 
 ### Baseline refresh
 

@@ -1,7 +1,8 @@
 import unittest
 
 import pooling
-from pool_constants import MAX_DISCONNECT_ATTEMPTS
+from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD, MAX_DISCONNECT_ATTEMPTS
+from pool_types import SweepArm
 
 MUGGLE_TEST = "muggle-test"
 MUGGLE_STATUS = "muggle-status"
@@ -36,6 +37,48 @@ class TestPlanPooledItems(unittest.TestCase):
         by_skill = {MUGGLE_TEST: queries(MUGGLE_TEST, 2), MUGGLE_STATUS: queries(MUGGLE_STATUS, 3)}
         planned = pooling.plan_pooled_items([MUGGLE_STATUS], by_skill)
         self.assertEqual({p["expected_skill"] for p in planned}, {MUGGLE_STATUS})
+
+
+class TestPairWithControl(unittest.TestCase):
+    control_dir = "/runner/.cc-config-control"
+
+    def test_each_query_runs_in_both_arms_side_by_side(self):
+        paired = pooling.pair_with_control(queries(MUGGLE_TEST, 2), self.control_dir)
+        self.assertEqual(
+            [(p["query"], p[ARM_FIELD]) for p in paired],
+            [
+                (f"{MUGGLE_TEST} q0", SweepArm.CANDIDATE.value),
+                (f"{MUGGLE_TEST} q0", SweepArm.CONTROL.value),
+                (f"{MUGGLE_TEST} q1", SweepArm.CANDIDATE.value),
+                (f"{MUGGLE_TEST} q1", SweepArm.CONTROL.value),
+            ],
+        )
+
+    def test_only_the_control_arm_switches_config_dir(self):
+        candidate, control = pooling.pair_with_control(queries(MUGGLE_TEST, 1), self.control_dir)
+        self.assertNotIn(CLAUDE_CONFIG_DIR_FIELD, candidate)
+        self.assertEqual(control[CLAUDE_CONFIG_DIR_FIELD], self.control_dir)
+
+    def test_the_planned_items_are_left_untouched(self):
+        items = queries(MUGGLE_TEST, 1)
+        pooling.pair_with_control(items, self.control_dir)
+        self.assertEqual(items, queries(MUGGLE_TEST, 1))
+
+
+class TestRowsOfArm(unittest.TestCase):
+    def test_splits_a_paired_sweep_by_arm_in_plan_order(self):
+        results = [
+            {"query": "a", ARM_FIELD: SweepArm.CANDIDATE.value},
+            {"query": "a", ARM_FIELD: SweepArm.CONTROL.value},
+            {"query": "b", ARM_FIELD: SweepArm.CANDIDATE.value},
+        ]
+        self.assertEqual([r["query"] for r in pooling.rows_of_arm(results, SweepArm.CANDIDATE)], ["a", "b"])
+        self.assertEqual([r["query"] for r in pooling.rows_of_arm(results, SweepArm.CONTROL)], ["a"])
+
+    def test_an_unpaired_row_belongs_to_neither_arm(self):
+        unpaired = rows(MUGGLE_TEST, 1, 1)
+        self.assertEqual(pooling.rows_of_arm(unpaired, SweepArm.CANDIDATE), [])
+        self.assertEqual(pooling.rows_of_arm(unpaired, SweepArm.CONTROL), [])
 
 
 class TestPartitionResultsBySkill(unittest.TestCase):

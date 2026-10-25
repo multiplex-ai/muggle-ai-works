@@ -24,6 +24,12 @@ export function renderUserWorkflow(): string {
 # GitHub reads the issue_comment trigger from the default branch's copy of this
 # file, so comment-driven re-runs only start working once this is merged.
 #
+# Runs for one PR queue rather than cancel. Settling the comment starts an
+# issue_comment run while the pull_request run may still be checking; cancelling
+# that run would leave a cancelled job on the PR head, red beside a green check.
+# A queued run that a newer event replaces leaves nothing behind, and the newest
+# event is still the one judged last.
+#
 # On a pull request from a fork, GITHUB_TOKEN is read-only and the check run
 # cannot be published; the command fails open and reports nothing.
 on:
@@ -39,7 +45,7 @@ permissions:
 
 concurrency:
   group: muggle-walkthrough-\${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   walkthrough-comment:

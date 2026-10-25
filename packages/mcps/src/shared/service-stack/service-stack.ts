@@ -89,6 +89,7 @@ export async function claimServiceStack(params: {
  * @param params.cwd - Any directory inside the caller's checkout.
  * @param params.port - The port the run targets; a peer's lease on it refuses a caller with no claim there.
  * @param params.shouldRenew - Renew a valid lease, as a run in progress does.
+ * @param params.holderPid - Long-lived process renewing it, recorded so the lease ends when it exits.
  * @param params.runGit - Git runner; the real one unless a test injects its own.
  * @returns The verdict, with every mismatched port.
  */
@@ -96,11 +97,12 @@ export async function checkServiceStack(params: {
   cwd: string;
   port?: number;
   shouldRenew?: boolean;
+  holderPid?: number;
   runGit?: GitCommandRunner;
 }): Promise<IStackCheckReport> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
-  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now() });
+  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now(), isAlive: isProcessAlive });
   const ownLease = swept.leases.find((lease) => lease.cwd === cwd) ?? null;
   const base = { cwd: cwd, generation: snapshot.generation, mismatches: [], peerLease: null };
 
@@ -140,7 +142,16 @@ export async function checkServiceStack(params: {
     await updateGenerationStore({
       directory: ledgerDir(),
       emptyRecord: EMPTY_STACK_RECORD,
-      decide: (current) => ({ next: decideStackRenewal({ record: current.record, cwd: cwd, now: Date.now() }), result: null }),
+      decide: (current) => ({
+        next: decideStackRenewal({
+          record: current.record,
+          cwd: cwd,
+          now: Date.now(),
+          isAlive: isProcessAlive,
+          holderPid: params.holderPid,
+        }),
+        result: null,
+      }),
     });
   }
   return { ...base, verdict: StackCheckVerdict.Valid, reason: "every claimed port serves the claimed code" };
@@ -173,7 +184,7 @@ export async function releaseServiceStack(params: { cwd: string; runGit?: GitCom
  */
 export async function readServiceStackStatus(): Promise<IStackStatusReport> {
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
-  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now() });
+  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now(), isAlive: isProcessAlive });
   return {
     generation: snapshot.generation,
     leases: swept.leases,
@@ -209,6 +220,7 @@ async function claimOnce(params: { cwd: string; label?: string; needs: IStackNee
         label: params.label,
         needs: params.needs,
         now: Date.now(),
+        isAlive: isProcessAlive,
       });
       return { next: decision.next, result: decision };
     },

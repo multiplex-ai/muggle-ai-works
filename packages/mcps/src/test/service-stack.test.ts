@@ -129,6 +129,29 @@ describe("claimServiceStack", () => {
     expect(report.verdict).toBe(StackClaimVerdict.Granted);
   });
 
+  it("serves three checkouts waiting on one port in the order they asked", async () => {
+    const { claimServiceStack, releaseServiceStack, StackClaimVerdict } = await loadStack();
+    const fifoGit = fakeGit({
+      [normalized("/q/a")]: SHA_A,
+      [normalized("/q/b")]: SHA_B,
+      [normalized("/q/c")]: SHA_BASE,
+    });
+    const claim = (cwd: string) => claimServiceStack({ cwd: cwd, needs: [{ port: 3000, runDir: cwd }], runGit: fifoGit });
+
+    expect((await claim("/q/a")).verdict).toBe(StackClaimVerdict.Granted);
+    expect((await claim("/q/b")).position).toBe(1);
+    expect((await claim("/q/c")).position).toBe(2);
+
+    await releaseServiceStack({ cwd: "/q/a", runGit: fifoGit });
+    const cBeforeB = await claim("/q/c");
+    expect(cBeforeB.verdict).toBe(StackClaimVerdict.Busy);
+    expect(cBeforeB.blockers).toMatchObject([{ blockingCwd: normalized("/q/b"), isQueuedAhead: true }]);
+    expect((await claim("/q/b")).verdict).toBe(StackClaimVerdict.Granted);
+
+    await releaseServiceStack({ cwd: "/q/b", runGit: fifoGit });
+    expect((await claim("/q/c")).verdict).toBe(StackClaimVerdict.Granted);
+  });
+
   it("grants exactly one of several checkouts racing for different code on one port", async () => {
     const { claimServiceStack, StackClaimVerdict } = await loadStack();
     const racers = Array.from({ length: 6 }, (_, index) => `/race/${index}`);
@@ -172,6 +195,23 @@ describe("checkServiceStack", () => {
     expect((await checkServiceStack({ cwd: "/wt/b", port: 5173, runGit: git })).verdict).toBe(StackCheckVerdict.NoLease);
   });
 
+  it("lets one change run its test cases in parallel under a single lease", async () => {
+    const { checkServiceStack, claimServiceStack, readServiceStackStatus, StackCheckVerdict } = await loadStack();
+    writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    const parallelChecks = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        checkServiceStack({ cwd: "/wt/a", port: 3000, shouldRenew: true, holderPid: process.pid, runGit: git }),
+      ),
+    );
+
+    expect(parallelChecks.map((report) => report.verdict)).toEqual(Array(4).fill(StackCheckVerdict.Valid));
+    const leases = (await readServiceStackStatus()).leases;
+    expect(leases).toHaveLength(1);
+    expect(leases[0].holderPids).toEqual([process.pid]);
+  });
+
   it("ignores a tracked service whose process is gone", async () => {
     const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
@@ -183,6 +223,7 @@ describe("checkServiceStack", () => {
 
 describe("decideStackClaim", () => {
   const now = 1_000_000_000;
+  const alive = () => true;
   const need = (port: number, runDir: string, headSha: string) => ({ port: port, runDir: runDir, headSha: headSha });
 
   it("serves a contested port first come, first served", async () => {
@@ -196,8 +237,8 @@ describe("decideStackClaim", () => {
       portFreedAt: { "3000": now - 500 },
     };
 
-    expect(decideStackClaim({ record: record, cwd: "/c", needs: [need(3000, "/c", SHA_A)], now: now }).isGranted).toBe(false);
-    expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now }).isGranted).toBe(true);
+    expect(decideStackClaim({ record: record, cwd: "/c", needs: [need(3000, "/c", SHA_A)], now: now, isAlive: alive }).isGranted).toBe(false);
+    expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive }).isGranted).toBe(true);
   });
 
   it("lets a checkout past one ahead that wants other ports", async () => {
@@ -208,7 +249,7 @@ describe("decideStackClaim", () => {
       portFreedAt: {},
     };
 
-    expect(decideStackClaim({ record: record, cwd: "/c", needs: [need(5173, "/c", SHA_A)], now: now }).isGranted).toBe(true);
+    expect(decideStackClaim({ record: record, cwd: "/c", needs: [need(5173, "/c", SHA_A)], now: now, isAlive: alive }).isGranted).toBe(true);
   });
 
   it("stops owing a turn to a checkout that stopped asking", async () => {
@@ -220,10 +261,38 @@ describe("decideStackClaim", () => {
       portFreedAt: {},
     };
 
-    const decision = decideStackClaim({ record: record, cwd: "/c", needs: [need(3000, "/c", SHA_A)], now: now });
+    const decision = decideStackClaim({ record: record, cwd: "/c", needs: [need(3000, "/c", SHA_A)], now: now, isAlive: alive });
 
     expect(decision.isGranted).toBe(true);
     expect(decision.next.queue.map((ticket) => ticket.cwd)).toEqual(["/b"]);
+  });
+
+  it("ends a lease at once when the session holding it has died", async () => {
+    const { decideStackClaim } = await loadStack();
+    const { DEAD_HOLDER_GRACE_MS } = await loadConstants();
+    const isAlive = (pid: number) => pid !== 4242;
+    const leaseIdleFor = (idleMs: number) => ({
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - 300_000, lastSeenAt: now - idleMs, holderPids: [4242] }],
+      queue: [],
+      portFreedAt: {},
+    });
+    const claimB = (idleMs: number) =>
+      decideStackClaim({ record: leaseIdleFor(idleMs), cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: isAlive });
+
+    expect(claimB(DEAD_HOLDER_GRACE_MS + 1).isGranted).toBe(true);
+    // Inside the grace a restarted MCP server can still renew it.
+    expect(claimB(DEAD_HOLDER_GRACE_MS - 1).isGranted).toBe(false);
+  });
+
+  it("keeps a lease whose holder lives, however long between runs", async () => {
+    const { decideStackClaim } = await loadStack();
+    const record = {
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - 600_000, lastSeenAt: now - 300_000, holderPids: [4242] }],
+      queue: [],
+      portFreedAt: {},
+    };
+
+    expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive }).isGranted).toBe(false);
   });
 
   it("expires a lease nobody renewed and frees its ports", async () => {
@@ -235,7 +304,7 @@ describe("decideStackClaim", () => {
       portFreedAt: {},
     };
 
-    const decision = decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now });
+    const decision = decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive });
 
     expect(decision.isGranted).toBe(true);
     expect(decision.next.leases.map((lease) => lease.cwd)).toEqual(["/b"]);

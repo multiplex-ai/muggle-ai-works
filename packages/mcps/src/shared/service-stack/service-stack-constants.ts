@@ -14,6 +14,14 @@ export const PREPARE_TRACKING_DIR_SEGMENTS = ["prepare", "running"] as const;
 export const LEASE_TTL_MS = 20 * 60_000;
 
 /**
+ * A lease whose holder processes have all exited ends once it has also gone
+ * this long without renewal, instead of waiting out {@link LEASE_TTL_MS}. The
+ * short wait rides out an MCP server restart, whose replacement renews the
+ * lease with its own pid on the next run.
+ */
+export const DEAD_HOLDER_GRACE_MS = 60_000;
+
+/**
  * How long a waiting checkout keeps its turn after a port it waits on frees,
  * or after it last asked. A checkout that asked within this window, or whose
  * port freed within it, is served before anyone behind it who wants that port.

@@ -33,7 +33,13 @@ export async function findRunStackRefusal(params: {
 }): Promise<IStackCheckReport | null> {
   if (!isLoopbackUrl(params.localUrl)) return null;
   const port = portOfUrl(params.localUrl) ?? undefined;
-  const report = await checkServiceStack({ cwd: params.cwd, port: port, shouldRenew: true, runGit: params.runGit });
+  const report = await checkServiceStack({
+    cwd: params.cwd,
+    port: port,
+    shouldRenew: true,
+    holderPid: process.pid,
+    runGit: params.runGit,
+  });
   return REFUSING_VERDICTS.has(report.verdict) ? report : null;
 }
 
@@ -50,6 +56,11 @@ export async function findStackChangedDuringRun(params: {
   runGit?: GitCommandRunner;
 }): Promise<IStackCheckReport | null> {
   if (!isLoopbackUrl(params.localUrl)) return null;
-  const report = await checkServiceStack({ cwd: params.cwd, shouldRenew: true, runGit: params.runGit });
+  const report = await checkServiceStack({
+    cwd: params.cwd,
+    shouldRenew: true,
+    holderPid: process.pid,
+    runGit: params.runGit,
+  });
   return report.verdict === StackCheckVerdict.Stale ? report : null;
 }

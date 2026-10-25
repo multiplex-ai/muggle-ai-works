@@ -26,6 +26,13 @@ export interface IStackLease {
   grantedAt: number;
   /** Last claim, check or run that renewed it (ms since epoch). */
   lastSeenAt: number;
+  /**
+   * Long-lived processes acting under the lease: the MCP server of each
+   * session that ran tests with it, recorded as runs renew it. When every one
+   * has exited, the session is gone and the lease ends without waiting out
+   * its TTL. Empty until the first run, when only the TTL applies.
+   */
+  holderPids?: number[];
 }
 
 /** A checkout waiting for ports another lease holds. One per checkout. */

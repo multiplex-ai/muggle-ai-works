@@ -12,6 +12,7 @@
 
 import {
   CLAIM_GRACE_MS,
+  DEAD_HOLDER_GRACE_MS,
   LEASE_TTL_MS,
   OWED_RETRY_AFTER_MS,
   SUGGESTED_RETRY_AFTER_MS,
@@ -39,17 +40,27 @@ export function needsConflict(left: IStackNeed, right: IStackNeed): boolean {
 }
 
 /**
- * Drop expired leases and abandoned tickets, recording when each port they
+ * Drop ended leases and abandoned tickets, recording when each port they
  * needed stopped being needed.
+ *
+ * A lease ends when nobody renewed it for {@link LEASE_TTL_MS}, or sooner when
+ * every holder process it recorded has exited and it has gone
+ * {@link DEAD_HOLDER_GRACE_MS} without renewal — its session is dead.
  *
  * @param params.record - The committed record.
  * @param params.now - Current time (ms since epoch).
+ * @param params.isAlive - Whether a process id is still running.
  * @returns The record with only live leases and tickets.
  */
-export function sweepStackRecord(params: { record: IStackRecord; now: number }): IStackRecord {
+export function sweepStackRecord(params: {
+  record: IStackRecord;
+  now: number;
+  isAlive: (pid: number) => boolean;
+}): IStackRecord {
   const { record, now } = params;
-  const liveLeases = record.leases.filter((lease) => now - lease.lastSeenAt <= LEASE_TTL_MS);
-  const expiredLeases = record.leases.filter((lease) => now - lease.lastSeenAt > LEASE_TTL_MS);
+  const isLive = (lease: IStackLease) => !hasLeaseEnded({ lease: lease, now: now, isAlive: params.isAlive });
+  const liveLeases = record.leases.filter(isLive);
+  const expiredLeases = record.leases.filter((lease) => !isLive(lease));
   return {
     leases: liveLeases,
     queue: record.queue.filter((ticket) => now - ticket.lastSeenAt <= TICKET_ABANDON_MS),
@@ -75,6 +86,7 @@ export function sweepStackRecord(params: { record: IStackRecord; now: number }):
  * @param params.label - Name the caller shows peers.
  * @param params.needs - Ports the caller needs and the code each must serve.
  * @param params.now - Current time (ms since epoch).
+ * @param params.isAlive - Whether a process id is still running.
  * @returns The verdict and the record to commit.
  */
 export function decideStackClaim(params: {
@@ -83,8 +95,9 @@ export function decideStackClaim(params: {
   label?: string;
   needs: IStackNeed[];
   now: number;
+  isAlive: (pid: number) => boolean;
 }): IStackClaimDecision {
-  const swept = sweepStackRecord({ record: params.record, now: params.now });
+  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
   const peerLeases = swept.leases.filter((lease) => lease.cwd !== params.cwd);
   const leaseBlockers = peerLeases.flatMap((lease) => leaseBlockersFor({ lease: lease, needs: params.needs, now: params.now }));
 
@@ -120,6 +133,7 @@ export function decideStackClaim(params: {
     needs: params.needs,
     grantedAt: ownLease?.grantedAt ?? params.now,
     lastSeenAt: params.now,
+    holderPids: ownLease?.holderPids,
   };
   const leases = [...peerLeases, grantedLease];
   return {
@@ -168,17 +182,38 @@ export function decideStackRelease(params: { record: IStackRecord; cwd: string; 
 }
 
 /**
- * Renew the caller's lease.
+ * Renew the caller's lease, recording the process renewing it as a holder.
  *
+ * Every parallel run from one checkout renews the same lease; each adds its
+ * MCP server's pid once, and holders that have exited are dropped.
+ *
+ * @param params.holderPid - Long-lived process renewing it (an MCP server); omitted by one-shot callers.
  * @returns The record to commit, or null when the caller holds no live lease.
  */
-export function decideStackRenewal(params: { record: IStackRecord; cwd: string; now: number }): IStackRecord | null {
-  const swept = sweepStackRecord({ record: params.record, now: params.now });
+export function decideStackRenewal(params: {
+  record: IStackRecord;
+  cwd: string;
+  now: number;
+  isAlive: (pid: number) => boolean;
+  holderPid?: number;
+}): IStackRecord | null {
+  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
   if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return null;
-  return {
-    ...swept,
-    leases: swept.leases.map((lease) => (lease.cwd === params.cwd ? { ...lease, lastSeenAt: params.now } : lease)),
+  const renew = (lease: IStackLease): IStackLease => {
+    const liveHolders = (lease.holderPids ?? []).filter((pid) => params.isAlive(pid));
+    const isNewHolder = params.holderPid !== undefined && !liveHolders.includes(params.holderPid);
+    const holderPids = isNewHolder ? [...liveHolders, params.holderPid as number] : liveHolders;
+    return { ...lease, lastSeenAt: params.now, holderPids: holderPids.length > 0 ? holderPids : undefined };
   };
+  return { ...swept, leases: swept.leases.map((lease) => (lease.cwd === params.cwd ? renew(lease) : lease)) };
+}
+
+function hasLeaseEnded(params: { lease: IStackLease; now: number; isAlive: (pid: number) => boolean }): boolean {
+  const idleMs = params.now - params.lease.lastSeenAt;
+  if (idleMs > LEASE_TTL_MS) return true;
+  const holderPids = params.lease.holderPids ?? [];
+  const isHolderGone = holderPids.length > 0 && !holderPids.some((pid) => params.isAlive(pid));
+  return isHolderGone && idleMs > DEAD_HOLDER_GRACE_MS;
 }
 
 function leaseBlockersFor(params: { lease: IStackLease; needs: IStackNeed[]; now: number }): IStackBlocker[] {

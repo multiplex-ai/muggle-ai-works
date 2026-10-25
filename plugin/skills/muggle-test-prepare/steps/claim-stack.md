@@ -25,7 +25,14 @@ The claim answers at once. It never waits on a peer unless asked to.
 
 ## The lease
 
-A granted claim is a lease. Every claim, `muggle stack check`, and every local execute run renews it. Nobody renewing it for 20 minutes ends it, and its ports pass to whoever is next in line. The lease lasts across the whole batch: prepare once, run every test case, then release it in [Cleanup](../SKILL.md#cleanup).
+A granted claim is a lease. Every claim, `muggle stack check`, and every local execute run renews it. The lease lasts across the whole batch: prepare once, run every test case, then release it in [Cleanup](../SKILL.md#cleanup). A lease that is never released still ends, and its ports pass to whoever is next in line:
+
+- **The session died.** Each run records the session's MCP server as a holder of the lease. Once every holder has exited and a minute has passed with no renewal, the lease ends. The minute rides out an MCP server restart.
+- **Nobody renewed it for 20 minutes.** This covers a lease that never ran a test, so it has no holder to watch.
+
+The lease belongs to the checkout, not to one run. Every test case of the same change, including cases run in parallel, runs under it and renews it, and none of them waits on the others.
+
+The line is first come, first served per port, and it is pulled, not pushed: nothing calls a waiting session back. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
 
 Holding a lease is optimistic, not exclusive. Nothing stops another process from binding a port. Instead, the local execute tools check the lease before every run and again when it ends:
 

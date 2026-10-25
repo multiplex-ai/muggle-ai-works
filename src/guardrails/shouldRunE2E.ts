@@ -1,6 +1,18 @@
+import { CYCLE_SCOPED_SKIP_CODES } from "../e2e-skip/constants.js";
+import type { DeclaredSkip } from "../e2e-skip/types.js";
 import type { GuardrailState } from "./types.js";
 
 export const MAX_E2E_BLOCKS = 3;
+
+/**
+ * Keep an accepted environment skip so every PR in play can be settled with it.
+ * A cycle-scoped skip is left out: it vouches for one commit range on the
+ * working branch's PR, and settles that PR itself.
+ */
+export function applyE2eSkipDeclaration(state: GuardrailState, skip: DeclaredSkip | null): GuardrailState {
+  if (!skip || CYCLE_SCOPED_SKIP_CODES.includes(skip.code)) return state;
+  return { ...state, e2eSkipDeclaration: { code: skip.code, detail: skip.detail } };
+}
 
 // Opening a PR owes an acceptance run on its own, independent of unit tests. A
 // change shipped without a single unit run is exactly the one a reviewer has no

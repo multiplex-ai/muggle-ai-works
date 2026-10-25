@@ -8,6 +8,7 @@ import {
   renderReservedComment,
   renderSkippedComment,
   renderUnreasonedSkipComment,
+  walkthroughVerdict,
 } from "./comment.js";
 import {
   defaultGhRunner,
@@ -17,7 +18,13 @@ import {
   postPrComment,
   readPrHeadSha,
 } from "./gh.js";
-import { WalkthroughCommentStatus, type GhRunner, type PrComment, type PrCoordinates } from "./types.js";
+import {
+  WalkthroughCommentStatus,
+  WalkthroughVerdict,
+  type GhRunner,
+  type PrComment,
+  type PrCoordinates,
+} from "./types.js";
 
 function commentWithStatus(
   comments: PrComment[],
@@ -76,6 +83,19 @@ export function reserveWalkthroughComment(prUrl: string, run: GhRunner = default
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
   return reserveComment(pr, comments, run);
+}
+
+/**
+ * Whether the PR's comments now discharge the walkthrough duty, with a
+ * walkthrough or a settled skip. False when the comments cannot be read, so a
+ * caller proving a write landed never mistakes an outage for success.
+ */
+export function isWalkthroughSettledOnPr(prUrl: string, run: GhRunner = defaultGhRunner): boolean {
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  return walkthroughVerdict(comments.map((comment) => comment.body)) === WalkthroughVerdict.Satisfied;
 }
 
 function settleWith(prUrl: string, body: string, run: GhRunner): boolean {

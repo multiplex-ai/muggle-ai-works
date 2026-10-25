@@ -18,6 +18,7 @@
     "scripts/electron-app-install-dir.mjs",
     "scripts/onboarding-backfill.mjs",
     "scripts/release-integrity",
+    "scripts/muggle-watch",
     "config/runtime-targets.json"
   ],
   "scripts": {

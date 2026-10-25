@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  isWalkthroughSettledOnPr,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
@@ -28,6 +29,20 @@ function recorder(responses: Record<string, string>) {
 
 const listedComments = (bodies: string[]): string =>
   JSON.stringify(bodies.map((body, index) => ({ id: index + 1, body: body })));
+
+describe("isWalkthroughSettledOnPr", () => {
+  it("is settled by a posted walkthrough or a settled skip", () => {
+    expect(isWalkthroughSettledOnPr(PR_URL, recorder({ "issues/7/comments": listedComments(["<!-- muggle-pr-section:v1 -->"]) }).run)).toBe(true);
+    const skipped = `${WALKTHROUGH_SLOT_MARKER}\n${WALKTHROUGH_SKIPPED_MARKER}\nE2E did not run`;
+    expect(isWalkthroughSettledOnPr(PR_URL, recorder({ "issues/7/comments": listedComments([skipped]) }).run)).toBe(true);
+  });
+
+  it("is not settled by the reserved placeholder, nor when the comments cannot be read", () => {
+    expect(isWalkthroughSettledOnPr(PR_URL, recorder({ "issues/7/comments": listedComments([renderReservedComment()]) }).run)).toBe(false);
+    expect(isWalkthroughSettledOnPr(PR_URL, () => null)).toBe(false);
+    expect(isWalkthroughSettledOnPr("https://example.com/not-a-pr", recorder({}).run)).toBe(false);
+  });
+});
 
 describe("reserveWalkthroughComment", () => {
   it("posts the reserved body when the PR carries no designated comment", () => {

@@ -1,3 +1,5 @@
+import type { DeclaredSkip } from "../e2e-skip/types.js";
+
 export interface GuardrailState {
   sessionId: string;
   generation?: number;
@@ -6,6 +8,14 @@ export interface GuardrailState {
   e2eRun?: boolean;
   e2eSkipped?: boolean;
   e2eSkipCycleScoped?: boolean;
+  /**
+   * The accepted environment skip, kept so every PR in play carries it: one
+   * opened after the declaration is settled with it, and the walkthrough gate
+   * holds the turn until each PR's comment shows it.
+   */
+  e2eSkipDeclaration?: DeclaredSkip;
+  /** Every PR in play was last seen carrying the skip's record; a PR opened since clears it. */
+  e2eSkipSettledOnPrs?: boolean;
   e2eBlockCount?: number;
   buildIntentRouted?: boolean;
   terminalPending?: number[];

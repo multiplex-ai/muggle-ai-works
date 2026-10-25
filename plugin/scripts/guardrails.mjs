@@ -717,8 +717,87 @@ function isE2ERun(input2) {
   return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
 }
 
+// src/e2e-skip/types.ts
+var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
+  E2eSkipCode3["NoWebSurface"] = "NO_WEB_SURFACE";
+  E2eSkipCode3["DevServerUnreachable"] = "DEV_SERVER_UNREACHABLE";
+  E2eSkipCode3["EmptyDiff"] = "EMPTY_DIFF";
+  E2eSkipCode3["MuggleAuthDown"] = "MUGGLE_AUTH_DOWN";
+  E2eSkipCode3["NoPr"] = "NO_PR";
+  E2eSkipCode3["UserWaived"] = "USER_WAIVED";
+  E2eSkipCode3["NoAppLogicChange"] = "NO_APP_LOGIC_CHANGE";
+  E2eSkipCode3["NotApplicable"] = "NOT_APPLICABLE";
+  return E2eSkipCode3;
+})(E2eSkipCode || {});
+
+// src/e2e-skip/constants.ts
+var E2E_SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_E2E_SKIP:(.*)$/;
+var SKIP_CODE_TOKEN = /^[\s:]*([A-Za-z_]+)/;
+var E2E_SKIP_CODES = Object.values(E2eSkipCode);
+var NON_APP_PATH_SUMMARY = "docs, tests, lint/format config, or CI config";
+var E2E_SKIP_CODE_CLAIMS = {
+  ["NO_WEB_SURFACE" /* NoWebSurface */]: "the repo ships no web surface to drive",
+  ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: "the named dev server does not answer",
+  ["EMPTY_DIFF" /* EmptyDiff */]: "the branch carries no diff against its base",
+  ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
+  ["NO_PR" /* NoPr */]: "no pull request was handled this session",
+  ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words",
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
+  ["NOT_APPLICABLE" /* NotApplicable */]: "a browser run cannot exercise this change, for the reason stated"
+};
+var CYCLE_SCOPED_SKIP_CODES = ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */];
+var PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
+var NON_APP_PATH_PATTERNS = [
+  /\.(md|markdown|rst)$/i,
+  /(^|\/)[^/]+\.(test|spec)\.[^/]+$/,
+  /(^|\/)(__tests__|__snapshots__|__mocks__)\//,
+  /(^|\/)test_[^/]+\.py$/,
+  /(^|\/)[^/]+_test\.(py|go)$/,
+  /^tests?\//,
+  /(^|\/)\.(eslintrc|prettierrc|stylelintrc)(\.[a-z]+)?$/,
+  /(^|\/)(eslint|prettier|stylelint)\.config\.[cm]?[jt]s$/,
+  /(^|\/)\.(eslint|prettier|stylelint)ignore$/,
+  /(^|\/)\.markdownlint[^/]*$/,
+  /(^|\/)(biome\.jsonc?|\.editorconfig)$/,
+  /^\.github\/workflows\//,
+  /^\.gitlab-ci\.yml$/
+];
+var MAX_NAMED_APP_LOGIC_PATHS = 5;
+var USER_WAIVE_PHRASE = "SKIP E2E";
+var MIN_NOT_APPLICABLE_REASON_WORDS = 4;
+var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
+var GIT_PROBE_TIMEOUT_MS = 5e3;
+var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
+var BROWSER_FRAMEWORK_PACKAGES = [
+  "react-dom",
+  "next",
+  "vue",
+  "svelte",
+  "@angular/core",
+  "nuxt",
+  "astro",
+  "@remix-run/react",
+  "preact",
+  "solid-js"
+];
+var WEB_SURFACE_CONFIG_FILES = [
+  "next.config.js",
+  "next.config.mjs",
+  "next.config.ts",
+  "vite.config.js",
+  "vite.config.ts",
+  "index.html",
+  "public/index.html"
+];
+var OAUTH_SESSION_FILE = /^oauth-session[\w.-]*\.json$/;
+var MUGGLE_HOME_DIR_NAME = ".muggle-ai";
+
 // src/guardrails/shouldRunE2E.ts
 var MAX_E2E_BLOCKS = 3;
+function applyE2eSkipDeclaration(state, skip) {
+  if (!skip || CYCLE_SCOPED_SKIP_CODES.includes(skip.code)) return state;
+  return { ...state, e2eSkipDeclaration: { code: skip.code, detail: skip.detail } };
+}
 function shouldRunE2E(state) {
   const owed = state.unitTestsGreen === true || state.prsHandled.length > 0;
   return owed && state.e2eRun !== true && state.e2eSkipped !== true;
@@ -1046,26 +1125,29 @@ var defaultPrWalkthroughLookup = {
   // Scans the description as well as the comments: muggle-do embeds the
   // walkthrough in the body at PR-creation time, and a comments-only check
   // would report that PR as owing one it already carries.
-  prCarriesWalkthrough: (prUrl) => {
+  prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;
-    return rendered.includes(REPORT_SENTINEL);
+    return rendered.includes(REPORT_SENTINEL) || acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER);
   }
 };
 function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
   const candidates = new Set(state.prsHandled);
   const branchPrUrl = lookup.branchPrUrl();
   if (branchPrUrl) candidates.add(branchPrUrl);
+  const acceptsSkip = state.e2eRun !== true;
   const owed = [];
   const verified2 = [];
   for (const prUrl of candidates) {
-    if (lookup.prCarriesWalkthrough(prUrl)) verified2.push(prUrl);
+    if (lookup.prCarriesWalkthrough(prUrl, acceptsSkip)) verified2.push(prUrl);
     else owed.push(prUrl);
   }
   return { owed, verified: verified2 };
 }
 function isWalkthroughGateArmed(state) {
-  return state.e2eRun === true && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+  const isSkipUnsettled = state.e2eSkipDeclaration !== void 0 && state.e2eSkipSettledOnPrs !== true;
+  const isOwed = state.e2eRun === true || isSkipUnsettled;
+  return isOwed && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
 }
 function isWalkthroughScanCurrent(scan, state) {
   const scanned = new Set(scan.prsHandled);
@@ -1073,8 +1155,7 @@ function isWalkthroughScanCurrent(scan, state) {
 }
 function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
   const blockCount = state.walkthroughBlockCount ?? 0;
-  const alreadySettled = state.walkthroughPosted === true || state.walkthroughSkipped === true || state.e2eRun !== true;
-  if (alreadySettled || owedPrUrls.length === 0) {
+  if (!isWalkthroughGateArmed(state) || owedPrUrls.length === 0) {
     return { action: "none" /* None */, blockCount, owed: owedPrUrls };
   }
   if (blockCount >= maxBlocks) {
@@ -1082,81 +1163,6 @@ function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_
   }
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
 }
-
-// src/e2e-skip/types.ts
-var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
-  E2eSkipCode3["NoWebSurface"] = "NO_WEB_SURFACE";
-  E2eSkipCode3["DevServerUnreachable"] = "DEV_SERVER_UNREACHABLE";
-  E2eSkipCode3["EmptyDiff"] = "EMPTY_DIFF";
-  E2eSkipCode3["MuggleAuthDown"] = "MUGGLE_AUTH_DOWN";
-  E2eSkipCode3["NoPr"] = "NO_PR";
-  E2eSkipCode3["UserWaived"] = "USER_WAIVED";
-  E2eSkipCode3["NoAppLogicChange"] = "NO_APP_LOGIC_CHANGE";
-  E2eSkipCode3["NotApplicable"] = "NOT_APPLICABLE";
-  return E2eSkipCode3;
-})(E2eSkipCode || {});
-
-// src/e2e-skip/constants.ts
-var E2E_SKIP_DECLARATION = /^\s*echo\s+["']?MUGGLE_E2E_SKIP:(.*)$/;
-var SKIP_CODE_TOKEN = /^[\s:]*([A-Za-z_]+)/;
-var E2E_SKIP_CODES = Object.values(E2eSkipCode);
-var NON_APP_PATH_SUMMARY = "docs, tests, lint/format config, or CI config";
-var E2E_SKIP_CODE_CLAIMS = {
-  ["NO_WEB_SURFACE" /* NoWebSurface */]: "the repo ships no web surface to drive",
-  ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: "the named dev server does not answer",
-  ["EMPTY_DIFF" /* EmptyDiff */]: "the branch carries no diff against its base",
-  ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
-  ["NO_PR" /* NoPr */]: "no pull request was handled this session",
-  ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words",
-  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
-  ["NOT_APPLICABLE" /* NotApplicable */]: "a browser run cannot exercise this change, for the reason stated"
-};
-var CYCLE_SCOPED_SKIP_CODES = ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */];
-var PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
-var NON_APP_PATH_PATTERNS = [
-  /\.(md|markdown|rst)$/i,
-  /(^|\/)[^/]+\.(test|spec)\.[^/]+$/,
-  /(^|\/)(__tests__|__snapshots__|__mocks__)\//,
-  /(^|\/)test_[^/]+\.py$/,
-  /(^|\/)[^/]+_test\.(py|go)$/,
-  /^tests?\//,
-  /(^|\/)\.(eslintrc|prettierrc|stylelintrc)(\.[a-z]+)?$/,
-  /(^|\/)(eslint|prettier|stylelint)\.config\.[cm]?[jt]s$/,
-  /(^|\/)\.(eslint|prettier|stylelint)ignore$/,
-  /(^|\/)\.markdownlint[^/]*$/,
-  /(^|\/)(biome\.jsonc?|\.editorconfig)$/,
-  /^\.github\/workflows\//,
-  /^\.gitlab-ci\.yml$/
-];
-var MAX_NAMED_APP_LOGIC_PATHS = 5;
-var USER_WAIVE_PHRASE = "SKIP E2E";
-var MIN_NOT_APPLICABLE_REASON_WORDS = 4;
-var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
-var GIT_PROBE_TIMEOUT_MS = 5e3;
-var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
-var BROWSER_FRAMEWORK_PACKAGES = [
-  "react-dom",
-  "next",
-  "vue",
-  "svelte",
-  "@angular/core",
-  "nuxt",
-  "astro",
-  "@remix-run/react",
-  "preact",
-  "solid-js"
-];
-var WEB_SURFACE_CONFIG_FILES = [
-  "next.config.js",
-  "next.config.mjs",
-  "next.config.ts",
-  "vite.config.js",
-  "vite.config.ts",
-  "index.html",
-  "public/index.html"
-];
-var OAUTH_SESSION_FILE = /^oauth-session[\w.-]*\.json$/;
-var MUGGLE_HOME_DIR_NAME = ".muggle-ai";
 
 // src/e2e-skip/noAppLogicChange.ts
 function parseNoAppLogicChangeDetail(detail) {
@@ -1237,6 +1243,14 @@ function classifyComment(body) {
   if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
   return "pending" /* Pending */;
 }
+function walkthroughVerdict(bodies) {
+  const statuses = bodies.map(classifyComment);
+  if (statuses.includes("reported" /* Reported */) || statuses.includes("skipped" /* Skipped */)) {
+    return "satisfied" /* Satisfied */;
+  }
+  if (statuses.includes("pending" /* Pending */)) return "pending" /* Pending */;
+  return "missing" /* Missing */;
+}
 
 // src/pr-walkthrough/reserve.ts
 function commentWithStatus(comments, status) {
@@ -1255,6 +1269,13 @@ function reserveWalkthroughComment(prUrl, run = defaultGhRunner) {
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
   return reserveComment(pr, comments, run);
+}
+function isWalkthroughSettledOnPr(prUrl, run = defaultGhRunner) {
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  return walkthroughVerdict(comments.map((comment) => comment.body)) === "satisfied" /* Satisfied */;
 }
 function settleWith(prUrl, body, run) {
   const pr = parsePrUrl(prUrl);
@@ -1930,13 +1951,21 @@ function prOpened() {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
-  startBackgroundJob("reserve-walkthrough-comment" /* ReserveWalkthroughComment */, [url]);
-  if (isWalkthroughGateArmed(readState(sessionId))) {
+  const stateAfterOpen = commitState(sessionId, (state) => ({ ...state, e2eSkipSettledOnPrs: false })) ?? readState(sessionId);
+  const declaredSkip = stateAfterOpen.e2eSkipDeclaration;
+  if (declaredSkip) {
+    startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [url, declaredSkip.code, declaredSkip.detail]);
+  } else {
+    startBackgroundJob("reserve-walkthrough-comment" /* ReserveWalkthroughComment */, [url]);
+  }
+  if (isWalkthroughGateArmed(stateAfterOpen)) {
     startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   }
+  const slotNote = declaredSkip ? `Its Muggle AI visual-walkthrough comment is being settled with the E2E skip already recorded this session (${declaredSkip.code}); the turn cannot end until the PR shows it.
+` : `Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
+`;
   const ctx = `A pull request was just opened: ${url}
-Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it by posting the walkthrough there once E2E runs, or by recording why E2E does not apply.
-Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
+` + slotNote + `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;
   return envelope("PostToolUse", ctx, host);
 }
 function prTerminal() {
@@ -1995,7 +2024,7 @@ function recordTests() {
   const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
   const record = (state) => {
-    const recorded = applyRecordedRun(state, run);
+    const recorded = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
     const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
@@ -2143,8 +2172,11 @@ function walkthroughGate() {
   const scan = readWalkthroughScan(sessionId);
   startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
+  const owedSkip = state.e2eRun === true ? void 0 : state.e2eSkipDeclaration;
   if (scan.owed.length === 0) {
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+    if (scan.verified.length > 0) {
+      writeState(owedSkip ? { ...state, e2eSkipSettledOnPrs: true } : { ...state, walkthroughPosted: true });
+    }
     return "{}";
   }
   const decision = walkthroughGateDecision(state, scan.owed);
@@ -2153,7 +2185,16 @@ function walkthroughGate() {
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.owed.join(", ");
+  if (owedSkip) return blockOnUnsettledSkip(owedSkip, decision.owed, decision.blockCount);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. An E2E acceptance run happened this session but no visual walkthrough has reached ${prList}. Per the postPRVisualWalkthrough preference (default: always), post it now via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+function blockOnUnsettledSkip(owedSkip, owedPrUrls, blockCount) {
+  for (const prUrl of owedPrUrls) {
+    startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [prUrl, owedSkip.code, owedSkip.detail]);
+  }
+  const settleCommands = owedPrUrls.map((prUrl) => `\`echo '{}' | node "${process.argv[1]}" ${"settle-walkthrough-skipped" /* SettleWalkthroughSkipped */} ${prUrl} ${sessionId}\``).join(" and ");
+  const reason = blockCount === 1 ? `Do not end the turn yet. E2E was skipped (${owedSkip.code}) and the skip was recorded, but it has not reached ${owedPrUrls.join(", ")}: the PR's walkthrough comment still shows no result and no reason, so reviewers cannot tell a deliberate skip from a cycle that forgot, and its walkthrough check stays red. Write it now by running ${settleCommands} \u2014 it prints {"settled":true} once the PR shows the skip. Then end the turn.` : `Skip record still missing on ${owedPrUrls.join(", ")} (reminder ${blockCount}/${MAX_WALKTHROUGH_BLOCKS}): run ${settleCommands}.`;
   return blockStop(reason, host);
 }
 function slotForSession(state) {
@@ -2307,10 +2348,12 @@ function reserveWalkthroughCommentJob() {
   return "{}";
 }
 function settleWalkthroughSkippedJob() {
-  const [prUrl, codeArg, detail] = jobArgs;
-  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
-  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
-  return "{}";
+  const [prUrl, codeOrSessionId, detail] = jobArgs;
+  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeOrSessionId);
+  const skip = code ? { code, detail: detail ?? "" } : codeOrSessionId ? readState(codeOrSessionId).e2eSkipDeclaration : void 0;
+  if (!prUrl || !skip) return JSON.stringify({ settled: false, reason: "no accepted E2E skip to settle" });
+  settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
+  return JSON.stringify({ settled: isWalkthroughSettledOnPr(prUrl) });
 }
 function settleWalkthroughUnreasonedJob() {
   const [prUrl] = jobArgs;

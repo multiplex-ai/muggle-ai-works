@@ -7,24 +7,55 @@ import {
   type PrWalkthroughLookup,
 } from "../../guardrails/walkthroughOwed";
 import { WalkthroughGateAction, type GuardrailState } from "../../guardrails/types";
+import { E2eSkipCode } from "../../e2e-skip/types";
 
 const PR_OPENED = "https://github.com/o/r/pull/1";
 const PR_BRANCH = "https://github.com/o/r/pull/2";
+const DECLARED_SKIP = { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" };
 
 function stateWith(overrides: Partial<GuardrailState> = {}): GuardrailState {
   return { sessionId: "s", prsHandled: [], e2eRun: true, ...overrides };
+}
+
+function skippedSessionWith(overrides: Partial<GuardrailState> = {}): GuardrailState {
+  return stateWith({ e2eRun: false, e2eSkipped: true, e2eSkipDeclaration: DECLARED_SKIP, ...overrides });
 }
 
 function lookup(
   branchPrUrl: string | null,
   carrying: string[] = [],
   unreachable: string[] = [],
+  carryingSkipRecord: string[] = [],
 ): PrWalkthroughLookup {
   return {
     branchPrUrl: () => branchPrUrl,
-    prCarriesWalkthrough: (prUrl) => carrying.includes(prUrl) || unreachable.includes(prUrl),
+    prCarriesWalkthrough: (prUrl, acceptsSkip) =>
+      carrying.includes(prUrl) || unreachable.includes(prUrl) || (acceptsSkip && carryingSkipRecord.includes(prUrl)),
   };
 }
+
+describe("an accepted E2E skip owes the PR its record", () => {
+  it("arms the gate on the skip alone, and disarms once every PR carries the record", () => {
+    expect(isWalkthroughGateArmed(skippedSessionWith())).toBe(true);
+    expect(isWalkthroughGateArmed(skippedSessionWith({ e2eSkipSettledOnPrs: true }))).toBe(false);
+    expect(isWalkthroughGateArmed(skippedSessionWith({ walkthroughSkipped: true }))).toBe(false);
+  });
+
+  it("keeps a run's walkthrough owed even after the skip's record was settled", () => {
+    expect(isWalkthroughGateArmed(skippedSessionWith({ e2eRun: true, e2eSkipSettledOnPrs: true }))).toBe(true);
+  });
+
+  it("lets the skip's record discharge a PR only when no run happened", () => {
+    const skipRecordLookup = lookup(null, [], [], [PR_OPENED]);
+    expect(scanForOwedWalkthroughs(skippedSessionWith({ prsHandled: [PR_OPENED] }), skipRecordLookup).verified).toEqual([PR_OPENED]);
+    expect(scanForOwedWalkthroughs(stateWith({ prsHandled: [PR_OPENED] }), skipRecordLookup).owed).toEqual([PR_OPENED]);
+  });
+
+  it("blocks while a PR still shows the placeholder", () => {
+    const decision = walkthroughGateDecision(skippedSessionWith({ prsHandled: [PR_OPENED] }), [PR_OPENED]);
+    expect(decision.action).toBe(WalkthroughGateAction.Block);
+  });
+});
 
 describe("scanForOwedWalkthroughs", () => {
   it("owes a PR opened this session that carries no walkthrough", () => {

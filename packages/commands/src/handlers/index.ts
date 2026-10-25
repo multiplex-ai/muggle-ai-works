@@ -24,3 +24,10 @@ export {
   stackStatusCommand,
 } from "../../../../src/cli/service-stack.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";
+export {
+  watchRegisterCommand,
+  watchReloadPluginsCommand,
+  watchStatusCommand,
+  watchTickCommand,
+  watchUnregisterCommand,
+} from "../../../../src/cli/watch.js";

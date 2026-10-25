@@ -174,6 +174,17 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh slot ownership", () => {
     expect(existsSync(join(armSlot(), "owner.json"))).toBe(false);
   });
 
+  it("registers an owned slot with the watch service", () => {
+    const registration = JSON.parse(readFileSync(join(armSlot("session-abc"), "watch-registration.json"), "utf8"));
+    expect(registration.registered_by).toBe("pr-watch-arm");
+    expect(registration.registered_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  });
+
+  // Recovery resumes the owner; a slot with no owner has nobody to resume.
+  it("leaves an unowned slot unregistered", () => {
+    expect(existsSync(join(armSlot(), "watch-registration.json"))).toBe(false);
+  });
+
   // The defect this claim closes. Without owner.json the guard reads a live
   // lease as "not foreign", so every later arm skips the slot as already owned
   // and an orphaned watcher holds it until the lifetime cap.

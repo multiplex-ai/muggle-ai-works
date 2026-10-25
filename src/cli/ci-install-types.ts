@@ -1,7 +1,13 @@
 /** What an install attempt did. */
 export enum CiInstallOutcome {
   Installed = "installed",
-  AlreadyPresent = "already-present",
+  /** An unedited copy from an earlier release was replaced with the current rendering. */
+  Updated = "updated",
+  AlreadyCurrent = "already-current",
+  /** The consumer edited the workflow, so it was left untouched. */
+  KeptCustomized = "kept-customized",
+  /** A customised workflow was overwritten because `--force` asked for it. */
+  Replaced = "replaced",
   NotARepository = "not-a-repository",
 }
 

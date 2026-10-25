@@ -1,11 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from "fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { fileURLToPath } from "url";
 import { PreferenceValue } from "../../../../packages/mcps/src/shared/preferences-types";
 import { applyCiWorkflowPreference } from "../../../cli/init/ci-question";
 import { CiOfferOutcome } from "../../../cli/init/ci-question-types";
 import { USER_WORKFLOW_PATH } from "../../../ci-workflow/constants";
+import { renderUserWorkflow } from "../../../ci-workflow/template";
+
+const FIRST_RELEASE_WORKFLOW = readFileSync(
+  fileURLToPath(new URL("../../ci-workflow/fixtures/walkthrough-workflow-first-release.yml", import.meta.url)),
+  "utf-8",
+);
 
 describe("applyCiWorkflowPreference", () => {
   let repo: string;
@@ -23,6 +30,11 @@ describe("applyCiWorkflowPreference", () => {
   };
 
   const isInstalled = (): boolean => existsSync(join(repo, USER_WORKFLOW_PATH));
+  const placeWorkflow = (content: string): void => {
+    mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
+    writeFileSync(join(repo, USER_WORKFLOW_PATH), content);
+  };
+  const readWorkflow = (): string => readFileSync(join(repo, USER_WORKFLOW_PATH), "utf-8");
 
   it("installs without asking when set to always", async () => {
     expect(await applyCiWorkflowPreference(PreferenceValue.Always, repo, answering("n"))).toBe(CiOfferOutcome.Installed);
@@ -70,10 +82,25 @@ describe("applyCiWorkflowPreference", () => {
     expect(existsSync(join(loose, USER_WORKFLOW_PATH))).toBe(false);
   });
 
-  it("leaves an existing workflow alone", async () => {
-    mkdirSync(join(repo, ".github", "workflows"), { recursive: true });
-    writeFileSync(join(repo, USER_WORKFLOW_PATH), "name: mine\n");
+  it("leaves an existing customised workflow alone", async () => {
+    placeWorkflow("name: mine\n");
     expect(await applyCiWorkflowPreference(PreferenceValue.Always, repo, answering("y"))).toBe(CiOfferOutcome.AlreadyInstalled);
     expect(asked).toEqual([]);
+    expect(readWorkflow()).toBe("name: mine\n");
+  });
+
+  // An unedited copy from an earlier release is Muggle's own file, so updating
+  // it needs no new consent — only `never` keeps Muggle out of CI.
+  it("updates a copy an earlier release installed, without asking, even when set to ask", async () => {
+    placeWorkflow(FIRST_RELEASE_WORKFLOW);
+    expect(await applyCiWorkflowPreference(PreferenceValue.Ask, repo, answering("n"))).toBe(CiOfferOutcome.Updated);
+    expect(asked).toEqual([]);
+    expect(readWorkflow()).toBe(renderUserWorkflow());
+  });
+
+  it("leaves an outdated copy alone when set to never", async () => {
+    placeWorkflow(FIRST_RELEASE_WORKFLOW);
+    expect(await applyCiWorkflowPreference(PreferenceValue.Never, repo, null)).toBe(CiOfferOutcome.TurnedOff);
+    expect(readWorkflow()).toBe(FIRST_RELEASE_WORKFLOW);
   });
 });

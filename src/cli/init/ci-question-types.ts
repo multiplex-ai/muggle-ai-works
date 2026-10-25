@@ -7,6 +7,8 @@ export enum CiOfferOutcome {
   /** `never` — left alone without a word. */
   TurnedOff = "turned-off",
   AlreadyInstalled = "already-installed",
+  /** An unedited copy from an earlier release was replaced with the current workflow. */
+  Updated = "updated",
   NotApplicable = "not-applicable",
 }
 

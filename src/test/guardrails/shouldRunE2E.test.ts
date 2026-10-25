@@ -1,5 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { shouldRunE2E, e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, applyRecordedRun } from "../../guardrails/shouldRunE2E";
+import {
+  shouldRunE2E,
+  e2eGateDecision,
+  E2eGateAction,
+  MAX_E2E_BLOCKS,
+  applyE2eSkipDeclaration,
+  applyRecordedRun,
+} from "../../guardrails/shouldRunE2E";
+import { E2eSkipCode } from "../../e2e-skip/types";
+
+describe("applyE2eSkipDeclaration", () => {
+  const state = { sessionId: "s", prsHandled: [] };
+
+  it("keeps an accepted environment skip for the PRs in play", () => {
+    expect(applyE2eSkipDeclaration(state, { code: E2eSkipCode.NoWebSurface, detail: "a CLI" })).toEqual({
+      ...state,
+      e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI" },
+    });
+  });
+
+  // A cycle-scoped skip settles the working branch's PR itself and vouches only for its commit range.
+  it("leaves a cycle-scoped skip and an absent one out", () => {
+    expect(applyE2eSkipDeclaration(state, { code: E2eSkipCode.NoAppLogicChange, detail: "abc1234 docs" })).toBe(state);
+    expect(applyE2eSkipDeclaration(state, null)).toBe(state);
+  });
+});
 
 describe("shouldRunE2E", () => {
   it("fires when tests green and no e2e yet", () => {

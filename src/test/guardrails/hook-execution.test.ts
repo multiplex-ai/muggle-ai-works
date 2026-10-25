@@ -5,10 +5,12 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSyn
 import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 import { GUARDRAIL_CLI_ENTRY } from "./hook-harness/constants.js";
+import { E2eSkipCode } from "../../e2e-skip/types.js";
 import {
   createHookHome,
   createStubProgramDirectory,
   createWalkthroughProbeGhStub,
+  guardrailStateFile,
   pathWithDirectoryFirst,
   runGuardrailCli,
   walkthroughProbeAnswerEnvironment,
@@ -949,6 +951,22 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(runWrapper("guardrail-walkthrough-gate.sh", event({ session_id: "no-state" }))).toBe("{}");
   });
 
+  it("walkthrough-gate: spawns Node for an accepted skip until its record is settled on the PRs", () => {
+    const skippedState = {
+      sessionId: "wt-skip",
+      prsHandled: ["https://github.com/o/r/pull/5"],
+      e2eSkipped: true,
+      e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI" },
+    };
+    expect(runWrapper("guardrail-walkthrough-gate.sh", event({ session_id: "wt-skip" }), skippedState)).toContain(NODE_RAN);
+    expect(
+      runWrapper("guardrail-walkthrough-gate.sh", event({ session_id: "wt-skip" }), { ...skippedState, e2eSkipSettledOnPrs: true }),
+    ).toBe("{}");
+    expect(
+      runWrapper("guardrail-walkthrough-gate.sh", event({ session_id: "wt-skip" }), { ...skippedState, walkthroughReleased: true }),
+    ).toBe("{}");
+  });
+
   it("pr-terminal: skips Node on a plain command, spawns it on a merge success line", () => {
     expect(
       runWrapper("guardrail-pr-terminal.sh", event({ tool_name: "Bash", tool_input: { command: "git status" } })),
@@ -1142,6 +1160,38 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
 
   it("fails open when no PR can be resolved for the branch", () => {
     expect(runGate("wt-nopr", "", "")).toBe("{}");
+  });
+
+  // An accepted skip only reaches the PR through a detached write; the gate is
+  // what notices when it never landed.
+  function runSkippedSessionGate(sessionId: string, prContent: string): { output: string; home: string } {
+    const home = createHookHome("gr-wt-skip-");
+    writeGuardrailState(home, {
+      sessionId: sessionId,
+      prsHandled: [PR_URL],
+      e2eSkipped: true,
+      e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" },
+    });
+    runCli(home, ["scan-walkthroughs", sessionId], "", prContent, PR_URL);
+    return { output: runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), prContent, PR_URL), home: home };
+  }
+
+  it("holds an accepted skip until the PR shows it, handing over the foreground settle", () => {
+    const placeholder = JSON.stringify({ body: "x", comments: [{ body: "<!-- muggle-pr-walkthrough:v1 -->\nAwaiting the E2E acceptance run." }] });
+    const blocked = JSON.parse(runSkippedSessionGate("wt-skip-pending", placeholder).output);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("NO_WEB_SURFACE");
+    expect(blocked.reason).toContain(`settle-walkthrough-skipped ${PR_URL} wt-skip-pending`);
+  });
+
+  it("goes quiet once the PR carries the skip's record, and remembers it", () => {
+    const settled = JSON.stringify({
+      body: "x",
+      comments: [{ body: "<!-- muggle-pr-walkthrough:v1 -->\n<!-- muggle-pr-walkthrough-status:skipped -->\nE2E did not run." }],
+    });
+    const { output, home } = runSkippedSessionGate("wt-skip-settled", settled);
+    expect(output).toBe("{}");
+    expect(JSON.parse(readFileSync(guardrailStateFile(home, "wt-skip-settled"), "utf-8")).e2eSkipSettledOnPrs).toBe(true);
   });
 });
 

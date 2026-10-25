@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "fs";
 import { fileURLToPath } from "url";
 import { join } from "path";
 import type { GuardrailState } from "../../guardrails/types.js";
+import { E2eSkipCode } from "../../e2e-skip/types.js";
 import { commandsForSlot, loadHooksManifest } from "./footprint/footprint.js";
 import { HookEvent } from "./footprint/types.js";
 import { wrapperPayloadPrefilter } from "./support/wrapperPrefilter.js";
@@ -299,6 +300,8 @@ describe("state-file pre-filters match the state guardrails.mjs writes", () => {
     e2eRun: true,
     e2eSkipped: true,
     e2eSkipCycleScoped: true,
+    e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" },
+    e2eSkipSettledOnPrs: true,
     e2eBlockCount: 1,
     buildIntentRouted: true,
     terminalPending: [7],

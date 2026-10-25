@@ -1,8 +1,8 @@
-import { existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
+import { basename, dirname, join } from "path";
 import { STOPPED_SLOT_SUFFIX, TERMINAL_SLOT_PR_STATES } from "../guardrails/constants.js";
 import { parsePrUrl } from "../pr-walkthrough/gh.js";
-import { PR_POLLING_DISABLED_FILE, WATCH_REGISTRATION_FILE } from "./constants.js";
+import { PR_POLLING_DISABLED_FILE, SLOT_CLOSED_OUT_BY, WATCH_REGISTRATION_FILE } from "./constants.js";
 import { optionalString } from "./field-parsers.js";
 import type { SlotPr, WatchSlotRecord, WatchSlotRegistration } from "./types.js";
 
@@ -11,6 +11,12 @@ interface PrsJsonEntry {
   state?: unknown;
   provider?: unknown;
   head_sha?: unknown;
+}
+
+interface LastSeenEntry {
+  cycles_completed?: unknown;
+  pushed_shas?: unknown;
+  escalated_review_ids?: unknown;
 }
 
 function readJsonFile(filePath: string): unknown {
@@ -104,6 +110,61 @@ export function writeSlotRegistration(slotDir: string, registeredBy: string, now
     registered_by: registeredBy,
   };
   writeFileSync(join(slotDir, WATCH_REGISTRATION_FILE), `${JSON.stringify(registration, null, 2)}\n`);
+}
+
+function listOrNone(values: unknown): string {
+  return Array.isArray(values) && values.length > 0 ? values.join(", ") : "none";
+}
+
+function composeClosedOutResult(slotDir: string, pr: SlotPr, terminalState: string, at: string): string {
+  const lastSeen = readJsonFile(join(slotDir, "last_seen.json")) as Record<string, LastSeenEntry> | undefined;
+  const history = lastSeen?.[`${pr.repo}#${pr.number}`];
+  return [
+    `# Result — ${basename(slotDir)}`,
+    "",
+    `**PR:** ${pr.url}`,
+    `**Final state:** ${terminalState}`,
+    `**Cycles completed:** ${typeof history?.cycles_completed === "number" ? history.cycles_completed : "unknown"}`,
+    `**Pushed SHAs:** ${listOrNone(history?.pushed_shas)}`,
+    `**Escalated review ids:** ${listOrNone(history?.escalated_review_ids)}`,
+    "",
+    "## Timeline",
+    "",
+    `- ${at} PR ${terminalState} — closed out by ${SLOT_CLOSED_OUT_BY} with no watcher or owner session running; post-merge cleanup not run`,
+    "",
+  ].join("\n");
+}
+
+/**
+ * Record in a slot that its PR reached an end state on the provider, the way a
+ * watcher's terminal tick would: the PR's `prs.json` entry takes the state,
+ * `followup.log` gains the terminal line, and `result.md` is written once every
+ * PR in the slot is terminal. Only local files change — nothing is sent to the
+ * PR, and post-merge cleanup, a session's job, is recorded as not run.
+ *
+ * @param terminalState - `merged` or `closed`, as `prs.json` spells it.
+ * @returns Whether the slot was written.
+ */
+export function closeOutWatchSlot(slotDir: string, pr: SlotPr, terminalState: string, now: Date): boolean {
+  try {
+    const prsPath = join(slotDir, "prs.json");
+    const prsJson = JSON.parse(readFileSync(prsPath, "utf-8")) as unknown;
+    const entries = (Array.isArray(prsJson) ? prsJson : [prsJson]) as PrsJsonEntry[];
+    for (const entry of entries) {
+      if (entry.url === pr.url) entry.state = terminalState;
+    }
+    writeFileSync(prsPath, `${JSON.stringify(Array.isArray(prsJson) ? entries : entries[0], null, 2)}\n`);
+    const at = now.toISOString().replace(/\.\d+Z$/, "Z");
+    appendFileSync(join(slotDir, "followup.log"), `${at} tick pr=${pr.number} terminal=${terminalState} closed-out-by=${SLOT_CLOSED_OUT_BY}\n`);
+    const isSlotTerminal = entries.every(
+      (entry) => typeof entry.state === "string" && (TERMINAL_SLOT_PR_STATES as readonly string[]).includes(entry.state.toLowerCase()),
+    );
+    const resultPath = join(slotDir, "result.md");
+    if (isSlotTerminal && !existsSync(resultPath)) writeFileSync(resultPath, composeClosedOutResult(slotDir, pr, terminalState, at));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Withdraw a slot from out-of-session recovery; the watch still reports on it. */

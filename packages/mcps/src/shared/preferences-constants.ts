@@ -24,7 +24,8 @@ export const PREFERENCES_VERSION = 1;
  * `showElectronBrowser` stays visible so a new user sees their first run,
  * `verboseOutput` stays quiet (it's UX noise, not automation), and
  * `autoInstallCiWorkflow` asks — it writes a file into the user's repository,
- * and a default is not consent to do that.
+ * and a default is not consent to do that. `autoInstallWatchService` asks for
+ * the same reason: it registers a scheduled task that restarts idle sessions.
  * `defaultExecutionMode` resolves to `local` rather than re-prompting.
  */
 export const DEFAULT_PREFERENCES: IPreferences = {
@@ -50,6 +51,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoRouteBuildToMuggleDo]: PreferenceValue.Always,
   [PreferenceKey.AutoWatchPR]: PreferenceValue.Always,
   [PreferenceKey.AutoInstallCiWorkflow]: PreferenceValue.Ask,
+  [PreferenceKey.AutoInstallWatchService]: PreferenceValue.Ask,
   [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
   [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
   [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
@@ -113,6 +115,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoRouteBuildToMuggleDo]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoWatchPR]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoInstallCiWorkflow]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.AutoInstallWatchService]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
   [PreferenceKey.WatcherLifetime]: WATCHER_LIFETIMES,
   [PreferenceKey.MaxCatchUpRebases]: CATCH_UP_REBASE_BUDGETS,
@@ -185,6 +188,9 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.AutoInstallCiWorkflow]: {
     description: "When muggle init runs in a repository, or /muggle-do opens a PR in one, that lacks .github/workflows/muggle-walkthrough.yml, add it — the CI check that fails a PR whose E2E walkthrough is missing or reports a failed or inconclusive test case",
+  },
+  [PreferenceKey.AutoInstallWatchService]: {
+    description: "When muggle works installs or upgrades, register or refresh the Muggle Watch scheduled task — it tracks sessions and PR watchers, resumes the owner of a dead watcher, and brings idle sessions onto the installed build",
   },
   [PreferenceKey.ReusePreparePlan]: {
     description: "Reuse the saved prepare plan for this stack (skip discovery, jump to check-running + smoke-test) instead of rediscovering from scratch",

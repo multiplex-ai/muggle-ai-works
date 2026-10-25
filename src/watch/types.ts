@@ -42,6 +42,24 @@ export interface WorkSession {
   lastActivityAtMs?: number;
   /** Claude only: joined from the `~/.claude/sessions/<pid>.json` registry. */
   pid?: number;
+  /** When the session last loaded its plugins: its process start or its newest muggle MCP server start. */
+  loadedAtMs?: number;
+  /** The muggle works build that was installed at `loadedAtMs`. */
+  loadedVersion?: string;
+}
+
+/** One global muggle works install, as `postinstall.log` records it. */
+export interface InstallRecord {
+  atMs: number;
+  version: string;
+}
+
+/** How many open PRs in one repo are heard, unheard, or unwatched. */
+export interface RepoCoverage {
+  repo: string;
+  watched: number;
+  deaf: number;
+  dead: number;
 }
 
 /** The process kinds the watch reports on. */
@@ -228,6 +246,8 @@ export interface ExecutedRecoveries {
 /** What the reload fan-out does with one session. */
 export enum ReloadAction {
   Respawn = "respawn",
+  /** Stop, then resume on reconcile, so the session's own watchers come back with it. */
+  ResumeReconcile = "resume-reconcile",
   Defer = "defer",
   NotifyManual = "notify-manual",
   Skip = "skip",
@@ -238,6 +258,7 @@ export interface ReloadDecision {
   sessionId: string;
   shortId?: string;
   name?: string;
+  cwd?: string;
   action: ReloadAction;
   reason: string;
 }
@@ -247,22 +268,17 @@ export interface ReloadReport {
   decisions: ReloadDecision[];
   respawnedSessionIds: string[];
   failedSessionIds: string[];
+  /** Sessions left running because their workspace refused a background restart. */
+  untrustedSessionIds: string[];
 }
 
-/** A plugin change the fan-out is still working through. */
+/** The reload the fan-out is working through: every session loaded before `changedAtMs` is behind. */
 export interface PendingReload {
-  fingerprint: string;
-  /** Sessions started at or after this already loaded the new plugins. */
   changedAtMs: number;
   respawnedSessionIds: string[];
   notifiedSessionIds: string[];
-}
-
-/** The installed user-scope plugins, reduced to what identifies a change. */
-export interface PluginFingerprint {
-  fingerprint: string;
-  /** The newest `lastUpdated` among them, or undefined when none carries one. */
-  changedAtMs?: number;
+  /** Sessions the fan-out will not touch again for this reload, such as ones in an untrusted workspace. */
+  skippedSessionIds: string[];
 }
 
 /** A finding that was active at the end of the last tick. */
@@ -294,7 +310,7 @@ export interface WatchLedgerState {
   recoveryAttemptsByOwner: Record<string, string[]>;
   /** PRs GitHub reported terminal while their slot still lists them open, keyed by PR url. */
   terminalPrsByUrl: Record<string, TerminalPrRecord>;
-  pluginFingerprint?: string;
+  /** Kept per target build, so a session handled once for it is never retried or re-notified. */
   pendingReload?: PendingReload;
 }
 
@@ -307,6 +323,8 @@ export enum WatchEventKind {
   ReloadRequested = "reload-requested",
   Respawned = "respawned",
   RespawnFailed = "respawn-failed",
+  RestartRefused = "restart-refused",
+  ClosedOut = "closed-out",
 }
 
 /** One line of `events.jsonl`. */
@@ -322,9 +340,14 @@ export interface WatchEvent {
 /** Everything one tick saw and did, as `status.json` stores it. */
 export interface WatchSnapshot {
   takenAt: string;
+  /** The muggle works build installed now, when the install log names one. */
+  installedVersion?: string;
   sessions: WorkSession[];
   processes: TrackedProcess[];
   slots: WatchSlotAssessment[];
+  coverage: RepoCoverage[];
+  /** Slots this tick closed out because GitHub reported their PR merged or closed. */
+  closedOutSlugs: string[];
   findings: WatchFinding[];
   recoveries: WatcherRecovery[];
   reload?: ReloadReport;
@@ -338,6 +361,7 @@ export interface WatchPaths {
   claudeProjectsDir: string;
   claudeInstalledPluginsFile: string;
   codexSessionsDir: string;
+  muggleInstallLogFile: string;
 }
 
 /** A finished child process: its exit code and captured stdout. */
@@ -349,6 +373,34 @@ export interface CommandOutcome {
 /** Where a spawned command runs. */
 export interface CommandOptions {
   cwd?: string;
+  /** Overrides the runner's default timeout. */
+  timeoutMs?: number;
+}
+
+/** What one install, refresh or removal of the watch's scheduled task did. */
+export enum WatchServiceInstallOutcome {
+  Installed = "installed",
+  Refreshed = "refreshed",
+  Removed = "removed",
+  /** The preference did not call for an install and none was registered to refresh. */
+  NotRequested = "not-requested",
+  /** The preference is `never`. */
+  TurnedOff = "turned-off",
+  /** This platform has no installer; the report carries the crontab line instead. */
+  Unsupported = "unsupported",
+  Failed = "failed",
+}
+
+/** The outcome of a watch-service install, with the installer's output or the reason it did not run. */
+export interface WatchServiceInstallReport {
+  outcome: WatchServiceInstallOutcome;
+  detail: string;
+}
+
+/** Edges a watch-service install needs. */
+export interface WatchServiceInstallDeps {
+  platform: NodeJS.Platform;
+  runCommand: CommandRunner;
 }
 
 /** Runs an executable with no shell and no window; null when it could not start or timed out. */

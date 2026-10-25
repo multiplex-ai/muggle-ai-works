@@ -1,14 +1,32 @@
+import { PreferenceKey, resolvePreferences } from "../../packages/mcps/src/index.js";
 import { renderWatchStatus } from "../watch/render.js";
-import { ReloadAction, WatchFindingSeverity, WatcherRecoveryOutcome, type ReloadReport } from "../watch/types.js";
 import {
+  ReloadAction,
+  WatchFindingSeverity,
+  WatcherRecoveryOutcome,
+  WatchServiceInstallOutcome,
+  type ReloadReport,
+  type WatchServiceInstallReport,
+} from "../watch/types.js";
+import {
+  applyWatchServicePreference,
+  createDefaultWatchServiceInstallDeps,
   createDefaultWatchTickDeps,
+  installWatchService,
   loadLastWatchSnapshot,
   registerWatchSlot,
   runReloadPluginsPass,
   runWatchTick,
+  uninstallWatchService,
   unregisterWatchSlot,
 } from "../watch/watch-service.js";
-import type { WatchReloadPluginsFlags, WatchSlotFlags, WatchStatusFlags, WatchTickFlags } from "./watch-types.js";
+import type {
+  WatchInstallFlags,
+  WatchReloadPluginsFlags,
+  WatchSlotFlags,
+  WatchStatusFlags,
+  WatchTickFlags,
+} from "./watch-types.js";
 
 function failWith(message: string): void {
   process.stderr.write(`muggle watch: ${message}\n`);
@@ -49,12 +67,16 @@ export function watchStatusCommand(flags: WatchStatusFlags): void {
 function renderReloadReport(report: ReloadReport, isDryRun: boolean): string {
   const lines = report.decisions.map((decision) => {
     const label = decision.name ?? decision.shortId ?? decision.sessionId;
-    const failed = report.failedSessionIds.includes(decision.sessionId) ? " (respawn failed)" : "";
-    return `  ${decision.action.padEnd(13)} ${label}  ${decision.reason}${failed}`;
+    const failed = report.failedSessionIds.includes(decision.sessionId) ? " (restart failed)" : "";
+    const refused = report.untrustedSessionIds.includes(decision.sessionId)
+      ? ` (left running: ${decision.cwd ?? "its workspace"} refuses a background restart — run /reload-plugins in it)`
+      : "";
+    return `  ${decision.action.padEnd(16)} ${label}  ${decision.reason}${failed}${refused}`;
   });
-  const respawnVerb = isDryRun ? "would respawn" : "respawned";
+  const isRestart = (action: ReloadAction): boolean => action === ReloadAction.Respawn || action === ReloadAction.ResumeReconcile;
+  const respawnVerb = isDryRun ? "would restart" : "restarted";
   const respawnCount = isDryRun
-    ? report.decisions.filter((decision) => decision.action === ReloadAction.Respawn).length
+    ? report.decisions.filter((decision) => isRestart(decision.action)).length
     : report.respawnedSessionIds.length;
   return [`muggle watch reload-plugins: ${respawnVerb} ${respawnCount}`, ...lines, ""].join("\n");
 }
@@ -72,6 +94,25 @@ export function watchReloadPluginsCommand(flags: WatchReloadPluginsFlags): void 
   } catch (error) {
     failWith(error instanceof Error ? error.message : String(error));
   }
+}
+
+/**
+ * `muggle watch install` — register or refresh the watch's scheduled task;
+ * `--from-preference` acts on `autoInstallWatchService` instead, which is how
+ * postinstall calls it, and `--uninstall` removes the task.
+ */
+export function watchInstallCommand(flags: WatchInstallFlags): void {
+  const deps = createDefaultWatchServiceInstallDeps();
+  const isNoWait = !flags.wait;
+  let report: WatchServiceInstallReport;
+  if (flags.uninstall) report = uninstallWatchService(deps);
+  else if (flags.fromPreference) report = applyWatchServicePreference(resolvePreferences()[PreferenceKey.AutoInstallWatchService], deps, isNoWait);
+  else report = installWatchService(deps, isNoWait);
+  if (report.outcome === WatchServiceInstallOutcome.Failed || (report.outcome === WatchServiceInstallOutcome.Unsupported && !flags.fromPreference)) {
+    failWith(`${report.outcome}: ${report.detail}`);
+    return;
+  }
+  process.stdout.write(`muggle watch install: ${report.outcome}${report.detail ? ` — ${report.detail}` : ""}\n`);
 }
 
 /** `muggle watch register --slot <dir>` — opt a PR-watch slot into out-of-session recovery. */

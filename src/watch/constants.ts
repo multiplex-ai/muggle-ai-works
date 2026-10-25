@@ -1,4 +1,4 @@
-import { WatchFindingCode, WatchFindingSeverity } from "./types.js";
+import { WatchFindingCode, WatchFindingSeverity, WatchServiceInstallOutcome } from "./types.js";
 
 /** Subdirectory of the muggle data dir that holds the watch ledger. */
 export const WATCH_DIR_NAME = "watch";
@@ -149,3 +149,45 @@ export const RELOAD_PLUGIN_SCOPE = "user";
 
 /** File name prefix Codex gives every session rollout. */
 export const CODEX_ROLLOUT_PREFIX = "rollout-";
+
+/** The postinstall log in the muggle data dir, one block per install. */
+export const MUGGLE_INSTALL_LOG_FILE = "postinstall.log";
+
+/** The line that opens one install's block in `postinstall.log`, capturing its ISO timestamp. */
+export const INSTALL_STARTED_PATTERN = /^Postinstall started at (\S+)/;
+
+/** The line a global install writes once Claude's marketplace points at it, capturing the version. */
+export const INSTALL_LOADED_VERSION_PATTERN = /Claude plugin sync updated: loading (\S+?) from/;
+
+/** Name of the throwaway session that probes whether a workspace allows background restarts. */
+export const TRUST_PROBE_SESSION_NAME = "muggle-watch-trust-probe";
+
+/** The probe session's prompt; it is stopped and removed before it gets far. */
+export const TRUST_PROBE_PROMPT = "Reply with OK. Do not use any tools.";
+
+/** The refusal Claude prints when a workspace has not been trusted. */
+export const WORKSPACE_UNTRUSTED_PATTERN = /workspace not trusted/i;
+
+/** The id `claude --bg` prints for the session it started. */
+export const BACKGROUNDED_SESSION_ID_PATTERN = /backgrounded · (\w+)/;
+
+/** Who closed out a slot, as its `followup.log` line records it. */
+export const SLOT_CLOSED_OUT_BY = "muggle-watch";
+
+/** The Windows installer for the watch's scheduled task, relative to the package root. */
+export const WATCH_INSTALLER_RELATIVE_PATH = "scripts/muggle-watch/install-muggle-watch.ps1";
+
+/** The scheduled task the installer registers. */
+export const WATCH_SCHEDULED_TASK_NAME = "MuggleWatch";
+
+/** How long the installer may run; it waits up to two minutes for the first tick. */
+export const WATCH_INSTALLER_TIMEOUT_MS = 180_000;
+
+/** Install outcomes `muggle init` keeps quiet about: nothing was asked for, so nothing happened. */
+export const WATCH_SERVICE_QUIET_OUTCOMES: ReadonlySet<WatchServiceInstallOutcome> = new Set([
+  WatchServiceInstallOutcome.NotRequested,
+  WatchServiceInstallOutcome.TurnedOff,
+]);
+
+/** The crontab line that stands in for the scheduled task where there is no installer. */
+export const WATCH_CRONTAB_LINE = "*/2 * * * * muggle watch tick >> ~/.muggle-ai/watch/tick.log 2>&1";

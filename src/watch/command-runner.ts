@@ -13,7 +13,7 @@ export const defaultCommandRunner: CommandRunner = (executable, args, options) =
     encoding: "utf-8",
     maxBuffer: WATCH_COMMAND_MAX_BUFFER_BYTES,
     stdio: ["ignore", "pipe", "ignore"],
-    timeout: WATCH_COMMAND_TIMEOUT_MS,
+    timeout: options?.timeoutMs ?? WATCH_COMMAND_TIMEOUT_MS,
     windowsHide: true,
   });
   if (spawned.error || spawned.status === null) return null;

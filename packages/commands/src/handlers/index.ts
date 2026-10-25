@@ -19,6 +19,7 @@ export { serveCommand } from "../../../../src/cli/serve.js";
 export { setupCommand } from "../../../../src/cli/setup.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";
 export {
+  watchInstallCommand,
   watchRegisterCommand,
   watchReloadPluginsCommand,
   watchStatusCommand,

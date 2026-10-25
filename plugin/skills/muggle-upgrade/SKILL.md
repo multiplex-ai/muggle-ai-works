@@ -48,13 +48,15 @@ Two lanes ship on npm, each with its own dist-tag:
    - Note: `muggle upgrade` only manages the Electron runner — it does NOT upgrade the CLI npm package. That is why step 3 must run first.
    - The runner tracks published Studio releases only. When it reports "already on the latest version", that is the newest *released* runner — code merged to the Studio repo since that release is not in it, and no upgrade command can reach it until a new runner is published. Say so rather than implying the merge shipped.
 
-5. **Reload plugins** — the global npm install (step 3) runs a postinstall script that points Claude Code's `muggle-works` marketplace at the installed package, so the plugin loads from the version just installed — but Claude Code only picks up new skills/agents/hooks after a reload. Tell the user:
+5. **Muggle Watch** — gate: [`autoInstallWatchService`](../muggle-preferences/preference-gates/autoInstallWatchService.md). Step 3's postinstall already acted on `always` and `never`, so print their silent footer. On `ask`, run Picker 1; on `Install it`, run `muggle watch install` and report its last line.
+
+6. **Reload plugins** — the global npm install (step 3) runs a postinstall script that points Claude Code's `muggle-works` marketplace at the installed package, so the plugin loads from the version just installed — but Claude Code only picks up new skills/agents/hooks after a reload. With Muggle Watch installed, idle background sessions are restarted onto the new build within a few minutes; this session and other terminal sessions still need a reload by hand. Tell the user:
 
    > Run **`/reload-plugins`** to load the updated skills, agents, and hooks.
 
    Wait for the user to confirm they've reloaded before proceeding.
 
-6. Run `/muggle:muggle-status` again to confirm everything is healthy after upgrade.
+7. Run `/muggle:muggle-status` again to confirm everything is healthy after upgrade.
 
 ## Output
 
@@ -63,3 +65,9 @@ Show a before/after table for **CLI**, **Electron runner**, **MCP server**, and 
 If any component upgraded, always end with the `/reload-plugins` reminder — even if the user doesn't need new features right away, stale cached skills can cause confusing behavior.
 
 If the upgrade fails at any step, report the error and suggest running `/muggle:muggle-repair`.
+
+## Preferences
+
+| Preference | Gate |
+| :--------- | :--- |
+| `autoInstallWatchService` | Step 5 — run Muggle Watch as a scheduled task; postinstall acts on `always`/`never`, `ask` asks here, default `ask` |

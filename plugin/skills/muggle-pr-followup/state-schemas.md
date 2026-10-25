@@ -178,7 +178,7 @@ Used for forensics only — never read back by skills.
 
 ## `result.md`
 
-Written exactly once when the PR's watcher exits terminally (PR merged or closed). Free-form markdown summarizing the PR's life under this loop:
+Written exactly once when the PR's watcher exits terminally (PR merged or closed). The muggle watch service writes it too, registered slot or not, when the PR went terminal while neither its loop nor its owner session was running: the cycle fields come from `last_seen.json`, the timeline holds one `closed out by muggle-watch` line, and `followup.log` gains `tick pr=<n> terminal=<state> closed-out-by=muggle-watch`. Free-form markdown summarizing the PR's life under this loop:
 
 ```markdown
 # Result — <slug>

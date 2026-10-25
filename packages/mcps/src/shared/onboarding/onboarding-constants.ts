@@ -126,6 +126,16 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
     ],
   },
   {
+    header: "Muggle Watch",
+    key: PreferenceKey.AutoInstallWatchService,
+    prompt: "Run Muggle Watch in the background? Every few minutes it brings back dead PR watchers and moves idle sessions onto the newest install.",
+    optionLabels: [
+      { value: PreferenceValue.Always, label: "Always — install it now and refresh it on every upgrade" },
+      { value: PreferenceValue.Ask, label: "Ask me later" },
+      { value: PreferenceValue.Never, label: "Never — I'll run scripts/muggle-watch/install-muggle-watch.ps1 myself" },
+    ],
+  },
+  {
     header: "PR watcher",
     key: PreferenceKey.WatcherLifetime,
     prompt: "How long should a PR watcher keep polling for new reviews?",

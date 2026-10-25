@@ -16,6 +16,8 @@ param(
     [string]$MuggleEntry,
     [switch]$NoAutoReload,
     [switch]$NoRecovery,
+    # Return once the task is registered; its trigger runs the first tick a minute later.
+    [switch]$NoWait,
     [switch]$Uninstall
 )
 
@@ -74,6 +76,11 @@ $taskSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -Start
 Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $taskTrigger `
     -Settings $taskSettings -Force `
     -Description "Muggle watch service: tracks agent sessions, processes and PR watchers (@muggleai/works)" | Out-Null
+
+if ($NoWait) {
+    "task $TaskName registered every $IntervalMinutes min; first tick within a minute"
+    return
+}
 
 $statusFile = Join-Path $watchDir "status.json"
 $previousSnapshotTime = if (Test-Path $statusFile) { (Get-Item $statusFile).LastWriteTime } else { [DateTime]::MinValue }

@@ -7,9 +7,11 @@ import { z } from "zod";
 import { EntityReferenceProjectIdSchema, EntityReferenceSchema } from "../../contracts/entity-reference-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
+import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 
 export { MuggleEntityIdSchema };
+export * from "./fan-out-choice.js";
 export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
 export * from "./run-settings-schemas.js";
@@ -491,6 +493,7 @@ export const WorkflowStartTestScriptReplayBulkInputSchema = z.object({
   limit: z.number().int().optional().describe("Optional: limit number of test cases to replay"),
   testCaseIds: z.array(IdSchema).optional().describe("Optional: targeted test case UUIDs to replay"),
   repeatPerTestCase: z.number().int().optional().describe("Optional: repeat count per test case"),
+  fanOutChoice: FanOutChoiceInputSchema,
   workflowParams: WorkflowParamsSchema,
 });
 

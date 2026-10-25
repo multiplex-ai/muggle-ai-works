@@ -851,6 +851,7 @@ const workflowTools: IQaToolDefinition[] = [
           limit: toolInput.limit,
           testCaseIds: toolInput.testCaseIds,
           repeatPerTestCase: toolInput.repeatPerTestCase,
+          ...(toolInput.fanOutChoice && { fanOutChoice: toolInput.fanOutChoice }),
           ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),

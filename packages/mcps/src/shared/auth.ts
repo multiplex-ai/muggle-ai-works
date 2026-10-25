@@ -501,6 +501,7 @@ export function toolRequiresAuth(toolName: string): boolean {
     "muggle-local-workflow-file-get",
     "muggle-local-workflow-file-update",
     "muggle-local-workflow-file-delete",
+    "muggle-local-execution-lane-status",
   ];
 
   return !noAuthTools.includes(toolName);

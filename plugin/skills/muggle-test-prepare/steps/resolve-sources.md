@@ -23,7 +23,7 @@ A detached worktree pinned to the latest `origin/<default>`, shared by every ses
 
 1. `git -C <main-root> fetch --no-tags origin "+refs/heads/<default>:refs/remotes/origin/<default>"`
 2. Missing → `git -C <main-root> worktree add --detach <main-root>/.claude/worktrees/base-<default> origin/<default>`
-3. HEAD ≠ `origin/<default>` → `git -C <base-checkout> checkout --detach --force origin/<default>` — only while the local execution lock is free or held by the caller: `~/.muggle-ai/local-execution.lock` absent, or its `holderCwd` is the caller's checkout. A peer's run in flight keeps the base where it is; the readiness table then shows how far it trails, and the next invocation refreshes it.
+3. HEAD ≠ `origin/<default>` → `git -C <base-checkout> checkout --detach --force origin/<default>` — only while the local execution lane is free or held by the caller: `muggle-local-execution-lane-status` with the caller's checkout as `cwd` reports `free` or `held-by-you`. A peer's run in flight keeps the base where it is; the readiness table then shows how far it trails, and the next invocation refreshes it.
 
 Nothing is ever committed in a base checkout; `--force` discards stray edits.
 

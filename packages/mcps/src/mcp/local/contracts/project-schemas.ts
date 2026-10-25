@@ -104,10 +104,14 @@ export const ExecuteTestGenerationInputSchema = z.object({
   testCase: TestCaseDetailsSchema.describe("Test case details obtained from muggle-remote-test-case-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
-  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the single-flight lock. A loopback run is refused unless it holds its base's latest commit."),
+  /** Absolute path identifying the caller's worktree. Keys the cross-worktree execution lane — same path = parallel allowed (intra-change), different path = queues for its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the execution lane. A loopback run is refused unless it holds its base's latest commit."),
   /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
   baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
+  /** How long to wait for another checkout's run to finish before answering busy. */
+  laneWaitSeconds: z.number().int().min(0).max(600).optional().describe(
+    "Seconds to wait when another checkout's run holds the local browser (default 20, max 600). Past it the tool returns `Lane busy` at once, naming the holder and this checkout's place in line, which it keeps while you retry. 0 = answer immediately.",
+  ),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -139,10 +143,14 @@ export const ExecuteReplayInputSchema = z.object({
   actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
-  /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
-  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the single-flight lock. A loopback run is refused unless it holds its base's latest commit."),
+  /** Absolute path identifying the caller's worktree. Keys the cross-worktree execution lane — same path = parallel allowed (intra-change), different path = queues for its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */
+  cwd: z.string().min(1).describe("Absolute path of the caller's worktree; keys the execution lane. A loopback run is refused unless it holds its base's latest commit."),
   /** Base of a stacked change; the run is refused unless `cwd` contains its latest commit. */
   baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
+  /** How long to wait for another checkout's run to finish before answering busy. */
+  laneWaitSeconds: z.number().int().min(0).max(600).optional().describe(
+    "Seconds to wait when another checkout's run holds the local browser (default 20, max 600). Past it the tool returns `Lane busy` at once, naming the holder and this checkout's place in line, which it keeps while you retry. 0 = answer immediately.",
+  ),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
   /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
@@ -224,3 +232,13 @@ export const TestScriptGetInputSchema = z.object({
 });
 
 export type TestScriptGetInput = z.infer<typeof TestScriptGetInputSchema>;
+
+/**
+ * Execution lane status input schema.
+ */
+export const ExecutionLaneStatusInputSchema = z.object({
+  /** Checkout to report the lane relative to. */
+  cwd: z.string().min(1).optional().describe("Absolute path of your worktree, to learn whether you, a peer, or nobody holds the lane and your place in line."),
+});
+
+export type ExecutionLaneStatusInput = z.infer<typeof ExecutionLaneStatusInputSchema>;

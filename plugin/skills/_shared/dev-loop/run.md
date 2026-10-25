@@ -10,7 +10,7 @@ The caller resolves these before the loop and supplies them per test case:
 
 - `mode` — `replay` or `regen`, already chosen (by the user, or by [`../failure-mode-handling.md`](../failure-mode-handling.md) for change-driven callers).
 - `localUrl` — local execution target. Local-only; never changes the cloud project or test definitions.
-- `cwd` — absolute path of the active working tree (PR-branch worktree if one exists, else repo root). Drives the cross-worktree single-flight lock so concurrent runs serialize, and names the checkout the execute tools check for freshness.
+- `cwd` — absolute path of the active working tree (PR-branch worktree if one exists, else repo root). Keys the cross-worktree execution lane so concurrent runs from different checkouts take turns at the one local browser, and names the checkout the execute tools check for freshness.
 - `baseBranch` — the change's base, only when it is not the remote default (a stacked change, a PR into a release branch). Omitted, the tools check `cwd` against the remote default.
 - `testCase` / `cloudTestCaseId` — the cloud test case and its id.
 - `showUi` — from the caller's `showElectronBrowser` resolution: omit for visible, `false` for headless.
@@ -35,3 +35,5 @@ Per test case, branch on `mode`:
 Store the returned `runId`, tagged with its `mode`. If a run fails, log it and continue the batch — never abort. Read the result per [`failures.md`](failures.md), then [`publish.md`](publish.md).
 
 **A refused run is not a failure.** A result headed `Run refused — checkout is not on the latest …` launched nothing and has no `runId`: the `cwd` checkout lacks its base's latest commit (`BEHIND_BASE`) or carries another branch's commits (`FOREIGN_BASE`). Sync it per [`../sync-branch-with-base.md`](../sync-branch-with-base.md), re-invoke [`muggle-test-prepare`](../../muggle-test-prepare/SKILL.md) so the dev server serves the synced code, and run the case again. Never route it through failure handling or count it as a result.
+
+**A busy lane is not a failure either.** A result headed `Lane busy — another checkout's run holds the local browser` launched nothing and has no `runId`: a peer session's run from a different checkout holds the one local browser. Each execute call waits up to `laneWaitSeconds` (default 20) and then answers at once with the holder, how long it has run, and this checkout's place in line — kept for as long as the checkout keeps asking. Don't idle: issue the next test case's independent cloud fetches or other work, then call the same execute tool again after the suggested delay; when nothing else is left, re-call it with a longer `laneWaitSeconds` to wait in the call. `muggle-local-execution-lane-status` shows the lane without taking a place. Never kill a peer's run to free the lane, never test against a peer's dev server instead, and never count a busy answer as a result.

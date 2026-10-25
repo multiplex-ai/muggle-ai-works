@@ -99,7 +99,7 @@ describe("muggle-test-prepare", () => {
     const sources = read(PREPARE_STEPS_DIR, "resolve-sources.md");
     expect(sources).toMatch(/<main-root>\/\.claude\/worktrees\/base-<default>/);
     expect(sources).toMatch(/checkout --detach --force origin\/<default>/);
-    expect(sources).toMatch(/local-execution\.lock/);
+    expect(sources).toMatch(/muggle-local-execution-lane-status/);
   });
 
   it("saves services by repo, never by checkout", () => {

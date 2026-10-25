@@ -19,6 +19,7 @@ import {
   ListSessionsInputSchema,
   ExecuteTestGenerationInputSchema,
   ExecuteReplayInputSchema,
+  ExecutionLaneStatusInputSchema,
   CancelExecutionInputSchema,
   RunResultListInputSchema,
   RunResultGetInputSchema,
@@ -64,8 +65,12 @@ import {
   getAuthService,
   getStorageService,
   getRunResultStorageService,
+  LocalExecutionLaneBusyError,
+  readLocalExecutionLaneStatus,
   recordTelemetryEvent,
 } from "../../local/services/index.js";
+import { DEFAULT_TOOL_LANE_WAIT_MS } from "../../local/services/local-execution-lock-constants.js";
+import { formatLaneBusy, formatLaneStatus } from "./lane-busy-message.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 
 /**
@@ -81,6 +86,11 @@ function createChildLogger(correlationId: string) {
   };
 }
 
+
+/** The lane wait an execute call asked for, in ms; absent, the tools' default. */
+function laneWaitMsFrom(laneWaitSeconds: number | undefined): number {
+  return laneWaitSeconds === undefined ? DEFAULT_TOOL_LANE_WAIT_MS : laneWaitSeconds * 1000;
+}
 
 const checkStatusTool: ILocalMcpTool = {
   name: "muggle-local-check-status",
@@ -398,6 +408,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         testCase: input.testCase,
         localUrl: input.localUrl,
         cwd: input.cwd,
+        laneWaitMs: laneWaitMsFrom(input.laneWaitSeconds),
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
@@ -423,6 +434,10 @@ const executeTestGenerationTool: ILocalMcpTool = {
         data: generationRun,
       };
     } catch (error) {
+      if (error instanceof LocalExecutionLaneBusyError) {
+        logger.info("Test generation turned away: lane busy", { holderCwd: error.busy.holderCwd, cwd: input.cwd });
+        return { content: formatLaneBusy(error, input.cwd), isError: true, data: { laneBusy: error.busy } };
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("Test generation failed", { error: errorMessage });
       return { content: `Test generation failed: ${errorMessage}`, isError: true };
@@ -458,6 +473,7 @@ const executeReplayTool: ILocalMcpTool = {
         actionScript: input.actionScript,
         localUrl: input.localUrl,
         cwd: input.cwd,
+        laneWaitMs: laneWaitMsFrom(input.laneWaitSeconds),
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
         showUi: showUi,
@@ -483,10 +499,28 @@ const executeReplayTool: ILocalMcpTool = {
         data: replayRun,
       };
     } catch (error) {
+      if (error instanceof LocalExecutionLaneBusyError) {
+        logger.info("Test replay turned away: lane busy", { holderCwd: error.busy.holderCwd, cwd: input.cwd });
+        return { content: formatLaneBusy(error, input.cwd), isError: true, data: { laneBusy: error.busy } };
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("Test replay failed", { error: errorMessage });
       return { content: `Test replay failed: ${errorMessage}`, isError: true };
     }
+  },
+};
+
+const executionLaneStatusTool: ILocalMcpTool = {
+  name: "muggle-local-execution-lane-status",
+  description: "See who holds the local browser lane right now — the checkout running, how long it has run, and the line of checkouts waiting — without taking a place. Pass cwd to learn whether the lane is free, yours, or a peer's, and your place in line.",
+  inputSchema: ExecutionLaneStatusInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-execution-lane-status");
+
+    const input = ExecutionLaneStatusInputSchema.parse(ctx.input);
+    const report = await readLocalExecutionLaneStatus({ cwd: input.cwd });
+    return { content: formatLaneStatus(report, input.cwd), isError: false, data: report };
   },
 };
 
@@ -761,6 +795,7 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   // Execution tools
   executeTestGenerationTool,
   executeReplayTool,
+  executionLaneStatusTool,
   cancelExecutionTool,
   // Preferences tools
   preferencesSetTool,

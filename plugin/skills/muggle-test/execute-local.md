@@ -40,7 +40,7 @@ Execute each test case via the shared loop in [`../_shared/dev-loop/run.md`](../
 
 Caller glue:
 - `mode` per test case is the input from the router; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
-- `cwd` is the input from the router — it drives the cross-worktree single-flight lock so concurrent muggle-test runs from different branches serialize, and the execute tools refuse it when it is not on the latest base. For a PR whose base is not the remote default, pass its `baseRefName` as `baseBranch`.
+- `cwd` is the input from the router — it keys the cross-worktree execution lane so concurrent muggle-test runs from different branches take turns at the one local browser (see [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) for a `Lane busy` answer), and the execute tools refuse it when it is not on the latest base. For a PR whose base is not the remote default, pass its `baseRefName` as `baseBranch`.
 - On a failed run, continue the batch; the router routes failures through the debug path after this path returns.
 
 ## Collect results

@@ -320,6 +320,7 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 | `muggle-local-check-status` | Browser runner status |
 | `muggle-local-execute-test-generation` | Generate a script by driving the browser |
 | `muggle-local-execute-replay` | Replay an existing script |
+| `muggle-local-execution-lane-status` | Who holds the local browser, and the line of checkouts waiting |
 | `muggle-local-cancel-execution` | Cancel the active run |
 | `muggle-local-run-result-list` / `-get` | Results, screenshots, and cloud refs (`viewUrl`) |
 | `muggle-local-run-steps-get` | A run's ordered steps beside the frame each produced |

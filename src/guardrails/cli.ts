@@ -489,9 +489,10 @@ function e2eGate(): string {
     decision.blockCount === 1
       ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. ` +
         `Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, ` +
-        `then finish. A skip states a fact about the environment, never a judgment about the change: run ` +
-        `\`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies ` +
-        `the code itself, so one that does not hold leaves this gate blocked.`
+        `then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ` +
+        `${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this ` +
+        `gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, ` +
+        `cite ${E2eSkipCode.NotApplicable} with the reason — the PR shows it as your unverified judgment.`
       : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
         `run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);

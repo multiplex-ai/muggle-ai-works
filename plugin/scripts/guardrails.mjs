@@ -1092,6 +1092,7 @@ var E2eSkipCode = /* @__PURE__ */ ((E2eSkipCode3) => {
   E2eSkipCode3["NoPr"] = "NO_PR";
   E2eSkipCode3["UserWaived"] = "USER_WAIVED";
   E2eSkipCode3["NoAppLogicChange"] = "NO_APP_LOGIC_CHANGE";
+  E2eSkipCode3["NotApplicable"] = "NOT_APPLICABLE";
   return E2eSkipCode3;
 })(E2eSkipCode || {});
 
@@ -1107,7 +1108,8 @@ var E2E_SKIP_CODE_CLAIMS = {
   ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
   ["NO_PR" /* NoPr */]: "no pull request was handled this session",
   ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words",
-  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
+  ["NOT_APPLICABLE" /* NotApplicable */]: "a browser run cannot exercise this change, for the reason stated"
 };
 var CYCLE_SCOPED_SKIP_CODES = ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */];
 var PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
@@ -1128,6 +1130,7 @@ var NON_APP_PATH_PATTERNS = [
 ];
 var MAX_NAMED_APP_LOGIC_PATHS = 5;
 var USER_WAIVE_PHRASE = "SKIP E2E";
+var MIN_NOT_APPLICABLE_REASON_WORDS = 4;
 var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
 var GIT_PROBE_TIMEOUT_MS = 5e3;
 var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
@@ -1176,12 +1179,22 @@ _Awaiting the E2E acceptance run. Muggle edits this comment in place when the ru
 }
 function renderSkippedComment(code, detail) {
   const stated = detail.trim();
+  if (code === "NOT_APPLICABLE" /* NotApplicable */) return renderNotApplicableComment(stated);
   const qualifier = stated ? ` \u2014 ${stated}` : "";
   return `${WALKTHROUGH_SLOT_MARKER}
 ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
 **No E2E run.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
+}
+function renderNotApplicableComment(reason) {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**No E2E run \u2014 not applicable.** ${reason.replace(/\.$/, "")}.
+
+_The coding agent judged that a browser run cannot exercise this change (\`${"NOT_APPLICABLE" /* NotApplicable */}\`). Muggle did not verify this reason._`;
 }
 function renderUnreasonedSkipComment() {
   return `${WALKTHROUGH_SLOT_MARKER}
@@ -1401,6 +1414,13 @@ var verifyNoAppLogicChange = (context, detail) => {
   if (appLogicPaths.length > 0) return refuted(`app-logic paths changed since ${sha}: ${namePaths(appLogicPaths)}`);
   return verified;
 };
+var verifyNotApplicable = (_context, detail) => {
+  const words = detail.trim().split(/\s+/).filter(Boolean).length;
+  if (words >= MIN_NOT_APPLICABLE_REASON_WORDS) return verified;
+  return refuted(
+    `the reason is ${words === 0 ? "missing" : "too short to weigh"} \u2014 cite it as NOT_APPLICABLE: <why a browser run cannot exercise this change>, in at least ${MIN_NOT_APPLICABLE_REASON_WORDS} words`
+  );
+};
 var VERIFIERS = {
   ["NO_WEB_SURFACE" /* NoWebSurface */]: verifyNoWebSurface,
   ["DEV_SERVER_UNREACHABLE" /* DevServerUnreachable */]: verifyDevServerUnreachable,
@@ -1408,7 +1428,8 @@ var VERIFIERS = {
   ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: verifyMuggleAuthDown,
   ["NO_PR" /* NoPr */]: verifyNoPr,
   ["USER_WAIVED" /* UserWaived */]: verifyUserWaived,
-  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: verifyNoAppLogicChange
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: verifyNoAppLogicChange,
+  ["NOT_APPLICABLE" /* NotApplicable */]: verifyNotApplicable
 };
 function verifyDeclaredSkip(skip, context) {
   return VERIFIERS[skip.code](context, skip.detail);
@@ -1433,7 +1454,7 @@ function explainRejection(judged) {
     return `That skip declaration states no code. E2E is skipped only by citing one of: ${codeMenu()}.`;
   }
   if (judged.rejection === "unknown-code" /* UnknownCode */) {
-    return `"${judged.claimedCode}" is not a skip code, so E2E is still owed. A skip must name a fact about the environment, not a judgment about the change: ${codeMenu()}. If none of them is true, the run has to happen.`;
+    return `"${judged.claimedCode}" is not a skip code, so E2E is still owed. Cite one of: ${codeMenu()}. If none of them is true, the run has to happen.`;
   }
   return `The skip cited ${judged.claimedCode}, but that could not be verified: ${judged.failure}. E2E is still owed \u2014 cite a code that holds, or run it.`;
 }
@@ -2085,7 +2106,7 @@ function e2eGate() {
   if (decision.action === "none" /* None */) return "{}";
   state.e2eBlockCount = decision.blockCount;
   writeState(state);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. A skip states a fact about the environment, never a judgment about the change: run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies the code itself, so one that does not hold leaves this gate blocked.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
 function watchGate() {

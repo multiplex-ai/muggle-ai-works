@@ -19,10 +19,6 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-execute-test-generation",
   },
   {
-    "description": "See who holds the local browser lane right now — the checkout running, how long it has run, and the line of checkouts waiting — without taking a place. Pass cwd to learn whether the lane is free, yours, or a peer's, and your place in line.",
-    "name": "muggle-local-execution-lane-status",
-  },
-  {
     "description": "Remove the cached last-used host for this repo. After this, \`autoSelectLocalHost = always\` will fall through to ask until the user picks a new URL. No-op if no cache exists.",
     "name": "muggle-local-last-host-clear",
   },
@@ -455,7 +451,6 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-local-check-status",
   "muggle-local-execute-replay",
   "muggle-local-execute-test-generation",
-  "muggle-local-execution-lane-status",
   "muggle-local-last-host-clear",
   "muggle-local-last-host-get",
   "muggle-local-last-host-set",

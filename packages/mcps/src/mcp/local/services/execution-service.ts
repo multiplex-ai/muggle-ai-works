@@ -725,15 +725,12 @@ async function executeElectronAppAsync(params: {
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @param params.runSettingsId - Local runSettings record the cloud records the generation against.
- * @param params.laneWaitMs - Longest wait for another checkout's run; omitted, waits until the lane frees.
  * @returns Run result with generated script info.
- * @throws {LocalExecutionLaneBusyError} When `laneWaitMs` ran out with another checkout still running.
  */
 export async function executeTestGeneration(params: {
   testCase: TestCaseDetails;
   localUrl: string;
   cwd: string;
-  laneWaitMs?: number;
   mutations?: string[];
   timeoutMs?: number;
   showUi?: boolean;
@@ -741,7 +738,7 @@ export async function executeTestGeneration(params: {
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
 }): Promise<ILocalRunResult> {
-  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd, waitMs: params.laneWaitMs });
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
   try {
     return await runTestGenerationLocked(params);
   } finally {
@@ -998,16 +995,13 @@ async function runTestGenerationLocked(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
- * @param params.laneWaitMs - Longest wait for another checkout's run; omitted, waits until the lane frees.
  * @returns Run result.
- * @throws {LocalExecutionLaneBusyError} When `laneWaitMs` ran out with another checkout still running.
  */
 export async function executeReplay(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
   localUrl: string;
   cwd: string;
-  laneWaitMs?: number;
   mutations?: string[];
   timeoutMs?: number;
   showUi?: boolean;
@@ -1015,7 +1009,7 @@ export async function executeReplay(params: {
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
-  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd, waitMs: params.laneWaitMs });
+  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
   try {
     return await runReplayLocked(params);
   } finally {

@@ -1,75 +1,23 @@
 /**
- * Tunables for the cross-process execution lane at
+ * Tunables for the cross-process single-flight lock at
  * {@link ./local-execution-lock.ts}. Kept separate so the logic file stays
  * logic-only.
  */
 
-/** Directory under {@link getDataDir()} holding the lane's committed generations. */
-export const LANE_DIR_NAME = "local-execution-lane";
+/** Filename of the lock state file, written under {@link getDataDir()}. */
+export const LOCK_FILE_NAME = "local-execution.lock";
 
-/** Prefix of a committed generation file: `generation-<zero-padded number>.json`. */
-export const GENERATION_FILE_PREFIX = "generation-";
+/** Suffix appended to the lock file path for the read-modify-write sidecar. */
+export const MODIFY_LOCK_SUFFIX = ".modify";
 
-/** Suffix of a committed generation file. */
-export const GENERATION_FILE_SUFFIX = ".json";
+/** How often a blocked caller re-attempts acquire while waiting. */
+export const POLL_INTERVAL_MS = 2000;
 
-/** Digits a generation number is zero-padded to, so names sort lexically. */
-export const GENERATION_DIGITS = 12;
-
-/** Prefix of a not-yet-committed state file, written in full before it is linked into place. */
-export const PENDING_FILE_PREFIX = ".pending-";
-
-/**
- * Committed generations kept behind the newest. A reader lists the directory
- * and then reads the newest file; keeping a tail means a reader that lagged a
- * few commits still finds the file it listed.
- */
-export const GENERATIONS_KEPT = 8;
-
-/**
- * Filename of the lock the pre-lane MCP server writes under {@link getDataDir()}.
- * Read only, so a session still running an older server is respected while the
- * machine's sessions upgrade.
- */
-export const LEGACY_LOCK_FILE_NAME = "local-execution.lock";
-
-/** How often a caller that chose to wait re-attempts, and so refreshes its place in line. */
-export const POLL_INTERVAL_MS = 500;
-
-/** Minimum gap between "waiting for lane" log lines from the same blocked caller. */
+/** Minimum gap between "waiting for lock" log lines from the same blocked caller. */
 export const WAIT_LOG_INTERVAL_MS = 10_000;
 
-/** Attempts a single acquire or release makes when other commits keep winning the race. */
-export const MAX_COMMIT_ATTEMPTS = 50;
+/** Backoff between retries when the modify-lock sidecar is held by another acquirer. */
+export const MODIFY_LOCK_RETRY_MS = 50;
 
-/** Upper bound of the random pause between commit attempts, spreading out racing writers. */
-export const COMMIT_RETRY_JITTER_MS = 20;
-
-/**
- * How long a queued checkout keeps its turn after the lane frees, or after it
- * last asked. A checkout that asked within this window, or whose turn arrived
- * within it, is still served before anyone queued behind it.
- */
-export const CLAIM_GRACE_MS = 30_000;
-
-/**
- * A queued checkout that has not asked for this long has stopped waiting; its
- * place in line is dropped.
- */
-export const TICKET_ABANDON_MS = 10 * 60_000;
-
-/**
- * A queued checkout's last-asked time is rewritten only once this old, so a
- * caller polling a held lane mostly reads without writing. Well under
- * {@link CLAIM_GRACE_MS}, so a poller never looks absent.
- */
-export const TICKET_REFRESH_MS = 5_000;
-
-/** Wait applied by the execute tools when the caller passes none. */
-export const DEFAULT_TOOL_LANE_WAIT_MS = 20_000;
-
-/** Longest wait a caller may ask the execute tools for. */
-export const MAX_TOOL_LANE_WAIT_MS = 10 * 60_000;
-
-/** Retry delay suggested to a caller turned away from a busy lane. */
-export const SUGGESTED_RETRY_AFTER_MS = 30_000;
+/** Modify-lock age past which we assume the previous acquirer crashed and reclaim it. */
+export const MODIFY_LOCK_STALE_MS = 5_000;

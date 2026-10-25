@@ -29,14 +29,6 @@ export { recordTelemetryEvent } from "./telemetry-event-service.js";
 
 export {
   acquireLocalExecutionLock,
-  LaneRelation,
-  LocalExecutionLaneBusyError,
-  readLocalExecutionLaneStatus,
-  tryAcquireLocalExecutionLane,
+  readLocalExecutionLockState,
 } from "./local-execution-lock.js";
-export type {
-  ILaneAttempt,
-  ILaneBusyDetails,
-  ILaneStatusReport,
-  ILocalExecutionLockHandle,
-} from "./local-execution-lock.js";
+export type { ILocalExecutionLockHandle } from "./local-execution-lock.js";

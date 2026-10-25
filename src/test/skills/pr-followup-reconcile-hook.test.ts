@@ -164,9 +164,10 @@ describe("pr-followup session-start reconcile nudge", () => {
       expect(skill).toMatch(/SessionStart|session-start hook/i);
     });
 
-    // Watching is session-scoped by design (owner decision): nothing polls out
-    // of session, because a review is addressed only inside a session that
-    // carries the context. No out-of-session watchdog daemon, ever.
+    // Addressing a PR is session-scoped by design (owner decision): a review is
+    // handled only inside a session that carries the context. The muggle watch
+    // service may bring a registered slot's owning session back, but nothing
+    // out of session polls, ticks or replies on a PR itself.
     it("no skill doc resurrects an out-of-session watchdog", () => {
       for (const [name, body] of [
         ["reconcile.md", reconcile],

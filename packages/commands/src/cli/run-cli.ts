@@ -22,6 +22,11 @@ import {
   statusCommand,
   upgradeCommand,
   versionsCommand,
+  watchRegisterCommand,
+  watchReloadPluginsCommand,
+  watchStatusCommand,
+  watchTickCommand,
+  watchUnregisterCommand,
 } from "../handlers/index.js";
 
 /**
@@ -165,6 +170,43 @@ function createProgram (): Command {
     .description("Add the Muggle walkthrough check to this repository's GitHub Actions")
     .option("--force", "Replace an existing workflow file")
     .action(ciInstallCommand);
+
+  const watch = program
+    .command("watch")
+    .description("Standing watch over Claude/Codex sessions, their processes, and PR watchers");
+
+  watch
+    .command("tick")
+    .description("Run one watch pass (the scheduled task runs this)")
+    .option("--no-auto-reload", "Do not start a plugin reload fan-out when installed plugins change")
+    .option("--no-recovery", "Report dead watchers without resuming their owner sessions")
+    .option("--json", "Print the full snapshot as JSON")
+    .action(watchTickCommand);
+
+  watch
+    .command("status")
+    .description("Show the last watch pass: sessions, processes, PR watches, findings")
+    .option("--json", "Print the snapshot as JSON")
+    .action(watchStatusCommand);
+
+  watch
+    .command("reload-plugins")
+    .description("Reload plugins across active Claude sessions (respawns idle background ones)")
+    .option("--dry-run", "Show what each session would get without respawning anything")
+    .option("--json", "Print the report as JSON")
+    .action(watchReloadPluginsCommand);
+
+  watch
+    .command("register")
+    .description("Opt a PR-watch slot into out-of-session recovery")
+    .requiredOption("--slot <dir>", "The slot dir under ~/.muggle-ai/muggle-do/sessions")
+    .action(watchRegisterCommand);
+
+  watch
+    .command("unregister")
+    .description("Withdraw a PR-watch slot from recovery (it is still reported on)")
+    .requiredOption("--slot <dir>", "The slot dir under ~/.muggle-ai/muggle-do/sessions")
+    .action(watchUnregisterCommand);
 
   program.action(() => {
     helpCommand();

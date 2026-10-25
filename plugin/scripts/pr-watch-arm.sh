@@ -137,8 +137,15 @@ echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behin
 # — reconcile reads any id it does not recognise as another session's claim, and
 # a bogus one would strand the slot exactly as an absent file does.
 if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+    claimed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '{\n  "session_id": "%s",\n  "claimed_at": "%s"\n}\n' \
-        "$CLAUDE_CODE_SESSION_ID" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${slot}/owner.json"
+        "$CLAUDE_CODE_SESSION_ID" "$claimed_at" > "${slot}/owner.json"
+    # Register the slot with the muggle watch service, which resumes this owner
+    # in the background if the loop dies while the session is down, so its own
+    # reconcile re-arms the watch. It lives in the slot, so a stop rename or a
+    # finalize retires it with no extra call; an unowned slot has nobody to resume.
+    printf '{\n  "registered_at": "%s",\n  "registered_by": "pr-watch-arm"\n}\n' \
+        "$claimed_at" > "${slot}/watch-registration.json"
 else
     echo "pr-watch-arm: CLAUDE_CODE_SESSION_ID unset — slot left unowned, reconcile cannot re-arm it" >&2
 fi

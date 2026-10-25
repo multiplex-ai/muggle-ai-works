@@ -34,6 +34,7 @@ const expectedCommands = [
   "pr-walkthrough-check",
   "checkout-freshness",
   "ci-install",
+  "watch",
 ];
 
 // https-only report: collectGsUrls() finds nothing, so build-pr-section renders

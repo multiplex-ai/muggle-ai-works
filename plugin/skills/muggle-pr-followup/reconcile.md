@@ -16,11 +16,13 @@ Two invariants hold on every trigger, however the sweep was reached: it never se
 
 ## Watching is session-scoped
 
-A watcher lives and dies with its session: monitors and `/loop` crons are both session-bound, so a session that ends or hits its usage limit takes every watch down with it. Nothing polls out of session — there is no detached daemon. This is deliberate: a review is addressed only inside a session that carries the context to address it, never by a headless process that would reply without that context.
+A watcher lives and dies with its session: monitors and `/loop` crons are both session-bound, so a session that ends or hits its usage limit takes every watch down with it. No poller outlives its session to act on a PR. This is deliberate: a review is addressed only inside a session that carries the context to address it, never by a headless process that would reply without that context.
+
+What does run out of session is the muggle watch service (`muggle watch`, a per-user scheduled task). It addresses nothing on any PR. For a slot registered in [`watch-registration.json`](state-schemas.md#watch-registrationjson) whose loop is gone while its owner is down, it resumes the **owning** session in the background. That session's reconcile, this procedure, re-arms the watch with its own context. Everything else it finds (a dead watcher under a running owner, red CI, a stale branch) it only reports.
 
 **Ownership is session-scoped too, and that is what bounds recovery.** Each slot records the session that armed it in [`owner.json`](state-schemas.md#ownerjson). Step 3.6 re-arms only slots the running session owns — watchers it armed itself, whose poller died under it. A slot owned by another session, or by none, is **never** re-armed here however dead its poller looks. The same argument that forbids a headless daemon forbids a fresh session inheriting a stranger's PR: it would be picking up review work it has no context for, on a branch it never built, and every push it made would be as context-blind as the daemon the design already rejected. Adoption exists precisely so that step is a deliberate act by the owner ([`adopt.md`](adopt.md)) rather than a side effect of starting a session.
 
-The cost is real and accepted: a PR whose owning session is gone stops being watched and stays unwatched until someone adopts it. Reconcile makes that visible instead of silent — Step 4 lists every orphan it declined to touch — and it still finalizes an orphan whose PR went terminal, which needs no context at all.
+The cost is real and accepted: a PR whose owning session is gone stops being watched until that owner is resumed (by the user, or by the muggle watch service for a registered slot) or someone adopts it. Reconcile makes that visible instead of silent — Step 4 lists every orphan it declined to touch — and it still finalizes an orphan whose PR went terminal, which needs no context at all.
 
 ## Input
 

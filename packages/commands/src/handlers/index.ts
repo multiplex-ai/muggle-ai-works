@@ -18,3 +18,10 @@ export { runViewCommand } from "../../../../src/cli/run-view.js";
 export { serveCommand } from "../../../../src/cli/serve.js";
 export { setupCommand } from "../../../../src/cli/setup.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";
+export {
+  watchRegisterCommand,
+  watchReloadPluginsCommand,
+  watchStatusCommand,
+  watchTickCommand,
+  watchUnregisterCommand,
+} from "../../../../src/cli/watch.js";

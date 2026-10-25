@@ -33,6 +33,7 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
+import { mapRunSettingsList } from "./run-settings-list-transform.js";
 import { mapSecret, mapSecretList } from "./secret-metadata-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
@@ -365,6 +366,21 @@ const testCaseTools: IQaToolDefinition[] = [
         path: `${MUGGLE_TEST_PREFIX}/test-plan-graph/test-cases/${toolInput.testCaseId}/ancestors`,
       };
     },
+  },
+  {
+    name: "muggle-remote-run-settings-list",
+    description:
+      "List a test case's runSettings records in one lane — one per resolution and feature-flag combination its test spec selects — so a run can name a record it has not run yet. Response shape: { runSettingsList: [{ runSettingsId, resolutionLabel, displayResolution, featureFlags }] }. `resolutionLabel` is the window size as width×height; `displayResolution` is the value the local execute tools take for it, absent when none matches. To run a local record, pass its runSettingsId and displayResolution to muggle-local-execute-test-generation. The list does not mark which record is primary.",
+    inputSchema: schemas.RunSettingsListInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.RunSettingsListInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/test-cases/${toolInput.testCaseId}/run-settings`,
+        queryParams: { type: toolInput.runEnvironmentType },
+      };
+    },
+    mapFromUpstream: mapRunSettingsList,
   },
   {
     name: "muggle-remote-test-plan-graph-rebuild",

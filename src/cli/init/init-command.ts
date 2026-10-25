@@ -84,6 +84,7 @@ const CI_OFFER_REPORT: Record<CiOfferOutcome, string | null> = {
   [CiOfferOutcome.Deferred]: "This repo has no Muggle E2E check in CI yet — run `muggle ci-install` to add it.",
   [CiOfferOutcome.TurnedOff]: null,
   [CiOfferOutcome.AlreadyInstalled]: null,
+  [CiOfferOutcome.Updated]: `Updated ${USER_WORKFLOW_PATH} from an earlier Muggle release — commit it.`,
   [CiOfferOutcome.NotApplicable]: null,
 };
 

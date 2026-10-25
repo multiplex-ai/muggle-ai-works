@@ -175,7 +175,7 @@ The `autoInstallCiWorkflow` preference, chosen during `muggle init`, decides whe
 muggle ci-install
 ```
 
-That writes `.github/workflows/muggle-walkthrough.yml`. To add it by hand instead:
+That writes `.github/workflows/muggle-walkthrough.yml`. Run again later, it replaces a copy an earlier release wrote with the current one, and leaves a copy you edited alone unless you pass `--force`; `muggle init` and `/muggle-do` do the same refresh on their own unless `autoInstallCiWorkflow` is `never`. To add it by hand instead:
 
 <!-- muggle:ci-workflow-snippet -->
 ```yaml
@@ -212,7 +212,7 @@ Four things worth knowing:
 
 - The verdict is published as a check run against the pull request's head commit, not as this job's own status. An `issue_comment` run executes against the default branch, and only a head-commit check reaches the pull request from there — which is what lets settling the comment turn the check green without a new push.
 - GitHub reads the `issue_comment` trigger from the **default branch's** copy of the workflow, so comment-driven re-runs start working only once it is merged.
-- Runs for one pull request queue rather than cancel. Settling the comment starts a run while the one checking the push may still be going, and cancelling that run would leave a cancelled job on the pull request — red beside a green check. An installed copy that still says `cancel-in-progress: true` shows exactly that; `muggle ci-install --force` rewrites it.
+- Runs for one pull request queue rather than cancel. Settling the comment starts a run while the one checking the push may still be going, and cancelling that run would leave a cancelled job on the pull request — red beside a green check. An installed copy that still says `cancel-in-progress: true` shows exactly that; `muggle ci-install` updates it.
 - On a pull request from a fork, `GITHUB_TOKEN` is read-only and the check run cannot be published. The command fails open and reports nothing rather than blocking the pull request.
 
 ---
@@ -362,7 +362,7 @@ muggle logout
 muggle status
 
 # Pull requests
-muggle ci-install [--force]   # Add the walkthrough check to GitHub Actions
+muggle ci-install [--force]   # Add or update the walkthrough check in GitHub Actions
 muggle pr-walkthrough-check   # Verify a PR's walkthrough comment is settled
 muggle build-pr-section       # Render a PR evidence block from a report on stdin
 

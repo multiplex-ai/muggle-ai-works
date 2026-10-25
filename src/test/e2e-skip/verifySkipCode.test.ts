@@ -312,6 +312,29 @@ describe("NO_APP_LOGIC_CHANGE", () => {
   });
 });
 
+describe("NOT_APPLICABLE", () => {
+  it("accepts a stated reason, whatever the environment", () => {
+    const judged = resolveSkipDeclaration(
+      declare(E2eSkipCode.NotApplicable, "only the transactional email template changed"),
+      contextFor({}, { cwd: undefined }),
+    );
+    expect(judged).toEqual({
+      accepted: true,
+      skip: { code: E2eSkipCode.NotApplicable, detail: "only the transactional email template changed" },
+    });
+  });
+
+  it.each([
+    ["no reason", ""],
+    ["a bare label", "backend only"],
+  ])("refutes %s", (_label, detail) => {
+    const judged = resolveSkipDeclaration(declare(E2eSkipCode.NotApplicable, detail), contextFor({}));
+    expect(judged?.accepted).toBe(false);
+    expect(judged?.accepted === false && judged.rejection).toBe(SkipRejection.VerificationFailed);
+    expect(judged?.accepted === false && judged.failure).toContain("NOT_APPLICABLE: <why");
+  });
+});
+
 describe("USER_WAIVED", () => {
   const userTurn = (text: string) => JSON.stringify({ type: "user", message: { role: "user", content: text } });
 

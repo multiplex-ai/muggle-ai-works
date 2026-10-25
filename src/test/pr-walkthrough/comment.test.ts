@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   classifyComment,
   lastFullRunOf,
+  renderDependencyBotComment,
   renderNoAppLogicChangeComment,
   renderReservedComment,
   renderSkippedComment,
@@ -29,11 +30,27 @@ describe("renderReservedComment", () => {
   });
 });
 
+describe("renderDependencyBotComment", () => {
+  it("names the bot and settles the slot", () => {
+    const body = renderDependencyBotComment("dependabot[bot]");
+    expect(body).toContain("`dependabot[bot]`");
+    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
+  });
+});
+
 describe("renderSkippedComment", () => {
   it("names the verified code and what it claims", () => {
     const body = renderSkippedComment(E2eSkipCode.NoWebSurface, "ships hooks and a CLI");
     expect(body).toContain("NO_WEB_SURFACE");
     expect(body).toContain("ships hooks and a CLI");
+    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
+  });
+
+  it("shows a NOT_APPLICABLE reason as the agent's, unverified", () => {
+    const body = renderSkippedComment(E2eSkipCode.NotApplicable, "only the email template changed.");
+    expect(body).toContain("**No E2E run — not applicable.** only the email template changed.\n");
+    expect(body).toContain("Muggle did not verify this reason");
+    expect(body).not.toContain("Muggle verified");
     expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
   });
 

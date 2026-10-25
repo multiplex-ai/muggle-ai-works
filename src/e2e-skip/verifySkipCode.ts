@@ -2,6 +2,7 @@ import { join } from "path";
 import {
   BROWSER_FRAMEWORK_PACKAGES,
   MAX_NAMED_APP_LOGIC_PATHS,
+  MIN_NOT_APPLICABLE_REASON_WORDS,
   MUGGLE_HOME_DIR_NAME,
   OAUTH_SESSION_FILE,
   USER_WAIVE_PHRASE,
@@ -158,6 +159,18 @@ const verifyNoAppLogicChange: SkipVerifier = (context, detail) => {
   return verified;
 };
 
+// Nothing about the environment can confirm this one, so what is checked is the
+// reason itself: there has to be one a reviewer can weigh, since the PR shows it
+// in place of a run.
+const verifyNotApplicable: SkipVerifier = (_context, detail) => {
+  const words = detail.trim().split(/\s+/).filter(Boolean).length;
+  if (words >= MIN_NOT_APPLICABLE_REASON_WORDS) return verified;
+  return refuted(
+    `the reason is ${words === 0 ? "missing" : "too short to weigh"} — cite it as ` +
+      `NOT_APPLICABLE: <why a browser run cannot exercise this change>, in at least ${MIN_NOT_APPLICABLE_REASON_WORDS} words`,
+  );
+};
+
 const VERIFIERS: Record<E2eSkipCode, SkipVerifier> = {
   [E2eSkipCode.NoWebSurface]: verifyNoWebSurface,
   [E2eSkipCode.DevServerUnreachable]: verifyDevServerUnreachable,
@@ -166,6 +179,7 @@ const VERIFIERS: Record<E2eSkipCode, SkipVerifier> = {
   [E2eSkipCode.NoPr]: verifyNoPr,
   [E2eSkipCode.UserWaived]: verifyUserWaived,
   [E2eSkipCode.NoAppLogicChange]: verifyNoAppLogicChange,
+  [E2eSkipCode.NotApplicable]: verifyNotApplicable,
 };
 
 /** Run the cited code's verifier against the environment it was cited in. */

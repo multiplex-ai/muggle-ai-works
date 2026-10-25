@@ -42,7 +42,7 @@ export function explainRejection(judged: Extract<SkipJudgment, { accepted: false
   if (judged.rejection === SkipRejection.UnknownCode) {
     return (
       `"${judged.claimedCode}" is not a skip code, so E2E is still owed. ` +
-      `A skip must name a fact about the environment, not a judgment about the change: ${codeMenu()}. ` +
+      `Cite one of: ${codeMenu()}. ` +
       `If none of them is true, the run has to happen.`
     );
   }

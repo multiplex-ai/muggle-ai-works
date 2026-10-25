@@ -22,6 +22,7 @@ import {
   statusCommand,
   upgradeCommand,
   versionsCommand,
+  watchInstallCommand,
   watchRegisterCommand,
   watchReloadPluginsCommand,
   watchStatusCommand,
@@ -195,6 +196,14 @@ function createProgram (): Command {
     .option("--dry-run", "Show what each session would get without respawning anything")
     .option("--json", "Print the report as JSON")
     .action(watchReloadPluginsCommand);
+
+  watch
+    .command("install")
+    .description("Register or refresh the scheduled task that runs the watch (Windows)")
+    .option("--uninstall", "Remove the task; the ledger is kept")
+    .option("--no-wait", "Return once the task is registered, without waiting for its first pass")
+    .option("--from-preference", "Act on the autoInstallWatchService preference, as an install or upgrade does")
+    .action(watchInstallCommand);
 
   watch
     .command("register")

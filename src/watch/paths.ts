@@ -5,6 +5,7 @@ import {
   CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH,
   CLAUDE_PROJECTS_DIR_NAME,
   CLAUDE_SESSION_REGISTRY_DIR_NAME,
+  MUGGLE_INSTALL_LOG_FILE,
   PR_WATCH_SLOTS_RELATIVE_PATH,
   WATCH_DIR_NAME,
 } from "./constants.js";
@@ -25,5 +26,6 @@ export function resolveWatchPaths(env: NodeJS.ProcessEnv = process.env): WatchPa
     claudeProjectsDir: join(claudeConfigDir, CLAUDE_PROJECTS_DIR_NAME),
     claudeInstalledPluginsFile: join(claudeConfigDir, ...CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH),
     codexSessionsDir: join(codexHome, "sessions"),
+    muggleInstallLogFile: join(muggleDataDir, MUGGLE_INSTALL_LOG_FILE),
   };
 }

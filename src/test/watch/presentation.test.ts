@@ -50,11 +50,16 @@ describe("composeTickNotification", () => {
         { sessionId: "dddddddd-1", name: "fix login", action: ReloadAction.NotifyManual, reason: "" },
         { sessionId: "eeeeeeee-1", action: ReloadAction.NotifyManual, reason: "" },
         { sessionId: "f", action: ReloadAction.Respawn, reason: "" },
+        { sessionId: "gggggggg-1", name: "locked", action: ReloadAction.Respawn, reason: "" },
       ],
       respawnedSessionIds: [],
       failedSessionIds: [],
+      untrustedSessionIds: ["gggggggg-1"],
     };
-    expect(composeTickNotification([], [], reload)).toEqual(["Plugins changed — run /reload-plugins in: fix login, eeeeeeee"]);
+    expect(composeTickNotification([], [], reload)).toEqual([
+      "Plugins changed — run /reload-plugins in: fix login, eeeeeeee",
+      "Can't restart locked (workspace not trusted) — run /reload-plugins in them",
+    ]);
   });
 
   it("collapses everything past the line cap into a count", () => {
@@ -117,6 +122,7 @@ describe("resolveWatchPaths", () => {
     expect(paths.slotsDir).toBe(join(homedir(), ".muggle-ai", "muggle-do", "sessions"));
     expect(paths.claudeSessionRegistryDir).toBe(join(homedir(), ".claude", "sessions"));
     expect(paths.codexSessionsDir).toBe(join(homedir(), ".codex", "sessions"));
+    expect(paths.muggleInstallLogFile).toBe(join(homedir(), ".muggle-ai", "postinstall.log"));
   });
 });
 
@@ -137,6 +143,7 @@ describe("renderWatchStatus", () => {
   const takenAt = "2026-10-24T12:00:00.000Z";
   const snapshot: WatchSnapshot = {
     takenAt: takenAt,
+    installedVersion: "2.0.0",
     sessions: [
       {
         agent: WorkSessionAgent.Claude,
@@ -146,9 +153,18 @@ describe("renderWatchStatus", () => {
         kind: ClaudeSessionKind.Background,
         turnStatus: ClaudeTurnStatus.Busy,
         jobState: ClaudeJobState.Working,
+        loadedAtMs: 1,
+        loadedVersion: "2.0.0",
       },
+      { agent: WorkSessionAgent.Claude, sessionId: "old-build-1", kind: ClaudeSessionKind.Interactive, loadedAtMs: 1, loadedVersion: "1.0.0" },
+      { agent: WorkSessionAgent.Claude, sessionId: "pre-log-1", kind: ClaudeSessionKind.Interactive, loadedAtMs: 1 },
       { agent: WorkSessionAgent.Codex, sessionId: "codex-session-1" },
     ],
+    coverage: [
+      { repo: "o/a", watched: 2, deaf: 0, dead: 1 },
+      { repo: "o/r", watched: 1, deaf: 1, dead: 0 },
+    ],
+    closedOutSlugs: ["merged-slot"],
     processes: [
       { pid: 1, parentPid: 0, kind: TrackedProcessKind.ClaudeCli, isOrphaned: false },
       { pid: 2, parentPid: 0, kind: TrackedProcessKind.MuggleMcpServer, isOrphaned: true },
@@ -181,14 +197,20 @@ describe("renderWatchStatus", () => {
       ],
       respawnedSessionIds: ["r"],
       failedSessionIds: [],
+      untrustedSessionIds: ["u"],
     },
   };
 
   it("renders every section, alerts before warnings", () => {
     const text = renderWatchStatus(snapshot, Date.parse(takenAt) + 3 * 60_000);
     expect(text).toContain("last tick 3m ago");
-    expect(text).toContain("Sessions: 1 Claude, 1 Codex");
+    expect(text).toContain("Sessions: 3 Claude (2 behind installed 2.0.0), 1 Codex");
     expect(text).toMatch(/background\s+busy\/working\s+1c714e7e watch service {2}C:\\repo/);
+    expect(text).toContain("old-buil  [behind: 1.0.0]");
+    expect(text).toContain("pre-log-  [behind: older than the install log]");
+    expect(text).toContain("Coverage of open PRs: 3 watched, 1 deaf, 1 dead");
+    expect(text).toMatch(/o\/a\s+watched 2 {2}deaf 0 {2}dead 1/);
+    expect(text).toContain("Closed out this tick (PR merged or closed, nobody watching): merged-slot");
     expect(text).toMatch(/codex\s+active\s+codex-se/);
     expect(text).toContain("1 claude, 0 codex, 1 muggle MCP servers (1 orphaned), 1 PR watch loop processes");
     expect(text).toMatch(/o\/r#7\s+dead\s+registered\s+owner aaaaaaaa \(ended\) {2}open, ci failure, behind/);
@@ -197,12 +219,22 @@ describe("renderWatchStatus", () => {
     expect(text).toMatch(/no owner {2}status unavailable/);
     expect(text.indexOf("WATCHER_DEAD")).toBeLessThan(text.indexOf("BEHIND_BASE"));
     expect(text).toContain("session aaaaaaaa  resumed  csv");
-    expect(text).toContain("Plugin reload: 1 respawned, 0 failed, 1 deferred, 1 need /reload-plugins by hand");
+    expect(text).toContain("Plugin reload: 1 restarted, 0 failed, 1 deferred, 2 need /reload-plugins by hand");
   });
 
-  it("leaves out recovery and reload sections when nothing happened", () => {
-    const quiet = renderWatchStatus({ ...snapshot, recoveries: [], reload: undefined }, Date.parse(takenAt));
+  it("leaves out recovery, reload, close-out and drift when nothing happened or nothing is known", () => {
+    const quiet = renderWatchStatus({ ...snapshot, installedVersion: undefined, closedOutSlugs: [], recoveries: [], reload: undefined }, Date.parse(takenAt));
     expect(quiet).not.toContain("Recoveries:");
     expect(quiet).not.toContain("Plugin reload:");
+    expect(quiet).not.toContain("Closed out");
+    expect(quiet).not.toContain("[behind");
+    expect(quiet).toContain("Sessions: 3 Claude, 1 Codex");
+  });
+
+  it("renders a snapshot an earlier release wrote", () => {
+    const legacy = { ...snapshot, coverage: undefined, closedOutSlugs: undefined, reload: { ...snapshot.reload, untrustedSessionIds: undefined } };
+    const text = renderWatchStatus(legacy as unknown as WatchSnapshot, Date.parse(takenAt));
+    expect(text).toContain("Coverage of open PRs: 0 watched, 0 deaf, 0 dead");
+    expect(text).toContain("1 need /reload-plugins by hand");
   });
 });

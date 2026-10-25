@@ -22,6 +22,16 @@ export interface WatchReloadPluginsFlags {
   json?: boolean;
 }
 
+/** Flags of `muggle watch install`. */
+export interface WatchInstallFlags {
+  /** Remove the scheduled task instead; the ledger is kept. */
+  uninstall?: boolean;
+  /** Commander's `--no-wait` negation: false returns once the task is registered, before its first tick. */
+  wait: boolean;
+  /** Act on the saved `autoInstallWatchService` value, as an install or upgrade does. */
+  fromPreference?: boolean;
+}
+
 /** Flags of `muggle watch register` and `muggle watch unregister`. */
 export interface WatchSlotFlags {
   /** The PR-watch slot dir, e.g. `~/.muggle-ai/muggle-do/sessions/<slug>`. */

@@ -194,7 +194,7 @@ permissions:
 
 concurrency:
   group: muggle-walkthrough-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   walkthrough-comment:
@@ -208,10 +208,11 @@ jobs:
 ```
 <!-- /muggle:ci-workflow-snippet -->
 
-Three things worth knowing:
+Four things worth knowing:
 
 - The verdict is published as a check run against the pull request's head commit, not as this job's own status. An `issue_comment` run executes against the default branch, and only a head-commit check reaches the pull request from there — which is what lets settling the comment turn the check green without a new push.
 - GitHub reads the `issue_comment` trigger from the **default branch's** copy of the workflow, so comment-driven re-runs start working only once it is merged.
+- Runs for one pull request queue rather than cancel. Settling the comment starts a run while the one checking the push may still be going, and cancelling that run would leave a cancelled job on the pull request — red beside a green check. An installed copy that still says `cancel-in-progress: true` shows exactly that; `muggle ci-install --force` rewrites it.
 - On a pull request from a fork, `GITHUB_TOKEN` is read-only and the check run cannot be published. The command fails open and reports nothing rather than blocking the pull request.
 
 ---

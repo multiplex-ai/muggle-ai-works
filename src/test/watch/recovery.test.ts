@@ -1,0 +1,145 @@
+import { mkdirSync, writeFileSync } from "fs";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import { ProviderPrState } from "../../guardrails/types.js";
+import { executeWatcherRecoveries, isRecoverable, planWatcherRecoveries } from "../../watch/recovery.js";
+import { WatcherLiveness, WatcherRecoveryOutcome, WatchEventKind, type WatchSlotAssessment } from "../../watch/types.js";
+import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
+
+const NOW_MS = Date.parse("2026-10-24T12:00:00Z");
+const MINUTE_MS = 60_000;
+
+function deadSlot(slug: string, ownerSessionId: string, overrides: Partial<WatchSlotAssessment> = {}): WatchSlotAssessment {
+  return {
+    slug: slug,
+    slotDir: `/s/${slug}`,
+    pr: { repo: "o/r", number: 1, url: `u-${slug}` },
+    isRegistered: true,
+    watcher: WatcherLiveness.Dead,
+    ownerSessionId: ownerSessionId,
+    isOwnerSessionActive: false,
+    live: { url: `u-${slug}`, state: ProviderPrState.Open, unresolvedThreadCount: 0 },
+    ...overrides,
+  };
+}
+
+const minutesAgo = (minutes: number): string => new Date(NOW_MS - minutes * MINUTE_MS).toISOString();
+
+describe("isRecoverable", () => {
+  it("accepts only a registered, confirmed-open slot whose watcher and owner are both gone", () => {
+    expect(isRecoverable(deadSlot("a", "o1"))).toBe(true);
+    expect(isRecoverable(deadSlot("a", "o1", { isRegistered: false }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { watcher: WatcherLiveness.Deaf }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { watcher: WatcherLiveness.Rearming }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { live: undefined }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { live: { url: "u", state: ProviderPrState.Merged, unresolvedThreadCount: 0 } }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: true }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: undefined }))).toBe(false);
+    expect(isRecoverable(deadSlot("a", "o1", { ownerSessionId: undefined }))).toBe(false);
+  });
+});
+
+describe("planWatcherRecoveries", () => {
+  it("plans one resume per owner covering all of its slots", () => {
+    const planned = planWatcherRecoveries([deadSlot("b", "o1"), deadSlot("a", "o1"), deadSlot("c", "o2"), deadSlot("a", "o1")], {}, NOW_MS, false);
+    expect(planned).toEqual([
+      { ownerSessionId: "o1", slotSlugs: ["a", "b"], outcome: WatcherRecoveryOutcome.ResumeDue },
+      { ownerSessionId: "o2", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.ResumeDue },
+    ]);
+  });
+
+  it("holds an owner inside its cooldown and stops after the attempt cap", () => {
+    const planned = planWatcherRecoveries(
+      [deadSlot("a", "cooling"), deadSlot("b", "exhausted"), deadSlot("c", "aged-out")],
+      {
+        cooling: [minutesAgo(10)],
+        exhausted: [minutesAgo(300), minutesAgo(200), minutesAgo(100)],
+        "aged-out": [minutesAgo(25 * 60), minutesAgo(26 * 60), minutesAgo(27 * 60), "garbage"],
+      },
+      NOW_MS,
+      false,
+    );
+    expect(Object.fromEntries(planned.map((recovery) => [recovery.ownerSessionId, recovery.outcome]))).toEqual({
+      cooling: WatcherRecoveryOutcome.CoolingDown,
+      exhausted: WatcherRecoveryOutcome.AttemptsExhausted,
+      "aged-out": WatcherRecoveryOutcome.ResumeDue,
+    });
+  });
+
+  it("defers owners past the per-tick cap and plans nothing while polling is disabled", () => {
+    const planned = planWatcherRecoveries([deadSlot("a", "o1"), deadSlot("b", "o2"), deadSlot("c", "o3")], {}, NOW_MS, false);
+    expect(planned.map((recovery) => recovery.outcome)).toEqual([
+      WatcherRecoveryOutcome.ResumeDue,
+      WatcherRecoveryOutcome.ResumeDue,
+      WatcherRecoveryOutcome.DeferredByTickCap,
+    ]);
+    expect(planWatcherRecoveries([deadSlot("a", "o1")], {}, NOW_MS, true)).toEqual([]);
+  });
+});
+
+describe("executeWatcherRecoveries", () => {
+  function projectsWithTranscript(sessionId: string, cwd: string): string {
+    const projectsDir = makeTempDir("projects");
+    mkdirSync(join(projectsDir, "proj"));
+    writeFileSync(join(projectsDir, "proj", `${sessionId}.jsonl`), `${JSON.stringify({ cwd: cwd })}\n`);
+    return projectsDir;
+  }
+
+  it("resumes a due owner in the background from its own project dir", () => {
+    const projectCwd = makeTempDir("project");
+    const projectsDir = projectsWithTranscript("o1", projectCwd);
+    const runner = scriptedRunner(() => succeeded("started"));
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
+      { o1: [minutesAgo(60)], forgotten: [minutesAgo(48 * 60)] },
+      runner.runCommand,
+      projectsDir,
+      NOW_MS,
+    );
+    expect(runner.calls).toEqual([
+      { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"], options: { cwd: projectCwd } },
+    ]);
+    expect(executed.recoveries).toEqual([{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.Resumed, cwd: projectCwd }]);
+    expect(executed.attemptsByOwner).toEqual({ o1: [minutesAgo(60), new Date(NOW_MS).toISOString()] });
+    expect(executed.events).toEqual([
+      { at: new Date(NOW_MS).toISOString(), kind: WatchEventKind.Resumed, subject: "session o1", message: "resumed to re-arm a" },
+    ]);
+  });
+
+  it("records a failed resume as an attempt so the cooldown still applies", () => {
+    const projectsDir = projectsWithTranscript("o1", makeTempDir("project"));
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
+      {},
+      scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand,
+      projectsDir,
+      NOW_MS,
+    );
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
+    expect(executed.attemptsByOwner.o1).toHaveLength(1);
+    expect(executed.events[0].kind).toBe(WatchEventKind.ResumeFailed);
+  });
+
+  it("does not run anything when the transcript or its project dir is gone", () => {
+    const runner = scriptedRunner(() => succeeded(""));
+    const missingCwd = join(makeTempDir("project"), "deleted-worktree");
+    const executed = executeWatcherRecoveries(
+      [
+        { ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue },
+        { ownerSessionId: "o2", slotSlugs: ["b"], outcome: WatcherRecoveryOutcome.ResumeDue },
+        { ownerSessionId: "o3", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.CoolingDown },
+      ],
+      {},
+      runner.runCommand,
+      projectsWithTranscript("o2", missingCwd),
+      NOW_MS,
+    );
+    expect(executed.recoveries.map((recovery) => recovery.outcome)).toEqual([
+      WatcherRecoveryOutcome.TranscriptMissing,
+      WatcherRecoveryOutcome.TranscriptMissing,
+      WatcherRecoveryOutcome.CoolingDown,
+    ]);
+    expect(runner.calls).toEqual([]);
+    expect(executed.attemptsByOwner).toEqual({});
+  });
+});

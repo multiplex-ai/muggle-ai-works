@@ -14,7 +14,7 @@ Run per slot in scope (every dir under `~/.muggle-ai/muggle-do/sessions/` with a
 
 1. **Stop the monitor.** `TaskStop` any running monitor whose command references this slot's `watch.sh`. On Windows also kill surviving grandchildren: `TaskStop` reaps the wrapper but the inner `bash <slot>/watch.sh` process can outlive it and keep touching `watch-heartbeat` — enumerate processes whose command line contains `<slug>/watch.sh` and kill them. A survivor here also blocks the Step 3 rename (open handles inside the dir).
 2. **Cancel the cron.** Per [`cancel-cron.md`](cancel-cron.md) — recorded-id first, `CronList` match as fallback. A cron neither can reach is orphaned; it stays inert via the absorb and dies with its session.
-3. **Mark the slot stopped.** Rename `~/.muggle-ai/muggle-do/sessions/<slug>/` → `<slug>.stopped/`. This single rename is the load-bearing act: the tick absorb keys on it and [`reconcile.md`](reconcile.md) skips `*.stopped` dirs — so no recovery path of any kind re-arms the slot.
+3. **Mark the slot stopped.** Rename `~/.muggle-ai/muggle-do/sessions/<slug>/` → `<slug>.stopped/`. This single rename is the load-bearing act: the tick absorb keys on it, [`reconcile.md`](reconcile.md) skips `*.stopped` dirs, and the muggle watch service ignores a stopped slot's [`watch-registration.json`](state-schemas.md#watch-registrationjson), so no recovery path of any kind re-arms the slot. To keep a watch running but stop the service from resuming its owner, use `muggle watch unregister --slot <slot>` instead.
 
 Then, for a no-slug (stop-everything) invocation only:
 

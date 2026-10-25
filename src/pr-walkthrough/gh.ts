@@ -63,6 +63,15 @@ export function readPrHeadSha(pr: PrCoordinates, run: GhRunner): string | null {
   }
 }
 
+/** The login of the account that opened the PR, or `null` when it could not be read. */
+export function readPrAuthorLogin(pr: PrCoordinates, run: GhRunner): string | null {
+  try {
+    return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".user.login"])?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function writeJson(args: string[], payload: unknown, run: GhRunner): boolean {
   try {
     return run(args, JSON.stringify(payload)) !== null;

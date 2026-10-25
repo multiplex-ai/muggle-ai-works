@@ -42,10 +42,11 @@ interface GhCall {
   input?: string;
 }
 
-function ghWithComments(bodies: string[] | null) {
+function ghWithComments(bodies: string[] | null, author = "stan") {
   const calls: GhCall[] = [];
   const run = (args: string[], input?: string): string | null => {
     calls.push({ args: args, input: input });
+    if (args.includes(".user.login")) return `${author}\n`;
     if (args.join(" ").includes("/comments") && !args.includes("POST")) {
       return bodies === null
         ? null
@@ -78,6 +79,38 @@ describe("runPrWalkthroughCheck", () => {
     const gh = ghWithComments([renderSkippedComment(E2eSkipCode.NoWebSurface, "")]);
     const result = await runPrWalkthroughCheck(options, gh.run);
     expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+
+  it("passes when the agent settled the comment as not applicable, with its reason", async () => {
+    const gh = ghWithComments([
+      renderSkippedComment(E2eSkipCode.NotApplicable, "only the transactional email template changed"),
+    ]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+  });
+
+  it("settles a dependency bot's reserved comment as not applicable and passes", async () => {
+    const gh = ghWithComments([renderReservedComment()], "dependabot[bot]");
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+    const patched = gh.calls.find((call) => call.args.includes("PATCH"));
+    expect(patched?.args.join(" ")).toContain("issues/comments/1");
+    expect(patched?.input).toContain("dependabot[bot]");
+    expect(patched?.input).toContain("muggle-pr-walkthrough-status:skipped");
+  });
+
+  it("posts the not-applicable notice on a dependency bot's PR that has no slot yet", async () => {
+    const gh = ghWithComments([], "renovate[bot]");
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+    const posted = gh.calls.find((call) => call.args.includes("POST"));
+    expect(posted?.input).toContain("renovate[bot]");
+  });
+
+  it("leaves a dependency bot's posted walkthrough to judge on its own", async () => {
+    const gh = ghWithComments([REPORTED], "dependabot[bot]");
+    await runPrWalkthroughCheck(options, gh.run);
+    expect(gh.calls.some((call) => call.args.includes("PATCH") || call.args.includes("POST"))).toBe(false);
   });
 
   it("fails while the reserved comment is still empty", async () => {

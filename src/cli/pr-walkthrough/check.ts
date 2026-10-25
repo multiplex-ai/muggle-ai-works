@@ -1,7 +1,8 @@
 import { latestE2eResult } from "../../e2e-result/marker.js";
 import { walkthroughVerdict } from "../../pr-walkthrough/comment.js";
-import { createCheckRun, defaultGhRunner, listPrComments } from "../../pr-walkthrough/gh.js";
-import { reserveComment } from "../../pr-walkthrough/reserve.js";
+import { DEPENDENCY_BOT_LOGINS } from "../../pr-walkthrough/constants.js";
+import { createCheckRun, defaultGhRunner, listPrComments, readPrAuthorLogin } from "../../pr-walkthrough/gh.js";
+import { reserveComment, settleDependencyBotComment } from "../../pr-walkthrough/reserve.js";
 import {
   WalkthroughVerdict,
   type GhRunner,
@@ -23,6 +24,9 @@ import {
  * A walkthrough without a result record predates the record and keeps counting
  * as settled; judging it failed would redden every PR whose walkthrough an
  * older CLI rendered.
+ *
+ * A dependency bot's PR is settled here rather than left owing: no session ever
+ * runs on it, so its slot would stay empty and the check red forever.
  */
 function judgeComments(
   pr: PrCoordinates,
@@ -34,6 +38,16 @@ function judgeComments(
   }
   const bodies = comments.map((comment) => comment.body);
   const verdict = walkthroughVerdict(bodies);
+  if (verdict !== WalkthroughVerdict.Satisfied) {
+    const author = readPrAuthorLogin(pr, run);
+    if (author && DEPENDENCY_BOT_LOGINS.includes(author)) {
+      settleDependencyBotComment(pr, comments, author, run);
+      return {
+        outcome: WalkthroughCheckOutcome.Settled,
+        summary: FIXED_SUMMARIES[WalkthroughCheckOutcome.Settled],
+      };
+    }
+  }
   if (verdict === WalkthroughVerdict.Missing) reserveComment(pr, comments, run);
 
   const record = latestE2eResult(bodies);
@@ -50,6 +64,8 @@ function judgeComments(
  *
  * Fails when the comment is still empty, and when the newest walkthrough
  * reports any failed or inconclusive case — naming each one in the summary.
+ * Passes on a skip, including the agent's own `NOT_APPLICABLE` with its reason,
+ * and settles a dependency bot's PR as not applicable.
  * Reserves the comment when the PR has none, so a PR opened outside a Muggle
  * session still ends up with the slot reviewers expect. An unreadable PR is
  * neutral, never a failure: a check that fails on its own blindness is a check

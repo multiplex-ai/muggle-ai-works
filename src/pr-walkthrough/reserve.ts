@@ -3,6 +3,7 @@ import type { E2eSkipCode } from "../e2e-skip/types.js";
 import {
   classifyComment,
   lastFullRunOf,
+  renderDependencyBotComment,
   renderNoAppLogicChangeComment,
   renderReservedComment,
   renderSkippedComment,
@@ -41,6 +42,23 @@ export function reserveComment(
   );
   if (claimed) return false;
   return postPrComment(pr, renderReservedComment(), run);
+}
+
+/**
+ * Settle the slot on a PR a dependency bot opened: fill the reserved
+ * placeholder, or post the notice when the PR has none.
+ *
+ * @returns Whether the notice reached the PR.
+ */
+export function settleDependencyBotComment(
+  pr: PrCoordinates,
+  comments: PrComment[],
+  login: string,
+  run: GhRunner,
+): boolean {
+  const body = renderDependencyBotComment(login);
+  const reserved = commentWithStatus(comments, WalkthroughCommentStatus.Pending);
+  return reserved ? patchPrComment(pr, reserved.id, body, run) : postPrComment(pr, body, run);
 }
 
 /**

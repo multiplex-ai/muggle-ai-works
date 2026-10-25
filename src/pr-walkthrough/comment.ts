@@ -25,18 +25,46 @@ export function renderReservedComment(): string {
  * Body that settles the slot without a run.
  *
  * Takes a verified {@link E2eSkipCode} rather than prose, which is what keeps
- * another tool's output from wearing this heading: the rendering has nowhere to
- * put a free-text justification, so a skip can only ever read as one of the
- * environment facts the guardrail checked for itself.
+ * another tool's output from wearing this heading: a skip reads as one of the
+ * environment facts the guardrail checked for itself, or — for
+ * `NOT_APPLICABLE` — as the agent's stated reason, labelled unverified.
  */
 export function renderSkippedComment(code: E2eSkipCode, detail: string): string {
   const stated = detail.trim();
+  if (code === E2eSkipCode.NotApplicable) return renderNotApplicableComment(stated);
   const qualifier = stated ? ` — ${stated}` : "";
   return (
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
     `**No E2E run.** Muggle verified \`${code}\` — ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`
+  );
+}
+
+// The one skip nothing verified, so it says so: the reason stands as the
+// agent's, for the reviewer to accept or push back on.
+function renderNotApplicableComment(reason: string): string {
+  return (
+    `${WALKTHROUGH_SLOT_MARKER}\n` +
+    `${WALKTHROUGH_SKIPPED_MARKER}\n` +
+    `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
+    `**No E2E run — not applicable.** ${reason.replace(/\.$/, "")}.\n\n` +
+    `_The coding agent judged that a browser run cannot exercise this change (\`${E2eSkipCode.NotApplicable}\`). ` +
+    `Muggle did not verify this reason._`
+  );
+}
+
+/**
+ * Body that settles the slot on a PR a dependency bot opened.
+ *
+ * @param login - The bot's GitHub login, e.g. `dependabot[bot]`.
+ */
+export function renderDependencyBotComment(login: string): string {
+  return (
+    `${WALKTHROUGH_SLOT_MARKER}\n` +
+    `${WALKTHROUGH_SKIPPED_MARKER}\n` +
+    `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
+    `**No E2E run — not applicable.** A dependency update opened by \`${login}\`; no coding session ran on it.`
   );
 }
 

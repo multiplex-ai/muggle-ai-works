@@ -29,3 +29,10 @@ export const SHORT_SHA_LENGTH = 7;
 
 /** Ceiling on each `gh` call made while reserving or settling the comment; a hung call must never hold a tool call or a CI job. */
 export const GH_COMMENT_TIMEOUT_MS = 10_000;
+
+/**
+ * PR authors whose PRs never pass through a Muggle session: dependency bots
+ * open them on a schedule, and nothing would ever settle their slot, so the
+ * walkthrough check settles it itself.
+ */
+export const DEPENDENCY_BOT_LOGINS: readonly string[] = ["dependabot[bot]", "renovate[bot]"];

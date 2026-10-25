@@ -1,12 +1,13 @@
 /**
  * The only reasons a Muggle E2E run may be skipped.
  *
- * Every member names a fact the guardrail checks for itself — about the
- * *environment*, or about which paths a commit range touched — which is what
- * makes the set verifiable. A judgment about the change under test — "static
- * page", "layout only", "covered by unit tests", "verified with another tool" —
- * has deliberately no member, because a skip the agent can argue for is a skip
- * that happens whenever arguing is cheaper than running.
+ * Every member but one names a fact the guardrail checks for itself — about the
+ * *environment*, or about which paths a commit range touched. `NOT_APPLICABLE`
+ * is the exception: the agent's own judgment that no browser run can exercise
+ * the change (an email template, a backend-only path the UI never reaches). It
+ * exists because a change E2E cannot see otherwise keeps a PR red with no way
+ * out, and it buys that with honesty instead of verification: it must carry a
+ * stated reason, and the PR shows that reason as the agent's, unverified.
  */
 export enum E2eSkipCode {
   NoWebSurface = "NO_WEB_SURFACE",
@@ -16,6 +17,7 @@ export enum E2eSkipCode {
   NoPr = "NO_PR",
   UserWaived = "USER_WAIVED",
   NoAppLogicChange = "NO_APP_LOGIC_CHANGE",
+  NotApplicable = "NOT_APPLICABLE",
 }
 
 /** The detail of a `NO_APP_LOGIC_CHANGE` declaration: the commit the cycle started from, and what the cycle changed. */

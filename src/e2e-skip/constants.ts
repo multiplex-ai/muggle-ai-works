@@ -25,6 +25,7 @@ export const E2E_SKIP_CODE_CLAIMS: Record<E2eSkipCode, string> = {
   [E2eSkipCode.NoPr]: "no pull request was handled this session",
   [E2eSkipCode.UserWaived]: "the user waived E2E in their own words",
   [E2eSkipCode.NoAppLogicChange]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
+  [E2eSkipCode.NotApplicable]: "a browser run cannot exercise this change, for the reason stated",
 };
 
 /**
@@ -85,6 +86,13 @@ export const USER_WAIVE_PHRASE = "SKIP E2E";
 
 /** How much of the transcript tail the waive check reads. A waive applies to the turn it was given in, and a session transcript grows to megabytes. */
 export const WAIVE_TRANSCRIPT_TAIL_BYTES = 64_000;
+
+/**
+ * Fewest words a `NOT_APPLICABLE` reason may hold. The reason is the only thing
+ * standing behind that skip, so a bare "n/a" or "backend" is refused: a reviewer
+ * has to be able to read why E2E cannot see the change.
+ */
+export const MIN_NOT_APPLICABLE_REASON_WORDS = 4;
 
 /** Ceiling on the dev-server probe. A verifier runs inside a tool call, so an unreachable host must fail fast rather than hold the session. */
 export const DEV_SERVER_PROBE_TIMEOUT_MS = 2_000;

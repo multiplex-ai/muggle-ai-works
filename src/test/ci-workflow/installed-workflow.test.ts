@@ -7,10 +7,12 @@ import { renderUserWorkflow } from "../../ci-workflow/template";
 import { InstalledWorkflowState } from "../../ci-workflow/types";
 
 // Byte-identical to the copy the first ci-install wrote into consuming repos.
+// Read back as LF: a Windows checkout of the fixture is CRLF, and the
+// line-ending case below builds its CRLF copy from this text.
 const FIRST_RELEASE_WORKFLOW = readFileSync(
   fileURLToPath(new URL("./fixtures/walkthrough-workflow-first-release.yml", import.meta.url)),
   "utf-8",
-);
+).replace(/\r\n/g, "\n");
 
 describe("classifyInstalledWorkflow", () => {
   it("reports a repository without the file as missing", () => {

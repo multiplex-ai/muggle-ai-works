@@ -42,6 +42,8 @@ On every entry: `description` (test case title/description — drives the collap
 
 Set `testCaseShortId` to the test case's `shortId` and `replayShortId` to the run's `shortId` (e.g. `TC-42`, `R-2051`) whenever the record you already fetched carries one; the walkthrough then labels the test `TC-42 · <name>` and leads its run row with `R-2051`. Omit either when absent — entities created before short IDs existed have none.
 
+Set `runSettingsId` to the run result's `cloudRunSettingsId` (`muggle-local-run-result-get` prints it as `**Cloud Run Settings ID:**`) and `resolutionLabel` to that record's window size as `<width>×<height>` (e.g. `390×844`): the `resolutionLabel` `muggle-remote-run-settings-list` returns for that `runSettingsId` (with `runEnvironmentType: "local"`), or the `displayResolution` the run executed at, written the same way (`R_0390x0844` → `390×844`). The walkthrough keeps each record of a test case as its own entry, labelled `<name> (390×844)`, and collapses only reruns of one record to the latest. Omit both when the run result carries no `cloudRunSettingsId`; the entry then collapses with the test case's other runs.
+
 If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — pass it through unchanged.
 
 ## Shape
@@ -56,6 +58,8 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — 
       "useCaseName": "<parent use case title (recommended)>",
       "testCaseId": "<testCaseId from execution step>",
       "testCaseShortId": "<test case shortId, when it has one>",
+      "runSettingsId": "<cloudRunSettingsId from run result, when it has one>",
+      "resolutionLabel": "<that record's size, e.g. 390×844>",
       "testScriptId": "<cloudTestScriptId from run result>",
       "runId": "<runId from muggle-local-execute-test-generation>",
       "replayShortId": "<run shortId, when it has one>",

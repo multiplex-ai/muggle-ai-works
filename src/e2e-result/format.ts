@@ -12,6 +12,16 @@ export function escapeHtmlAttribute(s: string): string {
 }
 
 /**
+ * A test's label with the window size of the runSettings record it ran at, when the report names one, so two
+ * resolutions of one test case read apart.
+ *
+ * Output shape: `Checkout (390×844)` / `Checkout`
+ */
+export function withResolutionLabel(labelledText: string, resolutionLabel: string | undefined): string {
+  return resolutionLabel ? `${labelledText} (${resolutionLabel})` : labelledText;
+}
+
+/**
  * Why a case did not pass, as one markdown-safe phrase.
  *
  * Output shape: `failed at step 3: Element not found` / `inconclusive: No replayable script`
@@ -33,7 +43,7 @@ function describeUnpassedCase(unpassed: IUnpassedCase): string {
  */
 export function renderUnpassedCaseBullet(unpassed: IUnpassedCase, linkText: string, linkTarget: string): string {
   return (
-    `- ${UNPASSED_STATUS_EMOJI[unpassed.status]} **${escapeHtml(unpassed.name)}** — ` +
+    `- ${UNPASSED_STATUS_EMOJI[unpassed.status]} **${escapeHtml(withResolutionLabel(unpassed.name, unpassed.resolutionLabel))}** — ` +
     `${describeUnpassedCase(unpassed)} · [${linkText}](${linkTarget})`
   );
 }

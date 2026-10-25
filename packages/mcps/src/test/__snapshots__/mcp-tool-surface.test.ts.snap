@@ -211,6 +211,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-report-stats-summary-get",
   },
   {
+    "description": "List a test case's runSettings records in one lane — one per resolution and feature-flag combination its test spec selects — so a run can name a record it has not run yet. Response shape: { runSettingsList: [{ runSettingsId, resolutionLabel, displayResolution, featureFlags }] }. \`resolutionLabel\` is the window size as width×height; \`displayResolution\` is the value the local execute tools take for it, absent when none matches. To run a local record, pass its runSettingsId and displayResolution to muggle-local-execute-test-generation. The list does not mark which record is primary.",
+    "name": "muggle-remote-run-settings-list",
+  },
+  {
     "description": "Create a new secret (credential) for a project. Returns the created secret's metadata; the value is never echoed back.",
     "name": "muggle-remote-secret-create",
   },
@@ -495,6 +499,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-report-final-generate",
   "muggle-remote-report-preferences-upsert",
   "muggle-remote-report-stats-summary-get",
+  "muggle-remote-run-settings-list",
   "muggle-remote-secret-create",
   "muggle-remote-secret-delete",
   "muggle-remote-secret-get",

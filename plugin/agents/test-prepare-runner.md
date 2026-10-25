@@ -22,7 +22,7 @@ The dispatch prompt carries the resolved prepare plan:
 
 Run these stage files from the skill, in order, exactly as written — they are the single source of truth for each stage's procedure:
 
-1. [`../skills/muggle-test-prepare/steps/check-running.md`](../skills/muggle-test-prepare/steps/check-running.md)
+1. [`../skills/muggle-test-prepare/steps/check-running.md`](../skills/muggle-test-prepare/steps/check-running.md) — each service's port carries `keep` / `start` / `restart` from the stack claim; act only on what it allows
 2. [`../skills/muggle-test-prepare/steps/env-file.md`](../skills/muggle-test-prepare/steps/env-file.md)
 3. [`../skills/muggle-test-prepare/steps/start-commands.md`](../skills/muggle-test-prepare/steps/start-commands.md)
 4. [`../skills/muggle-test-prepare/steps/fresh-install.md`](../skills/muggle-test-prepare/steps/fresh-install.md)

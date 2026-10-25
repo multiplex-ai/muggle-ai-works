@@ -66,7 +66,9 @@ import {
   getRunResultStorageService,
   recordTelemetryEvent,
 } from "../../local/services/index.js";
+import { findRunStackRefusal, findStackChangedDuringRun } from "../../local/services/run-stack-gate.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
+import { formatRunStackRefusal, formatStackChangedDuringRun } from "./run-stack-refusal.js";
 
 /**
  * Create a child logger for correlation.
@@ -393,6 +395,12 @@ const executeTestGenerationTool: ILocalMcpTool = {
       return { content: formatRunCheckoutRefusal(checkoutRefusal, input.cwd), isError: true, data: checkoutRefusal };
     }
 
+    const stackRefusal = await findRunStackRefusal({ cwd: input.cwd, localUrl: input.localUrl });
+    if (stackRefusal) {
+      logger.warn("Test generation refused: service stack", { verdict: stackRefusal.verdict, cwd: input.cwd });
+      return { content: formatRunStackRefusal(stackRefusal, input.cwd), isError: true, data: stackRefusal };
+    }
+
     try {
       const generationRun = await executeTestGeneration({
         testCase: input.testCase,
@@ -417,8 +425,11 @@ const executeTestGenerationTool: ILocalMcpTool = {
         generationRun.errorMessage ? `**Error:** ${generationRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
+      const stackChange = await findStackChangedDuringRun({ cwd: input.cwd, localUrl: input.localUrl });
+      const reportedContent = stackChange ? content + formatStackChangedDuringRun(stackChange) : content;
+
       return {
-        content: content,
+        content: reportedContent,
         isError: generationRun.status !== "passed",
         data: generationRun,
       };
@@ -452,6 +463,12 @@ const executeReplayTool: ILocalMcpTool = {
       return { content: formatRunCheckoutRefusal(checkoutRefusal, input.cwd), isError: true, data: checkoutRefusal };
     }
 
+    const stackRefusal = await findRunStackRefusal({ cwd: input.cwd, localUrl: input.localUrl });
+    if (stackRefusal) {
+      logger.warn("Test replay refused: service stack", { verdict: stackRefusal.verdict, cwd: input.cwd });
+      return { content: formatRunStackRefusal(stackRefusal, input.cwd), isError: true, data: stackRefusal };
+    }
+
     try {
       const replayRun = await executeReplay({
         testScript: input.testScript,
@@ -477,8 +494,11 @@ const executeReplayTool: ILocalMcpTool = {
         replayRun.errorMessage ? `**Error:** ${replayRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
+      const stackChange = await findStackChangedDuringRun({ cwd: input.cwd, localUrl: input.localUrl });
+      const reportedContent = stackChange ? content + formatStackChangedDuringRun(stackChange) : content;
+
       return {
-        content: content,
+        content: reportedContent,
         isError: replayRun.status !== "passed",
         data: replayRun,
       };

@@ -19,6 +19,10 @@ import {
   logoutCommand,
   serveCommand,
   setupCommand,
+  stackCheckCommand,
+  stackClaimCommand,
+  stackReleaseCommand,
+  stackStatusCommand,
   statusCommand,
   upgradeCommand,
   versionsCommand,
@@ -159,6 +163,46 @@ function createProgram (): Command {
     .option("--no-fetch", "Check against the last fetched base instead of fetching")
     .option("--json", "Print the full report as JSON")
     .action(checkoutFreshnessCommand);
+
+  const stack = program
+    .command("stack")
+    .description("Share one set of local services between agents in different checkouts");
+
+  stack
+    .command("claim")
+    .description("Claim the ports this checkout's E2E run needs; answers granted or busy at once")
+    .option("--cwd <dir>", "Directory inside the claiming checkout (default: the current directory)")
+    .option(
+      "--need <port=run-dir[@sha]>",
+      "A port and the directory (and commit) it must serve; repeat per port",
+      (value: string, previous: string[]) => [...previous, value],
+      [] as string[],
+    )
+    .option("--label <name>", "Name shown to peers waiting on this checkout")
+    .option("--wait <seconds>", "Keep re-asking this long while busy")
+    .option("--json", "Print the full report as JSON")
+    .action(stackClaimCommand);
+
+  stack
+    .command("check")
+    .description("Check that the stack still serves what this checkout claimed, renewing the lease")
+    .option("--cwd <dir>", "Directory inside the checkout (default: the current directory)")
+    .option("--port <port>", "Port the run will target")
+    .option("--json", "Print the full report as JSON")
+    .action(stackCheckCommand);
+
+  stack
+    .command("release")
+    .description("Give up this checkout's lease and place in line")
+    .option("--cwd <dir>", "Directory inside the checkout (default: the current directory)")
+    .option("--json", "Print the result as JSON")
+    .action(stackReleaseCommand);
+
+  stack
+    .command("status")
+    .description("Show every lease, the line, and the services prepare tracks")
+    .option("--json", "Print the full report as JSON")
+    .action(stackStatusCommand);
 
   program
     .command("ci-install")

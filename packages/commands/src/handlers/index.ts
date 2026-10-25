@@ -17,4 +17,10 @@ export { prWalkthroughCheckCommand } from "../../../../src/cli/pr-walkthrough-ch
 export { runViewCommand } from "../../../../src/cli/run-view.js";
 export { serveCommand } from "../../../../src/cli/serve.js";
 export { setupCommand } from "../../../../src/cli/setup.js";
+export {
+  stackCheckCommand,
+  stackClaimCommand,
+  stackReleaseCommand,
+  stackStatusCommand,
+} from "../../../../src/cli/service-stack.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";

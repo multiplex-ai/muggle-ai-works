@@ -1,5 +1,6 @@
 import { execFileSync } from "child_process";
 import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
+import { WALKTHROUGH_SKIPPED_MARKER } from "../pr-walkthrough/constants.js";
 import { GH_LOOKUP_TIMEOUT_MS, MAX_WALKTHROUGH_BLOCKS } from "./constants.js";
 import { REPORT_SENTINEL } from "./prReportPost.js";
 import {
@@ -9,10 +10,14 @@ import {
   type WalkthroughGateDecision,
 } from "./types.js";
 
-/** The provider reads the gate needs: the working branch's PR, and whether a given PR already carries a walkthrough. */
+/**
+ * The provider reads the gate needs: the working branch's PR, and whether a
+ * given PR already carries a walkthrough — or, where `acceptsSkip`, the
+ * settled record of a declared skip.
+ */
 export interface PrWalkthroughLookup {
   branchPrUrl: () => string | null;
-  prCarriesWalkthrough: (prUrl: string) => boolean;
+  prCarriesWalkthrough: (prUrl: string, acceptsSkip: boolean) => boolean;
 }
 
 /** A scan of the PRs in play: which still owe a walkthrough, and which were confirmed to already carry one. */
@@ -44,10 +49,10 @@ export const defaultPrWalkthroughLookup: PrWalkthroughLookup = {
   // Scans the description as well as the comments: muggle-do embeds the
   // walkthrough in the body at PR-creation time, and a comments-only check
   // would report that PR as owing one it already carries.
-  prCarriesWalkthrough: (prUrl) => {
+  prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;
-    return rendered.includes(REPORT_SENTINEL);
+    return rendered.includes(REPORT_SENTINEL) || (acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER));
   },
 };
 
@@ -75,18 +80,29 @@ export function scanForOwedWalkthroughs(
   const branchPrUrl = lookup.branchPrUrl();
   if (branchPrUrl) candidates.add(branchPrUrl);
 
+  // A run owes its walkthrough; only a session that skipped E2E may discharge
+  // a PR with the skip's record instead.
+  const acceptsSkip = state.e2eRun !== true;
   const owed: string[] = [];
   const verified: string[] = [];
   for (const prUrl of candidates) {
-    if (lookup.prCarriesWalkthrough(prUrl)) verified.push(prUrl);
+    if (lookup.prCarriesWalkthrough(prUrl, acceptsSkip)) verified.push(prUrl);
     else owed.push(prUrl);
   }
   return { owed: owed, verified: verified };
 }
 
-/** Whether the walkthrough gate has anything to check: an acceptance run happened and no walkthrough was posted or skipped. */
+/**
+ * Whether the walkthrough gate has anything to check: an acceptance run
+ * happened, or an E2E skip was accepted, and no walkthrough was posted or
+ * skipped. An accepted skip arms it because recording the skip in session
+ * state is not the same as the PR showing it — the write that carries it there
+ * runs detached, and nothing else would notice if it never landed.
+ */
 export function isWalkthroughGateArmed(state: GuardrailState): boolean {
-  return state.e2eRun === true && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+  const isSkipUnsettled = state.e2eSkipDeclaration !== undefined && state.e2eSkipSettledOnPrs !== true;
+  const isOwed = state.e2eRun === true || isSkipUnsettled;
+  return isOwed && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
 }
 
 /** Whether a cached scan was run for the PRs the session has handled now; a PR opened since makes it stale. */
@@ -99,8 +115,8 @@ export function isWalkthroughScanCurrent(scan: CachedWalkthroughScan, state: Gua
  * Decide what the Stop hook does about the walkthrough hand-off.
  *
  * Pure: the caller runs the scan and passes the owed urls in.
- * - `None`    — nothing owed (no acceptance run, every PR carries one, or a post/skip is recorded).
- * - `Block`   — an acceptance run happened and a PR in play has no walkthrough; force the turn on.
+ * - `None`    — nothing owed (gate not armed, every PR carries one, or a post/skip is recorded).
+ * - `Block`   — a run or an accepted E2E skip owes a PR in play its walkthrough or skip record; force the turn on.
  * - `Release` — blocked `maxBlocks` times already; stop nagging so a result that genuinely
  *               cannot be posted can't trap the session.
  */
@@ -110,9 +126,7 @@ export function walkthroughGateDecision(
   maxBlocks: number = MAX_WALKTHROUGH_BLOCKS,
 ): WalkthroughGateDecision {
   const blockCount = state.walkthroughBlockCount ?? 0;
-  const alreadySettled =
-    state.walkthroughPosted === true || state.walkthroughSkipped === true || state.e2eRun !== true;
-  if (alreadySettled || owedPrUrls.length === 0) {
+  if (!isWalkthroughGateArmed(state) || owedPrUrls.length === 0) {
     return { action: WalkthroughGateAction.None, blockCount: blockCount, owed: owedPrUrls };
   }
   if (blockCount >= maxBlocks) {

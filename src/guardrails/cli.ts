@@ -69,6 +69,7 @@ import {
   e2eGateDecision,
   E2eGateAction,
   MAX_E2E_BLOCKS,
+  applyE2eSkipDeclaration,
   applyRecordedRun,
   type RecordedRun,
 } from "./shouldRunE2E.js";
@@ -100,6 +101,7 @@ import {
   walkthroughGateDecision,
 } from "./walkthroughOwed.js";
 import {
+  isWalkthroughSettledOnPr,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
@@ -196,18 +198,33 @@ function prOpened(): string {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
-  // Reserved at open rather than at post time: a PR whose slot exists from the
+  // A new PR has not been checked for the skip's record yet, so the gate re-arms for it.
+  const stateAfterOpen =
+    commitState(sessionId, (state) => ({ ...state, e2eSkipSettledOnPrs: false })) ?? readState(sessionId);
+  const declaredSkip = stateAfterOpen.e2eSkipDeclaration;
+  // A skip accepted before the PR existed — the forward cycle's order, Stage 6
+  // before Stage 7 — is written straight into the slot, so the PR never shows
+  // an empty placeholder for a decision already made. Otherwise the slot is
+  // reserved at open rather than at post time: a PR whose slot exists from the
   // first minute shows reviewers that evidence is coming, and gives both the
   // Stop gate and the CI check one fixed comment to settle instead of guessing
   // which of a thread's comments was meant to carry the walkthrough.
-  startBackgroundJob(GuardrailBackgroundJob.ReserveWalkthroughComment, [url]);
-  if (isWalkthroughGateArmed(readState(sessionId))) {
+  if (declaredSkip) {
+    startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [url, declaredSkip.code, declaredSkip.detail]);
+  } else {
+    startBackgroundJob(GuardrailBackgroundJob.ReserveWalkthroughComment, [url]);
+  }
+  if (isWalkthroughGateArmed(stateAfterOpen)) {
     startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
   }
+  const slotNote = declaredSkip
+    ? `Its Muggle AI visual-walkthrough comment is being settled with the E2E skip already recorded this ` +
+      `session (${declaredSkip.code}); the turn cannot end until the PR shows it.\n`
+    : `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
+      `walkthrough there once E2E runs, or by recording why E2E does not apply.\n`;
   const ctx =
     `A pull request was just opened: ${url}\n` +
-    `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it by posting the ` +
-    `walkthrough there once E2E runs, or by recording why E2E does not apply.\n` +
+    slotNote +
     `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. ` +
     `If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; ` +
     `if =ask, offer it to the user; if =never, do nothing.`;
@@ -293,7 +310,7 @@ function recordTests(): string {
   const walkthroughPosted = detectWalkthroughPost(input);
   const failedRunId = detectFailedRunId(input);
   const record = (state: GuardrailState): GuardrailState => {
-    const recorded = applyRecordedRun(state, run);
+    const recorded = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
     const withWalkthroughPost = applyWalkthroughPosted(withBuildSkip, walkthroughPosted);
@@ -564,10 +581,15 @@ function walkthroughGate(): string {
   const scan = readWalkthroughScan(sessionId);
   startBackgroundJob(GuardrailBackgroundJob.ScanWalkthroughs, [sessionId], input.cwd);
   if (!scan || !isWalkthroughScanCurrent(scan, state)) return "{}";
+  // Without a run, what the PR owes is the accepted skip's record rather than a walkthrough.
+  const owedSkip = state.e2eRun === true ? undefined : state.e2eSkipDeclaration;
   if (scan.owed.length === 0) {
-    // Cache a walkthrough found on the PR itself, so later turn ends settle from
-    // state and never repeat the provider lookups.
-    if (scan.verified.length > 0) writeState({ ...state, walkthroughPosted: true });
+    // Cache what was found on the PR itself, so later turn ends settle from
+    // state and never repeat the provider lookups. A skip's record gets its own
+    // flag: marking it posted would also mute the gate for a run made later.
+    if (scan.verified.length > 0) {
+      writeState(owedSkip ? { ...state, e2eSkipSettledOnPrs: true } : { ...state, walkthroughPosted: true });
+    }
     return "{}";
   }
   const decision = walkthroughGateDecision(state, scan.owed);
@@ -576,6 +598,7 @@ function walkthroughGate(): string {
   state.walkthroughBlockCount = decision.blockCount;
   writeState(state);
   const prList = decision.owed.join(", ");
+  if (owedSkip) return blockOnUnsettledSkip(owedSkip, decision.owed, decision.blockCount);
   // Full instruction once; repeats are one line — same rationale as e2eGate.
   const reason =
     decision.blockCount === 1
@@ -589,6 +612,31 @@ function walkthroughGate(): string {
       : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): ` +
         `post via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, or record a legitimate skip via ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  return blockStop(reason, host);
+}
+
+// The write that carries a skip to the PR runs detached, and on Windows a
+// detached child can die with the hook that started it, leaving no trace. So
+// the block hands over the same job to run in the foreground, where its result
+// is visible, and queues it again in the background for good measure. The
+// command names the session rather than quoting the skip's free text, so it
+// pastes unchanged into bash or PowerShell.
+function blockOnUnsettledSkip(owedSkip: DeclaredSkip, owedPrUrls: string[], blockCount: number): string {
+  for (const prUrl of owedPrUrls) {
+    startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [prUrl, owedSkip.code, owedSkip.detail]);
+  }
+  const settleCommands = owedPrUrls
+    .map((prUrl) => `\`echo '{}' | node "${process.argv[1]}" ${GuardrailBackgroundJob.SettleWalkthroughSkipped} ${prUrl} ${sessionId}\``)
+    .join(" and ");
+  const reason =
+    blockCount === 1
+      ? `Do not end the turn yet. E2E was skipped (${owedSkip.code}) and the skip was recorded, but it has not ` +
+        `reached ${owedPrUrls.join(", ")}: the PR's walkthrough comment still shows no result and no reason, so ` +
+        `reviewers cannot tell a deliberate skip from a cycle that forgot, and its walkthrough check stays red. ` +
+        `Write it now by running ${settleCommands} — it prints {"settled":true} once the PR shows the skip. ` +
+        `Then end the turn.`
+      : `Skip record still missing on ${owedPrUrls.join(", ")} (reminder ${blockCount}/${MAX_WALKTHROUGH_BLOCKS}): ` +
+        `run ${settleCommands}.`;
   return blockStop(reason, host);
 }
 
@@ -798,11 +846,22 @@ function reserveWalkthroughCommentJob(): string {
   return "{}";
 }
 
+// Takes the skip either as `<code> <detail>`, as the hooks pass it, or as a
+// session id, as the walkthrough gate's instruction does — that form needs no
+// quoting of the detail and can only settle a skip the session already had
+// accepted. Prints whether the PR now shows a settled record, checked by
+// reading it back, so a foreground run can prove the write landed.
 function settleWalkthroughSkippedJob(): string {
-  const [prUrl, codeArg, detail] = jobArgs;
-  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeArg);
-  if (prUrl && code) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
-  return "{}";
+  const [prUrl, codeOrSessionId, detail] = jobArgs;
+  const code = E2E_SKIP_CODES.find((skipCode) => skipCode === codeOrSessionId);
+  const skip = code
+    ? { code: code, detail: detail ?? "" }
+    : codeOrSessionId
+      ? readState(codeOrSessionId).e2eSkipDeclaration
+      : undefined;
+  if (!prUrl || !skip) return JSON.stringify({ settled: false, reason: "no accepted E2E skip to settle" });
+  settleWalkthroughCommentAsSkipped(prUrl, skip.code, skip.detail);
+  return JSON.stringify({ settled: isWalkthroughSettledOnPr(prUrl) });
 }
 
 function settleWalkthroughUnreasonedJob(): string {

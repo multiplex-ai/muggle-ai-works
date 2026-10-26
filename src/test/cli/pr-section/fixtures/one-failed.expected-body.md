@@ -49,21 +49,21 @@ _Verify that a returning user can sign in with valid credentials and land on the
 <details><summary>📷 1 · Navigate to /login</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-1/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · Enter username</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-1/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Click Sign In</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-1/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
@@ -96,21 +96,21 @@ _Verify a shopper can complete checkout with a saved payment method._
 <details><summary>📷 1 · Add item to cart</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-2/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · View cart</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-2/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Click confirm</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-2/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
@@ -140,7 +140,7 @@ _Verify a shopper can complete checkout with a saved payment method._
 <details><summary>📷 1 · Open profile</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-3%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-3/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>

@@ -22,8 +22,6 @@ import {
   STEP_LIST_TAIL_COUNT,
   STEP_PAIR_IMAGE_WIDTH,
   STEP_SCREENSHOT_MARKER,
-  STEP_THUMBNAIL_QUALITY,
-  STEP_THUMBNAIL_WIDTH_PX,
   TEST_DETAILS_ANCHOR_PREFIX,
   TEST_DETAILS_DIVIDER,
 } from "./constants.js";
@@ -36,7 +34,6 @@ import {
 import { renderE2eResultMarker } from "../../e2e-result/marker.js";
 import type { IE2eResultRecord } from "../../e2e-result/types.js";
 import { buildE2eResultRecord, failureOrdinal } from "./result-record.js";
-import { IMAGE_PROXY_PREFIX } from "./resolve-urls-types.js";
 import { StepScreenshotDetailEnum, type E2eReport, type Step, type TestResult } from "./types.js";
 
 /** A test case at one runSettings record reduced to its latest run, plus how many runs it had. */
@@ -211,13 +208,13 @@ function endingFrame (test: TestResult): IEndingFrame | null {
 }
 
 /**
- * Full-width image, left bare: GitHub wraps it in a link to itself that opens in a new tab, while a link of our
- * own would open in the same tab because GitHub strips its `target`. The alt text is a test name, which can carry
- * a quote — unescaped, it closes the attribute early and GitHub prints the whole tag as text instead of the
- * screenshot.
+ * A screenshot at its original resolution, shrunk only by `width` and left bare: GitHub wraps it in a link to
+ * itself that opens the full-size image in a new tab, while a link of our own would open in the same tab because
+ * GitHub strips its `target`. The alt text can be a test name carrying a quote — unescaped, it closes the
+ * attribute early and GitHub prints the whole tag as text instead of the screenshot.
  */
-function fullSizeImage (url: string, alt: string): string {
-  return `<img src="${url}" width="${DETAIL_IMAGE_WIDTH}" alt="${escapeHtmlAttribute(alt)}">`;
+function screenshotImage (url: string, displayWidth: number, alt: string): string {
+  return `<img src="${url}" width="${displayWidth}" alt="${escapeHtmlAttribute(alt)}">`;
 }
 
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */
@@ -464,41 +461,24 @@ function renderEndingFrame (test: TestResult): string[] | null {
   return [
     `**Ending screen** — ${frame.caption}`,
     "",
-    fullSizeImage(frame.url, test.name),
+    screenshotImage(frame.url, DETAIL_IMAGE_WIDTH, test.name),
   ];
 }
 
 /**
  * A step's screenshots: the page before and after it acted, side by side under labels, or the before alone when
- * the report carries no after or the comment has no room for it. Each is a downsized thumbnail.
+ * the report carries no after or the comment has no room for it.
  */
 function renderStepScreenshots (step: Step, position: number, screenshotDetail: StepScreenshotDetailEnum): string[] {
   if (!step.afterScreenshotUrl || screenshotDetail === StepScreenshotDetailEnum.BeforeOnly) {
-    return [thumbnailImage(step.screenshotUrl, STEP_IMAGE_WIDTH, `Step ${position}`)];
+    return [screenshotImage(step.screenshotUrl, STEP_IMAGE_WIDTH, `Step ${position}`)];
   }
   return [
     "| Before | After |",
     "|:--|:--|",
-    `| ${thumbnailImage(step.screenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} before`)} ` +
-      `| ${thumbnailImage(step.afterScreenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} after`)} |`,
+    `| ${screenshotImage(step.screenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} before`)} ` +
+      `| ${screenshotImage(step.afterScreenshotUrl, STEP_PAIR_IMAGE_WIDTH, `Step ${position} after`)} |`,
   ];
-}
-
-/**
- * A resized screenshot. GitHub links every image to itself, so clicking one opens it at thumbnail resolution;
- * a link of our own to the original would double each screenshot's URL, and the overflow comment has a hard cap.
- */
-function thumbnailImage (url: string, displayWidth: number, alt: string): string {
-  return `<img src="${thumbnailUrl(url)}" width="${displayWidth}" alt="${alt}">`;
-}
-
-/**
- * The screenshot as the image proxy serves it resized and recompressed — the only way to make a page that loads
- * every image lighter. A URL already on the proxy gains the resize parameters; any other is wrapped first.
- */
-function thumbnailUrl (url: string): string {
-  const proxied = url.startsWith(IMAGE_PROXY_PREFIX) ? url : `${IMAGE_PROXY_PREFIX}${encodeURIComponent(url)}`;
-  return `${proxied}&amp;w=${STEP_THUMBNAIL_WIDTH_PX}&amp;q=${STEP_THUMBNAIL_QUALITY}&amp;output=jpg`;
 }
 
 /**

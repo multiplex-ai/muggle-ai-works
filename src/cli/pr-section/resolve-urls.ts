@@ -23,7 +23,6 @@ import type { ICallerCredentials } from "../../../packages/mcps/src/index.js";
 
 import {
   GS_SCHEME,
-  IMAGE_PROXY_PREFIX,
   LOG_PREFIX,
   PUBLIC_URL_PATH,
   RESOLVE_TIMEOUT_MS,
@@ -38,23 +37,6 @@ function errMsg (e: unknown): string {
 
 function isGsUrl (url: string): boolean {
   return url.startsWith(GS_SCHEME);
-}
-
-/**
- * Wrap a resolved Firebase Storage URL in the public image proxy so GitHub's
- * image proxy (Camo) sees a declared `Content-Type: image/jpeg`. Idempotent:
- * URLs already wrapped with {@link IMAGE_PROXY_PREFIX} are returned untouched.
- *
- * This is a render-time workaround — the proper fix is for the action-script
- * uploader in muggle-ai-teaching-service / the Electron app to set
- * `Content-Type: image/jpeg` at upload time, after which this wrap can be
- * removed without touching every caller.
- */
-function wrapInImageProxy (url: string): string {
-  if (url.startsWith(IMAGE_PROXY_PREFIX)) {
-    return url;
-  }
-  return `${IMAGE_PROXY_PREFIX}${encodeURIComponent(url)}`;
 }
 
 /** Build the auth headers for a prompt service request. Mirrors upstream-client. */
@@ -216,10 +198,10 @@ export async function resolveGsScreenshotUrls (
     for (let i = 0; i < gsUrls.length; i++) {
       const https = resolved[i];
       if (https) {
-        // Wrap every resolved URL in the public image proxy so GitHub's Camo
-        // sees a proper Content-Type: image/jpeg header. See the note on
-        // IMAGE_PROXY_PREFIX in resolve-urls-types.ts for the root cause.
-        urlMap.set(gsUrls[i]!, wrapInImageProxy(https));
+        // Linked directly: Firebase serves screenshots as image/jpeg within a
+        // second, while a resizing proxy fetching an uncached image can outlast
+        // GitHub Camo's timeout and leave the first viewer a broken image.
+        urlMap.set(gsUrls[i]!, https);
       } else {
         failureCount++;
       }

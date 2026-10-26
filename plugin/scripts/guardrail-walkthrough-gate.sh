@@ -32,6 +32,6 @@ guardrail_wants() {
   guardrail_state_has '"e2eSkipDeclaration": {' && ! guardrail_state_has '"e2eSkipSettledOnPrs": true'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

@@ -28,6 +28,6 @@ guardrail_wants() {
   guardrail_payload_matches 'reviewThreads|merge_requests/[0-9]+/discussions|comments/[0-9]+/replies|discussions/[A-Za-z0-9_-]+/notes|MUGGLE_[A-Z0-9_]+_SKIP'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

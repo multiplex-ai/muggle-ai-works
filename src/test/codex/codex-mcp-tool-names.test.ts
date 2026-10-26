@@ -10,6 +10,7 @@ import {
   MUGGLE_FEEDBACK_CREATE_TOOL,
   MUGGLE_SKILL_EMIT_TOOL,
 } from "../../guardrails/constants.js";
+import { deriveBashHookCommand } from "../../../scripts/build-codex-hooks.mjs";
 
 // Codex names an MCP tool `mcp__<server>__<tool>` with every character outside
 // [A-Za-z0-9_] turned into `_` — to the model and to hooks alike — so the
@@ -41,15 +42,20 @@ const serverToolNames = [
 type HookGroup = { matcher?: string; hooks: Array<{ command: string }> };
 type HooksManifest = { hooks: Record<string, HookGroup[]> };
 
-/** MCP hook groups keyed by event and the script they run, so a Claude Code group and its Codex form line up. */
-function mcpMatchersByHook(manifestPath: string): Map<string, string> {
+const codexBashCommand = (command: string): string => command.slice(command.indexOf("bash "));
+
+/**
+ * MCP hook groups keyed by event and the `bash "<script>"` command they amount to, so a Claude Code group and its
+ * Codex form line up.
+ */
+function mcpMatchersByHook(manifestPath: string, bashCommandOf: (command: string) => string): Map<string, string> {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as HooksManifest;
   const matchers = new Map<string, string>();
   for (const [event, groups] of Object.entries(manifest.hooks)) {
     for (const group of groups) {
       if (!group.matcher?.startsWith("mcp__")) continue;
       for (const hook of group.hooks) {
-        matchers.set(`${event} ${hook.command.slice(hook.command.indexOf("bash "))}`, group.matcher);
+        matchers.set(`${event} ${bashCommandOf(hook.command)}`, group.matcher);
       }
     }
   }
@@ -66,8 +72,8 @@ describe("muggle MCP tool names under Codex", () => {
   });
 
   it("gives every MCP hook a Codex matcher that selects exactly the tools its Claude Code matcher does", () => {
-    const claudeMatchers = mcpMatchersByHook(CLAUDE_HOOKS);
-    const codexMatchers = mcpMatchersByHook(CODEX_HOOKS);
+    const claudeMatchers = mcpMatchersByHook(CLAUDE_HOOKS, deriveBashHookCommand);
+    const codexMatchers = mcpMatchersByHook(CODEX_HOOKS, codexBashCommand);
     expect([...codexMatchers.keys()].sort()).toEqual([...claudeMatchers.keys()].sort());
     for (const [hook, claudeMatcher] of claudeMatchers) {
       const claudeSelection = selectedTools(new RegExp(claudeMatcher), claudeCodeToolName);

@@ -21,6 +21,6 @@ guardrail_wants() {
   guardrail_payload_matches 'gh[[:space:]]+pr[[:space:]]+(create|ready)|glab[[:space:]]+mr[[:space:]]+(create|update)'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

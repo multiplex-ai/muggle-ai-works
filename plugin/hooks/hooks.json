@@ -6,13 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ensure-electron-app.sh\"",
+            "command": "set -- ensure-electron-app.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/reconcile-stale-watchers.sh\"",
+            "command": "set -- reconcile-stale-watchers.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 5
           }
@@ -26,28 +26,28 @@
           {
             "type": "command",
             "if": "Bash(*gh *)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "Bash(*glab *)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "PowerShell(*gh *)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "PowerShell(*glab *)",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\"",
+            "command": "set -- guardrail-classify-gate.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -82,7 +82,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
+            "command": "set -- guardrail-record-tests.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-signals.sh\"",
+            "command": "set -- guardrail-record-stage-signals.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\"",
+            "command": "set -- guardrail-skill-stages.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-skill-stages.sh\"",
+            "command": "set -- guardrail-skill-stages.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-stage-read.sh\"",
+            "command": "set -- guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -137,7 +137,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-offer-ran.sh guardrail-record-delegation.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-offer-ran.sh guardrail-record-delegation.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-watch-follow-through-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh",
+            "command": "set -- guardrail-dispatch.sh guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-watch-follow-through-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }
@@ -161,7 +161,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-build-router.sh\"",
+            "command": "set -- guardrail-build-router.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }

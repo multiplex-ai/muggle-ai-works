@@ -15,7 +15,7 @@ import {
   measureSlotFootprint,
   timeSlotNoopFiring,
 } from "./footprint.js";
-import type { HookSlotCap } from "./types.js";
+import { HookShellOstype, type HookSlotCap } from "./types.js";
 
 // Hooks run on every tool call, prompt and turn end in every open session, so their cost is paid
 // thousands of times a day on the user's machine. These caps turn the runtime-footprint design
@@ -62,6 +62,38 @@ describe("hook no-op path caps", () => {
     },
     // The counts are load-independent but the run is not: 46 serial spawns took 40s on a
     // contended Windows box, past the suite's default ceiling.
+    NOOP_MEASUREMENT_TIMEOUT_MS,
+  );
+});
+
+// Claude Code runs hook commands through Git Bash on Windows, where a process start is the whole cost of an
+// irrelevant event, and through /bin/sh elsewhere. Both shells are stood in here, so either runner pins both.
+describe("hook launches by shell", () => {
+  let shimDirectory: string;
+  beforeAll(() => {
+    shimDirectory = createSpawnShimDirectory();
+  });
+
+  it.each(HOT_PATH_SLOT_CAPS.map((cap) => [slotLabel(cap), cap] as const))(
+    "%s runs every script inside Git Bash's own shell, starting no bash, at the same spawn ceiling",
+    (label, cap) => {
+      const footprint = measureSlotFootprint(manifest, cap, shimDirectory, HookShellOstype.GitBash);
+      expect(footprint.ownLaunchCount, `${label} started a bash of its own inside Git Bash`).toBe(0);
+      expectAtRatchet(
+        footprint.spawnedPrograms.length,
+        cap.maxNoopSpawns,
+        `${label} no-op spawns inside Git Bash (${footprint.spawnedPrograms.join(" ")})`,
+      );
+    },
+    NOOP_MEASUREMENT_TIMEOUT_MS,
+  );
+
+  it.each(HOT_PATH_SLOT_CAPS.map((cap) => [slotLabel(cap), cap] as const))(
+    "%s hands every script a bash of its own in any other shell",
+    (label, cap) => {
+      const footprint = measureSlotFootprint(manifest, cap, shimDirectory, HookShellOstype.Linux);
+      expect(footprint.ownLaunchCount, `${label} commands that started their own bash`).toBe(footprint.commandCount);
+    },
     NOOP_MEASUREMENT_TIMEOUT_MS,
   );
 });

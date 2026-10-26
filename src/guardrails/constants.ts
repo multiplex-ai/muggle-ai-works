@@ -243,6 +243,18 @@ export const GITHUB_PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+
 /** A GitLab merge request's web URL, as `glab` prints it and as a brief quotes it. */
 export const GITLAB_MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
 
+/** The `gh`/`glab` step that opens or readies a PR; its head-branch flag is read from here on. */
+export const PR_OPEN_COMMAND = /\b(?:gh\s+pr\s+(?:create|ready)|glab\s+mr\s+(?:create|update))\b/;
+
+/** `gh pr create --head`/`-H` or `glab mr create --source-branch`/`-s`, capturing the branch, `owner:`-prefixed or not. */
+export const PR_HEAD_BRANCH_FLAG = /\s(?:--head(?:=|\s+)|-H\s+|--source-branch(?:=|\s+)|-s\s+)["']?([^\s"';|&)]+)/;
+
+/** A shell step that moves a command off the hook's working directory before `gh`/`glab` runs. */
+export const DIRECTORY_CHANGE_COMMAND = /(?:^|[\s;&|(])(?:cd|pushd|chdir|Push-Location|Set-Location)(?=\s|$)/i;
+
+/** The remote whose URL names a working tree's repo. */
+export const CHANGE_REPO_REMOTE = "origin";
+
 /** The tools a host dispatches a subagent through; the name has differed across harness versions. */
 export const SUBAGENT_DISPATCH_TOOL_NAMES = ["Agent", "Task"] as const;
 

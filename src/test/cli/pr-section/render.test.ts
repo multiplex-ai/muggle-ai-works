@@ -385,13 +385,14 @@ describe("renderTestDetails", () => {
     expect(md).toContain("_Verify that a logged-in user can create a new project");
   });
 
-  // The verdict reads without expanding anything; only the evidence collapses.
-  it("shows the result table outside the collapsible and tucks steps and screens inside one", () => {
+  // The verdict and where the run landed read without expanding anything; only the steps collapse.
+  it("shows the result table and ending screen outside the collapsible and tucks the steps inside one", () => {
     const md = renderTestDetails(latest(passedWithDesc), 1);
     const collapsible = md.indexOf("<details><summary><kbd>Show ");
-    expect(collapsible).toBeGreaterThan(md.indexOf("| **Result** |"));
+    const endingScreen = md.indexOf("**Ending screen**");
+    expect(endingScreen).toBeGreaterThan(md.indexOf("| **Result** |"));
+    expect(collapsible).toBeGreaterThan(endingScreen);
     expect(md.indexOf("<summary>📷 1 · ")).toBeGreaterThan(collapsible);
-    expect(md.indexOf("**Ending screen**")).toBeGreaterThan(collapsible);
     expect(md.trimEnd().endsWith("</details>")).toBe(true);
   });
 
@@ -423,21 +424,18 @@ describe("renderTestDetails", () => {
       1,
     );
     expect(md).toContain("| Before | After |");
-    expect(md).toContain('?url=https%3A%2F%2Fcdn%2Fbefore.png&amp;w=');
-    expect(md).toContain('?url=https%3A%2F%2Fcdn%2Fafter.png&amp;w=');
-    expect(md).toContain('alt="Step 1 after"');
+    expect(md).toContain('<img src="https://cdn/before.png" width="420" alt="Step 1 before">');
+    expect(md).toContain('<img src="https://cdn/after.png" width="420" alt="Step 1 after">');
   });
 
-  // GitHub loads every image on the page, even in closed collapsibles, so each screenshot is served resized.
-  it("serves screenshots as resized thumbnails linking to the original", () => {
+  // GitHub links each image to its src, so the original URL is what a click opens full-size in a new tab.
+  it("links every screenshot at its original URL, shrunk only by width", () => {
     const md = renderTestDetails(latest(passedWithDesc), 1);
-    expect(md).toMatch(/<img src="https:\/\/images\.weserv\.nl\/\?url=[^"]+&amp;w=840&amp;q=70&amp;output=jpg"/);
-    const proxied = "https://images.weserv.nl/?url=https%3A%2F%2Fstorage%2Fshot.jpg";
-    const onProxy = renderTestDetails(
-      latest({ ...passedWithDesc, steps: [{ stepIndex: 0, action: "click", screenshotUrl: proxied }] }),
-      1,
-    );
-    expect(onProxy).toContain(`<img src="${proxied}&amp;w=840`);
+    const sources = [...md.matchAll(/<img src="([^"]+)"/g)].map((match) => match[1]);
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources) {
+      expect(source).toMatch(/^https:\/\/cdn\//);
+    }
   });
 
   it("drops the description when it only repeats the test name", () => {
@@ -456,12 +454,13 @@ describe("renderTestDetails", () => {
     expect(md).toMatch(/<summary>📷 1 · /);
   });
 
-  it("labels a step-less test's toggle by the ending screen it reveals", () => {
+  it("shows a step-less test's ending screen with no collapsible", () => {
     const md = renderTestDetails(
       latest({ ...passedWithDesc, steps: [], endingScreenshotUrl: "https://cdn/end.png" }),
       1,
     );
-    expect(md).toContain("<summary><kbd>Show the ending screen</kbd></summary>");
+    expect(md).toContain('<img src="https://cdn/end.png" width="720"');
+    expect(md).not.toContain("<details>");
   });
 
   it("lays the result out as a labelled table", () => {
@@ -564,7 +563,7 @@ describe("step collapsibles", () => {
   it("opens each step onto its own screenshot", () => {
     const md = renderTestDetails(latest(passedRealSteps), 1);
     const step = md.slice(md.indexOf("<summary>📷 2 · "), md.indexOf("<summary>📷 3 · "));
-    expect(step).toContain('<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn%2Freal-1.png&amp;w=');
+    expect(step).toContain('<img src="https://cdn/real-1.png" width="640"');
     expect(step).not.toContain("https://cdn/real-2.png");
   });
 
@@ -576,10 +575,10 @@ describe("step collapsibles", () => {
     expect(md).toContain("<summary>📷 1 · Click the &lt;Submit&gt; button</summary>");
   });
 
-  it("closes the block with the ending screenshot, after every step", () => {
+  it("places the ending screenshot ahead of the steps collapsible", () => {
     const md = renderTestDetails(latest(passedRealSteps), 1);
     expect(md).toContain("**Ending screen** — Final page after the test completed");
-    expect(md.lastIndexOf("<summary>📷 4 · ")).toBeLessThan(md.indexOf("**Ending screen**"));
+    expect(md.indexOf("**Ending screen**")).toBeLessThan(md.indexOf("<details><summary><kbd>Show "));
   });
 
   it("uses endingScreenshotUrl + endingScreenshotCaption when provided on the test", () => {

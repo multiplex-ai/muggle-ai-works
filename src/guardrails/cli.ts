@@ -114,7 +114,8 @@ import {
   walkthroughGateDecision,
 } from "./walkthroughOwed.js";
 import { applyE2eDelegation, detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
-import { applyE2eSkipScope, applyPrOpenedToSkipScope, isPrCoveredBySkip, normalizeWorkingTree } from "./skipScope.js";
+import { applyE2eSkipScope, applyPrOpenedToSkipScope, isPrCoveredBySkip } from "./skipScope.js";
+import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
 import {
   isWalkthroughSettledOnPr,
   reserveWalkthroughComment,
@@ -216,14 +217,14 @@ function prOpened(): string {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
-  const openedFromTree = normalizeWorkingTree(input.cwd);
+  const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
   // A new PR has not been checked for a walkthrough or a skip's record yet, so the gate re-arms for it.
   const stateAfterOpen =
     commitState(sessionId, (state) =>
-      applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, openedFromTree),
+      applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, prChange),
     ) ?? readState(sessionId);
-  // Only a skip verified in the tree this PR was opened from vouches for it; a
-  // PR from any other tree is another change and owes its own run or skip.
+  // Only a skip verified for this PR's repo and branch vouches for it; a PR of
+  // any other change owes its own run or skip.
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : undefined;
   // A skip accepted before the PR existed — the forward cycle's order, Stage 6
   // before Stage 7 — is written straight into the slot, so the PR never shows
@@ -342,11 +343,12 @@ function recordTests(): string {
   const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
   const failedRunId = detectFailedRunId(input);
   // A cycle-scoped skip is never kept as the declaration, so only an
-  // environment skip may move the declaration's tree to this one.
+  // environment skip may move the declaration's change to this tree's.
   const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
+  const verifiedChange = isDeclaredHere ? resolveTreeChange(input.cwd) : undefined;
   const record = (state: GuardrailState): GuardrailState => {
     const declared = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
-    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, normalizeWorkingTree(input.cwd)) : declared;
+    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, verifiedChange) : declared;
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
     const withWalkthroughPost = applyWalkthroughPosted(
@@ -381,9 +383,9 @@ function recordTests(): string {
 //
 //
 // Every code is verified in the working tree, so the claim is true only of that
-// tree's change: the PRs opened from it, and the PR of the branch checked out
-// there — in a watcher cycle usually opened by an earlier session, so not
-// among the handled ones. Any other PR the session opened is a different
+// tree's change — its repo and checked-out branch: the PRs opened for it, and
+// that branch's PR — in a watcher cycle usually opened by an earlier session,
+// so not among the handled ones. Any other PR the session opened is a different
 // change, often in another repo, with its own run still owed.
 function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
   if (skip.code === E2eSkipCode.NoAppLogicChange) {
@@ -730,8 +732,8 @@ function walkthroughGate(): string {
         `reviewers most need to see. If it was not, run E2E for it first: inline via ` +
         `${muggleSkill("/muggle:muggle-test")}, or in a background muggle:acceptance-tester per ` +
         `do/background-e2e.md while other work continues — or, where E2E cannot apply to it, declare the ` +
-        `skip from that PR's own working tree, since a skip settles only the PRs of the tree it was verified ` +
-        `in. If this result genuinely should not be posted ` +
+        `skip from that PR's own working tree, since a skip settles only the PRs of the repo and branch it ` +
+        `was verified on. If this result genuinely should not be posted ` +
         `(postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run ` +
         `\`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` — that records the skip and keeps this gate quiet ` +
         `for the rest of the session.`

@@ -67,6 +67,8 @@ import {
   recordTelemetryEvent,
 } from "../../local/services/index.js";
 import { findRunStackRefusal, findStackChangedDuringRun } from "../../local/services/run-stack-gate.js";
+import { resolveElectronBrowserVisibilityFromPreferences } from "../../local/services/electron-browser-visibility.js";
+import { formatElectronBrowserVisibilityLine } from "./electron-browser-visibility-line.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 import { formatRunStackRefusal, formatStackChangedDuringRun } from "./run-stack-refusal.js";
 
@@ -375,7 +377,7 @@ const testScriptGetTool: ILocalMcpTool = {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — defaults to a visible window; pass showUi: false to run headless.",
+  description: "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -383,7 +385,10 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
     const input = ExecuteTestGenerationInputSchema.parse(ctx.input);
 
-    const showUi = input.showUi !== false;
+    const browserVisibility = resolveElectronBrowserVisibilityFromPreferences({ requestedShowUi: input.showUi });
+    if (browserVisibility.isCallerOverridden) {
+      logger.warn("showElectronBrowser preference overrode the caller's showUi", { ...browserVisibility });
+    }
 
     const checkoutRefusal = await findRunCheckoutRefusal({
       cwd: input.cwd,
@@ -408,7 +413,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
-        showUi: showUi,
+        showUi: browserVisibility.isBrowserShown,
         freshSession: input.freshSession,
         displayResolution: input.displayResolution,
         runSettingsId: input.runSettingsId,
@@ -421,7 +426,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         `**Test Script ID:** ${generationRun.testScriptId}`,
         `**Status:** ${generationRun.status}`,
         `**Duration:** ${generationRun.executionTimeMs}ms`,
-        `**UI:** ${showUi ? "visible GUI" : "headless"}`,
+        formatElectronBrowserVisibilityLine(browserVisibility),
         generationRun.errorMessage ? `**Error:** ${generationRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 
@@ -443,7 +448,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — defaults to a visible window; pass showUi: false to run headless.",
+  description: "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -451,7 +456,10 @@ const executeReplayTool: ILocalMcpTool = {
 
     const input = ExecuteReplayInputSchema.parse(ctx.input);
 
-    const showUi = input.showUi !== false;
+    const browserVisibility = resolveElectronBrowserVisibilityFromPreferences({ requestedShowUi: input.showUi });
+    if (browserVisibility.isCallerOverridden) {
+      logger.warn("showElectronBrowser preference overrode the caller's showUi", { ...browserVisibility });
+    }
 
     const checkoutRefusal = await findRunCheckoutRefusal({
       cwd: input.cwd,
@@ -477,7 +485,7 @@ const executeReplayTool: ILocalMcpTool = {
         cwd: input.cwd,
         mutations: input.mutations,
         timeoutMs: input.timeoutMs,
-        showUi: showUi,
+        showUi: browserVisibility.isBrowserShown,
         freshSession: input.freshSession,
         pinnedAccount: input.pinnedAccount,
         displayResolution: input.displayResolution,
@@ -490,7 +498,7 @@ const executeReplayTool: ILocalMcpTool = {
         `**Test Script ID:** ${replayRun.testScriptId}`,
         `**Status:** ${replayRun.status}`,
         `**Duration:** ${replayRun.executionTimeMs}ms`,
-        `**UI:** ${showUi ? "visible GUI" : "headless"}`,
+        formatElectronBrowserVisibilityLine(browserVisibility),
         replayRun.errorMessage ? `**Error:** ${replayRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
 

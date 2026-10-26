@@ -24,6 +24,7 @@ A port that answers proves nothing about which code answers it — a peer sessio
 | A tracking entry with this port, a live PID, `dir` = the run directory and `headSha` = the commit it must serve | **Proven** — keep it. A base-checkout service a peer started is proven the same way, and shared |
 | The plan marks the service `external: true` | **Vouched** — the user confirmed in Decide that they run it from this checkout; keep it, never kill it |
 | Tracked under the run directory's checkout at an older `headSha` | **Stale** — restart it per [start-services](./start-services.md) |
+| Tracked under a different checkout, PID alive, and the plan marks the port `restart` from [claim-stack](./claim-stack.md) | **Released** — no session's lease needs it any more; restart it from the run directory per [start-services](./start-services.md) |
 | Tracked under a different checkout, PID alive | **A peer's** — never test against it, never kill it; [Port already held](#port-already-held) |
 | Untracked | **Unknown code** — when the plan approves a restart for this service, treat it as stale: Clean Restart it through [smoke-test](./smoke-test.md)'s loop (kill → [fresh-install](./fresh-install.md) → [start-services](./start-services.md) → re-test). Otherwise [Port already held](#port-already-held) |
 

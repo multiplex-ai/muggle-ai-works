@@ -4,7 +4,7 @@ One decision, made before anything else: does a prepare recipe already exist for
 
 Resolve the recipe location per [confirm-recipe](./confirm-recipe.md).
 
-- **Recipe exists** → **replay run**. Run [rebase-check](./rebase-check.md) and [resolve-sources](./resolve-sources.md), then go straight to the execute phase. No scan, no interview, no questions. The whole point of having learned is not to ask again.
+- **Recipe exists** → **replay run**. Run [rebase-check](./rebase-check.md), [resolve-sources](./resolve-sources.md) and [claim-stack](./claim-stack.md), then go straight to the execute phase. No scan, no interview, no questions. The whole point of having learned is not to ask again.
 - **No recipe** → **learning run**. Run the Decide stages in order, then the single gate at the end.
 
 A recipe the user declined to save is the same as no recipe: the next run learns again. Declining is not a permanent no, it just means nothing was written.

@@ -91,14 +91,15 @@ Decide stages, in order; read each detail file when you reach it:
 | [derive-service-graph](./steps/derive-service-graph.md) | Derive services from workspace manifests |
 | [rebase-check](./steps/rebase-check.md) | Sync every checkout under test onto the latest base — replays too |
 | [resolve-sources](./steps/resolve-sources.md) | Pick the checkout each service runs from — replays too |
+| [claim-stack](./steps/claim-stack.md) | Claim the shared ports this run needs — replays too; busy returns to the caller |
 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
 | [identify-services](./steps/identify-services.md) | Confirm the derived graph; fill the gaps |
 | [e2e-instructions](./steps/e2e-instructions.md) | Startup order, manual steps, local gotchas |
 
-The Decide phase's output is the **resolved prepare plan**: `services[]` (name, run directory from [resolve-sources](./steps/resolve-sources.md), start command, expected port, `external` flag, approval granted), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
+The Decide phase's output is the **resolved prepare plan**: `services[]` (name, run directory from [resolve-sources](./steps/resolve-sources.md), start command, expected port, `external` flag, approval granted, and the port's `keep` / `start` / `restart` from [claim-stack](./steps/claim-stack.md)), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
 
-A replay runs [rebase-check](./steps/rebase-check.md) and [resolve-sources](./steps/resolve-sources.md) before dispatching — they ask nothing unless a checkout cannot be brought up to date.
+A replay runs [rebase-check](./steps/rebase-check.md), [resolve-sources](./steps/resolve-sources.md) and [claim-stack](./steps/claim-stack.md) before dispatching. They ask nothing unless a checkout cannot be brought up to date. A busy stack is not a question either: it returns to the caller.
 
 **Execute (agent).** Dispatch the `test-prepare-runner` agent (subagent type `muggle:test-prepare-runner`; bare `test-prepare-runner` where the plugin namespace is absent), synchronously, passing the resolved plan; it returns `READY` / `DEGRADED` plus the readiness table. The agent's own definition lists its stage files; in a harness with no agent/subagent facility, run the execute-phase stages ([check-running](./steps/check-running.md) through [readiness-report](./steps/readiness-report.md)) inline instead.
 
@@ -118,6 +119,7 @@ Cleanup stops only what runs from the caller's own checkout. Another checkout's 
 4. Wait ~2 s, verify with `kill -0`
 5. If still alive: `kill -9 <pid>`
 6. Delete that checkout's log directory and tracking file
+7. `muggle stack release --cwd "<caller's checkout>"` — gives up the lease, so the next session in line can have the ports. Run it even when nothing was stopped (a stack shared with peers, or "leave services running"): the services may stay up, but a lease nobody uses only makes peers wait for it to expire
 
 Report:
 
@@ -155,7 +157,8 @@ The readiness table names the directory and commit each service runs from, so th
 - **Never write a credential into the E2E run instructions** — plaintext notes are not a secret store, and this is the file a user pastes when asking why their stack won't start. Record the env-var or secret name, never its value.
 - **Never leave orphan processes untracked** — every background PID goes into its checkout's tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
-- **Never kill or test against another checkout's service** — a listener tracked under a different checkout belongs to a peer session; see [check-running](./steps/check-running.md).
+- **Never kill or test against another checkout's service** — a listener tracked under a different checkout belongs to a peer session; see [check-running](./steps/check-running.md). The one exception is a port the stack claim planned as `restart`: no session's lease needs that service any more.
+- **Never start, restart or kill a service on a port this run has not claimed** — [claim-stack](./steps/claim-stack.md) runs first, and a busy stack goes back to the caller instead of being worked around.
 - **Never start code that is not on the latest base** — no replay, preference, or approval skips [rebase-check](./steps/rebase-check.md) or [resolve-sources](./steps/resolve-sources.md).
 - **Never assume start commands** — verify via indicator file; confirm with user.
 - **Bail early on non-viable services** — don't start what can't run locally.

@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
+import { blockFor } from "./command-runner.js";
+import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "./constants.js";
 import { enumValueOf, optionalString } from "./field-parsers.js";
+import { hasLiveProcess } from "./session-liveness.js";
 import {
   ClaudeJobState,
   ClaudeSessionKind,
@@ -19,10 +22,11 @@ interface ClaudeAgentListing {
   status?: unknown;
   state?: unknown;
   startedAt?: unknown;
+  pid?: unknown;
 }
 
-// The registry is the only place a session's pid is recorded; `claude agents`
-// leaves it out. One file per running Claude process, named `<pid>.json`.
+// Older `claude agents` releases leave the pid out, so the registry backs it
+// up: one file per running Claude process, named `<pid>.json`.
 function readPidsBySessionId(registryDir: string): Map<string, number> {
   const pidsBySessionId = new Map<string, number>();
   let fileNames: string[];
@@ -42,6 +46,26 @@ function readPidsBySessionId(registryDir: string): Map<string, number> {
     }
   }
   return pidsBySessionId;
+}
+
+/**
+ * Wait until the session has no process behind it, polling the listing.
+ *
+ * @returns Whether it exited within `SESSION_EXIT_WAIT_MS`; false also when the listing cannot be read.
+ */
+export function waitForSessionExit(
+  runCommand: CommandRunner,
+  registryDir: string,
+  sessionId: string,
+  sleep: (durationMs: number) => void = blockFor,
+): boolean {
+  for (let waitedMs = 0; ; waitedMs += SESSION_EXIT_POLL_MS) {
+    const sessions = readClaudeSessions(runCommand, registryDir);
+    const session = sessions?.find((listed) => listed.sessionId === sessionId);
+    if (sessions !== null && (session === undefined || !hasLiveProcess(session))) return true;
+    if (waitedMs >= SESSION_EXIT_WAIT_MS) return false;
+    sleep(SESSION_EXIT_POLL_MS);
+  }
 }
 
 /**
@@ -75,7 +99,7 @@ export function readClaudeSessions(runCommand: CommandRunner, registryDir: strin
       turnStatus: enumValueOf(ClaudeTurnStatus, listing.status),
       jobState: enumValueOf(ClaudeJobState, listing.state),
       startedAtMs: typeof listing.startedAt === "number" ? listing.startedAt : undefined,
-      pid: pidsBySessionId.get(sessionId),
+      pid: typeof listing.pid === "number" ? listing.pid : pidsBySessionId.get(sessionId),
     });
   }
   return sessions;

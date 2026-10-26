@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
-import { RECOVERY_RESUME_PROMPT, SESSION_EXIT_WAIT_MS, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
+import { MUGGLE_PLUGIN_ID, RECOVERY_RESUME_PROMPT, SESSION_EXIT_WAIT_MS, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
 import {
   WatcherRecoveryOutcome,
   WatchEventKind,
@@ -71,7 +71,7 @@ function machineAnswer(machine: MachineState): (executable: string, args: string
 function writePlugins(pluginsFile: string, updatedAtMs: number): void {
   mkdirSync(dirname(pluginsFile), { recursive: true });
   const install = { scope: "user", version: "1", gitCommitSha: "c", lastUpdated: new Date(updatedAtMs).toISOString() };
-  writeFileSync(pluginsFile, JSON.stringify({ plugins: { "muggleai@works": [install] } }));
+  writeFileSync(pluginsFile, JSON.stringify({ plugins: { [MUGGLE_PLUGIN_ID]: [install] } }));
 }
 
 function appendInstall(installLogFile: string, atMs: number, version: string): void {
@@ -256,6 +256,17 @@ describe("runWatchTick", () => {
     runWatchTick({ ...deps, nowMs: NOW_MS + 240_000 });
     expect(runner.calls.filter((call) => call.args[0] === "respawn")).toHaveLength(1);
     expect(notifications).toHaveLength(notificationCount);
+  });
+
+  it("restarts nothing when only another plugin updates", () => {
+    const { deps, runner, paths } = buildMachine();
+    const muggleInstall = { scope: "user", version: "1", gitCommitSha: "c", lastUpdated: new Date(NOW_MS - 3 * HOUR_MS).toISOString() };
+    const otherInstall = { scope: "user", version: "2", gitCommitSha: "d", lastUpdated: new Date(NOW_MS + 60_000).toISOString() };
+    writeFileSync(paths.claudeInstalledPluginsFile, JSON.stringify({ plugins: { [MUGGLE_PLUGIN_ID]: [muggleInstall], "code-review@claude-plugins-official": [otherInstall] } }));
+    const snapshot = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(snapshot.reload?.decisions.every((decision) => decision.action === ReloadAction.Skip || decision.action === ReloadAction.Defer)).toBe(true);
+    expect(runner.calls.some((call) => call.args[0] === "respawn" || call.args[0] === "stop")).toBe(false);
   });
 
   it("resumes an idle session that owns open PR watches on reconcile instead of respawning it", () => {

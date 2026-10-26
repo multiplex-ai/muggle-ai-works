@@ -19,7 +19,7 @@ export function versionInstalledAt(installs: InstallRecord[], atMs: number): str
 
 /**
  * When the plugins every live session should run were installed: the newest
- * global muggle works install, or a later update of another user-scope plugin.
+ * global muggle works install, or a later user-scope update of the muggle plugin.
  * Undefined when neither is known, which leaves nothing to reload toward.
  */
 export function resolveReloadTargetAtMs(installs: InstallRecord[], pluginsChangedAtMs: number | undefined): number | undefined {

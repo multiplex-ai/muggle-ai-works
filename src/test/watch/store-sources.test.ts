@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
 import { ProviderPrState } from "../../guardrails/types.js";
-import { readUserPluginsUpdatedAtMs } from "../../watch/plugins-updated.js";
+import { MUGGLE_PLUGIN_ID } from "../../watch/constants.js";
+import { readMugglePluginUpdatedAtMs } from "../../watch/plugins-updated.js";
 import { buildPrStatusRequest, fetchPrLiveStatuses, parsePullRequestNode } from "../../watch/pr-status.js";
 import { partitionByTerminalCache, updateTerminalCache } from "../../watch/terminal-pr-cache.js";
 import { CiRollupState, PrMergeable, PrMergeStateStatus } from "../../watch/types.js";
@@ -133,7 +134,7 @@ describe("PR live status", () => {
   });
 });
 
-describe("readUserPluginsUpdatedAtMs", () => {
+describe("readMugglePluginUpdatedAtMs", () => {
   function writeInstalled(installs: unknown): string {
     const filePath = join(makeTempDir("plugins"), "installed_plugins.json");
     writeFileSync(filePath, JSON.stringify(installs));
@@ -142,20 +143,22 @@ describe("readUserPluginsUpdatedAtMs", () => {
 
   const userInstall = { scope: "user", version: "1.0.0", gitCommitSha: "aaa", lastUpdated: "2026-10-24T10:00:00.000Z" };
 
-  it("reports the newest user-scope update, ignoring project scope and undated entries", () => {
-    const updatedAtMs = readUserPluginsUpdatedAtMs(writeInstalled({
+  it("reports the muggle plugin's newest user-scope update, ignoring project scope and every other plugin", () => {
+    const updatedAtMs = readMugglePluginUpdatedAtMs(writeInstalled({
       plugins: {
-        "muggleai@works": [userInstall, { scope: "project", version: "0.9.0", lastUpdated: "2026-10-25T00:00:00.000Z" }],
-        "other@market": [{ ...userInstall, lastUpdated: "not a date" }],
+        [MUGGLE_PLUGIN_ID]: [userInstall, { scope: "project", version: "0.9.0", lastUpdated: "2026-10-25T00:00:00.000Z" }],
+        "code-review@claude-plugins-official": [{ ...userInstall, lastUpdated: "2026-10-26T17:31:49.471Z" }],
       },
     }));
     expect(updatedAtMs).toBe(Date.parse("2026-10-24T10:00:00.000Z"));
   });
 
-  it("returns undefined for a missing, shapeless, or undated record", () => {
-    expect(readUserPluginsUpdatedAtMs(join(makeTempDir("plugins"), "absent.json"))).toBeUndefined();
-    expect(readUserPluginsUpdatedAtMs(writeInstalled({ version: 2 }))).toBeUndefined();
-    expect(readUserPluginsUpdatedAtMs(writeInstalled({ plugins: { p: "not a list" } }))).toBeUndefined();
+  it("returns undefined for a missing, shapeless, or undated record, or one without the muggle plugin", () => {
+    expect(readMugglePluginUpdatedAtMs(join(makeTempDir("plugins"), "absent.json"))).toBeUndefined();
+    expect(readMugglePluginUpdatedAtMs(writeInstalled({ version: 2 }))).toBeUndefined();
+    expect(readMugglePluginUpdatedAtMs(writeInstalled({ plugins: { [MUGGLE_PLUGIN_ID]: "not a list" } }))).toBeUndefined();
+    expect(readMugglePluginUpdatedAtMs(writeInstalled({ plugins: { [MUGGLE_PLUGIN_ID]: [{ ...userInstall, lastUpdated: "not a date" }] } }))).toBeUndefined();
+    expect(readMugglePluginUpdatedAtMs(writeInstalled({ plugins: { "other@market": [userInstall] } }))).toBeUndefined();
   });
 });
 

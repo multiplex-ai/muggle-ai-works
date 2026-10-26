@@ -45,16 +45,6 @@ export const SHORT_ID_LABEL_SEPARATOR = " · ";
 /** Prefix of the in-page anchor on each test's details; the summary's "see details" links point at it. */
 export const TEST_DETAILS_ANCHOR_PREFIX = "muggle-test-";
 
-/**
- * Width, in pixels, the image proxy resizes a step screenshot to. GitHub fetches every image on the page, even
- * inside a closed collapsible, and strips `loading="lazy"`, so a smaller download is the only lever; twice the
- * displayed width keeps the thumbnail sharp on a high-density screen.
- */
-export const STEP_THUMBNAIL_WIDTH_PX = 840;
-
-/** JPEG quality the image proxy encodes step thumbnails at. */
-export const STEP_THUMBNAIL_QUALITY = 70;
-
 /** Displayed width of each screenshot when a step shows its before and after side by side. */
 export const STEP_PAIR_IMAGE_WIDTH = 420;
 

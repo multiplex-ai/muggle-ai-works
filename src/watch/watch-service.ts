@@ -1,11 +1,10 @@
 import { resolve } from "path";
-import { PreferenceValue } from "../../packages/mcps/src/shared/preferences-types.js";
 import { ProviderPrState } from "../guardrails/types.js";
 import { readClaudeSessions } from "./claude-sessions.js";
 import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
-import { WATCH_CRONTAB_LINE, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
+import { WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
 import { assessWatchSlots, computeCoverage, deriveWatchFindings, reconcileActiveFindings } from "./findings.js";
 import { shortSessionId } from "./format.js";
 import { readInstallHistory } from "./install-history.js";
@@ -24,7 +23,6 @@ import { fetchPrLiveStatuses } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
 import { executeWatcherRecoveries, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
 import { advancePendingReload, executeReloadFanOut, planReloadFanOut } from "./reload-plugins.js";
-import { findWatchInstallerScript, isWatchTaskRegistered, runWatchInstaller } from "./service-installer.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
 import { partitionByTerminalCache, updateTerminalCache } from "./terminal-pr-cache.js";
 import { classifyTrackedProcesses } from "./tracked-processes.js";
@@ -39,7 +37,6 @@ import { canRestartSessionIn } from "./workspace-trust.js";
 import {
   ReloadAction,
   WatchEventKind,
-  WatchServiceInstallOutcome,
   type InstallRecord,
   type PendingReload,
   type ReloadReport,
@@ -48,8 +45,6 @@ import {
   type WatchEvent,
   type WatchLedgerState,
   type WatchPaths,
-  type WatchServiceInstallDeps,
-  type WatchServiceInstallReport,
   type WatchSlotAssessment,
   type WatchSnapshot,
   type WatchTickDeps,
@@ -67,11 +62,6 @@ export function createDefaultWatchTickDeps(options: { isAutoReloadEnabled: boole
     isAutoReloadEnabled: options.isAutoReloadEnabled,
     isRecoveryEnabled: options.isRecoveryEnabled,
   };
-}
-
-/** The real edges a watch-service install needs: this platform and its Task Scheduler. */
-export function createDefaultWatchServiceInstallDeps(): WatchServiceInstallDeps {
-  return { platform: process.platform, runCommand: defaultCommandRunner };
 }
 
 function notifyIfAny(deps: WatchTickDeps, lines: string[]): void {
@@ -297,58 +287,6 @@ export function runReloadPluginsPass(deps: WatchTickDeps, isDryRun: boolean): Re
     writeWatchLedgerState(deps.paths.watchDir, { ...state, pendingReload: pass.pendingReload });
     return pass.report;
   });
-}
-
-function runInstaller(installerArgs: string[], deps: WatchServiceInstallDeps, succeededAs: WatchServiceInstallOutcome): WatchServiceInstallReport {
-  if (deps.platform !== "win32") {
-    return { outcome: WatchServiceInstallOutcome.Unsupported, detail: `no installer for ${deps.platform} yet — add this crontab line: ${WATCH_CRONTAB_LINE}` };
-  }
-  const scriptPath = findWatchInstallerScript();
-  if (!scriptPath) return { outcome: WatchServiceInstallOutcome.Failed, detail: "the installer script is missing from this install" };
-  const ran = runWatchInstaller(scriptPath, installerArgs, deps.runCommand);
-  if (ran?.exitCode !== 0) {
-    return { outcome: WatchServiceInstallOutcome.Failed, detail: ran ? ran.stdout.trim() || `installer exited ${ran.exitCode}` : "installer did not finish" };
-  }
-  return { outcome: succeededAs, detail: ran.stdout.trim() };
-}
-
-/**
- * Register the watch's scheduled task, or replace it in place when it exists.
- *
- * @param isNoWait - Return once the task is registered, without waiting for its first tick.
- */
-export function installWatchService(deps: WatchServiceInstallDeps, isNoWait: boolean): WatchServiceInstallReport {
-  return runInstaller(isNoWait ? ["-NoWait"] : [], deps, WatchServiceInstallOutcome.Installed);
-}
-
-/** Remove the watch's scheduled task; its ledger is kept. */
-export function uninstallWatchService(deps: WatchServiceInstallDeps): WatchServiceInstallReport {
-  return runInstaller(["-Uninstall"], deps, WatchServiceInstallOutcome.Removed);
-}
-
-/**
- * Act on `autoInstallWatchService` as an install or upgrade does: `always`
- * registers or refreshes the task. A task already registered is refreshed for
- * any value but `never`, so an upgrade never leaves it on an old launcher;
- * `never` leaves the machine as it is, and `ask` adds nothing new.
- */
-export function applyWatchServicePreference(
-  preference: PreferenceValue,
-  deps: WatchServiceInstallDeps,
-  isNoWait: boolean,
-): WatchServiceInstallReport {
-  if (preference === PreferenceValue.Never) {
-    return { outcome: WatchServiceInstallOutcome.TurnedOff, detail: "autoInstallWatchService is never" };
-  }
-  if (deps.platform !== "win32" && preference !== PreferenceValue.Always) {
-    return { outcome: WatchServiceInstallOutcome.NotRequested, detail: `autoInstallWatchService is ${preference}` };
-  }
-  const isRegistered = deps.platform === "win32" && isWatchTaskRegistered(deps.runCommand);
-  if (!isRegistered && preference !== PreferenceValue.Always) {
-    return { outcome: WatchServiceInstallOutcome.NotRequested, detail: `autoInstallWatchService is ${preference} and no task is registered` };
-  }
-  const installerArgs = isNoWait ? ["-NoWait"] : [];
-  return runInstaller(installerArgs, deps, isRegistered ? WatchServiceInstallOutcome.Refreshed : WatchServiceInstallOutcome.Installed);
 }
 
 /** The last tick's snapshot, or null when the watch has never run. */

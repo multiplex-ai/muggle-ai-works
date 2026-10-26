@@ -11,13 +11,15 @@ import {
 import {
   applyWatchServicePreference,
   createDefaultWatchServiceInstallDeps,
-  createDefaultWatchTickDeps,
   installWatchService,
+  uninstallWatchService,
+} from "../watch/install-service.js";
+import {
+  createDefaultWatchTickDeps,
   loadLastWatchSnapshot,
   registerWatchSlot,
   runReloadPluginsPass,
   runWatchTick,
-  uninstallWatchService,
   unregisterWatchSlot,
 } from "../watch/watch-service.js";
 import type {

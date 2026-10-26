@@ -132,7 +132,7 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
     optionLabels: [
       { value: PreferenceValue.Always, label: "Always — install it now and refresh it on every upgrade" },
       { value: PreferenceValue.Ask, label: "Ask me later" },
-      { value: PreferenceValue.Never, label: "Never — I'll run scripts/muggle-watch/install-muggle-watch.ps1 myself" },
+      { value: PreferenceValue.Never, label: "Never — I'll run muggle watch install myself" },
     ],
   },
   {

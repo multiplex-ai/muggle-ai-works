@@ -199,7 +199,7 @@ function createProgram (): Command {
 
   watch
     .command("install")
-    .description("Register or refresh the scheduled task that runs the watch (Windows)")
+    .description("Schedule the watch with this OS's scheduler, or refresh the entry in place")
     .option("--uninstall", "Remove the task; the ledger is kept")
     .option("--no-wait", "Return once the task is registered, without waiting for its first pass")
     .option("--from-preference", "Act on the autoInstallWatchService preference, as an install or upgrade does")

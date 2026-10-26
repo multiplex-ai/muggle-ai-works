@@ -50,7 +50,7 @@ Distinct from [`watch.pid`](#watchpid), and the two are not interchangeable. `wa
 
 ## `watch-registration.json`
 
-The slot's opt-in to recovery by the muggle watch service (`muggle watch`, a per-user scheduled task). `pr-watch-arm.sh` writes it beside `owner.json` on every arm that writes an owner. `muggle watch register --slot <slot>` writes it for a slot armed another way, and `muggle watch unregister --slot <slot>` removes it.
+The slot's opt-in to recovery by the muggle watch service (`muggle watch`, a per-user scheduled job). `pr-watch-arm.sh` writes it beside `owner.json` on every arm that writes an owner. `muggle watch register --slot <slot>` writes it for a slot armed another way, and `muggle watch unregister --slot <slot>` removes it.
 
 ```json
 {

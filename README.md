@@ -480,7 +480,7 @@ Want it hosted, with nothing to configure? [Muggle Test](https://www.muggletest.
 ```bash
 pnpm install              # This repo is pnpm-only
 pnpm run build            # tsup + plugin artifact
-pnpm test                 # Test suite
+pnpm test                 # Tests impacted since origin/master, on 25% of cores (full suite in CI; MUGGLE_VITEST_FULL=1 forces it locally)
 pnpm run lint             # Lint (auto-fix)
 pnpm run typecheck        # Type check
 pnpm run dev              # Watch mode

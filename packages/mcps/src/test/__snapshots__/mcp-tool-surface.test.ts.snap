@@ -135,6 +135,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-bulk-preview-job-list",
   },
   {
+    "description": "Plan a test case's fan-out across its runSettings records in one lane, for a caller that runs the records itself, such as a local run; it starts nothing and writes nothing. Response shape: { testCaseId, laneType, fanOutPolicy, fanOutChoice, isPrimaryKnownGood, isSecondaryGatedOnPrimary, records: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary, testScriptId }], notRunRunSettingsIds }. \`records\` is in start order, primary first: run records[0] first. When isSecondaryGatedOnPrimary is true, run the rest only if that run passed, and otherwise report each as skipped because the primary failed; when false, run them all. A record's testScriptId is its script on the lane, absent when it has none: replay that script, or generate with the record's runSettingsId and displayResolution. Empty records means the lane has no records for the test case. notRunRunSettingsIds lists the records primaryOnly leaves unrun. Omit fanOutChoice to follow the lane's policy.",
+    "name": "muggle-remote-fan-out-plan",
+  },
+  {
     "description": "Upload a locally executed run (generation/replay) to cloud workflow records.",
     "name": "muggle-remote-local-run-upload",
   },
@@ -500,6 +504,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-bulk-preview-job-cancel",
   "muggle-remote-bulk-preview-job-get",
   "muggle-remote-bulk-preview-job-list",
+  "muggle-remote-fan-out-plan",
   "muggle-remote-local-run-upload",
   "muggle-remote-organization-list",
   "muggle-remote-prd-file-delete",

@@ -56,6 +56,8 @@ A `repair` disposition requires a named defect: the failing step, expected-versu
 
 An Inconclusive entry Stage 6 recorded as `prerequisites unmet` never executed. It carries no bucket and none may be derived from it — there is no run to read. Its disposition is `ask`, and the question names the missing prerequisite: what failed is the project's test-plan chain, not the diff.
 
+An Inconclusive entry Stage 6 recorded as `primary failed` never executed either: it is a record held back by its test case's failed primary. It takes no disposition of its own; the primary's entry is the one repaired, and re-running the test case runs it again.
+
 ## Step 3: Act
 
 Process dispositions in order — `retry`, then `regenerate`, then `repair` — so cheap self-healing runs before any code change.

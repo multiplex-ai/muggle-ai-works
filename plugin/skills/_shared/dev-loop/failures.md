@@ -1,6 +1,6 @@
 # Dev Loop — Reading the Result
 
-For each `runId`, call `muggle-local-run-result-get` and read **structured fields**, never `execute`'s stdout tail (a truncated display excerpt). Order: `Status` → `Error` → `Artifacts`. Retain per test case: `testCaseId`, `testScriptId` (if any), `runId`, `status`, `artifactsDir`.
+For each `runId`, call `muggle-local-run-result-get` and read **structured fields**, never `execute`'s stdout tail (a truncated display excerpt). Order: `Status` → `Error` → `Artifacts`. Retain per run: `testCaseId`, `testScriptId` (if any), `runId`, `status`, `artifactsDir`, plus the record it ran: `runSettingsId` from the `cloudRunSettingsId` the result prints as `**Cloud Run Settings ID:**` (absent on a run filed under no record), and the `resolutionLabel` of the plan record it ran.
 
 ## Artifacts
 

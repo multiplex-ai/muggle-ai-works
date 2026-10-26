@@ -142,9 +142,11 @@ Before deciding the target's script, resolve its prerequisite chain from the bac
 - **If any replayable/succeeded scripts exist:** use `AskUserQuestion` to present them as clickable options. Show: name, created/updated, step count per option. Include **"Generate new script"** as the last option.
 - **If none:** go straight to generation (no need to ask replay vs generate).
 
+A test case whose local lane has records runs once per record ([`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md#records)), so the pick sets only the mode: a script means replay, which replays each record's own script, and "Generate new script" means regen.
+
 ### 6. Load data for the chosen path
 
-Run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [`freshSession`](../_shared/dev-loop/fresh-session.md), [replay vs regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`timeoutMs`](../_shared/dev-loop/timeouts.md), and [failure interpretation](../_shared/dev-loop/failures.md).
+Run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [one run per record](../_shared/dev-loop/run.md#records), [`freshSession`](../_shared/dev-loop/fresh-session.md), [replay vs regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`timeoutMs`](../_shared/dev-loop/timeouts.md), and [failure interpretation](../_shared/dev-loop/failures.md).
 
 Caller glue: `mode` is the path chosen in §5; `localUrl` from §4; `cwd` = the repo root, or the prepared worktree when one is in use.
 

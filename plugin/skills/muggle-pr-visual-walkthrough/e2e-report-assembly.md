@@ -12,6 +12,8 @@ Include **all** runs — passed, failed, **and inconclusive**. Never drop a run.
 
 If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: synthesize a UUID-shaped runId and use the project runs page as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
 
+A record skipped because its test case's primary failed never ran either: an `inconclusive` entry with `reason: "primary failed"`, the `runSettingsId` and `resolutionLabel` the caller carried for it, `steps: []`, and that same synthesized `runId` and project-level `viewUrl`.
+
 ## Published run (passed or failed; the common path)
 
 The studio publishes every completed local run — pass or fail, with or without action steps — to the cloud during execution. `muggle-local-run-result-get` carries `viewUrl` and `cloudActionScriptId`; `cloudTestScriptId` is **only present for passing runs and replays** (failed generations skip the test script wrapper to avoid clobbering the canonical replay target).
@@ -42,9 +44,9 @@ On every entry: `description` (test case title/description — drives the collap
 
 Set `testCaseShortId` to the test case's `shortId` and `replayShortId` to the run's `shortId` (e.g. `TC-42`, `R-2051`) whenever the record you already fetched carries one; the walkthrough then labels the test `TC-42 · <name>` and leads its run row with `R-2051`. Omit either when absent — entities created before short IDs existed have none.
 
-Set `runSettingsId` to the run result's `cloudRunSettingsId` (`muggle-local-run-result-get` prints it as `**Cloud Run Settings ID:**`) and `resolutionLabel` to that record's window size as `<width>×<height>` (e.g. `390×844`): the `resolutionLabel` `muggle-remote-run-settings-list` returns for that `runSettingsId` (with `runEnvironmentType: "local"`), or the `displayResolution` the run executed at, written the same way (`R_0390x0844` → `390×844`). The walkthrough keeps each record of a test case as its own entry, labelled `<name> (390×844)`, and collapses only reruns of one record to the latest. Omit both when the run result carries no `cloudRunSettingsId`; the entry then collapses with the test case's other runs.
+Set `runSettingsId` to the run result's `cloudRunSettingsId` (`muggle-local-run-result-get` prints it as `**Cloud Run Settings ID:**`) and `resolutionLabel` to that record's window size as `<width>×<height>` (e.g. `390×844`): the `resolutionLabel` the caller carried for the run when it has one, else the `resolutionLabel` `muggle-remote-run-settings-list` returns for that `runSettingsId` (with `runEnvironmentType: "local"`), or the `displayResolution` the run executed at, written the same way (`R_0390x0844` → `390×844`). The walkthrough keeps each record of a test case as its own entry, labelled `<name> (390×844)`, and collapses only reruns of one record to the latest. Omit both when the run result carries no `cloudRunSettingsId`; the entry then collapses with the test case's other runs.
 
-If called from `muggle-do`: `e2e-acceptance.md` already produces this shape — pass it through unchanged.
+If called from `muggle-do`: `e2e-acceptance.md` already produces this shape, each entry's `runSettingsId` and `resolutionLabel` included — pass it through unchanged.
 
 ## Shape
 

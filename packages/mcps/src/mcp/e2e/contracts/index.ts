@@ -13,6 +13,7 @@ import { SecretFieldEnum, SecretTypeEnum } from "./secret-group-types.js";
 
 export { MuggleEntityIdSchema };
 export * from "./fan-out-choice.js";
+export * from "./fan-out-plan-schemas.js";
 export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
 export * from "./run-settings-schemas.js";

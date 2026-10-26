@@ -265,7 +265,7 @@ Run the path matching the mode confirmed in Step 1. Each path owns its own proce
 
 ## Step 7C: Route every failed run through the debug path
 
-For every run with `status: "failed"` (or any non-passing terminal state) returned by Step 7 (either path), route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md). This is **mandatory** — a failure is never reported without it. The debug path gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always an option and "skip" is never the default.
+For every run with `status: "failed"` (or any non-passing terminal state; a local record `skipped` because its primary failed is not a run) returned by Step 7 (either path), route through [`_shared/debug-failed-run.md`](../_shared/debug-failed-run.md). This is **mandatory** — a failure is never reported without it. The debug path gathers evidence (attempted steps + reasoning + screenshot), diagnoses via [`_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) (§B replay / §C regen), shows the debug card, and presents the guaranteed selection in which **"give feedback & rerun"** is always an option and "skip" is never the default.
 
 Pass it per failed run: the `runId` (local) or workflow runtime id (remote), the `mode` that failed, `testCaseId`, `projectId`, and the execution handle (local: [`execute-local.md`](execute-local.md); remote: [`execute-remote.md`](execute-remote.md)) so a rerun re-enters the same path. Process failures one at a time so the user isn't drowning in pickers.
 

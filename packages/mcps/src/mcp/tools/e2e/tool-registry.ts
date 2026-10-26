@@ -388,6 +388,21 @@ const testCaseTools: IQaToolDefinition[] = [
     mapFromUpstream: mapRunSettingsList,
   },
   {
+    name: "muggle-remote-fan-out-plan",
+    description:
+      "Plan a test case's fan-out across its runSettings records in one lane, for a caller that runs the records itself, such as a local run; it starts nothing and writes nothing. Response shape: { testCaseId, laneType, fanOutPolicy, fanOutChoice, isPrimaryKnownGood, isSecondaryGatedOnPrimary, records: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary, testScriptId }], notRunRunSettingsIds }. `records` is in start order, primary first: run records[0] first. When isSecondaryGatedOnPrimary is true, run the rest only if that run passed, and otherwise report each as skipped because the primary failed; when false, run them all. A record's testScriptId is its script on the lane, absent when it has none: replay that script, or generate with the record's runSettingsId and displayResolution. Empty records means the lane has no records for the test case. notRunRunSettingsIds lists the records primaryOnly leaves unrun. Omit fanOutChoice to follow the lane's policy.",
+    inputSchema: schemas.FanOutPlanInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.FanOutPlanInputSchema>;
+      return {
+        method: "POST",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/test-cases/${toolInput.testCaseId}/fan-out/plan`,
+        queryParams: { type: toolInput.runEnvironmentType },
+        body: { ...(toolInput.fanOutChoice && { fanOutChoice: toolInput.fanOutChoice }) },
+      };
+    },
+  },
+  {
     name: "muggle-remote-test-plan-graph-rebuild",
     description:
       "Queue a full rebuild of a project's test-plan dependency graph: every node is dropped and the dependency analysis runs again across the whole project. Needed because the incremental analysis only ever adds nodes for test cases that have none — a case already stored as a root stays a root even once a prerequisite for it exists, so a rebuild is the only way to re-derive those edges. Reach for this when muggle-remote-test-case-ancestors-get reports `orphan: true` across a project, which means nothing is ordering prerequisites and bulk replays are running cases that destroy each other's fixtures. Returns { projectId, workflowRuntimeId }: it resolves when the rebuild is QUEUED, not when it has finished, and it returns no graph — re-fetch the graph, or call muggle-remote-test-case-ancestors-get again, to observe the result.",

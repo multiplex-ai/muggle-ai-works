@@ -36,7 +36,7 @@ Before the first run, resolve each selected test case's prerequisite chain and m
 
 ## Run the dev loop
 
-Execute each test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).
+Execute each test case via the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): [one run per record](../_shared/dev-loop/run.md#records), [sequential replay/regen](../_shared/dev-loop/run.md), [`actionScript` as-is](../_shared/dev-loop/action-script.md), [`freshSession`](../_shared/dev-loop/fresh-session.md), and [`timeoutMs`](../_shared/dev-loop/timeouts.md).
 
 Caller glue:
 - `mode` per test case is the input from the router; `localUrl` from the pre-flight question; `showUi` from the `showElectronBrowser` resolution.
@@ -59,8 +59,10 @@ Checkout flow              FAILED    15.7s      12      <viewUrl>
 Total: 3 tests | 2 passed | 1 failed | 37.1s
 ```
 
+A test case with records gets one row per record, named `<title> (<resolutionLabel>)`; a record skipped because its primary failed shows `SKIPPED`.
+
 For failures, don't hand-write a verdict — the router routes each through the debug path.
 
 ## Output
 
-Return the uniform runs list the router consumes: `[{ testCaseId, mode, runId, status, viewUrl?, cloudTestScriptId?, cloudActionScriptId? }]`. The studio published each run during execution, so `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId` come straight off the run result (`muggle-local-run-result-get`).
+Return the uniform runs list the router consumes: `[{ testCaseId, mode, runId, status, viewUrl?, cloudTestScriptId?, cloudActionScriptId?, runSettingsId?, resolutionLabel? }]`. The studio published each run during execution, so `viewUrl` / `cloudTestScriptId` / `cloudActionScriptId` / `runSettingsId` (its `cloudRunSettingsId`) come straight off the run result (`muggle-local-run-result-get`). A record skipped because its primary failed is an entry `{ testCaseId, status: "skipped", reason: "primary failed", runSettingsId, resolutionLabel }` with no `runId`: it is not a failed run and skips the debug path.

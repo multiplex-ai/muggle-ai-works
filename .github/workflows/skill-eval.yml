@@ -526,6 +526,7 @@ jobs:
         with:
           primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
+          third-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_3 }}
 
       - name: Run muggle-do evals (every skill suite)
         if: steps.scope.outputs.should_run == 'true'

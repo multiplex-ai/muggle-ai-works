@@ -70,4 +70,4 @@ If the upgrade fails at any step, report the error and suggest running `/muggle:
 
 | Preference | Gate |
 | :--------- | :--- |
-| `autoInstallWatchService` | Step 5 — run Muggle Watch as a scheduled job on any OS; postinstall acts on `always`/`never`, `ask` asks here, default `ask` |
+| `autoInstallWatchService` | Step 5 — run Muggle Watch as a scheduled task; postinstall acts on `always`/`never`, `ask` asks here, default `ask` |

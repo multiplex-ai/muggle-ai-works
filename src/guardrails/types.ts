@@ -1,5 +1,15 @@
 import type { DeclaredSkip } from "../e2e-skip/types.js";
 
+/**
+ * One change a PR or a skip belongs to: a repo, keyed provider-neutrally, and a branch in it.
+ *
+ * Output shape: `{ repo: "github.com/acme/web", branch: "users/me/fix-login" }`
+ */
+export interface ChangeIdentity {
+  repo: string;
+  branch: string;
+}
+
 export interface GuardrailState {
   sessionId: string;
   generation?: number;
@@ -10,17 +20,17 @@ export interface GuardrailState {
   e2eSkipCycleScoped?: boolean;
   /**
    * The latest accepted environment skip, kept so the PRs of the change it was
-   * verified for carry it: one opened later from the same working tree is
-   * settled with it, and the walkthrough gate holds the turn until each covered
-   * PR's comment shows it.
+   * verified for carry it: one opened later for the same change is settled
+   * with it, and the walkthrough gate holds the turn until each covered PR's
+   * comment shows it.
    */
   e2eSkipDeclaration?: DeclaredSkip;
-  /** The working tree `e2eSkipDeclaration` was verified in, normalized. */
-  e2eSkipVerifiedInTree?: string;
+  /** The change `e2eSkipDeclaration` was verified for: its working tree's repo and checked-out branch. */
+  e2eSkipVerifiedChange?: ChangeIdentity;
   /** Every PR a skip has been applied to this session; a skip marker on one of these settles it. */
   e2eSkipCoveredPrs?: string[];
-  /** The working tree, normalized, each PR this session opened was opened from. */
-  prWorkingTrees?: Record<string, string>;
+  /** The change behind each PR this session opened, recorded only when its head branch was known. */
+  prChanges?: Record<string, ChangeIdentity>;
   /** Every PR in play was last seen carrying the skip's record; a PR opened since clears it. */
   e2eSkipSettledOnPrs?: boolean;
   e2eBlockCount?: number;

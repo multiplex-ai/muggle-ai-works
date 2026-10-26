@@ -1,24 +1,9 @@
-import { resolve } from "path";
-import type { GuardrailState } from "./types.js";
+import { isSameChange } from "./changeIdentity.js";
+import type { ChangeIdentity, GuardrailState } from "./types.js";
 
-/**
- * A working-tree path in the one spelling two hooks agree on, or undefined when the hook had none.
- *
- * Windows paths compare case-insensitively and arrive with either slash, so
- * both are folded; a trailing separator is dropped.
- *
- * Output shape: `"c:/users/me/repo/.claude/worktrees/fix-login"`
- */
-export function normalizeWorkingTree(cwd: string | undefined): string | undefined {
-  if (!cwd) return undefined;
-  const forwardSlashed = resolve(cwd).replace(/\\/g, "/").replace(/\/+$/, "");
-  return process.platform === "win32" ? forwardSlashed.toLowerCase() : forwardSlashed;
-}
-
-/** Whether a PR the session opened was opened from the tree the latest skip was verified in. */
-function isOpenedFromSkipTree(state: GuardrailState, prUrl: string): boolean {
-  const skipTree = state.e2eSkipVerifiedInTree;
-  return skipTree !== undefined && state.prWorkingTrees?.[prUrl] === skipTree;
+/** Whether a PR the session opened belongs to the change the latest skip was verified for. */
+function isPrOfSkipChange(state: GuardrailState, prUrl: string): boolean {
+  return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
 }
 
 function withCoveredPrs(state: GuardrailState, prUrls: string[]): GuardrailState {
@@ -31,39 +16,41 @@ function withCoveredPrs(state: GuardrailState, prUrls: string[]): GuardrailState
 /**
  * Whether a skip has been applied to this PR, so a skip marker on it settles it.
  *
- * A skip is verified in one working tree and vouches for that change alone; a
- * PR from any other tree is a different change and owes its own run or skip.
+ * A skip is verified for one change — a repo and branch — and vouches for it
+ * alone; a PR of any other change owes its own run or skip, however the
+ * session's working directory sat when it was opened.
  */
 export function isPrCoveredBySkip(state: GuardrailState, prUrl: string): boolean {
   return (state.e2eSkipCoveredPrs ?? []).includes(prUrl);
 }
 
 /**
- * Record the tree a PR was opened from, and cover it with the latest skip when it came from that skip's tree.
+ * Record the change a PR belongs to, and cover it with the latest skip when it is that skip's change.
  *
  * This is what lets a skip declared before its PR existed — Stage 6 before
- * Stage 7 — reach that PR, and only that PR.
+ * Stage 7 — reach that PR, and only that PR. A PR whose change is unknown is
+ * never covered.
  */
 export function applyPrOpenedToSkipScope(
   state: GuardrailState,
   prUrl: string,
-  openedFromTree: string | undefined,
+  prChange: ChangeIdentity | undefined,
 ): GuardrailState {
-  if (!openedFromTree) return state;
-  const recorded = { ...state, prWorkingTrees: { ...state.prWorkingTrees, [prUrl]: openedFromTree } };
-  return isOpenedFromSkipTree(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
+  if (!prChange) return state;
+  const recorded = { ...state, prChanges: { ...state.prChanges, [prUrl]: prChange } };
+  return isPrOfSkipChange(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
 }
 
 /**
- * Record the tree an accepted skip was verified in, and cover every PR already opened from it.
+ * Record the change an accepted skip was verified for, and cover every PR already opened for it.
  *
- * Same reference when there is no tree to scope it to: an unscoped skip covers nothing.
+ * Same reference when there is no change to scope it to: an unscoped skip covers nothing.
  */
-export function applyE2eSkipScope(state: GuardrailState, verifiedInTree: string | undefined): GuardrailState {
-  if (!verifiedInTree || !state.e2eSkipDeclaration) return state;
-  const scoped = { ...state, e2eSkipVerifiedInTree: verifiedInTree };
+export function applyE2eSkipScope(state: GuardrailState, verifiedChange: ChangeIdentity | undefined): GuardrailState {
+  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
+  const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
   return withCoveredPrs(
     scoped,
-    scoped.prsHandled.filter((prUrl) => isOpenedFromSkipTree(scoped, prUrl)),
+    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl)),
   );
 }

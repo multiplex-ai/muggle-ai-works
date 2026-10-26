@@ -1238,14 +1238,23 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
   });
 
   // An accepted skip only reaches the PR through a detached write; the gate is
-  // what notices when it never landed.
-  function runSkippedSessionGate(sessionId: string, prContent: string): { output: string; home: string } {
+  // what notices when it never landed. The state is what the hooks write when
+  // the skip and the PR came from one working tree — or, uncovered, from two.
+  function runSkippedSessionGate(
+    sessionId: string,
+    prContent: string,
+    isPrFromSkipTree: boolean = true,
+  ): { output: string; home: string } {
     const home = createHookHome("gr-wt-skip-");
+    const skipTree = "/work/repo/.claude/worktrees/fix-login";
     writeGuardrailState(home, {
       sessionId: sessionId,
       prsHandled: [PR_URL],
       e2eSkipped: true,
       e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" },
+      e2eSkipVerifiedInTree: skipTree,
+      prWorkingTrees: { [PR_URL]: isPrFromSkipTree ? skipTree : "/work/repo/.claude/worktrees/fix-export" },
+      e2eSkipCoveredPrs: isPrFromSkipTree ? [PR_URL] : [],
     });
     runCli(home, ["scan-walkthroughs", sessionId], "", prContent, PR_URL);
     return { output: runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), prContent, PR_URL), home: home };
@@ -1257,6 +1266,15 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
     expect(blocked.decision).toBe("block");
     expect(blocked.reason).toContain("NO_WEB_SURFACE");
     expect(blocked.reason).toContain(`settle-walkthrough-skipped ${PR_URL} wt-skip-pending`);
+  });
+
+  it("tells a PR from another working tree to get its own run, never handing it another change's skip", () => {
+    const placeholder = JSON.stringify({ body: "x", comments: [{ body: "<!-- muggle-pr-walkthrough:v1 -->\nAwaiting the E2E acceptance run." }] });
+    const blocked = JSON.parse(runSkippedSessionGate("wt-skip-other-tree", placeholder, false).output);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain(PR_URL);
+    expect(blocked.reason).toContain("its own change");
+    expect(blocked.reason).not.toContain("settle-walkthrough-skipped");
   });
 
   it("goes quiet once the PR carries the skip's record, and remembers it", () => {

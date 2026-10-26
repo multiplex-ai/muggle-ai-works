@@ -615,6 +615,9 @@ jobs:
       # runs with a pool-wide backoff instead of scoring them as `none`.
       ROUTING_WORKERS: ${{ inputs.routing_workers || '6' }}
       CLAUDE_CONFIG_DIR: ${{ github.workspace }}/.cc-config
+      # The base ref's plugin, installed apart from the PR's: a failing scoped
+      # verdict is re-measured against it side by side before it fails.
+      CONTROL_CONFIG_DIR: ${{ github.workspace }}/.cc-config-control
       CLEAN_CWD: ${{ github.workspace }}/.clean-cwd
       BASELINE_CANDIDATE: ${{ github.workspace }}/internal/skill-routing-eval/reports/run/recall-baseline.candidate.json
     steps:
@@ -731,6 +734,26 @@ jobs:
           claude plugin list | grep -Fq "muggleai@muggle-works" \
             || { echo "muggle plugin failed to install/enable" >&2; exit 1; }
 
+      # A scoped run's control arm. Identical descriptions have scored 16/26 and
+      # 26/26 twenty minutes apart, so a drop against the recorded baseline is only
+      # trusted once it survives a side-by-side run against the base ref's plugin.
+      # A full sweep gets no control: it gates the harness itself, which a control
+      # on the same harness would cancel out.
+      - name: Install the base ref's muggle plugin as the control arm
+        if: steps.scope.outputs.should_run == 'true' && steps.scope.outputs.full != 'true'
+        run: |
+          set -euo pipefail
+          # A pull_request run checks out the merge commit, whose first parent is
+          # the base it merged into, so the two arms differ by exactly the PR.
+          control_tree="$RUNNER_TEMP/routing-control-plugin"
+          mkdir -p "$control_tree" "$CONTROL_CONFIG_DIR"
+          git archive HEAD^1 .claude-plugin plugin | tar -x -C "$control_tree"
+          export CLAUDE_CONFIG_DIR="$CONTROL_CONFIG_DIR"
+          claude plugin marketplace add "$control_tree"
+          claude plugin install muggleai@muggle-works
+          claude plugin list | grep -Fq "muggleai@muggle-works" \
+            || { echo "control-arm muggle plugin failed to install/enable" >&2; exit 1; }
+
       - name: Mark Muggle onboarding done so the probe is not diverted
         if: steps.scope.outputs.should_run == 'true'
         run: |
@@ -805,6 +828,8 @@ jobs:
           # 86%, so any bar is either unreachable or meaningless.
           # Only the full sweep measures every skill, so only it can propose the
           # next baseline; the candidate is published for a human to review.
+          # A scoped run that fails re-measures its failing skills against the
+          # control arm installed above, and fails only if the drop survives.
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py \
               --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \
@@ -814,7 +839,8 @@ jobs:
             python internal/skill-routing-eval/run.py \
               --skills "${{ steps.scope.outputs.skills }}" \
               --runs "$ROUTING_RUNS_SCOPED" --workers "$ROUTING_WORKERS" \
-              --repo-root "$CLEAN_CWD" --gate
+              --repo-root "$CLEAN_CWD" --gate \
+              --control-config-dir "$CONTROL_CONFIG_DIR"
           fi
 
       # Only a human promotes a measurement to the baseline: the sweep publishes

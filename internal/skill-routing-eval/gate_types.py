@@ -5,13 +5,16 @@ from enum import Enum
 
 
 class SkillGateStatus(Enum):
-    """One skill's gate outcome; REGRESSED and COLLAPSED are the failing ones."""
+    """One skill's gate outcome; REGRESSED, COLLAPSED and UNCONFIRMED are the failing ones."""
 
     HELD = "held"
     REGRESSED = "regressed"
     COLLAPSED = "collapsed"
     UNBASELINED = "unbaselined"
     INCONCLUSIVE = "inconclusive"
+    # The control arm routed none of a confirmation's runs, so there was nothing to
+    # confirm against and the failing verdict it was meant to check stands.
+    UNCONFIRMED = "unconfirmed"
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,20 @@ class SkillGateVerdict:
     baseline_recall: float | None
     tolerance: float
     status: SkillGateStatus
+
+
+@dataclass(frozen=True)
+class PairedTally:
+    """One skill's single-run passes in both arms of a paired sweep.
+
+    The arms run the same queries the same number of times, so one total serves both.
+    """
+
+    candidate_passed: int
+    control_passed: int
+    total: int
+    #: Variance of `control_passed - candidate_passed` if both arms routed alike.
+    difference_variance: float
 
 
 @dataclass(frozen=True)

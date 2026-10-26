@@ -110,8 +110,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 300000 = 5 min)"),
-  /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
-  showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Defaults to visible; pass false to run headless."),
+  /** Show the electron-app UI during execution; the showElectronBrowser preference wins when it is always or never. */
+  showUi: z.boolean().optional().describe("Show the electron-app UI during generation. Ignored when the user's showElectronBrowser preference is always (shown) or never (headless); under ask it defaults to visible and false runs headless."),
   /** Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state, such as registration, login, or cookie consent flows. */
   freshSession: z.boolean().optional().describe("Clear all session storage (cookies, localStorage, etc.) before execution. Use for test cases that require a clean browser state — e.g. registration, login, or cookie consent flows. Default: the test case's stored alwaysStartsFreshSession flag (false when unset)."),
   /** Mutation parameters providing variable context for this generation run — a string[] where each element is a plain-English instruction or a local file path for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. */
@@ -145,8 +145,8 @@ export const ExecuteReplayInputSchema = z.object({
   baseBranch: z.string().min(1).optional().describe("Base branch if not origin's default (e.g. a stacked parent)."),
   /** Optional timeout. */
   timeoutMs: z.number().int().positive().optional().describe("Timeout in milliseconds (default: 180000 = 3 min)"),
-  /** Show the electron-app UI during execution. Default: visible window. Pass false to run headless. */
-  showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Defaults to visible; pass false to run headless."),
+  /** Show the electron-app UI during execution; the showElectronBrowser preference wins when it is always or never. */
+  showUi: z.boolean().optional().describe("Show the electron-app UI during replay. Ignored when the user's showElectronBrowser preference is always (shown) or never (headless); under ask it defaults to visible and false runs headless."),
   /** Whether the replay starts from an emptied browser session, copied from the recording. */
   freshSession: z.boolean().optional().describe("Copy actionParams.freshSession from muggle-remote-action-script-get so the replay starts as recorded: true clears all session storage (cookies, localStorage) first. Absent there (an older recording): true only for clean-state tests (registration, login, cookie consent). Default: false."),
   /** Mutation parameters passed to the LLM step predictor — a string[] where each element is an instruction describing what varies this run. Supports plain-English instructions (e.g. "The post content should be 'Hello world'") and local file paths for uploads (e.g. "Attach the image at C:\\Users\\user\\photo.jpg"). Matches the electron-app's string[] mutation file format. When provided, the electron app uses LLM-driven step prediction instead of deterministic replay. */

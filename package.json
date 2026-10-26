@@ -1,7 +1,7 @@
 {
   "name": "@muggleai/works",
   "mcpName": "io.github.multiplex-ai/muggle",
-  "version": "5.18.0",
+  "version": "5.26.0",
   "description": "13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.",
   "type": "module",
   "main": "dist/index.js",
@@ -61,21 +61,21 @@
     "typecheck:browser-bench": "tsc --noEmit -p internal/browser-bench/tsconfig.json"
   },
   "muggleConfig": {
-    "electronAppVersion": "1.16.1",
+    "electronAppVersion": "1.17.0",
     "downloadBaseUrl": "https://github.com/multiplex-ai/muggle-ai-works/releases/download",
     "runtimeTargetDefault": "dev",
     "checksumsByStream": {
       "production": {
-        "win32-x64": "c47f3884040f4d1dd503fb29c727cf83f793511fc35cc95563f9edc0533877ab",
-        "linux-x64": "3855984ced97f2f8154b3e663aee05f1a60979ea65c154ff1390159ccea91bfe",
-        "darwin-arm64": "ede589c594c81544b2a713a3c8cefe087cd5116b5672f790e2c74053ce30e94b",
-        "darwin-x64": "b6221cd57828ea9ad3ed7a77021e52a71933bef3471bb081956db500fe22cdde"
+        "win32-x64": "03687e6c511f407875354954cb1b0f8e95d4ad0602174d76388a52d1aa1554e4",
+        "linux-x64": "10bb4d6450d52cf7872800cebfa1243f4e29668adb79117afc518473219d7aad",
+        "darwin-arm64": "c47dfa3b3289562aba4e43ed90aba302bdbc604fa2b08949763a7f65444c8e27",
+        "darwin-x64": "cca36704aed389bb886bb70ade6e555c93d55a540fe05b8ea531de5bde4f9d8c"
       },
       "staging": {
-        "darwin-arm64": "a072b5708c16d6a36431aeae72046265312d14fc97d7bd62ed29dfa9cc8bd6e1",
-        "linux-x64": "622b954906ee56793e87b02b4cdb52eeb28dcced5ada5ba581ad861e3e6cc38a",
-        "win32-x64": "df0000e91eb55a17964949e5b3df0ead510ee2f57b4ecaeba804b645cfd0d9fc",
-        "darwin-x64": "a9ba6ebc1837cb1b6995d25aaa692361f96d4ddc21101f2a927f7d4ebe59be4a"
+        "darwin-arm64": "2512aded2d5fa4afee86d491b154a46ba367cf34072fbd609fd16531dab1f418",
+        "linux-x64": "88c70c34c0764c1648600c72bbdc2625e5fdfdd1bb61f9a9e664c73302211b60",
+        "win32-x64": "597464cd252050daac65e0c3f3a210b36abc33ec4a85a882cb95fc21e369243f",
+        "darwin-x64": "0c1520ffa260feae7f373ce9840fd9fc847803401b73e52d930d7c00a0aa45d7"
       }
     },
     "electronAppSignedFromVersion": "1.10.0",

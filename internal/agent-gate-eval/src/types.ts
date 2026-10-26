@@ -5,6 +5,7 @@
  * it leaves in the run's sandbox.
  */
 
+import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ZodRawShape } from "zod";
 
 import type { EvalHost, Fixtures, MockToolSpec, ScenarioReport } from "../../skill-gate-eval/src/types.js";
@@ -55,7 +56,10 @@ export interface ScriptedBashResponse extends ScriptedReply {
   commandContains: string;
 }
 
-/** A canned answer for a scripted tool call; `argContains` is matched against the JSON-serialized input. First match wins. */
+/**
+ * A canned answer for a scripted tool call; `argContains` is matched against the JSON-serialized input. First match wins.
+ * `{{home}}` and `{{repo}}` in the output become the run's sandbox paths.
+ */
 export interface ScriptedToolResponse extends ScriptedReply {
   argContains: string;
 }
@@ -86,10 +90,24 @@ export enum SandboxPathToken {
   Repo = "{{repo}}",
 }
 
-/** A tool-attempt pattern: `argContains` is matched against the JSON-serialized tool input. */
-export interface ToolAttemptPattern {
+/** Matches one tool attempt by its tool name and what its JSON-serialized input carries. */
+export interface SingleToolAttemptPattern {
   tool: string;
-  argContains: string;
+  /** A substring the serialized input must carry, or several it must carry every one of. */
+  argContains: string | string[];
+}
+
+/** Matches an attempt any one of its alternatives matches: an action the instructions allow more than one way. */
+export interface AnyOfToolAttemptPattern {
+  anyOf: SingleToolAttemptPattern[];
+}
+
+/** A tool-attempt pattern: one call shape, or alternatives. */
+export type ToolAttemptPattern = SingleToolAttemptPattern | AnyOfToolAttemptPattern;
+
+/** In a scenario file, stands for the file's `patterns[pattern]`; replaced when the file loads. */
+export interface ToolAttemptPatternReference {
+  pattern: string;
 }
 
 /** A file the run must leave behind: in the sandbox, or named by a recorded Write or Bash attempt. */
@@ -111,11 +129,98 @@ export interface SeedFile {
   content: string;
 }
 
+/** Run-specific paths a seeded transcript names by placeholder; each is filled in when the transcript is built. */
+export enum TranscriptPathToken {
+  Home = "{{home}}",
+  Repo = "{{repo}}",
+  PluginRoot = "{{pluginRoot}}",
+}
+
+/** One tool call in a seeded transcript, with what it returned. */
+export interface TranscriptToolCall {
+  /** The scenario name of the tool: a built-in (`Read`, `Bash`), a host stub (`Skill`, `TodoWrite`), or a mock muggle tool. */
+  tool: string;
+  input: Record<string, unknown>;
+  /**
+   * What the call returned. Unset, it is answered as the live run would
+   * answer it: a Read from the file, a Write or Edit applied to the sandbox, a
+   * Bash call or scripted tool from the scenario's scripts (counted apart from
+   * the live run's), a mock muggle call from its fixture.
+   */
+  result?: string;
+}
+
+/** One assistant turn of a seeded transcript: its text, then its tool calls, each answered before the next turn. */
+export interface TranscriptTurn {
+  text?: string;
+  toolCalls?: TranscriptToolCall[];
+}
+
+/** The prior turns a run resumes from, so a skill starts mid-pipeline instead of at its first step. */
+export interface SeedTranscript {
+  /** Assistant turns after the invocation message, oldest first. */
+  turns: TranscriptTurn[];
+  /** The user message the resumed session receives. */
+  resumePrompt: string;
+}
+
 /** The sandbox's starting state. */
 export interface ScenarioSeed {
   /** A directory under `fixtures/` copied in as the repository; unset, the repository starts empty. */
   repo?: string;
   files?: SeedFile[];
+  /** Prior turns the run resumes from; its Write and Edit calls are applied to the sandbox after `files`. */
+  transcript?: SeedTranscript;
+}
+
+/** A transcript tool call ready to replay: paths filled in, named as the session names the tool, and its result known. */
+export interface MaterializedToolCall {
+  sessionToolName: string;
+  input: Record<string, unknown>;
+  result: string;
+  /** Set where the live harness answers the call with a denial, as it does every Bash call. */
+  isError: boolean;
+}
+
+/** A transcript turn ready to replay. */
+export interface MaterializedTurn {
+  text?: string;
+  toolCalls: MaterializedToolCall[];
+}
+
+/** What the transcript's session entries carry besides the turns themselves. */
+export interface TranscriptEntryContext {
+  sessionId: string;
+  cwd: string;
+  model: string;
+  /** The first entry's timestamp; each later entry is one second on. */
+  startedAt: Date;
+}
+
+/** What a run resumed from a seeded transcript passes to the SDK. */
+export interface TranscriptResume {
+  /** The message the resumed session receives. */
+  prompt: string;
+  queryOptions: Pick<Options, "resume" | "sessionStore">;
+}
+
+/** The run a transcript is materialized into, and how it answers a call the transcript gives no result. */
+export interface TranscriptMaterializeContext {
+  paths: SandboxPathContext;
+  pluginRoot: string;
+  answerBash: (command: string) => string;
+  answerTool: (tool: ScriptedTool, serializedInput: string) => string;
+  /** A mock muggle tool's reply as MCP text, by bare tool name. */
+  answerMockTool: (toolName: string) => string;
+}
+
+/** Everything resuming from a seeded transcript needs to know about the run. */
+export interface TranscriptResumeRequest {
+  transcript: SeedTranscript;
+  /** The run's first user message — for a skill target, the invocation. */
+  firstUserMessage: string;
+  model: string;
+  context: TranscriptMaterializeContext;
 }
 
 /** What one run must show for the scenario to pass. */
@@ -171,12 +276,27 @@ export interface AgentScenario {
   expect: AgentScenarioExpectation;
 }
 
+/**
+ * What a file's `defaults` gives each of its scenarios. A scenario's own
+ * `prompt`, `seed` and `maxTurns` replace the default's; `preferences` and
+ * `fixtures` merge over it key by key; its `bashResponses` and each
+ * `toolResponses` list go ahead of the default's, so they win the first match.
+ */
+export type ScenarioDefaults = Partial<
+  Pick<AgentScenario, "prompt" | "seed" | "maxTurns" | "preferences" | "fixtures" | "bashResponses" | "toolResponses">
+>;
+
 /** A `scenarios/<stem>.json` file: one target, its scenarios, and the pass bar they share. */
 export interface AgentScenarioFile {
   /** The file stem is the target's name, or starts with `<name>.` for a second suite on one target. */
   target: EvalTarget;
   /** Per-scenario pass-rate floor; unset, PASS_THRESHOLD. */
   passThreshold?: number;
+  /** Shared by every scenario in the file; applied when it loads. */
+  defaults?: ScenarioDefaults;
+  /** Named tool-attempt patterns an expectation names with `{ "pattern": "<name>" }`. */
+  patterns?: Record<string, ToolAttemptPattern>;
+  /** Each with the file's defaults applied and its pattern references replaced. */
   scenarios: AgentScenario[];
 }
 
@@ -240,6 +360,13 @@ export interface ToolAttempt {
   args: Record<string, unknown>;
 }
 
+/** What one run spent, from the SDK's terminal result. */
+export interface RunUsage {
+  costUsd: number;
+  durationMs: number;
+  turns: number;
+}
+
 /** One run's verdict and the trace it was judged on. */
 export interface AgentRunVerdict {
   scenario: string;
@@ -250,6 +377,15 @@ export interface AgentRunVerdict {
     toolAttempts: ToolAttempt[];
     askQuestionCount: number;
   };
+  /** Absent when the run ended without a terminal result. */
+  usage?: RunUsage;
+}
+
+/** One scenario's pass rate over its reps, plus what a rep cost on average. */
+export interface AgentScenarioReport extends ScenarioReport {
+  /** Null when no rep reported usage. */
+  meanCostUsd: number | null;
+  meanDurationMs: number | null;
 }
 
 /** One scenario run under the agent SDK. */
@@ -354,7 +490,7 @@ export interface SuiteResults {
   runsPerScenario: number;
   passThreshold: number;
   recordedAt: string;
-  scenarios: ScenarioReport[];
+  scenarios: AgentScenarioReport[];
 }
 
 /** The runner's parsed command line. */

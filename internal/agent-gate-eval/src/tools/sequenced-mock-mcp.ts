@@ -24,7 +24,8 @@ export function isSequencedFixture(value: unknown): value is SequencedFixture {
 /**
  * Every mock tool a run serves, one per name. A supplemental tool named like a
  * shared one refines it: the supplemental tool answers first, and a call it
- * returns nothing for falls through to the shared tool's reply.
+ * returns nothing for falls through to the shared tool's reply. Its input shape
+ * extends the shared one's, so fields a gate reads off the shared shape still arrive.
  */
 export function mergedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSpec[] {
   const supplementalByName = new Map(supplementalMockToolSpecs(fixtures).map((spec) => [spec.name, spec]));
@@ -32,7 +33,11 @@ export function mergedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSpec[
     const refinement = supplementalByName.get(sharedSpec.name);
     if (!refinement) return sharedSpec;
     supplementalByName.delete(sharedSpec.name);
-    return { ...refinement, reply: (input) => refinement.reply(input) ?? sharedSpec.reply() };
+    return {
+      ...refinement,
+      shape: { ...sharedSpec.shape, ...refinement.shape },
+      reply: (input) => refinement.reply(input) ?? sharedSpec.reply(),
+    };
   });
   return [...sharedSpecs, ...supplementalByName.values()];
 }
@@ -55,6 +60,22 @@ export function sequencedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSp
       return sequenceEntryAt(slotValue.sequence, callIndex);
     },
   }));
+}
+
+/**
+ * An answerer for mock muggle calls outside the server — a seeded transcript's
+ * — with its own sequence counts: each bare tool name answers as the server
+ * would, as the MCP text it would carry.
+ *
+ * @throws from the answerer when no mock tool has the name.
+ */
+export function createMockToolAnswerer(fixtures: Fixtures): (toolName: string) => string {
+  const specsByName = new Map(sequencedMockToolSpecs(fixtures).map((spec) => [spec.name, spec]));
+  return (toolName) => {
+    const spec = specsByName.get(toolName);
+    if (!spec) throw new Error(`no mock muggle tool is named ${toolName}`);
+    return jsonResult(spec.reply({})).content[0].text;
+  };
 }
 
 /** Build the in-process mock muggle server for one run. */

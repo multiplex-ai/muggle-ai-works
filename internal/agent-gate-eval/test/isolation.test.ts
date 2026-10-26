@@ -27,6 +27,8 @@ interface CapturedOptions {
   settingSources?: unknown[];
   strictMcpConfig?: boolean;
   persistSession?: boolean;
+  resume?: string;
+  sessionStore?: { load: (key: { projectKey: string; sessionId: string }) => Promise<Array<{ type: string }> | null> };
   cwd?: string;
   tools?: string[];
   hooks?: { PreToolUse?: unknown[] };
@@ -126,5 +128,54 @@ describe("skill run setup", () => {
     expect(options.tools).toEqual(["Read", "Write", "Edit", "Bash", "AskUserQuestion"]);
     expect(Object.keys(options.mcpServers ?? {}).sort()).toEqual(["eval_host", "eval_mock"]);
     expect(options.model).toBe("claude-sonnet-5-5");
+  });
+
+  it("resumes a seeded transcript through a session store, with persistence left on as the SDK requires", async () => {
+    sdk.query.mockReturnValue(resultStream("done"));
+
+    await runAgentScenarioOnce({
+      definition: {
+        kind: EvalTargetKind.Skill,
+        name: "demo",
+        model: "claude-sonnet-5-5",
+        body: "# Demo\nDo the thing.",
+        filePath: path.join(skillDir, "SKILL.md"),
+        baseDir: skillDir,
+      },
+      scenario: {
+        name: "s",
+        prompt: "build it",
+        seed: { transcript: { turns: [{ text: "Stage 5 done." }], resumePrompt: "continue" } },
+        expect: {},
+      },
+    });
+
+    const { prompt, options } = lastQuery();
+    expect(prompt).toBe("continue");
+    expect(options.persistSession).toBeUndefined();
+    const entries = await options.sessionStore!.load({ projectKey: "p", sessionId: options.resume! });
+    expect(entries?.map((entry) => entry.type)).toEqual(["user", "assistant"]);
+  });
+
+  it("records what the run spent from the terminal result", async () => {
+    sdk.query.mockReturnValue(
+      (async function* () {
+        yield { type: "result", subtype: "success", result: "done", total_cost_usd: 1.25, duration_ms: 90_000, num_turns: 42 };
+      })(),
+    );
+
+    const verdict = await runAgentScenarioOnce({
+      definition: {
+        kind: EvalTargetKind.Skill,
+        name: "demo",
+        model: "claude-sonnet-5-5",
+        body: "# Demo",
+        filePath: path.join(skillDir, "SKILL.md"),
+        baseDir: skillDir,
+      },
+      scenario: { name: "s", prompt: "go", expect: {} },
+    });
+
+    expect(verdict.usage).toEqual({ costUsd: 1.25, durationMs: 90_000, turns: 42 });
   });
 });

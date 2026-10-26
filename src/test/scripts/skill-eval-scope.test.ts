@@ -84,17 +84,19 @@ describe.runIf(hasBash)("skill-eval routing scope — harness changes", () => {
 });
 
 describe("skill-eval CLI pin", () => {
+  const workflow = readFileSync(workflowPath, "utf8");
+  const installCount = workflow.match(/npm install -g "?@anthropic-ai\/claude-code/g)?.length ?? 0;
+
   it("pins every Claude CLI install to the workflow version", () => {
-    const workflow = readFileSync(workflowPath, "utf8");
+    expect(installCount).toBeGreaterThan(0);
     expect(workflow).not.toMatch(/npm install -g @anthropic-ai\/claude-code\s*$/m);
     const pinned = workflow.match(
       /npm install -g "@anthropic-ai\/claude-code@\$\{CLAUDE_CLI_VERSION\}"/g,
     );
-    expect(pinned?.length).toBe(3);
+    expect(pinned?.length).toBe(installCount);
   });
 
   it("records the resolved version after each install", () => {
-    const workflow = readFileSync(workflowPath, "utf8");
-    expect(workflow.match(/claude --version/g)?.length).toBe(3);
+    expect(workflow.match(/claude --version/g)?.length).toBe(installCount);
   });
 });

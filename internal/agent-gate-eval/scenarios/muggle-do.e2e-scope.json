@@ -128,7 +128,7 @@
         "Skill": [
           {
             "argContains": "muggle-test-prepare",
-            "response": "READY\n\n| Service | URL | Status |\n| --- | --- | --- |\n| greeting-site | http://localhost:3000 | 200 OK — body clean, ready |"
+            "response": "READY\n\n```\nService        PID     Port   Source      Commit    Smoke Test\n───────────────────────────────────────────────────────────────\ngreeting-site  41873   3000   {{repo}}    4b1e2f0   ✓\n───────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
           }
         ]
       },

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { z } from "zod";
 
-import { type HostStubSpec, ScriptedTool } from "./types.js";
+import { type AgentScenarioExpectation, type HostStubSpec, ScriptedTool } from "./types.js";
 
 /** The file the Codex hook appends each tool call to, per rep. */
 export const CODEX_AGENT_TRACE_ENV = "MUGGLE_AGENT_EVAL_TRACE";
@@ -49,6 +49,9 @@ export const MOCK_MCP_SERVER_NAME = "eval_mock";
 /** Prefix the agent SDK gives every mock muggle tool. */
 export const MOCK_MCP_PREFIX = `mcp__${MOCK_MCP_SERVER_NAME}__`;
 
+/** Every muggle tool's bare name starts with this, mock and production alike. */
+export const MUGGLE_TOOL_NAME_PREFIX = "muggle-";
+
 /** Prefix of the production muggle plugin's tools, which must never answer inside an eval. */
 export const PRODUCTION_MUGGLE_PREFIX = "mcp__plugin_muggle_muggle__";
 
@@ -69,6 +72,34 @@ export const SKILL_BUILTIN_TOOLS = ["Read", "Write", "Edit", "Bash", ScriptedToo
 
 /** Built-in tools that write files, confined to the sandbox. */
 export const WRITE_TOOLS = ["Write", "Edit"];
+
+/** File tools a transcript answers itself: a Read returns the file, and a Write or Edit is applied to the sandbox. */
+export const TRANSCRIPT_FILE_TOOLS = ["Read", ...WRITE_TOOLS];
+
+/** The expectation lists that hold tool-attempt patterns, where `{ "pattern": "<name>" }` references resolve. */
+export const TOOL_PATTERN_EXPECTATION_KEYS = [
+  "requireToolAttempts",
+  "forbidToolAttempts",
+  "requireToolSequence",
+] as const satisfies ReadonlyArray<keyof AgentScenarioExpectation>;
+
+/** What the Write tool answers, before the path. */
+export const WRITE_CONFIRMATION_PREFIX = "File created successfully at: ";
+
+/** What the Edit tool answers, around the path. */
+export const EDIT_CONFIRMATION_PARTS = ["The file ", " has been updated successfully."] as const;
+
+/** The `userType` Claude Code records on every entry of an interactive session's transcript. */
+export const TRANSCRIPT_USER_TYPE = "external";
+
+/** Prefix of a seeded transcript's message ids, so a replayed turn is never mistaken for a real API response. */
+export const TRANSCRIPT_MESSAGE_ID_PREFIX = "msg_eval_";
+
+/** Prefix of a seeded transcript's tool-use ids. */
+export const TRANSCRIPT_TOOL_USE_ID_PREFIX = "toolu_eval_";
+
+/** How long before the run a seeded transcript's first entry is dated, so its timestamps all sit in the past. */
+export const TRANSCRIPT_START_OFFSET_MS = 60 * 60 * 1000;
 
 /** The SDK's own name for the subagent tool, which it lists beside `Agent`. */
 export const LEGACY_AGENT_TOOL = "Task";
@@ -207,6 +238,9 @@ export const DEFAULT_CLAUDE_CONFIG_DIRNAME = ".claude";
 
 /** The config subdirectory holding the CLI's per-project records. */
 export const CLAUDE_PROJECTS_DIRNAME = "projects";
+
+/** Prefix of the temporary config directory the agent SDK resumes a sessionStore session in, under the OS temp dir. */
+export const RESUME_CONFIG_DIR_PREFIX = "claude-resume-";
 
 /** Spellings of the home directory a path or command may open with. */
 export const HOME_PATH_PREFIXES = ["~", "$HOME", "${HOME}"];

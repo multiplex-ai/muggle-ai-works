@@ -1,0 +1,1164 @@
+{
+  "target": {"kind":"skill","name":"muggle-do"},
+  "passThreshold": 1,
+  "patterns": {
+    "e2e-executed": {
+      "anyOf": [
+        {"tool":"muggle-local-execute-test-generation","argContains":""},
+        {"tool":"muggle-local-execute-replay","argContains":""}
+      ]
+    },
+    "pr-created": {"tool":"Bash","argContains":"gh pr create"},
+    "walkthrough-posted": {
+      "anyOf": [
+        {"tool":"Agent","argContains":"visual-walkthrough-builder"},
+        {"tool":"Skill","argContains":"muggle-pr-visual-walkthrough"},
+        {"tool":"Bash","argContains":["gh pr comment","muggle-pr-section"]},
+        {"tool":"Bash","argContains":["PATCH","issues/comments"]}
+      ]
+    },
+    "prs-manifest-written": {"anyOf":[{"tool":"Write","argContains":"prs.json"},{"tool":"Bash","argContains":["prs.json","<<"]}]},
+    "watcher-armed": {
+      "anyOf": [
+        {"tool":"Skill","argContains":"muggle-pr-followup"},
+        {"tool":"Monitor","argContains":"pr-watch-arm.sh"},
+        {"tool":"Bash","argContains":"pr-watch-arm.sh"}
+      ]
+    },
+    "thread-resolved": {"tool":"Bash","argContains":"resolveReviewThread"},
+    "no-web-surface-skip": {"tool":"Bash","argContains":"MUGGLE_E2E_SKIP: NO_WEB_SURFACE"}
+  },
+  "defaults": {
+    "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away, so open the PR when it's done.",
+    "maxTurns": 70,
+    "preferences": {"autoUseWorktree":"never","autoInstallCiWorkflow":"never"},
+    "seed": {
+      "repo": "tiny-web-app",
+      "transcript": {
+        "turns": [
+          {
+            "toolCalls": [
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/_shared/telemetry-emit.md"}},
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/input-routing.md"}}
+            ]
+          },
+          {
+            "text": "A feature request with no PR URL or directive — input routing mode 7, the forward pipeline at Stage 1. The run is unattended, so the pre-flight questionnaire is best-efforted, not asked.",
+            "toolCalls": [
+              {"tool":"muggle-local-telemetry-skill-emit","input":{"skillName":"muggle-do","trigger":"user-slash"}},
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/pre-flight.md"}}
+            ]
+          },
+          {
+            "text": "**Stage 1 — Pre-flight** — consolidating everything the cycle needs before going silent.",
+            "toolCalls": [
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "git -C \"{{repo}}\" symbolic-ref refs/remotes/origin/HEAD --short && git -C \"{{repo}}\" branch --show-current && git -C \"{{repo}}\" remote get-url origin",
+                  "description": "Read the default branch, current branch and remote"
+                },
+                "result": "origin/main\nmain\nhttps://github.com/acme/tiny-web-app.git"
+              },
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                  "description": "Count commits behind origin/main"
+                },
+                "result": "0"
+              },
+              {
+                "tool": "Skill",
+                "input": {
+                  "skill": "muggle-test-prepare",
+                  "args": "Check the local services tiny-web-app needs before an unattended muggle-do run."
+                },
+                "result": "READY\n\n```\nService       PID     Port   Source      Commit    Smoke Test\n──────────────────────────────────────────────────────────────\ntiny-web-app  41872   3000   {{repo}}    4c8e2a1   ✓\n──────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
+              },
+              {"tool":"muggle-remote-auth-status","input":{}},
+              {
+                "tool": "muggle-remote-project-list",
+                "input": {},
+                "result": "{\"items\":[{\"id\":\"proj-tiny-web-app\",\"name\":\"tiny-web-app\",\"url\":\"http://localhost:3000\"}]}"
+              }
+            ]
+          },
+          {
+            "text": "Nobody to ask, so the answers come from detection:\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip",
+            "toolCalls": [
+              {
+                "tool": "Write",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+                  "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                }
+              },
+              {
+                "tool": "Write",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                  "content": "# Iteration 001 — 2026-10-21T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-21T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n"
+                }
+              }
+            ]
+          },
+          {
+            "text": "pre-flight complete, proceeding silently through stages 2–7",
+            "toolCalls": [
+              {
+                "tool": "TodoWrite",
+                "input": {
+                  "todos": [
+                    {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                    {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"in_progress"},
+                    {"content":"Stage 3 — Build","activeForm":"Building the change","status":"pending"},
+                    {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
+                    {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {
+                      "content": "Stage 7.5 — E2E repair loop",
+                      "activeForm": "Running the E2E repair loop",
+                      "status": "pending"
+                    },
+                    {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                  ]
+                }
+              },
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/requirements.md"}}
+            ]
+          },
+          {
+            "text": "**Stage 2 — Requirements** — extracting structured goals from the pre-flight-clarified task.\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n**Acceptance Criteria:**\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app",
+            "toolCalls": [
+              {
+                "tool": "Write",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+                  "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n\n**Notes:** The farewell renders from `renderGreeting`, the one function the home page uses; no new file needed.\n"
+                }
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                  "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
+                  "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                }
+              }
+            ]
+          },
+          {
+            "toolCalls": [
+              {
+                "tool": "TodoWrite",
+                "input": {
+                  "todos": [
+                    {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                    {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                    {"content":"Stage 3 — Build","activeForm":"Building the change","status":"in_progress"},
+                    {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
+                    {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {
+                      "content": "Stage 7.5 — E2E repair loop",
+                      "activeForm": "Running the E2E repair loop",
+                      "status": "pending"
+                    },
+                    {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                  ]
+                }
+              },
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/build.md"}}
+            ]
+          },
+          {
+            "text": "**Stage 3 — Build** — implementing the change per the frozen requirements.",
+            "toolCalls": [
+              {"tool":"Read","input":{"file_path":"{{repo}}/src/greeting.js"}},
+              {"tool":"Read","input":{"file_path":"{{repo}}/test/greeting_test.js"}}
+            ]
+          },
+          {
+            "toolCalls": [
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "git -C \"{{repo}}\" checkout -b users/eval/farewell-line",
+                  "description": "Create the feature branch"
+                },
+                "result": "Switched to a new branch 'users/eval/farewell-line'"
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "{{repo}}/src/greeting.js",
+                  "old_string": "/** The greeting the home page renders for a visitor. */",
+                  "new_string": "/** The greeting the home page renders for a visitor, with a farewell line under it. */"
+                }
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "{{repo}}/src/greeting.js",
+                  "old_string": "  return `<h1>Hello, ${name}!</h1>`;",
+                  "new_string": "  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;"
+                }
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "{{repo}}/test/greeting_test.js",
+                  "old_string": "test(\"greets a named visitor\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\");",
+                  "new_string": "test(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");"
+                }
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "{{repo}}/test/greeting_test.js",
+                  "old_string": "test(\"falls back to friend for a blank name\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\");",
+                  "new_string": "test(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");"
+                }
+              }
+            ]
+          },
+          {
+            "toolCalls": [
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "cd \"{{repo}}\" && node --check src/greeting.js && git config --get commit.gpgsign && git add src/greeting.js test/greeting_test.js && git commit -m \"feat(greeting): add a farewell line under the greeting\"",
+                  "description": "Syntax-check, then commit through the signing gate"
+                },
+                "result": "true\n[users/eval/farewell-line 9f2c1e4] feat(greeting): add a farewell line under the greeting\n 2 files changed, 5 insertions(+), 5 deletions(-)"
+              },
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "git -C \"{{repo}}\" log --format='%G?' origin/main..HEAD",
+                  "description": "Confirm the commit is signed"
+                },
+                "result": "G"
+              }
+            ]
+          },
+          {
+            "text": "**Repo:** tiny-web-app\n- Files edited: src/greeting.js, test/greeting_test.js\n- Commit subject: `feat(greeting): add a farewell line under the greeting`\n- Notable choices: kept the farewell inside `renderGreeting` so the home page needs no change; updated the two existing tests, which pin the exact markup.\n\n**Overall:** READY for impact analysis\n\nThe repo ships no typecheck or lint script, so the build-clean line of the Definition of Done is waived in state.md with the `node --check` result.",
+            "toolCalls": [
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+                  "old_string": "## Blockers\nnone",
+                  "new_string": "## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck or lint script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone"
+                }
+              },
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                  "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
+                  "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                }
+              },
+              {
+                "tool": "TodoWrite",
+                "input": {
+                  "todos": [
+                    {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                    {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                    {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                    {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"in_progress"},
+                    {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {
+                      "content": "Stage 7.5 — E2E repair loop",
+                      "activeForm": "Running the E2E repair loop",
+                      "status": "pending"
+                    },
+                    {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                  ]
+                }
+              },
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/impact-analysis.md"}}
+            ]
+          },
+          {
+            "text": "**Stage 4 — Impact analysis** — diffing each affected repo against its default branch.",
+            "toolCalls": [
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "cd \"{{repo}}\" && git worktree list --porcelain && git branch --show-current && git symbolic-ref refs/remotes/origin/HEAD --short",
+                  "description": "Resolve checkout type, branch and default branch"
+                },
+                "result": "worktree {{repo}}\nHEAD 9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\nbranch refs/heads/users/eval/farewell-line\n\nusers/eval/farewell-line\norigin/main"
+              },
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "git -C \"{{repo}}\" diff --name-only main...HEAD",
+                  "description": "List files changed against main"
+                }
+              },
+              {
+                "tool": "Bash",
+                "input": {"command":"git -C \"{{repo}}\" diff main...HEAD","description":"Show the diff against main"}
+              }
+            ]
+          },
+          {
+            "text": "**Repo: tiny-web-app**\n- Analysis path: {{repo}}\n- Checkout type: primary\n- Branch: users/eval/farewell-line\n- Default branch: main\n- Changed files: src/greeting.js, test/greeting_test.js\n- Diff summary: `renderGreeting` now appends a `<p>` farewell line; tests updated for the new markup.\n- Status: OK\n\npathClassification: surface-a\n\n**Summary:** tiny-web-app has changes; no errors.",
+            "toolCalls": [
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                  "old_string": "Stage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed.",
+                  "new_string": "Stage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed.\n\n### Stage 4 — Impact analysis (2026-10-21T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a."
+                }
+              },
+              {
+                "tool": "TodoWrite",
+                "input": {
+                  "todos": [
+                    {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                    {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                    {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                    {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
+                    {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"in_progress"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {
+                      "content": "Stage 7.5 — E2E repair loop",
+                      "activeForm": "Running the E2E repair loop",
+                      "status": "pending"
+                    },
+                    {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                  ]
+                }
+              },
+              {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/unit-tests.md"}}
+            ]
+          },
+          {
+            "text": "**Stage 5 — Unit tests** — running each repo's test suite.",
+            "toolCalls": [
+              {
+                "tool": "Bash",
+                "input": {
+                  "command": "cd \"{{repo}}\" && CI=true node \"{{pluginRoot}}/scripts/guard-run.mjs\" -- npm test",
+                  "description": "Run the unit suite one-shot under the guard-run cap"
+                },
+                "result": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+              }
+            ]
+          },
+          {
+            "text": "**Repo: tiny-web-app**\n- Test command: `npm test`\n- Result: PASS\n- Failed tests: none\n- Output: 2/2 passing, exit 0\n\n**Overall:** ALL PASSED",
+            "toolCalls": [
+              {
+                "tool": "Edit",
+                "input": {
+                  "file_path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                  "old_string": "Stage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a.",
+                  "new_string": "Stage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a.\n\n### Stage 5 — Unit tests (2026-10-21T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing."
+                }
+              },
+              {
+                "tool": "TodoWrite",
+                "input": {
+                  "todos": [
+                    {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                    {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                    {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                    {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
+                    {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"completed"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"in_progress"},
+                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {
+                      "content": "Stage 7.5 — E2E repair loop",
+                      "activeForm": "Running the E2E repair loop",
+                      "status": "pending"
+                    },
+                    {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000."
+          }
+        ],
+        "resumePrompt": "continue"
+      }
+    },
+    "bashResponses": [
+      {
+        "commandContains": "pr-watch-arm.sh",
+        "response": "DRAIN pr=142 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=2 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=142 watermark seeded at ~/.muggle-ai/muggle-do/sessions/farewell-line/watch-watermark.env"
+      },
+      {"commandContains":"gh pr create","response":"https://github.com/acme/tiny-web-app/pull/142"},
+      {
+        "commandContains": "gh pr view 142",
+        "response": "{\"number\":142,\"url\":\"https://github.com/acme/tiny-web-app/pull/142\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/farewell-line\",\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"baseRefName\":\"main\",\"title\":\"The home page renders a farewell line under the greeting that names the same visitor.\"}"
+      },
+      {"commandContains":"gh pr view","response":"no pull requests found for branch \"users/eval/farewell-line\""},
+      {"commandContains":"gh pr edit","response":"https://github.com/acme/tiny-web-app/pull/142"},
+      {"commandContains":"gh pr comment","response":"https://github.com/acme/tiny-web-app/pull/142#issuecomment-2002"},
+      {"commandContains":"gh pr list","response":""},
+      {
+        "commandContains": "gh auth status",
+        "response": "github.com\n  ✓ Logged in to github.com account eval-bot (keyring)\n  - Active account: true"
+      },
+      {"commandContains":"issues/","response":""},
+      {"commandContains":"behind_by","response":"0"},
+      {
+        "commandContains": "curl",
+        "response": "<!doctype html>\n<title>tiny-web-app</title>\n<h1>Hello, friend!</h1>\n<p>See you soon, friend!</p>"
+      },
+      {
+        "commandContains": "sign-body.sh",
+        "response": "(the body read from stdin, unchanged, then:)\n\n<!-- muggle-works:signature -->\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_"
+      },
+      {
+        "commandContains": "guard-run",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": " push",
+        "response": "To https://github.com/acme/tiny-web-app.git\n * [new branch]      users/eval/farewell-line -> users/eval/farewell-line\nbranch 'users/eval/farewell-line' set up to track 'origin/users/eval/farewell-line'."
+      },
+      {
+        "commandContains": "ls-remote",
+        "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\trefs/heads/users/eval/farewell-line"
+      },
+      {"commandContains":"%G?","response":"G"},
+      {"commandContains":"rev-list --count","response":"0"},
+      {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+      {"commandContains":"rev-parse --abbrev-ref","response":"users/eval/farewell-line"},
+      {"commandContains":"branch --show-current","response":"users/eval/farewell-line"},
+      {"commandContains":"symbolic-ref","response":"origin/main"},
+      {"commandContains":"remote get-url","response":"https://github.com/acme/tiny-web-app.git"},
+      {"commandContains":" fetch","response":""},
+      {
+        "commandContains": " status",
+        "response": "On branch users/eval/farewell-line\nnothing to commit, working tree clean"
+      },
+      {"commandContains":"diff --name-only","response":"src/greeting.js\ntest/greeting_test.js"},
+      {
+        "commandContains": "diff --stat",
+        "response": " src/greeting.js | 6 ++++--\n test/greeting_test.js | 6 ++++--\n 2 files changed, 5 insertions(+), 5 deletions(-)"
+      },
+      {
+        "commandContains": " diff",
+        "response": "diff --git a/src/greeting.js b/src/greeting.js\nindex 3b1f0c2..8e4d7a9 100644\n--- a/src/greeting.js\n+++ b/src/greeting.js\n@@ -1,5 +1,5 @@\n-/** The greeting the home page renders for a visitor. */\n+/** The greeting the home page renders for a visitor, with a farewell line under it. */\n export function renderGreeting(visitorName) {\n   const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n-  return `<h1>Hello, ${name}!</h1>`;\n+  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n }\ndiff --git a/test/greeting_test.js b/test/greeting_test.js\nindex 5c2e9d1..a17f3b8 100644\n--- a/test/greeting_test.js\n+++ b/test/greeting_test.js\n@@ -3,10 +3,10 @@ import { test } from \"node:test\";\n import { renderGreeting } from \"../src/greeting.js\";\n \n-test(\"greets a named visitor\", () => {\n-  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\");\n+test(\"greets a named visitor and bids them farewell\", () => {\n+  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n });\n \n-test(\"falls back to friend for a blank name\", () => {\n-  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\");\n+test(\"falls back to friend for a blank name in both lines\", () => {\n+  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n });"
+      },
+      {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
+    ],
+    "toolResponses": {
+      "Skill": [
+        {
+          "argContains": "\"skill\":\"loop\"",
+          "response": "Scheduled /muggle:muggle-pr-followup every 1 minute (recurring job 4f2a9c1e). The first tick runs within a minute."
+        },
+        {
+          "argContains": "muggle-pr-followup",
+          "response": "Watching PR #142 — drained (nothing outstanding), watermark seeded, persistent monitor armed."
+        },
+        {
+          "argContains": "muggle-test-prepare",
+          "response": "READY\n\n```\nService       PID     Port   Source      Commit    Smoke Test\n──────────────────────────────────────────────────────────────\ntiny-web-app  41872   3000   {{repo}}    9f2c1e4   ✓\n──────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
+        },
+        {
+          "argContains": "muggle-pr-visual-walkthrough",
+          "response": "Mode A: walkthrough posted to https://github.com/acme/tiny-web-app/pull/142#issuecomment-2001 (filled the reserved walkthrough comment; no overflow comment).\ncomment: null"
+        }
+      ],
+      "Agent": [
+        {
+          "argContains": "visual-walkthrough-builder",
+          "response": "Posted the walkthrough to https://github.com/acme/tiny-web-app/pull/142#issuecomment-2001 — filled the reserved comment (update, not a fresh post); no overflow comment."
+        }
+      ],
+      "Monitor": [
+        {
+          "argContains": "pr-watch-arm.sh",
+          "response": "Monitor started (task mon_7c1e, persistent, timeout 1800000 ms). First output:\nDRAIN pr=142 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=2 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=142 watermark seeded at ~/.muggle-ai/muggle-do/sessions/farewell-line/watch-watermark.env"
+        }
+      ],
+      "TodoWrite": [{"argContains":"","response":"Todos have been modified successfully."}]
+    },
+    "fixtures": {
+      "projects": {"items":[{"id":"proj-tiny-web-app","name":"tiny-web-app","url":"http://localhost:3000"}]},
+      "testCases": {
+        "items": [
+          {
+            "id": "tc-home-greeting",
+            "title": "Home page greets the visitor by name",
+            "useCaseId": "uc-home",
+            "projectId": "proj-tiny-web-app"
+          }
+        ]
+      },
+      "testCase": {
+        "id": "tc-home-greeting",
+        "title": "Home page greets the visitor by name",
+        "projectId": "proj-tiny-web-app",
+        "goal": "Open the home page as visitor Ada and confirm the page greets her by name.",
+        "instructions": "Open http://localhost:3000/?name=Ada and read the page heading.",
+        "expectedResult": "The heading says `Hello, Ada!`.",
+        "alwaysStartsFreshSession": false
+      },
+      "testCaseAncestors": {"testCaseId":"tc-home-greeting","ancestors":[],"orphan":false},
+      "executeResult": {
+        "runId": "run-farewell-1",
+        "status": "passed",
+        "testCaseId": "tc-home-greeting",
+        "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+        "cloudTestScriptId": "ts-farewell-1",
+        "cloudActionScriptId": "as-farewell-1",
+        "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+      },
+      "runResult": {
+        "runId": "run-farewell-1",
+        "status": "passed",
+        "testCaseId": "tc-home-greeting",
+        "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+        "cloudTestScriptId": "ts-farewell-1",
+        "cloudActionScriptId": "as-farewell-1",
+        "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+      },
+      "testScript": {
+        "id": "ts-farewell-1",
+        "testCaseId": "tc-home-greeting",
+        "steps": [
+          {
+            "stepIndex": 0,
+            "operation": {"action":"navigate","screenshotUrl":"https://cdn.muggle-ai.com/screenshots/run-farewell-1/step-0.png"},
+            "briefExplanation": "Open the home page as Ada"
+          },
+          {
+            "stepIndex": 1,
+            "operation": {"action":"assert","screenshotUrl":"https://cdn.muggle-ai.com/screenshots/run-farewell-1/step-1.png"},
+            "briefExplanation": "The heading greets Ada and the farewell line names her"
+          }
+        ],
+        "summaryStep": {"operation":{"screenshotUrl":"https://cdn.muggle-ai.com/screenshots/run-farewell-1/step-2.png"}}
+      },
+      "runStepsResult": {"runId":"run-farewell-1","status":"passed","verdict":"pass","steps":[],"screenshotCount":3}
+    }
+  },
+  "scenarios": [
+    {
+      "name": "happy-path",
+      "cadence": "pr",
+      "expect": {
+        "requireToolSequence": [
+          {"pattern":"e2e-executed"},
+          {"pattern":"pr-created"},
+          {"pattern":"walkthrough-posted"},
+          {"pattern":"prs-manifest-written"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json","contains":"142"}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"}]
+      }
+    },
+    {
+      "name": "e2e-fails",
+      "cadence": "pr",
+      "fixtures": {
+        "executeResult": {
+          "runId": "run-farewell-1",
+          "status": "failed",
+          "testCaseId": "tc-home-greeting",
+          "error": "Electron exited with code 134 (SIGABRT): electron-mcp-handler-crash — the studio's step executor aborted before the first step ran",
+          "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+          "cloudActionScriptId": "as-farewell-1",
+          "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+        },
+        "runResult": {
+          "runId": "run-farewell-1",
+          "status": "failed",
+          "testCaseId": "tc-home-greeting",
+          "error": "Electron exited with code 134 (SIGABRT): electron-mcp-handler-crash — the studio's step executor aborted before the first step ran",
+          "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+          "cloudActionScriptId": "as-farewell-1",
+          "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+        },
+        "runStepsResult": {"runId":"run-farewell-1","status":"failed","verdict":null,"steps":[],"screenshotCount":0}
+      },
+      "expect": {
+        "requireToolSequence": [
+          {"pattern":"e2e-executed"},
+          {"pattern":"pr-created"},
+          {"pattern":"walkthrough-posted"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [
+          {"tool":"Read","argContains":"e2e-repair.md"},
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["gh pr create","[E2E FAILING]"]},
+              {"tool":"Bash","argContains":["gh pr edit","[E2E FAILING]"]}
+            ]
+          }
+        ],
+        "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json","contains":"142"}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"}]
+      }
+    },
+    {
+      "name": "no-web-surface",
+      "cadence": "pr",
+      "prompt": "Add a `maxLength` option to `slugify` that trims the slug at the last word boundary that fits. Run it unattended — I'm stepping away, so open the PR when it's done.",
+      "seed": {
+        "files": [
+          {
+            "path": "package.json",
+            "content": "{\n  \"name\": \"tiny-slug-lib\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"main\": \"src/slug.js\",\n  \"scripts\": {\n    \"test\": \"node --test test/slug_test.js\"\n  }\n}\n"
+          },
+          {
+            "path": "README.md",
+            "content": "# tiny-slug-lib\n\nA small library that turns titles into URL-safe slugs. No server, no pages: `slugify` is imported by other packages.\n"
+          },
+          {
+            "path": "src/slug.js",
+            "content": "/** A URL-safe slug: lower case, words joined by single dashes. */\nexport function slugify(text) {\n  return text\n    .toLowerCase()\n    .trim()\n    .replace(/[^a-z0-9]+/g, \"-\")\n    .replace(/^-+|-+$/g, \"\");\n}\n"
+          },
+          {
+            "path": "test/slug_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\n\nimport { slugify } from \"../src/slug.js\";\n\ntest(\"collapses punctuation and spaces into single dashes\", () => {\n  assert.equal(slugify(\"  Hello, World!  \"), \"hello-world\");\n});\n"
+          }
+        ],
+        "transcript": {
+          "turns": [
+            {
+              "toolCalls": [
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/_shared/telemetry-emit.md"}},
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/input-routing.md"}}
+              ]
+            },
+            {
+              "text": "A feature request with no PR URL or directive — input routing mode 7, the forward pipeline at Stage 1. The run is unattended, so the pre-flight questionnaire is best-efforted, not asked.",
+              "toolCalls": [
+                {"tool":"muggle-local-telemetry-skill-emit","input":{"skillName":"muggle-do","trigger":"user-slash"}},
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/pre-flight.md"}}
+              ]
+            },
+            {
+              "text": "**Stage 1 — Pre-flight** — consolidating everything the cycle needs before going silent.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" symbolic-ref refs/remotes/origin/HEAD --short && git -C \"{{repo}}\" branch --show-current && git -C \"{{repo}}\" remote get-url origin",
+                    "description": "Read the default branch, current branch and remote"
+                  },
+                  "result": "origin/main\nmain\nhttps://github.com/acme/tiny-slug-lib.git"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Count commits behind origin/main"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Skill",
+                  "input": {
+                    "skill": "muggle-test-prepare",
+                    "args": "Check the local services tiny-slug-lib needs before an unattended muggle-do run."
+                  },
+                  "result": "NO WEB SURFACE\n\ntiny-slug-lib is a library: package.json has no start or dev script, no service is declared, and nothing listens for it. There is no dev server to verify or start."
+                },
+                {"tool":"muggle-remote-auth-status","input":{}}
+              ]
+            },
+            {
+              "text": "Nobody to ask, so the answers come from detection:\n\n- Task: Add a maxLength option to slugify\n- Repos: tiny-slug-lib\n- Branch: users/eval/slug-max-length\n- Validation: unit-only\n- Local URL: N/A\n- Backend status: N/A\n- Muggle Test project: N/A\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip",
+              "toolCalls": [
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/state.md",
+                    "content": "# Session state\n\n**Slug:** slug-max-length\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Add a maxLength option to slugify\n- Repos: tiny-slug-lib\n- Branch: users/eval/slug-max-length\n- Validation: unit-only\n- Local URL: N/A\n- Backend status: N/A\n- Muggle Test project: N/A\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/iterations/001.md",
+                    "content": "# Iteration 001 — 2026-10-21T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-21T21:02:10Z)\n\n- Task: Add a maxLength option to slugify\n- Repos: tiny-slug-lib\n- Branch: users/eval/slug-max-length\n- Validation: unit-only\n- Local URL: N/A\n- Backend status: N/A\n- Muggle Test project: N/A\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "pre-flight complete, proceeding silently through stages 2–7",
+              "toolCalls": [
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                      {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"in_progress"},
+                      {"content":"Stage 3 — Build","activeForm":"Building the change","status":"pending"},
+                      {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
+                      {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                    ]
+                  }
+                },
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/requirements.md"}}
+              ]
+            },
+            {
+              "text": "**Stage 2 — Requirements** — extracting structured goals from the pre-flight-clarified task.\n\n**Goal:** `slugify` accepts a `maxLength` option and trims the slug at the last word boundary that fits.\n\n**Acceptance Criteria:**\n- `slugify(text, { maxLength })` never returns more than `maxLength` characters.\n- Trimming cuts at the last `-` that fits, never mid-word, unless the first word alone is too long.\n- Without `maxLength`, output is unchanged.\n\n**Affected Repos:** tiny-slug-lib",
+              "toolCalls": [
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/requirements.md",
+                    "content": "# Requirements\n\n**Goal:** `slugify` accepts a `maxLength` option and trims the slug at the last word boundary that fits.\n\n## Acceptance Criteria\n\n- `slugify(text, { maxLength })` never returns more than `maxLength` characters.\n- Trimming cuts at the last `-` that fits, never mid-word, unless the first word alone is too long.\n- Without `maxLength`, output is unchanged.\n\n**Affected Repos:** tiny-slug-lib\n\n**Notes:** A library change: tiny-slug-lib has no server and no pages, so there is nothing to drive in a browser.\n"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/iterations/001.md",
+                    "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                  }
+                }
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                      {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                      {"content":"Stage 3 — Build","activeForm":"Building the change","status":"in_progress"},
+                      {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
+                      {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                    ]
+                  }
+                },
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/build.md"}}
+              ]
+            },
+            {
+              "text": "**Stage 3 — Build** — implementing the change per the frozen requirements.",
+              "toolCalls": [
+                {"tool":"Read","input":{"file_path":"{{repo}}/src/slug.js"}},
+                {"tool":"Read","input":{"file_path":"{{repo}}/test/slug_test.js"}}
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" checkout -b users/eval/slug-max-length",
+                    "description": "Create the feature branch"
+                  },
+                  "result": "Switched to a new branch 'users/eval/slug-max-length'"
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/src/slug.js",
+                    "old_string": "export function slugify(text) {\n  return text\n    .toLowerCase()\n    .trim()\n    .replace(/[^a-z0-9]+/g, \"-\")\n    .replace(/^-+|-+$/g, \"\");\n}",
+                    "new_string": "export function slugify(text, { maxLength } = {}) {\n  const slug = text\n    .toLowerCase()\n    .trim()\n    .replace(/[^a-z0-9]+/g, \"-\")\n    .replace(/^-+|-+$/g, \"\");\n  if (maxLength === undefined || slug.length <= maxLength) return slug;\n  const cut = slug.lastIndexOf(\"-\", maxLength);\n  return cut > 0 ? slug.slice(0, cut) : slug.slice(0, maxLength);\n}"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/test/slug_test.js",
+                    "old_string": "test(\"collapses punctuation and spaces into single dashes\", () => {\n  assert.equal(slugify(\"  Hello, World!  \"), \"hello-world\");\n});",
+                    "new_string": "test(\"collapses punctuation and spaces into single dashes\", () => {\n  assert.equal(slugify(\"  Hello, World!  \"), \"hello-world\");\n});\n\ntest(\"trims at the last word boundary that fits maxLength\", () => {\n  assert.equal(slugify(\"Release notes for October\", { maxLength: 16 }), \"release-notes\");\n});\n\ntest(\"cuts a first word longer than maxLength\", () => {\n  assert.equal(slugify(\"Supercalifragilistic\", { maxLength: 5 }), \"super\");\n});"
+                  }
+                }
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && node --check src/slug.js && git config --get commit.gpgsign && git add src/slug.js test/slug_test.js && git commit -m \"feat(slug): add a maxLength option that trims at a word boundary\"",
+                    "description": "Syntax-check, then commit through the signing gate"
+                  },
+                  "result": "true\n[users/eval/slug-max-length 4b8d2a7] feat(slug): add a maxLength option that trims at a word boundary\n 2 files changed, 11 insertions(+), 2 deletions(-)"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" log --format='%G?' origin/main..HEAD",
+                    "description": "Confirm the commit is signed"
+                  },
+                  "result": "G"
+                }
+              ]
+            },
+            {
+              "text": "**Repo:** tiny-slug-lib\n- Files edited: src/slug.js, test/slug_test.js\n- Commit subject: `feat(slug): add a maxLength option that trims at a word boundary`\n- Notable choices: an options object keeps the call signature backward compatible.\n\n**Overall:** READY for impact analysis\n\nThe repo ships no typecheck or lint script, so the build-clean line of the Definition of Done is waived in state.md with the `node --check` result.",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/state.md",
+                    "old_string": "## Blockers\nnone",
+                    "new_string": "## Waivers\n\n- Build clean (typecheck + lint): tiny-slug-lib has no typecheck or lint script; `node --check src/slug.js` passed.\n\n## Blockers\nnone"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/iterations/001.md",
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(slug): add a maxLength option that trims at a word boundary (4b8d2a7); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/slug.js` passed."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                      {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                      {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                      {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"in_progress"},
+                      {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                    ]
+                  }
+                },
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/impact-analysis.md"}}
+              ]
+            },
+            {
+              "text": "**Stage 4 — Impact analysis** — diffing each affected repo against its default branch.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && git worktree list --porcelain && git branch --show-current && git symbolic-ref refs/remotes/origin/HEAD --short",
+                    "description": "Resolve checkout type, branch and default branch"
+                  },
+                  "result": "worktree {{repo}}\nHEAD 4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b\nbranch refs/heads/users/eval/slug-max-length\n\nusers/eval/slug-max-length\norigin/main"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" diff --name-only main...HEAD",
+                    "description": "List files changed against main"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {"command":"git -C \"{{repo}}\" diff main...HEAD","description":"Show the diff against main"}
+                }
+              ]
+            },
+            {
+              "text": "**Repo: tiny-slug-lib**\n- Analysis path: {{repo}}\n- Checkout type: primary\n- Branch: users/eval/slug-max-length\n- Default branch: main\n- Changed files: src/slug.js, test/slug_test.js\n- Diff summary: `slugify` takes `{ maxLength }` and trims at a word boundary; tests cover trim, no-trim and long-first-word.\n- Status: OK\n\npathClassification: surface-a\n\n**Summary:** tiny-slug-lib has changes; no errors.",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/iterations/001.md",
+                    "old_string": "Stage 3 done — feat(slug): add a maxLength option that trims at a word boundary (4b8d2a7); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/slug.js` passed.",
+                    "new_string": "Stage 3 done — feat(slug): add a maxLength option that trims at a word boundary (4b8d2a7); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/slug.js` passed.\n\n### Stage 4 — Impact analysis (2026-10-21T21:07:00Z)\n\nStage 4 done — src/slug.js, test/slug_test.js changed on users/eval/slug-max-length vs main; pathClassification: surface-a."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                      {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                      {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                      {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
+                      {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"in_progress"},
+                      {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                    ]
+                  }
+                },
+                {"tool":"Read","input":{"file_path":"{{pluginRoot}}/skills/do/unit-tests.md"}}
+              ]
+            },
+            {
+              "text": "**Stage 5 — Unit tests** — running each repo's test suite.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && CI=true node \"{{pluginRoot}}/scripts/guard-run.mjs\" -- npm test",
+                    "description": "Run the unit suite one-shot under the guard-run cap"
+                  },
+                  "result": "✔ collapses punctuation and spaces into single dashes (0.8ms)\n✔ trims at the last word boundary that fits maxLength (0.2ms)\n✔ cuts a first word longer than maxLength (0.1ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+                }
+              ]
+            },
+            {
+              "text": "**Repo: tiny-slug-lib**\n- Test command: `npm test`\n- Result: PASS\n- Failed tests: none\n- Output: 3/3 passing, exit 0\n\n**Overall:** ALL PASSED",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "~/.muggle-ai/muggle-do/sessions/slug-max-length/iterations/001.md",
+                    "old_string": "Stage 4 done — src/slug.js, test/slug_test.js changed on users/eval/slug-max-length vs main; pathClassification: surface-a.",
+                    "new_string": "Stage 4 done — src/slug.js, test/slug_test.js changed on users/eval/slug-max-length vs main; pathClassification: surface-a.\n\n### Stage 5 — Unit tests (2026-10-21T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 3/3 passing."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {"content":"Stage 1 — Pre-flight","activeForm":"Running pre-flight","status":"completed"},
+                      {"content":"Stage 2 — Requirements","activeForm":"Extracting requirements","status":"completed"},
+                      {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
+                      {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
+                      {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"completed"},
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "in_progress"
+                      },
+                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {"content":"Stage 8 — Hand off to watcher","activeForm":"Arming the watcher","status":"pending"}
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance (validation is unit-only)."
+            }
+          ],
+          "resumePrompt": "continue"
+        }
+      },
+      "bashResponses": [
+        {
+          "commandContains": "pr-watch-arm.sh",
+          "response": "DRAIN pr=57 state=OPEN head=4b8d2a7c\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=2 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=57 watermark seeded at ~/.muggle-ai/muggle-do/sessions/slug-max-length/watch-watermark.env"
+        },
+        {"commandContains":"gh pr create","response":"https://github.com/acme/tiny-slug-lib/pull/57"},
+        {
+          "commandContains": "gh pr view 57",
+          "response": "{\"number\":57,\"url\":\"https://github.com/acme/tiny-slug-lib/pull/57\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/slug-max-length\",\"headRefOid\":\"4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b\",\"baseRefName\":\"main\",\"title\":\"`slugify` accepts a `maxLength` option and trims the slug at the last word boundary that fits.\"}"
+        },
+        {"commandContains":"gh pr view","response":"no pull requests found for branch \"users/eval/slug-max-length\""},
+        {"commandContains":"gh pr edit","response":"https://github.com/acme/tiny-slug-lib/pull/57"},
+        {"commandContains":"gh pr comment","response":"https://github.com/acme/tiny-slug-lib/pull/57#issuecomment-2002"},
+        {"commandContains":"gh pr list","response":""},
+        {
+          "commandContains": "gh auth status",
+          "response": "github.com\n  ✓ Logged in to github.com account eval-bot (keyring)\n  - Active account: true"
+        },
+        {"commandContains":"issues/","response":""},
+        {"commandContains":"behind_by","response":"0"},
+        {
+          "commandContains": "sign-body.sh",
+          "response": "(the body read from stdin, unchanged, then:)\n\n<!-- muggle-works:signature -->\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_"
+        },
+        {
+          "commandContains": "guard-run",
+          "response": "✔ collapses punctuation and spaces into single dashes (0.8ms)\n✔ trims at the last word boundary that fits maxLength (0.2ms)\n✔ cuts a first word longer than maxLength (0.1ms)\nℹ tests 3\nℹ suites 0\nℹ pass 3\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": " push",
+          "response": "To https://github.com/acme/tiny-slug-lib.git\n * [new branch]      users/eval/slug-max-length -> users/eval/slug-max-length\nbranch 'users/eval/slug-max-length' set up to track 'origin/users/eval/slug-max-length'."
+        },
+        {
+          "commandContains": "ls-remote",
+          "response": "4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b\trefs/heads/users/eval/slug-max-length"
+        },
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"rev-list --count","response":"0"},
+        {"commandContains":"rev-parse HEAD","response":"4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b"},
+        {"commandContains":"rev-parse --abbrev-ref","response":"users/eval/slug-max-length"},
+        {"commandContains":"branch --show-current","response":"users/eval/slug-max-length"},
+        {"commandContains":"symbolic-ref","response":"origin/main"},
+        {"commandContains":"remote get-url","response":"https://github.com/acme/tiny-slug-lib.git"},
+        {"commandContains":" fetch","response":""},
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/slug-max-length\nnothing to commit, working tree clean"
+        },
+        {"commandContains":"diff --name-only","response":"src/slug.js\ntest/slug_test.js"},
+        {
+          "commandContains": "diff --stat",
+          "response": " src/slug.js | 6 ++++--\n test/slug_test.js | 6 ++++--\n 2 files changed, 11 insertions(+), 2 deletions(-)"
+        },
+        {
+          "commandContains": " diff",
+          "response": "diff --git a/src/slug.js b/src/slug.js\nindex 7a1c3e5..c42b9f0 100644\n--- a/src/slug.js\n+++ b/src/slug.js\n@@ -1,8 +1,11 @@\n /** A URL-safe slug: lower case, words joined by single dashes. */\n-export function slugify(text) {\n-  return text\n+export function slugify(text, { maxLength } = {}) {\n+  const slug = text\n     .toLowerCase()\n     .trim()\n     .replace(/[^a-z0-9]+/g, \"-\")\n     .replace(/^-+|-+$/g, \"\");\n+  if (maxLength === undefined || slug.length <= maxLength) return slug;\n+  const cut = slug.lastIndexOf(\"-\", maxLength);\n+  return cut > 0 ? slug.slice(0, cut) : slug.slice(0, maxLength);\n }\ndiff --git a/test/slug_test.js b/test/slug_test.js\nindex 2d4f6a8..9e1b3c5 100644\n--- a/test/slug_test.js\n+++ b/test/slug_test.js\n@@ -6,3 +6,11 @@ import { slugify } from \"../src/slug.js\";\n test(\"collapses punctuation and spaces into single dashes\", () => {\n   assert.equal(slugify(\"  Hello, World!  \"), \"hello-world\");\n });\n+\n+test(\"trims at the last word boundary that fits maxLength\", () => {\n+  assert.equal(slugify(\"Release notes for October\", { maxLength: 16 }), \"release-notes\");\n+});\n+\n+test(\"cuts a first word longer than maxLength\", () => {\n+  assert.equal(slugify(\"Supercalifragilistic\", { maxLength: 5 }), \"super\");\n+});"
+        },
+        {"commandContains":" log","response":"4b8d2a7 feat(slug): add a maxLength option that trims at a word boundary"}
+      ],
+      "toolResponses": {
+        "Skill": [
+          {
+            "argContains": "muggle-pr-followup",
+            "response": "Watching PR #57 — drained (nothing outstanding), watermark seeded, persistent monitor armed."
+          },
+          {
+            "argContains": "muggle-test-prepare",
+            "response": "NO WEB SURFACE\n\ntiny-slug-lib is a library: package.json has no start or dev script, no service is declared, and nothing listens for it. There is no dev server to verify or start."
+          }
+        ],
+        "Monitor": [
+          {
+            "argContains": "pr-watch-arm.sh",
+            "response": "Monitor started (task mon_3a9f, persistent, timeout 1800000 ms). First output:\nDRAIN pr=57 state=OPEN head=4b8d2a7c\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=1 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=57 watermark seeded at ~/.muggle-ai/muggle-do/sessions/slug-max-length/watch-watermark.env"
+          }
+        ]
+      },
+      "expect": {
+        "requireToolSequence": [
+          {"pattern":"no-web-surface-skip"},
+          {"tool":"Bash","argContains":["gh pr create","[UNIT-ONLY]"]},
+          {"pattern":"no-web-surface-skip"},
+          {"pattern":"prs-manifest-written"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/slug-max-length/prs.json","contains":"57"}],
+        "forbidToolAttempts": [{"pattern":"e2e-executed"},{"pattern":"thread-resolved"}]
+      }
+    },
+    {
+      "name": "dev-server-down",
+      "cadence": "pr",
+      "fixtures": {
+        "executeResult": {
+          "runId": "run-farewell-1",
+          "status": "failed",
+          "testCaseId": "tc-home-greeting",
+          "error": "net::ERR_CONNECTION_REFUSED at http://localhost:3000/?name=Ada — the page never loaded",
+          "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+          "cloudActionScriptId": "as-farewell-1",
+          "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+        },
+        "runResult": {
+          "runId": "run-farewell-1",
+          "status": "failed",
+          "testCaseId": "tc-home-greeting",
+          "error": "net::ERR_CONNECTION_REFUSED at http://localhost:3000/?name=Ada — the page never loaded",
+          "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-farewell-1",
+          "cloudActionScriptId": "as-farewell-1",
+          "artifactsDir": "~/.muggle-ai/runs/run-farewell-1"
+        },
+        "runStepsResult": {"runId":"run-farewell-1","status":"failed","verdict":null,"steps":[],"screenshotCount":0}
+      },
+      "bashResponses": [
+        {
+          "commandContains": "npm start",
+          "response": "> tiny-web-app@1.0.0 start\n> node src/server.js\n\nnode:events:497\n      throw er; // Unhandled 'error' event\n      ^\n\nError: listen EACCES: permission denied 0.0.0.0:3000\n    at Server.setupListenHandle [as _listen2] (node:net:1881:21)\n\nexit code 1"
+        },
+        {
+          "commandContains": "curl",
+          "response": "000\ncurl: (7) Failed to connect to localhost port 3000 after 2 ms: Couldn't connect to server"
+        },
+        {
+          "commandContains": "Invoke-WebRequest",
+          "response": "Invoke-WebRequest: No connection could be made because the target machine actively refused it. (localhost:3000)"
+        },
+        {"commandContains":"lsof","response":""},
+        {"commandContains":"netstat","response":""},
+        {"commandContains":"Get-NetTCPConnection","response":""}
+      ],
+      "toolResponses": {
+        "Skill": [
+          {
+            "argContains": "muggle-test-prepare",
+            "response": "DEGRADED\n\n| Service | URL | Status |\n| --- | --- | --- |\n| tiny-web-app | http://localhost:3000 | DOWN — connection refused |\n\nNothing is listening on :3000. Restarted it with the recorded start command (`npm start`): the process exited with code 1 within 3 s (log tail: `Error: listen EACCES: permission denied 0.0.0.0:3000`). Re-probed 3 times over 30 s; still refused."
+          }
+        ]
+      },
+      "expect": {
+        "requireToolAttempts": [{"tool":"Skill","argContains":"muggle-test-prepare"}],
+        "forbidToolAttempts": [
+          {"pattern":"pr-created"},
+          {"pattern":"walkthrough-posted"},
+          {"pattern":"watcher-armed"},
+          {"pattern":"thread-resolved"}
+        ],
+        "outputMatches": ["3000|[Dd]ev server|DEV_SERVER","[Hh]alt|[Ee]scalat|[Bb]lock|[Ss]topp|did not open|didn't open|not opened"]
+      }
+    },
+    {
+      "name": "auto-create-pr-never",
+      "cadence": "pr",
+      "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away.",
+      "preferences": {"autoCreatePR":"never"},
+      "expect": {
+        "forbidToolAttempts": [{"pattern":"pr-created"},{"pattern":"watcher-armed"},{"pattern":"thread-resolved"}],
+        "outputMatches": [
+          "[Nn]o (PR|pull request)|[Ss]kipp(ed|ing) (the )?(PR|pull request)|(PR|pull request) (was )?not (opened|created)|autoCreatePR"
+        ]
+      }
+    },
+    {
+      "name": "pr-create-fails",
+      "cadence": "pr",
+      "bashResponses": [
+        {
+          "commandContains": "gh pr create",
+          "response": "exit status 1\npull request create failed: GraphQL: Resource not accessible by integration (createPullRequest)"
+        }
+      ],
+      "expect": {
+        "requireToolAttempts": [{"pattern":"pr-created"}],
+        "forbidToolAttempts": [{"pattern":"walkthrough-posted"},{"pattern":"watcher-armed"},{"pattern":"thread-resolved"}],
+        "outputMatches": ["[Ff]ail|[Ee]rror|not accessible"]
+      }
+    }
+  ]
+}

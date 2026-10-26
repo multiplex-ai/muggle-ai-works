@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { AGENT_BUILTIN_TOOLS, NO_USER_RESPONSE, SKILL_BUILTIN_TOOLS } from "../src/constants.js";
 import { decideToolUse, toPreToolUseOutput } from "../src/tools/policy.js";
 import { createBashResponder, createToolResponder } from "../src/tools/scripted-replies.js";
-import { scenarioToolName, toolAttemptsInMessage } from "../src/tools/trace.js";
+import { scenarioToolName, sessionToolName, toolAttemptsInMessage } from "../src/tools/trace.js";
 import { ScriptedTool, type ToolPolicyContext } from "../src/types.js";
 
 const realHome = path.join(os.tmpdir(), "users", "dev");
@@ -161,5 +161,11 @@ describe("tool attempt trace", () => {
     expect(toolAttemptsInMessage({ type: "assistant", parent_tool_use_id: "toolu_1", message: toolUse })).toEqual([]);
     expect(toolAttemptsInMessage({ type: "user", message: toolUse })).toEqual([]);
     expect(scenarioToolName("mcp__plugin_muggle_muggle__x")).toBe("mcp__plugin_muggle_muggle__x");
+  });
+
+  it("names a tool as the session calls it, the inverse of the scenario name", () => {
+    for (const sessionName of ["Read", "Bash", "mcp__eval_host__Skill", "mcp__eval_host__Monitor", "mcp__eval_mock__muggle-local-execute-replay"]) {
+      expect(sessionToolName(scenarioToolName(sessionName))).toBe(sessionName);
+    }
   });
 });

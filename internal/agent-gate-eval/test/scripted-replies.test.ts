@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_USER_RESPONSE, UNSCRIPTED_BASH_RESPONSE, UNSCRIPTED_TOOL_RESPONSE } from "../src/constants.js";
+import {
+  DEFAULT_ACTION_SCRIPT,
+  DEFAULT_TEST_CASE_ANCESTORS,
+  NO_USER_RESPONSE,
+  UNSCRIPTED_BASH_RESPONSE,
+  UNSCRIPTED_TOOL_RESPONSE,
+} from "../src/constants.js";
 import {
   createBashResponder,
   createToolResponder,
   resolveScriptedBashResponse,
   scriptedReplyAt,
 } from "../src/tools/scripted-replies.js";
-import { isSequencedFixture, sequencedMockToolSpecs } from "../src/tools/sequenced-mock-mcp.js";
+import { createMockToolAnswerer, isSequencedFixture, sequencedMockToolSpecs } from "../src/tools/sequenced-mock-mcp.js";
 import { ScriptedTool, type ScriptedBashResponse } from "../src/types.js";
 
 describe("scriptedReplyAt", () => {
@@ -108,5 +114,29 @@ describe("sequenced mock MCP fixtures", () => {
   it("leaves a plain fixture slot as it is", () => {
     const specs = sequencedMockToolSpecs({ runResult: { runId: "run-9", status: "passed" } });
     expect(replyOf(specs, "muggle-local-run-result-get")).toEqual({ runId: "run-9", status: "passed" });
+  });
+
+  it("serves the E2E stage's cloud reads beside the shared tools, from their slots or a stub", () => {
+    const testCases = { items: [{ id: "tc-1" }] };
+    const specs = sequencedMockToolSpecs({ testCases: testCases, testScript: { id: "ts-1", steps: [{ stepIndex: 0 }] } });
+    expect(replyOf(specs, "muggle-remote-test-case-list")).toEqual(testCases);
+    expect(replyOf(specs, "muggle-remote-test-case-list-by-use-case")).toEqual(testCases);
+    expect(replyOf(specs, "muggle-remote-test-script-get")).toEqual({ id: "ts-1", steps: [{ stepIndex: 0 }] });
+    expect(replyOf(specs, "muggle-remote-test-case-ancestors-get")).toEqual(DEFAULT_TEST_CASE_ANCESTORS);
+    expect(replyOf(specs, "muggle-remote-action-script-get")).toEqual(DEFAULT_ACTION_SCRIPT);
+  });
+});
+
+describe("createMockToolAnswerer", () => {
+  it("answers a mock tool by bare name as the MCP text the server would send, with its own sequence counts", () => {
+    const fixtures = { executeResult: { sequence: [{ status: "failed" }, { status: "passed" }] } };
+    const answerMockTool = createMockToolAnswerer(fixtures);
+    expect(answerMockTool("muggle-local-execute-replay")).toBe(JSON.stringify({ status: "failed" }));
+    expect(answerMockTool("muggle-local-execute-replay")).toBe(JSON.stringify({ status: "passed" }));
+    expect(createMockToolAnswerer(fixtures)("muggle-local-execute-replay")).toBe(JSON.stringify({ status: "failed" }));
+  });
+
+  it("refuses a name no mock tool has", () => {
+    expect(() => createMockToolAnswerer({})("muggle-remote-wallet-topup")).toThrow(/no mock muggle tool/);
   });
 });

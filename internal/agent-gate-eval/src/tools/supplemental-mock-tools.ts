@@ -6,7 +6,10 @@
  *     gathering screenshots;
  *   - per-id refinements of the shared list and get tools, so a project with
  *     several use cases answers each one with its own test cases;
- *   - the create and delete calls that plan, create, and retire cases.
+ *   - the create and delete calls that plan, create, and retire cases;
+ *   - per-case runs: executing a case other than the fixture run's own answers
+ *     with that run retargeted to the case, under a run id the run-result and
+ *     run-steps reads then answer for, so each case a run plans has evidence of its own.
  * A tool named like a shared one refines it (see sequenced-mock-mcp.ts).
  */
 
@@ -50,6 +53,37 @@ function projectTestCases(fixtures: Fixtures): unknown {
   return testCasesByUseCaseOf(fixtures) ? { items: allListedTestCases(fixtures) } : EMPTY_MOCK_LIST;
 }
 
+/** A run fixture as an object, or undefined for an absent or sequenced slot, which the shared reply answers. */
+function plainRunFixture(fixture: unknown): Record<string, unknown> | undefined {
+  if (typeof fixture !== "object" || fixture === null || Array.isArray(fixture)) return undefined;
+  return Array.isArray((fixture as { sequence?: unknown }).sequence) ? undefined : (fixture as Record<string, unknown>);
+}
+
+/** The id of the case an execute call runs: its `testCase` argument is an object, or the JSON text agents often send. */
+function executedTestCaseId(testCaseArgument: unknown): string | undefined {
+  let testCase = testCaseArgument;
+  if (typeof testCase === "string") {
+    try {
+      testCase = JSON.parse(testCase);
+    } catch {
+      return undefined;
+    }
+  }
+  const testCaseId = (testCase as { id?: unknown } | null | undefined)?.id;
+  return typeof testCaseId === "string" ? testCaseId : undefined;
+}
+
+/** `run` with its run id and test case id replaced wherever they appear, so its URLs and paths name the retargeted run. */
+function retargetedRun(
+  run: Record<string, unknown>,
+  fromIds: { runId: string; testCaseId?: string },
+  toIds: { runId: string; testCaseId: string },
+): unknown {
+  let runText = JSON.stringify(run).replaceAll(fromIds.runId, toIds.runId);
+  if (fromIds.testCaseId) runText = runText.replaceAll(fromIds.testCaseId, toIds.testCaseId);
+  return JSON.parse(runText);
+}
+
 /**
  * The supplemental mock tools for one run, each answering from its fixture
  * slot or a stub. Cases the run creates are numbered from 1 and read back by
@@ -57,7 +91,28 @@ function projectTestCases(fixtures: Fixtures): unknown {
  */
 export function supplementalMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSpec[] {
   const createdTestCasesById = new Map<string, Record<string, unknown>>();
+  const executedTestCaseIdByRunId = new Map<string, string>();
   let createdUseCaseCount = 0;
+  const executeFixtureTestCaseId = (): string | undefined => {
+    const fixtureTestCaseId = plainRunFixture(fixtures.executeResult)?.testCaseId;
+    return typeof fixtureTestCaseId === "string" ? fixtureTestCaseId : undefined;
+  };
+  const executedRun = (input: Record<string, unknown>): unknown => {
+    const run = plainRunFixture(fixtures.executeResult);
+    const testCaseId = executedTestCaseId(input.testCase);
+    if (!run || typeof run.runId !== "string" || !testCaseId || testCaseId === run.testCaseId) return undefined;
+    const runId = `${run.runId}-${testCaseId}`;
+    executedTestCaseIdByRunId.set(runId, testCaseId);
+    return retargetedRun(run, { runId: run.runId, testCaseId: executeFixtureTestCaseId() }, { runId: runId, testCaseId: testCaseId });
+  };
+  const runRead = (runFixture: unknown, input: Record<string, unknown>): unknown => {
+    const run = plainRunFixture(runFixture);
+    const runId = typeof input.runId === "string" ? input.runId : undefined;
+    const testCaseId = runId ? executedTestCaseIdByRunId.get(runId) : undefined;
+    if (!run || typeof run.runId !== "string" || !runId || !testCaseId) return undefined;
+    const fixtureTestCaseId = typeof run.testCaseId === "string" ? run.testCaseId : executeFixtureTestCaseId();
+    return retargetedRun(run, { runId: run.runId, testCaseId: fixtureTestCaseId }, { runId: runId, testCaseId: testCaseId });
+  };
   return [
     {
       name: "muggle-remote-test-case-list",
@@ -172,6 +227,30 @@ export function supplementalMockToolSpecs(fixtures: Fixtures): InputAwareMockToo
       description: "Delete a use case by ID. Soft delete, and it cascades to its test cases and scripts (mock).",
       shape: { useCaseId: optionalId },
       reply: (input) => ({ id: input.useCaseId, deleted: true }),
+    },
+    {
+      name: "muggle-local-execute-test-generation",
+      description: "Execute test generation (mock — args recorded by canUseTool, never actually runs).",
+      shape: {},
+      reply: executedRun,
+    },
+    {
+      name: "muggle-local-execute-replay",
+      description: "Execute replay (mock — args recorded by canUseTool, never actually runs).",
+      shape: {},
+      reply: executedRun,
+    },
+    {
+      name: "muggle-local-run-result-get",
+      description: "Run result (mock).",
+      shape: { runId: optionalId },
+      reply: (input) => runRead(fixtures.runResult, input),
+    },
+    {
+      name: "muggle-local-run-steps-get",
+      description: "A run's steps beside the frames they produced (mock).",
+      shape: { runId: optionalId },
+      reply: (input) => runRead(fixtures.runStepsResult, input),
     },
   ];
 }

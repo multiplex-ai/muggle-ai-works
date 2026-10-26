@@ -117,10 +117,84 @@ describe("loadAgentScenarioFile", () => {
     ["a seed file without content", { seed: { files: [{ path: "~/x" }] } }, /seed\.files/],
     ["a fixture sequence that is empty", { fixtures: { executeResult: { sequence: [] } } }, /fixtures\.executeResult/],
     ["a fixture sequence with sibling keys", { fixtures: { executeResult: { sequence: [{}], status: "x" } } }, /fixtures\.executeResult/],
+    ["a transcript without a resume prompt", { seed: { transcript: { turns: [] } } }, /resumePrompt/],
+    ["a transcript turn with neither text nor a tool call", { seed: { transcript: { turns: [{}], resumePrompt: "go" } } }, /needs text or a tool call/],
+    ["a transcript tool call without an input object", { seed: { transcript: { turns: [{ toolCalls: [{ tool: "Read" }] }], resumePrompt: "go" } } }, /input object/],
+    ["a malformed tool-attempt pattern", { expect: { requireToolSequence: [{ tool: "Bash" }] } }, /requireToolSequence\[0\]/],
+    ["an anyOf with no alternatives", { expect: { forbidToolAttempts: [{ anyOf: [] }] } }, /forbidToolAttempts\[0\]/],
+    ["a reference to an undefined pattern", { expect: { requireToolAttempts: [{ pattern: "watcher-armed" }] } }, /names pattern "watcher-armed"/],
     ["an artifact regex that does not compile", { expect: { requireArtifacts: [{ path: "~/x", matches: "(" }] } }, /invalid matches regex/],
   ])("rejects %s", (_label, extra, message) => {
     const p = writeScenarios("a", { target: agentTarget, scenarios: [{ ...minimalScenario, ...extra }] });
     expect(() => loadAgentScenarioFile(p)).toThrow(message);
+  });
+
+  it("rejects a malformed named pattern", () => {
+    const p = writeScenarios("a", { target: agentTarget, patterns: { armed: { anyOf: [{ tool: "Skill" }] } }, scenarios: [minimalScenario] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/patterns\.armed/);
+  });
+
+  it("replaces each pattern reference with the file's named pattern", () => {
+    const watcherArmed = { anyOf: [{ tool: "Skill", argContains: "muggle-pr-followup" }, { tool: "Monitor", argContains: "pr-watch-arm.sh" }] };
+    const p = writeScenarios("a", {
+      target: agentTarget,
+      patterns: { "watcher-armed": watcherArmed },
+      scenarios: [
+        {
+          ...minimalScenario,
+          expect: {
+            requireToolSequence: [{ tool: "Bash", argContains: "gh pr create" }, { pattern: "watcher-armed" }],
+            forbidToolAttempts: [{ pattern: "watcher-armed" }],
+          },
+        },
+      ],
+    });
+    const [scenario] = loadAgentScenarioFile(p).scenarios;
+    expect(scenario.expect.requireToolSequence).toEqual([{ tool: "Bash", argContains: "gh pr create" }, watcherArmed]);
+    expect(scenario.expect.forbidToolAttempts).toEqual([watcherArmed]);
+  });
+
+  it("applies the file's defaults: own prompt and seed win, maps merge, own scripted replies go first", () => {
+    const p = writeScenarios("a", {
+      target: agentTarget,
+      defaults: {
+        prompt: "build it",
+        maxTurns: 70,
+        seed: { repo: "tiny-web-app" },
+        preferences: { autoCreatePR: "always", autoUseWorktree: "never" },
+        fixtures: { executeResult: { status: "passed" }, runResult: { status: "passed" } },
+        bashResponses: [{ commandContains: "gh pr create", response: "https://github.com/o/r/pull/1" }],
+        toolResponses: { Skill: [{ argContains: "muggle-test-prepare", response: "READY" }] },
+      },
+      scenarios: [
+        { name: "inherits", expect: {} },
+        {
+          name: "overrides",
+          prompt: "build it quietly",
+          seed: { files: [{ path: "a.txt", content: "a" }] },
+          preferences: { autoCreatePR: "never" },
+          fixtures: { executeResult: { status: "failed" } },
+          bashResponses: [{ commandContains: "gh pr create", response: "error" }],
+          toolResponses: { Skill: [{ argContains: "muggle-test-prepare", response: "DEGRADED" }], Monitor: [{ argContains: "", response: "started" }] },
+          expect: {},
+        },
+      ],
+    });
+    const [inherits, overrides] = loadAgentScenarioFile(p).scenarios;
+    expect(inherits).toMatchObject({ prompt: "build it", maxTurns: 70, seed: { repo: "tiny-web-app" } });
+    expect(overrides.prompt).toBe("build it quietly");
+    expect(overrides.seed).toEqual({ files: [{ path: "a.txt", content: "a" }] });
+    expect(overrides.maxTurns).toBe(70);
+    expect(overrides.preferences).toEqual({ autoCreatePR: "never", autoUseWorktree: "never" });
+    expect(overrides.fixtures).toEqual({ executeResult: { status: "failed" }, runResult: { status: "passed" } });
+    expect(overrides.bashResponses?.map((entry) => entry.response)).toEqual(["error", "https://github.com/o/r/pull/1"]);
+    expect(overrides.toolResponses?.Skill?.map((entry) => entry.response)).toEqual(["DEGRADED", "READY"]);
+    expect(overrides.toolResponses?.Monitor?.map((entry) => entry.response)).toEqual(["started"]);
+  });
+
+  it("still requires a prompt once defaults apply", () => {
+    const p = writeScenarios("a", { target: agentTarget, defaults: { maxTurns: 5 }, scenarios: [{ name: "s1", expect: {} }] });
+    expect(() => loadAgentScenarioFile(p)).toThrow(/needs name, prompt, and expect/);
   });
 });
 

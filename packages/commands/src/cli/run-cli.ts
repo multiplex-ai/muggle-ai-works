@@ -15,6 +15,7 @@ import {
   doctorCommand,
   helpCommand,
   initCommand,
+  llmSourceCommand,
   loginCommand,
   logoutCommand,
   serveCommand,
@@ -87,6 +88,16 @@ function createProgram (): Command {
     .option("--json", "Emit the walkthrough as JSON instead of prompting")
     .option("--apply <file>", "Apply answers from a JSON file")
     .action(initCommand);
+
+  program
+    .command("llm-source")
+    .description("Choose who supplies the model for local runs: Muggle AI credit, your Anthropic key, or a local model")
+    .option("--show", "Print the source in effect")
+    .option("--json", "Emit the question as JSON instead of prompting")
+    .option("--use <source>", "Set a source without prompting: muggle-credit, anthropic-api-key, local-model")
+    .option("--base-url <url>", "Endpoint URL, with --use local-model")
+    .option("--model <name>", "Model served at the endpoint, with --use local-model")
+    .action(llmSourceCommand);
 
   program
     .command("setup")

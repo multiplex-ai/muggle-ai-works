@@ -26,6 +26,7 @@ import { WATCH_SERVICE_QUIET_OUTCOMES } from "../../watch/constants.js";
 import { applyWatchServicePreference, createDefaultWatchServiceInstallDeps } from "../../watch/install-service.js";
 import { applyCiWorkflowPreference } from "./ci-question.js";
 import { CiOfferOutcome, type AskQuestion } from "./ci-question-types.js";
+import { runLlmSourceStep } from "../llm-source/llm-source-terminal-step.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";
 import type { IInitOptions } from "./init-types.js";
 
@@ -161,7 +162,11 @@ export async function initCommand(options: IInitOptions): Promise<void> {
     console.log("Muggle is already set up. Re-running the walkthrough — your current values are pre-selected.");
   }
 
-  reportOutcome(applyOnboardingAnswers(await runTerminalWalkthrough()));
+  const onboardingOutcome = applyOnboardingAnswers(await runTerminalWalkthrough());
+  reportOutcome(onboardingOutcome);
+  if (!onboardingOutcome.skip) {
+    await runLlmSourceStep();
+  }
   await runInteractiveCiOffer();
   runWatchServiceOffer();
 }

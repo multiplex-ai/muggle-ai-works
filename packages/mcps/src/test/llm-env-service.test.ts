@@ -5,6 +5,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { applyLlmEnvOverrides, resolveLlmEnvOverrides } from "../shared/llm-env-service.js";
+import { writeStoredLlmApiKey } from "../shared/llm-source/llm-credentials-store.js";
 import { writePreferences } from "../shared/preferences-service.js";
 
 describe("llm env overrides", () => {
@@ -95,5 +96,43 @@ describe("llm env overrides", () => {
     writePreferences({ autoWatchPR: "always" } as never, dataDir);
 
     expect(resolveLlmEnvOverrides(dataDir)).toEqual({ MUGGLE_LLM_MODEL: "llava" });
+  });
+
+  it("supplies the stored key when a provider is selected", () => {
+    writePreferencesFileContent({ version: 1, preferences: {}, llmEnv: { MUGGLE_LLM_PROVIDER: "anthropic" } });
+    writeStoredLlmApiKey("user-anthropic-key", dataDir);
+
+    expect(resolveLlmEnvOverrides(dataDir)).toEqual({
+      MUGGLE_LLM_PROVIDER: "anthropic",
+      MUGGLE_LLM_API_KEY: "user-anthropic-key",
+    });
+  });
+
+  it("does not forward the stored key without a provider selection", () => {
+    writePreferencesFileContent({ version: 1, preferences: {}, llmEnv: { MUGGLE_LLM_MODEL: "llava" } });
+    writeStoredLlmApiKey("user-anthropic-key", dataDir);
+
+    expect(resolveLlmEnvOverrides(dataDir)).toEqual({ MUGGLE_LLM_MODEL: "llava" });
+  });
+
+  it("prefers a key written into llmEnv over the stored one", () => {
+    writePreferencesFileContent({
+      version: 1,
+      preferences: {},
+      llmEnv: { MUGGLE_LLM_PROVIDER: "local", MUGGLE_LLM_API_KEY: "inline-key" },
+    });
+    writeStoredLlmApiKey("stored-key", dataDir);
+
+    expect(resolveLlmEnvOverrides(dataDir).MUGGLE_LLM_API_KEY).toBe("inline-key");
+  });
+
+  it("never displaces a key exported in the shell", () => {
+    writePreferencesFileContent({ version: 1, preferences: {}, llmEnv: { MUGGLE_LLM_PROVIDER: "anthropic" } });
+    writeStoredLlmApiKey("stored-key", dataDir);
+
+    const applied = applyLlmEnvOverrides({ MUGGLE_LLM_API_KEY: "shell-key" }, dataDir);
+
+    expect(applied.env.MUGGLE_LLM_API_KEY).toBe("shell-key");
+    expect(applied.appliedNames).toEqual(["MUGGLE_LLM_PROVIDER"]);
   });
 });

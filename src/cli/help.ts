@@ -119,6 +119,7 @@ export function getHelpGuidance(): string {
     "",
     `  ${colorize("Setup & Diagnostics:", COLORS.bold)}`,
     `    ${cmd("muggle init")}             Explain Muggle Test and save your preferences`,
+    `    ${cmd("muggle llm-source")}       Choose who supplies the model for local runs`,
     `    ${cmd("muggle setup")}            Download/update Electron app`,
     `    ${cmd("muggle setup --force")}    Force re-download`,
     `    ${cmd("muggle doctor")}           Diagnose installation issues`,

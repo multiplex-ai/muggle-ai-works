@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, mkdirSync, statSync, writeFileSync, renameSync, openSync, writeSync, closeSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync } from 'fs';
 import { join, basename, isAbsolute, resolve, dirname } from 'path';
 import { homedir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
@@ -34,6 +34,9 @@ var MAX_WATCH_BLOCKS = 3;
 var WATCH_HEARTBEAT_STALE_MS = 15 * 6e4;
 var TERMINAL_SLOT_PR_STATES = ["merged", "closed"];
 var STOPPED_SLOT_SUFFIX = ".stopped";
+var WATCH_HOLD_PHRASE_PREFIX = "HOLD WATCH #";
+var WATCH_HOLD_INSTRUCTION = /HOLD WATCH #(\d+)\b/g;
+var WATCH_HOLD_TRANSCRIPT_TAIL_BYTES = 4e6;
 var MAX_BUILD_BLOCKS = 3;
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
@@ -370,6 +373,11 @@ function lastAssistantText(transcriptJsonl) {
   }
   return "";
 }
+function resolvePluginRoot(env = process.env) {
+  return env.CLAUDE_PLUGIN_ROOT || env.CURSOR_PLUGIN_ROOT || dirname(dirname(fileURLToPath(import.meta.url)));
+}
+
+// src/guardrails/mandatoryStages.ts
 var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
 var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
 var FLOW_LIST = /^\s*\[(.*)\]\s*$/;
@@ -413,9 +421,7 @@ function stageLabel(normalizedStagePath) {
   return normalizedStagePath.slice(insideSkills + SKILLS_PATH_SEGMENT.length);
 }
 function resolvePluginSkillsRoot() {
-  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || process.env.CURSOR_PLUGIN_ROOT;
-  if (pluginRoot) return join(pluginRoot, SKILLS_DIR_NAME);
-  return join(dirname(dirname(fileURLToPath(import.meta.url))), SKILLS_DIR_NAME);
+  return join(resolvePluginRoot(), SKILLS_DIR_NAME);
 }
 function resolveSkillNameFromToolInput(toolInput) {
   if (!toolInput) return void 0;
@@ -916,6 +922,75 @@ function patchPrComment(pr, commentId, body, run) {
   );
 }
 
+// src/pr-watch/constants.ts
+var MUGGLE_DO_SESSIONS_PATH_SEGMENTS = [".muggle-ai", "muggle-do", "sessions"];
+var PRS_FILE_NAME = "prs.json";
+var OWNER_FILE_NAME = "owner.json";
+var LAST_SEEN_FILE_NAME = "last_seen.json";
+var RESULT_FILE_NAME = "result.md";
+var WATCH_DUE_FILE_NAME = "watch-due.env";
+var WATCH_DUE_HEAD_FIELD = "HEAD";
+var WATCH_DUE_REBASE_FIELD = "REBASE_DUE";
+var WATCH_DUE_CI_RED_FIELD = "CI_RED_HEAD";
+var ENV_FILE_LINE = /^([A-Z_]+)="?([^"]*)"?$/;
+var USER_PREFERENCES_PATH_SEGMENTS = [".muggle-ai", "preferences.json"];
+var PREFERENCE_DEFAULTS_PATH_SEGMENTS = ["config", "preference-defaults.json"];
+var AUTO_REBASE_PREFERENCE_KEY = "autoRebase";
+var MAX_CATCH_UP_REBASES_PREFERENCE_KEY = "maxCatchUpRebases";
+var ALWAYS_PREFERENCE_VALUE = "always";
+var UNBOUNDED_PREFERENCE_VALUE = "never";
+var POSITIVE_INTEGER = /^[1-9]\d*$/;
+function readSlotText(filePath) {
+  try {
+    return readFileSync(filePath, "utf-8");
+  } catch {
+    return "";
+  }
+}
+function readSlotPr(slotPath) {
+  try {
+    const parsed = JSON.parse(readFileSync(join(slotPath, PRS_FILE_NAME), "utf-8"));
+    const slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
+    return slotPr !== null && typeof slotPr === "object" ? slotPr : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function readJsonRecord(filePath) {
+  try {
+    return asRecord(JSON.parse(readFileSync(filePath, "utf-8")));
+  } catch {
+    return {};
+  }
+}
+function asRecord(candidate) {
+  return candidate !== null && typeof candidate === "object" && !Array.isArray(candidate) ? candidate : {};
+}
+function lastSeenEntryFor(lastSeenJson, prKey) {
+  try {
+    return asRecord(asRecord(JSON.parse(lastSeenJson))[prKey]);
+  } catch {
+    return {};
+  }
+}
+function parseEnvFileLines(envFileText) {
+  const fields = {};
+  for (const rawLine of envFileText.split("\n")) {
+    const fieldMatch = ENV_FILE_LINE.exec(rawLine.replace(/\r$/, ""));
+    if (fieldMatch) fields[fieldMatch[1]] = fieldMatch[2];
+  }
+  return fields;
+}
+function parseWatchDueRecord(watchDueText) {
+  const fields = parseEnvFileLines(watchDueText);
+  const dueRecord = {
+    headSha: fields[WATCH_DUE_HEAD_FIELD] ?? "",
+    rebaseDueKey: fields[WATCH_DUE_REBASE_FIELD] ?? "",
+    ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? ""
+  };
+  return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha ? dueRecord : null;
+}
+
 // src/guardrails/watchArmed.ts
 var WATCH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WATCH_SKIP\b/;
 function isWatchSkipMarker(cmd) {
@@ -943,7 +1018,7 @@ function readHeartbeatMtimeMs(slotPath) {
 }
 function findUnwatchedHandledPrs(handledUrls, sessionsDirOverride) {
   if (handledUrls.length === 0) return [];
-  const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  const sessionsDir = join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
   let slugs;
   try {
     slugs = readdirSync(sessionsDir);
@@ -954,18 +1029,12 @@ function findUnwatchedHandledPrs(handledUrls, sessionsDirOverride) {
   const watchedUrls = /* @__PURE__ */ new Set();
   for (const slug of slugs) {
     const slotPath = join(sessionsDir, slug);
-    let slotPr;
-    try {
-      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8"));
-      slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
-    } catch {
-      continue;
-    }
+    const slotPr = readSlotPr(slotPath);
     const slotUrl = slotPr?.url;
     if (typeof slotUrl !== "string" || !handledUrls.includes(slotUrl)) continue;
     const evidence = {
       isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
-      isFinalized: existsSync(join(slotPath, "result.md")),
+      isFinalized: existsSync(join(slotPath, RESULT_FILE_NAME)),
       recordedPrState: typeof slotPr?.state === "string" ? slotPr.state : void 0,
       heartbeatMtimeMs: readHeartbeatMtimeMs(slotPath)
     };
@@ -1020,6 +1089,166 @@ function watchGateDecision(state, unwatchedPrUrls, maxBlocks = MAX_WATCH_BLOCKS)
     action: "block" /* Block */,
     blockCount: blockCount + 1,
     unwatched: unwatchedPrUrls
+  };
+}
+
+// src/pr-watch/attempts.ts
+function recordedCount(counts, key) {
+  const recorded = counts?.[key];
+  return typeof recorded === "number" && Number.isFinite(recorded) ? recorded : 0;
+}
+function rebaseAttemptsFor(lastSeenEntry, rebaseKey) {
+  return recordedCount(lastSeenEntry.conflict_resolve_attempts, rebaseKey);
+}
+function ciFixAttemptsFor(lastSeenEntry, headSha) {
+  return recordedCount(lastSeenEntry.ci_fix_attempts, headSha);
+}
+function isRebaseKeyAttempted(lastSeenEntry, rebaseKey) {
+  return rebaseAttemptsFor(lastSeenEntry, rebaseKey) >= 1;
+}
+function isCiHeadAttempted(lastSeenEntry, headSha) {
+  return ciFixAttemptsFor(lastSeenEntry, headSha) >= 1;
+}
+function isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases) {
+  const catchUpRebases = lastSeenEntry.catch_up_rebases;
+  return maxCatchUpRebases !== null && typeof catchUpRebases === "number" && catchUpRebases >= maxCatchUpRebases;
+}
+
+// src/transcript/constants.ts
+var USER_ENTRY_TYPE = "user";
+var HUMAN_ORIGIN_KIND = "human";
+var TEXT_CONTENT_PART_TYPE = "text";
+var TOOL_RESULT_CONTENT_PART_TYPE = "tool_result";
+
+// src/transcript/userTurns.ts
+function userAuthoredText(entry) {
+  if (entry.type !== USER_ENTRY_TYPE) return null;
+  if (entry.isMeta || entry.isCompactSummary || entry.isSidechain || entry.toolUseResult !== void 0) return null;
+  if (entry.origin != null && entry.origin.kind !== HUMAN_ORIGIN_KIND) return null;
+  const content = entry.message?.content;
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return null;
+  const parts = content;
+  if (parts.some((part) => part?.type === TOOL_RESULT_CONTENT_PART_TYPE)) return null;
+  return parts.filter((part) => part?.type === TEXT_CONTENT_PART_TYPE && typeof part.text === "string").map((part) => part.text).join("\n");
+}
+function userAuthoredTextsContaining(transcriptJsonl, literal) {
+  const texts = [];
+  for (const line of transcriptJsonl.split("\n")) {
+    if (!line.includes(literal)) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const text = userAuthoredText(entry);
+    if (text !== null && text.includes(literal)) texts.push(text);
+  }
+  return texts;
+}
+function readFileTail(filePath, maxBytes) {
+  let descriptor;
+  try {
+    descriptor = openSync(filePath, "r");
+    const fileSize = fstatSync(descriptor).size;
+    const length = Math.min(fileSize, maxBytes);
+    const tail = Buffer.alloc(length);
+    readSync(descriptor, tail, 0, length, fileSize - length);
+    return tail.toString("utf-8");
+  } catch {
+    return null;
+  } finally {
+    if (descriptor !== void 0) closeSync(descriptor);
+  }
+}
+
+// src/guardrails/watchFollowThrough.ts
+function mtimeMsOf(filePath) {
+  try {
+    return statSync(filePath).mtimeMs;
+  } catch {
+    return void 0;
+  }
+}
+function isDueRecordSuperseded(slotPath, slotPr, dueRecord) {
+  if (!slotPr.head_sha || slotPr.head_sha === dueRecord.headSha) return false;
+  const prsWrittenAtMs = mtimeMsOf(join(slotPath, PRS_FILE_NAME));
+  const dueWrittenAtMs = mtimeMsOf(join(slotPath, WATCH_DUE_FILE_NAME));
+  return prsWrittenAtMs !== void 0 && dueWrittenAtMs !== void 0 && prsWrittenAtMs > dueWrittenAtMs;
+}
+function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
+  if (slug.endsWith(STOPPED_SLOT_SUFFIX)) return [];
+  const dueRecord = parseWatchDueRecord(readSlotText(join(slotPath, WATCH_DUE_FILE_NAME)));
+  if (!dueRecord) return [];
+  if (readJsonRecord(join(slotPath, OWNER_FILE_NAME)).session_id !== sessionId2) return [];
+  if (existsSync(join(slotPath, RESULT_FILE_NAME))) return [];
+  const slotPr = readSlotPr(slotPath);
+  const prUrl = slotPr?.url;
+  const prNumber = slotPr?.number;
+  if (!slotPr?.repo || typeof prUrl !== "string" || typeof prNumber !== "number") return [];
+  if (TERMINAL_SLOT_PR_STATES.includes((slotPr.state ?? "").toLowerCase())) return [];
+  if (isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return [];
+  const lastSeenEntry = lastSeenEntryFor(readSlotText(join(slotPath, LAST_SEEN_FILE_NAME)), `${slotPr.repo}#${prNumber}`);
+  const workOn = (kind, dueOn) => ({
+    kind,
+    slug,
+    prUrl,
+    prNumber,
+    dueOn
+  });
+  const owed = [];
+  const isRebaseOwed = dueRecord.rebaseDueKey !== "" && preferences.autoRebase === ALWAYS_PREFERENCE_VALUE && !isRebaseBudgetExhausted(lastSeenEntry, preferences.maxCatchUpRebases) && !isRebaseKeyAttempted(lastSeenEntry, dueRecord.rebaseDueKey);
+  if (isRebaseOwed) owed.push(workOn("rebase" /* Rebase */, dueRecord.rebaseDueKey));
+  if (dueRecord.ciRedHeadSha !== "" && !isCiHeadAttempted(lastSeenEntry, dueRecord.ciRedHeadSha)) {
+    owed.push(workOn("fix-ci" /* FixCi */, dueRecord.ciRedHeadSha));
+  }
+  return owed;
+}
+function findOwedWatchWork(sessionId2, preferences, sessionsDirOverride) {
+  const sessionsDir = join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
+  let slugs;
+  try {
+    slugs = readdirSync(sessionsDir);
+  } catch {
+    return [];
+  }
+  return slugs.flatMap((slug) => owedWorkInSlot(join(sessionsDir, slug), slug, sessionId2, preferences));
+}
+function heldPrNumbersIn(transcriptJsonl) {
+  const heldPrNumbers = /* @__PURE__ */ new Set();
+  for (const userText of userAuthoredTextsContaining(transcriptJsonl, WATCH_HOLD_PHRASE_PREFIX)) {
+    for (const hold of userText.matchAll(WATCH_HOLD_INSTRUCTION)) heldPrNumbers.add(Number(hold[1]));
+  }
+  return [...heldPrNumbers];
+}
+function applyWatchHolds(state, heldPrNumbers) {
+  const recorded = state.watchHeldPrNumbers ?? [];
+  const newlyHeld = heldPrNumbers.filter((prNumber) => !recorded.includes(prNumber));
+  if (newlyHeld.length === 0) return state;
+  return { ...state, watchHeldPrNumbers: [...recorded, ...newlyHeld] };
+}
+function watchFollowThroughDecision(state, owedWork) {
+  const heldPrNumbers = state.watchHeldPrNumbers ?? [];
+  const owed = owedWork.filter((work) => !heldPrNumbers.includes(work.prNumber));
+  const blockCount = state.watchFollowThroughBlockCount ?? 0;
+  if (owed.length === 0) return { action: "none" /* None */, blockCount, owed };
+  return { action: "block" /* Block */, blockCount: blockCount + 1, owed };
+}
+function parseMaxCatchUpRebases(configuredValue) {
+  if (configuredValue === UNBOUNDED_PREFERENCE_VALUE) return null;
+  const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
+  return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : void 0;
+}
+function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
+  const shippedDefaults = readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS));
+  const userPreferences = asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
+  const autoRebase = userPreferences[AUTO_REBASE_PREFERENCE_KEY] ?? shippedDefaults[AUTO_REBASE_PREFERENCE_KEY];
+  const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  return {
+    autoRebase: typeof autoRebase === "string" ? autoRebase : void 0,
+    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
   };
 }
 
@@ -1397,17 +1626,7 @@ var verifyUserWaived = (context) => {
   const transcript = context.probe.readTextFile(context.transcriptPath);
   if (!transcript) return refuted("the transcript could not be read");
   const tail = transcript.slice(-64e3);
-  const waived = tail.split("\n").some((line) => {
-    if (!line.includes(USER_WAIVE_PHRASE)) return false;
-    try {
-      const entry = JSON.parse(line);
-      const isUserTurn = entry.type === "user" || entry.message?.role === "user";
-      return isUserTurn && JSON.stringify(entry.message?.content ?? "").includes(USER_WAIVE_PHRASE);
-    } catch {
-      return false;
-    }
-  });
-  if (waived) return verified;
+  if (userAuthoredTextsContaining(tail, USER_WAIVE_PHRASE).length > 0) return verified;
   return refuted(`no user turn in the transcript contains "${USER_WAIVE_PHRASE}"`);
 };
 var namePaths = (paths) => {
@@ -1757,17 +1976,11 @@ function threadForReplyTarget(ledger, targetId) {
   return void 0;
 }
 function resolveSlotForPr(prUrl, sessionsDirOverride) {
-  const sessionsDir = join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  const sessionsDir = join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
   if (!existsSync(sessionsDir)) return void 0;
   for (const slug of readdirSync(sessionsDir)) {
     const slotPath = join(sessionsDir, slug);
-    try {
-      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8"));
-      const slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
-      if (slotPr?.url === prUrl) return slotPath;
-    } catch {
-      continue;
-    }
+    if (readSlotPr(slotPath)?.url === prUrl) return slotPath;
   }
   return void 0;
 }
@@ -2156,6 +2369,42 @@ function watchGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A PR opened this session is open with no live muggle-pr-followup watch: ${prList}. Arm its watch per the muggle-pr-followup arming procedure (arm-watcher.md) \u2014 invoking ${armCommand} bootstraps it and arms it that way (add --resume when its slot already exists). A seeded slot does not count: only a running watch loop does, shown by a watch-heartbeat it touches every poll and that goes stale after ${staleMinutes} minutes (a watch armed moments ago writes it on its first poll). If the PR already merged or closed, end the turn again \u2014 a provider check started now clears it. If it genuinely should not be watched (autoWatchPR=never, handed off elsewhere), tell the user why and run \`echo "MUGGLE_WATCH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `PR watch still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WATCH_BLOCKS}): arm it per arm-watcher.md via ${armCommand} (--resume when its slot exists), or record a legitimate skip via \`echo "MUGGLE_WATCH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
+function owedWatchWorkLine(work) {
+  const muggleDo = muggleSkill("/muggle-do");
+  if (work.kind === "rebase" /* Rebase */) {
+    return `- PR #${work.prNumber} (${work.prUrl}) is behind or conflicting with its base (key ${work.dueOn}) and no rebase was attempted: dispatch \`${muggleDo} rebase on ${work.prUrl} slug=${work.slug}\`.`;
+  }
+  return `- PR #${work.prNumber} (${work.prUrl}) has red CI on head ${work.dueOn.slice(0, 8)} and no fix was attempted: dispatch \`${muggleDo} fix ci <red checks> on ${work.prUrl} slug=${work.slug}\` \u2014 the tick \`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\` names the checks.`;
+}
+function watchFollowThroughGate() {
+  const owedWork = findOwedWatchWork(sessionId, resolveWatchPreferences());
+  const stateBefore = readState(sessionId);
+  const transcriptTail = watchFollowThroughDecision(stateBefore, owedWork).action === "block" /* Block */ && input.transcript_path ? readFileTail(input.transcript_path, WATCH_HOLD_TRANSCRIPT_TAIL_BYTES) : null;
+  const heldPrNumbers = transcriptTail ? heldPrNumbersIn(transcriptTail) : [];
+  const state = applyWatchHolds(stateBefore, heldPrNumbers);
+  const decision = watchFollowThroughDecision(state, owedWork);
+  if (decision.action === "none" /* None */) {
+    if (state !== stateBefore || (state.watchFollowThroughBlockCount ?? 0) > 0) {
+      updateState(sessionId, (current) => ({
+        ...applyWatchHolds(current, heldPrNumbers),
+        watchFollowThroughBlockCount: 0
+      }));
+    }
+    return "{}";
+  }
+  updateState(sessionId, (current) => ({
+    ...applyWatchHolds(current, heldPrNumbers),
+    watchFollowThroughBlockCount: decision.blockCount
+  }));
+  const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
+  const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:
+${owedList}
+autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now \u2014 if the tick finds actionable review feedback it dispatches that first. A recorded attempt (conflict_resolve_attempts / ci_fix_attempts) or a new head clears this; an escalation entry with no attempt behind it does not, and neither does re-arming the watch. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
+${owedList}
+${holdInstruction}`;
+  return blockStop(reason, host);
+}
 function buildFollowthroughGate() {
   const state = readState(sessionId);
   const decision = buildFollowthroughDecision(state);
@@ -2319,6 +2568,7 @@ var handlers = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "watch-follow-through-gate": watchFollowThroughGate,
   "build-followthrough-gate": buildFollowthroughGate,
   "walkthrough-gate": walkthroughGate,
   "record-comment-replies": recordCommentReplies,

@@ -23,6 +23,8 @@ export interface GuardrailState {
   terminalBlockCount?: number;
   watchSkipped?: boolean;
   watchBlockCount?: number;
+  watchFollowThroughBlockCount?: number;
+  watchHeldPrNumbers?: number[];
   buildSkipped?: boolean;
   buildBlockCount?: number;
   walkthroughPosted?: boolean;
@@ -139,6 +141,35 @@ export interface WatchGateDecision {
   action: WatchGateAction;
   blockCount: number;
   unwatched: string[];
+}
+
+/** The watcher dispatch a slot's due work calls for. */
+export enum OwedWatchWorkKind {
+  Rebase = "rebase",
+  FixCi = "fix-ci",
+}
+
+/** One piece of work a watch this session owns found due and nothing ever attempted. */
+export interface OwedWatchWork {
+  kind: OwedWatchWorkKind;
+  slug: string;
+  prUrl: string;
+  prNumber: number;
+  /** The `<head>..<base-tip>` key a rebase is due on, or the head whose CI is red. */
+  dueOn: string;
+}
+
+/** Outcome of the watcher follow-through Stop gate. It has no release: only an attempt, a new head, or the user's hold clears it. */
+export enum WatchFollowThroughAction {
+  Block = "block",
+  None = "none",
+}
+
+/** A follow-through gate decision: the action, the running block count, and the owed work not under a user hold. */
+export interface WatchFollowThroughDecision {
+  action: WatchFollowThroughAction;
+  blockCount: number;
+  owed: OwedWatchWork[];
 }
 
 /** What one muggle-do session slot says about the watch on its PR. */

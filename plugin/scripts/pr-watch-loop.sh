@@ -39,7 +39,7 @@ fi
 # gone. Guards missing means the plugin moved or upgraded underneath this loop —
 # a newer version's watcher owns the slot now, so step down rather than run on
 # without the supersede check.
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh; do
     [ -f "${script_dir}/${lib}" ] || exit 0
     # shellcheck source=/dev/null
     . "${script_dir}/${lib}"
@@ -65,6 +65,11 @@ floor_threads=";"
 floor_ci_red=""
 floor_rebase=""
 floor_blocked_digest=""
+
+# What watch-due.env last recorded, so the file is rewritten only when the due
+# work changes rather than every poll.
+due_rebase_key=""
+recorded_due_work="unrecorded"
 
 # Pin the token once: a detached loop can lose access to gh's OS keyring
 # mid-run, which surfaces as empty fetches rather than an error.
@@ -202,11 +207,25 @@ while :; do
     fi
 
     rebase_key="${head_sha}..${base_tip_sha}"
-    if [ "$rebase_key" != "$watermark_rebase" ] && [ "$rebase_key" != "$floor_rebase" ]; then
+    if [ "$rebase_key" = "$watermark_rebase" ] || [ "$rebase_key" = "$floor_rebase" ]; then
+        # Only a key already found due is ever floored, and the pair's standing
+        # cannot change until the head or the base moves, which mints a new key.
+        due_rebase_key="$rebase_key"
+    else
         behind_count=$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")
+        due_rebase_key=""
         if watch_wake_rebase "$pr_number" "$mergeable" "$behind_count" "$rebase_key" ""; then
             floor_rebase="$rebase_key"
+            due_rebase_key="$rebase_key"
         fi
+    fi
+
+    ci_red_head=""
+    watch_checks_settled_red "$pending_checks" "$failed_checks" && ci_red_head="$head_sha"
+    due_work="${head_sha} ${due_rebase_key} ${ci_red_head}"
+    if [ "$due_work" != "$recorded_due_work" ]; then
+        watch_record_due_work "$slot" "$head_sha" "$due_rebase_key" "$ci_red_head"
+        recorded_due_work="$due_work"
     fi
 
     # The tick owns clearing the block, and it may not run for a while. Holding

@@ -25,4 +25,8 @@ export const POSIX_SPACE_CLASS = "[[:space:]]";
 export const HOOK_RUNTIME_SOURCE_ENTRIES = [
   fileURLToPath(new URL("../../../guardrails/cli.ts", import.meta.url)),
   fileURLToPath(new URL("../../../guard-run/cli.ts", import.meta.url)),
+  fileURLToPath(new URL("../../../pr-watch/cli.ts", import.meta.url)),
 ];
+
+/** The repository every watch slot fixture's PR lives in: one that does not exist, so nothing can reach it. */
+export const WATCH_FIXTURE_REPO = "footprint-fixture/no-such-repo";

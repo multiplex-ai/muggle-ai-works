@@ -32,6 +32,8 @@ import {
   MAX_BUILD_BLOCKS,
   NEXT_OPTIONS_OFFER_TOOL_NAMES,
   WATCH_HEARTBEAT_STALE_MS,
+  WATCH_HOLD_PHRASE_PREFIX,
+  WATCH_HOLD_TRANSCRIPT_TAIL_BYTES,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
@@ -82,6 +84,14 @@ import {
   isWatchSkipMarker,
   applyWatchSkip,
 } from "./watchArmed.js";
+import {
+  applyWatchHolds,
+  findOwedWatchWork,
+  heldPrNumbersIn,
+  watchFollowThroughDecision,
+} from "./watchFollowThrough.js";
+import { resolveWatchPreferences } from "../pr-watch/watchPreferences.js";
+import { readFileTail } from "../transcript/userTurns.js";
 import {
   buildFollowthroughDecision,
   isBuildSkipMarker,
@@ -141,9 +151,12 @@ import {
   StageGateAction,
   WalkthroughGateAction,
   WatchGateAction,
+  WatchFollowThroughAction,
+  OwedWatchWorkKind,
   BuildFollowthroughAction,
   GuardrailBackgroundJob,
   type HookInput,
+  type OwedWatchWork,
 } from "./types.js";
 
 function readStdin(): HookInput {
@@ -549,6 +562,64 @@ function watchGate(): string {
   return blockStop(reason, host);
 }
 
+function owedWatchWorkLine(work: OwedWatchWork): string {
+  const muggleDo = muggleSkill("/muggle-do");
+  if (work.kind === OwedWatchWorkKind.Rebase) {
+    return (
+      `- PR #${work.prNumber} (${work.prUrl}) is behind or conflicting with its base (key ${work.dueOn}) and no rebase ` +
+      `was attempted: dispatch \`${muggleDo} rebase on ${work.prUrl} slug=${work.slug}\`.`
+    );
+  }
+  return (
+    `- PR #${work.prNumber} (${work.prUrl}) has red CI on head ${work.dueOn.slice(0, 8)} and no fix was attempted: ` +
+    `dispatch \`${muggleDo} fix ci <red checks> on ${work.prUrl} slug=${work.slug}\` — the tick ` +
+    `\`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\` names the checks.`
+  );
+}
+
+function watchFollowThroughGate(): string {
+  const owedWork = findOwedWatchWork(sessionId, resolveWatchPreferences());
+  const stateBefore = readState(sessionId);
+  // A hold is read only when it could change the answer, and kept once read, so a hold typed long ago still counts
+  // after it scrolls out of the tail.
+  const transcriptTail =
+    watchFollowThroughDecision(stateBefore, owedWork).action === WatchFollowThroughAction.Block && input.transcript_path
+      ? readFileTail(input.transcript_path, WATCH_HOLD_TRANSCRIPT_TAIL_BYTES)
+      : null;
+  const heldPrNumbers = transcriptTail ? heldPrNumbersIn(transcriptTail) : [];
+  const state = applyWatchHolds(stateBefore, heldPrNumbers);
+  const decision = watchFollowThroughDecision(state, owedWork);
+  if (decision.action === WatchFollowThroughAction.None) {
+    // Reset so the next episode opens with the full instruction again.
+    if (state !== stateBefore || (state.watchFollowThroughBlockCount ?? 0) > 0) {
+      updateState(sessionId, (current) => ({
+        ...applyWatchHolds(current, heldPrNumbers),
+        watchFollowThroughBlockCount: 0,
+      }));
+    }
+    return "{}";
+  }
+  updateState(sessionId, (current) => ({
+    ...applyWatchHolds(current, heldPrNumbers),
+    watchFollowThroughBlockCount: decision.blockCount,
+  }));
+  const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
+  const holdInstruction =
+    `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. ` +
+    `Ask if you must; never decide it for them.`;
+  // Full instruction once per episode; repeats are short — same rationale as e2eGate.
+  const reason =
+    decision.blockCount === 1
+      ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:\n` +
+        `${owedList}\n` +
+        `autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to ` +
+        `wait. Act now — if the tick finds actionable review feedback it dispatches that first. A recorded attempt ` +
+        `(conflict_resolve_attempts / ci_fix_attempts) or a new head clears this; an escalation entry with no attempt ` +
+        `behind it does not, and neither does re-arming the watch. ${holdInstruction}`
+      : `Watcher work still owed (reminder ${decision.blockCount}):\n${owedList}\n${holdInstruction}`;
+  return blockStop(reason, host);
+}
+
 function buildFollowthroughGate(): string {
   const state = readState(sessionId);
   const decision = buildFollowthroughDecision(state);
@@ -814,6 +885,7 @@ const handlers: Record<string, () => string> = {
   "e2e-gate": e2eGate,
   "terminal-gate": terminalGate,
   "watch-gate": watchGate,
+  "watch-follow-through-gate": watchFollowThroughGate,
   "build-followthrough-gate": buildFollowthroughGate,
   "walkthrough-gate": walkthroughGate,
   "record-comment-replies": recordCommentReplies,

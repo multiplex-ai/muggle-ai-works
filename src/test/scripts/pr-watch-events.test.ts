@@ -11,7 +11,8 @@
 
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -146,6 +147,58 @@ describe.skipIf(!hasBash)("watch_wake_ci_red", () => {
   it("fires once per red head, then re-arms on the next push", () => {
     expect(wake('watch_wake_ci_red 383 0 1 "headsha" "headsha"')).toBe("");
     expect(wake('watch_wake_ci_red 383 0 1 "newhead" "headsha"')).toContain("head=newhead");
+  });
+});
+
+/** Whether a predicate from the events script holds for the call. */
+function holds(call: string): boolean {
+  try {
+    execFileSync("bash", ["-c", `source "$SCRIPT"; ${call}`], {
+      env: { ...process.env, SCRIPT: scriptPath },
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The arm step and the loop both decide "due" through these, so the due record
+// the turn-end gate reads agrees with what the loop wakes on.
+describe.skipIf(!hasBash)("watch_checks_settled_red / watch_branch_needs_rebase", () => {
+  it("is red only once nothing is pending and something failed", () => {
+    expect(holds("watch_checks_settled_red 0 1")).toBe(true);
+    expect(holds("watch_checks_settled_red 1 1")).toBe(false);
+    expect(holds("watch_checks_settled_red 0 0")).toBe(false);
+    expect(holds('watch_checks_settled_red "" "x"')).toBe(false);
+  });
+
+  it("needs a rebase when conflicting or measurably behind", () => {
+    expect(holds("watch_branch_needs_rebase CONFLICTING 0")).toBe(true);
+    expect(holds("watch_branch_needs_rebase MERGEABLE 2")).toBe(true);
+    expect(holds("watch_branch_needs_rebase MERGEABLE 0")).toBe(false);
+    expect(holds('watch_branch_needs_rebase UNKNOWN ""')).toBe(false);
+  });
+});
+
+describe.skipIf(!hasBash)("watch_record_due_work", () => {
+  const duePath = toBash(fileURLToPath(new URL("../../../plugin/scripts/pr-watch-due.sh", import.meta.url)));
+
+  function recordDue(args: string): string {
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-due-"));
+    execFileSync("bash", ["-c", `source "$SCRIPT"; watch_record_due_work "$SLOT" ${args}`], {
+      env: { ...process.env, SCRIPT: duePath, SLOT: toBash(slot) },
+      stdio: "ignore",
+    });
+    return readFileSync(join(slot, "watch-due.env"), "utf8");
+  }
+
+  it("writes the head, the due rebase key, and the red head", () => {
+    expect(recordDue('h1 "h1..b1" h1')).toBe('HEAD="h1"\nREBASE_DUE="h1..b1"\nCI_RED_HEAD="h1"\n');
+  });
+
+  it("leaves the file empty when nothing is due", () => {
+    expect(recordDue('h1 "" ""')).toBe("");
   });
 });
 

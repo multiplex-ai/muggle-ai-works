@@ -41,6 +41,10 @@ _Verify that a returning user can sign in with valid credentials and land on the
 |:--|:--|
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-1" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow">
+
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -49,28 +53,24 @@ _Verify that a returning user can sign in with valid credentials and land on the
 <details><summary>📷 1 · Navigate to /login</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-1/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · Enter username</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-1/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Click Sign In</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-1/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow">
 
 </dd></dl>
 </details>
@@ -88,6 +88,10 @@ _Verify a shopper can complete checkout with a saved payment method._
 | **Why** | Element not found: button[data-testid='confirm-order'] |
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-2" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Failure at step 3
+
+<img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow">
+
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -96,28 +100,24 @@ _Verify a shopper can complete checkout with a saved payment method._
 <details><summary>📷 1 · Add item to cart</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-2/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · View cart</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-2/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Click confirm</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-2/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Failure at step 3
-
-<img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow">
 
 </dd></dl>
 </details>
@@ -132,6 +132,10 @@ _Verify a shopper can complete checkout with a saved payment method._
 |:--|:--|
 | **Run** | 1 browser step · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-3" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page">
+
 <details><summary><kbd>Show 1 step and screenshots</kbd></summary>
 <dl><dd>
 
@@ -140,14 +144,10 @@ _Verify a shopper can complete checkout with a saved payment method._
 <details><summary>📷 1 · Open profile</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-3%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-3/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page">
 
 </dd></dl>
 </details>

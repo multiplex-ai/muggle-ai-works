@@ -41,6 +41,10 @@ _Verify that a logged-in user can create a new project by entering a valid proje
 |:--|:--|
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-1" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="User creates a new project with valid URL">
+
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -49,28 +53,24 @@ _Verify that a logged-in user can create a new project by entering a valid proje
 <details><summary>📷 1 · Open dashboard</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-1/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · Click New Project</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-1/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Fill form and submit</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-1%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-1/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="User creates a new project with valid URL">
 
 </dd></dl>
 </details>
@@ -88,6 +88,10 @@ _Verify invalid URL shows an inline validation error._
 | **Why** | Element not found: submit button |
 | **Run** | 4 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-2" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Failure at step 4
+
+<img src="https://cdn.muggle.ai/run-2/3.png" width="720" alt="User receives error for invalid URL format">
+
 <details><summary><kbd>Show 4 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -96,35 +100,31 @@ _Verify invalid URL shows an inline validation error._
 <details><summary>📷 1 · Open dashboard</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-2/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · Click New Project</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-2/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Enter invalid URL</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-2/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
 <details><summary>📷 4 · Click Submit</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-2%2F3.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 4">
+<img src="https://cdn.muggle.ai/run-2/3.png" width="640" alt="Step 4">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Failure at step 4
-
-<img src="https://cdn.muggle.ai/run-2/3.png" width="720" alt="User receives error for invalid URL format">
 
 </dd></dl>
 </details>
@@ -141,6 +141,10 @@ _Verify a returning user can log in with correct email and password._
 |:--|:--|
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-3" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-3/2.png" width="720" alt="Login with valid credentials">
+
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -149,28 +153,24 @@ _Verify a returning user can log in with correct email and password._
 <details><summary>📷 1 · Open /login</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-3%2F0.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 1">
+<img src="https://cdn.muggle.ai/run-3/0.png" width="640" alt="Step 1">
 
 </dd></dl>
 </details>
 <details><summary>📷 2 · Enter credentials</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-3%2F1.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 2">
+<img src="https://cdn.muggle.ai/run-3/1.png" width="640" alt="Step 2">
 
 </dd></dl>
 </details>
 <details><summary>📷 3 · Click Sign In</summary>
 <dl><dd>
 
-<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn.muggle.ai%2Frun-3%2F2.png&amp;w=840&amp;q=70&amp;output=jpg" width="640" alt="Step 3">
+<img src="https://cdn.muggle.ai/run-3/2.png" width="640" alt="Step 3">
 
 </dd></dl>
 </details>
-
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-3/2.png" width="720" alt="Login with valid credentials">
 
 </dd></dl>
 </details>

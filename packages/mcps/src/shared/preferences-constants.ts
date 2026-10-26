@@ -25,7 +25,7 @@ export const PREFERENCES_VERSION = 1;
  * `verboseOutput` stays quiet (it's UX noise, not automation), and
  * `autoInstallCiWorkflow` asks — it writes a file into the user's repository,
  * and a default is not consent to do that. `autoInstallWatchService` asks for
- * the same reason: it registers a scheduled task that restarts idle sessions.
+ * the same reason: it schedules an OS job that restarts idle sessions.
  * `defaultExecutionMode` resolves to `local` rather than re-prompting.
  */
 export const DEFAULT_PREFERENCES: IPreferences = {
@@ -190,7 +190,7 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
     description: "When muggle init runs in a repository, or /muggle-do opens a PR in one, that lacks .github/workflows/muggle-walkthrough.yml, add it — the CI check that fails a PR whose E2E walkthrough is missing or reports a failed or inconclusive test case",
   },
   [PreferenceKey.AutoInstallWatchService]: {
-    description: "When muggle works installs or upgrades, register or refresh the Muggle Watch scheduled task — it tracks sessions and PR watchers, resumes the owner of a dead watcher, and brings idle sessions onto the installed build",
+    description: "When muggle works installs or upgrades, schedule or refresh the Muggle Watch job (Task Scheduler, launchd, a systemd user timer or cron) — it tracks sessions and PR watchers, resumes the owner of a dead watcher, and brings idle sessions onto the installed build",
   },
   [PreferenceKey.ReusePreparePlan]: {
     description: "Reuse the saved prepare plan for this stack (skip discovery, jump to check-running + smoke-test) instead of rediscovering from scratch",

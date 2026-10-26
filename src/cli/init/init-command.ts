@@ -23,7 +23,7 @@ import {
 
 import { USER_WORKFLOW_PATH } from "../../ci-workflow/constants.js";
 import { WATCH_SERVICE_QUIET_OUTCOMES } from "../../watch/constants.js";
-import { applyWatchServicePreference, createDefaultWatchServiceInstallDeps } from "../../watch/watch-service.js";
+import { applyWatchServicePreference, createDefaultWatchServiceInstallDeps } from "../../watch/install-service.js";
 import { applyCiWorkflowPreference } from "./ci-question.js";
 import { CiOfferOutcome, type AskQuestion } from "./ci-question-types.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";

@@ -152,7 +152,9 @@ export async function runAgentScenarioOnce(
   const sandbox = createRunSandbox(scenario.seed);
   try {
     const paths = sandboxPathContext(sandbox, [pluginRoot]);
-    const answerTool = createToolResponder(scenario.toolResponses);
+    const answerScriptedTool = createToolResponder(scenario.toolResponses);
+    const answerTool = (tool: ScriptedTool, serializedInput: string): string =>
+      fillSandboxPathTokens(answerScriptedTool(tool, serializedInput), sandbox);
     const answerScriptedBash = createBashResponder(scenario.bashResponses);
     const builtinTools = isSkillTarget ? SKILL_BUILTIN_TOOLS : AGENT_BUILTIN_TOOLS;
     const policyContext: ToolPolicyContext = {
@@ -183,6 +185,7 @@ export async function runAgentScenarioOnce(
     const firstUserMessage = invocationPrompt(definition, scenario);
     const transcript = scenario.seed?.transcript;
     // The transcript gets responders of its own, so its calls leave the live run's sequences unadvanced.
+    const answerSeedTool = createToolResponder(scenario.toolResponses);
     const resume = transcript
       ? resumeFromSeedTranscript({
           transcript: transcript,
@@ -192,7 +195,8 @@ export async function runAgentScenarioOnce(
             paths: paths,
             pluginRoot: pluginRoot,
             answerBash: createBashResponder(scenario.bashResponses),
-            answerTool: createToolResponder(scenario.toolResponses),
+            answerTool: (tool, serializedInput) =>
+              fillSandboxPathTokens(answerSeedTool(tool, serializedInput), sandbox),
             answerMockTool: createMockToolAnswerer(scenario.fixtures ?? {}),
           },
         })

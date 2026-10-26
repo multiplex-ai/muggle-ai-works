@@ -74,7 +74,7 @@
                   "skill": "muggle-test-prepare",
                   "args": "Check the local services tiny-web-app needs before an unattended muggle-do run."
                 },
-                "result": "READY\n\n| Service | URL | Status |\n| --- | --- | --- |\n| tiny-web-app | http://localhost:3000 | 200 OK — body clean, ready |"
+                "result": "READY\n\n```\nService       PID     Port   Source      Commit    Smoke Test\n──────────────────────────────────────────────────────────────\ntiny-web-app  41872   3000   {{repo}}    4c8e2a1   ✓\n──────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
               },
               {"tool":"muggle-remote-auth-status","input":{}},
               {
@@ -419,6 +419,10 @@
       {"commandContains":"issues/","response":""},
       {"commandContains":"behind_by","response":"0"},
       {
+        "commandContains": "curl",
+        "response": "<!doctype html>\n<title>tiny-web-app</title>\n<h1>Hello, friend!</h1>\n<p>See you soon, friend!</p>"
+      },
+      {
         "commandContains": "sign-body.sh",
         "response": "(the body read from stdin, unchanged, then:)\n\n<!-- muggle-works:signature -->\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_"
       },
@@ -469,7 +473,7 @@
         },
         {
           "argContains": "muggle-test-prepare",
-          "response": "READY\n\n| Service | URL | Status |\n| --- | --- | --- |\n| tiny-web-app | http://localhost:3000 | 200 OK — body clean, ready |"
+          "response": "READY\n\n```\nService       PID     Port   Source      Commit    Smoke Test\n──────────────────────────────────────────────────────────────\ntiny-web-app  41872   3000   {{repo}}    9f2c1e4   ✓\n──────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
         },
         {
           "argContains": "muggle-pr-visual-walkthrough",

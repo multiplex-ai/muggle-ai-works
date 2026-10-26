@@ -56,7 +56,10 @@ export interface ScriptedBashResponse extends ScriptedReply {
   commandContains: string;
 }
 
-/** A canned answer for a scripted tool call; `argContains` is matched against the JSON-serialized input. First match wins. */
+/**
+ * A canned answer for a scripted tool call; `argContains` is matched against the JSON-serialized input. First match wins.
+ * `{{home}}` and `{{repo}}` in the output become the run's sandbox paths.
+ */
 export interface ScriptedToolResponse extends ScriptedReply {
   argContains: string;
 }

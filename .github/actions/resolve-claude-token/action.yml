@@ -1,8 +1,8 @@
 name: Resolve Claude subscription token
 description: >-
-  Probe the subscription tokens in order — primary, fallback, third — and export
-  the first one that authenticates as CLAUDE_CODE_OAUTH_TOKEN for every later
-  step in the job.
+  Probe the subscription tokens in order — primary, fallback, third, fourth — and
+  export the first one that authenticates as CLAUDE_CODE_OAUTH_TOKEN for every
+  later step in the job.
 
 inputs:
   primary-token:
@@ -21,10 +21,16 @@ inputs:
       CLAUDE_CODE_OAUTH_TOKEN_3 secret. Optional; unset tokens are skipped.
     required: false
     default: ""
+  fourth-token:
+    description: >-
+      Token tried when the first three are all rejected, from the
+      CLAUDE_CODE_OAUTH_TOKEN_4 secret. Optional; unset tokens are skipped.
+    required: false
+    default: ""
 
 outputs:
   slot:
-    description: "Which token authenticated: `primary`, `fallback` or `third`."
+    description: "Which token authenticated: `primary`, `fallback`, `third` or `fourth`."
     value: ${{ steps.probe.outputs.slot }}
 
 runs:
@@ -36,6 +42,7 @@ runs:
         PRIMARY_TOKEN: ${{ inputs.primary-token }}
         FALLBACK_TOKEN: ${{ inputs.fallback-token }}
         THIRD_TOKEN: ${{ inputs.third-token }}
+        FOURTH_TOKEN: ${{ inputs.fourth-token }}
       run: |
         set -uo pipefail
         : "${CLAUDE_CONFIG_DIR:?the calling job must set CLAUDE_CONFIG_DIR to a writable path}"
@@ -44,11 +51,19 @@ runs:
         # would bill the API and make the probe pass on the wrong credential.
         unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 
-        # Any non-zero exit counts as unusable, not just a rejected token:
-        # a throttled token (a spent weekly limit) should hand off to the next
-        # the same way an expired one does, and both are indistinguishable from this side.
+        # Any non-zero exit counts as unusable, not just a rejected token: a
+        # throttled token (a spent weekly or session limit) hands off to the next
+        # the same way an expired one does.
         probe_token() {
           CLAUDE_CODE_OAUTH_TOKEN="$1" claude -p 'Respond with exactly: OK' --max-turns 1 2>&1
+        }
+
+        # The CLI names a spent limit and when it resets. That token comes back
+        # on its own, so it is reported apart from one that needs regenerating:
+        # telling someone to regenerate a throttled token sends them to fix
+        # nothing while the real remedy is waiting or adding quota.
+        limit_reset() {
+          printf '%s\n' "$1" | grep -oE 'hit your [a-z]+ limit.*' | head -n 1
         }
 
         if [ -z "$PRIMARY_TOKEN" ]; then
@@ -56,29 +71,44 @@ runs:
           exit 1
         fi
 
-        slots=(primary fallback third)
-        secret_names=(CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_2 CLAUDE_CODE_OAUTH_TOKEN_3)
-        tokens=("$PRIMARY_TOKEN" "$FALLBACK_TOKEN" "$THIRD_TOKEN")
+        slots=(primary fallback third fourth)
+        secret_names=(CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_2 CLAUDE_CODE_OAUTH_TOKEN_3 CLAUDE_CODE_OAUTH_TOKEN_4)
+        tokens=("$PRIMARY_TOKEN" "$FALLBACK_TOKEN" "$THIRD_TOKEN" "$FOURTH_TOKEN")
         rejected=()
-        rejection_output=""
+        exhausted=""
+        probe_report=""
         for index in "${!tokens[@]}"; do
           [ -n "${tokens[$index]}" ] || continue
           if probe_output="$(probe_token "${tokens[$index]}")"; then
             echo "auth ok on ${secret_names[$index]}"
-            if [ "${#rejected[@]}" -gt 0 ]; then
-              # Surfaced loudly rather than silently absorbed: the run is healthy,
-              # but the rejected tokens need regenerating before this one runs out too.
-              echo "::warning title=Claude token rejected::${rejected[*]} rejected; fell back to ${secret_names[$index]}. This run is unaffected, but regenerate the rejected token(s) with \`claude setup-token\`."
-              printf '%b' "$rejection_output"
+            # Surfaced loudly rather than silently absorbed: the run is healthy,
+            # but the suite is down to its last working tokens.
+            if [ -n "$exhausted" ]; then
+              echo "::warning title=Claude token out of quota::Out of usage quota: ${exhausted}. Fell back to ${secret_names[$index]}. This run is unaffected; those tokens work again at their reset, so nothing needs regenerating."
             fi
+            if [ "${#rejected[@]}" -gt 0 ]; then
+              echo "::warning title=Claude token rejected::${rejected[*]} rejected; fell back to ${secret_names[$index]}. This run is unaffected, but regenerate the rejected token(s) with \`claude setup-token\`."
+            fi
+            printf '%b' "$probe_report"
             echo "slot=${slots[$index]}" >> "$GITHUB_OUTPUT"
             echo "CLAUDE_CODE_OAUTH_TOKEN=${tokens[$index]}" >> "$GITHUB_ENV"
             exit 0
           fi
-          rejected+=("${secret_names[$index]}")
-          rejection_output+="${secret_names[$index]} output:\n${probe_output}\n"
+          reset="$(limit_reset "$probe_output")"
+          if [ -n "$reset" ]; then
+            exhausted+="${exhausted:+; }${secret_names[$index]} (${reset})"
+          else
+            rejected+=("${secret_names[$index]}")
+          fi
+          probe_report+="${secret_names[$index]} output:\n${probe_output}\n"
         done
 
-        echo "::error::Subscription auth failed on every configured token (${rejected[*]}). Regenerate them with \`claude setup-token\` and re-set the secrets (no trailing newline), or add CLAUDE_CODE_OAUTH_TOKEN_2 / _3 from an account with quota." >&2
-        printf '%b' "$rejection_output" >&2
+        if [ "${#rejected[@]}" -eq 0 ]; then
+          echo "::error::Every configured Claude token is out of usage quota: ${exhausted}. Nothing needs regenerating — re-run this job after the earliest reset, or add a CLAUDE_CODE_OAUTH_TOKEN_2 / _3 / _4 from an account with quota." >&2
+        else
+          quota_note=""
+          [ -z "$exhausted" ] || quota_note=" Out of quota, back at their reset: ${exhausted}."
+          echo "::error::Subscription auth failed on every configured token. Rejected: ${rejected[*]} — regenerate with \`claude setup-token\` and re-set the secret(s) (no trailing newline).${quota_note}" >&2
+        fi
+        printf '%b' "$probe_report" >&2
         exit 1

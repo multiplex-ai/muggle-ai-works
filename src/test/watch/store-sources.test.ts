@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
 import { ProviderPrState } from "../../guardrails/types.js";
-import { readPluginFingerprint } from "../../watch/plugin-fingerprint.js";
+import { readUserPluginsUpdatedAtMs } from "../../watch/plugins-updated.js";
 import { buildPrStatusRequest, fetchPrLiveStatuses, parsePullRequestNode } from "../../watch/pr-status.js";
 import { partitionByTerminalCache, updateTerminalCache } from "../../watch/terminal-pr-cache.js";
 import { CiRollupState, PrMergeable, PrMergeStateStatus } from "../../watch/types.js";
@@ -133,7 +133,7 @@ describe("PR live status", () => {
   });
 });
 
-describe("readPluginFingerprint", () => {
+describe("readUserPluginsUpdatedAtMs", () => {
   function writeInstalled(installs: unknown): string {
     const filePath = join(makeTempDir("plugins"), "installed_plugins.json");
     writeFileSync(filePath, JSON.stringify(installs));
@@ -142,29 +142,20 @@ describe("readPluginFingerprint", () => {
 
   const userInstall = { scope: "user", version: "1.0.0", gitCommitSha: "aaa", lastUpdated: "2026-10-24T10:00:00.000Z" };
 
-  it("digests user-scope installs and reports the newest update time", () => {
-    const fingerprint = readPluginFingerprint(writeInstalled({
+  it("reports the newest user-scope update, ignoring project scope and undated entries", () => {
+    const updatedAtMs = readUserPluginsUpdatedAtMs(writeInstalled({
       plugins: {
         "muggleai@works": [userInstall, { scope: "project", version: "0.9.0", lastUpdated: "2026-10-25T00:00:00.000Z" }],
         "other@market": [{ ...userInstall, lastUpdated: "not a date" }],
       },
     }));
-    expect(fingerprint?.fingerprint).toMatch(/^[0-9a-f]{64}$/);
-    expect(fingerprint?.changedAtMs).toBe(Date.parse("2026-10-24T10:00:00.000Z"));
+    expect(updatedAtMs).toBe(Date.parse("2026-10-24T10:00:00.000Z"));
   });
 
-  it("ignores project-scope changes and notices user-scope ones", () => {
-    const baseline = readPluginFingerprint(writeInstalled({ plugins: { p: [userInstall] } }));
-    const projectOnly = readPluginFingerprint(writeInstalled({ plugins: { p: [userInstall, { scope: "project", version: "9" }] } }));
-    const bumped = readPluginFingerprint(writeInstalled({ plugins: { p: [{ ...userInstall, version: "1.0.1" }] } }));
-    expect(projectOnly?.fingerprint).toBe(baseline?.fingerprint);
-    expect(bumped?.fingerprint).not.toBe(baseline?.fingerprint);
-  });
-
-  it("returns null for a missing or shapeless record", () => {
-    expect(readPluginFingerprint(join(makeTempDir("plugins"), "absent.json"))).toBeNull();
-    expect(readPluginFingerprint(writeInstalled({ version: 2 }))).toBeNull();
-    expect(readPluginFingerprint(writeInstalled({ plugins: { p: "not a list" } }))?.changedAtMs).toBeUndefined();
+  it("returns undefined for a missing, shapeless, or undated record", () => {
+    expect(readUserPluginsUpdatedAtMs(join(makeTempDir("plugins"), "absent.json"))).toBeUndefined();
+    expect(readUserPluginsUpdatedAtMs(writeInstalled({ version: 2 }))).toBeUndefined();
+    expect(readUserPluginsUpdatedAtMs(writeInstalled({ plugins: { p: "not a list" } }))).toBeUndefined();
   });
 });
 

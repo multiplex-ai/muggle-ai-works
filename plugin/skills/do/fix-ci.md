@@ -14,7 +14,7 @@ Resolve red CI on a PR's head — lint/format, typecheck, failing unit tests, an
 
 ## Inputs from disk
 
-From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + local checkout / branch), `last_seen.json` (`ci_fix_attempts`, `ci_escalated_shas`, `pushed_shas`), `state.md` (worktree path, validation strategy).
+From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + local checkout / branch), `last_seen.json` (`ci_fix_attempts`, `ci_escalated_shas`, `ci_rerun_shas`, `pushed_shas`), `state.md` (worktree path, validation strategy).
 
 ## Procedure
 
@@ -22,9 +22,13 @@ From `~/.muggle-ai/muggle-do/sessions/<slug>/`: `prs.json` (PR + local checkout 
 
 Check out the PR branch in the session's working tree (per `state.md`). Capture `red_sha = prs.json[0].head_sha` — this cycle's `pre_cycle_sha` ([`cycle-size.md`](cycle-size.md)).
 
+Then increment `last_seen.ci_fix_attempts[red_sha]` — before any fix, re-run or escalation, as a whole-file rewrite (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Every dispatched cycle is an attempt, including one that only re-runs a check or escalates without pushing. That count is the only record the watcher and its turn-end gate accept that this red head was acted on; an escalation written without it is ignored and fix-ci is dispatched again ([`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#last_seenjson)).
+
 ### Step 2 — Map each failing check to a local command
 
-Per [`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md). Fix the in-scope checks in the working tree; record out-of-scope checks for escalation (Step 6). A red `muggle-walkthrough` check takes Step 2.5.
+Per [`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md). Fix the in-scope checks in the working tree; record out-of-scope checks for escalation (Step 6). A red `muggle-walkthrough` check takes Step 2.5; a red non-deterministic check takes Step 2.6.
+
+How long a check takes to run — a 45-minute eval included — is never a reason to skip, defer or escalate it. A held fix needs the user's own words: a message they typed containing `HOLD WATCH #<pr-number>`.
 
 ### Step 2.5 — Red E2E walkthrough check
 
@@ -35,6 +39,18 @@ Per [`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md). Fi
 5. **Wait for the fresh verdict** before Step 5's respawn: poll the check run until one completes later than the `completed_at` recorded in item 1, for up to 5 minutes. A watcher respawned sooner reads the stale red verdict and spends a fix attempt on a run already repaired. On timeout, respawn anyway — the per-SHA budget still bounds it.
 
 An empty-comment failure (no run ever posted) skips items 1–2: run the suite and settle the comment. Under a `unit-only` or `skip` validation in `state.md`, settle it with the verified skip code instead.
+
+### Step 2.6 — Red non-deterministic check: re-run once per head
+
+A check whose verdict can change with nothing changed — an LLM-judged eval gate such as `skill-routing-eval`, `skill-gate-eval` or `agent-gate-eval` — gets one automatic re-run per head before anything escalates:
+
+- **A deterministic check is also red and in scope** → skip the re-run. Fix that check (Steps 3–4); the push re-runs every check on the new head.
+- **`red_sha` ∉ `last_seen.ci_rerun_shas`** → re-run the failed jobs of each such check's run, without pushing — the run id is the `/actions/runs/<run-id>/` segment of the check's `link` ([`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md)):
+  ```bash
+  gh run rerun <run-id> --failed --repo <owner>/<repo>
+  ```
+  GitLab retries the failed job instead ([`../_shared/vcs/gitlab/mr-pipeline.md`](../_shared/vcs/gitlab/mr-pipeline.md)). Append `red_sha` to `last_seen.ci_rerun_shas` (whole-file rewrite), skip Steps 3–4, and go to Step 5. The attempt was counted in Step 1; the watcher wakes on the re-run's verdict like any other.
+- **`red_sha` ∈ `ci_rerun_shas`** — it already had its re-run and failed again → escalate per Step 6.
 
 ### Step 3 — Verify before push
 
@@ -47,16 +63,15 @@ A fix that can't be made green locally is not pushed → Step 6.
 
 Commit per the `fix(ci): <check> — <what>` convention ([`../_shared/pr-followup-helpers/reply-routing.md`](../_shared/pr-followup-helpers/reply-routing.md)). Push. Append the new SHA to `last_seen.pushed_shas`. Then finish the tail [`cycle-size.md`](cycle-size.md) picked: a full fix reposts the walkthrough (a Step 2.5 repair settles it there instead), a minor one declares the skip. **No PR replies** — the fix commit is the response.
 
-### Step 5 — Update state + respawn
+### Step 5 — Respawn
 
-- Increment `last_seen.ci_fix_attempts[red_sha]` — a whole-file rewrite (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool.
-- Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). CI on the new SHA is the verify loop — a still-red SHA returns as a fresh dispatch, bounded by the per-SHA fix budget (Step 6).
+Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). CI on the new SHA — or the re-run's fresh verdict on the same one — is the verify loop: a still-red SHA returns as a fresh dispatch, bounded by the per-SHA fix budget (Step 6).
 
 ### Step 6 — Escalate (budget spent or out of scope)
 
-When the failing checks are all out of scope, or `ci_fix_attempts[red_sha]` has reached 3 with CI still red:
+When the failing checks are all out of scope, a non-deterministic check is red again after its re-run on this head (Step 2.6), or this is the head's third cycle (`ci_fix_attempts[red_sha]` reached 3 in Step 1) and it could not push a fix:
 
-1. Add `red_sha` to `last_seen.ci_escalated_shas` so the SHA is not re-fixed.
+1. Add `red_sha` to `last_seen.ci_escalated_shas` so the SHA is not re-fixed. This cycle's Step 1 attempt is what makes the entry count.
 2. Emit one terminal message naming the unresolved checks.
 3. Emit the cycle event with `outcome: "ci-escalated"` (Step 7).
 4. **Respawn the watcher** per [`respawn-watcher.md`](respawn-watcher.md). Escalation stops fix-ci from re-dispatching this SHA — but the poller must keep running: it reminds on the `ci_escalated` block and catches a new push, a new review, or the user's own fix. Skipping respawn here is the silent-stop bug the helper exists to prevent.
@@ -67,5 +82,6 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 
 ## Guardrails
 
-- Max 3 fix attempts per SHA; out-of-scope checks escalate immediately rather than churn. A walkthrough repair that pushes nothing keeps the head SHA, so the same budget bounds it.
+- Max 3 fix attempts per SHA; out-of-scope checks escalate immediately rather than churn. A walkthrough repair or a re-run that pushes nothing keeps the head SHA, so the same budget bounds it.
+- A non-deterministic check is re-run once per head before it escalates — never escalated on its first red, never re-run twice on one head.
 - No PR replies; the fix commit is the response.

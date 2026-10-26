@@ -23,6 +23,14 @@ vi.mock("../../../packages/mcps/src/index.js", async (importOriginal) => {
   };
 });
 
+const watchServiceMocks = vi.hoisted(() => ({
+  applyWatchServicePreference: vi.fn(() => ({ outcome: "not-requested", detail: "" })),
+  createDefaultWatchServiceInstallDeps: vi.fn(() => ({ platform: "win32" })),
+}));
+
+// The real service would query, and could re-register, this machine's scheduled task.
+vi.mock("../../watch/install-service.js", () => watchServiceMocks);
+
 vi.mock("node:readline/promises", () => ({
   createInterface: () => ({
     question: readlineMocks.question,
@@ -86,6 +94,20 @@ describe("muggle init --json", () => {
 });
 
 describe("muggle init --apply", () => {
+  it("acts on the saved Muggle Watch preference, reporting only what it did", async () => {
+    await initCommand({ apply: answersFile({ blanket: "accept-defaults" }) });
+    expect(watchServiceMocks.applyWatchServicePreference).toHaveBeenCalledWith(
+      expect.any(String),
+      { platform: "win32" },
+      true,
+    );
+    expect(logLines.some((line) => line.startsWith("Muggle Watch"))).toBe(false);
+
+    watchServiceMocks.applyWatchServicePreference.mockReturnValueOnce({ outcome: "installed", detail: "task MuggleWatch registered" });
+    await initCommand({ apply: answersFile({ blanket: "accept-defaults" }) });
+    expect(logLines).toContain("Muggle Watch installed: task MuggleWatch registered");
+  });
+
   it("applies answers from a file", async () => {
     await initCommand({ apply: answersFile({ blanket: "accept-defaults" }) });
 

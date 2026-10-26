@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ReloadAction,
   WatcherRecoveryOutcome,
+  WatchServiceInstallOutcome,
   WatchFindingCode,
   WatchFindingSeverity,
   type WatchSnapshot,
@@ -14,11 +15,21 @@ const serviceMock = vi.hoisted(() => ({
   runReloadPluginsPass: vi.fn(),
   runWatchTick: vi.fn(),
   unregisterWatchSlot: vi.fn(),
+  installWatchService: vi.fn(),
+  uninstallWatchService: vi.fn(),
+  applyWatchServicePreference: vi.fn(),
+  createDefaultWatchServiceInstallDeps: vi.fn(() => ({ platform: "win32" })),
 }));
 
 vi.mock("../../watch/watch-service.js", () => serviceMock);
+vi.mock("../../watch/install-service.js", () => serviceMock);
+vi.mock("../../../packages/mcps/src/index.js", async () => ({
+  PreferenceKey: (await import("../../../packages/mcps/src/shared/preferences-types.js")).PreferenceKey,
+  resolvePreferences: () => ({ autoInstallWatchService: "ask" }),
+}));
 
 import {
+  watchInstallCommand,
   watchRegisterCommand,
   watchReloadPluginsCommand,
   watchStatusCommand,
@@ -31,6 +42,8 @@ const snapshot: WatchSnapshot = {
   sessions: [],
   processes: [],
   slots: [],
+  coverage: [],
+  closedOutSlugs: [],
   findings: [
     { key: "a", code: WatchFindingCode.WatcherDead, severity: WatchFindingSeverity.Alert, subject: "o/r#1", message: "dead" },
     { key: "w", code: WatchFindingCode.BehindBase, severity: WatchFindingSeverity.Warning, subject: "o/r#1", message: "behind" },
@@ -108,28 +121,31 @@ describe("watchReloadPluginsCommand", () => {
       { sessionId: "s1", shortId: "s1", name: "fix", action: ReloadAction.Respawn, reason: "idle background session" },
       { sessionId: "s2", action: ReloadAction.Respawn, reason: "idle background session" },
       { sessionId: "s3", shortId: "s3", action: ReloadAction.Defer, reason: "turn in flight (busy)" },
+      { sessionId: "s4", shortId: "s4", cwd: "/locked", action: ReloadAction.ResumeReconcile, reason: "idle, owns open PR watches" },
     ],
     respawnedSessionIds: ["s1"],
     failedSessionIds: ["s2"],
+    untrustedSessionIds: ["s4"],
   };
 
   it("lists each session's decision after a real pass", () => {
     serviceMock.runReloadPluginsPass.mockReturnValue(report);
     watchReloadPluginsCommand({});
     expect(serviceMock.runReloadPluginsPass).toHaveBeenCalledWith(expect.anything(), false);
-    expect(stdout).toContain("muggle watch reload-plugins: respawned 1");
-    expect(stdout).toContain("respawn       fix  idle background session");
-    expect(stdout).toContain("s2  idle background session (respawn failed)");
+    expect(stdout).toContain("muggle watch reload-plugins: restarted 1");
+    expect(stdout).toContain("respawn          fix  idle background session");
+    expect(stdout).toContain("s2  idle background session (restart failed)");
+    expect(stdout).toContain("s4  idle, owns open PR watches (left running: /locked refuses a background restart — run /reload-plugins in it)");
   });
 
   it("counts planned respawns in a dry run, and prints JSON on request", () => {
-    serviceMock.runReloadPluginsPass.mockReturnValue({ ...report, respawnedSessionIds: [], failedSessionIds: [] });
+    serviceMock.runReloadPluginsPass.mockReturnValue({ ...report, respawnedSessionIds: [], failedSessionIds: [], untrustedSessionIds: [] });
     watchReloadPluginsCommand({ dryRun: true });
     expect(serviceMock.runReloadPluginsPass).toHaveBeenCalledWith(expect.anything(), true);
-    expect(stdout).toContain("would respawn 2");
+    expect(stdout).toContain("would restart 3");
     stdout = "";
     watchReloadPluginsCommand({ json: true });
-    expect(JSON.parse(stdout).decisions).toHaveLength(3);
+    expect(JSON.parse(stdout).decisions).toHaveLength(4);
   });
 
   it("fails when sessions cannot be listed or the pass throws", () => {
@@ -142,6 +158,36 @@ describe("watchReloadPluginsCommand", () => {
     watchReloadPluginsCommand({});
     expect(stderr).toContain("muggle watch: locked");
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("watchInstallCommand", () => {
+  it("installs, uninstalls, or acts on the saved preference", () => {
+    serviceMock.installWatchService.mockReturnValue({ outcome: WatchServiceInstallOutcome.Installed, detail: "task registered" });
+    serviceMock.uninstallWatchService.mockReturnValue({ outcome: WatchServiceInstallOutcome.Removed, detail: "" });
+    serviceMock.applyWatchServicePreference.mockReturnValue({ outcome: WatchServiceInstallOutcome.NotRequested, detail: "autoInstallWatchService is ask" });
+    watchInstallCommand({ wait: false });
+    watchInstallCommand({ wait: true, uninstall: true });
+    watchInstallCommand({ wait: false, fromPreference: true });
+    expect(serviceMock.installWatchService).toHaveBeenCalledWith({ platform: "win32" }, true);
+    expect(serviceMock.applyWatchServicePreference).toHaveBeenCalledWith("ask", expect.anything(), true);
+    expect(stdout).toBe(
+      "muggle watch install: installed — task registered\nmuggle watch install: removed\nmuggle watch install: not-requested — autoInstallWatchService is ask\n",
+    );
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("fails on an installer failure, and on an unsupported platform only when asked directly", () => {
+    serviceMock.installWatchService.mockReturnValue({ outcome: WatchServiceInstallOutcome.Unsupported, detail: "add a crontab line" });
+    serviceMock.applyWatchServicePreference.mockReturnValue({ outcome: WatchServiceInstallOutcome.Unsupported, detail: "add a crontab line" });
+    watchInstallCommand({ wait: true, fromPreference: true });
+    expect(process.exitCode).toBeUndefined();
+    watchInstallCommand({ wait: true });
+    expect(stderr).toBe("muggle watch: unsupported: add a crontab line\n");
+    expect(process.exitCode).toBe(1);
+    serviceMock.installWatchService.mockReturnValue({ outcome: WatchServiceInstallOutcome.Failed, detail: "access denied" });
+    watchInstallCommand({ wait: true });
+    expect(stderr).toContain("failed: access denied");
   });
 });
 

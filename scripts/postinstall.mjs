@@ -7,7 +7,7 @@
  */
 
 import { createHash } from "crypto";
-import { exec } from "child_process";
+import { exec, spawnSync } from "child_process";
 import {
     cpSync,
     readFileSync,
@@ -38,6 +38,8 @@ const require = createRequire(import.meta.url);
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
 const INSTALL_MANIFEST_FILE_NAME = "install-manifest.json";
 const LOG_FILE_NAME = "postinstall.log";
+/** Registering the task takes seconds; this only bounds a hung PowerShell. */
+const WATCH_INSTALL_TIMEOUT_MS = 60_000;
 const FETCH_TIMEOUT_MS = 90_000;
 const STREAM_TIMEOUT_MS = 5 * 60_000;
 const VERSION_OVERRIDE_FILE_NAME = "electron-app-version-override.json";
@@ -953,6 +955,27 @@ function syncClaudeMarketplace() {
 }
 
 /**
+ * Register or refresh the Muggle Watch scheduled task per `autoInstallWatchService`,
+ * by running this package's own `muggle watch install --from-preference`, which
+ * owns the decision. Global installs only, for the reason `syncClaudeMarketplace`
+ * gives: the task runs the global install, so only that one should touch it.
+ */
+function applyWatchServicePreference() {
+    if (process.env.npm_config_global !== "true") {
+        log("Muggle Watch skipped: not a global install.");
+        return;
+    }
+
+    const installed = spawnSync(
+        process.execPath,
+        [join(getPackageRootDir(), "bin", "muggle.js"), "watch", "install", "--from-preference", "--no-wait"],
+        { encoding: "utf-8", timeout: WATCH_INSTALL_TIMEOUT_MS, windowsHide: true },
+    );
+    const output = `${installed.stdout ?? ""}${installed.stderr ?? ""}`.trim();
+    log(`Muggle Watch: ${output || installed.error?.message || `exited ${installed.status}`}`);
+}
+
+/**
  * Run the onboarding backfill and log only when it actually stamps.
  */
 function logOnboardingBackfill() {
@@ -970,6 +993,7 @@ logOnboardingBackfill();
 removeVersionOverrideFile();
 syncCursorSkills();
 syncClaudeMarketplace();
+applyWatchServicePreference();
 upsertCursorMcpConfig();
 downloadElectronApp()
     .catch(logError)

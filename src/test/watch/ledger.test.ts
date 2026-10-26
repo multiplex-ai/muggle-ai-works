@@ -19,8 +19,9 @@ describe("watch ledger", () => {
     expect(readWatchLedgerState(watchDir)).toEqual(emptyLedgerState());
     writeFileSync(join(watchDir, "state.json"), "{");
     expect(readWatchLedgerState(watchDir)).toEqual(emptyLedgerState());
-    writeFileSync(join(watchDir, "state.json"), JSON.stringify({ pluginFingerprint: "fp" }));
-    expect(readWatchLedgerState(watchDir)).toEqual({ ...emptyLedgerState(), pluginFingerprint: "fp" });
+    const pendingReload = { changedAtMs: 5, respawnedSessionIds: [], notifiedSessionIds: [], skippedSessionIds: [] };
+    writeFileSync(join(watchDir, "state.json"), JSON.stringify({ pendingReload: pendingReload }));
+    expect(readWatchLedgerState(watchDir)).toEqual({ ...emptyLedgerState(), pendingReload: pendingReload });
   });
 
   it("round-trips state and snapshots through atomic writes", () => {

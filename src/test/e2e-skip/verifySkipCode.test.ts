@@ -362,6 +362,22 @@ describe("USER_WAIVED", () => {
     expect(judged?.accepted).toBe(false);
   });
 
+  // e2e-acceptance.md names the phrase, so opening it — a Read result, or the
+  // skill body the harness injects — must not read as the user waiving.
+  it("refutes when the phrase arrives only in a tool result or a loaded skill", () => {
+    const stageFileRead = JSON.stringify({
+      type: "user",
+      toolUseResult: { type: "text" },
+      message: { role: "user", content: [{ type: "tool_result", content: "waive with SKIP E2E" }] },
+    });
+    const skillBody = JSON.stringify({ type: "user", isMeta: true, message: { role: "user", content: "SKIP E2E" } });
+    const judged = resolveSkipDeclaration(
+      declare(E2eSkipCode.UserWaived),
+      contextFor({ files: { "/t.jsonl": `${stageFileRead}\n${skillBody}` } }, { transcriptPath: "/t.jsonl" }),
+    );
+    expect(judged?.accepted).toBe(false);
+  });
+
   it("refutes when the user was merely impatient", () => {
     const judged = resolveSkipDeclaration(
       declare(E2eSkipCode.UserWaived),

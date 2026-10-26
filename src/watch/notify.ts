@@ -35,10 +35,16 @@ export function composeTickNotification(
       lines.push(`Could not resume session ${owner} for ${recovery.slotSlugs.join(", ")}`);
     }
   }
-  const manualReloads = (reload?.decisions ?? []).filter((decision) => decision.action === ReloadAction.NotifyManual);
+  const decisions = reload?.decisions ?? [];
+  const nameOf = (sessionId: string): string =>
+    decisions.find((decision) => decision.sessionId === sessionId)?.name ?? shortSessionId(sessionId);
+  const manualReloads = decisions.filter((decision) => decision.action === ReloadAction.NotifyManual);
   if (manualReloads.length > 0) {
-    const sessionNames = manualReloads.map((decision) => decision.name ?? shortSessionId(decision.sessionId));
-    lines.push(`Plugins changed — run /reload-plugins in: ${sessionNames.join(", ")}`);
+    lines.push(`Plugins changed — run /reload-plugins in: ${manualReloads.map((decision) => nameOf(decision.sessionId)).join(", ")}`);
+  }
+  if ((reload?.untrustedSessionIds.length ?? 0) > 0) {
+    const sessionNames = (reload?.untrustedSessionIds ?? []).map(nameOf);
+    lines.push(`Can't restart ${sessionNames.join(", ")} (workspace not trusted) — run /reload-plugins in them`);
   }
   if (lines.length <= WATCH_NOTIFICATION_MAX_LINES) return lines;
   return [...lines.slice(0, WATCH_NOTIFICATION_MAX_LINES), `+${lines.length - WATCH_NOTIFICATION_MAX_LINES} more — muggle watch status`];

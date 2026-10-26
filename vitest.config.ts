@@ -16,11 +16,25 @@ export const WALL_CLOCK_HOOK_TESTS = [
 /** Env every vitest run here sets; why is noted where the config below applies it. */
 export const GUARDRAIL_TEST_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off" };
 
+/** Share of the cores a local run may use. CI keeps vitest's default. */
+export const LOCAL_MAX_WORKERS = "25%";
+
+/** Base a bare local run is scoped against: it runs only the tests affected by changes since this ref. */
+export const LOCAL_CHANGED_BASE = "origin/master";
+
+const isLocalRun = !process.env.CI;
+// Only a bare `vitest run` is narrowed; any filter or flag the caller typed runs as given.
+const isBareRun = process.argv.slice(2).every((argument) => argument === "run");
+const isScopedToChanges = isLocalRun && isBareRun && process.env.MUGGLE_VITEST_FULL !== "1";
+
 export default defineConfig({
   test: {
     // Watch never exits and orphans on Windows kill; opt-in only.
     watch: process.env.MUGGLE_VITEST_WATCH === "1",
     passWithNoTests: true,
+    // A full suite at one worker per core starves the rest of a shared dev machine; full runs belong to CI.
+    ...(isLocalRun ? { maxWorkers: LOCAL_MAX_WORKERS } : {}),
+    ...(isScopedToChanges ? { changed: LOCAL_CHANGED_BASE } : {}),
     // Vitest defaults to 5s. Several suites here spawn `node --import tsx` per
     // assertion — hook-execution.test.ts alone does it 78 times, recompiling
     // TypeScript each call — and local-execution-lock.test.ts takes a real

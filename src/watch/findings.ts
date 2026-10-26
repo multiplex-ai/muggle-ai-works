@@ -11,6 +11,7 @@ import {
   WatchFindingCode,
   type FindingTransitions,
   type PrLiveStatus,
+  type RepoCoverage,
   type TrackedProcess,
   type WatchFinding,
   type WatchLedgerState,
@@ -194,6 +195,26 @@ export function deriveWatchFindings(
       "muggle MCP server outlived the agent that launched it"));
   }
   return findings;
+}
+
+/**
+ * Per repo, how many PRs GitHub confirms open are watched (a loop polling or
+ * mid-rollover), deaf, or dead. PRs whose status is unknown or terminal owe no
+ * watch, so they are left out.
+ *
+ * Output shape: `[{ repo: "o/r", watched: 3, deaf: 0, dead: 1 }]`
+ */
+export function computeCoverage(assessments: WatchSlotAssessment[]): RepoCoverage[] {
+  const coverageByRepo = new Map<string, RepoCoverage>();
+  for (const assessment of assessments) {
+    if (assessment.live?.state !== ProviderPrState.Open) continue;
+    const coverage = coverageByRepo.get(assessment.pr.repo) ?? { repo: assessment.pr.repo, watched: 0, deaf: 0, dead: 0 };
+    if (assessment.watcher === WatcherLiveness.Dead) coverage.dead++;
+    else if (assessment.watcher === WatcherLiveness.Deaf) coverage.deaf++;
+    else coverage.watched++;
+    coverageByRepo.set(assessment.pr.repo, coverage);
+  }
+  return [...coverageByRepo.values()].sort((left, right) => left.repo.localeCompare(right.repo));
 }
 
 /**

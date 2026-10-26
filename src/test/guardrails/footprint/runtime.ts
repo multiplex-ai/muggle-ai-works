@@ -4,7 +4,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { performance } from "perf_hooks";
 import { setTimeout as sleep } from "timers/promises";
+import { writeSessionSlotFiles } from "../hook-harness/hookHarness.js";
 import {
+  HOME_SEED_SESSION_SLOTS,
   HOME_SEED_SESSION_STATES,
   HOOK_RUNTIME_TIMING_RUNS,
   PLUGIN_ROOT,
@@ -47,6 +49,9 @@ function seedScenarioHome(homeSeed: HomeSeed): string {
   const sessionState = HOME_SEED_SESSION_STATES[homeSeed];
   if (sessionState) {
     writeFileSync(join(guardrailsDirectory, `${RUNTIME_SESSION_ID}.json`), JSON.stringify(sessionState, null, 2));
+  }
+  for (const [slug, slotFiles] of Object.entries(HOME_SEED_SESSION_SLOTS[homeSeed] ?? {})) {
+    writeSessionSlotFiles(home, slug, slotFiles);
   }
   return home;
 }

@@ -21,6 +21,7 @@
   "autoRouteBuildToMuggleDo": "always",
   "autoWatchPR": "always",
   "autoInstallCiWorkflow": "ask",
+  "autoInstallWatchService": "ask",
   "reusePreparePlan": "always",
   "watcherLifetime": "7d",
   "maxCatchUpRebases": "20"

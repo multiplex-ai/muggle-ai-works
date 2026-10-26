@@ -50,7 +50,7 @@ Distinct from [`watch.pid`](#watchpid), and the two are not interchangeable. `wa
 
 ## `watch-registration.json`
 
-The slot's opt-in to recovery by the muggle watch service (`muggle watch`, a per-user scheduled task). `pr-watch-arm.sh` writes it beside `owner.json` on every arm that writes an owner. `muggle watch register --slot <slot>` writes it for a slot armed another way, and `muggle watch unregister --slot <slot>` removes it.
+The slot's opt-in to recovery by the muggle watch service (`muggle watch`, a per-user scheduled job). `pr-watch-arm.sh` writes it beside `owner.json` on every arm that writes an owner. `muggle watch register --slot <slot>` writes it for a slot armed another way, and `muggle watch unregister --slot <slot>` removes it.
 
 ```json
 {
@@ -95,6 +95,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "pushed_shas": ["<sha>", ...],
     "ci_fix_attempts": { "<sha>": <int> },
     "ci_escalated_shas": ["<sha>", ...],
+    "ci_rerun_shas": ["<sha>", ...],
     "conflict_resolve_attempts": { "<head-sha>..<base-tip-sha>": <int> },
     "conflict_escalated_keys": ["<head-sha>..<base-tip-sha>", ...],
     "catch_up_rebases": <int>,
@@ -118,12 +119,15 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `cycles_completed`: incremented each time `/muggle-do` completes an address-reviews invocation (regardless of actionable/ambiguous/mixed).
 - `escalated_review_ids`: review ids classified as ambiguous by `/muggle-do`. The watcher excludes these from the actionable set (both body-only reviews and the threads they own) so the same ambiguous review is never re-dispatched.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
-- `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA.
-- `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted or only out-of-scope checks). The watcher excludes these from CI dispatch so a hopeless SHA is never re-fixed.
-- `conflict_resolve_attempts`: count of rebase cycles `/muggle-do` has run (behind-only or conflicting — both rebase onto the base). The watcher stops dispatching once a key's count reaches 2. Keyed by `rebase_key` — `"<head_sha>..<base_tip_sha>"`, the head paired with the base branch tip it was measured against.
-- `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). The watcher excludes these from rebase dispatch so a hopeless pairing is never re-attempted.
+- `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run, incremented when a cycle starts — so a cycle that only re-runs a noisy check, or escalates without a push, still counts. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA. A count of 1 or more is the only evidence that floors a red head at arm time or releases the turn-end gate.
+- `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted, only out-of-scope checks, or a noisy check red again after its re-run). Suppresses CI dispatch **only while `ci_fix_attempts[sha] >= 1`**; an entry with no attempt behind it is ignored and fix-ci dispatches anyway.
+- `ci_rerun_shas`: heads on which fix-ci already re-ran its non-deterministic checks once. A noisy check red again on a listed head escalates instead of re-running a second time.
+- `conflict_resolve_attempts`: count of rebase cycles `/muggle-do` has run (behind-only or conflicting — both rebase onto the base), incremented when a cycle starts. The watcher stops dispatching once a key's count reaches 2. Keyed by `rebase_key` — `"<head_sha>..<base_tip_sha>"`, the head paired with the base branch tip it was measured against. A count of 1 or more is the only evidence that floors a stale branch at arm time or releases the turn-end gate.
+- `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). Suppresses rebase dispatch **only while `conflict_resolve_attempts[key] >= 1`**; an entry with no attempt behind it is ignored and the rebase dispatches anyway.
 - `catch_up_rebases`: how many rebases this PR has been dispatched for across its whole life. A plain counter, deliberately unkeyed: the two fields above key on `rebase_key`, which changes on every base advance and so hands an active base an unlimited supply of fresh budgets. Nothing resets this one, which makes it the only cap that binds. Capped by [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) — 20 by default, `never` for unbounded. Incremented by the rebase cycle on every push, whatever the outcome.
-- `rebase_budget_exhausted`: set once `catch_up_rebases` reaches the cap. The watcher then stops dispatching rebases for the PR entirely and blocks with reason `rebase_budget_exhausted` rather than idling, so the owner is told the branch is waiting on them. Cleared by raising the preference.
+- `rebase_budget_exhausted`: set by the tick once `catch_up_rebases` reaches the cap, recording why the watch blocks with reason `rebase_budget_exhausted`. The verdict judges exhaustion from the counter and the cap, never from this flag, so raising the preference resumes rebases at once.
+
+The escalation sets and attempt counters are written by the `/muggle-do` cycles that ran, and only by them. The dispatch decision that reads them lives in [`../../scripts/pr-watch-verdict.mjs`](../../scripts/pr-watch-verdict.mjs) ([`contract.md`](contract.md) Step 6), not in prose.
 
 Both are keyed on the pair, not the head alone, because whether a branch conflicts depends on both sides. Under a head-only key, a base that moves produces a genuinely new conflict against an unchanged head — and the stale entry suppresses it permanently, because nothing can change the head while the branch sits blocked. Pairing re-arms the budget whenever either side moves. Legacy entries written before this change are bare SHAs with no `..`; readers ignore them, which un-wedges any slot they had blocked.
 
@@ -178,7 +182,7 @@ Used for forensics only — never read back by skills.
 
 ## `result.md`
 
-Written exactly once when the PR's watcher exits terminally (PR merged or closed). Free-form markdown summarizing the PR's life under this loop:
+Written exactly once when the PR's watcher exits terminally (PR merged or closed). The muggle watch service writes it too, registered slot or not, when the PR went terminal while neither its loop nor its owner session was running: the cycle fields come from `last_seen.json`, the timeline holds one `closed out by muggle-watch` line, and `followup.log` gains `tick pr=<n> terminal=<state> closed-out-by=muggle-watch`. Free-form markdown summarizing the PR's life under this loop:
 
 ```markdown
 # Result — <slug>
@@ -213,13 +217,23 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 - `REV` — highest submitted-review id already handled
 - `COM` — highest thread-comment id already handled
 - `THREADS` — semicolon-joined ids of threads already known unresolved
-- `CIRED` — head SHA whose settled-red CI the drain already handled; empty when the checks are green, still pending, or unseen. The CI floor is a SHA rather than a monotonic id because the check rollup flips green↔red and resets on each push — keying on the head SHA fires the loop once per red head and re-arms on the next push ([`arm-watcher.md`](arm-watcher.md)).
-- `REBASED` — the `rebase_key` (`<head_sha>..<base_tip_sha>`) whose behind/conflicting state the drain already handled; empty when the branch is current with its base or unseen. Keyed on the pair, not a monotonic id, because staleness depends on both sides — the loop fires once per newly-due pair and re-arms when the head or the base moves. Same key [`contract.md`](contract.md) Step 5 dedups rebase dispatch on; the monitor only signals a due rebase, the tick applies the `conflict_resolve_attempts` budget.
+- `CIRED` — head SHA whose settled-red CI a fix-ci cycle already attempted (`ci_fix_attempts[sha] >= 1`); empty when the checks are green, still pending, unseen, or red with no attempt — the last so the loop reports it. The CI floor is a SHA rather than a monotonic id because the check rollup flips green↔red and resets on each push — keying on the head SHA fires the loop once per red head and re-arms on the next push ([`arm-watcher.md`](arm-watcher.md)).
+- `REBASED` — the `rebase_key` (`<head_sha>..<base_tip_sha>`) whose behind/conflicting state a rebase cycle already attempted (`conflict_resolve_attempts[key] >= 1`); empty when the branch is current with its base, unseen, or stale with no attempt. Keyed on the pair, not a monotonic id, because staleness depends on both sides — the loop fires once per newly-due pair and re-arms when the head or the base moves. Same key [`contract.md`](contract.md) Steps 5–6 dedup rebase dispatch on; the monitor only signals a due rebase, the tick's verdict applies the budgets.
 - `BLOCKED_CIDIGEST` — the head's `ci_digest` at the moment a block was flagged (the same signature `blocked.fingerprint.ci_digest` carries); empty whenever the watch is not blocked. Non-empty arms the loop's blocked-resume probe: while set, the loop wakes on any move of the live digest away from this value, so a block resumes on a green pass, a rerun, or an external deploy check — not only on red. Written by [`blocked-tick.md`](blocked-tick.md) when a block is flagged and cleared to empty when it resumes.
 
-Written whole-file by the orchestrating session — the review/comment/CI/rebase floors seeded at arm time (`REV`/`COM` to the **drain's own observed max**, `CIRED`/`REBASED` to what the drain handled) and advanced after every cycle to the **handled wave's snapshot** (the max review-id and comment-id the cycle read at the start of handling, captured before replies were posted); `BLOCKED_CIDIGEST` is set and cleared by the blocked-tick flag/resume path, and every arm re-seeds it from `last_seen.blocked.fingerprint.ci_digest` so a rollover or respawn keeps the resume probe live. **Never** derived from a fresh fetch taken after the drain or after replies land: a later fetch includes ids that arrived in the handling window and were never read, and marking them seen swallows them ([`arm-watcher.md`](arm-watcher.md)). The advance also never moves any floor past an unresolved thread the cycle left unaddressed. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply.
+Written whole-file by the orchestrating session — the review/comment/CI/rebase floors seeded at arm time (`REV`/`COM` to the **drain's own observed max**, `CIRED`/`REBASED` to the red head and stale key a cycle already attempted) and advanced after every cycle to the **handled wave's snapshot** (the max review-id and comment-id the cycle read at the start of handling, captured before replies were posted); `BLOCKED_CIDIGEST` is set and cleared by the blocked-tick flag/resume path, and every arm re-seeds it from `last_seen.blocked.fingerprint.ci_digest` so a rollover or respawn keeps the resume probe live. **Never** derived from a fresh fetch taken after the drain or after replies land: a later fetch includes ids that arrived in the handling window and were never read, and marking them seen swallows them ([`arm-watcher.md`](arm-watcher.md)). The advance also never moves any floor past an unresolved thread the cycle left unaddressed. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply.
 
 **Never `source` this file, and quote or extract values.** `THREADS` holds bare semicolons: sourced unquoted, the shell splits the line at the first `;` and silently drops every id after it — the loop then re-reports known threads as new. The watch loop must extract values verbatim (e.g. `grep '^THREADS=' | cut -d= -f2- | tr -d '"\r'`), tolerating quotes and CRLF; writers should quote the value anyway.
+
+## `watch-due.env`
+
+The work the watch last saw due on its PR, for the owning session's turn-end gate — plain `KEY="value"` lines, one file per slot:
+
+- `HEAD` — the head SHA the observation was made on.
+- `REBASE_DUE` — the `rebase_key` found behind or conflicting with the base; empty when the branch is current.
+- `CI_RED_HEAD` — the head whose checks settled red; empty when CI is green or still pending.
+
+The file is **empty** when nothing is due. Written by [`../../scripts/pr-watch-arm.sh`](../../scripts/pr-watch-arm.sh) from the drain's read and rewritten by the loop whenever what is due changes; the session never writes it. The follow-through Stop gate ([`../../hooks/README.md`](../../hooks/README.md)) blocks the turn end while a non-empty record in a slot this session owns names work with no matching attempt in `last_seen.json`: a `REBASE_DUE` key with no `conflict_resolve_attempts` entry (under `autoRebase=always`, budget left), or a `CI_RED_HEAD` with no `ci_fix_attempts` entry. A later tick's `prs.json` naming another head supersedes the record.
 
 ## `watch.pid`
 

@@ -22,6 +22,8 @@ import {
 } from "../../../packages/mcps/src/index.js";
 
 import { USER_WORKFLOW_PATH } from "../../ci-workflow/constants.js";
+import { WATCH_SERVICE_QUIET_OUTCOMES } from "../../watch/constants.js";
+import { applyWatchServicePreference, createDefaultWatchServiceInstallDeps } from "../../watch/install-service.js";
 import { applyCiWorkflowPreference } from "./ci-question.js";
 import { CiOfferOutcome, type AskQuestion } from "./ci-question-types.js";
 import { runTerminalWalkthrough } from "./init-terminal-wizard.js";
@@ -102,6 +104,18 @@ async function runCiOffer(ask: AskQuestion | null): Promise<void> {
   }
 }
 
+/** Act on the saved `autoInstallWatchService` value, reporting only when something was installed or went wrong. */
+function runWatchServiceOffer(): void {
+  const report = applyWatchServicePreference(
+    resolvePreferences()[PreferenceKey.AutoInstallWatchService],
+    createDefaultWatchServiceInstallDeps(),
+    true,
+  );
+  if (WATCH_SERVICE_QUIET_OUTCOMES.has(report.outcome)) return;
+  console.log("");
+  console.log(`Muggle Watch ${report.outcome}: ${report.detail}`);
+}
+
 /** Run the CI offer with a terminal prompt for `ask`. */
 async function runInteractiveCiOffer(): Promise<void> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -131,6 +145,7 @@ export async function initCommand(options: IInitOptions): Promise<void> {
       return;
     }
     await runCiOffer(null);
+    runWatchServiceOffer();
     return;
   }
 
@@ -148,4 +163,5 @@ export async function initCommand(options: IInitOptions): Promise<void> {
 
   reportOutcome(applyOnboardingAnswers(await runTerminalWalkthrough()));
   await runInteractiveCiOffer();
+  runWatchServiceOffer();
 }

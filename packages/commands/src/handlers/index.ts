@@ -25,6 +25,7 @@ export {
 } from "../../../../src/cli/service-stack.js";
 export { upgradeCommand } from "../../../../src/cli/upgrade.js";
 export {
+  watchInstallCommand,
   watchRegisterCommand,
   watchReloadPluginsCommand,
   watchStatusCommand,

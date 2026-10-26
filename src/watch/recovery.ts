@@ -37,6 +37,18 @@ export function isRecoverable(assessment: WatchSlotAssessment): boolean {
 }
 
 /**
+ * Whether the watch should close out this slot itself: GitHub reports its PR
+ * merged or closed, no loop is watching it, and its owner session is not
+ * running. A running owner's own watcher or reconcile finalizes the slot and
+ * dispatches its post-merge cleanup, and closing the slot first would make that
+ * session skip the cleanup.
+ */
+export function isSlotCloseOutDue(assessment: WatchSlotAssessment): boolean {
+  const isTerminal = assessment.live?.state === ProviderPrState.Merged || assessment.live?.state === ProviderPrState.Closed;
+  return isTerminal && assessment.watcher === WatcherLiveness.Dead && assessment.isOwnerSessionActive !== true;
+}
+
+/**
  * One recovery per owner session whose registered slots have dead watchers. A
  * single resume restores all of them, because reconcile re-arms every slot the
  * resumed session owns.

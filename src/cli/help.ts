@@ -139,6 +139,7 @@ export function getHelpGuidance(): string {
     `    ${cmd("muggle watch tick")}       Run one watch pass now`,
     `    ${cmd("muggle watch reload-plugins")} Reload plugins across active sessions`,
     `    ${cmd("muggle watch register")}   Opt a PR-watch slot into recovery`,
+    `    ${cmd("muggle watch install")}    Schedule the watch (Task Scheduler, launchd, systemd or cron)`,
     "",
     `  ${colorize("Maintenance:", COLORS.bold)}`,
     `    ${cmd("muggle versions")}         List installed Electron app versions`,

@@ -1,5 +1,6 @@
 import { fileURLToPath } from "url";
 import { EVENT_HOOK_RUNTIME_BUDGET_MS, HOOK_RUNTIME_BUDGET_MS } from "../../../hook-budget/constants.js";
+import { watchSlotFiles } from "../support/watchSlotFixture.js";
 import { HomeSeed, HookEvent, type HookRuntimeScenario, type HookSlotCap, type HookTimeoutCaps } from "./types.js";
 
 /** The plugin tree whose hooks.json and scripts the harness fires. */
@@ -147,6 +148,21 @@ export const HOME_SEED_SESSION_STATES: Partial<Record<HomeSeed, Record<string, u
     failedRuns: ["run-1"],
   },
   [HomeSeed.E2eOwed]: { sessionId: RUNTIME_SESSION_ID, prsHandled: [FIXTURE_PR_URL], unitTestsGreen: true },
+};
+
+const FIXTURE_HEAD_SHA = "1".repeat(40);
+
+/** muggle-do slots each seed writes, files by slug; a seed absent here writes none. */
+export const HOME_SEED_SESSION_SLOTS: Partial<Record<HomeSeed, Record<string, Record<string, string>>>> = {
+  [HomeSeed.WatchWorkOwed]: {
+    "no-such-repo-pr1": watchSlotFiles({
+      ownerSessionId: RUNTIME_SESSION_ID,
+      prNumber: 1,
+      headSha: FIXTURE_HEAD_SHA,
+      rebaseDueKey: `${FIXTURE_HEAD_SHA}..${"2".repeat(40)}`,
+      ciRedHeadSha: FIXTURE_HEAD_SHA,
+    }),
+  },
 };
 
 const RUNTIME_PAYLOAD_BASE = { session_id: RUNTIME_SESSION_ID, transcript_path: NOOP_TRANSCRIPT_PLACEHOLDER };
@@ -320,6 +336,12 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
     label: "turn end, acceptance run owed",
     slot: { event: HookEvent.Stop },
     homeSeed: HomeSeed.E2eOwed,
+    payload: { ...RUNTIME_PAYLOAD_BASE, stop_hook_active: false },
+  },
+  {
+    label: "turn end, watcher work owed",
+    slot: { event: HookEvent.Stop },
+    homeSeed: HomeSeed.WatchWorkOwed,
     payload: { ...RUNTIME_PAYLOAD_BASE, stop_hook_active: false },
   },
   {

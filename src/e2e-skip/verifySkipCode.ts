@@ -10,6 +10,7 @@ import {
   WEB_SERVER_COMMAND,
   WEB_SURFACE_CONFIG_FILES,
 } from "./constants.js";
+import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
 import { isNonAppPath, parseNoAppLogicChangeDetail } from "./noAppLogicChange.js";
 import {
   E2eSkipCode,
@@ -107,23 +108,15 @@ const verifyNoPr: SkipVerifier = (context) => {
 // The waive must be the user's own literal, read back out of the transcript.
 // Anything softer — an inferred go-ahead, an impatient aside, the agent's own
 // summary of what the user probably meant — is the agent waiving on the user's
-// behalf, which is the whole failure this code exists to make impossible.
+// behalf, which is the whole failure this code exists to make impossible. So is
+// the phrase arriving in a tool result or a loaded skill: e2e-acceptance.md
+// names it, and reading that file once must not waive anything.
 const verifyUserWaived: SkipVerifier = (context) => {
   if (!context.transcriptPath) return refuted("no transcript was available to read the waive from");
   const transcript = context.probe.readTextFile(context.transcriptPath);
   if (!transcript) return refuted("the transcript could not be read");
   const tail = transcript.slice(-WAIVE_TRANSCRIPT_TAIL_BYTES);
-  const waived = tail.split("\n").some((line) => {
-    if (!line.includes(USER_WAIVE_PHRASE)) return false;
-    try {
-      const entry = JSON.parse(line) as { type?: string; message?: { role?: string; content?: unknown } };
-      const isUserTurn = entry.type === "user" || entry.message?.role === "user";
-      return isUserTurn && JSON.stringify(entry.message?.content ?? "").includes(USER_WAIVE_PHRASE);
-    } catch {
-      return false;
-    }
-  });
-  if (waived) return verified;
+  if (userAuthoredTextsContaining(tail, USER_WAIVE_PHRASE).length > 0) return verified;
   return refuted(`no user turn in the transcript contains "${USER_WAIVE_PHRASE}"`);
 };
 

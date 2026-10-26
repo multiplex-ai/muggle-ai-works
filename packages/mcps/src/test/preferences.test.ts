@@ -34,9 +34,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 25 keys", () => {
+  it("has exactly 26 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(25);
+    expect(keys).toHaveLength(26);
   });
 
   it("contains all expected keys", () => {
@@ -123,6 +123,7 @@ describe("DEFAULT_PREFERENCES", () => {
       [PreferenceKey.DefaultExecutionMode]: PreferenceValue.Local,
       [PreferenceKey.VerboseOutput]: PreferenceValue.Never,
       [PreferenceKey.AutoInstallCiWorkflow]: PreferenceValue.Ask,
+      [PreferenceKey.AutoInstallWatchService]: PreferenceValue.Ask,
       [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
       [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
     };

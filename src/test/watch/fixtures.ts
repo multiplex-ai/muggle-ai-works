@@ -4,7 +4,7 @@ import { join } from "path";
 import type { CommandOptions, CommandOutcome, CommandRunner, WatchPaths } from "../../watch/types.js";
 
 /** A runner that answers from `answer` and records every call it receives. */
-export function scriptedRunner(answer: (executable: string, args: string[]) => CommandOutcome | null): {
+export function scriptedRunner(answer: (executable: string, args: string[], options?: CommandOptions) => CommandOutcome | null): {
   runCommand: CommandRunner;
   calls: Array<{ executable: string; args: string[]; options?: CommandOptions }>;
 } {
@@ -13,7 +13,7 @@ export function scriptedRunner(answer: (executable: string, args: string[]) => C
     calls: calls,
     runCommand: (executable, args, options) => {
       calls.push({ executable: executable, args: args, options: options });
-      return answer(executable, args);
+      return answer(executable, args, options);
     },
   };
 }
@@ -37,6 +37,7 @@ export function makeWatchPaths(root: string): WatchPaths {
     claudeProjectsDir: join(root, "claude", "projects"),
     claudeInstalledPluginsFile: join(root, "claude", "plugins", "installed_plugins.json"),
     codexSessionsDir: join(root, "codex", "sessions"),
+    muggleInstallLogFile: join(root, "muggle", "postinstall.log"),
   };
 }
 

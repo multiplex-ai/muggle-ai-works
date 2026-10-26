@@ -4,6 +4,7 @@ import {
   TrackedProcessKind,
   WatchFindingSeverity,
   WorkSessionAgent,
+  type RepoCoverage,
   type WatchSlotAssessment,
   type WatchSnapshot,
   type WorkSession,
@@ -11,11 +12,17 @@ import {
 
 const SEVERITY_ORDER = [WatchFindingSeverity.Alert, WatchFindingSeverity.Warning, WatchFindingSeverity.Notice];
 
-function sessionLine(session: WorkSession): string {
+// A session with no known load time is not counted behind: the watch cannot tell.
+function isBehind(session: WorkSession, installedVersion: string | undefined): boolean {
+  return installedVersion !== undefined && session.loadedAtMs !== undefined && session.loadedVersion !== installedVersion;
+}
+
+function sessionLine(session: WorkSession, installedVersion: string | undefined): string {
   const host = session.agent === WorkSessionAgent.Codex ? "codex" : session.kind ?? "claude";
   const activity = [session.turnStatus, session.jobState].filter(Boolean).join("/") || "active";
   const label = session.name ? ` ${session.name}` : "";
-  return `  ${host.padEnd(11)} ${activity.padEnd(15)} ${shortSessionId(session.sessionId)}${label}  ${session.cwd ?? ""}`.trimEnd();
+  const build = isBehind(session, installedVersion) ? `  [behind: ${session.loadedVersion ?? "older than the install log"}]` : "";
+  return `  ${host.padEnd(11)} ${activity.padEnd(15)} ${shortSessionId(session.sessionId)}${label}${build}  ${session.cwd ?? ""}`.trimEnd();
 }
 
 function ownerLabel(slot: WatchSlotAssessment): string {
@@ -55,13 +62,27 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
   lines.push(`Muggle Watch — last tick ${formatDuration(snapshotAgeMs)} ago (${snapshot.takenAt})`, "");
 
   const claudeCount = snapshot.sessions.filter((session) => session.agent === WorkSessionAgent.Claude).length;
-  lines.push(`Sessions: ${claudeCount} Claude, ${snapshot.sessions.length - claudeCount} Codex`);
-  lines.push(...snapshot.sessions.map(sessionLine), "");
+  const behindCount = snapshot.sessions.filter((session) => isBehind(session, snapshot.installedVersion)).length;
+  const drift = snapshot.installedVersion ? ` (${behindCount} behind installed ${snapshot.installedVersion})` : "";
+  lines.push(`Sessions: ${claudeCount} Claude${drift}, ${snapshot.sessions.length - claudeCount} Codex`);
+  lines.push(...snapshot.sessions.map((session) => sessionLine(session, snapshot.installedVersion)), "");
 
   lines.push(`Processes: ${processSummary(snapshot)}`, "");
 
   lines.push(`PR watches: ${snapshot.slots.length} open`);
   lines.push(...snapshot.slots.map(slotLine), "");
+
+  // A snapshot an earlier release wrote has no coverage or close-outs until the next tick replaces it.
+  const coverage = snapshot.coverage ?? [];
+  const sumOf = (pick: (repoCoverage: RepoCoverage) => number): number => coverage.reduce((total, repoCoverage) => total + pick(repoCoverage), 0);
+  lines.push(`Coverage of open PRs: ${sumOf((repoCoverage) => repoCoverage.watched)} watched, ${sumOf((repoCoverage) => repoCoverage.deaf)} deaf, ${sumOf((repoCoverage) => repoCoverage.dead)} dead`);
+  for (const repoCoverage of coverage) {
+    lines.push(`  ${repoCoverage.repo.padEnd(44)} watched ${repoCoverage.watched}  deaf ${repoCoverage.deaf}  dead ${repoCoverage.dead}`);
+  }
+  if ((snapshot.closedOutSlugs ?? []).length > 0) {
+    lines.push(`Closed out this tick (PR merged or closed, nobody watching): ${snapshot.closedOutSlugs.join(", ")}`);
+  }
+  lines.push("");
 
   lines.push(`Findings: ${snapshot.findings.length}`);
   for (const severity of SEVERITY_ORDER) {
@@ -82,8 +103,8 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
       snapshot.reload?.decisions.filter((decision) => decision.action === action).length ?? 0;
     lines.push(
       "",
-      `Plugin reload: ${snapshot.reload.respawnedSessionIds.length} respawned, ${snapshot.reload.failedSessionIds.length} failed, ` +
-        `${countOf(ReloadAction.Defer)} deferred, ${countOf(ReloadAction.NotifyManual)} need /reload-plugins by hand`,
+      `Plugin reload: ${snapshot.reload.respawnedSessionIds.length} restarted, ${snapshot.reload.failedSessionIds.length} failed, ` +
+        `${countOf(ReloadAction.Defer)} deferred, ${countOf(ReloadAction.NotifyManual) + (snapshot.reload.untrustedSessionIds?.length ?? 0)} need /reload-plugins by hand`,
     );
   }
   return `${lines.join("\n")}\n`;

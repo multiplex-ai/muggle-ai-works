@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
-import { basename, dirname, isAbsolute, join, resolve } from "path";
-import { fileURLToPath } from "url";
+import { basename, isAbsolute, join, resolve } from "path";
+import { resolvePluginRoot } from "../plugin-root/pluginRoot.js";
 import {
   FILE_PRINTING_PROGRAMS,
   MANDATORY_STAGES_FRONTMATTER_KEY,
@@ -88,9 +88,7 @@ export function stageLabel(normalizedStagePath: string): string {
 
 /** The plugin's own skills tree, from the root the host exports to every hook; falls back to this module's install location. */
 export function resolvePluginSkillsRoot(): string {
-  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || process.env.CURSOR_PLUGIN_ROOT;
-  if (pluginRoot) return join(pluginRoot, SKILLS_DIR_NAME);
-  return join(dirname(dirname(fileURLToPath(import.meta.url))), SKILLS_DIR_NAME);
+  return join(resolvePluginRoot(), SKILLS_DIR_NAME);
 }
 
 /**

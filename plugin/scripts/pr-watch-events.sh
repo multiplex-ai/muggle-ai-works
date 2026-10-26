@@ -71,9 +71,16 @@ watch_wake_thread() {
     echo "EVENT pr=$pr thread newly unresolved id=$thread_id"
 }
 
-# The head's checks having **settled** red: nothing still pending and at least
-# one failure. Pending-with-a-failure is not a wake — a run in flight may still
-# go green, and the tick would idle on it anyway.
+# True when the head's checks have **settled** red: nothing still pending and at
+# least one failure. Pending-with-a-failure is not red yet — a run in flight may
+# still go green, and the tick would idle on it anyway.
+watch_checks_settled_red() {
+    local pending_count="$1" failed_count="$2"
+    [ "${pending_count:-0}" -eq 0 ] 2>/dev/null || return 1
+    [ "${failed_count:-0}" -gt 0 ] 2>/dev/null
+}
+
+# The head's checks having settled red (watch_checks_settled_red).
 #
 # The floor is the head SHA rather than a monotonic id because a check rollup is
 # not monotonic: it flips green to red and resets on every push. Keying on the
@@ -82,9 +89,16 @@ watch_wake_ci_red() {
     local pr="$1" pending_count="$2" failed_count="$3" head_sha="$4" floor="$5"
     [ -n "$head_sha" ] || return 1
     [ "$head_sha" != "$floor" ] || return 1
-    [ "${pending_count:-0}" -eq 0 ] 2>/dev/null || return 1
-    [ "${failed_count:-0}" -gt 0 ] 2>/dev/null || return 1
+    watch_checks_settled_red "$pending_count" "$failed_count" || return 1
     echo "EVENT pr=$pr checks settled red head=$head_sha"
+}
+
+# True when the branch needs a rebase onto its base: conflicting with it, or
+# behind it by a measured, positive count. An unreadable count is not behind.
+watch_branch_needs_rebase() {
+    local mergeable="$1" behind_count="$2"
+    [ "$mergeable" = "CONFLICTING" ] && return 0
+    [ -n "$behind_count" ] && [ "$behind_count" -gt 0 ] 2>/dev/null
 }
 
 # The branch needing a rebase onto its base — conflicting with it, or merely
@@ -106,11 +120,11 @@ watch_wake_rebase() {
     local pr="$1" mergeable="$2" behind_count="$3" rebase_key="$4" floor="$5"
     [ -n "$rebase_key" ] || return 1
     [ "$rebase_key" != "$floor" ] || return 1
+    watch_branch_needs_rebase "$mergeable" "$behind_count" || return 1
     if [ "$mergeable" = "CONFLICTING" ]; then
         echo "EVENT pr=$pr branch conflicting with base key=$rebase_key"
         return 0
     fi
-    [ -n "$behind_count" ] && [ "$behind_count" -gt 0 ] 2>/dev/null || return 1
     echo "EVENT pr=$pr branch behind base by $behind_count — rebase due key=$rebase_key"
 }
 

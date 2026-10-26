@@ -11,6 +11,11 @@
 # The floors are taken from the drain's own read rather than from a fresh fetch
 # afterwards: anything that lands between the two would otherwise be marked seen
 # without ever being reported.
+#
+# A stale branch or a red head is floored only when the slot proves a cycle ran
+# for it. Flooring whatever was outstanding at arm time let a session that never
+# rebased or fixed anything re-arm at every rollover and silence the loop each
+# time; the drain line said "handled" and nothing checked.
 set -uo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +38,7 @@ if [ -z "$slot" ] || [ -z "$repo" ] || [ -z "$pr_number" ] || [ -z "$base_branch
     exit 2
 fi
 
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh; do
     if [ ! -f "${script_dir}/${lib}" ]; then
         echo "pr-watch-arm: missing ${lib} beside this script" >&2
         exit 2
@@ -42,10 +47,12 @@ for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh; do
     . "${script_dir}/${lib}"
 done
 
-if [ ! -f "${script_dir}/pr-watch-state.jq" ]; then
-    echo "pr-watch-arm: missing pr-watch-state.jq beside this script" >&2
-    exit 2
-fi
+for companion in pr-watch-state.jq pr-watch-verdict.mjs; do
+    if [ ! -f "${script_dir}/${companion}" ]; then
+        echo "pr-watch-arm: missing ${companion} beside this script" >&2
+        exit 2
+    fi
+done
 state_projection="$(cat "${script_dir}/pr-watch-state.jq")"
 
 mkdir -p "$slot"
@@ -75,50 +82,68 @@ if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
     exit 0
 fi
 
-# A red head at arm time is the drain's to hand over, so it goes into the floor
-# and does not re-fire on the loop's first pass. Pending checks are not red yet.
-ci_red_floor=""
-if [ "${pending_checks:-0}" -eq 0 ] 2>/dev/null && [ "${failed_checks:-0}" -gt 0 ] 2>/dev/null; then
-    ci_red_floor="$head_sha"
-fi
+ci_red_head=""
+watch_checks_settled_red "$pending_checks" "$failed_checks" && ci_red_head="$head_sha"
 
-# Same for staleness: keyed on the head/base-tip pair, so it re-arms when either moves.
-rebase_floor=""
+# Keyed on the head/base-tip pair, so it re-arms when either moves.
+rebase_key="${head_sha}..${base_tip_sha}"
+rebase_due_key=""
 behind_count="$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")"
-if [ "$mergeable" = "CONFLICTING" ] || { [ -n "$behind_count" ] && [ "$behind_count" -gt 0 ] 2>/dev/null; }; then
-    rebase_floor="${head_sha}..${base_tip_sha}"
-fi
+watch_branch_needs_rebase "$mergeable" "$behind_count" && rebase_due_key="$rebase_key"
 
-# A slot re-armed while blocked keeps its resume probe live. Empty is the
-# not-blocked state, so seeding it empty here would leave the loop asleep
-# through the very CI move the block is waiting on.
+# Whether a cycle already ran for this key and this head, and the blocked
+# fingerprint's digest. A slot re-armed while blocked keeps its resume probe
+# live: empty is the not-blocked state, so seeding it empty would leave the loop
+# asleep through the very CI move the block is waiting on.
 #
-# node rather than sed or jq: the digest sits under a per-PR key, jq is not
-# guaranteed present, and a malformed file must read as not blocked rather than
-# yield a partial match. The file goes in on stdin because Windows node cannot
-# open the POSIX path Git Bash hands it. A digest spanning lines is dropped:
-# written into the line-based watermark, it could forge another floor.
+# The verdict script rather than sed or jq: the fields sit under a per-PR key,
+# jq is not guaranteed present, and a malformed file must read as nothing
+# recorded rather than yield a partial match. The file goes in on stdin because
+# Windows node cannot open the POSIX path Git Bash hands it. Any failure leaves
+# every floor empty, which wakes the loop rather than silencing it.
+last_seen_file="${slot}/last_seen.json"
+[ -f "$last_seen_file" ] || last_seen_file=/dev/null
+rebase_attempted=0
+ci_attempted=0
 blocked_digest_floor=""
-if [ -f "${slot}/last_seen.json" ]; then
-    blocked_digest_floor="$(PR_KEY="${repo}#${pr_number}" node -e '
-        try {
-            const digest = JSON.parse(require("fs").readFileSync(0, "utf8"))[process.env.PR_KEY]?.blocked?.fingerprint?.ci_digest;
-            if (typeof digest === "string" && !/[\r\n]/.test(digest)) process.stdout.write(digest);
-        } catch {}
-    ' < "${slot}/last_seen.json" 2>/dev/null)"
-fi
+while IFS= read -r evidence_line; do
+    evidence_line="${evidence_line%$'\r'}"
+    case "$evidence_line" in
+        REBASE_ATTEMPTED=*) rebase_attempted="${evidence_line#REBASE_ATTEMPTED=}" ;;
+        CI_ATTEMPTED=*) ci_attempted="${evidence_line#CI_ATTEMPTED=}" ;;
+        BLOCKED_CIDIGEST=*) blocked_digest_floor="${evidence_line#BLOCKED_CIDIGEST=}" ;;
+    esac
+done < <(node "${script_dir}/pr-watch-verdict.mjs" arm-floors --pr-key "${repo}#${pr_number}" \
+    --head "$head_sha" --rebase-key "$rebase_key" < "$last_seen_file" 2>/dev/null)
+
+ci_red_floor=""
+[ -n "$ci_red_head" ] && [ "$ci_attempted" = "1" ] && ci_red_floor="$ci_red_head"
+rebase_floor=""
+[ -n "$rebase_due_key" ] && [ "$rebase_attempted" = "1" ] && rebase_floor="$rebase_due_key"
 
 thread_count=0
 [ -n "$unresolved_threads" ] && thread_count=$(printf '%s' "$unresolved_threads" | tr ';' '\n' | grep -c .)
 
-# Printed, not swallowed: these are the things the arming session owes a decision
-# on before the monitor takes over, and the monitor only ever sees what arrives
-# after this point.
+# Printed, not swallowed: these are the things the arming session owes action on
+# before the monitor takes over. Unattempted work is left unfloored, so the
+# loop's first pass reports it again as an event.
 echo "DRAIN pr=$pr_number state=$pr_state head=${head_sha:0:8}"
 echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} latest-comment=${latest_comment:-0}"
 echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behind-base=${behind_count:-unknown} mergeable=${mergeable:-UNKNOWN}"
-[ -n "$ci_red_floor" ] && echo "DRAIN ci already red at arm time — handled by the arming session, floored"
-[ -n "$rebase_floor" ] && echo "DRAIN branch already stale at arm time — handled by the arming session, floored"
+if [ -n "$ci_red_head" ]; then
+    if [ -n "$ci_red_floor" ]; then
+        echo "DRAIN ci red at arm time — a fix-ci cycle already ran for head ${head_sha:0:8}, floored"
+    else
+        echo "DRAIN ci red at arm time — no fix-ci attempt recorded for head ${head_sha:0:8}, not floored: dispatch fix-ci"
+    fi
+fi
+if [ -n "$rebase_due_key" ]; then
+    if [ -n "$rebase_floor" ]; then
+        echo "DRAIN branch stale at arm time — a rebase already ran for key ${rebase_due_key}, floored"
+    else
+        echo "DRAIN branch stale at arm time — no rebase attempt recorded for key ${rebase_due_key}, not floored: dispatch rebase"
+    fi
+fi
 
 {
     printf 'REV=%s\n' "${latest_review:-0}"
@@ -128,6 +153,8 @@ echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behin
     printf 'REBASED="%s"\n' "$rebase_floor"
     printf 'BLOCKED_CIDIGEST="%s"\n' "$blocked_digest_floor"
 } > "${slot}/watch-watermark.env"
+
+watch_record_due_work "$slot" "$head_sha" "$rebase_due_key" "$ci_red_head"
 
 # Claim the slot for this session. watcher_lease_is_foreign reads an absent
 # owner.json as "not foreign", so a slot armed without one leases itself to a

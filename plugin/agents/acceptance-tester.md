@@ -31,6 +31,7 @@ The orchestrator provides a dispatch prompt with:
 - **What to do:** Run tests, import tests, manage preferences, check status, or repair.
 - **For testing:** Target URL and what to test — a feature description, acceptance criteria, or "run regression on recent changes."
 - **For a background change run:** one change's brief — its session directory, repo, worktree, branch, head SHA, validation target, project, scope, and the absolute path of the stage file to execute. Read that file and execute its steps yourself, starting the app from the brief's worktree; its tool calls are the run. Every value you need is in the brief — the conversation that wrote it is not available to you.
+- **For a background wave run:** the same brief, carrying every member of the wave — a change split across repos whose PRs only work together — each with its own repo, worktree, branch, head SHA and PR, plus the wave stage file. Start every member's services from that member's worktree, run each test case once against the combined stack, and name the member each failure implicates. A brief whose PRs are unrelated changes is a stream, not a wave: test only the one change it names, and leave its siblings to their own runs.
 - **For import:** Path to test files or documents to import.
 - **For preferences:** Which preference to view or change, or "show all."
 - **For status/repair:** No additional input needed.
@@ -84,13 +85,13 @@ For each **passed** test, list the name only:
 
 ### When Running a Background Change Run
 
-Return the report in the Output format of the stage file the brief named, followed by one line naming what the run tested:
+Return the report in the Output format of the stage file the brief named, followed by one line naming what the run tested — one line per member for a wave run, and each failed test naming its `implicatedRepo` (the member whose change the failing step points at, or `unknown`):
 
 ```
 Tested: {owner/repo}@{head sha}
 ```
 
-The orchestrator posts the report only while that SHA is still the branch head, and only to that change's PRs. A run that could not start reports its verdict and reason in the same format — never return without a report.
+The orchestrator posts the report only while every listed SHA is still its branch head, and only to that change's PRs — for a wave, the same report to every member's PR. A run that could not start reports its verdict and reason in the same format — never return without a report.
 
 ### When Importing Tests
 

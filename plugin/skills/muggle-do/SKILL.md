@@ -25,9 +25,11 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 | 7.5 | E2E repair loop | [`../do/e2e-repair.md`](../do/e2e-repair.md) |
 | 8 | Hand off to watcher | [`../muggle-pr-followup/SKILL.md`](../muggle-pr-followup/SKILL.md) |
 
-**Multi-repo waves.** When a task spans several repos with one PR each, the PRs form a wave: every repo's service starts from its branch, Stage 6 runs **one** E2E pass against the combined stack, and that same result is posted to every PR in the wave. See [`../do/wave-e2e.md`](../do/wave-e2e.md); pre-flight decides whether a cycle is a wave.
+**Waves and streams.** A session's PRs are either a **wave** — one change split across repos — or a **stream** of independent changes, or both; [`../do/wave-or-stream.md`](../do/wave-or-stream.md) defines which is which, and pre-flight decides it once.
 
-**Several changes in one session.** Unrelated fixes — several bugs in one request, or a second task while the first is still in flight — are separate changes, each with its own session directory, worktree, PR, and E2E run. When a change reaches Stage 6 while other work is in front of the session, its run goes to a background `acceptance-tester` and the session moves on; the report comes back to the main session, which carries that change through Stages 7–8. One local run at a time, and a PR's walkthrough only ever carries its own change's run. See [`../do/background-e2e.md`](../do/background-e2e.md).
+**Multi-repo waves.** When a task's PRs need each other to work — one PR per repo — they form a wave: every repo's service starts from its branch, Stage 6 runs **one** E2E pass against the combined stack, and that same result is posted to every PR in the wave. See [`../do/wave-e2e.md`](../do/wave-e2e.md); pre-flight decides whether a cycle is a wave.
+
+**Streams — several changes in one session.** Unrelated fixes — several bugs in one request, or a second task while the first is still in flight — are separate changes, each with its own session directory, worktree, PR, and E2E run; a wave is one change among them. When a change reaches Stage 6 while other work is in front of the session, its run goes to a background `acceptance-tester` and the session moves on; the report comes back to the main session, which carries that change through Stages 7–8. One local run at a time, and a PR's walkthrough only ever carries its own change's run. See [`../do/background-e2e.md`](../do/background-e2e.md).
 
 Stage 7 dispatches one watcher per opened PR as its last action, gated on Stage 7.5's clearance — a cycle with unrepaired E2E failures never reaches a watcher.
 

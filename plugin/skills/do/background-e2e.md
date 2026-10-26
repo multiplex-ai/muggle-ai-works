@@ -4,10 +4,9 @@ A session that fixes several unrelated bugs opens several PRs, and each needs th
 
 ## Changes
 
-A **change** is what gets one E2E run and one report.
+A **change** is what gets one E2E run and one report: a whole wave, or one PR of a stream. How a session's PRs group into waves and streams is defined once, in [`wave-or-stream.md`](wave-or-stream.md); this lane runs every change of a stream, a wave included.
 
-- A wave ([`wave-e2e.md`](wave-e2e.md)) is one change spread across its PRs. Every other PR is a change of its own — unrelated fixes stay separate changes even in the same repo.
-- Each change has its own session directory (`state.md`, `iterations/`), branch, worktree and PR. Pre-flight splits a request that bundles unrelated fixes this way ([`pre-flight.md`](pre-flight.md)).
+- Each change has its own session directory (`state.md`, `iterations/`), branch and worktree — one per member for a wave. Pre-flight splits a request that bundles unrelated fixes this way ([`pre-flight.md`](pre-flight.md)).
 - Changes cannot share a checkout: the background run tests one change's tree while the session edits another's. Every change gets a worktree, whatever `autoUseWorktree` says.
 
 ## Lane
@@ -34,21 +33,21 @@ Each change's `state.md` tracks its place: `E2E dispatch: queued` → `running �
 The agent knows only its brief. Pass every value itself, never a pointer to the conversation:
 
 - The change's slug and absolute session directory.
-- Repo, worktree path, branch, base branch, and the head SHA under test.
-- The PR URL when the PR already exists (a repair re-run, or a PR opened outside `muggle-do`). Muggle reads PR URLs from the brief to know which PR's walkthrough is waiting on this run, so leave none out and add none that belong to another change.
+- Repo, worktree path, branch, base branch, and the head SHA under test — for a wave, one entry per member, from its `Wave members` block.
+- The PR URL when the PR already exists (a repair re-run, or a PR opened outside `muggle-do`) — for a wave, every member's. Muggle reads PR URLs from the brief to know which PR's walkthrough is waiting on this run, so leave none out and add none that belong to another change.
 - `Validation`, `localUrl`, `projectId`, and test-credential status from `state.md`.
 - The `e2eScope` from impact analysis, verbatim; a Stage 7.5 re-run passes only its affected test cases.
 - The acceptance criteria from `requirements.md`.
 - `wallTimeBudgetSec`.
-- The absolute path of [`e2e-acceptance.md`](e2e-acceptance.md) as the stage to execute, with the rules in the two sections below.
+- The absolute path of [`e2e-acceptance.md`](e2e-acceptance.md) as the stage to execute — plus [`wave-e2e.md`](wave-e2e.md) for a wave — with the rules in the two sections below.
 
 Dispatch it as `subagent_type: "muggle:acceptance-tester"` (bare `acceptance-tester` where the plugin namespace is absent), in the background. A harness with no background agents runs every change's Stage 6 inline, one after another.
 
 ## The agent's run
 
-1. Start the stack from the change's worktree: [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) with the worktree as the directory override for the repo's services. Confirm by process cwd that each service runs that worktree — a port that answers may be serving another change's branch.
-2. Execute `e2e-acceptance.md` from Step 0.5 through Step 7 over the brief's scope, in its own context.
-3. Append the Stage 6 marker to the change's `iterations/<NNN>.md`: that file's report, plus `Tested: <owner/repo>@<sha>`.
+1. Start the stack from the change's worktree: [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) with the worktree as the directory override for the repo's services — for a wave, every member's worktree for its own repo's services, per [`wave-e2e.md`](wave-e2e.md) Stage 6. Confirm by process cwd that each service runs its worktree — a port that answers may be serving another change's branch.
+2. Execute `e2e-acceptance.md` from Step 0.5 through Step 7 over the brief's scope, in its own context. A wave runs each case once against the combined stack and names each failure's `implicatedRepo`.
+3. Append the Stage 6 marker to the change's `iterations/<NNN>.md`: that file's report, plus `Tested: <owner/repo>@<sha>` — one line per member for a wave.
 4. Return the same report as its final message.
 
 ## What the agent never does
@@ -62,9 +61,9 @@ Dispatch it as `subagent_type: "muggle:acceptance-tester"` (bare `acceptance-tes
 
 On the agent's completion notification, the main session:
 
-1. **Checks freshness.** `Tested:` must name the branch's current head. A branch that moved since dispatch makes the report stale: queue the change again and post nothing.
+1. **Checks freshness.** Every `Tested:` line must name its branch's current head. A branch that moved since dispatch — any member's, for a wave — makes the report stale: queue the change again and post nothing.
 2. **Records it** — `E2E dispatch: reported — …` in `state.md`.
-3. **Continues that change from Stage 7**, in its worktree. [`open-prs/forward.md`](open-prs/forward.md) opens its PR with this report; when the PR already exists, the report settles that PR's walkthrough through Mode A with its number and repo passed explicitly — never from the current branch, since the session's cwd may be another change's worktree.
+3. **Continues that change from Stage 7**, in its worktree. [`open-prs/forward.md`](open-prs/forward.md) opens its PR with this report — every member's PR for a wave, in the wave order of [`wave-e2e.md`](wave-e2e.md) Stage 7; when a PR already exists, the report settles that PR's walkthrough through Mode A with its number and repo passed explicitly — never from the current branch, since the session's cwd may be another change's worktree.
 4. **Runs Stage 7.5** inline. A repair pass's re-run returns to this lane, behind any local run in flight.
 5. **Arms the change's watcher** once 7.5 clears (Stage 8).
 6. **Dispatches the next queued change.**
@@ -79,7 +78,7 @@ A session that fixed bugs by hand and opened each PR itself follows the same lan
 
 - Dispatching a background acceptance-tester holds the E2E and debug-path Stop gates off for a bounded window, and for that window the walkthrough gate sets aside the PRs its brief names — the session is never steered into a second browser run alongside the agent's.
 - A walkthrough posted to one PR settles that PR only; every other PR the session opened is still checked for its own.
-- A skip declaration settles only the PR of the working tree it is declared in.
+- A skip declaration settles only the PRs of the working tree it is declared in — the PRs opened from it and its branch's PR, never another change's.
 - Every PR's walkthrough check stays red until its slot is settled, so a change whose run never came back cannot pass as tested.
 
 ## Invariants

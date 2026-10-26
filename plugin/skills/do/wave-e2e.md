@@ -6,14 +6,14 @@ So a wave is tested as one: start every repo's service from its wave branch, run
 
 ## When a cycle is a wave
 
-All of these hold, decided at pre-flight and recorded in `state.md`:
+What makes PRs a wave rather than a stream of independent changes is defined in [`wave-or-stream.md`](wave-or-stream.md): the PRs need each other to work. A wave additionally needs all of these, decided at pre-flight and recorded in `state.md`:
 
 - Two or more repos carry changes this cycle.
 - Each changed repo gets exactly **one** PR — no stacked PRs, no second PR in the same repo.
 - Validation is `local-e2e`.
 - Every wave repo that serves part of the stack can run locally. A repo that only ships a library or config consumed by another wave repo is still a wave member; it just contributes no service of its own.
 
-Anything else is not a wave: each PR is a change of its own and runs Stage 6 on its own — in the background when other work is in flight, per [`background-e2e.md`](background-e2e.md). Two PRs in one repo, or one repo whose service cannot start locally, fall back to per-PR runs — record the reason in `state.md` as `Wave: off — <reason>`.
+Anything else is not a wave: each PR is a change of its own and runs Stage 6 on its own — in the background when other work is in flight, per [`background-e2e.md`](background-e2e.md). A wave can run in that background lane too, as one change: its brief carries every member ([`wave-or-stream.md`](wave-or-stream.md#the-acceptance-testers-brief)). Two PRs in one repo, or one repo whose service cannot start locally, fall back to per-PR runs — record the reason in `state.md` as `Wave: off — <reason>`.
 
 ## What pre-flight records
 

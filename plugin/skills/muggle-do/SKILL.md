@@ -27,6 +27,8 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 
 **Multi-repo waves.** When a task spans several repos with one PR each, the PRs form a wave: every repo's service starts from its branch, Stage 6 runs **one** E2E pass against the combined stack, and that same result is posted to every PR in the wave. See [`../do/wave-e2e.md`](../do/wave-e2e.md); pre-flight decides whether a cycle is a wave.
 
+**Several changes in one session.** Unrelated fixes — several bugs in one request, or a second task while the first is still in flight — are separate changes, each with its own session directory, worktree, PR, and E2E run. When a change reaches Stage 6 while other work is in front of the session, its run goes to a background `acceptance-tester` and the session moves on; the report comes back to the main session, which carries that change through Stages 7–8. One local run at a time, and a PR's walkthrough only ever carries its own change's run. See [`../do/background-e2e.md`](../do/background-e2e.md).
+
 Stage 7 dispatches one watcher per opened PR as its last action, gated on Stage 7.5's clearance — a cycle with unrepaired E2E failures never reaches a watcher.
 
 ## Execution protocol (non-negotiable)
@@ -36,7 +38,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Bootstrap before any code, in order:**
 1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
-3. `TodoWrite` one item per stage 1–8, Stage 7.5 included — these stages are the checklist; never swap in your own decomposition.
+3. `TodoWrite` one item per stage 1–8, Stage 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
 
 **Per stage:** read the file → execute it → append a marker to `iterations/<NNN>.md` citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
 

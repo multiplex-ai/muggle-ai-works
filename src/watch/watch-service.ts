@@ -2,6 +2,7 @@ import { resolve } from "path";
 import { PreferenceValue } from "../../packages/mcps/src/shared/preferences-types.js";
 import { ProviderPrState } from "../guardrails/types.js";
 import { readClaudeSessions } from "./claude-sessions.js";
+import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { WATCH_CRONTAB_LINE, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
@@ -36,6 +37,7 @@ import {
 } from "./watch-slots.js";
 import { canRestartSessionIn } from "./workspace-trust.js";
 import {
+  ReloadAction,
   WatchEventKind,
   WatchServiceInstallOutcome,
   type InstallRecord,
@@ -131,7 +133,13 @@ function runReloadPass(
   deps: WatchTickDeps,
   at: string,
 ): { report: ReloadReport; pendingReload: PendingReload; events: WatchEvent[] } {
-  const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds);
+  // A resume starts from the session's own project, which its transcript names:
+  // a session that moved into a worktree since may sit somewhere Claude refuses.
+  const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds).map((decision) =>
+    decision.action === ReloadAction.ResumeReconcile
+      ? { ...decision, cwd: findClaudeSessionCwd(deps.paths.claudeProjectsDir, decision.sessionId) ?? decision.cwd }
+      : decision,
+  );
   const report = executeReloadFanOut(decisions, deps.runCommand, (cwd) => canRestartSessionIn(cwd, deps.runCommand));
   return { report: report, pendingReload: advancePendingReload(record, report), events: reloadEvents(report, at) };
 }

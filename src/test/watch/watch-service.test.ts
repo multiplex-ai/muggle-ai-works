@@ -260,6 +260,25 @@ describe("runWatchTick", () => {
     expect(runner.calls.some((call) => call.args[0] === "stop" && call.args[1] === "idle-bg1")).toBe(true);
   });
 
+  it("resumes a watch owner from the project its transcript names, not the worktree it moved into", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    const lockedWorktree = join(projectCwd, "locked-worktree");
+    mkdirSync(lockedWorktree);
+    machine.untrustedCwds.add(lockedWorktree);
+    machine.claudeListing = (machine.claudeListing ?? []).map((listing) =>
+      (listing as { sessionId: string }).sessionId === "idle-bg" ? { ...(listing as object), cwd: lockedWorktree } : listing,
+    );
+    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+    writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
+    runWatchTick(deps);
+    appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
+    const afterInstall = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(afterInstall.reload?.untrustedSessionIds).toEqual([]);
+    const resume = runner.calls.find((call) => call.args[0] === "--resume" && call.args[1] === "idle-bg");
+    expect(resume?.options?.cwd).toBe(projectCwd);
+  });
+
   it("leaves a session in an untrusted workspace running, and reports it once", () => {
     const { deps, runner, notifications, paths, machine, projectCwd } = buildMachine();
     machine.untrustedCwds.add(projectCwd);

@@ -375,6 +375,8 @@ export interface CommandOptions {
   cwd?: string;
   /** Overrides the runner's default timeout. */
   timeoutMs?: number;
+  /** Append stderr to the returned output, for a command whose failures only say why there. */
+  isStderrCaptured?: boolean;
 }
 
 /** What one install, refresh or removal of the watch's scheduled task did. */

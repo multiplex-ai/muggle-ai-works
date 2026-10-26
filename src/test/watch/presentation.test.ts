@@ -132,6 +132,12 @@ describe("defaultCommandRunner", () => {
     expect(outcome).toEqual({ exitCode: 3, stdout: "partial" });
   });
 
+  it("appends stderr only when asked to capture it", () => {
+    const script = "process.stdout.write('out '); process.stderr.write('why it failed'); process.exit(1)";
+    expect(defaultCommandRunner(process.execPath, ["-e", script])?.stdout).toBe("out ");
+    expect(defaultCommandRunner(process.execPath, ["-e", script], { isStderrCaptured: true })).toEqual({ exitCode: 1, stdout: "out why it failed" });
+  });
+
   it("runs in the requested cwd and returns null for an executable that does not exist", () => {
     const cwd = homedir();
     expect(defaultCommandRunner(process.execPath, ["-e", "process.stdout.write(process.cwd())"], { cwd: cwd })?.stdout).toBe(cwd);

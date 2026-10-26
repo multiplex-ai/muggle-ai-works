@@ -1,7 +1,6 @@
 import { resolve } from "path";
-import { ProviderPrState } from "../guardrails/types.js";
 import { readClaudeSessions } from "./claude-sessions.js";
-import { findClaudeSessionCwd } from "./claude-transcripts.js";
+import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
@@ -19,11 +18,12 @@ import {
 import { composeTickNotification, createDesktopNotifier } from "./notify.js";
 import { resolveWatchPaths } from "./paths.js";
 import { readUserPluginsUpdatedAtMs } from "./plugins-updated.js";
-import { fetchPrLiveStatuses } from "./pr-status.js";
+import { fetchPrLiveStatuses, isTerminalPrState } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
 import { executeWatcherRecoveries, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
 import { advancePendingReload, executeReloadFanOut, planReloadFanOut } from "./reload-plugins.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
+import { hasLiveProcess } from "./session-liveness.js";
 import { partitionByTerminalCache, updateTerminalCache } from "./terminal-pr-cache.js";
 import { classifyTrackedProcesses } from "./tracked-processes.js";
 import {
@@ -36,6 +36,7 @@ import {
 import { canRestartSessionIn } from "./workspace-trust.js";
 import {
   ReloadAction,
+  WatcherRecoveryOutcome,
   WatchEventKind,
   type InstallRecord,
   type PendingReload,
@@ -89,8 +90,14 @@ function observeSessions(deps: WatchTickDeps, installs: InstallRecord[]): {
   return { processes: processes, claudeSessions: claudeSessions, sessions: sessions };
 }
 
+function isRestartAttempted(recovery: WatcherRecovery): boolean {
+  return recovery.outcome === WatcherRecoveryOutcome.Resumed || recovery.outcome === WatcherRecoveryOutcome.ResumeFailed;
+}
+
+// A PR whose status this tick could not fetch still counts as open: respawning
+// its owner instead of resuming it on reconcile would take its watchers down.
 function watchOwnersOf(slots: WatchSlotAssessment[]): Set<string> {
-  return new Set(slots.flatMap((slot) => (slot.live?.state === ProviderPrState.Open && slot.ownerSessionId ? [slot.ownerSessionId] : [])));
+  return new Set(slots.flatMap((slot) => (!isTerminalPrState(slot.live?.state) && slot.ownerSessionId ? [slot.ownerSessionId] : [])));
 }
 
 function reloadEvents(report: ReloadReport, at: string): WatchEvent[] {
@@ -165,8 +172,10 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   const installs = readInstallHistory(deps.paths.muggleInstallLogFile);
   const { processes, claudeSessions, sessions } = observeSessions(deps, installs);
   // Without Claude's listing no owner can be judged ended, which is what keeps
-  // recovery from resuming a session that is in fact still running.
-  const activeSessionIds = claudeSessions === null ? null : new Set(sessions.map((session) => session.sessionId));
+  // recovery from resuming a session that is in fact still running. A listed
+  // session with no process behind it has ended all the same.
+  const runningSessions = sessions.filter(hasLiveProcess);
+  const activeSessionIds = claudeSessions === null ? null : new Set(runningSessions.map((session) => session.sessionId));
   const slots = readOpenWatchSlots(deps.paths.slotsDir);
   const isPollingDisabled = isPrPollingDisabled(deps.paths.slotsDir);
   const state = readWatchLedgerState(deps.paths.watchDir);
@@ -197,8 +206,22 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   let recoveries: WatcherRecovery[] = [];
   let recoveryAttemptsByOwner = state.recoveryAttemptsByOwner;
   if (deps.isRecoveryEnabled) {
-    const planned = planWatcherRecoveries(assessments, recoveryAttemptsByOwner, deps.nowMs, isPollingDisabled);
-    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, deps.runCommand, deps.paths.claudeProjectsDir, deps.nowMs);
+    const planned = planWatcherRecoveries(
+      assessments,
+      recoveryAttemptsByOwner,
+      deps.nowMs,
+      isPollingDisabled,
+      new Map(runningSessions.map((session) => [session.sessionId, session])),
+      (sessionId) => isStoppedAtUsageLimit(deps.paths.claudeProjectsDir, sessionId),
+    );
+    const executed = executeWatcherRecoveries(
+      planned,
+      recoveryAttemptsByOwner,
+      deps.runCommand,
+      deps.paths.claudeProjectsDir,
+      deps.nowMs,
+      (cwd) => canRestartSessionIn(cwd, deps.runCommand),
+    );
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);
@@ -208,7 +231,10 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   let reload: ReloadReport | undefined;
   const targetAtMs = reloadTargetAtMs(deps, installs);
   if (deps.isAutoReloadEnabled && targetAtMs !== undefined && claudeSessions !== null) {
-    const pass = runReloadPass(reloadRecordFor(state, targetAtMs), claudeSessions, watchOwnersOf(assessments), deps, at);
+    // An owner recovery just restarted loads the installed build on its own; a second restart would only cut into its reconcile.
+    const restartedOwnerIds = new Set(recoveries.filter(isRestartAttempted).map((recovery) => recovery.ownerSessionId));
+    const reloadableSessions = claudeSessions.filter((session) => !restartedOwnerIds.has(session.sessionId));
+    const pass = runReloadPass(reloadRecordFor(state, targetAtMs), reloadableSessions, watchOwnersOf(assessments), deps, at);
     pendingReload = pass.pendingReload;
     reload = pass.report;
     events.push(...pass.events);

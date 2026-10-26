@@ -226,6 +226,8 @@ export enum WatcherRecoveryOutcome {
   AttemptsExhausted = "attempts-exhausted",
   DeferredByTickCap = "deferred-by-tick-cap",
   TranscriptMissing = "transcript-missing",
+  /** The owner is still running and Claude would not resume it in its workspace, so it was left running. */
+  RestartRefused = "restart-refused",
 }
 
 /** One owner session whose registered slots have dead watchers, and what the watch did about it. */
@@ -234,6 +236,8 @@ export interface WatcherRecovery {
   slotSlugs: string[];
   outcome: WatcherRecoveryOutcome;
   cwd?: string;
+  /** Set when the owner is still running, idle between turns: the id `claude stop` takes before the resume. */
+  ownerShortId?: string;
 }
 
 /** Recoveries carried out, the resume attempts to record, and the events to log. */

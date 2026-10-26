@@ -316,6 +316,56 @@ describe("runWatchTick", () => {
     expect(freshRunner.calls.some((call) => call.args[0] === "--resume")).toBe(false);
   });
 
+  it("stops and resumes an idle owner whose watcher died, and leaves it out of the same tick's reload", () => {
+    const { deps, runner, paths, projectCwd } = buildMachine();
+    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+    writeSlot(paths.slotsDir, "idle-dead", {
+      prsJson: [openPrEntry("o/r", 2)],
+      ownerSessionId: "idle-bg",
+      heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS,
+      isRegistered: true,
+    });
+    appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.recoveries.find((recovery) => recovery.ownerSessionId === "idle-bg")).toEqual({
+      ownerSessionId: "idle-bg",
+      slotSlugs: ["idle-dead"],
+      outcome: WatcherRecoveryOutcome.Resumed,
+      cwd: projectCwd,
+      ownerShortId: "idle-bg1",
+    });
+    const idleBgCalls = runner.calls.filter((call) => call.args.includes("idle-bg1") || call.args.includes("idle-bg")).map((call) => call.args);
+    expect(idleBgCalls).toEqual([
+      ["stop", "idle-bg1"],
+      ["--resume", "idle-bg", "--bg", RECOVERY_RESUME_PROMPT],
+    ]);
+    expect(snapshot.reload?.decisions.map((decision) => decision.sessionId)).not.toContain("idle-bg");
+  });
+
+  it("resumes an owner that is still listed but has no process behind it", () => {
+    const { deps, runner, machine } = buildMachine();
+    machine.claudeListing = [...(machine.claudeListing ?? []), { id: "owner-go", sessionId: "owner-gone", kind: "background", state: "blocked" }];
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.slots.find((slot) => slot.slug === "red-pr")?.isOwnerSessionActive).toBe(false);
+    expect(snapshot.recoveries.map((recovery) => [recovery.ownerSessionId, recovery.outcome, recovery.ownerShortId])).toEqual([
+      ["owner-gone", WatcherRecoveryOutcome.Resumed, undefined],
+    ]);
+    expect(runner.calls.some((call) => call.args[0] === "stop")).toBe(false);
+  });
+
+  it("resumes an owner on reconcile even when its PR's status could not be fetched", () => {
+    const { deps, runner, paths } = buildMachine();
+    writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 3)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
+    appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.slots.find((slot) => slot.slug === "idle-owned")?.live).toBeUndefined();
+    expect(snapshot.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.ResumeReconcile);
+    expect(runner.calls.some((call) => call.args[0] === "respawn")).toBe(false);
+  });
+
   it("reports without resuming when recovery is off", () => {
     const { deps, runner } = buildMachine();
     expect(runWatchTick({ ...deps, isRecoveryEnabled: false }).recoveries).toEqual([]);

@@ -19,10 +19,11 @@ interface ClaudeAgentListing {
   status?: unknown;
   state?: unknown;
   startedAt?: unknown;
+  pid?: unknown;
 }
 
-// The registry is the only place a session's pid is recorded; `claude agents`
-// leaves it out. One file per running Claude process, named `<pid>.json`.
+// Older `claude agents` releases leave the pid out, so the registry backs it
+// up: one file per running Claude process, named `<pid>.json`.
 function readPidsBySessionId(registryDir: string): Map<string, number> {
   const pidsBySessionId = new Map<string, number>();
   let fileNames: string[];
@@ -75,7 +76,7 @@ export function readClaudeSessions(runCommand: CommandRunner, registryDir: strin
       turnStatus: enumValueOf(ClaudeTurnStatus, listing.status),
       jobState: enumValueOf(ClaudeJobState, listing.state),
       startedAtMs: typeof listing.startedAt === "number" ? listing.startedAt : undefined,
-      pid: pidsBySessionId.get(sessionId),
+      pid: typeof listing.pid === "number" ? listing.pid : pidsBySessionId.get(sessionId),
     });
   }
   return sessions;

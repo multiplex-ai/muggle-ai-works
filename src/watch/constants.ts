@@ -80,6 +80,12 @@ export const WATCH_COMMAND_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 /** Bytes read from the head of a transcript or rollout to find its session metadata. */
 export const SESSION_FILE_HEAD_BYTES = 64 * 1024;
 
+/** Bytes read from the end of a transcript to find its last assistant reply. */
+export const SESSION_FILE_TAIL_BYTES = 64 * 1024;
+
+/** The notice Claude ends a turn with when the account is out of usage, e.g. "You've hit your session limit · resets 4:10am". */
+export const USAGE_LIMIT_NOTICE_PATTERN = /\bhit your (?:session|usage|weekly|daily) limit\b|\busage limit reached\b/i;
+
 /** Lock that serializes a scheduled tick with a manual `reload-plugins` run. */
 export const WATCH_LOCK_FILE = "watch.lock";
 

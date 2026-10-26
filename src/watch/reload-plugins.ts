@@ -1,4 +1,5 @@
 import { MAX_RESPAWNS_PER_TICK, RECOVERY_RESUME_PROMPT } from "./constants.js";
+import { hasLiveProcess } from "./session-liveness.js";
 import {
   ClaudeSessionKind,
   ClaudeTurnStatus,
@@ -52,7 +53,7 @@ export function planReloadFanOut(
   const decisions: ReloadDecision[] = [];
   for (const session of sessions) {
     if (session.agent !== WorkSessionAgent.Claude) continue;
-    if (session.pid === undefined) {
+    if (!hasLiveProcess(session)) {
       decisions.push(decide(session, ReloadAction.Skip, "no live process"));
     } else if (hasCurrentPlugins(session, pending)) {
       decisions.push(decide(session, ReloadAction.Skip, "already on the installed build"));

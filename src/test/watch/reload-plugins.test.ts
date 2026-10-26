@@ -47,7 +47,7 @@ describe("planReloadFanOut", () => {
     const sessions = [
       background("idle-1"),
       background("owner", { jobState: ClaudeJobState.Done }),
-      background("gone", { pid: undefined }),
+      background("gone", { pid: undefined, turnStatus: undefined }),
       background("new", { loadedAtMs: CHANGED_AT_MS }),
       background("reloaded", { startedAtMs: 1, loadedAtMs: CHANGED_AT_MS + 5 }),
       background("already"),

@@ -1,5 +1,5 @@
-import { ProviderPrState } from "../guardrails/types.js";
 import { TERMINAL_PR_RECHECK_MS } from "./constants.js";
+import { isTerminalPrState } from "./pr-status.js";
 import type { PrLiveStatus, SlotPr, TerminalPrRecord } from "./types.js";
 
 function isRecheckDue(record: TerminalPrRecord | undefined, nowMs: number): boolean {
@@ -46,7 +46,7 @@ export function updateTerminalCache(
     if (trackedUrls.has(url)) nextCache[url] = record;
   }
   for (const fetched of fetchedStatuses) {
-    if (fetched.state === ProviderPrState.Merged || fetched.state === ProviderPrState.Closed) {
+    if (isTerminalPrState(fetched.state)) {
       nextCache[fetched.url] = { state: fetched.state, checkedAt: nowIso };
     } else {
       delete nextCache[fetched.url];

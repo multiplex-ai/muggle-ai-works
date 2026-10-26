@@ -2,6 +2,7 @@ import { WATCH_HEARTBEAT_STALE_MS } from "../guardrails/constants.js";
 import { ProviderPrState } from "../guardrails/types.js";
 import { MONITOR_STDOUT_CAP_MS, WATCH_FINDING_SEVERITY, WATCHER_REARM_GRACE_MS } from "./constants.js";
 import { formatDuration, shortSessionId, shortSha } from "./format.js";
+import { isTerminalPrState } from "./pr-status.js";
 import {
   CiRollupState,
   PrMergeable,
@@ -108,7 +109,7 @@ function ownerPhrase(assessment: WatchSlotAssessment): string {
   }
   const owner = shortSessionId(assessment.ownerSessionId);
   if (assessment.isOwnerSessionActive === true) {
-    return `owner session ${owner} is running — run /muggle:muggle-pr-followup reconcile there`;
+    return `owner session ${owner} is running — run /muggle:muggle-pr-followup reconcile there, or the watch does once it idles in the background`;
   }
   if (assessment.isOwnerSessionActive === false) {
     return assessment.isRegistered
@@ -175,7 +176,7 @@ export function deriveWatchFindings(
   for (const assessment of assessments) {
     const subject = `${assessment.pr.repo}#${assessment.pr.number}`;
     const live = assessment.live;
-    if (live && (live.state === ProviderPrState.Merged || live.state === ProviderPrState.Closed)) {
+    if (live && isTerminalPrState(live.state)) {
       findings.push(finding(WatchFindingCode.SlotTerminalUnfinalized, [assessment.pr.url], subject,
         `PR is ${live.state.toLowerCase()} but slot ${assessment.slug} is still open — reconcile finalizes it`));
       continue;

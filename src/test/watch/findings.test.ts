@@ -128,7 +128,7 @@ describe("deriveWatchFindings", () => {
       assessment({ watcher: WatcherLiveness.Dead, ownerSessionId: undefined }),
       assessment({ watcher: WatcherLiveness.Dead, isOwnerSessionActive: undefined }),
     ].map((current) => deriveWatchFindings([current], [], false)[0].message);
-    expect(messages[0]).toBe("no watch loop is running (heartbeat 1h30m old); owner session owner-12 is running — run /muggle:muggle-pr-followup reconcile there");
+    expect(messages[0]).toBe("no watch loop is running (heartbeat 1h30m old); owner session owner-12 is running — run /muggle:muggle-pr-followup reconcile there, or the watch does once it idles in the background");
     expect(messages[1]).toBe("no watch loop is running (no heartbeat); owner session owner-12 has ended");
     expect(messages[2]).toContain("not registered for recovery");
     expect(messages[3]).toContain("adopt it with /muggle:muggle-pr-followup adopt csv");

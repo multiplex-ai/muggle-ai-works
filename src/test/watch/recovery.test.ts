@@ -3,7 +3,18 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { ProviderPrState } from "../../guardrails/types.js";
 import { executeWatcherRecoveries, isRecoverable, planWatcherRecoveries } from "../../watch/recovery.js";
-import { WatcherLiveness, WatcherRecoveryOutcome, WatchEventKind, type WatchSlotAssessment } from "../../watch/types.js";
+import {
+  ClaudeSessionKind,
+  ClaudeTurnStatus,
+  WatcherLiveness,
+  WatcherRecoveryOutcome,
+  WatchEventKind,
+  WorkSessionAgent,
+  type CommandRunner,
+  type RecoveryExecutionDeps,
+  type WatchSlotAssessment,
+  type WorkSession,
+} from "../../watch/types.js";
 import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
 
 const NOW_MS = Date.parse("2026-10-24T12:00:00Z");
@@ -25,6 +36,33 @@ function deadSlot(slug: string, ownerSessionId: string, overrides: Partial<Watch
 
 const minutesAgo = (minutes: number): string => new Date(NOW_MS - minutes * MINUTE_MS).toISOString();
 
+function liveOwner(sessionId: string, overrides: Partial<WorkSession> = {}): WorkSession {
+  return {
+    agent: WorkSessionAgent.Claude,
+    sessionId: sessionId,
+    shortId: `${sessionId}-short`,
+    kind: ClaudeSessionKind.Background,
+    turnStatus: ClaudeTurnStatus.Idle,
+    pid: 10,
+    ...overrides,
+  };
+}
+
+function executionDeps(
+  runCommand: CommandRunner,
+  claudeProjectsDir: string,
+  overrides: Partial<RecoveryExecutionDeps> = {},
+): RecoveryExecutionDeps {
+  return {
+    runCommand: runCommand,
+    claudeProjectsDir: claudeProjectsDir,
+    nowMs: NOW_MS,
+    canRestartIn: () => true,
+    waitForExit: () => true,
+    ...overrides,
+  };
+}
+
 describe("isRecoverable", () => {
   it("accepts only a registered, confirmed-open slot whose watcher and owner are both gone", () => {
     expect(isRecoverable(deadSlot("a", "o1"))).toBe(true);
@@ -36,6 +74,15 @@ describe("isRecoverable", () => {
     expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: true }))).toBe(false);
     expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: undefined }))).toBe(false);
     expect(isRecoverable(deadSlot("a", "o1", { ownerSessionId: undefined }))).toBe(false);
+  });
+
+  it("accepts a running owner only while it sits idle in the background", () => {
+    const running = deadSlot("a", "o1", { isOwnerSessionActive: true });
+    expect(isRecoverable(running, liveOwner("o1"))).toBe(true);
+    expect(isRecoverable(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Busy }))).toBe(false);
+    expect(isRecoverable(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Waiting }))).toBe(false);
+    expect(isRecoverable(running, liveOwner("o1", { kind: ClaudeSessionKind.Interactive }))).toBe(false);
+    expect(isRecoverable(running)).toBe(false);
   });
 });
 
@@ -75,6 +122,26 @@ describe("planWatcherRecoveries", () => {
     ]);
     expect(planWatcherRecoveries([deadSlot("a", "o1")], {}, NOW_MS, true)).toEqual([]);
   });
+
+  it("marks a running idle owner to be stopped first, by the id claude stop takes", () => {
+    const planned = planWatcherRecoveries(
+      [deadSlot("a", "o1", { isOwnerSessionActive: true }), deadSlot("b", "o2")],
+      {},
+      NOW_MS,
+      false,
+      new Map([["o1", liveOwner("o1")]]),
+    );
+    expect(planned).toEqual([
+      { ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" },
+      { ownerSessionId: "o2", slotSlugs: ["b"], outcome: WatcherRecoveryOutcome.ResumeDue },
+    ]);
+  });
+
+  it("keeps retrying past the cap an owner whose last resume only hit the usage limit", () => {
+    const attempts = { limited: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] };
+    const planned = planWatcherRecoveries([deadSlot("a", "limited")], attempts, NOW_MS, false, new Map(), (sessionId) => sessionId === "limited");
+    expect(planned[0].outcome).toBe(WatcherRecoveryOutcome.ResumeDue);
+  });
 });
 
 describe("executeWatcherRecoveries", () => {
@@ -92,9 +159,7 @@ describe("executeWatcherRecoveries", () => {
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
       { o1: [minutesAgo(60)], forgotten: [minutesAgo(48 * 60)] },
-      runner.runCommand,
-      projectsDir,
-      NOW_MS,
+      executionDeps(runner.runCommand, projectsDir),
     );
     expect(runner.calls).toEqual([
       { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"], options: { cwd: projectCwd } },
@@ -106,14 +171,66 @@ describe("executeWatcherRecoveries", () => {
     ]);
   });
 
+  it("stops a running idle owner and waits for it to exit before resuming it under the same id", () => {
+    const projectCwd = makeTempDir("project");
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const awaitedSessionIds: string[] = [];
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+        waitForExit: (sessionId) => {
+          awaitedSessionIds.push(sessionId);
+          return true;
+        },
+      }),
+    );
+    expect(runner.calls.map((call) => call.args)).toEqual([
+      ["stop", "o1-short"],
+      ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"],
+    ]);
+    expect(awaitedSessionIds).toEqual(["o1"]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
+  });
+
+  it("does not resume an owner still running after the stop, since that would start a copy", () => {
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project")), { waitForExit: () => false }),
+    );
+    expect(runner.calls.map((call) => call.args)).toEqual([["stop", "o1-short"]]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
+  });
+
+  it("leaves a running owner alone where Claude would not resume it, and waits out the cooldown", () => {
+    const projectCwd = makeTempDir("project");
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const probedCwds: string[] = [];
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+        canRestartIn: (cwd) => {
+          probedCwds.push(cwd);
+          return false;
+        },
+      }),
+    );
+    expect(probedCwds).toEqual([projectCwd]);
+    expect(runner.calls).toEqual([]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.RestartRefused);
+    expect(executed.attemptsByOwner.o1).toHaveLength(1);
+    expect(executed.events[0].kind).toBe(WatchEventKind.RestartRefused);
+  });
+
   it("records a failed resume as an attempt so the cooldown still applies", () => {
     const projectsDir = projectsWithTranscript("o1", makeTempDir("project"));
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
       {},
-      scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand,
-      projectsDir,
-      NOW_MS,
+      executionDeps(scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand, projectsDir),
     );
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
     expect(executed.attemptsByOwner.o1).toHaveLength(1);
@@ -130,9 +247,7 @@ describe("executeWatcherRecoveries", () => {
         { ownerSessionId: "o3", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.CoolingDown },
       ],
       {},
-      runner.runCommand,
-      projectsWithTranscript("o2", missingCwd),
-      NOW_MS,
+      executionDeps(runner.runCommand, projectsWithTranscript("o2", missingCwd)),
     );
     expect(executed.recoveries.map((recovery) => recovery.outcome)).toEqual([
       WatcherRecoveryOutcome.TranscriptMissing,

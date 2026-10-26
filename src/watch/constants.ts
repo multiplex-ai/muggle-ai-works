@@ -42,6 +42,16 @@ export const CODEX_ROLLOUT_DAY_DIRS_SCANNED = 7;
 /** Cap on `claude respawn` calls per tick, so a plugin update never restarts every session at once. */
 export const MAX_RESPAWNS_PER_TICK = 3;
 
+/**
+ * How long a restart waits for a stopped session's process to exit. `claude
+ * stop` returns before it does, and resuming a session that is still running
+ * starts a copy of it under a new id instead of continuing it.
+ */
+export const SESSION_EXIT_WAIT_MS = 20_000;
+
+/** Interval between listings while a restart waits for the exit. */
+export const SESSION_EXIT_POLL_MS = 1_000;
+
 /** Cap on owner-session resumes per tick, for the same reason. */
 export const MAX_RESUMES_PER_TICK = 2;
 
@@ -79,6 +89,12 @@ export const WATCH_COMMAND_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
 /** Bytes read from the head of a transcript or rollout to find its session metadata. */
 export const SESSION_FILE_HEAD_BYTES = 64 * 1024;
+
+/** Bytes read from the end of a transcript to find its last assistant reply. */
+export const SESSION_FILE_TAIL_BYTES = 64 * 1024;
+
+/** The notice Claude ends a turn with when the account is out of usage, e.g. "You've hit your session limit · resets 4:10am". */
+export const USAGE_LIMIT_NOTICE_PATTERN = /\bhit your (?:session|usage|weekly|daily) limit\b|\busage limit reached\b/i;
 
 /** Lock that serializes a scheduled tick with a manual `reload-plugins` run. */
 export const WATCH_LOCK_FILE = "watch.lock";

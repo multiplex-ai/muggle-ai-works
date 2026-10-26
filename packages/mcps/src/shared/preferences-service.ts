@@ -156,6 +156,29 @@ export function writePreferencesWithMetadata(
 }
 
 /**
+ * Replace the `llmEnv` block, or remove it, leaving every other top-level block intact.
+ * @param llmEnv - The new block; undefined removes it.
+ * @param dataDirOverride - Override data dir for testing.
+ */
+export function writeLlmEnvBlock(llmEnv: Record<string, string> | undefined, dataDirOverride?: string): void {
+  const dir = dataDirOverride ?? getDataDir();
+  fs.mkdirSync(dir, { recursive: true });
+
+  const filePath = path.join(dir, PREFERENCES_FILE_NAME);
+  const existing = readRawPreferencesFile(filePath);
+  const file: IPreferencesFile = {
+    ...existing,
+    version: PREFERENCES_VERSION,
+    preferences: existing.preferences ?? {},
+    llmEnv: llmEnv,
+  };
+  if (llmEnv === undefined) {
+    delete file.llmEnv;
+  }
+  fs.writeFileSync(filePath, `${JSON.stringify(file, null, 2)}\n`, "utf-8");
+}
+
+/**
  * Reset a preference key (or the entire file) back to defaults.
  * @param key - Key to reset, or undefined to reset the entire file.
  * @param dataDirOverride - Override data dir for testing.

@@ -8,8 +8,7 @@
  * into session context.
  */
 
-/** Top-level key in the preferences file holding the env overrides. */
-export const LLM_ENV_PREFERENCE_KEY = "llmEnv";
+import { LlmEnvName } from "./llm-env-types.js";
 
 /**
  * Environment variables Studio reads to select its LLM provider. Only these names are
@@ -17,10 +16,10 @@ export const LLM_ENV_PREFERENCE_KEY = "llmEnv";
  * (`PATH`, `NODE_OPTIONS`, ...) into the spawned Studio process.
  */
 export const FORWARDABLE_LLM_ENV_NAMES: readonly string[] = [
-  "MUGGLE_LLM_PROVIDER",
-  "MUGGLE_LLM_BASE_URL",
-  "MUGGLE_LLM_API_KEY",
-  "MUGGLE_LLM_MODEL",
+  LlmEnvName.Provider,
+  LlmEnvName.BaseUrl,
+  LlmEnvName.ApiKey,
+  LlmEnvName.Model,
   "MUGGLE_LLM_MODEL_PREDICTION",
   "MUGGLE_LLM_MODEL_SUMMARIZER",
   "MUGGLE_LLM_MODEL_EVAL",

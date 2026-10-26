@@ -19,6 +19,7 @@ Pick the operation, then read its op file for the procedure.
 | "show preferences" / no args | `ops/list.md` |
 | "configure muggle" / "muggle setup" / change without naming a key | `ops/configure.md` |
 | "reset preferences" | `ops/reset.md` |
+| "LLM source" / use my own Anthropic key or a local model / who pays for local runs | `ops/llm-source.md` |
 | Session context says first-run setup has not been run | `ops/onboard.md` |
 
 ## Shared context (all ops)

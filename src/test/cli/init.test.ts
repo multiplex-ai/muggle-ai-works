@@ -6,6 +6,8 @@ import * as path from "node:path";
 const onboardingMocks = vi.hoisted(() => ({
   applyOnboardingAnswers: vi.fn(() => ({ isCompleted: true, preferences: { autoLogin: "always" } })),
   needsOnboarding: vi.fn(() => true),
+  applyLlmSourceSelection: vi.fn(() => ({ source: "muggle-credit" })),
+  resolveLlmSourceStatus: vi.fn(() => ({ source: "muggle-credit" })),
 }));
 
 const readlineMocks = vi.hoisted(() => ({
@@ -20,6 +22,15 @@ vi.mock("../../../packages/mcps/src/index.js", async (importOriginal) => {
     ...actual,
     applyOnboardingAnswers: onboardingMocks.applyOnboardingAnswers,
     needsOnboarding: onboardingMocks.needsOnboarding,
+    applyLlmSourceSelection: onboardingMocks.applyLlmSourceSelection,
+    resolveLlmSourceStatus: onboardingMocks.resolveLlmSourceStatus,
+    buildLlmSourcePlan: () => ({
+      header: actual.LLM_SOURCE_HEADER,
+      prompt: actual.LLM_SOURCE_PROMPT,
+      scopeNote: actual.LLM_SOURCE_SCOPE_NOTE,
+      options: [...actual.LLM_SOURCE_OPTIONS],
+      current: onboardingMocks.resolveLlmSourceStatus(),
+    }),
   };
 });
 
@@ -65,6 +76,7 @@ beforeEach(() => {
     Promise.resolve(readlineMocks.answers.shift() ?? ""),
   );
   onboardingMocks.applyOnboardingAnswers.mockClear();
+  onboardingMocks.applyLlmSourceSelection.mockClear();
   process.exitCode = undefined;
 });
 
@@ -271,5 +283,40 @@ describe("muggle init interactive walkthrough", () => {
     await initCommand({});
 
     expect(logLines.join("\n")).toContain("already set up");
+  });
+
+  it("asks for the LLM source after the preferences and keeps it on Enter", async () => {
+    await initCommand({});
+
+    const output = logLines.join("\n");
+    expect(output.indexOf("Preferences saved.")).toBeLessThan(output.indexOf("- LLM source -"));
+    expect(output).toContain("Kept. LLM source: Muggle AI credit");
+    expect(onboardingMocks.applyLlmSourceSelection).not.toHaveBeenCalled();
+  });
+
+  it("saves a local model picked during setup", async () => {
+    readlineMocks.answers = ["", "3", "", "qwen2.5vl", ""];
+
+    await initCommand({});
+
+    expect(onboardingMocks.applyLlmSourceSelection).toHaveBeenCalledWith({
+      source: "local-model",
+      localBaseUrl: "http://localhost:11434/v1",
+      localModel: "qwen2.5vl",
+      apiKey: undefined,
+    });
+  });
+
+  it("does not ask for the LLM source when setup is skipped", async () => {
+    onboardingMocks.applyOnboardingAnswers.mockReturnValueOnce({
+      isCompleted: false,
+      preferences: {},
+      skip: { offerCount: 1, isRetired: false },
+    } as never);
+    readlineMocks.answers = ["4"];
+
+    await initCommand({});
+
+    expect(logLines.join("\n")).not.toContain("- LLM source -");
   });
 });

@@ -72,6 +72,21 @@ export const TERMINAL_SLOT_PR_STATES = ["merged", "closed"] as const;
 /** The suffix the owner's stop renames a slot dir to; nothing may revive a slot carrying it. */
 export const STOPPED_SLOT_SUFFIX = ".stopped";
 
+/**
+ * The literal the user types to hold a PR's watcher work, followed by the PR's number: `HOLD WATCH #<pr-number>`.
+ *
+ * A literal for the same reason `SKIP E2E` is one: the agent cannot infer a hold from the cost of a CI run, from
+ * impatience, or from its own reading of the task. The number scopes it to one PR, and keeps the docs that name the
+ * phrase (always as `HOLD WATCH #<pr-number>`) from ever spelling a hold themselves.
+ */
+export const WATCH_HOLD_PHRASE_PREFIX = "HOLD WATCH #";
+
+/** A hold as the user writes it; the group is the PR number. */
+export const WATCH_HOLD_INSTRUCTION = /HOLD WATCH #(\d+)\b/g;
+
+/** How much of the transcript tail the follow-through gate searches for a hold. A hold it finds is kept for the session, so this bounds only how long ago an unrecorded one may have been typed. */
+export const WATCH_HOLD_TRANSCRIPT_TAIL_BYTES = 4_000_000;
+
 /** Stop-hook reminders about an unanswered build request before the gate releases the session. */
 export const MAX_BUILD_BLOCKS = 3;
 

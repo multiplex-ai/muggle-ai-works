@@ -1,7 +1,9 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "fs";
+import { existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { defaultGhRunner, parsePrUrl } from "../pr-walkthrough/gh.js";
+import { MUGGLE_DO_SESSIONS_PATH_SEGMENTS, RESULT_FILE_NAME } from "../pr-watch/constants.js";
+import { readSlotPr } from "../pr-watch/slotFiles.js";
 import type { GhRunner } from "../pr-walkthrough/types.js";
 import {
   MAX_WATCH_BLOCKS,
@@ -88,8 +90,7 @@ export function findUnwatchedHandledPrs(
   sessionsDirOverride?: string,
 ): string[] {
   if (handledUrls.length === 0) return [];
-  const sessionsDir =
-    sessionsDirOverride ?? join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  const sessionsDir = sessionsDirOverride ?? join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
   let slugs: string[];
   try {
     slugs = readdirSync(sessionsDir);
@@ -101,18 +102,12 @@ export function findUnwatchedHandledPrs(
   const watchedUrls = new Set<string>();
   for (const slug of slugs) {
     const slotPath = join(sessionsDir, slug);
-    let slotPr: { url?: unknown; state?: unknown } | undefined;
-    try {
-      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8")) as unknown;
-      slotPr = (Array.isArray(parsed) ? parsed[0] : parsed) as typeof slotPr;
-    } catch {
-      continue;
-    }
+    const slotPr = readSlotPr(slotPath);
     const slotUrl = slotPr?.url;
     if (typeof slotUrl !== "string" || !handledUrls.includes(slotUrl)) continue;
     const evidence: WatchSlotEvidence = {
       isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
-      isFinalized: existsSync(join(slotPath, "result.md")),
+      isFinalized: existsSync(join(slotPath, RESULT_FILE_NAME)),
       recordedPrState: typeof slotPr?.state === "string" ? slotPr.state : undefined,
       heartbeatMtimeMs: readHeartbeatMtimeMs(slotPath),
     };

@@ -1,7 +1,9 @@
 import { isShellToolCall } from "./shellTool.js";
-import { existsSync, readFileSync, readdirSync } from "fs";
+import { existsSync, readdirSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { MUGGLE_DO_SESSIONS_PATH_SEGMENTS } from "../pr-watch/constants.js";
+import { readSlotPr } from "../pr-watch/slotFiles.js";
 import {
   LOOP_REPLY_MARKER,
   MAX_REPLY_BLOCKS,
@@ -226,17 +228,11 @@ export function threadForReplyTarget(ledger: Ledger, targetId: string): string |
 
 /** The muggle-do slot tracking a PR, found by joining on the url the slot records. */
 export function resolveSlotForPr(prUrl: string, sessionsDirOverride?: string): string | undefined {
-  const sessionsDir = sessionsDirOverride ?? join(homedir(), ".muggle-ai", "muggle-do", "sessions");
+  const sessionsDir = sessionsDirOverride ?? join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
   if (!existsSync(sessionsDir)) return undefined;
   for (const slug of readdirSync(sessionsDir)) {
     const slotPath = join(sessionsDir, slug);
-    try {
-      const parsed = JSON.parse(readFileSync(join(slotPath, "prs.json"), "utf-8")) as unknown;
-      const slotPr = Array.isArray(parsed) ? parsed[0] : parsed;
-      if ((slotPr as { url?: string } | undefined)?.url === prUrl) return slotPath;
-    } catch {
-      continue;
-    }
+    if (readSlotPr(slotPath)?.url === prUrl) return slotPath;
   }
   return undefined;
 }

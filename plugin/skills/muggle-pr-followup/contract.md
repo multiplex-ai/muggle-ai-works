@@ -103,23 +103,48 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
 5. Emit a `tick` event with `actionable_threads: <count>`, `dispatched_review_ids: [<id>, ...]`.
 6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
-### Step 5 — No actionable feedback → keep the branch rebased on its base
+### Step 5 — No actionable feedback → read the branch's standing against its base
 
-A merge-ready branch is **current with its base** — neither conflicting nor behind. From the Step 1 metadata, the branch needs a rebase when either:
+A merge-ready branch is **current with its base** — neither conflicting nor behind. From the Step 1 metadata, the branch needs a rebase (`rebase_due`) when either:
 
 - the branch **conflicts** with its base — the provider's conflict signal per [`../_shared/vcs/common/branch-standing.md`](../_shared/vcs/common/branch-standing.md), **or**
 - `behind_by > 0` — out of date with the base. Read this from the `compare` call (commit ancestry), **never** from `mergeStateStatus == BEHIND`: GitHub masks `BEHIND` behind `DIRTY`/`BLOCKED` and only surfaces it under "require branches up to date" protection, so a stale PR that is also awaiting review or has a red required check reports `BLOCKED` — and its staleness would go unseen. The compare recipe for this — and each provider's conflict signal — is dispatched in [`../_shared/vcs/common/branch-standing.md`](../_shared/vcs/common/branch-standing.md).
+
+`mergeable == UNKNOWN` with `behind_by == 0` is not due; `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still counts.
 
 This trigger is **independent of approval and CI state**: an out-of-date branch is rebased whether or not it has been reviewed, approved, or has green checks. The watcher acts on staleness directly — it never waits for an approval to surface it.
 
 Rebase dedup is keyed on the **pair** `rebase_key = "<head_sha>..<base_tip_sha>"`, not on the head alone. Whether a branch conflicts is a function of both sides, so a head-only key wedges a PR permanently the first time the base moves: the head cannot change while nobody pushes, so one stale entry suppresses every genuinely new conflict that base movement introduces, forever. Take `base_tip_sha` from the Step 1 compare's `.base_commit.sha` (the base branch tip, which advances when the base does) — **never** `.merge_base_commit.sha`, which does not move when only the base advances and so would never re-arm.
 
-Entries written by an older watcher are bare head SHAs with no `..` — ignore them when reading `conflict_escalated_keys`, which re-arms any slot a head-only key had wedged.
+Entries written by an older watcher are bare head SHAs with no `..`; the Step 6 verdict script ignores them, which re-arms any slot a head-only key had wedged.
 
 `conflict_resolve_attempts` bounds one key, never the PR. Because `rebase_key` carries the base tip, every advance of the base mints a fresh key and hands the branch a fresh pair of attempts, so on an active base that budget can never stop anything. The per-PR budget is the one that binds: `last_seen.catch_up_rebases` counts every rebase this PR has been dispatched for, no key resets it, and [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) caps it at 20 by default.
 
-If a rebase is due **and** `catch_up_rebases < maxCatchUpRebases` **and** `conflict_resolve_attempts[rebase_key] < 2` **and** `rebase_key` ∉ `conflict_escalated_keys` → dispatch and exit:
+### Step 6 — Poll CI for the head SHA, then take the verdict
 
+Fetch the CI rollup for `prs.json[0].head_sha` per [`../_shared/vcs/common/ci-rollup.md`](../_shared/vcs/common/ci-rollup.md), provider resolved as in Step 3, and fold it into its bucket: `red`, `pending`, or `green` (green includes skipped checks and no checks).
+
+Then run the verdict script. It is the **only** place this tick decides between dispatching and holding — never re-derive the decision from `last_seen.json` by reading it yourself. `<abs>` resolves from `${CLAUDE_PLUGIN_ROOT}/scripts/` as in [`arm-watcher.md`](arm-watcher.md); a slot with no `last_seen.json` feeds `/dev/null` instead:
+
+```sh
+node "<abs>/scripts/pr-watch-verdict.mjs" tick --pr-key "<owner>/<repo>#<n>" --head <head_sha> \
+  --rebase-key "<head_sha>..<base_tip_sha>" --rebase-due <yes|no> --ci <red|pending|green> < "<slot>/last_seen.json"
+```
+
+It prints one line, `VERDICT=<verdict>`. A non-zero exit is a broken install: report it and stop, never improvise a verdict. What it applies, in order:
+
+1. A rebase is due and `catch_up_rebases >= maxCatchUpRebases` (the cap from the user's preferences; the `rebase_budget_exhausted` flag is not consulted) → `block-rebase-budget-exhausted`.
+2. A rebase is due, `conflict_resolve_attempts[rebase_key] < 2`, and `rebase_key` ∉ `conflict_escalated_keys` → `dispatch-rebase`. With the per-key budget spent — `conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys` — it falls through to CI.
+3. CI is `red`, `ci_fix_attempts[head_sha] < 3`, and `head_sha` ∉ `ci_escalated_shas` → `dispatch-fix-ci`. Red with `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas` dispatches nothing — the fix budget is spent and the watcher does not re-dispatch. A check still pending (`bucket == "pending"`) never dispatches: the tick idles until CI settles, and a green head idles too.
+4. Otherwise `block-conflict-escalated`, `block-ci-escalated`, or `block-reviews-escalated` when the matching escalation stands, else `idle`.
+
+**An escalation counts only with an attempt behind it.** An entry in `conflict_escalated_keys` suppresses a rebase only when `conflict_resolve_attempts[rebase_key] >= 1`, and an entry in `ci_escalated_shas` suppresses fix-ci only when `ci_fix_attempts[head_sha] >= 1`: a cycle ran and gave up. An entry with no attempt is ignored, and the work dispatches. Those fields are the executor's record of what its cycles did — never write an escalation entry or an attempt counter by hand.
+
+**The verdict is binding.** The watch exists to drive the PR to merge-ready, and `autoRebase=always` means rebase without asking. How long a CI run or an eval takes is never a reason to hold a dispatch, and neither is a guess that the work is not worth it. The only hold is the user's own: a message they typed containing `HOLD WATCH #<pr-number>` for this PR. Asking them is allowed; answering a wake with a question instead of the dispatch is not. A Stop gate holds the turn open while work the watch recorded as due has no attempt behind it ([`../../hooks/README.md`](../../hooks/README.md)).
+
+Act on the verdict:
+
+- `dispatch-rebase` → dispatch and exit:
   1. Reset `last_seen.idle_tick_count` to 0.
   2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s rebase respawns it when the cycle is done.
   3. Dispatch `/muggle-do` with a *rebase* directive (PR URL + slug; no review ids, no check names):
@@ -128,21 +153,9 @@ If a rebase is due **and** `catch_up_rebases < maxCatchUpRebases` **and** `confl
      ```
      The executor rebases onto the base: a behind-only branch replays cleanly and force-pushes; a conflicting branch resolves behind the `autoResolveConflicts` gate. Both paths are `/muggle-do`'s — the watcher only decides *that* a rebase is due, never how.
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `rebase_needed: true`, `dispatched_rebase: true`.
-  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
-
-If a rebase is due **and** `catch_up_rebases >= maxCatchUpRebases` → the PR has spent its catch-up budget. Do **not** dispatch, and do **not** fall through quietly: set `last_seen.rebase_budget_exhausted` to `true`, block the watch with reason `rebase_budget_exhausted` (Step 7), and report the count, the cap and the preference key on the PR. Twenty rebases without converging is a branch its owner has to decide about — rebase it onto a different base, split it, or close it — and a watcher that merely stops leaves them to discover it days later.
-
-That block is the one reason a fingerprint move does not clear (Step 2.5): base movement is precisely what spent the budget, so resuming on it would restore the loop the cap exists to end. It clears when the owner raises `maxCatchUpRebases` or the PR goes terminal.
-
-Otherwise — `behind_by == 0` and not conflicting (`mergeable == UNKNOWN` is fine here: `behind_by` is exact while GitHub is still computing conflict state, so a stale branch still triggers), or the per-key budget is spent (`conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys`) → fall through to CI.
-
-### Step 6 — No actionable feedback, branch current → poll CI for the head SHA
-
-Fetch the CI rollup for `prs.json[0].head_sha` per [`../_shared/vcs/common/ci-rollup.md`](../_shared/vcs/common/ci-rollup.md), provider resolved as in Step 3 (failed/running/success fold into the same red/pending/green buckets). Then, on the bucket:
-
-- **Any check still pending** (`bucket == "pending"`) → idle (wait for checks to settle).
-- **All checks green / skipped, or no checks** → idle (green path).
-- **One or more checks red** (`bucket == "fail"`), **and** `ci_fix_attempts[head_sha] < 3`, **and** `head_sha` ∉ `ci_escalated_shas` → dispatch and exit:
+  5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-key attempt budget.
+- `block-rebase-budget-exhausted` → the PR has spent its catch-up budget. Do **not** dispatch, and do **not** fall through quietly: set `last_seen.rebase_budget_exhausted` to `true`, block the watch with reason `rebase_budget_exhausted` (Step 7), and report the count, the cap and the preference key on the PR. Twenty rebases without converging is a branch its owner has to decide about — rebase it onto a different base, split it, or close it — and a watcher that merely stops leaves them to discover it days later. That block is the one reason a fingerprint move does not clear (Step 2.5): base movement is precisely what spent the budget, so resuming on it would restore the loop the cap exists to end. It clears when the owner raises `maxCatchUpRebases` or the PR goes terminal.
+- `dispatch-fix-ci` → dispatch and exit:
   1. Reset `last_seen.idle_tick_count` to 0.
   2. **Stop this watcher (single-thread):** cancel its cron exactly as in Step 4 — `/muggle-do`'s fix-ci respawns it when the cycle is done.
   3. Dispatch `/muggle-do` with a *fix-ci* directive carrying the PR URL, slug, and the red check names (no review ids):
@@ -151,17 +164,19 @@ Fetch the CI rollup for `prs.json[0].head_sha` per [`../_shared/vcs/common/ci-ro
      ```
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
-- **One or more red, but `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas`** → idle. The fix budget is spent; `/muggle-do`'s fix-ci stage already recorded the escalation. The watcher does not re-dispatch.
+- `block-conflict-escalated`, `block-ci-escalated`, `block-reviews-escalated` → blocked pending a human (Step 7).
+- `idle` → transient idle (Step 7).
 
 ### Step 7 — Idle (remind when blocked pending a human)
 
-Any idle branch (Steps 4–6 that did not dispatch). First classify **why** this tick idled. It is **blocked pending a human** when the head is under a durable block that only the user can clear:
+Any tick that did not dispatch. The Step 6 verdict says **why** it idled. It is **blocked pending a human** on a `block-*` verdict, a durable block only the user can clear:
 
-- `rebase_key` ∈ `conflict_escalated_keys` — a rebase `/muggle-do` gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`. This block clears on its own when the base moves: the new `base_tip_sha` yields a key the set does not contain, and the branch re-arms for a fresh rebase attempt; or
-- `head_sha` ∈ `ci_escalated_shas` — CI the fix-ci stage gave up on, reason `ci_escalated`; or
-- `last_seen.escalated_review_ids` is non-empty with the actionable set empty — an ambiguous review awaiting the user's direction, reason `reviews_escalated`.
+- `block-conflict-escalated` — a rebase `/muggle-do` attempted and gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`. This block clears on its own when the base moves: the new `base_tip_sha` yields a key the set does not contain, and the branch re-arms for a fresh rebase attempt;
+- `block-ci-escalated` — CI the fix-ci stage attempted and gave up on, reason `ci_escalated`;
+- `block-reviews-escalated` — an ambiguous review in `last_seen.escalated_review_ids` awaiting the user's direction, with the actionable set empty, reason `reviews_escalated`;
+- `block-rebase-budget-exhausted` — reason `rebase_budget_exhausted` (Step 6).
 
-Everything else that idles is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
+`idle` is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
 
 **Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit through Step 7.5. The next tick fires from the monitor ([`arm-watcher.md`](arm-watcher.md)).
 

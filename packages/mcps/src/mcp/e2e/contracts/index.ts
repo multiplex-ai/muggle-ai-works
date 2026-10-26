@@ -9,12 +9,14 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
+import { SecretFieldEnum, SecretTypeEnum } from "./secret-group-types.js";
 
 export { MuggleEntityIdSchema };
 export * from "./fan-out-choice.js";
 export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
 export * from "./run-settings-schemas.js";
+export * from "./secret-group-types.js";
 
 /**
  * Pagination input schema shared by list tools.
@@ -185,6 +187,42 @@ export const SecretUpdateInputSchema = z.object({
 
 export const SecretDeleteInputSchema = z.object({
   secretId: IdSchema.describe("Secret ID (UUID) to delete"),
+});
+
+/** Field → value map of a typed secret group; any subset of the SecretFieldEnum keys, string values. */
+export const SecretGroupFieldValuesSchema = z.partialRecord(z.enum(SecretFieldEnum), z.string());
+
+/** Input of muggle-remote-secret-group-list. */
+export const SecretGroupListInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) to list secret groups for"),
+});
+
+/** Input of muggle-remote-secret-group-create. */
+export const SecretGroupCreateInputSchema = z.object({
+  projectId: IdSchema.describe("Project ID (UUID) to create the secret group for"),
+  secretType: z.enum(SecretTypeEnum).describe("Kind of secret group; decides which fields apply"),
+  groupName: z
+    .string()
+    .min(1)
+    .describe("Group name, e.g. 'Visa test card'; the member secret names are derived from it"),
+  description: z.string().optional().describe("Human-readable description for selection guidance"),
+  fields: SecretGroupFieldValuesSchema.describe(
+    "Field name → value for the chosen secretType; include every required field muggle-remote-secret-type-list lists for that type",
+  ),
+});
+
+/** Input of muggle-remote-secret-group-update. */
+export const SecretGroupUpdateInputSchema = z.object({
+  groupId: IdSchema.describe("Secret group ID (UUID) to update"),
+  description: z.string().optional().describe("Updated description"),
+  fields: SecretGroupFieldValuesSchema.optional().describe(
+    "Field name → new value. A non-empty value sets the field (adding a missing optional one); an empty string clears an optional field; omitted fields stay unchanged",
+  ),
+});
+
+/** Input of muggle-remote-secret-group-delete. */
+export const SecretGroupDeleteInputSchema = z.object({
+  groupId: IdSchema.describe("Secret group ID (UUID) to delete"),
 });
 
 export const UseCaseDiscoveryMemoryGetInputSchema = z.object({

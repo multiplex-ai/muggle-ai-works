@@ -80,6 +80,10 @@ var WATCH_TERMINAL_CMD = /pr-watch-(?:loop|arm)\.sh/;
 var MERGED_GATE_OUTPUT_SEPARATOR = "\n\n";
 var GITHUB_PR_URL = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+/;
 var GITLAB_MR_URL = /https?:\/\/[^/\s]+\/[^\s]+\/-\/merge_requests\/\d+/;
+var PR_OPEN_COMMAND = /\b(?:gh\s+pr\s+(?:create|ready)|glab\s+mr\s+(?:create|update))\b/;
+var PR_HEAD_BRANCH_FLAG = /\s(?:--head(?:=|\s+)|-H\s+|--source-branch(?:=|\s+)|-s\s+)["']?([^\s"';|&)]+)/;
+var DIRECTORY_CHANGE_COMMAND = /(?:^|[\s;&|(])(?:cd|pushd|chdir|Push-Location|Set-Location)(?=\s|$)/i;
+var CHANGE_REPO_REMOTE = "origin";
 var SUBAGENT_DISPATCH_TOOL_NAMES = ["Agent", "Task"];
 var ACCEPTANCE_TESTER_SUBAGENT_TYPE = /(?:^|:)acceptance-tester$/;
 var ACCEPTANCE_REPORT_MARKERS = ["## Test Summary", "**Overall:**"];
@@ -1377,14 +1381,120 @@ function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
   return { ...state, walkthroughSkipped: true };
 }
-function normalizeWorkingTree(cwd) {
-  if (!cwd) return void 0;
-  const forwardSlashed = resolve(cwd).replace(/\\/g, "/").replace(/\/+$/, "");
-  return process.platform === "win32" ? forwardSlashed.toLowerCase() : forwardSlashed;
+var readTextFile = (path) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+};
+var listFiles = (dir) => {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+};
+var runGit = (args, cwd) => {
+  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true
+    });
+  } catch {
+    return null;
+  }
+};
+var hostAndPort = (url) => {
+  const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+  try {
+    const parsed = new URL(withScheme);
+    const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+    return { host: parsed.hostname, port };
+  } catch {
+    return null;
+  }
+};
+var isReachable = (url) => {
+  const target = hostAndPort(url);
+  if (!target) return false;
+  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
+  if (spawnTimeoutMs === null) return false;
+  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
+  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${socketTimeoutMs});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
+  try {
+    execFileSync(process.execPath, ["-e", script], {
+      timeout: spawnTimeoutMs,
+      stdio: "ignore",
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+var defaultSkipProbes = {
+  readTextFile,
+  listFiles,
+  runGit,
+  isReachable
+};
+
+// src/guardrails/changeIdentity.ts
+function toRepoKey(host2, path) {
+  const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  return host2 && repoPath ? `${host2}/${repoPath}`.toLowerCase() : void 0;
 }
-function isOpenedFromSkipTree(state, prUrl) {
-  const skipTree = state.e2eSkipVerifiedInTree;
-  return skipTree !== void 0 && state.prWorkingTrees?.[prUrl] === skipTree;
+function repoKeyOfPrUrl(prUrl) {
+  const pullsAt = prUrl.match(GITHUB_PR_URL) ? prUrl.indexOf("/pull/") : prUrl.match(GITLAB_MR_URL) ? prUrl.indexOf("/-/merge_requests/") : -1;
+  if (pullsAt < 0) return void 0;
+  try {
+    const repoUrl = new URL(prUrl.slice(0, pullsAt));
+    return toRepoKey(repoUrl.hostname, repoUrl.pathname);
+  } catch {
+    return void 0;
+  }
+}
+function repoKeyOfRemoteUrl(remoteUrl) {
+  const trimmedUrl = remoteUrl.trim();
+  const scpStyle = trimmedUrl.match(/^[^@\s/]+@([^:\s/]+):(?!\/)(.+)$/);
+  if (scpStyle) return toRepoKey(scpStyle[1], scpStyle[2]);
+  try {
+    const parsedUrl = new URL(trimmedUrl);
+    return toRepoKey(parsedUrl.hostname, parsedUrl.pathname);
+  } catch {
+    return void 0;
+  }
+}
+function resolveTreeChange(cwd, runGit2 = defaultSkipProbes.runGit) {
+  if (!cwd) return void 0;
+  const remoteUrl = runGit2(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
+  const repo = remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : void 0;
+  const branch = runGit2(["branch", "--show-current"], cwd)?.trim();
+  return repo && branch ? { repo, branch } : void 0;
+}
+function resolveOpenedPrChange(command, prUrl, cwd, runGit2 = defaultSkipProbes.runGit) {
+  const repo = repoKeyOfPrUrl(prUrl);
+  if (!repo) return void 0;
+  const openAt = command.search(PR_OPEN_COMMAND);
+  const headFlag = openAt < 0 ? null : command.slice(openAt).match(PR_HEAD_BRANCH_FLAG);
+  if (headFlag) return { repo, branch: headFlag[1].slice(headFlag[1].lastIndexOf(":") + 1) };
+  if (DIRECTORY_CHANGE_COMMAND.test(command)) return void 0;
+  const treeChange = resolveTreeChange(cwd, runGit2);
+  return treeChange?.repo === repo ? treeChange : void 0;
+}
+function isSameChange(left, right) {
+  return left !== void 0 && right !== void 0 && left.repo === right.repo && left.branch === right.branch;
+}
+
+// src/guardrails/skipScope.ts
+function isPrOfSkipChange(state, prUrl) {
+  return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
 }
 function withCoveredPrs(state, prUrls) {
   const covered = new Set(state.e2eSkipCoveredPrs ?? []);
@@ -1395,17 +1505,17 @@ function withCoveredPrs(state, prUrls) {
 function isPrCoveredBySkip(state, prUrl) {
   return (state.e2eSkipCoveredPrs ?? []).includes(prUrl);
 }
-function applyPrOpenedToSkipScope(state, prUrl, openedFromTree) {
-  if (!openedFromTree) return state;
-  const recorded = { ...state, prWorkingTrees: { ...state.prWorkingTrees, [prUrl]: openedFromTree } };
-  return isOpenedFromSkipTree(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
+function applyPrOpenedToSkipScope(state, prUrl, prChange) {
+  if (!prChange) return state;
+  const recorded = { ...state, prChanges: { ...state.prChanges, [prUrl]: prChange } };
+  return isPrOfSkipChange(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
 }
-function applyE2eSkipScope(state, verifiedInTree) {
-  if (!verifiedInTree || !state.e2eSkipDeclaration) return state;
-  const scoped = { ...state, e2eSkipVerifiedInTree: verifiedInTree };
+function applyE2eSkipScope(state, verifiedChange) {
+  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
+  const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
   return withCoveredPrs(
     scoped,
-    scoped.prsHandled.filter((prUrl) => isOpenedFromSkipTree(scoped, prUrl))
+    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl))
   );
 }
 
@@ -1787,71 +1897,6 @@ function explainRejection(judged) {
   }
   return `The skip cited ${judged.claimedCode}, but that could not be verified: ${judged.failure}. E2E is still owed \u2014 cite a code that holds, or run it.`;
 }
-var readTextFile = (path) => {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-};
-var listFiles = (dir) => {
-  try {
-    return readdirSync(dir);
-  } catch {
-    return [];
-  }
-};
-var runGit = (args, cwd) => {
-  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
-  if (timeoutMs === null) return null;
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      timeout: timeoutMs,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true
-    });
-  } catch {
-    return null;
-  }
-};
-var hostAndPort = (url) => {
-  const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
-  try {
-    const parsed = new URL(withScheme);
-    const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
-    return { host: parsed.hostname, port };
-  } catch {
-    return null;
-  }
-};
-var isReachable = (url) => {
-  const target = hostAndPort(url);
-  if (!target) return false;
-  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
-  if (spawnTimeoutMs === null) return false;
-  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
-  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${socketTimeoutMs});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
-  try {
-    execFileSync(process.execPath, ["-e", script], {
-      timeout: spawnTimeoutMs,
-      stdio: "ignore",
-      windowsHide: true
-    });
-    return true;
-  } catch {
-    return false;
-  }
-};
-var defaultSkipProbes = {
-  readTextFile,
-  listFiles,
-  runGit,
-  isReachable
-};
-
-// src/guardrails/skipReason.ts
 function judgeE2eSkip(input2, state, probes = defaultSkipProbes) {
   return resolveSkipDeclaration(input2.tool_input?.command ?? "", {
     cwd: input2.cwd,
@@ -2253,10 +2298,10 @@ function prOpened() {
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
-  const openedFromTree = normalizeWorkingTree(input.cwd);
+  const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
   const stateAfterOpen = commitState(
     sessionId,
-    (state) => applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, openedFromTree)
+    (state) => applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, prChange)
   ) ?? readState(sessionId);
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : void 0;
   if (declaredSkip) {
@@ -2331,9 +2376,10 @@ function recordTests() {
   const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
   const failedRunId = detectFailedRunId(input);
   const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
+  const verifiedChange = isDeclaredHere ? resolveTreeChange(input.cwd) : void 0;
   const record = (state) => {
     const declared = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
-    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, normalizeWorkingTree(input.cwd)) : declared;
+    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, verifiedChange) : declared;
     const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
     const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
     const withWalkthroughPost = applyWalkthroughPosted(
@@ -2548,7 +2594,7 @@ function walkthroughGate() {
     return blockOnUnsettledSkip(declaredSkip, skipOwedPrUrls, decision.blockCount);
   }
   const prList = decision.owed.join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. No visual walkthrough or skip record has reached ${prList}. Each PR carries the run of its own change \u2014 a wave's PRs share one run, every other PR gets its own \u2014 so never post one change's run to another change's PR. If this PR's change was tested, post that run now per the postPRVisualWalkthrough preference (default: always) via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If it was not, run E2E for it first: inline via ${muggleSkill("/muggle:muggle-test")}, or in a background muggle:acceptance-tester per do/background-e2e.md while other work continues \u2014 or, where E2E cannot apply to it, declare the skip from that PR's own working tree, since a skip settles only the PRs of the tree it was verified in. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post that PR's own run via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, run E2E for it first if its change was never tested, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. No visual walkthrough or skip record has reached ${prList}. Each PR carries the run of its own change \u2014 a wave's PRs share one run, every other PR gets its own \u2014 so never post one change's run to another change's PR. If this PR's change was tested, post that run now per the postPRVisualWalkthrough preference (default: always) via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")} \u2014 include the failed runs, which are the ones reviewers most need to see. If it was not, run E2E for it first: inline via ${muggleSkill("/muggle:muggle-test")}, or in a background muggle:acceptance-tester per do/background-e2e.md while other work continues \u2014 or, where E2E cannot apply to it, declare the skip from that PR's own working tree, since a skip settles only the PRs of the repo and branch it was verified on. If this result genuinely should not be posted (postPRVisualWalkthrough=never, someone else's PR, nothing renderable), tell the user why and run \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Walkthrough still owed for ${prList} (reminder ${decision.blockCount}/${MAX_WALKTHROUGH_BLOCKS}): post that PR's own run via ${muggleSkill("/muggle:muggle-pr-visual-walkthrough")}, run E2E for it first if its change was never tested, or record a legitimate skip via \`echo "MUGGLE_WALKTHROUGH_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function blockOnUnsettledSkip(owedSkip, owedPrUrls, blockCount) {

@@ -78,7 +78,7 @@ A session that fixed bugs by hand and opened each PR itself follows the same lan
 
 - Dispatching a background acceptance-tester holds the E2E and debug-path Stop gates off for a bounded window, and for that window the walkthrough gate sets aside the PRs its brief names — the session is never steered into a second browser run alongside the agent's.
 - A walkthrough posted to one PR settles that PR only; every other PR the session opened is still checked for its own.
-- A skip declaration settles only the PRs of the working tree it is declared in — the PRs opened from it and its branch's PR, never another change's.
+- A skip declaration settles only the PRs of the change it is declared in — the working tree's repo and branch: the PRs opened for that branch and its branch's PR, never another change's, wherever the session's directory sat when a PR was opened.
 - Every PR's walkthrough check stays red until its slot is settled, so a change whose run never came back cannot pass as tested.
 
 ## Invariants

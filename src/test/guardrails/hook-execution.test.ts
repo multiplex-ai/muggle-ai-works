@@ -1239,22 +1239,22 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
 
   // An accepted skip only reaches the PR through a detached write; the gate is
   // what notices when it never landed. The state is what the hooks write when
-  // the skip and the PR came from one working tree — or, uncovered, from two.
+  // the skip and the PR are one change — or, uncovered, two.
   function runSkippedSessionGate(
     sessionId: string,
     prContent: string,
-    isPrFromSkipTree: boolean = true,
+    isPrOfSkipChange: boolean = true,
   ): { output: string; home: string } {
     const home = createHookHome("gr-wt-skip-");
-    const skipTree = "/work/repo/.claude/worktrees/fix-login";
+    const skipChange = { repo: "github.com/o/r", branch: "fix-login" };
     writeGuardrailState(home, {
       sessionId: sessionId,
       prsHandled: [PR_URL],
       e2eSkipped: true,
       e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" },
-      e2eSkipVerifiedInTree: skipTree,
-      prWorkingTrees: { [PR_URL]: isPrFromSkipTree ? skipTree : "/work/repo/.claude/worktrees/fix-export" },
-      e2eSkipCoveredPrs: isPrFromSkipTree ? [PR_URL] : [],
+      e2eSkipVerifiedChange: skipChange,
+      prChanges: { [PR_URL]: isPrOfSkipChange ? skipChange : { ...skipChange, branch: "fix-export" } },
+      e2eSkipCoveredPrs: isPrOfSkipChange ? [PR_URL] : [],
     });
     runCli(home, ["scan-walkthroughs", sessionId], "", prContent, PR_URL);
     return { output: runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), prContent, PR_URL), home: home };

@@ -12,19 +12,31 @@ The caller resolves these before the loop and supplies them per test case:
 - `localUrl` — local execution target. Local-only; never changes the cloud project or test definitions.
 - `cwd` — absolute path of the active working tree (PR-branch worktree if one exists, else repo root). Drives the cross-worktree single-flight lock so concurrent runs serialize, and names the checkout the execute tools check for freshness.
 - `baseBranch` — the change's base, only when it is not the remote default (a stacked change, a PR into a release branch). Omitted, the tools check `cwd` against the remote default.
-- `testCase` / `cloudTestCaseId` — the cloud test case and its id.
+- `testCase` / `cloudTestCaseId` / `projectId` — the cloud test case, its id and its project.
 - `showUi` — from the caller's `showElectronBrowser` resolution: omit for visible, `false` for headless.
 
 The tool boundary is fixed: cloud reads (`muggle-remote-*`) resolve definitions and scripts; local tools (`muggle-local-*`) run the browser, fetch results, and publish.
+
+## Records
+
+A test case runs once per runSettings record its local lane fans out to. Before its first run, call `muggle-remote-fan-out-plan` with `projectId`, `testCaseId` and `runEnvironmentType: "local"`. Pass `fanOutChoice` only when the user named one (`primaryOnly`, `allNow`); the records it leaves out are listed in `notRunRunSettingsIds` and are not results.
+
+- **`records` empty** — one run, as the Sequence below describes.
+- **Otherwise** — one run per record, in `records` order:
+  - In `replay` mode, a record with a `testScriptId` → the Replay branch with that id in step 1. The script names its record, so the replay is filed under it.
+  - In `regen` mode, or a record without a `testScriptId` → the Regen branch, passing the record's `runSettingsId` and `displayResolution` to `muggle-local-execute-test-generation`.
+- **Gate** — when `isSecondaryGatedOnPrimary` is true, read the first record's run with `muggle-local-run-result-get` before starting another. A `Status` other than `passed` → run none of the rest: each becomes a result with `status: "skipped"`, `reason: "primary failed"`, its record's `runSettingsId` and `resolutionLabel`, and no `runId`. A skipped record launched nothing, so it never goes through failure handling. When the gate is false, run every record.
+
+Every run's result carries its record: `runSettingsId` is the run result's `cloudRunSettingsId` (see [`failures.md`](failures.md)) and `resolutionLabel` is the plan record's. Rerunning one record's run, including the debug path's "give feedback & rerun", is the Regen branch with that record's `runSettingsId` and `displayResolution`.
 
 ## Sequence
 
 One local browser exists, so **execution is sequential** — one test case at a time, in the caller's order. The pre/post fetches are independent across test cases and should be issued in parallel batches around the sequential execute calls.
 
-Per test case, branch on `mode`:
+Per test case, or per record when it has [records](#records), branch on `mode`:
 
 **Replay**
-1. `muggle-remote-test-script-get` (latest replayable script — the lane-scoped one the caller resolved during classification per [`../failure-mode-handling.md`](../failure-mode-handling.md) §A) → note `actionScriptId`.
+1. `muggle-remote-test-script-get` (the record's `testScriptId`; with no records, the latest replayable script — the lane-scoped one the caller resolved during classification per [`../failure-mode-handling.md`](../failure-mode-handling.md) §A) → note `actionScriptId`.
 2. `muggle-remote-action-script-get` with that id → full `actionScript` (see [`action-script.md`](action-script.md)), plus the `pinnedAccount` and `freshSession` its `actionParams` recorded.
 3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl`, `cwd`, `showUi`, `pinnedAccount` and `freshSession` (each copied from the recording's `actionParams` when present; see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
 
@@ -32,7 +44,7 @@ Per test case, branch on `mode`:
 1. `muggle-remote-test-case-get` → full test case object.
 2. `muggle-local-execute-test-generation` with `testCase`, `localUrl`, `cwd`, `showUi`, `freshSession` (omit it so the stored flag decides; pass it only to override for this run, per [`fresh-session.md`](fresh-session.md)), `timeoutMs`.
 
-Store the returned `runId`, tagged with its `mode`. If a run fails, log it and continue the batch — never abort. Read the result per [`failures.md`](failures.md), then [`publish.md`](publish.md).
+Store the returned `runId`, tagged with its `mode` and record. If a run fails, log it and continue the batch — never abort. Read the result per [`failures.md`](failures.md), then [`publish.md`](publish.md).
 
 **A refused run is not a failure.** A result headed `Run refused — checkout is not on the latest …` launched nothing and has no `runId`: the `cwd` checkout lacks its base's latest commit (`BEHIND_BASE`) or carries another branch's commits (`FOREIGN_BASE`). Sync it per [`../sync-branch-with-base.md`](../sync-branch-with-base.md), re-invoke [`muggle-test-prepare`](../../muggle-test-prepare/SKILL.md) so the dev server serves the synced code, and run the case again. Never route it through failure handling or count it as a result.
 

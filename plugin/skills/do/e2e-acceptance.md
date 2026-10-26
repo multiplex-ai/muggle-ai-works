@@ -133,9 +133,11 @@ Ancestors generated here are prerequisites, not results: they belong in neither 
 
 ### Step 4: Run the dev loop, gather screenshots
 
-For each scoped test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
+For each scoped test case, run the shared loop in [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md): `muggle-remote-test-script-list` by `testCaseId` with `runEnvironmentType: "local"` (this stage runs against localhost) to pick [replay vs regen](../_shared/dev-loop/run.md), [run once per record](../_shared/dev-loop/run.md#records), [execute with `timeoutMs`](../_shared/dev-loop/timeouts.md), [fetch the result](../_shared/dev-loop/failures.md) and [interpret failures](../_shared/dev-loop/failures.md), then read the studio-published [cloud refs and per-step screenshots](../_shared/dev-loop/publish.md) off the run result.
 
 Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from Step 1.7, `cwd` = the working tree recorded in `state.md`.
+
+Each record's run is its own report entry carrying its `runSettingsId` and `resolutionLabel`. A record skipped because its primary failed is an Inconclusive entry with reason `primary failed`, not a skipped test case.
 
 ### Step 7: Collect Results
 
@@ -151,6 +153,8 @@ For each test case:
 **Passed:** (count)
 - (test case name):
   - testCaseId: `<id>`
+  - runSettingsId: `<id>` (the run result's `cloudRunSettingsId`; omit when absent)
+  - resolutionLabel: `<width>×<height>` (the record's size, e.g. `390×844`; omit with `runSettingsId`)
   - testScriptId: `<id>`
   - runId: `<id>`
   - viewUrl: `<url>`
@@ -159,6 +163,8 @@ For each test case:
 **Failed:** (count)
 - (test case name):
   - testCaseId: `<id>`
+  - runSettingsId: `<id>`
+  - resolutionLabel: `<width>×<height>`
   - testScriptId: `<id>`
   - runId: `<id>`
   - viewUrl: `<url>`
@@ -170,6 +176,8 @@ For each test case:
 **Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, prerequisites unmet (Step 3.5), infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
 - (test case name):
   - testCaseId: `<id>`
+  - runSettingsId: `<id>`
+  - resolutionLabel: `<width>×<height>`
   - runId: `<id>` (synthesize a UUID if no run started)
   - viewUrl: `<url>` (project-level run-results fallback when no specific run URL exists)
   - reason: `<one short sentence>`

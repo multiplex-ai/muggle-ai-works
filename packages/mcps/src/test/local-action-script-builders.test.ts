@@ -14,6 +14,7 @@ const PROJECT_ID = "proj-123";
 
 const DESKTOP_PARAMS = { browserWindowWidth: 1920, browserWindowHeight: 1080 };
 const PHONE_PARAMS = { browserWindowWidth: 390, browserWindowHeight: 844 };
+const MACBOOK_PARAMS = { browserWindowWidth: 1512, browserWindowHeight: 982 };
 
 function makeTestCase(storedDisplayOptions?: DisplayResolution[]): TestCaseDetails {
   return {
@@ -161,6 +162,11 @@ describe("displayParams sizing", () => {
 
   it("sizes a replay run from the requested resolution", () => {
     expect(replayWith(DisplayResolution.R_0390x0844)).toEqual(PHONE_PARAMS);
+  });
+
+  it("sizes generation and replay runs at a MacBook resolution", () => {
+    expect(generationWith({ displayResolution: DisplayResolution.R_1512x0982 })).toEqual(MACBOOK_PARAMS);
+    expect(replayWith(DisplayResolution.R_1512x0982)).toEqual(MACBOOK_PARAMS);
   });
 });
 

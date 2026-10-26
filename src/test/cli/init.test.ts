@@ -29,7 +29,7 @@ const watchServiceMocks = vi.hoisted(() => ({
 }));
 
 // The real service would query, and could re-register, this machine's scheduled task.
-vi.mock("../../watch/watch-service.js", () => watchServiceMocks);
+vi.mock("../../watch/install-service.js", () => watchServiceMocks);
 
 vi.mock("node:readline/promises", () => ({
   createInterface: () => ({

@@ -1,27 +1,21 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
-import { PreferenceValue } from "../../../packages/mcps/src/shared/preferences-types.js";
-import { RECOVERY_RESUME_PROMPT, TRUST_PROBE_SESSION_NAME, WATCH_CRONTAB_LINE } from "../../watch/constants.js";
+import { RECOVERY_RESUME_PROMPT, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
 import {
   WatcherRecoveryOutcome,
   WatchEventKind,
   WatchFindingCode,
-  WatchServiceInstallOutcome,
   ReloadAction,
   type CommandOutcome,
   type WatchTickDeps,
 } from "../../watch/types.js";
 import {
-  applyWatchServicePreference,
-  createDefaultWatchServiceInstallDeps,
   createDefaultWatchTickDeps,
-  installWatchService,
   loadLastWatchSnapshot,
   registerWatchSlot,
   runReloadPluginsPass,
   runWatchTick,
-  uninstallWatchService,
   unregisterWatchSlot,
 } from "../../watch/watch-service.js";
 import { makeTempDir, makeWatchPaths, openPrEntry, scriptedRunner, succeeded, writeSlot } from "./fixtures.js";
@@ -372,56 +366,6 @@ describe("runReloadPluginsPass", () => {
   });
 });
 
-describe("watch service install", () => {
-  function installRunner(isRegistered: boolean, installerExitCode = 0) {
-    return scriptedRunner((executable) => {
-      if (executable === "schtasks.exe") return { exitCode: isRegistered ? 0 : 1, stdout: "" };
-      if (executable === "powershell.exe") return { exitCode: installerExitCode, stdout: installerExitCode === 0 ? "task MuggleWatch registered\n" : "access denied\n" };
-      return null;
-    });
-  }
-
-  it("acts on each preference value, refreshing a registered task for anything but never", () => {
-    const outcomeOf = (preference: PreferenceValue, platform: NodeJS.Platform, isRegistered: boolean) =>
-      applyWatchServicePreference(preference, { platform: platform, runCommand: installRunner(isRegistered).runCommand }, true).outcome;
-    expect(outcomeOf(PreferenceValue.Never, "win32", true)).toBe(WatchServiceInstallOutcome.TurnedOff);
-    expect(outcomeOf(PreferenceValue.Ask, "win32", false)).toBe(WatchServiceInstallOutcome.NotRequested);
-    expect(outcomeOf(PreferenceValue.Ask, "win32", true)).toBe(WatchServiceInstallOutcome.Refreshed);
-    expect(outcomeOf(PreferenceValue.Always, "win32", true)).toBe(WatchServiceInstallOutcome.Refreshed);
-    expect(outcomeOf(PreferenceValue.Always, "win32", false)).toBe(WatchServiceInstallOutcome.Installed);
-    expect(outcomeOf(PreferenceValue.Ask, "linux", false)).toBe(WatchServiceInstallOutcome.NotRequested);
-  });
-
-  it("runs the shipped installer without waiting for the first tick on request", () => {
-    const runner = installRunner(false);
-    const report = applyWatchServicePreference(PreferenceValue.Always, { platform: "win32", runCommand: runner.runCommand }, true);
-    expect(report.detail).toBe("task MuggleWatch registered");
-    const installerCall = runner.calls.find((call) => call.executable === "powershell.exe");
-    expect(installerCall?.args.slice(-3)).toEqual(["-File", expect.stringMatching(/install-muggle-watch\.ps1$/), "-NoWait"]);
-    expect(installerCall?.options?.timeoutMs).toBeGreaterThan(120_000);
-  });
-
-  it("installs, waits, and uninstalls on request, and reports a failed installer", () => {
-    const runner = installRunner(false);
-    expect(installWatchService({ platform: "win32", runCommand: runner.runCommand }, false).outcome).toBe(WatchServiceInstallOutcome.Installed);
-    expect(uninstallWatchService({ platform: "win32", runCommand: runner.runCommand }).outcome).toBe(WatchServiceInstallOutcome.Removed);
-    expect(runner.calls.map((call) => call.args[call.args.length - 1])).toEqual([
-      expect.stringMatching(/install-muggle-watch\.ps1$/),
-      "-Uninstall",
-    ]);
-    expect(installWatchService({ platform: "win32", runCommand: installRunner(false, 1).runCommand }, true)).toEqual({
-      outcome: WatchServiceInstallOutcome.Failed,
-      detail: "access denied",
-    });
-  });
-
-  it("points elsewhere at the crontab line instead", () => {
-    const report = installWatchService({ platform: "darwin", runCommand: installRunner(false).runCommand }, true);
-    expect(report.outcome).toBe(WatchServiceInstallOutcome.Unsupported);
-    expect(report.detail).toContain(WATCH_CRONTAB_LINE);
-  });
-});
-
 describe("slot registration through the service", () => {
   it("registers and unregisters a slot by its dir", () => {
     const slotDir = writeSlot(join(makeTempDir("slots"), "sessions"), "csv", { prsJson: [openPrEntry("o/r", 1)] });
@@ -429,12 +373,6 @@ describe("slot registration through the service", () => {
     expect(JSON.parse(readFileSync(join(slotDir, "watch-registration.json"), "utf-8")).registered_by).toBe("muggle-watch-cli");
     expect(unregisterWatchSlot(slotDir)).toBe(true);
     expect(unregisterWatchSlot(slotDir)).toBe(false);
-  });
-});
-
-describe("createDefaultWatchServiceInstallDeps", () => {
-  it("wires this platform", () => {
-    expect(createDefaultWatchServiceInstallDeps().platform).toBe(process.platform);
   });
 });
 

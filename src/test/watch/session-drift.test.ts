@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
-import { TRUST_PROBE_PROMPT, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
+import { TRUST_PROBE_PROMPT, TRUST_PROBE_SESSION_NAME, WATCH_INSTALLER_RELATIVE_PATH } from "../../watch/constants.js";
 import { readInstallHistory } from "../../watch/install-history.js";
-import { findWatchInstallerScript, isWatchTaskRegistered, runWatchInstaller } from "../../watch/service-installer.js";
+import { findShippedFile, isWatchTaskRegistered, runWatchInstaller } from "../../watch/service-installer.js";
 import { resolveReloadTargetAtMs, stampSessionLoads, versionInstalledAt } from "../../watch/session-drift.js";
 import { TrackedProcessKind, WorkSessionAgent, type ProcessTableEntry, type WorkSession } from "../../watch/types.js";
 import { canRestartSessionIn } from "../../watch/workspace-trust.js";
@@ -112,15 +112,17 @@ describe("canRestartSessionIn", () => {
 
 describe("service installer lookup", () => {
   // Windows PowerShell 5.1 and wscript read these files in the ANSI code page, so
-  // one UTF-8 dash is enough to break the installer's parse.
-  it("ships the installer and its launcher as pure ASCII", () => {
-    const installerDir = dirname(findWatchInstallerScript() ?? "");
-    for (const fileName of ["install-muggle-watch.ps1", "muggle-watch-hidden.vbs"]) {
+  // one UTF-8 dash is enough to break the installer's parse; sh reads the POSIX
+  // launcher byte for byte, so a CR would end up inside its commands.
+  it("ships the installers and launchers as pure ASCII, the POSIX one with LF endings", () => {
+    const installerDir = dirname(findShippedFile(WATCH_INSTALLER_RELATIVE_PATH) ?? "");
+    for (const fileName of ["install-muggle-watch.ps1", "muggle-watch-hidden.vbs", "muggle-watch-tick.sh"]) {
       const nonAsciiLines = readFileSync(join(installerDir, fileName), "utf-8")
         .split(/\r?\n/)
         .flatMap((line, index) => ([...line].some((character) => character.charCodeAt(0) > 0x7f) ? [`${fileName}:${index + 1}`] : []));
       expect(nonAsciiLines).toEqual([]);
     }
+    expect(readFileSync(join(installerDir, "muggle-watch-tick.sh"), "utf-8")).not.toContain("\r");
   });
 
   it("passes the installer's stderr through, so a failure says why", () => {
@@ -130,8 +132,8 @@ describe("service installer lookup", () => {
   });
 
   it("finds the shipped installer from this module, and nothing outside a package", () => {
-    expect(findWatchInstallerScript()).toMatch(/scripts[\\/]muggle-watch[\\/]install-muggle-watch\.ps1$/);
-    expect(findWatchInstallerScript(makeTempDir("no-package"))).toBeNull();
+    expect(findShippedFile(WATCH_INSTALLER_RELATIVE_PATH)).toMatch(/scripts[\\/]muggle-watch[\\/]install-muggle-watch\.ps1$/);
+    expect(findShippedFile(WATCH_INSTALLER_RELATIVE_PATH, makeTempDir("no-package"))).toBeNull();
   });
 
   it("asks Task Scheduler whether the task is registered", () => {

@@ -50,7 +50,7 @@ export enum PreferenceKey {
   AutoWatchPR = "autoWatchPR",
   /** Install the muggle-walkthrough E2E check workflow into a repository that lacks it. */
   AutoInstallCiWorkflow = "autoInstallCiWorkflow",
-  /** Register the Muggle Watch scheduled task when muggle works installs or upgrades. */
+  /** Schedule the Muggle Watch job with the OS scheduler when muggle works installs or upgrades. */
   AutoInstallWatchService = "autoInstallWatchService",
   /** How long a muggle-pr-followup watch loop may poll before retiring itself. */
   WatcherLifetime = "watcherLifetime",

@@ -403,6 +403,46 @@ export interface WatchServiceInstallReport {
 export interface WatchServiceInstallDeps {
   platform: NodeJS.Platform;
   runCommand: CommandRunner;
+  homeDir: string;
+  /** The watch ledger dir; the launcher and its environment are staged in its `bin`. */
+  watchDir: string;
+  /** The installing shell's environment: its PATH is what the scheduled tick runs with. */
+  env: NodeJS.ProcessEnv;
+  /** The node binary the scheduled tick runs under. */
+  nodePath: string;
+  /** POSIX only: the user id launchd's per-user domain is named for. */
+  uid?: number;
+}
+
+/** The OS scheduler a platform's watch service runs under. */
+export enum WatchSchedulerKind {
+  TaskScheduler = "task-scheduler",
+  Launchd = "launchd",
+  SystemdUser = "systemd-user",
+  Cron = "cron",
+}
+
+/** Everything a POSIX scheduler entry names: the staged launcher and what it runs. */
+export interface PosixTickJob {
+  launcherPath: string;
+  nodePath: string;
+  muggleEntry: string;
+  intervalSeconds: number;
+}
+
+/** What one scheduler change did, with the line reported to the user. */
+export interface SchedulerOutcome {
+  isDone: boolean;
+  detail: string;
+}
+
+/** Where the POSIX scheduler files of one user live. */
+export interface PosixSchedulePaths {
+  launchdPlistFile: string;
+  systemdServiceFile: string;
+  systemdTimerFile: string;
+  /** Scratch file `crontab` installs the edited table from. */
+  crontabStagingFile: string;
 }
 
 /** Runs an executable with no shell and no window; null when it could not start or timed out. */

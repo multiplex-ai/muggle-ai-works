@@ -9,6 +9,7 @@ import {
   CLAUDE_PROJECTS_DIRNAME,
   DEFAULT_CLAUDE_CONFIG_DIRNAME,
   FIXTURE_REPOS_DIR,
+  RESUME_CONFIG_DIR_PREFIX,
   SANDBOX_DIR_PREFIX,
 } from "../constants.js";
 import type {
@@ -93,21 +94,44 @@ export function snapshotArtifacts(
   return { paths: paths, fileContents: fileContents };
 }
 
+function projectDirName(repoPath: string): string {
+  return repoPath.replace(/[^A-Za-z0-9]/g, "-");
+}
+
 /**
  * Where the Claude Code CLI keeps per-project records for the sandbox repo:
  * `<config dir>/projects/<repo path, each non-alphanumeric as "-">`.
  */
 export function sandboxSessionRecordsDir(sandbox: RunSandbox): string {
   const configDir = process.env[CLAUDE_CONFIG_DIR_ENV] ?? path.join(os.homedir(), DEFAULT_CLAUDE_CONFIG_DIRNAME);
-  return path.join(configDir, CLAUDE_PROJECTS_DIRNAME, sandbox.repo.replace(/[^A-Za-z0-9]/g, "-"));
+  return path.join(configDir, CLAUDE_PROJECTS_DIRNAME, projectDirName(sandbox.repo));
+}
+
+/**
+ * The temporary config directories the SDK made to resume a run from a seeded
+ * transcript: `<tmp>/claude-resume-*` holding this sandbox repo's project
+ * records. The sandbox repo path is unique per run, so another run's directory
+ * never matches.
+ */
+export function sandboxResumeConfigDirs(sandbox: RunSandbox, tempDir: string = os.tmpdir()): string[] {
+  return fs
+    .readdirSync(tempDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith(RESUME_CONFIG_DIR_PREFIX))
+    .map((entry) => path.join(tempDir, entry.name))
+    .filter((configDir) => fs.existsSync(path.join(configDir, CLAUDE_PROJECTS_DIRNAME, projectDirName(sandbox.repo))));
 }
 
 /**
  * Delete the sandbox, everything the run wrote into it, and the records the
  * CLI keeps for its working directory — a title line and a memory dir it
  * writes even with session persistence off, one directory per run otherwise.
+ * A resumed run's temporary config directory goes too: it holds a copy of the
+ * credentials, and the SDK removes it only after the CLI exits, which a runner
+ * that exits first never waits for.
  */
 export function removeRunSandbox(sandbox: RunSandbox): void {
-  fs.rmSync(sandbox.root, { recursive: true, force: true, maxRetries: 3 });
-  fs.rmSync(sandboxSessionRecordsDir(sandbox), { recursive: true, force: true, maxRetries: 3 });
+  const removeOptions = { recursive: true, force: true, maxRetries: 3 };
+  for (const configDir of sandboxResumeConfigDirs(sandbox)) fs.rmSync(configDir, removeOptions);
+  fs.rmSync(sandbox.root, removeOptions);
+  fs.rmSync(sandboxSessionRecordsDir(sandbox), removeOptions);
 }

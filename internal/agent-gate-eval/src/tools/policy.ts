@@ -24,10 +24,15 @@ function deny(message: string): PermissionResult {
   return { behavior: "deny", message: message };
 }
 
-function decideFileTool(
+/**
+ * Decide one Read, Write or Edit call: Read inside the plugin tree or the
+ * sandbox, Write and Edit inside the sandbox only. An allowed call carries its
+ * path resolved into the sandbox as `updatedInput.file_path`.
+ */
+export function decideFileToolUse(
   toolName: string,
   input: Record<string, unknown>,
-  context: ToolPolicyContext,
+  context: Pick<ToolPolicyContext, "paths" | "pluginRoot">,
 ): PermissionResult {
   const filePath = input.file_path;
   if (typeof filePath !== "string") return deny(`[harness] ${toolName} needs a file_path`);
@@ -85,7 +90,7 @@ export function decideToolUse(
   if (toolName === "Bash") {
     return deny(`${SIMULATED_OUTPUT_PREFIX}${context.answerBash(String(input.command ?? ""))}`);
   }
-  return decideFileTool(toolName, input, context);
+  return decideFileToolUse(toolName, input, context);
 }
 
 /**

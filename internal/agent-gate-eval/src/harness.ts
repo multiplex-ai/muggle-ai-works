@@ -26,6 +26,8 @@
  *     the scenario's `toolResponses`; nothing they name runs.
  *   - Tool attempts are recorded from the model's own tool_use blocks
  *     (tools/trace.ts), in call order.
+ *   - A scenario with `seed.transcript` resumes from those prior turns
+ *     (transcript/resume.ts) instead of starting at the invocation.
  */
 
 import {
@@ -55,8 +57,9 @@ import { pluginRootOf } from "./target-definition.js";
 import { buildHostStubServer } from "./tools/host-stubs.js";
 import { decideToolUse, toPreToolUseOutput } from "./tools/policy.js";
 import { createBashResponder, createToolResponder } from "./tools/scripted-replies.js";
-import { buildSequencedMockMcpServer } from "./tools/sequenced-mock-mcp.js";
+import { buildSequencedMockMcpServer, createMockToolAnswerer } from "./tools/sequenced-mock-mcp.js";
 import { toolAttemptsInMessage } from "./tools/trace.js";
+import { resumeFromSeedTranscript } from "./transcript/resume.js";
 import {
   EvalTargetKind,
   ScriptedTool,
@@ -64,12 +67,24 @@ import {
   type AgentRunOptions,
   type AgentRunVerdict,
   type AgentScenario,
+  type RunUsage,
   type SandboxPathContext,
   type SkillDefinition,
   type ToolAttempt,
   type ToolPolicyContext,
 } from "./types.js";
 import { judgeAgentRun } from "./verdict.js";
+
+/** The run's spend as the SDK's terminal `result` message reports it, or undefined when a field is missing. */
+function runUsageOf(resultMessage: unknown): RunUsage | undefined {
+  const { total_cost_usd: costUsd, duration_ms: durationMs, num_turns: turns } = (resultMessage ?? {}) as {
+    total_cost_usd?: unknown;
+    duration_ms?: unknown;
+    num_turns?: unknown;
+  };
+  if (typeof costUsd !== "number" || typeof durationMs !== "number" || typeof turns !== "number") return undefined;
+  return { costUsd: costUsd, durationMs: durationMs, turns: turns };
+}
 
 /** The system prompt an agent target runs under: its definition body plus the environment note. */
 export function buildAgentSystemPrompt(definition: AgentDefinition, scenario: AgentScenario): string {
@@ -165,8 +180,26 @@ export async function runAgentScenarioOnce(
     }
     if (isSkillTarget) mcpServers[HOST_STUB_SERVER_NAME] = buildHostStubServer(answerTool);
 
+    const firstUserMessage = invocationPrompt(definition, scenario);
+    const transcript = scenario.seed?.transcript;
+    // The transcript gets responders of its own, so its calls leave the live run's sequences unadvanced.
+    const resume = transcript
+      ? resumeFromSeedTranscript({
+          transcript: transcript,
+          firstUserMessage: firstUserMessage,
+          model: definition.model,
+          context: {
+            paths: paths,
+            pluginRoot: pluginRoot,
+            answerBash: createBashResponder(scenario.bashResponses),
+            answerTool: createToolResponder(scenario.toolResponses),
+            answerMockTool: createMockToolAnswerer(scenario.fixtures ?? {}),
+          },
+        })
+      : undefined;
+
     const stream = query({
-      prompt: invocationPrompt(definition, scenario),
+      prompt: resume ? resume.prompt : firstUserMessage,
       options: {
         // Judge the target on its own definition, nothing else. Omitting this loads every
         // filesystem settings source, and this repo's .claude/settings.json enables the
@@ -175,7 +208,7 @@ export async function runAgentScenarioOnce(
         settingSources: [],
         // Without it the account's claude.ai connectors join the run's tools.
         strictMcpConfig: true,
-        persistSession: false,
+        ...(resume ? resume.queryOptions : { persistSession: false }),
         cwd: sandbox.repo,
         systemPrompt: isSkillTarget
           ? { type: "preset", preset: "claude_code", append: buildSkillSystemPromptAppend(scenario, paths, pluginRoot) }
@@ -232,7 +265,9 @@ export async function runAgentScenarioOnce(
     if (!finalOutput) finalOutput = lastAssistantText;
     const askQuestionCount = toolAttempts.filter((attempt) => attempt.tool === ScriptedTool.AskUserQuestion).length;
     const artifactSnapshot = snapshotArtifacts(scenario.expect.requireArtifacts ?? [], paths);
-    return judgeAgentRun(scenario, finalOutput, toolAttempts, askQuestionCount, artifactSnapshot);
+    const verdict = judgeAgentRun(scenario, finalOutput, toolAttempts, askQuestionCount, artifactSnapshot);
+    const usage = runUsageOf(lastResult);
+    return usage ? { ...verdict, usage: usage } : verdict;
   } finally {
     removeRunSandbox(sandbox);
   }

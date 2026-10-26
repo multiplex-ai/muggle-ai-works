@@ -60,7 +60,7 @@ describe("judgeAgentRun", () => {
     ).toBe(true);
     const missing = judgeAgentRun(scenario(expectBlock), "body:", [bash("gh pr view 1")], 0);
     expect(missing.pass).toBe(false);
-    expect(missing.reasons[0]).toContain("build-pr-section");
+    expect(missing.reasons[0]).toBe('expected an attempt matching Bash~"build-pr-section"');
   });
 
   it("forbidToolAttempts fails when the forbidden call was attempted", () => {
@@ -120,6 +120,39 @@ describe("requireToolSequence", () => {
 
   it("is satisfied by an empty sequence", () => {
     expect(judgeAgentRun(scenario({ requireToolSequence: [] }), "", [], 0).pass).toBe(true);
+  });
+
+  it("lets an anyOf step be met by any one of its alternatives, so either arming wording passes", () => {
+    const watcherArmed: ToolAttemptPattern = {
+      anyOf: [
+        { tool: "Skill", argContains: "muggle-pr-followup" },
+        { tool: "Monitor", argContains: "pr-watch-arm.sh" },
+      ],
+    };
+    const handoffThenArm: ToolAttemptPattern[] = [{ tool: "Bash", argContains: "gh pr create" }, watcherArmed];
+    const loopArm: ToolAttempt = { tool: "Skill", args: { skill: "loop", args: "1m /muggle:muggle-pr-followup s 142" } };
+    const monitorArm: ToolAttempt = { tool: "Monitor", args: { command: "bash /p/scripts/pr-watch-arm.sh --pr 142" } };
+    expect(countOrderedMatches([bash("gh pr create"), loopArm], handoffThenArm)).toBe(2);
+    expect(countOrderedMatches([bash("gh pr create"), monitorArm], handoffThenArm)).toBe(2);
+    expect(countOrderedMatches([monitorArm, bash("gh pr create")], handoffThenArm)).toBe(1);
+    const v = judgeAgentRun(scenario({ requireToolSequence: handoffThenArm }), "", [bash("gh pr create")], 0);
+    expect(v.reasons[0]).toContain('missing anyOf(Skill~"muggle-pr-followup" | Monitor~"pr-watch-arm.sh")');
+  });
+});
+
+describe("tool-attempt patterns", () => {
+  it("requires every substring of an argContains list", () => {
+    const failingTitle: ToolAttemptPattern = { tool: "Bash", argContains: ["gh pr create", "[E2E FAILING]"] };
+    const expectBlock = { requireToolAttempts: [failingTitle] };
+    expect(judgeAgentRun(scenario(expectBlock), "", [bash('gh pr create --title "[E2E FAILING] x"')], 0).pass).toBe(true);
+    const plainTitle = judgeAgentRun(scenario(expectBlock), "", [bash('gh pr create --title "x"')], 0);
+    expect(plainTitle.reasons).toEqual(['expected an attempt matching Bash~["gh pr create","[E2E FAILING]"]']);
+  });
+
+  it("forbids every alternative of an anyOf", () => {
+    const forbidArm = { forbidToolAttempts: [{ anyOf: [{ tool: "Skill", argContains: "muggle-pr-followup" }, { tool: "Bash", argContains: "pr-watch-arm.sh" }] }] };
+    expect(judgeAgentRun(scenario(forbidArm), "", [bash("bash pr-watch-arm.sh --pr 1")], 0).pass).toBe(false);
+    expect(judgeAgentRun(scenario(forbidArm), "", [bash("gh pr view 1")], 0).pass).toBe(true);
   });
 });
 
@@ -184,5 +217,14 @@ describe("summarizeScenarioVerdicts", () => {
 
   it("never passes a scenario that ran no reps", () => {
     expect(summarizeScenarioVerdicts("s", [], 0.8).passed).toBe(false);
+  });
+
+  it("averages the cost and time of the reps that reported usage", () => {
+    const withUsage = (costUsd: number, durationMs: number) => ({ ...verdict(true), usage: { costUsd: costUsd, durationMs: durationMs, turns: 40 } });
+    expect(summarizeScenarioVerdicts("s", [withUsage(1, 60_000), withUsage(2, 120_000), verdict(false)], 1)).toMatchObject({
+      meanCostUsd: 1.5,
+      meanDurationMs: 90_000,
+    });
+    expect(summarizeScenarioVerdicts("s", [verdict(true)], 1)).toMatchObject({ meanCostUsd: null, meanDurationMs: null });
   });
 });

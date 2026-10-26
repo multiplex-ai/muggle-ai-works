@@ -185,6 +185,10 @@ async function main(): Promise<void> {
               trace: { finalOutput: "", toolAttempts: [], askQuestionCount: 0 },
             };
           }
+          const usage = verdict.usage;
+          console.error(
+            `[agent-gate-eval] ${repLabel}: ${verdict.pass ? "PASS" : "FAIL"}${usage ? ` — $${usage.costUsd.toFixed(2)}, ${Math.round(usage.durationMs / 1000)}s, ${usage.turns} turns` : ""}`,
+          );
           if (args.verbose) {
             console.error(JSON.stringify(verdict, null, 2));
           }
@@ -225,8 +229,12 @@ async function main(): Promise<void> {
       `[agent-gate-eval] ${suite.stem}: ${reports.filter((report) => report.passed).length}/${reports.length} scenarios passed @ ≥${(passThreshold * 100).toFixed(0)}%`,
     );
     for (const report of reports) {
+      const meanSpend =
+        report.meanCostUsd === null || report.meanDurationMs === null
+          ? ""
+          : `, mean $${report.meanCostUsd.toFixed(2)} / ${Math.round(report.meanDurationMs / 1000)}s per run`;
       console.log(
-        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%)`,
+        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%${meanSpend})`,
       );
       for (const reason of report.failureReasons) {
         console.log(`    - ${reason}`);

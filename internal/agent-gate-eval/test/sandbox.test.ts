@@ -11,6 +11,7 @@ import {
   removeRunSandbox,
   resolveFixtureRepo,
   sandboxPathContext,
+  sandboxResumeConfigDirs,
   sandboxSessionRecordsDir,
   snapshotArtifacts,
 } from "../src/sandbox/sandbox.js";
@@ -157,6 +158,28 @@ describe("createRunSandbox", () => {
       vi.unstubAllEnvs();
       fs.rmSync(configDir, { recursive: true, force: true });
     }
+  });
+
+  it("removes the temporary config directory the SDK resumed this run in, and no other run's", () => {
+    const sandbox = createRunSandbox();
+    const otherSandbox = createRunSandbox();
+    const projectDir = (runSandbox: typeof sandbox) => runSandbox.repo.replace(/[^A-Za-z0-9]/g, "-");
+    const ownResumeDir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-resume-"));
+    const otherResumeDir = fs.mkdtempSync(path.join(os.tmpdir(), "claude-resume-"));
+    try {
+      fs.mkdirSync(path.join(ownResumeDir, "projects", projectDir(sandbox)), { recursive: true });
+      fs.writeFileSync(path.join(ownResumeDir, ".credentials.json"), "{}");
+      fs.mkdirSync(path.join(otherResumeDir, "projects", projectDir(otherSandbox)), { recursive: true });
+      expect(sandboxResumeConfigDirs(sandbox)).toEqual([ownResumeDir]);
+      removeRunSandbox(sandbox);
+      expect(fs.existsSync(ownResumeDir)).toBe(false);
+      expect(fs.existsSync(otherResumeDir)).toBe(true);
+    } finally {
+      removeRunSandbox(otherSandbox);
+      fs.rmSync(ownResumeDir, { recursive: true, force: true });
+      fs.rmSync(otherResumeDir, { recursive: true, force: true });
+    }
+    expect(fs.existsSync(otherResumeDir)).toBe(false);
   });
 
   it("fills {{home}} and {{repo}} in seed content with the run's own sandbox paths", () => {

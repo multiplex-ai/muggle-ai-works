@@ -57,6 +57,22 @@ export function sequencedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSp
   }));
 }
 
+/**
+ * An answerer for mock muggle calls outside the server — a seeded transcript's
+ * — with its own sequence counts: each bare tool name answers as the server
+ * would, as the MCP text it would carry.
+ *
+ * @throws from the answerer when no mock tool has the name.
+ */
+export function createMockToolAnswerer(fixtures: Fixtures): (toolName: string) => string {
+  const specsByName = new Map(sequencedMockToolSpecs(fixtures).map((spec) => [spec.name, spec]));
+  return (toolName) => {
+    const spec = specsByName.get(toolName);
+    if (!spec) throw new Error(`no mock muggle tool is named ${toolName}`);
+    return jsonResult(spec.reply()).content[0].text;
+  };
+}
+
 /** Build the in-process mock muggle server for one run. */
 export function buildSequencedMockMcpServer(fixtures: Fixtures): MockServerHandle {
   const config = createSdkMcpServer({

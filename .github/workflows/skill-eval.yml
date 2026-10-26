@@ -202,6 +202,7 @@ jobs:
           primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           third-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_3 }}
+          fourth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_4 }}
 
       - name: Run skill-gate evals (every gate in the scenario repo)
         if: steps.scope.outputs.should_run == 'true'
@@ -354,6 +355,7 @@ jobs:
           primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           third-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_3 }}
+          fourth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_4 }}
 
       - name: Run agent-gate evals (every scenario file)
         if: steps.scope.outputs.should_run == 'true'
@@ -541,6 +543,7 @@ jobs:
           primary-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           fallback-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_2 }}
           third-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_3 }}
+          fourth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN_4 }}
 
       # Install the plugin from THIS checkout (not GitHub master) so the eval
       # tests the PR's skill descriptions. Fresh CLAUDE_CONFIG_DIR + a clean cwd

@@ -114,15 +114,16 @@ It checks out `muggle-ai-brain` for the scenarios, so
 CI needs two repo secrets: `CLAUDE_CODE_OAUTH_TOKEN` (subscription auth, from
 `claude setup-token`) and `BRAIN_REPO_TOKEN` (read access to the scenario repo).
 
-`CLAUDE_CODE_OAUTH_TOKEN_2` and `CLAUDE_CODE_OAUTH_TOKEN_3` are optional
-secrets holding **spare subscription tokens**, ideally from other accounts,
-since a weekly usage limit applies to a whole account — `BRAIN_REPO_TOKEN` is
-repo-read auth and unrelated. Every eval job probes the tokens in order before
-it starts work and runs on the first that authenticates, so a rejected or
-throttled token no longer red-lines the suite. A fallback raises a
-workflow warning naming the rejected tokens rather than passing silently —
-they still need regenerating, and nothing rotates back on its own. Leave the
-spares unset to run single-token.
+`CLAUDE_CODE_OAUTH_TOKEN_2`, `_3` and `_4` are optional secrets holding
+**spare subscription tokens**, ideally from other accounts, since a weekly
+usage limit applies to a whole account — `BRAIN_REPO_TOKEN` is repo-read auth
+and unrelated. Every eval job probes the tokens in order before it starts work
+and runs on the first that authenticates, so a rejected or throttled token no
+longer red-lines the suite. A fallback raises a workflow warning rather than
+passing silently, and it tells the two apart: a token that hit its weekly or
+session limit is named with its reset time and comes back on its own, while a
+rejected token needs regenerating with `claude setup-token`. Leave the spares
+unset to run single-token.
 
 ### Codex (not blocking)
 

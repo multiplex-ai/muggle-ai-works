@@ -423,21 +423,18 @@ describe("renderTestDetails", () => {
       1,
     );
     expect(md).toContain("| Before | After |");
-    expect(md).toContain('?url=https%3A%2F%2Fcdn%2Fbefore.png&amp;w=');
-    expect(md).toContain('?url=https%3A%2F%2Fcdn%2Fafter.png&amp;w=');
-    expect(md).toContain('alt="Step 1 after"');
+    expect(md).toContain('<img src="https://cdn/before.png" width="420" alt="Step 1 before">');
+    expect(md).toContain('<img src="https://cdn/after.png" width="420" alt="Step 1 after">');
   });
 
-  // GitHub loads every image on the page, even in closed collapsibles, so each screenshot is served resized.
-  it("serves screenshots as resized thumbnails linking to the original", () => {
+  // GitHub links each image to its src, so the original URL is what a click opens full-size in a new tab.
+  it("links every screenshot at its original URL, shrunk only by width", () => {
     const md = renderTestDetails(latest(passedWithDesc), 1);
-    expect(md).toMatch(/<img src="https:\/\/images\.weserv\.nl\/\?url=[^"]+&amp;w=840&amp;q=70&amp;output=jpg"/);
-    const proxied = "https://images.weserv.nl/?url=https%3A%2F%2Fstorage%2Fshot.jpg";
-    const onProxy = renderTestDetails(
-      latest({ ...passedWithDesc, steps: [{ stepIndex: 0, action: "click", screenshotUrl: proxied }] }),
-      1,
-    );
-    expect(onProxy).toContain(`<img src="${proxied}&amp;w=840`);
+    const sources = [...md.matchAll(/<img src="([^"]+)"/g)].map((match) => match[1]);
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources) {
+      expect(source).toMatch(/^https:\/\/cdn\//);
+    }
   });
 
   it("drops the description when it only repeats the test name", () => {
@@ -564,7 +561,7 @@ describe("step collapsibles", () => {
   it("opens each step onto its own screenshot", () => {
     const md = renderTestDetails(latest(passedRealSteps), 1);
     const step = md.slice(md.indexOf("<summary>📷 2 · "), md.indexOf("<summary>📷 3 · "));
-    expect(step).toContain('<img src="https://images.weserv.nl/?url=https%3A%2F%2Fcdn%2Freal-1.png&amp;w=');
+    expect(step).toContain('<img src="https://cdn/real-1.png" width="640"');
     expect(step).not.toContain("https://cdn/real-2.png");
   });
 

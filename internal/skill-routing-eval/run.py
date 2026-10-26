@@ -4,7 +4,8 @@
 Wraps router_eval.py + analyze.py with the operational lessons learned running
 this by hand: one pooled sweep across every selected skill (so no worker idles
 through a chunk's tail), a disconnect guard (re-run a positive skill that comes
-back all-`none` in a fresh subprocess), aggregation, and report generation —
+back all-`none` in a fresh subprocess), aggregation, report generation, a
+side-by-side confirmation against the base ref's plugin before a gate failure —
 plus an optional cache sync so `claude -p` tests the working-tree descriptions
 rather than the installed copy.
 
@@ -32,10 +33,30 @@ import sys
 from pathlib import Path
 
 import codex_session
-from gate_constants import BASELINE_FILENAME, BASELINE_SOURCE_FULL_SWEEP, CODEX_BASELINE_FILENAME
+from gate_constants import (
+    BASELINE_FILENAME,
+    BASELINE_SOURCE_FULL_SWEEP,
+    CODEX_BASELINE_FILENAME,
+    GATE_AGAINST_CONTROL_ARM,
+)
 from pool_constants import DEFAULT_ROUTING_WORKERS, MAX_DISCONNECT_ATTEMPTS
-from pooling import partition_results_by_skill, plan_pooled_items, resolve_disconnect_retries
-from regression_gate import build_baseline, format_gate_report, gate_failures, judge_run, load_baseline
+from pool_types import SweepArm
+from pooling import (
+    pair_with_control,
+    partition_results_by_skill,
+    plan_pooled_items,
+    resolve_disconnect_retries,
+    rows_of_arm,
+)
+from regression_gate import (
+    build_baseline,
+    confirmation_skills,
+    format_gate_report,
+    is_failing,
+    judge_confirmation,
+    judge_run,
+    load_baseline,
+)
 from route_types import Host
 from scoring import NONE, scored_pass
 
@@ -94,6 +115,13 @@ def has_no_coverage(skills: list[str], by_skill: dict) -> bool:
     return not any(by_skill.get(s) for s in skills)
 
 
+def append_gate_section(md_path: Path, gate_lines: list[str]) -> None:
+    """Add the gate's verdict lines to the posted report, which otherwise shows recall alone."""
+    section = "\n## Regression gate\n\n```\n" + "\n".join(gate_lines) + "\n```\n"
+    with md_path.open("a", encoding="utf-8") as report:
+        report.write(section)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Run the skill-routing eval (chunked, guarded).")
     g = ap.add_mutually_exclusive_group()
@@ -111,6 +139,7 @@ def main():
     ap.add_argument("--baseline", help=f"recorded per-skill baseline the gate compares against; defaults to {BASELINE_FILENAME}, or {CODEX_BASELINE_FILENAME} under --host codex")
     ap.add_argument("--host", choices=[host.value for host in Host], default=Host.CLAUDE.value, help="the agent CLI the sessions run in")
     ap.add_argument("--record-baseline", help="write this run's per-skill tallies to PATH as a baseline candidate (full sweeps only)")
+    ap.add_argument("--control-config-dir", help="a Claude config dir with the base ref's plugin installed; before the gate fails, it re-measures the failing skills against that plugin side by side and fails only if the drop survives")
     args = ap.parse_args()
 
     if args.record_baseline and (args.skill or args.skills):
@@ -118,6 +147,9 @@ def main():
         sys.exit(2)
 
     host = Host(args.host)
+    if args.control_config_dir and host is Host.CODEX:
+        print("--control-config-dir names a Claude config dir; a Codex session takes its plugin from CODEX_HOME", file=sys.stderr)
+        sys.exit(2)
     repo_root = Path(args.repo_root).resolve()
     out_dir = Path(args.out_dir) if args.out_dir else OUT_DIR_BY_HOST[host]
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -237,12 +269,43 @@ def main():
         print("GATE FAILED: no chunk could be verified (all suspected-disconnect) — infra failure, re-run", file=sys.stderr)
         sys.exit(1)
 
+    gate_lines: list[str] = []
+
+    def report_gate(lines: list[str]) -> None:
+        for line in lines:
+            print(line, file=sys.stderr)
+        gate_lines.extend(lines)
+
     run_verdict = judge_run(all_results, load_baseline(baseline_path), flagged_set)
-    for line in format_gate_report(run_verdict):
-        print(line, file=sys.stderr)
+    report_gate(format_gate_report(run_verdict))
     if flagged:
-        print(f"{len(flagged)} chunk(s) inconclusive and ungated — re-run to verify them.", file=sys.stderr)
-    if gate_failures(run_verdict) or run_verdict.overall_regressed:
+        report_gate([f"{len(flagged)} chunk(s) inconclusive and ungated — re-run to verify them."])
+    failing = is_failing(run_verdict)
+
+    if failing and args.control_config_dir:
+        skills_to_confirm = confirmation_skills(run_verdict)
+        report_gate([
+            f"Confirming {', '.join(skills_to_confirm)} against the base ref's plugin, measured side by side "
+            "— the failure stands only if the drop survives."
+        ])
+        paired = pair_with_control(plan_pooled_items(skills_to_confirm, by_skill), args.control_config_dir)
+        print(
+            f"== confirmation sweep: {len(paired)} queries x {args.runs} runs, {args.workers} workers ==",
+            file=sys.stderr,
+        )
+        confirmation = run_chunk(
+            paired, out_dir / "chunk_confirmation.json", repo_root, args.runs, args.workers, args.timeout, host
+        )["results"]
+        confirmation_verdict = judge_confirmation(
+            rows_of_arm(confirmation, SweepArm.CANDIDATE),
+            rows_of_arm(confirmation, SweepArm.CONTROL),
+            skills_to_confirm,
+        )
+        report_gate(format_gate_report(confirmation_verdict, GATE_AGAINST_CONTROL_ARM))
+        failing = is_failing(confirmation_verdict)
+
+    append_gate_section(md_path, gate_lines)
+    if failing:
         sys.exit(1)
 
 

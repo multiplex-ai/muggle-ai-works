@@ -225,7 +225,7 @@ class TestCodexRoutes(unittest.TestCase):
             argv = ["router_eval.py", "--eval-set", str(eval_set), "--out", str(report), "--runs", "1", "--host", "codex"]
             hosts = []
 
-            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE):
+            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE, claude_config_dir=None):
                 hosts.append(host)
                 return RouteOutcome("muggle-test", None)
 

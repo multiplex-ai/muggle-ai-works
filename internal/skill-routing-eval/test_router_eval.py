@@ -1,14 +1,18 @@
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
 import router_eval
+from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD
+from pool_types import SweepArm
 from route_constants import REPORT_NONE_REASONS_FIELD
 from route_types import Host, NoneReason
 from scoring import scored_pass
@@ -251,6 +255,18 @@ class TestRunClaudeOnce(unittest.TestCase):
             status, stream = router_eval.run_claude_once("q", ".", 10, None)
         self.assertEqual(status, "THROTTLED")
         self.assertEqual(stream, "")
+
+    def test_a_control_session_routes_against_its_own_config_dir(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/runner/.cc-config"}), \
+                mock.patch("subprocess.run", return_value=self._finished_session(0, "")) as claude_cli:
+            router_eval.run_claude_once("q", ".", 10, None, "/runner/.cc-config-control")
+        self.assertEqual(claude_cli.call_args.kwargs["env"]["CLAUDE_CONFIG_DIR"], "/runner/.cc-config-control")
+
+    def test_a_candidate_session_keeps_the_runner_config_dir(self):
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/runner/.cc-config"}), \
+                mock.patch("subprocess.run", return_value=self._finished_session(0, "")) as claude_cli:
+            router_eval.run_claude_once("q", ".", 10, None)
+        self.assertEqual(claude_cli.call_args.kwargs["env"]["CLAUDE_CONFIG_DIR"], "/runner/.cc-config")
 
 
 class TestStreamErrorText(unittest.TestCase):
@@ -598,7 +614,7 @@ class TestReportCarriesNoneReasons(unittest.TestCase):
             report_path = Path(tmp) / "report.json"
             scripted = {q: iter(outcomes) for q, outcomes in outcomes_by_query.items()}
 
-            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE):
+            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE, claude_config_dir=None):
                 return next(scripted[query])
 
             argv = [
@@ -646,6 +662,49 @@ class TestReportCarriesNoneReasons(unittest.TestCase):
         self.assertEqual(entry["majority"], "none")
         self.assertTrue(entry["pass"])
         self.assertEqual(entry[REPORT_NONE_REASONS_FIELD], {"no_tool_call": 3})
+
+
+class TestPairedSweepItems(unittest.TestCase):
+    def test_each_item_runs_under_its_config_dir_and_reports_its_arm(self):
+        control_dir = "/runner/.cc-config-control"
+        eval_set = [
+            {"query": "test my changes", "expected_skill": "muggle-test", ARM_FIELD: SweepArm.CANDIDATE.value},
+            {"query": "test my changes", "expected_skill": "muggle-test", ARM_FIELD: SweepArm.CONTROL.value,
+             CLAUDE_CONFIG_DIR_FIELD: control_dir},
+        ]
+        config_dirs = []
+        with tempfile.TemporaryDirectory() as tmp:
+            eval_set_path = Path(tmp) / "eval-set.json"
+            eval_set_path.write_text(json.dumps(eval_set), encoding="utf-8")
+            report_path = Path(tmp) / "report.json"
+
+            def scripted_detect(query, repo_root, timeout, model, host=Host.CLAUDE, claude_config_dir=None):
+                config_dirs.append(claude_config_dir)
+                return router_eval.RouteOutcome("muggle-test", None)
+
+            argv = ["router_eval.py", "--eval-set", str(eval_set_path), "--out", str(report_path),
+                    "--runs", "2", "--workers", "1"]
+            with mock.patch.object(router_eval, "detect_route", scripted_detect), \
+                    mock.patch.object(sys, "argv", argv), redirect_stderr(io.StringIO()):
+                router_eval.main()
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(Counter(config_dirs), Counter({None: 2, control_dir: 2}))
+        self.assertEqual([row[ARM_FIELD] for row in report["results"]],
+                         [SweepArm.CANDIDATE.value, SweepArm.CONTROL.value])
+
+    def test_an_unpaired_item_reports_no_arm(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            eval_set_path = Path(tmp) / "eval-set.json"
+            eval_set_path.write_text(json.dumps([{"query": "q", "expected_skill": "muggle-test"}]), encoding="utf-8")
+            report_path = Path(tmp) / "report.json"
+            argv = ["router_eval.py", "--eval-set", str(eval_set_path), "--out", str(report_path),
+                    "--runs", "1", "--workers", "1"]
+            with mock.patch.object(router_eval, "detect_route",
+                                   return_value=router_eval.RouteOutcome("muggle-test", None)), \
+                    mock.patch.object(sys, "argv", argv), redirect_stderr(io.StringIO()):
+                router_eval.main()
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertNotIn(ARM_FIELD, report["results"][0])
 
 
 if __name__ == "__main__":

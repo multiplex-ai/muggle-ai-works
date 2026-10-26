@@ -3,6 +3,7 @@ import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
 import { WALKTHROUGH_SKIPPED_MARKER } from "../pr-walkthrough/constants.js";
 import { GH_LOOKUP_TIMEOUT_MS, MAX_WALKTHROUGH_BLOCKS } from "./constants.js";
 import { REPORT_SENTINEL } from "./prReportPost.js";
+import { isPrCoveredBySkip } from "./skipScope.js";
 import {
   WalkthroughGateAction,
   type CachedWalkthroughScan,
@@ -80,12 +81,14 @@ export function scanForOwedWalkthroughs(
   const branchPrUrl = lookup.branchPrUrl();
   if (branchPrUrl) candidates.add(branchPrUrl);
 
-  // A run owes its walkthrough; only a session that skipped E2E may discharge
-  // a PR with the skip's record instead.
-  const acceptsSkip = state.e2eRun !== true;
+  // A run owes its walkthrough; a skip's record discharges a PR only when the
+  // session skipped E2E outright, or when a skip was applied to that very PR —
+  // another change in the session running E2E does not make this one's skip
+  // any less true.
   const owed: string[] = [];
   const verified: string[] = [];
   for (const prUrl of candidates) {
+    const acceptsSkip = state.e2eRun !== true || isPrCoveredBySkip(state, prUrl);
     if (lookup.prCarriesWalkthrough(prUrl, acceptsSkip)) verified.push(prUrl);
     else owed.push(prUrl);
   }
@@ -94,28 +97,57 @@ export function scanForOwedWalkthroughs(
 
 /**
  * Whether the walkthrough gate has anything to check: an acceptance run
- * happened, or an E2E skip was accepted, and no walkthrough was posted or
- * skipped. An accepted skip arms it because recording the skip in session
- * state is not the same as the PR showing it — the write that carries it there
- * runs detached, and nothing else would notice if it never landed.
+ * happened, or an E2E skip was accepted, and neither has every PR in play been
+ * verified nor a walkthrough skip declared. An accepted skip arms it because
+ * recording the skip in session state is not the same as the PR showing it —
+ * the write that carries it there runs detached, and nothing else would notice
+ * if it never landed.
  */
 export function isWalkthroughGateArmed(state: GuardrailState): boolean {
   const isSkipUnsettled = state.e2eSkipDeclaration !== undefined && state.e2eSkipSettledOnPrs !== true;
   const isOwed = state.e2eRun === true || isSkipUnsettled;
-  return isOwed && state.walkthroughPosted !== true && state.walkthroughSkipped !== true;
+  return isOwed && state.walkthroughsVerified !== true && state.walkthroughSkipped !== true;
 }
 
-/** Whether a cached scan was run for the PRs the session has handled now; a PR opened since makes it stale. */
+/**
+ * Whether a cached scan still describes the PRs in play.
+ *
+ * Stale when a PR was opened since, or when a walkthrough was posted after the
+ * scan began: that post may have settled a PR the scan found owed, and blocking
+ * on it would send the session to post the same walkthrough twice.
+ */
 export function isWalkthroughScanCurrent(scan: CachedWalkthroughScan, state: GuardrailState): boolean {
   const scanned = new Set(scan.prsHandled);
-  return scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
+  const coversHandledPrs =
+    scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
+  const postedAt = state.walkthroughPostedAt;
+  const followsLastPost = postedAt === undefined || (scan.startedAt ?? 0) >= postedAt;
+  return coversHandledPrs && followsLastPost;
+}
+
+/** The PRs left once those this session was seen posting a walkthrough to are set aside. */
+export function withoutPostedPrs(prUrls: string[], state: GuardrailState): string[] {
+  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
+  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
+}
+
+/**
+ * Reopen the walkthrough check for a newly opened PR.
+ *
+ * A verification covers only the PRs in play when it ran, and every PR carries
+ * the run or skip of its own change, so a record on the PRs before it says
+ * nothing about this one. Same reference when there was nothing to reopen.
+ */
+export function applyPrOpenedToWalkthroughs(state: GuardrailState): GuardrailState {
+  if (state.walkthroughsVerified !== true && state.e2eSkipSettledOnPrs !== true) return state;
+  return { ...state, walkthroughsVerified: false, e2eSkipSettledOnPrs: false };
 }
 
 /**
  * Decide what the Stop hook does about the walkthrough hand-off.
  *
  * Pure: the caller runs the scan and passes the owed urls in.
- * - `None`    — nothing owed (gate not armed, every PR carries one, or a post/skip is recorded).
+ * - `None`    — nothing owed (gate not armed, every PR verified carrying one, or a walkthrough skip declared).
  * - `Block`   — a run or an accepted E2E skip owes a PR in play its walkthrough or skip record; force the turn on.
  * - `Release` — blocked `maxBlocks` times already; stop nagging so a result that genuinely
  *               cannot be posted can't trap the session.

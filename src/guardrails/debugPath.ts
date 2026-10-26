@@ -10,6 +10,7 @@ import {
 } from "./constants.js";
 import { DebugGateAction, type DebugGateDecision, type GuardrailState, type HookInput } from "./types.js";
 import { callFailed } from "./callOutcome.js";
+import { isE2eDelegationInFlight } from "./delegatedE2e.js";
 
 // muggle-test Step 7C routes every non-passing run through the debug path —
 // evidence, diagnosis, and a guaranteed "give feedback & rerun" offer. It is
@@ -116,7 +117,9 @@ export function undebuggedFailedRuns(state: GuardrailState): string[] {
 /**
  * Decide what the Stop hook does about failures that never reached the debug path.
  *
- * - `None`    — nothing failed, every failure has evidence, or a skip recorded.
+ * - `None`    — nothing failed, every failure has evidence, a skip recorded, or a
+ *               background acceptance-tester is still running: its failed runs
+ *               land in this session's state, and it debugs them itself.
  * - `Block`   — a failed run was summarized and dropped; hold the turn open.
  * - `Release` — blocked `maxBlocks` times already, so a failure whose evidence
  *               genuinely can't be produced can't trap the session.
@@ -124,10 +127,11 @@ export function undebuggedFailedRuns(state: GuardrailState): string[] {
 export function debugGateDecision(
   state: GuardrailState,
   maxBlocks: number = MAX_DEBUG_BLOCKS,
+  now: number = Date.now(),
 ): DebugGateDecision {
   const blockCount = state.debugBlockCount ?? 0;
   const undebugged = undebuggedFailedRuns(state);
-  if (state.debugSkipped === true || undebugged.length === 0) {
+  if (state.debugSkipped === true || undebugged.length === 0 || isE2eDelegationInFlight(state, now)) {
     return { action: DebugGateAction.None, blockCount: blockCount, undebugged: undebugged };
   }
   if (blockCount >= maxBlocks) {

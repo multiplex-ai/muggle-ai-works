@@ -9,11 +9,18 @@ export interface GuardrailState {
   e2eSkipped?: boolean;
   e2eSkipCycleScoped?: boolean;
   /**
-   * The accepted environment skip, kept so every PR in play carries it: one
-   * opened after the declaration is settled with it, and the walkthrough gate
-   * holds the turn until each PR's comment shows it.
+   * The latest accepted environment skip, kept so the PRs of the change it was
+   * verified for carry it: one opened later from the same working tree is
+   * settled with it, and the walkthrough gate holds the turn until each covered
+   * PR's comment shows it.
    */
   e2eSkipDeclaration?: DeclaredSkip;
+  /** The working tree `e2eSkipDeclaration` was verified in, normalized. */
+  e2eSkipVerifiedInTree?: string;
+  /** Every PR a skip has been applied to this session; a skip marker on one of these settles it. */
+  e2eSkipCoveredPrs?: string[];
+  /** The working tree, normalized, each PR this session opened was opened from. */
+  prWorkingTrees?: Record<string, string>;
   /** Every PR in play was last seen carrying the skip's record; a PR opened since clears it. */
   e2eSkipSettledOnPrs?: boolean;
   e2eBlockCount?: number;
@@ -27,8 +34,11 @@ export interface GuardrailState {
   watchHeldPrNumbers?: number[];
   buildSkipped?: boolean;
   buildBlockCount?: number;
-  walkthroughPosted?: boolean;
+  walkthroughPostedAt?: number;
+  walkthroughPostedPrUrls?: string[];
+  walkthroughsVerified?: boolean;
   walkthroughSkipped?: boolean;
+  e2eDelegations?: E2eDelegation[];
   walkthroughBlockCount?: number;
   lastInvokedSkillName?: string;
   mandatoryStages?: string[];
@@ -51,6 +61,12 @@ export interface GuardrailState {
   commentReplyReleased?: boolean;
   stageReleased?: boolean;
   debugReleased?: boolean;
+}
+
+/** An acceptance-tester launched into the background to run E2E, and the PRs its brief names. */
+export interface E2eDelegation {
+  dispatchedAt: number;
+  prUrls: string[];
 }
 
 /** Outcome of the mandatory-stage Stop gate for a turn end. */
@@ -101,11 +117,12 @@ export interface WalkthroughGateDecision {
   owed: string[];
 }
 
-/** A walkthrough scan finished off the hook path, with the session's handled PRs it was run for. */
+/** A walkthrough scan finished off the hook path, with the session's handled PRs it was run for and when it began. */
 export interface CachedWalkthroughScan {
   prsHandled: string[];
   owed: string[];
   verified: string[];
+  startedAt?: number;
 }
 
 /** Work a hook hands to a detached run of the guardrails CLI, because it waits on the network. */
@@ -113,6 +130,7 @@ export enum GuardrailBackgroundJob {
   ScanWalkthroughs = "scan-walkthroughs",
   ReserveWalkthroughComment = "reserve-walkthrough-comment",
   SettleWalkthroughSkipped = "settle-walkthrough-skipped",
+  SettleBranchWalkthroughSkipped = "settle-branch-walkthrough-skipped",
   SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
   SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
   ScanWatchPrStates = "scan-watch-pr-states",
@@ -270,6 +288,8 @@ export interface ToolInput {
   runId?: string;
   testCase?: { id?: string };
   testScript?: { testCaseId?: string };
+  subagent_type?: string;
+  prompt?: string;
 }
 
 /** Any one hook response a guardrail handler emits, parsed back so several can be merged into one. */

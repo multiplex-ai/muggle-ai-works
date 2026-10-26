@@ -11,11 +11,11 @@ set -uo pipefail
 # it fires on EVERY turn end. There is no command payload to key off, so the
 # pre-filter reads the same per-session state file guardrails.mjs uses and only
 # spawns Node when the gate could actually fire — i.e. an acceptance run or an
-# unsettled skip is recorded and the walkthrough is neither posted nor skipped.
-# On the overwhelming majority of turns (no E2E this session) the state file is
-# absent or carries neither, so we return {} in-shell and never pay Node
-# cold-start — which also means the gate's `gh` lookups only ever run on turns
-# that could genuinely owe a walkthrough. Degrades to {}.
+# unsettled skip is recorded and the walkthrough is neither verified on every
+# PR nor skipped. On the overwhelming majority of turns (no E2E this session)
+# the state file is absent or carries neither, so we return {} in-shell and
+# never pay Node cold-start — which also means the gate's `gh` lookups only
+# ever run on turns that could genuinely owe a walkthrough. Degrades to {}.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -25,7 +25,7 @@ GUARDRAIL_SUBCOMMAND="walkthrough-gate"
 
 guardrail_wants() {
   guardrail_load_state || return 1
-  guardrail_state_has '"walkthroughPosted": true' && return 1
+  guardrail_state_has '"walkthroughsVerified": true' && return 1
   guardrail_state_has '"walkthroughReleased": true' && return 1
   guardrail_state_has '"walkthroughSkipped": true' && return 1
   guardrail_state_has '"e2eRun": true' && return 0

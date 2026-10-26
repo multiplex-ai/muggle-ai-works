@@ -163,6 +163,9 @@ export const CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH = ["plugins", "installed_plu
 /** The plugin install scope a reload fan-out follows; project-scoped installs touch one checkout only. */
 export const RELOAD_PLUGIN_SCOPE = "user";
 
+/** The key Claude's install record files this plugin under: marketplace entry `muggleai` in marketplace `muggle-works`. */
+export const MUGGLE_PLUGIN_ID = "muggleai@muggle-works";
+
 /** File name prefix Codex gives every session rollout. */
 export const CODEX_ROLLOUT_PREFIX = "rollout-";
 

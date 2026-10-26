@@ -17,7 +17,7 @@ import {
 } from "./ledger.js";
 import { composeTickNotification, createDesktopNotifier } from "./notify.js";
 import { resolveWatchPaths } from "./paths.js";
-import { readUserPluginsUpdatedAtMs } from "./plugins-updated.js";
+import { readMugglePluginUpdatedAtMs } from "./plugins-updated.js";
 import { fetchPrLiveStatuses, isTerminalPrState } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
 import { executeWatcherRecoveries, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
@@ -151,7 +151,7 @@ function waitForExitVia(deps: WatchTickDeps): (sessionId: string) => boolean {
 
 /** When every live session's plugins should date from, per the install log and Claude's plugin record. */
 function reloadTargetAtMs(deps: WatchTickDeps, installs: InstallRecord[]): number | undefined {
-  return resolveReloadTargetAtMs(installs, readUserPluginsUpdatedAtMs(deps.paths.claudeInstalledPluginsFile));
+  return resolveReloadTargetAtMs(installs, readMugglePluginUpdatedAtMs(deps.paths.claudeInstalledPluginsFile));
 }
 
 function closeOutTerminalSlots(assessments: WatchSlotAssessment[], deps: WatchTickDeps, at: string): {

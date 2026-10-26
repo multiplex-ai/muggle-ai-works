@@ -24,7 +24,8 @@ export function isWatchTaskRegistered(runCommand: CommandRunner): boolean {
 }
 
 /**
- * Run the installer with `installerArgs` (`-NoWait`, `-Uninstall`, …).
+ * Run the installer with `installerArgs` (`-NoWait`, `-Uninstall`, …) under
+ * Windows PowerShell, keeping its stderr: a parse error or a throw says why only there.
  *
  * @returns The installer's outcome, or null when it could not start or timed out.
  */
@@ -32,6 +33,6 @@ export function runWatchInstaller(scriptPath: string, installerArgs: string[], r
   return runCommand(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath, ...installerArgs],
-    { timeoutMs: WATCH_INSTALLER_TIMEOUT_MS },
+    { timeoutMs: WATCH_INSTALLER_TIMEOUT_MS, isStderrCaptured: true },
   );
 }

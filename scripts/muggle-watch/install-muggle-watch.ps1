@@ -8,6 +8,10 @@
 # `muggle upgrade`, so the service always runs the current release. Only the
 # launcher shim is copied, to ~\.muggle-ai\watch\bin, so the task never points
 # into a checkout or worktree that may be deleted.
+#
+# Keep this file ASCII. Windows PowerShell 5.1 reads a script without a BOM in the
+# ANSI code page, where the bytes of a UTF-8 dash decode to a curly quote that
+# ends the string around it, and the whole script fails to parse.
 [CmdletBinding()]
 param(
     [ValidateRange(1, 60)]
@@ -44,7 +48,7 @@ $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeCommand) { throw "node is not on PATH; the task needs it to run muggle." }
 foreach ($requiredTool in @("claude", "gh")) {
     if (-not (Get-Command $requiredTool -ErrorAction SilentlyContinue)) {
-        Write-Warning "$requiredTool is not on PATH — the watch will report without the data it provides."
+        Write-Warning "$requiredTool is not on PATH; the watch will report without the data it provides."
     }
 }
 
@@ -59,7 +63,7 @@ if ($NoAutoReload) { $tickFlags += "--no-auto-reload" }
 if ($NoRecovery) { $tickFlags += "--no-recovery" }
 $launcherArguments = @("`"$installedLauncher`"", "`"$($nodeCommand.Source)`"", "`"$MuggleEntry`"") + $tickFlags
 
-# wscript.exe rather than node.exe is what keeps every run off the desktop — see
+# wscript.exe rather than node.exe is what keeps every run off the desktop; see
 # the header of muggle-watch-hidden.vbs.
 $taskAction = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot "System32\wscript.exe") `
     -Argument ($launcherArguments -join " ")
@@ -93,7 +97,7 @@ while ((Get-Date) -lt $deadline) {
 $taskInfo = Get-ScheduledTaskInfo -TaskName $TaskName
 "task $TaskName registered every $IntervalMinutes min; state=$((Get-ScheduledTask -TaskName $TaskName).State) lastResult=$($taskInfo.LastTaskResult)"
 if ((Test-Path $statusFile) -and (Get-Item $statusFile).LastWriteTime -gt $previousSnapshotTime) {
-    "first tick written: $statusFile — run 'muggle watch status' to read it"
+    "first tick written: $statusFile; run 'muggle watch status' to read it"
 } else {
     Write-Warning "no tick finished within 120s; check $(Join-Path $watchDir 'tick.log')"
 }

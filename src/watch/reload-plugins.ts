@@ -1,5 +1,6 @@
-import { MAX_RESPAWNS_PER_TICK, RECOVERY_RESUME_PROMPT } from "./constants.js";
+import { MAX_RESPAWNS_PER_TICK } from "./constants.js";
 import { hasLiveProcess } from "./session-liveness.js";
+import { resumeOnReconcile } from "./session-restart.js";
 import {
   ClaudeSessionKind,
   ClaudeTurnStatus,
@@ -83,11 +84,14 @@ export function planReloadFanOut(
  * Restart every session the plan marked, but only where `canRestartIn` confirms
  * Claude will bring it back: stopping a session it then refuses to resume
  * strands it, so an unconfirmed workspace's session is left running.
+ *
+ * @param waitForExit - Whether a stopped session's process has exited, so its resume continues it rather than copying it.
  */
 export function executeReloadFanOut(
   decisions: ReloadDecision[],
   runCommand: CommandRunner,
   canRestartIn: (cwd: string) => boolean,
+  waitForExit: (sessionId: string) => boolean,
 ): ReloadReport {
   const restartableByCwd = new Map<string, boolean>();
   const isRestartable = (cwd: string): boolean => {
@@ -106,9 +110,11 @@ export function executeReloadFanOut(
     if (decision.action === ReloadAction.Respawn) {
       isRestarted = runCommand("claude", ["respawn", decision.shortId])?.exitCode === 0;
     } else {
-      runCommand("claude", ["stop", decision.shortId]);
-      const resumed = runCommand("claude", ["--resume", decision.sessionId, "--bg", RECOVERY_RESUME_PROMPT], { cwd: decision.cwd });
-      isRestarted = resumed?.exitCode === 0;
+      isRestarted = resumeOnReconcile(
+        { sessionId: decision.sessionId, cwd: decision.cwd, runningShortId: decision.shortId },
+        runCommand,
+        waitForExit,
+      );
     }
     (isRestarted ? report.respawnedSessionIds : report.failedSessionIds).push(decision.sessionId);
   }

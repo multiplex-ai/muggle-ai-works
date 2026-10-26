@@ -94,6 +94,7 @@ describe("executeReloadFanOut", () => {
       ],
       runner.runCommand,
       () => true,
+      () => true,
     );
     expect(runner.calls.map((call) => call.args)).toEqual([
       ["respawn", "good"],
@@ -105,6 +106,23 @@ describe("executeReloadFanOut", () => {
     expect(report.respawnedSessionIds).toEqual(["s-good", "s-own"]);
     expect(report.failedSessionIds).toEqual(["s-bad"]);
     expect(report.untrustedSessionIds).toEqual([]);
+  });
+
+  it("does not resume a watch owner that is still running after the stop, so no copy of it starts", () => {
+    const runner = scriptedRunner(() => succeeded(""));
+    const awaitedSessionIds: string[] = [];
+    const report = executeReloadFanOut(
+      [decision("own", ReloadAction.ResumeReconcile)],
+      runner.runCommand,
+      () => true,
+      (sessionId) => {
+        awaitedSessionIds.push(sessionId);
+        return false;
+      },
+    );
+    expect(awaitedSessionIds).toEqual(["s-own"]);
+    expect(runner.calls.map((call) => call.args)).toEqual([["stop", "own"]]);
+    expect(report.failedSessionIds).toEqual(["s-own"]);
   });
 
   it("never touches a session whose workspace refuses a background restart, probing each workspace once", () => {
@@ -121,6 +139,7 @@ describe("executeReloadFanOut", () => {
         probedCwds.push(cwd);
         return false;
       },
+      () => true,
     );
     expect(runner.calls).toEqual([]);
     expect(probedCwds).toEqual(["/locked"]);

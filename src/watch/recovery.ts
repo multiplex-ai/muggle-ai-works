@@ -6,17 +6,17 @@ import {
   RECOVERY_ATTEMPT_WINDOW_MS,
   RECOVERY_COOLDOWN_MS,
   RECOVERY_MAX_ATTEMPTS,
-  RECOVERY_RESUME_PROMPT,
 } from "./constants.js";
 import { shortSessionId } from "./format.js";
 import { isTerminalPrState } from "./pr-status.js";
 import { isIdleBackgroundSession } from "./session-liveness.js";
+import { resumeOnReconcile } from "./session-restart.js";
 import {
   WatcherLiveness,
   WatcherRecoveryOutcome,
   WatchEventKind,
-  type CommandRunner,
   type ExecutedRecoveries,
+  type RecoveryExecutionDeps,
   type WatcherRecovery,
   type WatchEvent,
   type WatchSlotAssessment,
@@ -112,46 +112,42 @@ export function planWatcherRecoveries(
 
 /**
  * Resume each due owner in the background from its own project dir, so its
- * reconcile re-arms the slots it armed. A still-running owner is stopped first —
- * resuming a live session forks a second copy of it — but only where
- * `canRestartIn` confirms Claude will bring it back. Anything not due passes
- * through as planned.
+ * reconcile re-arms the slots it armed. A still-running owner is restarted
+ * only where `canRestartIn` confirms Claude will bring it back. Anything not
+ * due passes through as planned.
  */
 export function executeWatcherRecoveries(
   planned: WatcherRecovery[],
   attemptsByOwner: Record<string, string[]>,
-  runCommand: CommandRunner,
-  claudeProjectsDir: string,
-  nowMs: number,
-  canRestartIn: (cwd: string) => boolean,
+  deps: RecoveryExecutionDeps,
 ): ExecutedRecoveries {
-  const nowIso = new Date(nowMs).toISOString();
+  const nowIso = new Date(deps.nowMs).toISOString();
   const nextAttemptsByOwner: Record<string, string[]> = {};
   for (const [ownerSessionId, attempts] of Object.entries(attemptsByOwner)) {
-    const recent = attempts.filter((attemptedAt) => nowMs - Date.parse(attemptedAt) < RECOVERY_ATTEMPT_WINDOW_MS);
+    const recent = attempts.filter((attemptedAt) => deps.nowMs - Date.parse(attemptedAt) < RECOVERY_ATTEMPT_WINDOW_MS);
     if (recent.length > 0) nextAttemptsByOwner[ownerSessionId] = recent;
   }
   const events: WatchEvent[] = [];
   const recoveries = planned.map((recovery): WatcherRecovery => {
     if (recovery.outcome !== WatcherRecoveryOutcome.ResumeDue) return recovery;
-    const cwd = findClaudeSessionCwd(claudeProjectsDir, recovery.ownerSessionId);
+    const cwd = findClaudeSessionCwd(deps.claudeProjectsDir, recovery.ownerSessionId);
     if (!cwd || !existsSync(cwd)) return { ...recovery, outcome: WatcherRecoveryOutcome.TranscriptMissing };
     // A refused restart counts too, so the trust probe waits out the cooldown instead of relaunching every tick.
     nextAttemptsByOwner[recovery.ownerSessionId] = [...(nextAttemptsByOwner[recovery.ownerSessionId] ?? []), nowIso];
-    if (recovery.ownerShortId !== undefined) {
-      if (!canRestartIn(cwd)) {
-        events.push({
-          at: nowIso,
-          kind: WatchEventKind.RestartRefused,
-          subject: `session ${shortSessionId(recovery.ownerSessionId)}`,
-          message: `left running: Claude would not resume it in ${cwd}, so ${recovery.slotSlugs.join(", ")} stay unwatched`,
-        });
-        return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.RestartRefused };
-      }
-      runCommand("claude", ["stop", recovery.ownerShortId]);
+    if (recovery.ownerShortId !== undefined && !deps.canRestartIn(cwd)) {
+      events.push({
+        at: nowIso,
+        kind: WatchEventKind.RestartRefused,
+        subject: `session ${shortSessionId(recovery.ownerSessionId)}`,
+        message: `left running: Claude would not resume it in ${cwd}, so ${recovery.slotSlugs.join(", ")} stay unwatched`,
+      });
+      return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.RestartRefused };
     }
-    const outcome = runCommand("claude", ["--resume", recovery.ownerSessionId, "--bg", RECOVERY_RESUME_PROMPT], { cwd: cwd });
-    const isResumed = outcome?.exitCode === 0;
+    const isResumed = resumeOnReconcile(
+      { sessionId: recovery.ownerSessionId, cwd: cwd, runningShortId: recovery.ownerShortId },
+      deps.runCommand,
+      deps.waitForExit,
+    );
     events.push({
       at: nowIso,
       kind: isResumed ? WatchEventKind.Resumed : WatchEventKind.ResumeFailed,

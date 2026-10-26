@@ -1,5 +1,5 @@
 import { resolve } from "path";
-import { readClaudeSessions } from "./claude-sessions.js";
+import { readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
 import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
@@ -137,8 +137,16 @@ function runReloadPass(
       ? { ...decision, cwd: findClaudeSessionCwd(deps.paths.claudeProjectsDir, decision.sessionId) ?? decision.cwd }
       : decision,
   );
-  const report = executeReloadFanOut(decisions, deps.runCommand, (cwd) => canRestartSessionIn(cwd, deps.runCommand));
+  const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps), waitForExitVia(deps));
   return { report: report, pendingReload: advancePendingReload(record, report), events: reloadEvents(report, at) };
+}
+
+function canRestartVia(deps: WatchTickDeps): (cwd: string) => boolean {
+  return (cwd) => canRestartSessionIn(cwd, deps.runCommand);
+}
+
+function waitForExitVia(deps: WatchTickDeps): (sessionId: string) => boolean {
+  return (sessionId) => waitForSessionExit(deps.runCommand, deps.paths.claudeSessionRegistryDir, sessionId, deps.sleep);
 }
 
 /** When every live session's plugins should date from, per the install log and Claude's plugin record. */
@@ -214,14 +222,13 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       new Map(runningSessions.map((session) => [session.sessionId, session])),
       (sessionId) => isStoppedAtUsageLimit(deps.paths.claudeProjectsDir, sessionId),
     );
-    const executed = executeWatcherRecoveries(
-      planned,
-      recoveryAttemptsByOwner,
-      deps.runCommand,
-      deps.paths.claudeProjectsDir,
-      deps.nowMs,
-      (cwd) => canRestartSessionIn(cwd, deps.runCommand),
-    );
+    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, {
+      runCommand: deps.runCommand,
+      claudeProjectsDir: deps.paths.claudeProjectsDir,
+      nowMs: deps.nowMs,
+      canRestartIn: canRestartVia(deps),
+      waitForExit: waitForExitVia(deps),
+    });
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);

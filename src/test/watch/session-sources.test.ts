@@ -1,7 +1,8 @@
 import { mkdirSync, utimesSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { readClaudeSessions } from "../../watch/claude-sessions.js";
+import { readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
+import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "../../watch/constants.js";
 import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
 import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead } from "../../watch/field-parsers.js";
@@ -98,6 +99,32 @@ describe("findClaudeSessionCwd", () => {
     expect(findClaudeSessionCwd(projectsDir, "sess-1")).toBe("C:\\repo\\wt");
     expect(findClaudeSessionCwd(projectsDir, "sess-2")).toBeUndefined();
     expect(findClaudeSessionCwd(join(projectsDir, "absent"), "sess-1")).toBeUndefined();
+  });
+});
+
+describe("waitForSessionExit", () => {
+  const registryDir = (): string => join(makeTempDir("claude-registry"), "absent");
+
+  it("returns once the listing shows the session without a process, polling meanwhile", () => {
+    const listings = [
+      [{ id: "s1", sessionId: "s1-full", status: "idle", pid: 7 }],
+      [{ id: "s1", sessionId: "s1-full", status: "idle", pid: 7 }],
+      [{ id: "s1", sessionId: "s1-full", state: "done" }],
+    ];
+    let listingIndex = 0;
+    const runner = scriptedRunner(() => succeeded(JSON.stringify(listings[Math.min(listingIndex++, listings.length - 1)])));
+    const naps: number[] = [];
+    expect(waitForSessionExit(runner.runCommand, registryDir(), "s1-full", (durationMs) => naps.push(durationMs))).toBe(true);
+    expect(naps).toEqual([SESSION_EXIT_POLL_MS, SESSION_EXIT_POLL_MS]);
+  });
+
+  it("gives up after the wait while the process lives, and never trusts an unreadable listing", () => {
+    const naps: number[] = [];
+    const running = scriptedRunner(() => succeeded(JSON.stringify([{ id: "s1", sessionId: "s1-full", status: "idle" }])));
+    expect(waitForSessionExit(running.runCommand, registryDir(), "s1-full", (durationMs) => naps.push(durationMs))).toBe(false);
+    expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
+    expect(waitForSessionExit(scriptedRunner(() => null).runCommand, registryDir(), "s1-full", () => undefined)).toBe(false);
+    expect(waitForSessionExit(scriptedRunner(() => succeeded("[]")).runCommand, registryDir(), "s1-full", () => undefined)).toBe(true);
   });
 });
 

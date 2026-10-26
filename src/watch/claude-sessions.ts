@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
+import { blockFor } from "./command-runner.js";
+import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "./constants.js";
 import { enumValueOf, optionalString } from "./field-parsers.js";
+import { hasLiveProcess } from "./session-liveness.js";
 import {
   ClaudeJobState,
   ClaudeSessionKind,
@@ -43,6 +46,26 @@ function readPidsBySessionId(registryDir: string): Map<string, number> {
     }
   }
   return pidsBySessionId;
+}
+
+/**
+ * Wait until the session has no process behind it, polling the listing.
+ *
+ * @returns Whether it exited within `SESSION_EXIT_WAIT_MS`; false also when the listing cannot be read.
+ */
+export function waitForSessionExit(
+  runCommand: CommandRunner,
+  registryDir: string,
+  sessionId: string,
+  sleep: (durationMs: number) => void = blockFor,
+): boolean {
+  for (let waitedMs = 0; ; waitedMs += SESSION_EXIT_POLL_MS) {
+    const sessions = readClaudeSessions(runCommand, registryDir);
+    const session = sessions?.find((listed) => listed.sessionId === sessionId);
+    if (sessions !== null && (session === undefined || !hasLiveProcess(session))) return true;
+    if (waitedMs >= SESSION_EXIT_WAIT_MS) return false;
+    sleep(SESSION_EXIT_POLL_MS);
+  }
 }
 
 /**

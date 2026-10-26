@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { describe, expect, it } from "vitest";
-import { RECOVERY_RESUME_PROMPT, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
+import { RECOVERY_RESUME_PROMPT, SESSION_EXIT_WAIT_MS, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
 import {
   WatcherRecoveryOutcome,
   WatchEventKind,
@@ -30,6 +30,21 @@ interface MachineState {
   prNodesByNumber: Record<number, unknown>;
   /** Workspaces where a background launch is refused. */
   untrustedCwds: Set<string>;
+  registryDir: string;
+  /** Sessions whose process outlives `claude stop`. */
+  unstoppableShortIds: Set<string>;
+}
+
+// A stopped session stays listed, with no turn status and no registry entry.
+function stopSession(machine: MachineState, shortId: string): void {
+  if (machine.unstoppableShortIds.has(shortId)) return;
+  const stopped = (machine.claudeListing ?? []).find((listing) => (listing as { id?: string }).id === shortId) as { sessionId?: string; status?: string } | undefined;
+  if (!stopped) return;
+  delete stopped.status;
+  for (const fileName of readdirSync(machine.registryDir)) {
+    const entry = JSON.parse(readFileSync(join(machine.registryDir, fileName), "utf-8")) as { sessionId?: string };
+    if (entry.sessionId === stopped.sessionId) rmSync(join(machine.registryDir, fileName));
+  }
 }
 
 // Answers each edge the tick calls the way the real tools would.
@@ -39,6 +54,7 @@ function machineAnswer(machine: MachineState): (executable: string, args: string
     if (executable === "claude" && args[0] === "agents") {
       return machine.claudeListing === null ? null : succeeded(JSON.stringify(machine.claudeListing));
     }
+    if (executable === "claude" && args[0] === "stop") stopSession(machine, args[1]);
     if (executable === "claude" && args[0] === "--bg") {
       return cwd && machine.untrustedCwds.has(cwd) ? { exitCode: 1, stdout: "" } : succeeded(`backgrounded · ${PROBE_ID} · ${TRUST_PROBE_SESSION_NAME}`);
     }
@@ -112,6 +128,8 @@ function buildMachine() {
       2: { state: "OPEN", headRefOid: "head2", mergeStateStatus: "CLEAN" },
     },
     untrustedCwds: new Set<string>(),
+    registryDir: paths.claudeSessionRegistryDir,
+    unstoppableShortIds: new Set<string>(),
   };
   const runner = scriptedRunner((executable, args, options) => machineAnswer(machine)(executable, args, options?.cwd));
   const notifications: string[][] = [];
@@ -123,6 +141,7 @@ function buildMachine() {
     notify: (_, lines) => notifications.push(lines),
     isAutoReloadEnabled: true,
     isRecoveryEnabled: true,
+    sleep: () => undefined,
   };
   return { paths: paths, machine: machine, runner: runner, notifications: notifications, deps: deps, projectCwd: projectCwd };
 }
@@ -341,6 +360,19 @@ describe("runWatchTick", () => {
       ["--resume", "idle-bg", "--bg", RECOVERY_RESUME_PROMPT],
     ]);
     expect(snapshot.reload?.decisions.map((decision) => decision.sessionId)).not.toContain("idle-bg");
+  });
+
+  it("gives up on an owner that outlives its stop instead of starting a copy of it", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+    writeSlot(paths.slotsDir, "idle-dead", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS, isRegistered: true });
+    machine.unstoppableShortIds.add("idle-bg1");
+    const naps: number[] = [];
+    const snapshot = runWatchTick({ ...deps, sleep: (durationMs) => naps.push(durationMs) });
+
+    expect(snapshot.recoveries.find((recovery) => recovery.ownerSessionId === "idle-bg")?.outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
+    expect(runner.calls.some((call) => call.args[0] === "--resume" && call.args[1] === "idle-bg")).toBe(false);
+    expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
   });
 
   it("resumes an owner that is still listed but has no process behind it", () => {

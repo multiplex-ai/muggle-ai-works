@@ -10,6 +10,8 @@ import {
   WatcherRecoveryOutcome,
   WatchEventKind,
   WorkSessionAgent,
+  type CommandRunner,
+  type RecoveryExecutionDeps,
   type WatchSlotAssessment,
   type WorkSession,
 } from "../../watch/types.js";
@@ -46,7 +48,20 @@ function liveOwner(sessionId: string, overrides: Partial<WorkSession> = {}): Wor
   };
 }
 
-const allowRestart = (): boolean => true;
+function executionDeps(
+  runCommand: CommandRunner,
+  claudeProjectsDir: string,
+  overrides: Partial<RecoveryExecutionDeps> = {},
+): RecoveryExecutionDeps {
+  return {
+    runCommand: runCommand,
+    claudeProjectsDir: claudeProjectsDir,
+    nowMs: NOW_MS,
+    canRestartIn: () => true,
+    waitForExit: () => true,
+    ...overrides,
+  };
+}
 
 describe("isRecoverable", () => {
   it("accepts only a registered, confirmed-open slot whose watcher and owner are both gone", () => {
@@ -144,10 +159,7 @@ describe("executeWatcherRecoveries", () => {
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
       { o1: [minutesAgo(60)], forgotten: [minutesAgo(48 * 60)] },
-      runner.runCommand,
-      projectsDir,
-      NOW_MS,
-      allowRestart,
+      executionDeps(runner.runCommand, projectsDir),
     );
     expect(runner.calls).toEqual([
       { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"], options: { cwd: projectCwd } },
@@ -159,22 +171,37 @@ describe("executeWatcherRecoveries", () => {
     ]);
   });
 
-  it("stops a running idle owner before resuming it, so no second copy forks", () => {
+  it("stops a running idle owner and waits for it to exit before resuming it under the same id", () => {
     const projectCwd = makeTempDir("project");
     const runner = scriptedRunner(() => succeeded("ok"));
+    const awaitedSessionIds: string[] = [];
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
       {},
-      runner.runCommand,
-      projectsWithTranscript("o1", projectCwd),
-      NOW_MS,
-      allowRestart,
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+        waitForExit: (sessionId) => {
+          awaitedSessionIds.push(sessionId);
+          return true;
+        },
+      }),
     );
     expect(runner.calls.map((call) => call.args)).toEqual([
       ["stop", "o1-short"],
       ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"],
     ]);
+    expect(awaitedSessionIds).toEqual(["o1"]);
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
+  });
+
+  it("does not resume an owner still running after the stop, since that would start a copy", () => {
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const executed = executeWatcherRecoveries(
+      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project")), { waitForExit: () => false }),
+    );
+    expect(runner.calls.map((call) => call.args)).toEqual([["stop", "o1-short"]]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
   });
 
   it("leaves a running owner alone where Claude would not resume it, and waits out the cooldown", () => {
@@ -184,13 +211,12 @@ describe("executeWatcherRecoveries", () => {
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
       {},
-      runner.runCommand,
-      projectsWithTranscript("o1", projectCwd),
-      NOW_MS,
-      (cwd) => {
-        probedCwds.push(cwd);
-        return false;
-      },
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+        canRestartIn: (cwd) => {
+          probedCwds.push(cwd);
+          return false;
+        },
+      }),
     );
     expect(probedCwds).toEqual([projectCwd]);
     expect(runner.calls).toEqual([]);
@@ -204,10 +230,7 @@ describe("executeWatcherRecoveries", () => {
     const executed = executeWatcherRecoveries(
       [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
       {},
-      scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand,
-      projectsDir,
-      NOW_MS,
-      allowRestart,
+      executionDeps(scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand, projectsDir),
     );
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
     expect(executed.attemptsByOwner.o1).toHaveLength(1);
@@ -224,10 +247,7 @@ describe("executeWatcherRecoveries", () => {
         { ownerSessionId: "o3", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.CoolingDown },
       ],
       {},
-      runner.runCommand,
-      projectsWithTranscript("o2", missingCwd),
-      NOW_MS,
-      allowRestart,
+      executionDeps(runner.runCommand, projectsWithTranscript("o2", missingCwd)),
     );
     expect(executed.recoveries.map((recovery) => recovery.outcome)).toEqual([
       WatcherRecoveryOutcome.TranscriptMissing,

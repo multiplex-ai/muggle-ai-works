@@ -7,6 +7,11 @@ import type { CommandRunner } from "./types.js";
  * a non-zero exit: `gh api graphql` exits 1 when one PR in a batch errors while
  * still printing every other PR's data.
  */
+/** Block the calling thread for `durationMs`; a tick is synchronous end to end. */
+export function blockFor(durationMs: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, durationMs);
+}
+
 export const defaultCommandRunner: CommandRunner = (executable, args, options) => {
   const spawned = spawnSync(executable, args, {
     cwd: options?.cwd,

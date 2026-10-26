@@ -133,11 +133,11 @@
         ]
       },
       {
-        "matcher": "AskUserQuestion",
+        "matcher": "AskUserQuestion|Agent|Task",
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-offer-ran.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-offer-ran.sh guardrail-record-delegation.sh",
             "async": false,
             "timeout": 1
           }

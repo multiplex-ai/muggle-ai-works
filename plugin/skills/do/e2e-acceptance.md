@@ -67,6 +67,10 @@ For a `local-e2e` block, use `localUrl`, `projectId`, and the working-tree path 
 
 `state.md` records `Wave: on` → this stage runs **once for the whole wave**, not per repo, per [`wave-e2e.md`](wave-e2e.md): the wave stack starts from every member's worktree, test cases are selected against the union of diffs, each case runs once, and each failure names its `implicatedRepo`. The steps below apply with those changes.
 
+### Step 0.45: Background lane
+
+When other work is in front of the session as this change reaches Stage 6, the main session runs none of the steps below: it records `E2E lane: background`, queues the change, and dispatches a background `acceptance-tester` to execute them per [`background-e2e.md`](background-e2e.md). Executing as that agent, follow its rules — in particular, a `SKIPPED` exit returns its code in the report and runs no `MUGGLE_E2E_SKIP` echo; the main session declares it from the PR's worktree once the report returns.
+
 ### Step 0.5: Readiness check
 
 A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:

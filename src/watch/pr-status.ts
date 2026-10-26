@@ -10,6 +10,11 @@ import {
   type SlotPr,
 } from "./types.js";
 
+/** Whether GitHub reports the PR merged or closed, so it owes no watch. */
+export function isTerminalPrState(state: ProviderPrState | undefined): boolean {
+  return state === ProviderPrState.Merged || state === ProviderPrState.Closed;
+}
+
 const PR_STATUS_FRAGMENT = `fragment WatchPr on PullRequest {
   state
   headRefOid

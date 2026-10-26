@@ -226,6 +226,8 @@ export enum WatcherRecoveryOutcome {
   AttemptsExhausted = "attempts-exhausted",
   DeferredByTickCap = "deferred-by-tick-cap",
   TranscriptMissing = "transcript-missing",
+  /** The owner is still running and Claude would not resume it in its workspace, so it was left running. */
+  RestartRefused = "restart-refused",
 }
 
 /** One owner session whose registered slots have dead watchers, and what the watch did about it. */
@@ -234,6 +236,27 @@ export interface WatcherRecovery {
   slotSlugs: string[];
   outcome: WatcherRecoveryOutcome;
   cwd?: string;
+  /** Set when the owner is still running, idle between turns: the id `claude stop` takes before the resume. */
+  ownerShortId?: string;
+}
+
+/** A session to resume on reconcile, from the project dir its transcript names. */
+export interface ReconcileResumeTarget {
+  sessionId: string;
+  cwd: string;
+  /** Set when the session is still running: the id `claude stop` takes before the resume. */
+  runningShortId?: string;
+}
+
+/** The edges `executeWatcherRecoveries` acts through. */
+export interface RecoveryExecutionDeps {
+  runCommand: CommandRunner;
+  claudeProjectsDir: string;
+  nowMs: number;
+  /** Whether Claude will bring a stopped session back in `cwd`. */
+  canRestartIn: (cwd: string) => boolean;
+  /** Whether a stopped session's process has exited. */
+  waitForExit: (sessionId: string) => boolean;
 }
 
 /** Recoveries carried out, the resume attempts to record, and the events to log. */
@@ -464,4 +487,6 @@ export interface WatchTickDeps {
   notify: DesktopNotifier;
   isAutoReloadEnabled: boolean;
   isRecoveryEnabled: boolean;
+  /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
+  sleep?: (durationMs: number) => void;
 }

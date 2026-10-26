@@ -1,11 +1,13 @@
 import { mkdirSync, utimesSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { readClaudeSessions } from "../../watch/claude-sessions.js";
-import { findClaudeSessionCwd } from "../../watch/claude-transcripts.js";
+import { readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
+import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "../../watch/constants.js";
+import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
 import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead } from "../../watch/field-parsers.js";
-import { ClaudeJobState, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent } from "../../watch/types.js";
+import { hasLiveProcess, isIdleBackgroundSession } from "../../watch/session-liveness.js";
+import { ClaudeJobState, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "../../watch/types.js";
 import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
 
 describe("readClaudeSessions", () => {
@@ -37,6 +39,14 @@ describe("readClaudeSessions", () => {
       },
       expect.objectContaining({ sessionId: "bbbb2222-0000", kind: ClaudeSessionKind.Interactive, turnStatus: undefined, pid: undefined }),
     ]);
+  });
+
+  it("takes the pid the listing reports over the registry's", () => {
+    const registryDir = makeTempDir("claude-registry");
+    writeFileSync(join(registryDir, "4120.json"), JSON.stringify({ pid: 4120, sessionId: "aaaa1111-0000" }));
+    const listing = [{ id: "aaaa1111", sessionId: "aaaa1111-0000", status: "idle", pid: 5150 }];
+    const sessions = readClaudeSessions(scriptedRunner(() => succeeded(JSON.stringify(listing))).runCommand, registryDir);
+    expect(sessions?.[0].pid).toBe(5150);
   });
 
   it("returns null when the listing cannot be read, so unknown is not mistaken for none", () => {
@@ -89,6 +99,81 @@ describe("findClaudeSessionCwd", () => {
     expect(findClaudeSessionCwd(projectsDir, "sess-1")).toBe("C:\\repo\\wt");
     expect(findClaudeSessionCwd(projectsDir, "sess-2")).toBeUndefined();
     expect(findClaudeSessionCwd(join(projectsDir, "absent"), "sess-1")).toBeUndefined();
+  });
+});
+
+describe("waitForSessionExit", () => {
+  const registryDir = (): string => join(makeTempDir("claude-registry"), "absent");
+
+  it("returns once the listing shows the session without a process, polling meanwhile", () => {
+    const listings = [
+      [{ id: "s1", sessionId: "s1-full", status: "idle", pid: 7 }],
+      [{ id: "s1", sessionId: "s1-full", status: "idle", pid: 7 }],
+      [{ id: "s1", sessionId: "s1-full", state: "done" }],
+    ];
+    let listingIndex = 0;
+    const runner = scriptedRunner(() => succeeded(JSON.stringify(listings[Math.min(listingIndex++, listings.length - 1)])));
+    const naps: number[] = [];
+    expect(waitForSessionExit(runner.runCommand, registryDir(), "s1-full", (durationMs) => naps.push(durationMs))).toBe(true);
+    expect(naps).toEqual([SESSION_EXIT_POLL_MS, SESSION_EXIT_POLL_MS]);
+  });
+
+  it("gives up after the wait while the process lives, and never trusts an unreadable listing", () => {
+    const naps: number[] = [];
+    const running = scriptedRunner(() => succeeded(JSON.stringify([{ id: "s1", sessionId: "s1-full", status: "idle" }])));
+    expect(waitForSessionExit(running.runCommand, registryDir(), "s1-full", (durationMs) => naps.push(durationMs))).toBe(false);
+    expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
+    expect(waitForSessionExit(scriptedRunner(() => null).runCommand, registryDir(), "s1-full", () => undefined)).toBe(false);
+    expect(waitForSessionExit(scriptedRunner(() => succeeded("[]")).runCommand, registryDir(), "s1-full", () => undefined)).toBe(true);
+  });
+});
+
+describe("isStoppedAtUsageLimit", () => {
+  function transcript(lines: unknown[]): string {
+    const projectsDir = makeTempDir("claude-projects");
+    mkdirSync(join(projectsDir, "C--repo"));
+    writeFileSync(join(projectsDir, "C--repo", "sess-1.jsonl"), `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
+    return projectsDir;
+  }
+  const reply = (text: string) => ({ type: "assistant", message: { content: [{ type: "text", text: text }] } });
+
+  it("reads the last assistant reply, past the metadata lines Claude appends after it", () => {
+    const limited = transcript([
+      reply("Rebased #23."),
+      { type: "user", message: { content: "/muggle:muggle-pr-followup reconcile" } },
+      reply("You've hit your session limit · resets 4:10am (America/Los_Angeles)"),
+      { type: "last-prompt", lastPrompt: "/muggle:muggle-pr-followup reconcile" },
+    ]);
+    expect(isStoppedAtUsageLimit(limited, "sess-1")).toBe(true);
+    expect(isStoppedAtUsageLimit(transcript([reply("You've hit your session limit"), reply("Re-armed 2 watchers.")]), "sess-1")).toBe(false);
+    expect(isStoppedAtUsageLimit(limited, "sess-2")).toBe(false);
+  });
+});
+
+describe("session liveness", () => {
+  const session = (overrides: Partial<WorkSession>): WorkSession => ({
+    agent: WorkSessionAgent.Claude,
+    sessionId: "s1",
+    shortId: "s1short",
+    kind: ClaudeSessionKind.Background,
+    turnStatus: ClaudeTurnStatus.Idle,
+    pid: 10,
+    ...overrides,
+  });
+
+  it("calls a listed Claude session with neither pid nor turn status ended", () => {
+    expect(hasLiveProcess(session({}))).toBe(true);
+    expect(hasLiveProcess(session({ pid: undefined }))).toBe(true);
+    expect(hasLiveProcess(session({ pid: undefined, turnStatus: undefined }))).toBe(false);
+    expect(hasLiveProcess({ agent: WorkSessionAgent.Codex, sessionId: "c1" })).toBe(true);
+  });
+
+  it("restarts only a running background session between turns", () => {
+    expect(isIdleBackgroundSession(session({}))).toBe(true);
+    expect(isIdleBackgroundSession(session({ turnStatus: ClaudeTurnStatus.Busy }))).toBe(false);
+    expect(isIdleBackgroundSession(session({ kind: ClaudeSessionKind.Interactive }))).toBe(false);
+    expect(isIdleBackgroundSession(session({ shortId: undefined }))).toBe(false);
+    expect(isIdleBackgroundSession(session({ pid: undefined, turnStatus: undefined }))).toBe(false);
   });
 });
 

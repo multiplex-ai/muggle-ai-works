@@ -4,6 +4,7 @@ import {
   isWalkthroughSkipMarker,
   applyWalkthroughPosted,
   applyWalkthroughSkip,
+  detectWalkthroughPostTargets,
 } from "../../guardrails/walkthroughPosted";
 import type { FileReader } from "../../guardrails/prReportPost";
 import type { GuardrailState, HookInput } from "../../guardrails/types";
@@ -69,15 +70,60 @@ describe("detectWalkthroughPost", () => {
 describe("state reducers", () => {
   const base: GuardrailState = { sessionId: "s", prsHandled: [] };
 
+  const PR_A = "https://github.com/o/r/pull/1";
+  const PR_B = "https://github.com/o/r/pull/2";
+
   it("returns the same reference when nothing changed", () => {
-    expect(applyWalkthroughPosted(base, false)).toBe(base);
+    expect(applyWalkthroughPosted(base, false, 5, [PR_A])).toBe(base);
     expect(applyWalkthroughSkip(base, false)).toBe(base);
-    const posted = { ...base, walkthroughPosted: true };
-    expect(applyWalkthroughPosted(posted, true)).toBe(posted);
   });
 
-  it("records the post and the skip", () => {
-    expect(applyWalkthroughPosted(base, true).walkthroughPosted).toBe(true);
+  it("settles the PRs a post reached, once each, and the skip", () => {
+    const posted = applyWalkthroughPosted(applyWalkthroughPosted(base, true, 5, [PR_A]), true, 6, [PR_A, PR_B]);
+    expect(posted.walkthroughPostedPrUrls).toEqual([PR_A, PR_B]);
+    expect(posted.walkthroughPostedAt).toBeUndefined();
     expect(applyWalkthroughSkip(base, true).walkthroughSkipped).toBe(true);
+  });
+
+  it("timestamps a post whose output names no PR, so only a later scan decides", () => {
+    const posted = applyWalkthroughPosted(base, true, 5, []);
+    expect(posted.walkthroughPostedAt).toBe(5);
+    expect(posted.walkthroughPostedPrUrls).toBeUndefined();
+  });
+
+  it("never marks the walkthrough verified — one post settles only the PR it reached", () => {
+    expect(applyWalkthroughPosted(base, true, 5, [PR_A]).walkthroughsVerified).toBeUndefined();
+  });
+});
+
+describe("detectWalkthroughPostTargets", () => {
+  const posted = (stdout: string): HookInput => ({
+    tool_name: "Bash",
+    tool_input: { command: "gh pr comment 7 --body-file w.md" },
+    tool_response: { stdout: stdout },
+  });
+
+  it("reads the PR from the comment URL gh pr comment prints", () => {
+    expect(detectWalkthroughPostTargets(posted("https://github.com/o/r/pull/7#issuecomment-99\n"))).toEqual([
+      "https://github.com/o/r/pull/7",
+    ]);
+  });
+
+  it("reads the PR from a gh api comment edit's html_url", () => {
+    const patched = '{"id":99,"html_url":"https://github.com/o/r/pull/7#issuecomment-99","issue_url":"https://api.github.com/repos/o/r/issues/7"}';
+    expect(detectWalkthroughPostTargets(posted(patched))).toEqual(["https://github.com/o/r/pull/7"]);
+  });
+
+  it("names nothing when the output carries no PR URL", () => {
+    expect(detectWalkthroughPostTargets(posted(""))).toEqual([]);
+  });
+
+  it("ignores PRs the command quotes, which a body may do for a sibling change", () => {
+    const quoting: HookInput = {
+      tool_name: "Bash",
+      tool_input: { command: 'gh pr comment 7 --body "see https://github.com/o/r/pull/8"' },
+      tool_response: { stdout: "https://github.com/o/r/pull/7#issuecomment-1" },
+    };
+    expect(detectWalkthroughPostTargets(quoting)).toEqual(["https://github.com/o/r/pull/7"]);
   });
 });

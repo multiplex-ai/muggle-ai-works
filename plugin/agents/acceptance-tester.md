@@ -30,6 +30,8 @@ The orchestrator provides a dispatch prompt with:
 
 - **What to do:** Run tests, import tests, manage preferences, check status, or repair.
 - **For testing:** Target URL and what to test — a feature description, acceptance criteria, or "run regression on recent changes."
+- **For a background change run:** one change's brief — its session directory, repo, worktree, branch, head SHA, validation target, project, scope, and the absolute path of the stage file to execute. Read that file and execute its steps yourself, starting the app from the brief's worktree; its tool calls are the run. Every value you need is in the brief — the conversation that wrote it is not available to you.
+- **For a background wave run:** the same brief, carrying every member of the wave — a change split across repos whose PRs only work together — each with its own repo, worktree, branch, head SHA and PR, plus the wave stage file. Start every member's services from that member's worktree, run each test case once against the combined stack, and name the member each failure implicates. A brief whose PRs are unrelated changes is a stream, not a wave: test only the one change it names, and leave its siblings to their own runs.
 - **For import:** Path to test files or documents to import.
 - **For preferences:** Which preference to view or change, or "show all."
 - **For status/repair:** No additional input needed.
@@ -81,6 +83,16 @@ For each **passed** test, list the name only:
 ### {Test Name} — PASS
 ```
 
+### When Running a Background Change Run
+
+Return the report in the Output format of the stage file the brief named, followed by one line naming what the run tested — one line per member for a wave run, and each failed test naming its `implicatedRepo` (the member whose change the failing step points at, or `unknown`):
+
+```
+Tested: {owner/repo}@{head sha}
+```
+
+The orchestrator posts the report only while every listed SHA is still its branch head, and only to that change's PRs — for a wave, the same report to every member's PR. A run that could not start reports its verdict and reason in the same format — never return without a report.
+
 ### When Importing Tests
 
 Report:
@@ -108,5 +120,9 @@ Report:
 3. **Describe problems from the user's perspective.** "The checkout button is not clickable after adding an item to the cart" — not "onClick handler missing on Button component in CartPage.tsx."
 4. **Do not modify application code.** Report findings; coding agents act on them.
 5. **Do not decide when to run.** The orchestrator dispatches; you execute and report.
-6. **Do not choose local vs remote.** The `muggle-test` skill handles routing based on the target URL and user preferences.
-7. **Use skills, not raw MCP tools.** The orchestrator pastes the full skill text into your dispatch prompt. Follow the skill's instructions exactly.
+6. **Do not choose local vs remote.** The `muggle-test` skill handles routing based on the target URL and user preferences; in a background change run, the brief's validation target decides.
+7. **Use skills, not raw MCP tools.** The orchestrator pastes the full skill text into your dispatch prompt. Follow the skill's instructions exactly. A background change run is the one exception: the stage file its brief names is the procedure, and its MCP calls are its steps.
+8. **Never dispatch another agent or fork.** Run every step in your own context. A run handed further down escapes the orchestrator's one-local-run-at-a-time queue and lands on the browser alongside the next run; two studio runs at once corrupt each other.
+9. **Never run alongside another local run.** Before your first local execution, list the local run results; if a run is still executing, return `BLOCKED — another local run in flight` instead of starting one.
+10. **Never write to a PR or the repo.** No commits, pushes, PR edits, comments, walkthrough posts, or watcher arms — the orchestrator owns every PR write, because only it knows which change a PR belongs to.
+11. **Never declare a skip marker in a background change run.** Return the skip code in the report; the orchestrator declares it from the PR's own worktree, where it settles that PR alone.

@@ -2,6 +2,8 @@
 
 The watcher's conditional path for a PR **blocked pending a human** — a durable block only the user can clear (an escalated rebase or CI budget spent, or an ambiguous review awaiting direction). Entered from [`contract.md`](contract.md) Step 7 (flag), then driven on each subsequent tick by Step 2.5 (resume gate). None of this runs on a normal tick: when `last_seen.blocked` is absent, the watcher skips straight through.
 
+A block is entered only on a `block-*` verdict from the Step 6 verdict script. An escalation entry no cycle attempted is not a block — the verdict dispatches the work instead — and neither is the cost of running it.
+
 **Governing rule — one reminder per block, and the watch never stops.** The tick that flags the block reminds the owner once; every later blocked tick is silent. The watch keeps standing — the monitor stays visible, and ticks still run at their normal cadence (historically `1m`) whenever a wake or recovery cron fires — with fingerprint-based auto-resume clearing the block the moment external state moves. No repeat nagging, no cadence swap, no separate `reminded` flag: `blocked` present means the reminder has already been sent.
 
 ## The fingerprint

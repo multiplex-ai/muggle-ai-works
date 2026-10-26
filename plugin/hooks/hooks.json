@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-watch-follow-through-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh",
             "async": false,
             "timeout": 1
           }

@@ -73,6 +73,8 @@ export enum HomeSeed {
   WalkthroughOwed = "walkthrough-owed",
   /** Green unit tests and an opened PR with no acceptance run: the E2E gate's comment settle. */
   E2eOwed = "e2e-owed",
+  /** A slot the session owns whose watch recorded a stale branch and a red head nothing acted on: the follow-through gate's reads. */
+  WatchWorkOwed = "watch-work-owed",
 }
 
 /** One timed firing: the slot, the payload Claude Code would send, and the state its hooks find on disk. */

@@ -32,14 +32,15 @@ export default defineConfig([
     ],
     noExternal: ["@muggleai/mcp"],
   },
-  // Guardrail hook + guard-run launcher logic. Bundled self-contained (node
-  // builtins only) into the plugin tree so the bash hooks can
-  // `node scripts/<x>.mjs`; build-plugin then copies plugin/ → dist/plugin/
-  // for publish.
+  // Guardrail hook, guard-run launcher, and PR-watch verdict logic. Bundled
+  // self-contained (node builtins only) into the plugin tree so the bash hooks
+  // and watch scripts can `node scripts/<x>.mjs`; build-plugin then copies
+  // plugin/ → dist/plugin/ for publish.
   {
     entry: {
       "guardrails": "src/guardrails/cli.ts",
       "guard-run": "src/guard-run/cli.ts",
+      "pr-watch-verdict": "src/pr-watch/cli.ts",
     },
     format: ["esm"],
     target: "node22",

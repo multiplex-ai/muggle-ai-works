@@ -94,13 +94,14 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
 
 // The claim happens after the state fetch, so reaching it needs the two calls
 // arming makes: the tab-separated state projection and the behind-by compare.
-// `prState` is the PR state the projection reports and `ciDigest` its check
-// digest. The line is served from a file so a digest's quotes and `$` reach the
-// script byte for byte rather than through the stub's own quoting.
-function stubGhDir(prState = "OPEN", ciDigest = ""): string {
+// `prState` is the PR state the projection reports, `ciDigest` its check
+// digest, and `failedChecks` how many checks settled red. The line is served
+// from a file so a digest's quotes and `$` reach the script byte for byte rather
+// than through the stub's own quoting.
+function stubGhDir(prState = "OPEN", ciDigest = "", failedChecks = 0): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
   const stateLinePath = join(dir, "state.tsv");
-  writeFileSync(stateLinePath, `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t0\t${ciDigest}\n`);
+  writeFileSync(stateLinePath, `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t${failedChecks}\t${ciDigest}\n`);
   const gh = join(dir, "gh");
   writeFileSync(
     gh,
@@ -333,18 +334,30 @@ function stubGhFromSnapshot(fixture: BaseMovementFixture): string {
   return dir;
 }
 
-function armAgainstBaseMovement(fixture: BaseMovementFixture): string {
+// Arms PR o/n#1 against the base-movement fixture, over `lastSeenEntry` as the
+// PR's last_seen.json entry when given. `watch` runs the loop out a 3s window.
+function armAgainstBaseMovement(
+  fixture: BaseMovementFixture,
+  lastSeenEntry?: object,
+  watch = false,
+): { slot: string; stdout: string } {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
-  execFileSync(
-    "bash",
-    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master", "--no-exec"],
-    {
-      env: { ...process.env, PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}` },
-      stdio: "ignore",
+  if (lastSeenEntry) writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
+  const args = [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"];
+  const stdout = execFileSync("bash", watch ? args : [...args, "--no-exec"], {
+    env: {
+      ...process.env,
+      PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}`,
+      MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
+      MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
     },
-  );
-  return slot;
+    encoding: "utf8",
+    timeout: 60_000,
+  });
+  return { slot: slot, stdout: stdout };
 }
+
+const readSlotFile = (slot: string, fileName: string): string => readFileSync(join(slot, fileName), "utf8");
 
 // Runs the loop for a few iterations over a slot whose rebase floor is
 // `rebasedFloor`, returning only the EVENT lines it printed.
@@ -387,9 +400,93 @@ describe.skipIf(!hasBash || !hasJq)("rebase key tracks the base branch tip", () 
     expect(watchAgainstBaseMovement(staleRecordedBase, "HEAD1..BASENEW")).toEqual([]);
   }, 60_000);
 
-  it("seeds the rebase floor from the base tip", () => {
-    const watermark = readFileSync(join(armAgainstBaseMovement(staleRecordedBase), "watch-watermark.env"), "utf8");
-    expect(watermark).toContain('REBASED="HEAD1..BASENEW"');
+  it("seeds the rebase floor from the base tip once a rebase ran for that key", () => {
+    const { slot } = armAgainstBaseMovement(staleRecordedBase, { conflict_resolve_attempts: { "HEAD1..BASENEW": 1 } });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASED="HEAD1..BASENEW"');
+  }, 60_000);
+});
+
+// Arming is not handling. A session that re-armed at every rollover used to
+// floor the stale branch each time — the drain said "handled by the arming
+// session" — so the loop never woke on it again and no rebase ever ran.
+describe.skipIf(!hasBash || !hasJq)("pr-watch-arm.sh floors only attempted work", () => {
+  const stale: BaseMovementFixture = { baseRefOid: "BASEOLD", baseTipOid: "BASENEW", behindBy: 3 };
+
+  it("leaves a stale branch unfloored when no rebase was attempted, and says so", () => {
+    const { slot, stdout } = armAgainstBaseMovement(stale);
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASED=""');
+    expect(stdout).toMatch(/^DRAIN branch stale at arm time — no rebase attempt recorded for key HEAD1\.\.BASENEW, not floored/m);
+    expect(stdout).not.toContain("handled by the arming session");
+  }, 60_000);
+
+  it("does not take an escalation entry with no attempt behind it as handled", () => {
+    const { slot } = armAgainstBaseMovement(stale, { conflict_escalated_keys: ["HEAD1..BASENEW"] });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASED=""');
+  }, 60_000);
+
+  it("ignores an attempt recorded for another key", () => {
+    const { slot } = armAgainstBaseMovement(stale, { conflict_resolve_attempts: { "HEAD1..BASEOLD": 2 } });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASED=""');
+  }, 60_000);
+
+  it("records the due rebase for the turn-end gate", () => {
+    const { slot } = armAgainstBaseMovement(stale);
+    expect(readSlotFile(slot, "watch-due.env")).toBe('HEAD="HEAD1"\nREBASE_DUE="HEAD1..BASENEW"\nCI_RED_HEAD=""\n');
+  }, 60_000);
+
+  it("records nothing due for a current branch", () => {
+    const { slot } = armAgainstBaseMovement({ baseRefOid: "BASE1", baseTipOid: "BASE1", behindBy: 0 });
+    expect(readSlotFile(slot, "watch-due.env")).toBe("");
+  }, 60_000);
+
+  it("wakes the re-armed loop on the stale branch it did not floor, and keeps it recorded as due", () => {
+    const { slot, stdout } = armAgainstBaseMovement(stale, undefined, true);
+    const events = stdout.split("\n").filter((line) => line.startsWith("EVENT "));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toContain("rebase due key=HEAD1..BASENEW");
+    expect(readSlotFile(slot, "watch-due.env")).toContain('REBASE_DUE="HEAD1..BASENEW"');
+  }, 60_000);
+
+  // A floored key is one already reported due; the loop must not read the floor
+  // as "current" and clear the record the gate checks.
+  it("keeps a floored key recorded as due through the loop", () => {
+    const { slot } = armAgainstBaseMovement(stale, { conflict_resolve_attempts: { "HEAD1..BASENEW": 1 } }, true);
+    expect(readSlotFile(slot, "watch-due.env")).toContain('REBASE_DUE="HEAD1..BASENEW"');
+  }, 60_000);
+});
+
+// Arms o/n#1 with HEAD1's checks settled red, over `lastSeenEntry` when given.
+function armOverRedHead(lastSeenEntry?: object): { slot: string; stdout: string } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  if (lastSeenEntry) writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
+  const stdout = execFileSync(
+    "bash",
+    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master", "--no-exec"],
+    {
+      env: { ...process.env, PATH: `${stubGhDir("OPEN", "unit:FAILURE", 1)}${delimiter}${process.env.PATH ?? ""}` },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  return { slot: slot, stdout: stdout };
+}
+
+describe.skipIf(!hasBash)("pr-watch-arm.sh red-CI floor", () => {
+  it("leaves a red head unfloored when no fix was attempted", () => {
+    const { slot, stdout } = armOverRedHead();
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED=""');
+    expect(stdout).toMatch(/^DRAIN ci red at arm time — no fix-ci attempt recorded for head HEAD1, not floored/m);
+    expect(readSlotFile(slot, "watch-due.env")).toContain('CI_RED_HEAD="HEAD1"');
+  }, 60_000);
+
+  it("does not take a CI escalation with no fix behind it as handled", () => {
+    expect(readSlotFile(armOverRedHead({ ci_escalated_shas: ["HEAD1"] }).slot, "watch-watermark.env")).toContain('CIRED=""');
+  }, 60_000);
+
+  it("floors a red head a fix-ci cycle already ran for", () => {
+    const { slot, stdout } = armOverRedHead({ ci_fix_attempts: { HEAD1: 1 } });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED="HEAD1"');
+    expect(stdout).toMatch(/^DRAIN ci red at arm time — a fix-ci cycle already ran for head HEAD1, floored/m);
   }, 60_000);
 });
 

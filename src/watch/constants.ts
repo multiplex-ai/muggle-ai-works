@@ -189,5 +189,28 @@ export const WATCH_SERVICE_QUIET_OUTCOMES: ReadonlySet<WatchServiceInstallOutcom
   WatchServiceInstallOutcome.TurnedOff,
 ]);
 
-/** The crontab line that stands in for the scheduled task where there is no installer. */
-export const WATCH_CRONTAB_LINE = "*/2 * * * * muggle watch tick >> ~/.muggle-ai/watch/tick.log 2>&1";
+/** The POSIX launcher every macOS and Linux scheduler runs, relative to the package root. */
+export const WATCH_TICK_LAUNCHER_RELATIVE_PATH = "scripts/muggle-watch/muggle-watch-tick.sh";
+
+/** File names staged in the watch dir's `bin`: the launcher and the PATH it restores. */
+export const WATCH_TICK_LAUNCHER_FILE = "muggle-watch-tick.sh";
+export const WATCH_ENV_FILE = "watch-env.sh";
+export const WATCH_BIN_DIR_NAME = "bin";
+
+/** The muggle entry point of a global install, relative to `npm root -g`. */
+export const GLOBAL_MUGGLE_ENTRY_RELATIVE_PATH = "@muggleai/works/bin/muggle.js";
+
+/** The muggle entry point relative to this package's root, when no global install is found. */
+export const PACKAGE_MUGGLE_ENTRY_RELATIVE_PATH = "bin/muggle.js";
+
+/** How often every scheduler runs a tick. */
+export const WATCH_TICK_INTERVAL_SECONDS = 120;
+
+/** The launchd agent's label, and the plist file named after it. */
+export const WATCH_LAUNCHD_LABEL = "ai.muggle.watch";
+
+/** The systemd user units' shared name: `muggle-watch.service` and `muggle-watch.timer`. */
+export const WATCH_SYSTEMD_UNIT_NAME = "muggle-watch";
+
+/** Trailing comment that marks the watch's line in a crontab, so a re-install replaces only it. */
+export const WATCH_CRON_MARKER = "# muggle-watch";

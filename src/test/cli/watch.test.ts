@@ -22,6 +22,7 @@ const serviceMock = vi.hoisted(() => ({
 }));
 
 vi.mock("../../watch/watch-service.js", () => serviceMock);
+vi.mock("../../watch/install-service.js", () => serviceMock);
 vi.mock("../../../packages/mcps/src/index.js", async () => ({
   PreferenceKey: (await import("../../../packages/mcps/src/shared/preferences-types.js")).PreferenceKey,
   resolvePreferences: () => ({ autoInstallWatchService: "ask" }),

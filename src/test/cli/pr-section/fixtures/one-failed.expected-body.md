@@ -41,6 +41,10 @@ _Verify that a returning user can sign in with valid credentials and land on the
 |:--|:--|
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-1" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow">
+
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
 
@@ -68,10 +72,6 @@ _Verify that a returning user can sign in with valid credentials and land on the
 </dd></dl>
 </details>
 
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-1/2.png" width="720" alt="Login flow">
-
 </dd></dl>
 </details>
 
@@ -87,6 +87,10 @@ _Verify a shopper can complete checkout with a saved payment method._
 |:--|:--|
 | **Why** | Element not found: button[data-testid='confirm-order'] |
 | **Run** | 3 browser steps · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-2" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
+
+**Ending screen** — Failure at step 3
+
+<img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow">
 
 <details><summary><kbd>Show 3 steps and screenshots</kbd></summary>
 <dl><dd>
@@ -115,10 +119,6 @@ _Verify a shopper can complete checkout with a saved payment method._
 </dd></dl>
 </details>
 
-**Ending screen** — Failure at step 3
-
-<img src="https://cdn.muggle.ai/run-2/2.png" width="720" alt="Checkout flow">
-
 </dd></dl>
 </details>
 
@@ -132,6 +132,10 @@ _Verify a shopper can complete checkout with a saved payment method._
 |:--|:--|
 | **Run** | 1 browser step · <a href="https://www.muggle-ai.com/muggleTestV0/dashboard/runs/run-3" target="_blank" rel="noopener noreferrer">Open the full run on Muggle AI →</a> |
 
+**Ending screen** — Final page after the test completed
+
+<img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page">
+
 <details><summary><kbd>Show 1 step and screenshots</kbd></summary>
 <dl><dd>
 
@@ -144,10 +148,6 @@ _Verify a shopper can complete checkout with a saved payment method._
 
 </dd></dl>
 </details>
-
-**Ending screen** — Final page after the test completed
-
-<img src="https://cdn.muggle.ai/run-3/0.png" width="720" alt="Profile page">
 
 </dd></dl>
 </details>

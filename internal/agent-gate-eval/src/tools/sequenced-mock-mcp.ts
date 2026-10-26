@@ -24,7 +24,8 @@ export function isSequencedFixture(value: unknown): value is SequencedFixture {
 /**
  * Every mock tool a run serves, one per name. A supplemental tool named like a
  * shared one refines it: the supplemental tool answers first, and a call it
- * returns nothing for falls through to the shared tool's reply.
+ * returns nothing for falls through to the shared tool's reply. Its input shape
+ * extends the shared one's, so fields a gate reads off the shared shape still arrive.
  */
 export function mergedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSpec[] {
   const supplementalByName = new Map(supplementalMockToolSpecs(fixtures).map((spec) => [spec.name, spec]));
@@ -32,7 +33,11 @@ export function mergedMockToolSpecs(fixtures: Fixtures): InputAwareMockToolSpec[
     const refinement = supplementalByName.get(sharedSpec.name);
     if (!refinement) return sharedSpec;
     supplementalByName.delete(sharedSpec.name);
-    return { ...refinement, reply: (input) => refinement.reply(input) ?? sharedSpec.reply() };
+    return {
+      ...refinement,
+      shape: { ...sharedSpec.shape, ...refinement.shape },
+      reply: (input) => refinement.reply(input) ?? sharedSpec.reply(),
+    };
   });
   return [...sharedSpecs, ...supplementalByName.values()];
 }
@@ -69,7 +74,7 @@ export function createMockToolAnswerer(fixtures: Fixtures): (toolName: string) =
   return (toolName) => {
     const spec = specsByName.get(toolName);
     if (!spec) throw new Error(`no mock muggle tool is named ${toolName}`);
-    return jsonResult(spec.reply()).content[0].text;
+    return jsonResult(spec.reply({})).content[0].text;
   };
 }
 

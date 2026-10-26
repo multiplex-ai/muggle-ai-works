@@ -95,10 +95,58 @@ describe("case lifecycle mocks", () => {
     expect(answer("muggle-remote-use-case-delete", { useCaseId: "uc-1" })).toEqual({ id: "uc-1", deleted: true });
   });
 
+  it("keeps the shared input fields gates read when a supplemental tool refines a shared one", () => {
+    const executeShape = mergedMockToolSpecs({}).find((spec) => spec.name === "muggle-local-execute-test-generation")!.shape;
+    expect(Object.keys(executeShape)).toEqual(expect.arrayContaining(["testCase", "showUi", "freshSession"]));
+  });
+
   it("names the requested case in a default prerequisite chain", () => {
     expect(answererFor({})("muggle-remote-test-case-ancestors-get", { testCaseId: "tc-9" })).toMatchObject({
       testCaseId: "tc-9",
       ancestors: [],
     });
+  });
+});
+
+describe("per-case runs", () => {
+  const fixtureRun = {
+    runId: "run-home-1",
+    status: "passed",
+    testCaseId: "tc-home",
+    viewUrl: "https://example.invalid/runs/run-home-1",
+  };
+  const runs: Fixtures = {
+    executeResult: fixtureRun,
+    runResult: { runId: "run-home-1", status: "passed", steps: [{ testCaseId: "tc-home", screenshot: "run-home-1/0.png" }] },
+  };
+
+  it("answers the fixture run's own case with the fixture run itself", () => {
+    expect(answererFor(runs)("muggle-local-execute-test-generation", { testCase: { id: "tc-home" } })).toEqual(fixtureRun);
+  });
+
+  it("answers another case with that case's own run, under a run id its reads answer for", () => {
+    const answer = answererFor(runs);
+    const executed = answer("muggle-local-execute-replay", { testCase: JSON.stringify({ id: "tc-new-1" }) });
+    expect(executed).toEqual({
+      runId: "run-home-1-tc-new-1",
+      status: "passed",
+      testCaseId: "tc-new-1",
+      viewUrl: "https://example.invalid/runs/run-home-1-tc-new-1",
+    });
+    expect(answer("muggle-local-run-result-get", { runId: "run-home-1-tc-new-1" })).toEqual({
+      runId: "run-home-1-tc-new-1",
+      status: "passed",
+      steps: [{ testCaseId: "tc-new-1", screenshot: "run-home-1-tc-new-1/0.png" }],
+    });
+  });
+
+  it("answers a run id no execute call produced with the fixture, as before", () => {
+    expect(answererFor(runs)("muggle-local-run-result-get", { runId: "run-unknown" })).toEqual(runs.runResult);
+  });
+
+  it("leaves a sequenced execute slot to the shared reply, so its calls still answer in order", () => {
+    const answer = answererFor({ executeResult: { sequence: [{ runId: "r1" }, { runId: "r2" }] } });
+    expect(answer("muggle-local-execute-test-generation", { testCase: { id: "tc-a" } })).toEqual({ runId: "r1" });
+    expect(answer("muggle-local-execute-replay", { testCase: { id: "tc-b" } })).toEqual({ runId: "r2" });
   });
 });

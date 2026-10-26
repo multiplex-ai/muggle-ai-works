@@ -22,6 +22,6 @@ guardrail_wants() {
   guardrail_payload_matches 'resolveReviewThread|resolved=(true|false)'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

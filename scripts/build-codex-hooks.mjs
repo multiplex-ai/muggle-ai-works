@@ -25,6 +25,10 @@
  *   commands it names. The rule is dropped, so under Codex the hook runs on every
  *   event of its group and its own pre-filter decides; the identical commands one
  *   hook's `if` variants leave behind collapse into one.
+ * - A hooks.json command sources hook-entry.sh, which runs the hook's script in
+ *   place only inside Claude Code's Windows Git Bash. Codex starts every command
+ *   through `env` or its Windows launcher, a process either way, so each Codex
+ *   command names the script itself: `bash "<script>" <args>`.
  *
  * hooks.json stays the one hand-edited manifest. `--check` exits non-zero when
  * the committed file differs from what this script would write.
@@ -53,9 +57,29 @@ export const CODEX_WINDOWS_HOOK_LAUNCHER = 'node "${CLAUDE_PLUGIN_ROOT}\\scripts
  */
 export const CODEX_LAUNCHER_ALLOWANCE_SECONDS = 9;
 
-// Every hooks.json command runs a shipped bash script; the Windows variant
-// hands the rest of the command line to Git Bash.
+/** The script every hooks.json command sources, with the hook's own script and arguments as its positional parameters. */
+export const HOOK_ENTRY_SCRIPT = "hook-entry.sh";
+
+// `set -- <script> [args]; . "${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh"`, the one command form hooks.json uses.
+const HOOK_ENTRY_COMMAND = /^set -- ([\w.-]+)((?: \S+)*); \. "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/hook-entry\.sh"$/;
+
+// The Windows variant hands the rest of a bash command line to Git Bash.
 const BASH_COMMAND_PREFIX = "bash ";
+
+/**
+ * The `bash "<script>" <args>` command a hooks.json command amounts to wherever hook-entry.sh hands the script to a
+ * bash of its own.
+ * @param {string} command - A hooks.json command.
+ * @returns {string} The command naming the hook's script directly.
+ * @throws {Error} When the command does not run a script through hook-entry.sh.
+ */
+export function deriveBashHookCommand(command) {
+    const entry = HOOK_ENTRY_COMMAND.exec(command);
+    if (!entry) {
+        throw new Error(`hooks.json command does not run a script through ${HOOK_ENTRY_SCRIPT}: ${command}`);
+    }
+    return `${BASH_COMMAND_PREFIX}"\${CLAUDE_PLUGIN_ROOT}/scripts/${entry[1]}"${entry[2]}`;
+}
 
 /**
  * Claude Code tool name → the Codex tool that plays its part, or null where
@@ -132,18 +156,14 @@ export function deriveCodexHooks(claudeHooks) {
             const codexGroup = codexMatcher === undefined ? {} : { matcher: codexMatcher };
             codexGroup.hooks = [];
             for (const hook of group.hooks) {
-                if (!hook.command.startsWith(BASH_COMMAND_PREFIX)) {
-                    throw new Error(
-                        `hooks.json command does not run a bash script, so it has no Windows form for Codex: ${hook.command}`,
-                    );
-                }
+                const bashCommand = deriveBashHookCommand(hook.command);
                 const portableHook = { ...hook };
                 delete portableHook.if;
                 const codexHook = {
                     ...portableHook,
                     ...(hook.timeout === undefined ? {} : { timeout: hook.timeout + CODEX_LAUNCHER_ALLOWANCE_SECONDS }),
-                    command: `${CODEX_HOOK_HOST_STAMP} ${hook.command}`,
-                    commandWindows: `${CODEX_WINDOWS_HOOK_LAUNCHER} ${hook.command.slice(BASH_COMMAND_PREFIX.length)}`,
+                    command: `${CODEX_HOOK_HOST_STAMP} ${bashCommand}`,
+                    commandWindows: `${CODEX_WINDOWS_HOOK_LAUNCHER} ${bashCommand.slice(BASH_COMMAND_PREFIX.length)}`,
                 };
                 if (!codexGroup.hooks.some((existing) => existing.command === codexHook.command)) {
                     codexGroup.hooks.push(codexHook);

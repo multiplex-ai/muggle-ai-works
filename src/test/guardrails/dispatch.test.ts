@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { mergeHookOutputs } from "../../guardrails/emit.js";
+import { HookShellOstype } from "./footprint/types.js";
 
 const SCRIPTS = fileURLToPath(new URL("../../../plugin/scripts", import.meta.url));
 const HOOKS = fileURLToPath(new URL("../../../plugin/hooks/hooks.json", import.meta.url));
@@ -50,9 +51,13 @@ describe("mergeHookOutputs", () => {
 });
 
 // Runs the real dispatcher commands from hooks.json with `node` stubbed to echo its argv, so
-// the output shows whether Node ran at all and which gates the pre-filters let through.
+// the output shows whether Node ran at all and which gates the pre-filters let through — both
+// in a bash of its own and sourced into Git Bash's shell, where hook-entry.sh runs it on Windows.
 // Bash-only, so skipped on win32 (covered by the Linux/macOS platform-compat jobs).
-describe.skipIf(process.platform === "win32")("guardrail-dispatch.sh", () => {
+describe.skipIf(process.platform === "win32").each([
+  ["in a bash of its own", HookShellOstype.Linux],
+  ["sourced into Git Bash's shell", HookShellOstype.GitBash],
+])("guardrail-dispatch.sh %s", (_label, shellOstype) => {
   const NODE_RAN = "__STUB_NODE_RAN__";
   let binDir: string;
 
@@ -83,7 +88,7 @@ describe.skipIf(process.platform === "win32")("guardrail-dispatch.sh", () => {
         JSON.stringify(seededState, null, 2),
       );
     }
-    const r = spawnSync("bash", ["-c", command], {
+    const r = spawnSync("bash", ["-c", `OSTYPE='${shellOstype}'; ${command}`], {
       input: JSON.stringify(payload),
       encoding: "utf-8",
       env: {

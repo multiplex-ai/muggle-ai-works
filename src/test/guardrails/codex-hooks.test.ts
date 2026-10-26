@@ -7,6 +7,8 @@ import {
   CODEX_LAUNCHER_ALLOWANCE_SECONDS,
   CODEX_TOOL_EQUIVALENTS,
   CODEX_WINDOWS_HOOK_LAUNCHER,
+  HOOK_ENTRY_SCRIPT,
+  deriveBashHookCommand,
   deriveCodexHooks,
   renderCodexHooks,
 } from "../../../scripts/build-codex-hooks.mjs";
@@ -61,7 +63,9 @@ describe("plugin/hooks/codex-hooks.json", () => {
 
   // hooks.json holds each hook's runtime budget; Codex's timeout also covers the shell it launches the hook through.
   it("gives every hook its hooks.json timeout plus the launcher allowance", () => {
-    const claudeTimeouts = new Map(allCommands(readManifest(CLAUDE_HOOKS)).map((hook) => [hook.command, hook.timeout]));
+    const claudeTimeouts = new Map(
+      allCommands(readManifest(CLAUDE_HOOKS)).map((hook) => [deriveBashHookCommand(hook.command), hook.timeout]),
+    );
     for (const hook of allCommands(codex)) {
       const claudeTimeout = claudeTimeouts.get(hook.command.slice(`${CODEX_HOOK_HOST_STAMP} `.length));
       expect(claudeTimeout, hook.command).toBeTypeOf("number");
@@ -89,7 +93,11 @@ describe("plugin/hooks/codex-hooks.json", () => {
 
   it("keeps every shipped script reachable, the Read- and Skill-only recorders through Bash and MCP", () => {
     const scriptsIn = (manifest: HooksManifest): Set<string> =>
-      new Set(allCommands(manifest).flatMap((hook) => hook.command.match(/[\w-]+\.sh/g) ?? []));
+      new Set(
+        allCommands(manifest)
+          .flatMap((hook) => hook.command.match(/[\w-]+\.sh/g) ?? [])
+          .filter((script) => script !== HOOK_ENTRY_SCRIPT),
+      );
     const claudeScripts = scriptsIn(readManifest(CLAUDE_HOOKS));
     const codexScripts = scriptsIn(codex);
     for (const script of claudeScripts) expect(codexScripts, script).toContain(script);
@@ -106,7 +114,18 @@ describe("plugin/hooks/codex-hooks.json", () => {
 describe("deriveCodexHooks", () => {
   const command = (script: string): { type: string; command: string } => ({
     type: "command",
-    command: `bash "\${CLAUDE_PLUGIN_ROOT}/scripts/${script}"`,
+    command: `set -- ${script}; . "\${CLAUDE_PLUGIN_ROOT}/scripts/${HOOK_ENTRY_SCRIPT}"`,
+  });
+
+  it("names the hook's script and arguments directly, since Codex starts every command as a process anyway", () => {
+    const derived = deriveCodexHooks({
+      hooks: {
+        Stop: [{ hooks: [{ type: "command", command: `set -- gate.sh a.sh b.sh; . "\${CLAUDE_PLUGIN_ROOT}/scripts/${HOOK_ENTRY_SCRIPT}"` }] }],
+      },
+    });
+    const codexHook = derived.hooks.Stop[0].hooks[0];
+    expect(codexHook.command).toBe(`${CODEX_HOOK_HOST_STAMP} bash "\${CLAUDE_PLUGIN_ROOT}/scripts/gate.sh" a.sh b.sh`);
+    expect(codexHook.commandWindows).toBe(`${CODEX_WINDOWS_HOOK_LAUNCHER} "\${CLAUDE_PLUGIN_ROOT}/scripts/gate.sh" a.sh b.sh`);
   });
 
   it("rewrites tool names, drops groups Codex cannot match, and leaves MCP regexes and sources alone", () => {
@@ -153,15 +172,17 @@ describe("deriveCodexHooks", () => {
     });
     const codexHooks = derived.hooks.PreToolUse[0].hooks;
     expect(codexHooks.map((hook) => hook.command)).toEqual([
-      `${CODEX_HOOK_HOST_STAMP} ${command("gate.sh").command}`,
-      `${CODEX_HOOK_HOST_STAMP} ${command("other-gate.sh").command}`,
+      `${CODEX_HOOK_HOST_STAMP} ${deriveBashHookCommand(command("gate.sh").command)}`,
+      `${CODEX_HOOK_HOST_STAMP} ${deriveBashHookCommand(command("other-gate.sh").command)}`,
     ]);
     for (const hook of codexHooks) expect(hook).not.toHaveProperty("if");
   });
 
-  it("refuses a command that is not a bash script, which would have no Windows form", () => {
-    expect(() =>
-      deriveCodexHooks({ hooks: { Stop: [{ hooks: [{ type: "command", command: "node x.mjs" }] }] } }),
-    ).toThrow(/does not run a bash script/);
+  it("refuses a command that skips hook-entry.sh, which would have no bash form for Codex", () => {
+    for (const command of ["node x.mjs", `bash "\${CLAUDE_PLUGIN_ROOT}/scripts/x.sh"`]) {
+      expect(() => deriveCodexHooks({ hooks: { Stop: [{ hooks: [{ type: "command", command: command }] }] } }), command).toThrow(
+        /does not run a script through hook-entry\.sh/,
+      );
+    }
   });
 });

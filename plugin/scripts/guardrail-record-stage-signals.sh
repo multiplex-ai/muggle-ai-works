@@ -23,6 +23,6 @@ guardrail_wants() {
   guardrail_payload_matches 'MUGGLE_[A-Z0-9_]+_SKIP|muggle.*(telemetry[-_]event[-_]emit|user[-_]feedback[-_]create)'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

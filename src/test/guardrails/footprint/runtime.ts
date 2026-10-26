@@ -80,7 +80,7 @@ function medianOf(values: number[]): number {
  * Fires every command of a scenario's slot HOOK_RUNTIME_TIMING_RUNS times, each run in a freshly seeded home, with
  * SLOW_PROGRAMS stalled and the `gh` provider switched on so the hook's real lookups run into the stall.
  *
- * Output shape: `{ commandRuntimes: [{ command: "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" …", medianMs: 212, runsMs: [230, 212, 198] }], homes: ["/tmp/runtime-home-a1b2c3", …] }`
+ * Output shape: `{ commandRuntimes: [{ command: "set -- guardrail-dispatch.sh …; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"", medianMs: 212, runsMs: [230, 212, 198] }], homes: ["/tmp/runtime-home-a1b2c3", …] }`
  */
 export function timeScenarioRuntime(
   manifest: HooksManifest,

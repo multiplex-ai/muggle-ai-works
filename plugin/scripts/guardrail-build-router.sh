@@ -30,6 +30,6 @@ guardrail_wants() {
   guardrail_fields_match prompt '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green)'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

@@ -36,6 +36,13 @@ export interface HooksManifest {
   hooks: Record<string, HookGroup[]>;
 }
 
+/** `OSTYPE` values that steer hook-entry.sh: Git Bash sources a hook's script in place, any other shell gives it a bash of its own. */
+export enum HookShellOstype {
+  GitBash = "msys",
+  Cygwin = "cygwin",
+  Linux = "linux-gnu",
+}
+
 /** A hot-path firing: an event, plus the tool name when the event is tool-scoped. */
 export interface HookSlot {
   event: HookEvent;
@@ -55,6 +62,8 @@ export interface HookSlotCap {
 /** What one no-op firing of a slot cost. */
 export interface SlotFootprint {
   commandCount: number;
+  /** Commands that started a bash of their own to run their script; hook-entry.sh starts none inside Git Bash. */
+  ownLaunchCount: number;
   /** Program names each command exec'd after its own launch, in order, one entry per spawn. */
   spawnedPrograms: string[];
   /** Programs a hook tried to run that the shim directory does not provide. */

@@ -35,6 +35,6 @@ guardrail_wants() {
     || guardrail_fields_match tool_name 'muggle.*(execute|test[-_]generation|replay)'
 }
 
-if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

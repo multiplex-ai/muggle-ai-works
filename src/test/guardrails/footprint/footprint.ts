@@ -10,7 +10,7 @@ import {
   REGEXP_SYNTAX_CHARACTERS,
   SHIMMED_PROGRAMS,
 } from "./constants.js";
-import type { HookCommand, HookGroup, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
+import type { HookCommand, HookGroup, HookShellOstype, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
 
 const MANIFEST_PATH = join(PLUGIN_ROOT, "hooks", "hooks.json");
 const UNSHIMMED_PATTERN = /(?:^|\s)([\w.+-]+): (?:command not found|No such file or directory)/g;
@@ -145,21 +145,29 @@ export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): n
  * Fires every command of a slot once with the slot's no-op payload, the way Claude Code would, and
  * records what each command exec'd beyond its own launch. HOME is a throwaway dir that already
  * holds `.muggle-ai`, matching an installed user, so the Windows home-resolution fallback stays
- * off and the counts agree across platforms.
+ * off and the counts agree across platforms. `shellOstype` stands the harness's bash in for the
+ * shell Claude Code runs hooks in on that platform; without it, the bash's own OSTYPE decides.
  *
- * Output shape: `{ commandCount: 9, spawnedPrograms: ["cat", "grep", "head", "sed"], unshimmedPrograms: [] }`
+ * Output shape: `{ commandCount: 9, ownLaunchCount: 9, spawnedPrograms: ["cat", "grep"], unshimmedPrograms: [] }`
  */
-export function measureSlotFootprint(manifest: HooksManifest, cap: HookSlotCap, shimDirectory: string): SlotFootprint {
+export function measureSlotFootprint(
+  manifest: HooksManifest,
+  cap: HookSlotCap,
+  shimDirectory: string,
+  shellOstype?: HookShellOstype,
+): SlotFootprint {
   const commands = commandsForSlot(manifest, cap.slot, cap.noopPayload);
   const home = createInstalledUserHome();
   const payload = hookPayloadJson(cap.noopPayload, home);
   const shimPathForBash = toBashPathArg(shimDirectory);
+  const ostypePrelude = shellOstype ? `OSTYPE='${shellOstype}'; ` : "";
+  let ownLaunchCount = 0;
   const spawnedPrograms: string[] = [];
   const unshimmedPrograms: string[] = [];
   commands.forEach((command, index) => {
     const spawnLog = join(home, `spawns-${index}.log`);
     const { stderr } = runBash(
-      `PATH='${shimPathForBash}'; ${command.command}`,
+      `${ostypePrelude}PATH='${shimPathForBash}'; ${command.command}`,
       {
         ...process.env,
         HOME: home,
@@ -171,10 +179,17 @@ export function measureSlotFootprint(manifest: HooksManifest, cap: HookSlotCap, 
       payload,
     );
     const logged = existsSync(spawnLog) ? readFileSync(spawnLog, "utf-8").split("\n").filter(Boolean) : [];
-    // The first entry is the command's own launch (e.g. the `bash` in `bash "<script>"`); that
-    // cost is counted as maxCommands, not as a no-op spawn.
-    spawnedPrograms.push(...logged.slice(1));
+    // Off Git Bash the first entry is the bash hook-entry.sh hands the script to: the command's own launch, counted
+    // as maxCommands rather than as a no-op spawn. Inside Git Bash the script runs in place and there is none.
+    const isOwnLaunch = logged[0] === "bash";
+    if (isOwnLaunch) ownLaunchCount++;
+    spawnedPrograms.push(...logged.slice(isOwnLaunch ? 1 : 0));
     for (const match of stderr.matchAll(UNSHIMMED_PATTERN)) unshimmedPrograms.push(match[1]);
   });
-  return { commandCount: commands.length, spawnedPrograms: spawnedPrograms, unshimmedPrograms: unshimmedPrograms };
+  return {
+    commandCount: commands.length,
+    ownLaunchCount: ownLaunchCount,
+    spawnedPrograms: spawnedPrograms,
+    unshimmedPrograms: unshimmedPrograms,
+  };
 }

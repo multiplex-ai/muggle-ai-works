@@ -108,6 +108,12 @@ guardrail_state_has() {
   [[ $GUARDRAIL_STATE == *"$1"* ]]
 }
 
+# Whether the gate script calling this is the hook's own script — run by bash, or sourced by hook-entry.sh into the
+# shell Claude Code started — rather than a gate guardrail-dispatch.sh sourced only to read its pre-filter.
+guardrail_is_hook_script() {
+  [[ ${BASH_SOURCE[1]} == "${MUGGLE_HOOK_SCRIPT:-$0}" ]]
+}
+
 # Runs guardrails.mjs on the payload. Never blocks a turn: any failure degrades to {}.
 guardrail_run_node() {
   local root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"

@@ -367,6 +367,16 @@ jobs:
           fi
           echo "Runtime target '$ACTUAL' matches channel '$CHANNEL'."
 
+  # Signed studio releases 1.6.5 through 1.15.x shipped macOS archives that
+  # Gatekeeper rejects as "damaged", and every check here passed them. A
+  # production release cannot publish until each pinned macOS archive is
+  # installed, quarantined and accepted. Staging skips it: ci.yml dispatches a
+  # staging publish after every green master push, and a pin reaches master only
+  # through a pull request, where the same workflow runs.
+  studio-mac-gatekeeper:
+    if: (inputs.channel || 'production') == 'production'
+    uses: ./.github/workflows/verify-studio-mac-gatekeeper.yml
+
   # Publishes via OIDC trusted publishing — see top-of-file note when renaming
   # this workflow or the workflow display name.
   publish:
@@ -374,7 +384,16 @@ jobs:
     needs:
       - package-audit
       - smoke-install
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+      - studio-mac-gatekeeper
+    # The gate is skipped on staging, and a skipped need skips this job unless
+    # the condition says otherwise. Only staging may proceed past a skipped gate.
+    if: >-
+      !cancelled()
+      && needs.package-audit.result == 'success'
+      && needs.smoke-install.result == 'success'
+      && (needs.studio-mac-gatekeeper.result == 'success'
+          || (needs.studio-mac-gatekeeper.result == 'skipped' && inputs.channel == 'staging'))
+      && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     environment: npm-publish
     permissions:
       contents: read
@@ -420,6 +439,7 @@ jobs:
       - verify
       - package-audit
       - smoke-install
+      - studio-mac-gatekeeper
       - publish
     if: failure()
     steps:

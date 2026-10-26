@@ -1,0 +1,78 @@
+name: Verify Studio macOS Gatekeeper
+
+# Installs every macOS studio archive package.json pins the way postinstall
+# does (download, checksum, unzip), quarantines it like a browser download, and
+# requires codesign and Gatekeeper to accept it. Signed studio releases 1.6.5
+# through 1.15.x shipped with their framework symlinks flattened: Gatekeeper
+# rejected each one as "damaged" while every check upstream of the zip passed.
+#
+# Runs on a pull request that can move the pin, and is called by the publish
+# workflow before a production release.
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "package.json"
+      - "config/runtime-targets.json"
+      - "scripts/verify-electron-release-checksums.mjs"
+      - "scripts/verify-studio-mac-gatekeeper/**"
+      - ".github/workflows/verify-studio-mac-gatekeeper.yml"
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  # package.json changes with every dependency bump. Only a muggleConfig change
+  # moves the archives users install, so the macOS runner waits on one.
+  detect-pin-change:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      isVerificationNeeded: ${{ steps.compare.outputs.isVerificationNeeded }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compare the studio pin with the base branch
+        id: compare
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          changedGateFiles=$(git diff --name-only "$BASE_SHA" HEAD -- \
+            config/runtime-targets.json \
+            scripts/verify-electron-release-checksums.mjs \
+            scripts/verify-studio-mac-gatekeeper \
+            .github/workflows/verify-studio-mac-gatekeeper.yml)
+          baseMuggleConfig=$(git show "$BASE_SHA:package.json" | jq -cS .muggleConfig)
+          headMuggleConfig=$(jq -cS .muggleConfig package.json)
+          if [ -n "$changedGateFiles" ] || [ "$baseMuggleConfig" != "$headMuggleConfig" ]; then
+            echo "isVerificationNeeded=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "muggleConfig and the gate are unchanged; nothing new to verify."
+            echo "isVerificationNeeded=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  verify:
+    needs:
+      - detect-pin-change
+    if: >-
+      !cancelled()
+      && (github.event_name != 'pull_request'
+          || needs.detect-pin-change.outputs.isVerificationNeeded == 'true')
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      - name: Verify every pinned macOS studio archive passes Gatekeeper
+        run: node scripts/verify-studio-mac-gatekeeper/verify-studio-mac-gatekeeper.mjs

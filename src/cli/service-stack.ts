@@ -4,9 +4,10 @@
  * Lets agents in different checkouts share the one set of local services E2E
  * runs against. Prepare claims the ports it needs before starting anything,
  * checks the claim before a run, and releases it when the session is done
- * testing. A claim never waits on a peer unless asked to: it answers granted,
- * with what to keep, start or restart on each port, or busy, with who holds
- * the port and this checkout's place in line.
+ * testing; a lease no run uses ends on its own, and its services stop. A claim
+ * never waits on a peer unless asked to: it answers granted, with what to
+ * keep, start or restart on each port, or busy, with who holds the port and
+ * this checkout's place in line.
  */
 
 import {
@@ -21,7 +22,9 @@ import {
   type IStackCheckReport,
   type IStackClaimReport,
   type IStackNeedRequest,
+  type IStackReleaseReport,
   type IStackStatusReport,
+  type IStoppedService,
 } from "@muggleai/mcp";
 import type { StackCheckFlags, StackClaimFlags, StackReleaseFlags, StackStatusFlags } from "./service-stack-types.js";
 
@@ -49,6 +52,7 @@ export function renderStackClaimSummary(report: IStackClaimReport): string {
       lines.push(`${port.action} ${port.port}: ${port.runDir} @ ${shortSha(port.headSha)}${current}`);
     }
     for (const peer of report.sharedWith) lines.push(`shared with: ${peer}`);
+    lines.push(...report.stoppedServices.map(describeStoppedService));
     return lines.join("\n");
   }
   const lines = [`${report.verdict}: place ${report.position} of ${report.queueLength} in line`];
@@ -58,8 +62,14 @@ export function renderStackClaimSummary(report: IStackClaimReport): string {
     const heldFor = blocker.isQueuedAhead ? "" : ` (for ${seconds(blocker.heldForMs ?? 0)})`;
     lines.push(`port ${blocker.port}: ${who} ${how} ${blocker.needsRunDir} @ ${shortSha(blocker.needsHeadSha)}${heldFor}`);
   }
+  lines.push(...report.stoppedServices.map(describeStoppedService));
   lines.push(`retry in ~${seconds(report.retryAfterMs ?? 0)}; your place is kept while you keep asking`);
   return lines.join("\n");
+}
+
+/** Human-readable summary of a release. */
+export function renderStackReleaseSummary(report: IStackReleaseReport): string {
+  return [report.isReleased ? "released" : "nothing to release", ...report.stoppedServices.map(describeStoppedService)].join("\n");
 }
 
 /** Human-readable summary of a check. */
@@ -107,7 +117,8 @@ export async function stackClaimCommand(flags: StackClaimFlags): Promise<void> {
 }
 
 /**
- * Check that the stack still serves what this checkout claimed, renewing the lease.
+ * Check that the stack still serves what this checkout claimed. Does not
+ * extend the lease: only runs keep it alive.
  *
  * Exits 1 on `STALE` or `PEER_LEASE`.
  *
@@ -117,21 +128,19 @@ export async function stackCheckCommand(flags: StackCheckFlags): Promise<void> {
   const report = await checkServiceStack({
     cwd: flags.cwd ?? process.cwd(),
     port: flags.port === undefined ? undefined : Number(flags.port),
-    shouldRenew: true,
   });
   writeReport({ json: flags.json, report: report, summary: renderStackCheckSummary(report) });
   if (report.verdict === StackCheckVerdict.Stale || report.verdict === StackCheckVerdict.PeerLease) process.exitCode = 1;
 }
 
 /**
- * Give up this checkout's lease and its place in line.
+ * Give up this checkout's lease and its place in line, stopping the services no remaining lease needs.
  *
  * @param flags - `--cwd`, `--json`.
  */
 export async function stackReleaseCommand(flags: StackReleaseFlags): Promise<void> {
-  const isReleased = await releaseServiceStack({ cwd: flags.cwd ?? process.cwd() });
-  const summary = isReleased ? "released" : "nothing to release";
-  writeReport({ json: flags.json, report: { released: isReleased }, summary: summary });
+  const report = await releaseServiceStack({ cwd: flags.cwd ?? process.cwd() });
+  writeReport({ json: flags.json, report: report, summary: renderStackReleaseSummary(report) });
 }
 
 /**
@@ -147,6 +156,11 @@ export async function stackStatusCommand(flags: StackStatusFlags): Promise<void>
 function writeReport(params: { json?: boolean; report: unknown; summary: string }): void {
   const output = params.json ? JSON.stringify(params.report, null, 2) : params.summary;
   process.stdout.write(`${output}\n`);
+}
+
+function describeStoppedService(service: IStoppedService): string {
+  const what = service.name ?? (service.commandLine || "untracked listener");
+  return `stopped ${service.port}: ${what} (PID ${service.pid}) — no lease needs it any more`;
 }
 
 function shortSha(sha: string | null): string {

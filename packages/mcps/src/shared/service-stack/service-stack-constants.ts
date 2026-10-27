@@ -7,19 +7,41 @@ export const STACK_LEDGER_DIR_NAME = "service-stack";
 export const PREPARE_TRACKING_DIR_SEGMENTS = ["prepare", "running"] as const;
 
 /**
- * A lease nobody has renewed for this long is over: its holder finished
- * without releasing, or went away. Claims, checks and every local run renew
- * it, so an agent mid-batch never comes close.
+ * A granted lease that has not run a test yet ends this long after the grant:
+ * the time prepare has to start its services and begin the first run.
  */
-export const LEASE_TTL_MS = 20 * 60_000;
+export const STARTUP_WINDOW_MS = 15 * 60_000;
+
+/**
+ * A lease with no run in flight ends this long after its last run ended: its
+ * session has stopped testing. Long enough for the turn between consecutive
+ * runs of one batch, short enough that a session gone to rebase or edit code
+ * gives the stack up.
+ */
+export const IDLE_RELEASE_MS = 2 * 60_000;
+
+/** A run in flight for longer than this is taken as lost, and no longer keeps its lease. */
+export const MAX_RUN_MS = 2 * 60 * 60_000;
 
 /**
  * A lease whose holder processes have all exited ends once it has also gone
- * this long without renewal, instead of waiting out {@link LEASE_TTL_MS}. The
- * short wait rides out an MCP server restart, whose replacement renews the
- * lease with its own pid on the next run.
+ * this long untouched. The short wait rides out an MCP server restart, whose
+ * replacement records its own pid on the next run.
  */
 export const DEAD_HOLDER_GRACE_MS = 60_000;
+
+/** How long after a run ends its MCP server ends the lease, if no other run started meanwhile. */
+export const IDLE_REAP_DELAY_MS = IDLE_RELEASE_MS + 5_000;
+
+/** Longest the platform tool stopping a service may take. */
+export const SERVICE_STOP_COMMAND_TIMEOUT_MS = 15_000;
+
+/**
+ * Set to `off` by the test config. Ending a lease stops whatever listens on its
+ * ports, and the suites claim real port numbers — so the suite disables stops
+ * wholesale rather than trusting every test to inject a fake.
+ */
+export const SERVICE_STOPS_ENV = "MUGGLE_STACK_SERVICE_STOPS";
 
 /**
  * How long a waiting checkout keeps its turn after a port it waits on frees,

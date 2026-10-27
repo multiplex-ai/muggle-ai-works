@@ -6,9 +6,21 @@ export { BUSY_EXIT_CODE } from "./service-stack-constants.js";
 export {
   checkServiceStack,
   claimServiceStack,
+  finishStackRun,
   portOfUrl,
   readServiceStackStatus,
+  reapServiceStack,
   releaseServiceStack,
+  startStackRun,
 } from "./service-stack.js";
-export { decideStackClaim, decideStackRelease, decideStackRenewal, needsConflict } from "./service-stack-decisions.js";
+export {
+  decideStackClaim,
+  decideStackReap,
+  decideStackRelease,
+  decideStackRunEnd,
+  decideStackRunStart,
+  findVacatedNeeds,
+  needsConflict,
+} from "./service-stack-decisions.js";
+export { stopVacatedServices } from "./service-stopper.js";
 export { describeStackMismatch } from "./stack-mismatch-description.js";

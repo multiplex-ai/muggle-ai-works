@@ -66,7 +66,11 @@ import {
   getRunResultStorageService,
   recordTelemetryEvent,
 } from "../../local/services/index.js";
-import { findRunStackRefusal, findStackChangedDuringRun } from "../../local/services/run-stack-gate.js";
+import {
+  findRunStackRefusal,
+  findStackChangedDuringRun,
+  runUnderStackLease,
+} from "../../local/services/run-stack-gate.js";
 import { resolveElectronBrowserVisibilityFromPreferences } from "../../local/services/electron-browser-visibility.js";
 import { formatElectronBrowserVisibilityLine } from "./electron-browser-visibility-line.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
@@ -407,16 +411,21 @@ const executeTestGenerationTool: ILocalMcpTool = {
     }
 
     try {
-      const generationRun = await executeTestGeneration({
-        testCase: input.testCase,
-        localUrl: input.localUrl,
+      const generationRun = await runUnderStackLease({
         cwd: input.cwd,
-        mutations: input.mutations,
-        timeoutMs: input.timeoutMs,
-        showUi: browserVisibility.isBrowserShown,
-        freshSession: input.freshSession,
-        displayResolution: input.displayResolution,
-        runSettingsId: input.runSettingsId,
+        localUrl: input.localUrl,
+        execute: () =>
+          executeTestGeneration({
+            testCase: input.testCase,
+            localUrl: input.localUrl,
+            cwd: input.cwd,
+            mutations: input.mutations,
+            timeoutMs: input.timeoutMs,
+            showUi: browserVisibility.isBrowserShown,
+            freshSession: input.freshSession,
+            displayResolution: input.displayResolution,
+            runSettingsId: input.runSettingsId,
+          }),
       });
 
       const content = [
@@ -478,17 +487,22 @@ const executeReplayTool: ILocalMcpTool = {
     }
 
     try {
-      const replayRun = await executeReplay({
-        testScript: input.testScript,
-        actionScript: input.actionScript,
-        localUrl: input.localUrl,
+      const replayRun = await runUnderStackLease({
         cwd: input.cwd,
-        mutations: input.mutations,
-        timeoutMs: input.timeoutMs,
-        showUi: browserVisibility.isBrowserShown,
-        freshSession: input.freshSession,
-        pinnedAccount: input.pinnedAccount,
-        displayResolution: input.displayResolution,
+        localUrl: input.localUrl,
+        execute: () =>
+          executeReplay({
+            testScript: input.testScript,
+            actionScript: input.actionScript,
+            localUrl: input.localUrl,
+            cwd: input.cwd,
+            mutations: input.mutations,
+            timeoutMs: input.timeoutMs,
+            showUi: browserVisibility.isBrowserShown,
+            freshSession: input.freshSession,
+            pinnedAccount: input.pinnedAccount,
+            displayResolution: input.displayResolution,
+          }),
       });
 
       const content = [

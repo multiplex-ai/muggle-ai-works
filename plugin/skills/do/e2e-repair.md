@@ -25,7 +25,7 @@ Read the Stage 6 run-level verdict, defined in [`../_shared/failure-mode-handlin
 
 - `PASS` or `SKIPPED` → nothing to repair. Append `e2e-repair: clear (<verdict>)` to the iteration log and hand to Stage 8.
 - A verdict the user waived earlier in this session → clear on the recorded waiver; never re-ask.
-- An entry whose run never reached the app — connection refused, page never loaded — is the readiness halt of [`e2e-acceptance.md`](e2e-acceptance.md) Step 0.5 arriving late. Nothing ran, so there is nothing to repair and nothing to waive, attended or not: re-check readiness there, and if the app is still down, stop as Step 4's **Stop here** and report the halt.
+- An entry whose run failed because the app did not answer — connection refused, page never loaded — is the readiness halt of [`e2e-acceptance.md`](e2e-acceptance.md) Step 0.5 arriving late. Nothing ran, so there is nothing to repair and nothing to waive, attended or not: re-check readiness there, and if the app is still down, stop as Step 4's **Stop here** and report the halt. A run the runner lost while the app answers — an Electron, MCP or Studio crash, even before the first step — is not this: it is an `infra` failure and takes the loop below.
 - `FAIL`, `PARTIAL`, `INCONCLUSIVE`, or `BLOCKED` → the loop runs over every entry in the Failed and Inconclusive blocks.
 
 ## Step 1: Root-cause each failure

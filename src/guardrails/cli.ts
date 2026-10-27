@@ -120,7 +120,7 @@ import {
 } from "./commentReply.js";
 import { commitThread, readLedger } from "./ledger/store.js";
 import { claimThread, coverComments, refreshHumanComments, uncoveredComments } from "./ledger/obligations.js";
-import { detectBuildIntent } from "./detectBuildIntent.js";
+import { detectBuildIntent, isMuggleDoForwardInvocation } from "./detectBuildIntent.js";
 import { callFailed } from "./callOutcome.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
@@ -869,11 +869,15 @@ function resolveGate(): string {
 }
 
 function buildRouter(): string {
-  if (!detectBuildIntent(input.prompt ?? "")) return "{}";
+  const prompt = input.prompt ?? "";
+  const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
+  if (!isMuggleDoInvoked && !detectBuildIntent(prompt)) return "{}";
   const state = readState(sessionId);
   if (state.buildIntentRouted) return "{}";
   state.buildIntentRouted = true;
   writeState(state);
+  // The user already chose the pipeline the advisory would offer; only the follow-through is armed.
+  if (isMuggleDoInvoked) return "{}";
   const ctx =
     `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, ` +
     `route it through ${muggleSkill("/muggle-do")} — which runs requirements → build (delegated to superpowers' ` +

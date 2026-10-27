@@ -10,6 +10,41 @@ describe("testsGreen", () => {
     expect(isTestCommand("git status")).toBe(false);
   });
 
+  it.each([
+    "npm run test",
+    "yarn test",
+    "pnpm test:unit",
+    "pnpm vitest run src/test/guardrails",
+    "pnpm exec vitest run src/test/guardrails/testsGreen.test.ts",
+    "npx --yes vitest run",
+    "./node_modules/.bin/vitest run",
+    "cargo test",
+    "pytest -q",
+    "python -m pytest tests/",
+    "CI=true pnpm test",
+    "cd /c/Users/x/muggle-ai-works && pnpm test 2>&1 | tail -20",
+    "(cd internal/agent-gate-eval && pnpm test)",
+    'Set-Location C:\\wt; $env:PATH = "C:\\Program Files\\Git\\bin;" + $env:PATH\npnpm exec vitest run src/test/scripts 2>&1 | Select-Object -Last 4',
+    'node "C:/plugin/scripts/guard-run.mjs" -- pnpm vitest run',
+    'bash -c "pnpm test"',
+  ])("counts a command that runs a test suite: %s", (command) => {
+    expect(isTestCommand(command)).toBe(true);
+  });
+
+  // Observed 2026-10-20: a read-only subagent's `cat vitest.config.*` matched the
+  // runner name, printed no failure, and flipped unitTestsGreen for the session.
+  it.each([
+    "cd /c/works && head -40 src/report.ts; echo ---; cat vitest.config.* 2>/dev/null | head -40",
+    "grep -rn vitest package.json",
+    "rg -n 'jest|vitest' src",
+    'git commit -m "fix: pnpm test passes again"',
+    "ls node_modules/.bin/vitest",
+    "pnpm add -D vitest",
+    "Get-Content vitest.config.ts",
+  ])("ignores a command that only mentions a test runner: %s", (command) => {
+    expect(isTestCommand(command)).toBe(false);
+  });
+
   it("treats a failed run as not green and a passing run as green", () => {
     expect(testsPassed({ tool_response: { stdout: "Tests: 3 failed, 1 passed" } })).toBe(false);
     expect(testsPassed({ tool_response: { stdout: "FAIL src/foo.test.ts" } })).toBe(false);
@@ -29,6 +64,22 @@ describe("testsGreen", () => {
     expect(
       isE2ERun({ tool_name: "mcp__plugin_muggle_muggle__muggle-remote-workflow-start-test-script-replay" }),
     ).toBe(true);
+    expect(
+      isE2ERun({ tool_name: "mcp__plugin_muggle_muggle__muggle-remote-workflow-start-test-script-replay-bulk" }),
+    ).toBe(true);
+    expect(isE2ERun({ tool_name: "mcp__muggle__muggle_local_execute_test_generation" })).toBe(true);
+  });
+
+  it.each([
+    "muggle-remote-wf-get-ts-replay-latest-run",
+    "muggle-remote-wf-get-ts-replay-bulk-latest-run",
+    "muggle-remote-wf-get-replay-bulk-batch-summary",
+    "muggle-remote-wf-list-ts-replay-bulk-runtimes",
+    "muggle-local-run-result-get",
+    "muggle-local-cancel-execution",
+  ])("never counts a read-only lookup as an E2E run: %s", (serverToolName) => {
+    expect(isE2ERun({ tool_name: `mcp__plugin_muggle_muggle__${serverToolName}` })).toBe(false);
+    expect(isE2ERun({ tool_name: `mcp__muggle__${serverToolName.replaceAll("-", "_")}` })).toBe(false);
   });
 
   it("counts the muggle-test skill's own telemetry emit as an E2E run (clean SKIP included)", () => {

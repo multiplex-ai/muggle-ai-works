@@ -66,6 +66,13 @@ vi.mock("../mcp/local/services/index.js", () => ({
   }),
 }));
 
+// The stack gate reads this machine's real service-stack ledger, where a live lease on the
+// target port would refuse the run.
+vi.mock("../mcp/local/services/run-stack-gate.js", () => ({
+  findRunStackRefusal: async () => null,
+  findStackChangedDuringRun: async () => null,
+}));
+
 import {
   findRunCheckoutRefusal,
   isLoopbackUrl,

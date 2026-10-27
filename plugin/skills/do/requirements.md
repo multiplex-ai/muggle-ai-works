@@ -27,17 +27,20 @@ You receive:
 
 ## Output
 
-Report your findings as a structured summary:
+Write the findings to `~/.muggle-ai/muggle-do/sessions/<slug>/requirements.md`. Stage 3 builds from that file, Stage 4 scopes E2E against its criteria, and the Definition of Done checks that it exists — requirements stated only in the conversation are lost to a resumed session or a background acceptance-tester.
 
+```markdown
 **Goal:** (one sentence)
 
 **Acceptance Criteria:**
 - (criterion 1)
 - (criterion 2)
-- ...
 
 **Affected Repos:** (comma-separated list)
 
-**Notes:** (any ambiguities, assumptions, or questions — optional)
+**Notes:** (ambiguities and assumptions — optional)
+```
+
+Then append this stage's marker to `iterations/<NNN>.md`, citing the file written and its criteria count.
 
 Do NOT ask the user questions. Make reasonable inferences and flag assumptions in Notes.

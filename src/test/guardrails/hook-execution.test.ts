@@ -603,6 +603,20 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("build-router", ev).out).toBe("{}"); // deduped within the session
   });
 
+  it("build-router: arms the follow-through on a /mdo invocation without advising, so a PR-less turn end blocks", () => {
+    const session = "mdo";
+    expect(runHook("build-router", event({ session_id: session, prompt: "/mdo paginate the export page" })).out).toBe("{}");
+    expect(JSON.parse(readFileSync(guardrailStateFile(home, session), "utf-8")).buildIntentRouted).toBe(true);
+    expect(JSON.parse(runHook("build-followthrough-gate", event({ session_id: session })).out).decision).toBe("block");
+  });
+
+  it("build-router: leaves a watcher-dispatched muggle-do directive unarmed", () => {
+    const session = "directive";
+    const prompt = "/muggle-do rebase on https://github.com/o/r/pull/7 slug=fix-parser";
+    expect(runHook("build-router", event({ session_id: session, prompt: prompt })).out).toBe("{}");
+    expect(runHook("build-followthrough-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
   it("build-router: ignores a non-build prompt", () => {
     const { out } = runHook(
       "build-router",

@@ -28,8 +28,9 @@ export function applyBuildSkip(state: GuardrailState, skipped: boolean): Guardra
  * Decide what the Stop hook does about an unanswered build request.
  *
  * `buildIntentRouted` is set by the front-door router the moment it offers
- * `/muggle-do` on a build/implement/fix prompt, so it marks a session the user
- * asked to change something in. `prsHandled` is the only durable evidence the
+ * `/muggle-do` on a build/implement/fix prompt, or sees the user invoke
+ * muggle-do's forward pipeline directly, so it marks a session the user asked
+ * to change something in. `prsHandled` is the only durable evidence the
  * change was actually delivered — a diagnosis narrated into the transcript
  * leaves nothing behind once the session ends.
  *

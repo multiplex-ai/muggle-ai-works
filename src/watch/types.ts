@@ -114,6 +114,24 @@ export interface WatchSlotRecord {
   /** Whether the slot opted into out-of-session recovery via `watch-registration.json`. */
   isRegistered: boolean;
   openPrs: SlotPr[];
+  /** The slot's `last_seen.json` text, empty when it is missing. */
+  lastSeenJson: string;
+  /** The slot's `followup.log` lines, oldest first. */
+  followupLogLines: string[];
+}
+
+/** Work a PR's watcher gave up on and handed to its owner session. */
+export enum OwnerEscalationKind {
+  Ci = "ci",
+  Conflict = "conflict",
+  Reviews = "reviews",
+}
+
+/** What a PR's watcher escalated to its owner session on the PR's live head. */
+export interface OwnerEscalation {
+  kinds: OwnerEscalationKind[];
+  /** The watcher's latest escalation line for the PR in `followup.log`, without its timestamp. */
+  note?: string;
 }
 
 /** The contents of a slot's `watch-registration.json`. */
@@ -184,6 +202,8 @@ export interface WatchSlotAssessment {
   /** Undefined when the owner is unknown or the session listing could not be read. */
   isOwnerSessionActive?: boolean;
   live?: PrLiveStatus;
+  /** Undefined when the watcher escalated nothing on the live head. */
+  ownerEscalation?: OwnerEscalation;
 }
 
 /** How loudly a finding is surfaced: alerts notify, warnings and notices only land in the ledger. */
@@ -198,6 +218,7 @@ export enum WatchFindingCode {
   WatcherDead = "WATCHER_DEAD",
   WatcherDeaf = "WATCHER_DEAF",
   CiFailing = "CI_FAILING",
+  AwaitingOwner = "AWAITING_OWNER",
   BaseConflict = "BASE_CONFLICT",
   BehindBase = "BEHIND_BASE",
   ReviewThreadsUnresolved = "REVIEW_THREADS_UNRESOLVED",

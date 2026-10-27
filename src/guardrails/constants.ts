@@ -90,6 +90,12 @@ export const WATCH_HOLD_TRANSCRIPT_TAIL_BYTES = 4_000_000;
 /** Stop-hook reminders about an unanswered build request before the gate releases the session. */
 export const MAX_BUILD_BLOCKS = 3;
 
+/** The plugin namespace a skill command may carry, as in `/muggle:muggle-do`. */
+export const MUGGLE_PLUGIN_NAMESPACE = "muggle";
+
+/** The command names that invoke muggle-do: the skill and its alias. */
+export const MUGGLE_DO_COMMAND_NAMES: readonly string[] = ["muggle-do", "mdo"];
+
 /** How many times the walkthrough Stop gate blocks a turn end before releasing, so a result that genuinely can't be posted can't trap the session. */
 export const MAX_WALKTHROUGH_BLOCKS = 3;
 

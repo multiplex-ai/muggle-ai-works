@@ -2,8 +2,9 @@
 set -uo pipefail
 
 # build-followthrough gate (Stop). When the front-door router took a
-# build/implement/fix prompt this session but no PR was ever opened, block the
-# turn end and point at /muggle-do (or the MUGGLE_BUILD_SKIP escape hatch). The
+# build/implement/fix prompt or a direct /muggle-do invocation this session but
+# no PR was ever opened, block the turn end and point at /muggle-do (or the
+# MUGGLE_BUILD_SKIP escape hatch). The
 # router's offer is advisory and a session that finds the root cause can still
 # end without shipping it — the fix then lives only in a transcript that dies
 # with the session, and no other gate catches it: the watcher gate only fires on

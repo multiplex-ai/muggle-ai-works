@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applyPrOpenedToWalkthroughs,
+  carriesCurrentWalkthrough,
   isWalkthroughGateArmed,
   isWalkthroughScanCurrent,
   scanForOwedWalkthroughs,
@@ -10,6 +11,7 @@ import {
 } from "../../guardrails/walkthroughOwed";
 import { WalkthroughGateAction, type GuardrailState } from "../../guardrails/types";
 import { E2eSkipCode } from "../../e2e-skip/types";
+import { renderSkippedComment, withRerunNotice } from "../../pr-walkthrough/comment";
 
 const PR_OPENED = "https://github.com/o/r/pull/1";
 const PR_BRANCH = "https://github.com/o/r/pull/2";
@@ -56,6 +58,27 @@ describe("an accepted E2E skip owes the PR its record", () => {
   it("blocks while a PR still shows the placeholder", () => {
     const decision = walkthroughGateDecision(skippedSessionWith({ prsHandled: [PR_OPENED] }), [PR_OPENED]);
     expect(decision.action).toBe(WalkthroughGateAction.Block);
+  });
+});
+
+// The rendered text is `gh pr view --json body,comments`, which keeps HTML comments unescaped.
+describe("carriesCurrentWalkthrough", () => {
+  const WALKTHROUGH = "<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results";
+  const rendered = (body: string): string => JSON.stringify({ body: "", comments: [{ body: body }] });
+
+  it("counts a posted walkthrough", () => {
+    expect(carriesCurrentWalkthrough(rendered(WALKTHROUGH), false)).toBe(true);
+  });
+
+  // The session that started the rerun owes its walkthrough; the bannered one is the run being replaced.
+  it("does not count a walkthrough under a rerun banner", () => {
+    expect(carriesCurrentWalkthrough(rendered(withRerunNotice(WALKTHROUGH, new Date())), false)).toBe(false);
+  });
+
+  it("does not count a bannered skip record either, even where a skip is accepted", () => {
+    const skipped = renderSkippedComment(E2eSkipCode.NoWebSurface, "");
+    expect(carriesCurrentWalkthrough(rendered(skipped), true)).toBe(true);
+    expect(carriesCurrentWalkthrough(rendered(withRerunNotice(skipped, new Date())), true)).toBe(false);
   });
 });
 

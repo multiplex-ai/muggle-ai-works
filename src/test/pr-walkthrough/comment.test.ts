@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyComment,
+  isRerunInProgress,
   lastFullRunOf,
   renderDependencyBotComment,
   renderNoAppLogicChangeComment,
@@ -144,6 +145,20 @@ describe("withRerunNotice", () => {
   it("strips back to the walkthrough it sat on, whatever its line endings", () => {
     const crlfReport = builderReport.replace(/\n/g, "\r\n");
     expect(withoutRerunNotice(withRerunNotice(crlfReport, STARTED_AT))).toBe(crlfReport);
+  });
+});
+
+describe("isRerunInProgress", () => {
+  it("is true while the designated comment carries a rerun banner", () => {
+    expect(isRerunInProgress(["looks good", withRerunNotice(builderReport, new Date())])).toBe(true);
+  });
+
+  it("is false once the new run's walkthrough has replaced the banner", () => {
+    expect(isRerunInProgress([builderReport])).toBe(false);
+  });
+
+  it("ignores the banner's marker in a comment that is not the designated one", () => {
+    expect(isRerunInProgress(["quoting: <!-- muggle-pr-walkthrough-rerun -->"])).toBe(false);
   });
 });
 

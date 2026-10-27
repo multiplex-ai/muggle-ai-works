@@ -7,11 +7,12 @@ import {
   renderNoAppLogicChangeComment,
   renderReservedComment,
   renderSkippedComment,
+  withRerunNotice,
 } from "../../../pr-walkthrough/comment";
 import { renderE2eResultMarker } from "../../../e2e-result/marker";
 import { UnpassedCaseStatus, type IE2eResultRecord, type IUnpassedCase } from "../../../e2e-result/types";
 import { E2eSkipCode } from "../../../e2e-skip/types";
-import { CheckConclusion, WalkthroughCheckOutcome } from "../../../cli/pr-walkthrough/types";
+import { CheckConclusion, CheckRunStatus, WalkthroughCheckOutcome } from "../../../cli/pr-walkthrough/types";
 
 const REPORTED = "<!-- muggle-pr-section:v1 -->\n### Muggle E2E\n3 passed";
 
@@ -219,6 +220,46 @@ describe("runPrWalkthroughCheck after a cycle that changed no app logic", () => 
     const result = await runPrWalkthroughCheck({ ...options, headSha: NEW_HEAD }, gh.run);
     expect(result.outcome).toBe(WalkthroughCheckOutcome.E2eNotPassing);
     expect(result.summary).toContain("Checkout");
+  });
+});
+
+describe("runPrWalkthroughCheck while a new E2E run is in progress", () => {
+  const STARTED_AT = new Date("2026-10-27T05:12:00Z");
+  const bannered = (body: string): string => withRerunNotice(body, STARTED_AT);
+
+  it("stays in progress rather than passing on the run being replaced", async () => {
+    const gh = ghWithComments([bannered(walkthrough({ total: 3, passed: 3, unpassed: [] }))]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.RerunInProgress);
+    expect(result.status).toBe(CheckRunStatus.InProgress);
+    expect(result.conclusion).toBeNull();
+    expect(result.exitCode).toBe(1);
+    expect(result.summary).toContain("in progress");
+  });
+
+  // A red check here would send the PR's watcher to fix CI while the rerun is still going.
+  it("stays in progress rather than failing on the run being replaced", async () => {
+    const gh = ghWithComments([bannered(walkthrough({ total: 2, passed: 1, unpassed: [failedCase] }))]);
+    const result = await runPrWalkthroughCheck(options, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.RerunInProgress);
+  });
+
+  it("publishes an in-progress check run with no conclusion, still exiting 0", async () => {
+    const gh = ghWithComments([bannered(REPORTED)]);
+    const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);
+    expect(result.exitCode).toBe(0);
+    const published = JSON.parse(checkRunCall(gh.calls)?.input ?? "{}");
+    expect(published.status).toBe(CheckRunStatus.InProgress);
+    expect(published).not.toHaveProperty("conclusion");
+  });
+
+  it("settles again once the new run's walkthrough replaces the bannered comment", async () => {
+    const gh = ghWithComments([walkthrough({ total: 3, passed: 3, unpassed: [] })]);
+    const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);
+    expect(result.status).toBe(CheckRunStatus.Completed);
+    const published = JSON.parse(checkRunCall(gh.calls)?.input ?? "{}");
+    expect(published.status).toBe(CheckRunStatus.Completed);
+    expect(published.conclusion).toBe(CheckConclusion.Success);
   });
 });
 

@@ -1,5 +1,6 @@
 import { execFileSync } from "child_process";
 import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
+import { hasRerunNotice } from "../pr-walkthrough/comment.js";
 import { WALKTHROUGH_SKIPPED_MARKER } from "../pr-walkthrough/constants.js";
 import { GH_LOOKUP_TIMEOUT_MS, MAX_WALKTHROUGH_BLOCKS } from "./constants.js";
 import { REPORT_SENTINEL } from "./prReportPost.js";
@@ -53,9 +54,21 @@ export const defaultPrWalkthroughLookup: PrWalkthroughLookup = {
   prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;
-    return rendered.includes(REPORT_SENTINEL) || (acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER));
+    return carriesCurrentWalkthrough(rendered, acceptsSkip);
   },
 };
+
+/**
+ * Whether a PR's rendered description and comments carry its current walkthrough, or — where `acceptsSkip` — the
+ * settled record of a declared skip.
+ *
+ * A rerun banner means the walkthrough shown is the run being replaced: the session that started the new run owes
+ * its walkthrough, and until it lands the PR's walkthrough check stays in progress.
+ */
+export function carriesCurrentWalkthrough(rendered: string, acceptsSkip: boolean): boolean {
+  if (hasRerunNotice(rendered)) return false;
+  return rendered.includes(REPORT_SENTINEL) || (acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER));
+}
 
 /**
  * The PRs in play that have no walkthrough yet.

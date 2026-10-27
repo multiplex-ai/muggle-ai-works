@@ -24,6 +24,6 @@ export async function prWalkthroughCheckCommand(flags: PrWalkthroughCheckFlags):
   }
 
   const judgment = await runPrWalkthroughCheck(target);
-  process.stdout.write(`${judgment.conclusion}: ${judgment.summary}\n`);
+  process.stdout.write(`${judgment.conclusion ?? judgment.status}: ${judgment.summary}\n`);
   process.exitCode = judgment.exitCode;
 }

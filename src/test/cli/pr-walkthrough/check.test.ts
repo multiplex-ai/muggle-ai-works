@@ -194,7 +194,7 @@ describe("runPrWalkthroughCheck", () => {
 });
 
 describe("runPrWalkthroughCheck after a cycle that changed no app logic", () => {
-  const declared = { preCycleSha: "1a2b3c4", reason: "README typo" };
+  const declared = { preCycleSha: "1a2b3c4", baseTipSha: null, reason: "README typo" };
   const NEW_HEAD = "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5";
   const skippedOver = (lastWalkthrough: string | null): string =>
     renderNoAppLogicChangeComment(declared, NEW_HEAD, lastWalkthrough ? lastFullRunOf(lastWalkthrough) : null);

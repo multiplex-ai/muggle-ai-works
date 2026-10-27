@@ -37,11 +37,20 @@ Run the rebase from [`../_shared/sync-branch-with-base.md`](../_shared/sync-bran
 
 ### Step 3 — Verify the resolution
 
-Build (typecheck + lint on the changed surface) + unit suite must pass. Size the rebase per [`cycle-size.md`](cycle-size.md) with `pre_cycle_sha = rebase_sha` — the comparison spans everything the base brought in. A full rebase runs E2E per [`e2e-acceptance.md`](e2e-acceptance.md) before the push; a minor one skips it and declares `NO_APP_LOGIC_CHANGE` after Step 4's force-push. A rebase that does not verify is rolled back → escalate per Step 5. **Never push an unverified rebase.**
+Build (typecheck + lint on the changed surface) + unit suite must pass — that is the whole gate before the push. E2E is not part of it: the base's commits were tested on their own PRs, and a verified rebase held back for E2E leaves the PR behind or conflicting while the fix sits in the working tree. A rebase that does not verify is rolled back → escalate per Step 5. **Never push a rebase whose build or unit suite failed.**
 
 ### Step 4 — Force-push + respawn
 
-Force-push per [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) (tool-agnostic instruction; handles the signing gate for rebased commits and directs to provider-specific force-push paths). Use `git push --force-with-lease` for the force operation. Append the new SHA to `last_seen.pushed_shas` and increment `last_seen.catch_up_rebases` (the per-key attempt was counted in Step 1) — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. That counter is unkeyed on purpose: `rebase_key` carries the base tip, so it mints a fresh budget every time the base moves and cannot bound a PR on an active base. Increment it on every push here, including one that later escalates, or a branch that fails the same way twenty times reads as having spent nothing. Finish the tail [`cycle-size.md`](cycle-size.md) picked — a full rebase reposts the walkthrough, a minor one declares the skip — then respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+Force-push per [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md) (tool-agnostic instruction; handles the signing gate for rebased commits and directs to provider-specific force-push paths). Use `git push --force-with-lease` for the force operation. Append the new SHA to `last_seen.pushed_shas` and increment `last_seen.catch_up_rebases` (the per-key attempt was counted in Step 1) — both whole-file rewrites (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. That counter is unkeyed on purpose: `rebase_key` carries the base tip, so it mints a fresh budget every time the base moves and cannot bound a PR on an active base. Increment it on every push here, including one that later escalates, or a branch that fails the same way twenty times reads as having spent nothing. Then respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md), so the new head is watched while the tail below runs. Its next tick re-checks the branch against its base on the new head — the rebase is its own verify loop, bounded by the per-SHA attempt budget.
+
+### Step 4a — Size and finish the tail
+
+Size the rebase per [`cycle-size.md`](cycle-size.md) with `pre_cycle_sha = rebase_sha`, by the PR's own patch rather than what the base brought in: declare `MUGGLE_E2E_SKIP: NO_APP_LOGIC_CHANGE: <rebase_key> <what changed>` from the PR's working tree.
+
+- **Accepted** — minor: the walkthrough settles on the last full run. The cycle is done.
+- **Rejected** — full: the resolution changed the PR's own lines on an app-logic path. Run E2E per [`e2e-acceptance.md`](e2e-acceptance.md) on the pushed head, then repost the walkthrough — fire [`postPRVisualWalkthrough`](../muggle-preferences/preference-gates/postPRVisualWalkthrough.md), then [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A.
+
+When that E2E cannot start — a peer holds the shared stack's lease, a readiness halt — the push stands and the run is owed: append `E2E owed: <head> (<reason>)` to `state.md`, keep the claim in line, and run it the moment the stack is free. A later cycle that runs E2E on this PR clears the line. A run that fails after the push goes to fix-ci like any red walkthrough on a pushed head.
 
 ### Step 5 — Escalate (can't resolve / budget spent)
 
@@ -67,6 +76,6 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 
 - Max 2 rebase attempts per `rebase_key`, and `maxCatchUpRebases` (20 by default) across the PR's whole life; then escalate rather than churn. The per-key cap alone bounds nothing on an active base, since a base advance mints a new key.
 - Never let an exhausted budget pass as silence — Step 5a reports on the PR. A watcher that stops without saying so is indistinguishable from one that has nothing to do.
-- Never push an unverified rebase — verify-or-rollback always.
+- Never push a rebase whose build or unit suite failed — verify-or-rollback always. Never hold a verified one for E2E: the run follows the push.
 - Never push unsigned commits — every push or force-push goes through the signing gate in [`../_shared/vcs/common/push-to-branch.md`](../_shared/vcs/common/push-to-branch.md).
 - Resolve `autoResolveConflicts` from the configured preference (per the gate contract — don't assume a default): `always` resolves conflicts behind the verify-or-rollback gate, `never` escalates to the user. A clean behind-only rebase needs neither.

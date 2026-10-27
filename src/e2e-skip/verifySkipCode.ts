@@ -11,7 +11,7 @@ import {
   WEB_SURFACE_CONFIG_FILES,
 } from "./constants.js";
 import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
-import { isNonAppPath, parseNoAppLogicChangeDetail } from "./noAppLogicChange.js";
+import { isNonAppPath, parseNoAppLogicChangeDetail, pathsWithChangedPatch } from "./noAppLogicChange.js";
 import {
   E2eSkipCode,
   type DeclaredSkip,
@@ -126,6 +126,40 @@ const namePaths = (paths: string[]): string => {
   return unnamed > 0 ? `${named} and ${unnamed} more` : named;
 };
 
+// A rebase moves HEAD onto code its own PRs already tested, so the claim is
+// about the PR's own patch against the base, before the replay and after.
+// `<base>...<rev>` diffs a revision against its merge base with the base tip —
+// the old fork point for the pre-cycle head, the base tip itself for the
+// rebased one — so the comparison needs no merge-base lookups. Zero context
+// keeps a resolution that merged the PR's lines with the base's neighbouring
+// ones from reading as a change to the PR's own edit.
+const verifyRebasedNoAppLogicChange = (
+  context: SkipVerificationContext,
+  preCycleSha: string,
+  baseTipSha: string,
+): SkipVerificationResult => {
+  const cwd = context.cwd as string;
+  const isRebased = context.probe.runGit(["merge-base", "--is-ancestor", `${baseTipSha}^{commit}`, "HEAD"], cwd) !== null;
+  if (!isRebased) {
+    return refuted(`HEAD does not contain ${baseTipSha} — declare the skip once the rebase onto it is on HEAD`);
+  }
+  const patchAgainstBase = (revision: string): string | null =>
+    context.probe.runGit(
+      ["-c", "core.quotePath=false", "diff", "-U0", "--no-renames", "--no-color", `${baseTipSha}...${revision}`],
+      cwd,
+    );
+  const before = patchAgainstBase(preCycleSha);
+  const after = before === null ? null : patchAgainstBase("HEAD");
+  if (before === null || after === null) {
+    return refuted(`${preCycleSha} does not resolve to a commit here, or the PR's patch against ${baseTipSha} could not be read`);
+  }
+  const appLogicPaths = pathsWithChangedPatch(before, after).filter((path) => !isNonAppPath(path));
+  if (appLogicPaths.length > 0) {
+    return refuted(`the rebase onto ${baseTipSha} changed this PR's own patch on app-logic paths: ${namePaths(appLogicPaths)}`);
+  }
+  return verified;
+};
+
 // The claim is about trees, not ancestry: the app code at HEAD is byte-for-byte
 // the app code at the cited commit. Renames are split into a delete and an add
 // so moving a source file into docs/ still names the source path it removed.
@@ -135,8 +169,12 @@ const verifyNoAppLogicChange: SkipVerifier = (context, detail) => {
   if (!context.cwd) return refuted("no working directory was available to inspect");
   const declared = parseNoAppLogicChangeDetail(detail);
   if (!declared) {
-    return refuted("the detail names no pre-cycle commit — cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>");
+    return refuted(
+      "the detail names no pre-cycle commit — cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>, " +
+        "or after a rebase as NO_APP_LOGIC_CHANGE: <rebase_sha>..<base_tip_sha> <what changed>",
+    );
   }
+  if (declared.baseTipSha) return verifyRebasedNoAppLogicChange(context, declared.preCycleSha, declared.baseTipSha);
   const sha = declared.preCycleSha;
   const diff = context.probe.runGit(
     ["diff", "--name-only", "--no-renames", "-z", `${sha}^{commit}`, "HEAD"],

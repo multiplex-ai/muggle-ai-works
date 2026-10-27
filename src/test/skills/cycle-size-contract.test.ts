@@ -29,6 +29,7 @@ const RESOLVE_CONFLICTS = read(DO_DIR, "resolve-conflicts.md");
 const E2E_ACCEPTANCE = read(DO_DIR, "e2e-acceptance.md");
 const IMPACT_ANALYSIS = read(DO_DIR, "impact-analysis.md");
 const MUGGLE_DO = read(SKILLS_DIR, "muggle-do", "SKILL.md");
+const VERIFY_OR_ROLLBACK = read(SKILLS_DIR, "_shared", "verify-or-rollback-gate.md");
 
 /** Body of the `#### <label>` sub-step, up to the next `####` or `###` heading. */
 function subStep(doc: string, label: string): string {
@@ -133,6 +134,64 @@ describe("fix-ci and rebase share the one rule", () => {
   it("fix-ci and rebase size against the head they started from", () => {
     expect(FIX_CI).toMatch(/pre_cycle_sha = red_sha/);
     expect(RESOLVE_CONFLICTS).toMatch(/pre_cycle_sha = rebase_sha/);
+  });
+});
+
+// A rebase held for E2E sat a PR CONFLICTING for hours with its conflict already
+// resolved, waiting on a shared stack another session held. The base's commits
+// were tested on their own PRs, so a rebase is sized by the PR's own patch and
+// pushes as soon as its build and unit suite pass.
+describe("a rebase is sized by its own patch and pushes before any E2E", () => {
+  it("cycle-size.md sizes a rebase by the PR's own patch, not what the base brought in", () => {
+    expect(CYCLE_SIZE).toMatch(/^## Rebase size$/m);
+    expect(CYCLE_SIZE).toMatch(/sized by the PR's own patch, never by what the base brought in/);
+    expect(CYCLE_SIZE).not.toMatch(/app logic the base brought in makes the rebase full/);
+  });
+
+  it("cycle-size.md declares a rebased cycle's skip with its range", () => {
+    expect(CYCLE_SIZE).toMatch(/MUGGLE_E2E_SKIP: NO_APP_LOGIC_CHANGE: <pre_cycle_sha>\.\.<base_tip_sha>/);
+    expect(CYCLE_SIZE).toMatch(/E2E skipped — the rebase onto `<short-sha>` changed no app logic in this PR/);
+  });
+
+  it("a rebase's full tail pushes first, and an unavailable E2E never holds it", () => {
+    expect(CYCLE_SIZE).toMatch(/unit tests → push → E2E → walkthrough repost/);
+    expect(CYCLE_SIZE).toMatch(/run owed, never a reason to hold the push/);
+  });
+
+  it("resolve-conflicts.md gates the push on build and unit alone", () => {
+    const verify = RESOLVE_CONFLICTS.slice(
+      RESOLVE_CONFLICTS.indexOf("### Step 3"),
+      RESOLVE_CONFLICTS.indexOf("### Step 4 "),
+    );
+    expect(verify).toMatch(/whole gate before the push/);
+    expect(verify).toMatch(/E2E is not part of it/);
+    expect(RESOLVE_CONFLICTS).not.toMatch(/runs E2E per \[`e2e-acceptance\.md`\]\(e2e-acceptance\.md\) before the push/);
+    expect(RESOLVE_CONFLICTS).toMatch(/Never hold a verified one for E2E/);
+  });
+
+  it("resolve-conflicts.md pushes and respawns before it sizes, and records an E2E it cannot start", () => {
+    const push = RESOLVE_CONFLICTS.indexOf("### Step 4 — Force-push + respawn");
+    const size = RESOLVE_CONFLICTS.indexOf("### Step 4a — Size and finish the tail");
+    expect(push).toBeGreaterThan(-1);
+    expect(size).toBeGreaterThan(push);
+    const tail = RESOLVE_CONFLICTS.slice(size);
+    expect(tail).toMatch(/NO_APP_LOGIC_CHANGE: <rebase_key>/);
+    expect(tail).toMatch(/E2E owed: <head> \(<reason>\)/);
+  });
+
+  it("the verify-or-rollback gate verifies build and unit, never E2E", () => {
+    expect(VERIFY_OR_ROLLBACK).not.toMatch(/\*\*E2E\*\*/);
+    expect(VERIFY_OR_ROLLBACK).toMatch(/E2E is not a verify step/);
+  });
+
+  it("e2e-acceptance.md states how a rebased cycle's skip is verified", () => {
+    expect(E2E_ACCEPTANCE).toMatch(/`<pre_cycle_sha>\.\.<base_tip_sha>`/);
+    expect(E2E_ACCEPTANCE).toMatch(/git diff -U0 <base_tip_sha>\.\.\.<pre_cycle_sha>/);
+  });
+
+  it("an address-reviews push that synced onto a moved base declares the range form", () => {
+    expect(UPDATE).toMatch(/When Step 0 synced onto a moved base, declare the range form/);
+    expect(UPDATE).not.toMatch(/Step 0's verify gate ran E2E/);
   });
 });
 

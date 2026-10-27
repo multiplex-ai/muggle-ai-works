@@ -322,11 +322,12 @@ var E2E_SKIP_CODE_CLAIMS = {
   ["MUGGLE_AUTH_DOWN" /* MuggleAuthDown */]: "the stored Muggle session is missing or expired",
   ["NO_PR" /* NoPr */]: "no pull request was handled this session",
   ["USER_WAIVED" /* UserWaived */]: "the user waived E2E in their own words",
-  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
+  ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */]: `every path changed since the named commit \u2014 after a rebase, every path whose own patch changed \u2014 is ${NON_APP_PATH_SUMMARY}`,
   ["NOT_APPLICABLE" /* NotApplicable */]: "a browser run cannot exercise this change, for the reason stated"
 };
 var CYCLE_SCOPED_SKIP_CODES = ["NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */];
 var PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
+var REBASED_CYCLE_RANGE_TOKEN = /^([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})(?![0-9a-z_])/i;
 var NON_APP_PATH_PATTERNS = [
   /\.(md|markdown|rst)$/i,
   /(^|\/)[^/]+\.(test|spec)\.[^/]+$/,
@@ -1710,15 +1711,62 @@ function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePlugin
 }
 
 // src/e2e-skip/noAppLogicChange.ts
+var FILE_HEADER = "diff --git ";
+var BINARY_CHANGE = /^Binary files /;
+var POST_IMAGE_BLOB = /^index [0-9a-f]+\.\.([0-9a-f]+)/;
+var BASE_DEPENDENT_HEADER = /^(index |--- |\+\+\+ )/;
+var HUNK_CHANGE = /^[-+\\]/;
 function parseNoAppLogicChangeDetail(detail) {
   const stated = detail.trim();
-  const preCycleSha = stated.match(PRE_CYCLE_SHA_TOKEN)?.[1];
-  if (!preCycleSha) return null;
-  const reason = stated.slice(preCycleSha.length).replace(/^[\s:,;.-]+/, "").trim();
-  return { preCycleSha, reason };
+  const range = stated.match(REBASED_CYCLE_RANGE_TOKEN);
+  const opening = range?.[0] ?? stated.match(PRE_CYCLE_SHA_TOKEN)?.[1];
+  if (!opening) return null;
+  const reason = stated.slice(opening.length).replace(/^[\s:,;.-]+/, "").trim();
+  return { preCycleSha: range?.[1] ?? opening, baseTipSha: range?.[2] ?? null, reason };
 }
 function isNonAppPath(repoRelativePath) {
   return NON_APP_PATH_PATTERNS.some((pattern) => pattern.test(repoRelativePath));
+}
+var pathOfFileHeader = (header) => {
+  const sides = header.slice(FILE_HEADER.length);
+  return sides.slice(2, 2 + (sides.length - 5) / 2);
+};
+var changedLinesByPath = (zeroContextDiff) => {
+  const changedLines = /* @__PURE__ */ new Map();
+  let fileLines = null;
+  let isInHunk = false;
+  let postImageBlob = "";
+  for (const line of zeroContextDiff.split("\n")) {
+    if (line.startsWith(FILE_HEADER)) {
+      fileLines = [];
+      changedLines.set(pathOfFileHeader(line), fileLines);
+      isInHunk = false;
+      postImageBlob = "";
+    } else if (!fileLines) {
+      continue;
+    } else if (line.startsWith("@@")) {
+      isInHunk = true;
+    } else if (isInHunk) {
+      if (HUNK_CHANGE.test(line)) fileLines.push(line);
+    } else if (BINARY_CHANGE.test(line)) {
+      fileLines.push(`binary ${postImageBlob}`);
+    } else if (POST_IMAGE_BLOB.test(line)) {
+      postImageBlob = line.match(POST_IMAGE_BLOB)?.[1] ?? "";
+    } else if (line && !BASE_DEPENDENT_HEADER.test(line)) {
+      fileLines.push(line);
+    }
+  }
+  return changedLines;
+};
+function pathsWithChangedPatch(beforeDiff, afterDiff) {
+  const before = changedLinesByPath(beforeDiff);
+  const after = changedLinesByPath(afterDiff);
+  const paths = /* @__PURE__ */ new Set([...before.keys(), ...after.keys()]);
+  return [...paths].filter((path) => {
+    const beforeLines = before.get(path);
+    const afterLines = after.get(path);
+    return !beforeLines || !afterLines || beforeLines.join("\n") !== afterLines.join("\n");
+  });
 }
 
 // src/pr-walkthrough/comment.ts
@@ -1759,18 +1807,20 @@ function renderNoAppLogicChangeComment(declared, headSha, lastFullRun) {
   const cycleStart = declared.preCycleSha.toLowerCase();
   const head = headSha?.toLowerCase() ?? null;
   const isHeadPastCycleStart = head !== null && !head.startsWith(cycleStart) && !cycleStart.startsWith(head);
-  const headline = isHeadPastCycleStart ? `**E2E skipped \u2014 no app-logic change in \`${shortSha(head)}\`.**` : `**E2E skipped \u2014 no app-logic change since \`${shortSha(cycleStart)}\`.**`;
   const qualifier = declared.reason ? ` \u2014 ${declared.reason}` : "";
   const evidence = lastFullRun ? `${LAST_FULL_RUN_OPENING}
 
 ${lastFullRun}
 
 </details>` : "_No full E2E run is on record for this PR._";
+  const headline = isHeadPastCycleStart ? `**E2E skipped \u2014 no app-logic change in \`${shortSha(head)}\`.**` : `**E2E skipped \u2014 no app-logic change since \`${shortSha(cycleStart)}\`.**`;
+  const baseTip = declared.baseTipSha?.toLowerCase() ?? null;
+  const verdict = baseTip ? `**E2E skipped \u2014 the rebase onto \`${shortSha(baseTip)}\` changed no app logic in this PR.** Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path whose own patch changed in the rebase of \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}, if any did${qualifier}.` : `${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path changed since \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.`;
   return `${WALKTHROUGH_SLOT_MARKER}
 ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
-${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path changed since \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.
+${verdict}
 
 ` + evidence;
 }
@@ -1975,12 +2025,36 @@ var namePaths = (paths) => {
   const unnamed = paths.length - MAX_NAMED_APP_LOGIC_PATHS;
   return unnamed > 0 ? `${named} and ${unnamed} more` : named;
 };
+var verifyRebasedNoAppLogicChange = (context, preCycleSha, baseTipSha) => {
+  const cwd = context.cwd;
+  const isRebased = context.probe.runGit(["merge-base", "--is-ancestor", `${baseTipSha}^{commit}`, "HEAD"], cwd) !== null;
+  if (!isRebased) {
+    return refuted(`HEAD does not contain ${baseTipSha} \u2014 declare the skip once the rebase onto it is on HEAD`);
+  }
+  const patchAgainstBase = (revision) => context.probe.runGit(
+    ["-c", "core.quotePath=false", "diff", "-U0", "--no-renames", "--no-color", `${baseTipSha}...${revision}`],
+    cwd
+  );
+  const before = patchAgainstBase(preCycleSha);
+  const after = before === null ? null : patchAgainstBase("HEAD");
+  if (before === null || after === null) {
+    return refuted(`${preCycleSha} does not resolve to a commit here, or the PR's patch against ${baseTipSha} could not be read`);
+  }
+  const appLogicPaths = pathsWithChangedPatch(before, after).filter((path) => !isNonAppPath(path));
+  if (appLogicPaths.length > 0) {
+    return refuted(`the rebase onto ${baseTipSha} changed this PR's own patch on app-logic paths: ${namePaths(appLogicPaths)}`);
+  }
+  return verified;
+};
 var verifyNoAppLogicChange = (context, detail) => {
   if (!context.cwd) return refuted("no working directory was available to inspect");
   const declared = parseNoAppLogicChangeDetail(detail);
   if (!declared) {
-    return refuted("the detail names no pre-cycle commit \u2014 cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>");
+    return refuted(
+      "the detail names no pre-cycle commit \u2014 cite it as NO_APP_LOGIC_CHANGE: <sha> <what changed>, or after a rebase as NO_APP_LOGIC_CHANGE: <rebase_sha>..<base_tip_sha> <what changed>"
+    );
   }
+  if (declared.baseTipSha) return verifyRebasedNoAppLogicChange(context, declared.preCycleSha, declared.baseTipSha);
   const sha = declared.preCycleSha;
   const diff = context.probe.runGit(
     ["diff", "--name-only", "--no-renames", "-z", `${sha}^{commit}`, "HEAD"],

@@ -109,19 +109,25 @@ export function renderNoAppLogicChangeComment(
   const cycleStart = declared.preCycleSha.toLowerCase();
   const head = headSha?.toLowerCase() ?? null;
   const isHeadPastCycleStart = head !== null && !head.startsWith(cycleStart) && !cycleStart.startsWith(head);
-  const headline = isHeadPastCycleStart
-    ? `**E2E skipped — no app-logic change in \`${shortSha(head)}\`.**`
-    : `**E2E skipped — no app-logic change since \`${shortSha(cycleStart)}\`.**`;
   const qualifier = declared.reason ? ` — ${declared.reason}` : "";
   const evidence = lastFullRun
     ? `${LAST_FULL_RUN_OPENING}\n\n${lastFullRun}\n\n</details>`
     : "_No full E2E run is on record for this PR._";
+  const headline = isHeadPastCycleStart
+    ? `**E2E skipped — no app-logic change in \`${shortSha(head)}\`.**`
+    : `**E2E skipped — no app-logic change since \`${shortSha(cycleStart)}\`.**`;
+  const baseTip = declared.baseTipSha?.toLowerCase() ?? null;
+  const verdict = baseTip
+    ? `**E2E skipped — the rebase onto \`${shortSha(baseTip)}\` changed no app logic in this PR.** ` +
+      `Muggle verified \`${E2eSkipCode.NoAppLogicChange}\` — every path whose own patch changed in the rebase of ` +
+      `\`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}, if any did${qualifier}.`
+    : `${headline} Muggle verified \`${E2eSkipCode.NoAppLogicChange}\` — every path changed since ` +
+      `\`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.`;
   return (
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `${headline} Muggle verified \`${E2eSkipCode.NoAppLogicChange}\` — every path changed since ` +
-    `\`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.\n\n` +
+    `${verdict}\n\n` +
     evidence
   );
 }

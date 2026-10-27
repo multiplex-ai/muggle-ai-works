@@ -24,7 +24,8 @@ export const E2E_SKIP_CODE_CLAIMS: Record<E2eSkipCode, string> = {
   [E2eSkipCode.MuggleAuthDown]: "the stored Muggle session is missing or expired",
   [E2eSkipCode.NoPr]: "no pull request was handled this session",
   [E2eSkipCode.UserWaived]: "the user waived E2E in their own words",
-  [E2eSkipCode.NoAppLogicChange]: `every path changed since the named commit is ${NON_APP_PATH_SUMMARY}`,
+  [E2eSkipCode.NoAppLogicChange]:
+    `every path changed since the named commit — after a rebase, every path whose own patch changed — is ${NON_APP_PATH_SUMMARY}`,
   [E2eSkipCode.NotApplicable]: "a browser run cannot exercise this change, for the reason stated",
 };
 
@@ -38,6 +39,9 @@ export const CYCLE_SCOPED_SKIP_CODES: readonly E2eSkipCode[] = [E2eSkipCode.NoAp
 
 /** The commit a `NO_APP_LOGIC_CHANGE` detail opens with: an abbreviated or full hex SHA, ended by anything but another word character. */
 export const PRE_CYCLE_SHA_TOKEN = /^([0-9a-f]{7,40})(?![0-9a-z_])/i;
+
+/** A rebased cycle's `NO_APP_LOGIC_CHANGE` detail opening: `<pre_cycle_sha>..<base_tip_sha>`, the cycle's `rebase_key`. */
+export const REBASED_CYCLE_RANGE_TOKEN = /^([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})(?![0-9a-z_])/i;
 
 /**
  * Repo-relative paths that cannot change what a user's browser runs.

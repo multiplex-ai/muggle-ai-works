@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdtempSync, readFileSync, utimesSync, writeFileSync } from "fs";
 import { hostname, tmpdir } from "os";
 import { join } from "path";
 import { withFileLock, isProcessAlive } from "../../guardrails/store/fileLock.js";
+import { UNRECORDED_LOCK_HOLDER_GRACE_MS } from "../../guardrails/constants.js";
 
 const lockPath = (): string => join(mkdtempSync(join(tmpdir(), "gr-lock-")), "x.lock");
 
@@ -47,6 +48,23 @@ describe("withFileLock", () => {
   it("does not break a lock held on another machine", () => {
     const path = lockPath();
     holderFile(path, DEAD_PID, "elsewhere");
+    expect(withFileLock(path, 30, () => "ran")).toBeUndefined();
+  });
+
+  // A hook killed between creating the lock and recording itself leaves an
+  // empty file with no pid to probe; left alone it blocks every writer for good.
+  it("breaks a lock that names no holder once it is past the grace", () => {
+    const path = lockPath();
+    writeFileSync(path, "");
+    const pastGrace = new Date(Date.now() - UNRECORDED_LOCK_HOLDER_GRACE_MS - 1_000);
+    utimesSync(path, pastGrace, pastGrace);
+    expect(withFileLock(path, 50, () => "ran")).toBe("ran");
+  });
+
+  // Its holder may be between creating the file and recording itself.
+  it("keeps a fresh lock that names no holder", () => {
+    const path = lockPath();
+    writeFileSync(path, "");
     expect(withFileLock(path, 30, () => "ran")).toBeUndefined();
   });
 

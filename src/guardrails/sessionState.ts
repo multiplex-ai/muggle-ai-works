@@ -40,8 +40,10 @@ export function readState(sessionId: string, dirOverride?: string): GuardrailSta
   }
 }
 
-/** Replace the state file atomically, so a crash mid-write cannot leave a truncated file behind. */
-export function writeState(state: GuardrailState, dirOverride?: string): void {
+// Atomic, so a crash mid-write cannot leave a truncated file behind. Private:
+// every write goes through the session's lock, since of two unlocked
+// read-modify-writes the later erases the earlier.
+function writeState(state: GuardrailState, dirOverride?: string): void {
   writeAtomically(fileFor(state.sessionId, dirOverride), state, dirOverride);
 }
 
@@ -176,14 +178,4 @@ export function commitDeferredStateMutations(
     for (const entryFile of entryFiles) rmSync(entryFile, { force: true });
     return committed;
   });
-}
-
-export function isPrHandled(sessionId: string, prUrl: string, dirOverride?: string): boolean {
-  return readState(sessionId, dirOverride).prsHandled.includes(prUrl);
-}
-
-export function markPrHandled(sessionId: string, prUrl: string, dirOverride?: string): void {
-  const state = readState(sessionId, dirOverride);
-  if (!state.prsHandled.includes(prUrl)) state.prsHandled.push(prUrl);
-  writeState(state, dirOverride);
 }

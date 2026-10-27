@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
-import { applyStateMutation } from "../../guardrails/stateCommit.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { mkdtempSync, readdirSync, unlinkSync, writeFileSync } from "fs";
+import { hostname, tmpdir } from "os";
+import { join } from "path";
+import { applyStateMutation, commitStateMutation } from "../../guardrails/stateCommit.js";
+import { commitState, readState } from "../../guardrails/sessionState.js";
 import { E2eSkipCode } from "../../e2e-skip/types.js";
 import { StateMutationKind, type GuardrailState, type StateMutation } from "../../guardrails/types.js";
 
@@ -54,6 +58,21 @@ const watchFollowThrough: StateMutation = {
   blockCount: 2,
 };
 
+const prTerminal: StateMutation = { kind: StateMutationKind.PrTerminal, prNumber: 7 };
+const prReopened: StateMutation = { kind: StateMutationKind.PrReopened, prNumber: 7 };
+const nextOptionsOffered: StateMutation = { kind: StateMutationKind.NextOptionsOffered };
+const STAGE_PATH = "/skills/muggle-do/stage.md";
+const stageReads: StateMutation = { kind: StateMutationKind.StageReads, readPaths: [STAGE_PATH] };
+
+const stageSignals: StateMutation = {
+  kind: StateMutationKind.StageSignals,
+  isStageSkip: true,
+  isClassificationSkip: false,
+  debugSkipCommand: 'echo "MUGGLE_DEBUG_SKIP: run-1 studio crashed before any screenshot"',
+  classifiedTestCaseId: "tc-1",
+  debugEvidenceRunIds: ["run-2"],
+};
+
 describe("applyStateMutation", () => {
   // The post's time is the hook's, carried in the mutation, so a commit
   // deferred past a contended lock stamps the moment the post happened.
@@ -93,6 +112,59 @@ describe("applyStateMutation", () => {
     });
   });
 
+  it("records an opened PR as handled once", () => {
+    const opened = applyStateMutation(emptyState, prOpened);
+    expect(opened.prsHandled).toEqual([PR_URL]);
+    expect(applyStateMutation(opened, prOpened).prsHandled).toEqual([PR_URL]);
+  });
+
+  it("arms the post-merge handoff for a terminal PR, the same reference once it is armed", () => {
+    const armed = applyStateMutation(emptyState, prTerminal);
+    expect(armed.terminalPending).toEqual([7]);
+    expect(applyStateMutation(armed, prTerminal)).toBe(armed);
+  });
+
+  it("retracts the handoff of a reopened PR", () => {
+    const armed = applyStateMutation(emptyState, prTerminal);
+    expect(applyStateMutation(armed, prReopened)).toMatchObject({ terminalPending: [], terminalHandled: [] });
+  });
+
+  it("hands every pending terminal PR off when the next options are offered", () => {
+    const armed = { ...applyStateMutation(emptyState, prTerminal), terminalBlockCount: 2 };
+    expect(applyStateMutation(armed, nextOptionsOffered)).toMatchObject({
+      terminalPending: [],
+      terminalHandled: [7],
+      terminalBlockCount: 0,
+    });
+  });
+
+  it("records each stage read, the same reference once every one is recorded", () => {
+    const read = applyStateMutation(emptyState, stageReads);
+    expect(read.stagesRead).toEqual([STAGE_PATH]);
+    expect(applyStateMutation(read, stageReads)).toBe(read);
+  });
+
+  // The debug skip names its run against the committed state, so a failure
+  // recorded after the hook read the state is still the one it clears.
+  it("folds a call's stage skip, debug skip, classification and debug evidence", () => {
+    const failing = { ...emptyState, failedRuns: ["run-1", "run-2"] };
+    expect(applyStateMutation(failing, stageSignals)).toMatchObject({
+      stageSkipped: true,
+      classifiedTestCaseIds: ["tc-1"],
+      debuggedRuns: ["run-1", "run-2"],
+    });
+  });
+
+  it("leaves the state untouched when a call carried no stage signal", () => {
+    const silent: StateMutation = {
+      kind: StateMutationKind.StageSignals,
+      isStageSkip: false,
+      isClassificationSkip: false,
+      debugEvidenceRunIds: [],
+    };
+    expect(applyStateMutation(emptyState, silent)).toBe(emptyState);
+  });
+
   it("records a background acceptance run at the time the hook saw its dispatch", () => {
     expect(applyStateMutation(emptyState, delegation).e2eDelegations).toEqual([
       { dispatchedAt: POSTED_AT, prUrls: [PR_URL] },
@@ -113,12 +185,58 @@ describe("applyStateMutation", () => {
   });
 
   // A deferred mutation is committed from its JSON file, so it must mean the same after the round trip.
-  it.each([toolOutcome, declaredSkipOutcome, skillInvocation, prOpened, delegation, watchFollowThrough])(
-    "applies the same after a round trip through JSON ($kind)",
-    (mutation) => {
-      const persisted = JSON.parse(JSON.stringify(mutation)) as StateMutation;
-      const handled = { ...emptyState, prsHandled: [PR_URL] };
-      expect(applyStateMutation(handled, persisted)).toEqual(applyStateMutation(handled, mutation));
-    },
-  );
+  it.each([
+    toolOutcome,
+    declaredSkipOutcome,
+    skillInvocation,
+    prOpened,
+    prTerminal,
+    prReopened,
+    nextOptionsOffered,
+    delegation,
+    watchFollowThrough,
+    stageReads,
+    stageSignals,
+  ])("applies the same after a round trip through JSON ($kind)", (mutation) => {
+    const persisted = JSON.parse(JSON.stringify(mutation)) as StateMutation;
+    const handled = { ...emptyState, prsHandled: [PR_URL], failedRuns: ["run-1"], terminalPending: [7] };
+    expect(applyStateMutation(handled, persisted)).toEqual(applyStateMutation(handled, mutation));
+  });
+});
+
+describe("commitStateMutation with the state the hook read", () => {
+  let stateDir: string;
+  beforeEach(() => {
+    const home = mkdtempSync(join(tmpdir(), "gr-observed-"));
+    vi.stubEnv("HOME", home);
+    vi.stubEnv("USERPROFILE", home);
+    stateDir = join(home, ".muggle-ai", "guardrails");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // A recorder fires on most tool calls and usually has nothing new to record,
+  // so its no-op must not wait on, or defer behind, another hook's lock.
+  it("takes no lock and writes nothing when the mutation leaves that state unchanged", () => {
+    commitState("s", (state) => ({ ...state, stagesRead: [STAGE_PATH] }), stateDir);
+    const observed = readState("s", stateDir);
+    const lockFile = join(stateDir, "s.json.lock");
+    writeFileSync(lockFile, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
+    try {
+      expect(commitStateMutation("s", stageReads, observed)).toBe(observed);
+      expect(readdirSync(stateDir).filter((name) => name.includes(".deferred-"))).toEqual([]);
+    } finally {
+      unlinkSync(lockFile);
+    }
+  });
+
+  // The state the hook read is only the cheap check; what lands is the mutation
+  // over the committed state, so a write another hook made since survives it.
+  it("commits over the committed state, keeping a write made after the hook read", () => {
+    const observed = readState("s", stateDir);
+    commitState("s", (state) => ({ ...state, unitTestsGreen: true }), stateDir);
+    expect(commitStateMutation("s", stageReads, observed)).toMatchObject({ unitTestsGreen: true, stagesRead: [STAGE_PATH] });
+    expect(readState("s", stateDir)).toMatchObject({ unitTestsGreen: true, stagesRead: [STAGE_PATH] });
+  });
 });

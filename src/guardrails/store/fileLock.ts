@@ -1,6 +1,6 @@
-import { closeSync, openSync, readFileSync, unlinkSync, writeSync } from "fs";
+import { closeSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "fs";
 import { hostname } from "os";
-import { LOCK_POLL_INTERVAL_MS } from "../constants.js";
+import { LOCK_POLL_INTERVAL_MS, UNRECORDED_LOCK_HOLDER_GRACE_MS } from "../constants.js";
 import type { LockHolder } from "./types.js";
 
 /**
@@ -26,14 +26,27 @@ function recordedHolder(lockPath: string): LockHolder | undefined {
   }
 }
 
-// Death, never elapsed time, is what invalidates a lock. A wall-clock expiry
-// would break a lock out from under a holder that is merely slow, which is the
-// duplicate-processing failure this store exists to prevent. A holder on
-// another machine cannot be probed, so its lock is left alone.
-function breakLockIfHolderIsDead(lockPath: string): void {
+function isUnrecordedLockPastGrace(lockPath: string): boolean {
+  try {
+    return Date.now() - statSync(lockPath).mtimeMs > UNRECORDED_LOCK_HOLDER_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+
+// Death, never elapsed time, is what invalidates a recorded holder's lock. A
+// wall-clock expiry would break a lock out from under a holder that is merely
+// slow, which is the duplicate-processing failure this store exists to prevent.
+// A holder on another machine cannot be probed, so its lock is left alone. A
+// lock naming no holder has no pid to probe, so its age is the only evidence:
+// a live holder names itself microseconds after creating the file, and without
+// the grace an empty one would block every writer for good.
+function breakAbandonedLock(lockPath: string): void {
   const holder = recordedHolder(lockPath);
-  if (!holder) return;
-  if (holder.host !== hostname() || isProcessAlive(holder.pid)) return;
+  const isAbandoned = holder
+    ? holder.host === hostname() && !isProcessAlive(holder.pid)
+    : isUnrecordedLockPastGrace(lockPath);
+  if (!isAbandoned) return;
   try {
     unlinkSync(lockPath);
   } catch {
@@ -69,7 +82,7 @@ export function withFileLock<T>(lockPath: string, waitMs: number, run: () => T):
         }),
       );
     } catch {
-      breakLockIfHolderIsDead(lockPath);
+      breakAbandonedLock(lockPath);
       if (Date.now() >= deadline) return undefined;
       pauseBetweenAttempts();
       continue;

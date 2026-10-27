@@ -1,17 +1,20 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { tmpdir } from "os";
 import { join } from "path";
-import { mkdtempSync, readdirSync, unlinkSync, writeFileSync } from "fs";
+import { mkdtempSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "fs";
 import { hostname } from "os";
 import {
+  commitDeferredStateMutations,
   commitState,
+  deferStateMutation,
   readState,
   markPrHandled,
   isPrHandled,
-  updateState,
   readWalkthroughScan,
   writeWalkthroughScan,
 } from "../../guardrails/sessionState";
+import { applyStateMutation } from "../../guardrails/stateCommit";
+import { StateMutationKind } from "../../guardrails/types";
 
 describe("walkthrough scan sidecar", () => {
   it("reads back what was written, beside the state file rather than inside it", () => {
@@ -51,25 +54,25 @@ describe("sessionState", () => {
   });
 });
 
-describe("updateState", () => {
+describe("commitState", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "gr-update-"));
+    dir = mkdtempSync(join(tmpdir(), "gr-commit-"));
   });
 
   it("bumps the generation on every landed write", () => {
-    expect(updateState("s", (state) => ({ ...state, e2eRun: true }), dir)).toBe(true);
+    expect(commitState("s", (state) => ({ ...state, e2eRun: true }), dir)).toBeDefined();
     expect(readState("s", dir).generation).toBe(1);
-    updateState("s", (state) => ({ ...state, unitTestsGreen: true }), dir);
+    commitState("s", (state) => ({ ...state, unitTestsGreen: true }), dir);
     expect(readState("s", dir).generation).toBe(2);
   });
 
   // The mutation must see what is committed, not a copy read before the lock
   // was taken — that gap is the lost update this store exists to close.
   it("passes the committed state to the mutation", () => {
-    updateState("s", (state) => ({ ...state, prsHandled: ["a"] }), dir);
+    commitState("s", (state) => ({ ...state, prsHandled: ["a"] }), dir);
     const observedGenerations: number[] = [];
-    updateState(
+    commitState(
       "s",
       (state) => {
         observedGenerations.push(state.generation ?? 0);
@@ -82,21 +85,14 @@ describe("updateState", () => {
   });
 
   it("skips the write when the mutation changes nothing", () => {
-    updateState("s", (state) => ({ ...state, e2eRun: true }), dir);
-    updateState("s", (state) => state, dir);
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    commitState("s", (state) => state, dir);
     expect(readState("s", dir).generation).toBe(1);
   });
 
   it("leaves no temp or lock files behind", () => {
-    updateState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
     expect(readdirSync(dir).filter((name) => name.includes(".tmp") || name.endsWith(".lock"))).toEqual([]);
-  });
-});
-
-describe("commitState", () => {
-  let dir: string;
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "gr-commit-"));
   });
 
   it("returns the state it committed", () => {
@@ -112,13 +108,12 @@ describe("commitState", () => {
 
   // A live holder — this process — is never broken out of the lock, so a writer
   // that cannot take it must leave the committed state exactly as it was.
-  it("drops the write, and touches nothing, while another writer holds the lock", () => {
+  it("writes nothing, and answers undefined, while another writer holds the lock", () => {
     commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
     const lock = join(dir, "s.json.lock");
     writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
     try {
       expect(commitState("s", (state) => ({ ...state, unitTestsGreen: true }), dir)).toBeUndefined();
-      expect(updateState("s", (state) => ({ ...state, unitTestsGreen: true }), dir)).toBe(false);
       expect(readState("s", dir).unitTestsGreen).toBeUndefined();
     } finally {
       unlinkSync(lock);
@@ -126,3 +121,42 @@ describe("commitState", () => {
   });
 });
 
+
+describe("deferred state mutations", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "gr-deferred-"));
+  });
+
+  const deferredEntries = (): string[] => readdirSync(dir).filter((name) => name.includes(".deferred-"));
+
+  // The writer that defers could not take the lock, so the state file still
+  // belongs to the live holder and must not change under it.
+  it("persists beside the state file, never inside it", () => {
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    const committedFile = readFileSync(join(dir, "s.json"), "utf-8");
+    deferStateMutation("s", { kind: StateMutationKind.Fields, fields: { unitTestsGreen: true } }, dir);
+    expect(readFileSync(join(dir, "s.json"), "utf-8")).toBe(committedFile);
+    expect(deferredEntries()).toHaveLength(1);
+  });
+
+  it("lands every deferred mutation in one commit, oldest first, and removes them", () => {
+    commitState("s", (state) => ({ ...state, e2eRun: true }), dir);
+    for (let blockCount = 1; blockCount <= 12; blockCount += 1) {
+      deferStateMutation("s", { kind: StateMutationKind.Fields, fields: { commentReplyBlockCount: blockCount } }, dir);
+    }
+    const committed = commitDeferredStateMutations("s", applyStateMutation, dir);
+    expect(committed).toEqual(readState("s", dir));
+    expect(committed).toMatchObject({ e2eRun: true, commentReplyBlockCount: 12, generation: 2 });
+    expect(deferredEntries()).toEqual([]);
+  });
+
+  it("leaves another session's deferred mutations for that session", () => {
+    deferStateMutation("s", { kind: StateMutationKind.Fields, fields: { unitTestsGreen: true } }, dir);
+    deferStateMutation("s-other", { kind: StateMutationKind.Fields, fields: { unitTestsGreen: true } }, dir);
+    commitDeferredStateMutations("s", applyStateMutation, dir);
+    expect(readState("s-other", dir).unitTestsGreen).toBeUndefined();
+    expect(deferredEntries().every((name) => name.startsWith("s-other."))).toBe(true);
+    expect(deferredEntries()).toHaveLength(1);
+  });
+});

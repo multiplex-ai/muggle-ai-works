@@ -92,13 +92,38 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
   });
 });
 
+// State reads a watch test's stub serves before it hands the slot's lease to
+// another PID, which the loop obeys at the top of its next iteration: for a bare
+// loop, one poll to wake and one to show it does not wake again. A loop left to
+// its monitor window polls as often as the machine allows — not once, when a
+// loaded box spends a short window starting up — so these tests end it on the
+// lease instead and count the reads it made.
+const STATE_READS_BEFORE_SUPERSEDE = 2;
+const STATE_READS_FILE = "state-reads";
+// No window and no pause, so the lease hand-over alone ends the loop.
+const UNWINDOWED_LOOP_ENV = { MUGGLE_PR_WATCH_MONITOR_WINDOW: "0", MUGGLE_PR_WATCH_POLL_INTERVAL: "0" };
+
+// Bash for one stub state read: counts it in `stubDir` and, from the
+// STATE_READS_BEFORE_SUPERSEDE-th on, writes a PID no loop holds into `slot`'s lease.
+function supersedeAfterStateReads(stubDir: string, slot: string): string[] {
+  const counterPath = toBash(join(stubDir, STATE_READS_FILE));
+  return [
+    `  reads=$(( $(cat "${counterPath}" 2>/dev/null || echo 0) + 1 ))`,
+    `  echo "$reads" > "${counterPath}"`,
+    `  [ "$reads" -ge ${STATE_READS_BEFORE_SUPERSEDE} ] && echo 0 > "${toBash(join(slot, "watch.pid"))}"`,
+  ];
+}
+
+const stateReadsServed = (stubDir: string): number => Number(readFileSync(join(stubDir, STATE_READS_FILE), "utf8"));
+
 // The claim happens after the state fetch, so reaching it needs the two calls
 // arming makes: the tab-separated state projection and the behind-by compare.
 // `prState` is the PR state the projection reports, `ciDigest` its check
 // digest, and `failedChecks` how many checks settled red. The line is served
 // from a file so a digest's quotes and `$` reach the script byte for byte rather
-// than through the stub's own quoting.
-function stubGhDir(prState = "OPEN", ciDigest = "", failedChecks = 0): string {
+// than through the stub's own quoting. With `watchedSlot`, the loop watching
+// that slot steps down after STATE_READS_BEFORE_SUPERSEDE reads.
+function stubGhDir(prState = "OPEN", ciDigest = "", failedChecks = 0, watchedSlot?: string): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
   const stateLinePath = join(dir, "state.tsv");
   writeFileSync(stateLinePath, `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t${failedChecks}\t${ciDigest}\n`);
@@ -109,6 +134,7 @@ function stubGhDir(prState = "OPEN", ciDigest = "", failedChecks = 0): string {
       "#!/usr/bin/env bash",
       'if [ "$1" = "auth" ]; then echo stub-token; exit 0; fi',
       'if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then',
+      ...(watchedSlot ? supersedeAfterStateReads(dir, watchedSlot) : []),
       `  cat "${toBash(stateLinePath)}"`,
       "  exit 0",
       "fi",
@@ -292,7 +318,8 @@ interface BaseMovementFixture {
 // Unlike stubGhDir, this answers the state query by running the projection the
 // caller passed through `--jq` over a raw GraphQL snapshot, so the base half of
 // the rebase key comes out of the real fetch and filter rather than a canned line.
-function stubGhFromSnapshot(fixture: BaseMovementFixture): string {
+// `watchedSlot` ends a loop as stubGhDir's does.
+function stubGhFromSnapshot(fixture: BaseMovementFixture, watchedSlot?: string): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
   const snapshotPath = join(dir, "pr.json");
   writeFileSync(
@@ -322,6 +349,7 @@ function stubGhFromSnapshot(fixture: BaseMovementFixture): string {
       'if [ "$1" = "auth" ]; then echo stub-token; exit 0; fi',
       'if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then',
       '  while [ $# -gt 0 ]; do [ "$1" = "--jq" ] && projection="$2"; shift; done',
+      ...(watchedSlot ? supersedeAfterStateReads(dir, watchedSlot) : []),
       // jq on Windows ends lines with CRLF; gh's built-in filter does not.
       `  jq -r "$projection" "${toBash(snapshotPath)}" | tr -d '\\r'`,
       "  exit 0",
@@ -335,7 +363,8 @@ function stubGhFromSnapshot(fixture: BaseMovementFixture): string {
 }
 
 // Arms PR o/n#1 against the base-movement fixture, over `lastSeenEntry` as the
-// PR's last_seen.json entry when given. `watch` runs the loop out a 3s window.
+// PR's last_seen.json entry when given. With `watch` the loop then polls once,
+// as armOverLastSeen's does.
 function armAgainstBaseMovement(
   fixture: BaseMovementFixture,
   lastSeenEntry?: object,
@@ -344,43 +373,37 @@ function armAgainstBaseMovement(
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   if (lastSeenEntry) writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
   const args = [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"];
+  const stubDir = stubGhFromSnapshot(fixture, slot);
   const stdout = execFileSync("bash", watch ? args : [...args, "--no-exec"], {
-    env: {
-      ...process.env,
-      PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}`,
-      MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
-      MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
-    },
+    env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
     encoding: "utf8",
     timeout: 60_000,
   });
+  if (watch) expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
   return { slot: slot, stdout: stdout };
 }
 
 const readSlotFile = (slot: string, fileName: string): string => readFileSync(join(slot, fileName), "utf8");
 
-// Runs the loop for a few iterations over a slot whose rebase floor is
-// `rebasedFloor`, returning only the EVENT lines it printed.
+// Runs the loop over a slot whose rebase floor is `rebasedFloor` for exactly
+// STATE_READS_BEFORE_SUPERSEDE polls, returning only the EVENT lines it printed.
 function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: string): string[] {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   writeFileSync(
     join(slot, "watch-watermark.env"),
     `REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED="${rebasedFloor}"\nBLOCKED_CIDIGEST=""\n`,
   );
+  const stubDir = stubGhFromSnapshot(fixture, slot);
   const stdout = execFileSync(
     "bash",
     [loopPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
     {
-      env: {
-        ...process.env,
-        PATH: `${stubGhFromSnapshot(fixture)}${delimiter}${process.env.PATH ?? ""}`,
-        MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
-        MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
-      },
+      env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
       encoding: "utf8",
       timeout: 60_000,
     },
   );
+  expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
   return stdout.split("\n").filter((line) => line.startsWith("EVENT "));
 }
 
@@ -508,7 +531,9 @@ function blockedEntry(ciDigest: string): object {
 
 // Arms PR o/n#1 over a slot holding `lastSeen` as its last_seen.json (none when
 // undefined) while the live checks read `liveDigest`. With `watch` the loop then
-// runs out a 3s window. Throws if arming fails.
+// polls once: the arm's drain read is the first of the stub's reads, and arming
+// forks enough that a second poll would push a loaded box past the timeout.
+// Throws if arming fails.
 function armOverLastSeen(
   lastSeen: string | undefined,
   liveDigest: string,
@@ -517,16 +542,13 @@ function armOverLastSeen(
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   if (lastSeen !== undefined) writeFileSync(join(slot, "last_seen.json"), lastSeen);
   const args = [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"];
+  const stubDir = stubGhDir("OPEN", liveDigest, 0, slot);
   const stdout = execFileSync("bash", watch ? args : [...args, "--no-exec"], {
-    env: {
-      ...process.env,
-      PATH: `${stubGhDir("OPEN", liveDigest)}${delimiter}${process.env.PATH ?? ""}`,
-      MUGGLE_PR_WATCH_MONITOR_WINDOW: "3",
-      MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
-    },
+    env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
     encoding: "utf8",
     timeout: 60_000,
   });
+  if (watch) expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
   return {
     watermarkLines: readFileSync(join(slot, "watch-watermark.env"), "utf8").split("\n"),
     stdout: stdout,

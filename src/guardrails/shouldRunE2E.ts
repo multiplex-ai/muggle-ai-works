@@ -1,7 +1,7 @@
 import { CYCLE_SCOPED_SKIP_CODES } from "../e2e-skip/constants.js";
 import type { DeclaredSkip } from "../e2e-skip/types.js";
 import { isE2eDelegationInFlight } from "./delegatedE2e.js";
-import type { GuardrailState } from "./types.js";
+import type { GuardrailState, RecordedRun } from "./types.js";
 
 export const MAX_E2E_BLOCKS = 3;
 
@@ -21,13 +21,6 @@ export function applyE2eSkipDeclaration(state: GuardrailState, skip: DeclaredSki
 export function shouldRunE2E(state: GuardrailState): boolean {
   const owed = state.unitTestsGreen === true || state.prsHandled.length > 0;
   return owed && state.e2eRun !== true && state.e2eSkipped !== true;
-}
-
-export interface RecordedRun {
-  unitTestPassed?: boolean;
-  e2eRan?: boolean;
-  e2eSkipped?: boolean;
-  e2eSkipCycleScoped?: boolean;
 }
 
 // Fold a recorded test run into the gate state, returning the same reference

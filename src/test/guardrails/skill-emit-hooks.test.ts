@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { spawn } from "child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { hostname, tmpdir } from "os";
@@ -10,11 +10,10 @@ import { MUGGLE_TELEMETRY_SKILL_EMIT_TOOL } from "./handoff-replay/constants.js"
 
 // A muggle skill emit has one writer, skill-stages, which records the skill,
 // its mandatory stages and the muggle-test E2E run in one commit. Every host
-// runs a tool's matching hook groups in parallel, and the state store drops a
-// write that cannot take the session's lock within its wait. Were a second
-// hook to match the emit, a slow disk lets one writer hold the lock past the
-// other's wait; losing skill-stages' record leaves the stage and
-// classification gates unarmed.
+// runs a tool's matching hook groups in parallel, and a writer that cannot take
+// the session's lock within its wait hands its record to a detached commit;
+// losing skill-stages' record would leave the stage and classification gates
+// unarmed.
 
 const CLI = fileURLToPath(new URL("../../guardrails/cli.ts", import.meta.url));
 const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugin", import.meta.url));
@@ -26,6 +25,8 @@ const GUARDRAIL_SCRIPT = /guardrail-[a-z-]+\.sh/g;
 // A matcher made only of names and `|` lists tools compared whole; any other is an unanchored regex.
 const NAME_LIST_MATCHER = /^[A-Za-z0-9_|]+$/;
 const ROUNDS = 12;
+// Covers the detached commit's own cold start, which a loaded Windows box stretches to seconds.
+const DEFERRED_COMMIT_TIMEOUT_MS = 30_000;
 
 interface HookOutcome {
   exitCode: number | null;
@@ -114,10 +115,14 @@ describe("the hook a skill emit reaches", () => {
     });
   });
 
+  // A holder can stay in its few-millisecond section for seconds when the machine
+  // is loaded, outlasting the hook's lock wait. Losing the waiter's record there
+  // disarms the gate it feeds while both hooks exit clean, so the record must
+  // land once the lock frees — and never by writing around a live holder.
   it.each([
     { writer: "skill-stages", payload: skillEmitPayload },
     { writer: "record-tests", payload: executeReplayPayload },
-  ])("$writer commits only under the session's lock", async ({ writer, payload }) => {
+  ])("$writer commits only under the session's lock, and lands its record once the holder lets go", async ({ writer, payload }) => {
     const lock = `${statePath(home, "held")}.lock`;
     mkdirSync(join(home, ".muggle-ai", "guardrails"), { recursive: true });
     writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), acquiredAt: new Date().toISOString() }));
@@ -127,5 +132,6 @@ describe("the hook a skill emit reaches", () => {
     } finally {
       unlinkSync(lock);
     }
-  });
+    await vi.waitFor(() => expect(stateOf(home, "held")?.e2eRun).toBe(true), { timeout: DEFERRED_COMMIT_TIMEOUT_MS, interval: 100 });
+  }, DEFERRED_COMMIT_TIMEOUT_MS * 2);
 });

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync, rmSync } from 'fs';
 import { join, basename, isAbsolute, resolve, dirname } from 'path';
 import { homedir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
@@ -67,6 +67,8 @@ var THREADED_REPLY_TARGET = /pulls\/\d+\/comments\/(\d+)\/replies|discussions\/(
 var MAX_REPLY_BLOCKS = 3;
 var CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES = 64e3;
 var SESSION_STATE_LOCK_WAIT_MS = 250;
+var DEFERRED_STATE_LOCK_WAIT_MS = 3e4;
+var DEFERRED_STATE_MUTATION_INFIX = ".deferred-";
 var LOCK_POLL_INTERVAL_MS = 10;
 var CALL_FAILURE_SIGNALS = [
   /\bgh:\s/,
@@ -152,7 +154,8 @@ function withFileLock(lockPath, waitMs, run) {
 
 // src/guardrails/sessionState.ts
 var baseDir = (override) => override ?? join(homedir(), ".muggle-ai", "guardrails");
-var fileFor = (sessionId2, override, suffix = ".json") => join(baseDir(override), `${sessionId2.replace(/[^A-Za-z0-9_-]/g, "_")}${suffix}`);
+var sessionFileStem = (sessionId2) => sessionId2.replace(/[^A-Za-z0-9_-]/g, "_");
+var fileFor = (sessionId2, override, suffix = ".json") => join(baseDir(override), `${sessionFileStem(sessionId2)}${suffix}`);
 var WALKTHROUGH_SCAN_SUFFIX = ".walkthrough-scan.json";
 var PR_STATE_SCAN_SUFFIX = ".pr-state-scan.json";
 function writeAtomically(target, contents, dirOverride) {
@@ -195,19 +198,58 @@ function readPrStateScan(sessionId2, dirOverride) {
 function writePrStateScan(sessionId2, scan, dirOverride) {
   writeAtomically(fileFor(sessionId2, dirOverride, PR_STATE_SCAN_SUFFIX), scan, dirOverride);
 }
+var lockFor = (sessionId2, dirOverride) => `${fileFor(sessionId2, dirOverride)}.lock`;
+function commitUnderHeldLock(sessionId2, mutate, dirOverride) {
+  const current = readState(sessionId2, dirOverride);
+  const next = mutate(current);
+  if (next === current) return current;
+  const committed = { ...next, generation: (current.generation ?? 0) + 1 };
+  writeState(committed, dirOverride);
+  return committed;
+}
 function commitState(sessionId2, mutate, dirOverride) {
   mkdirSync(baseDir(dirOverride), { recursive: true });
-  return withFileLock(`${fileFor(sessionId2, dirOverride)}.lock`, SESSION_STATE_LOCK_WAIT_MS, () => {
-    const current = readState(sessionId2, dirOverride);
-    const next = mutate(current);
-    if (next === current) return current;
-    const committed = { ...next, generation: (current.generation ?? 0) + 1 };
-    writeState(committed, dirOverride);
+  return withFileLock(
+    lockFor(sessionId2, dirOverride),
+    SESSION_STATE_LOCK_WAIT_MS,
+    () => commitUnderHeldLock(sessionId2, mutate, dirOverride)
+  );
+}
+var deferredMutationSequence = 0;
+var deferredMutationPrefix = (sessionId2) => `${sessionFileStem(sessionId2)}${DEFERRED_STATE_MUTATION_INFIX}`;
+function deferredMutationFiles(sessionId2, dirOverride) {
+  const prefix = deferredMutationPrefix(sessionId2);
+  const creationKey = (name) => name.slice(prefix.length, -".json".length).split("-").map(Number);
+  try {
+    return readdirSync(baseDir(dirOverride)).filter((name) => name.startsWith(prefix) && name.endsWith(".json")).map((name) => ({ name, key: creationKey(name) })).sort((left, right) => left.key[0] - right.key[0] || left.key[2] - right.key[2]).map((entry) => join(baseDir(dirOverride), entry.name));
+  } catch {
+    return [];
+  }
+}
+function deferStateMutation(sessionId2, mutation, dirOverride) {
+  deferredMutationSequence += 1;
+  const entryName = `${Date.now()}-${process.pid}-${deferredMutationSequence}.json`;
+  writeAtomically(
+    join(baseDir(dirOverride), `${deferredMutationPrefix(sessionId2)}${entryName}`),
+    mutation,
+    dirOverride
+  );
+}
+function commitDeferredStateMutations(sessionId2, applyMutation, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  return withFileLock(lockFor(sessionId2, dirOverride), DEFERRED_STATE_LOCK_WAIT_MS, () => {
+    const entryFiles = deferredMutationFiles(sessionId2, dirOverride);
+    const mutations = entryFiles.flatMap((entryFile) => {
+      try {
+        return [JSON.parse(readFileSync(entryFile, "utf-8"))];
+      } catch {
+        return [];
+      }
+    });
+    const committed = commitUnderHeldLock(sessionId2, (state) => mutations.reduce(applyMutation, state), dirOverride);
+    for (const entryFile of entryFiles) rmSync(entryFile, { force: true });
     return committed;
   });
-}
-function updateState(sessionId2, mutate, dirOverride) {
-  return commitState(sessionId2, mutate, dirOverride) !== void 0;
 }
 function markPrHandled(sessionId2, prUrl, dirOverride) {
   const state = readState(sessionId2, dirOverride);
@@ -224,6 +266,7 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
   GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
   GuardrailBackgroundJob2["ScanWatchPrStates"] = "scan-watch-pr-states";
+  GuardrailBackgroundJob2["CommitDeferredState"] = "commit-deferred-state";
   return GuardrailBackgroundJob2;
 })(GuardrailBackgroundJob || {});
 var ProviderPrState = /* @__PURE__ */ ((ProviderPrState2) => {
@@ -251,517 +294,6 @@ function startBackgroundJob(job, jobArgs2, cwd) {
   } catch {
     return;
   }
-}
-
-// src/guardrails/shellTool.ts
-function isShellToolCall(input2) {
-  return SHELL_TOOL_NAMES.includes(input2.tool_name ?? "");
-}
-
-// src/guardrails/prOpened.ts
-var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
-var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
-function detectPrOpened(input2) {
-  if (!isShellToolCall(input2)) return null;
-  const cmd = input2.tool_input?.command ?? "";
-  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
-  const out = `${input2.tool_response?.stdout ?? ""}
-${input2.tool_response?.output ?? ""}`;
-  const m = out.match(GITHUB_PR_URL) ?? out.match(GITLAB_MR_URL);
-  return m ? m[0] : null;
-}
-
-// src/guardrails/prTerminal.ts
-function terminalProvenance(input2) {
-  const command = input2.tool_input?.command;
-  if (command === void 0) return { acceptsForgeLine: true, acceptsMonitorLine: true };
-  return {
-    acceptsForgeLine: FORGE_TERMINAL_CMD.test(command),
-    acceptsMonitorLine: WATCH_TERMINAL_CMD.test(command)
-  };
-}
-function detectPrTerminal(input2) {
-  if (!isShellToolCall(input2) && input2.tool_name !== "Monitor") return null;
-  const response = input2.tool_response;
-  const provenance = terminalProvenance(input2);
-  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
-  const mergedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_MERGED_LINE) : null;
-  if (mergedMatch) {
-    return { prNumber: Number(mergedMatch[1]), verdict: "merged" /* Merged */ };
-  }
-  const closedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_CLOSED_LINE) : null;
-  if (closedMatch) {
-    return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
-  }
-  const monitorMatch = provenance.acceptsMonitorLine ? haystack.match(PR_MONITOR_TERMINAL_LINE) : null;
-  if (monitorMatch) {
-    return {
-      prNumber: Number(monitorMatch[1]),
-      verdict: monitorMatch[2] === "MERGED" ? "merged" /* Merged */ : "closed" /* Closed */
-    };
-  }
-  return null;
-}
-function detectPrReopened(input2) {
-  if (!isShellToolCall(input2)) return null;
-  if (!terminalProvenance(input2).acceptsForgeLine) return null;
-  const response = input2.tool_response;
-  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
-  const reopenedMatch = haystack.match(GH_PR_REOPENED_LINE);
-  return reopenedMatch ? Number(reopenedMatch[1]) : null;
-}
-function applyPrReopened(state, prNumber) {
-  const pending = state.terminalPending ?? [];
-  const handled = state.terminalHandled ?? [];
-  if (!pending.includes(prNumber) && !handled.includes(prNumber)) return state;
-  return {
-    ...state,
-    terminalPending: pending.filter((number) => number !== prNumber),
-    terminalHandled: handled.filter((number) => number !== prNumber)
-  };
-}
-function applyPrTerminalDetected(state, prNumber) {
-  const pending = state.terminalPending ?? [];
-  const handled = state.terminalHandled ?? [];
-  if (pending.includes(prNumber) || handled.includes(prNumber)) return state;
-  return { ...state, terminalPending: [...pending, prNumber] };
-}
-function applyNextOptionsOffered(state) {
-  const pending = state.terminalPending ?? [];
-  if (pending.length === 0) return state;
-  return {
-    ...state,
-    terminalPending: [],
-    terminalHandled: [...state.terminalHandled ?? [], ...pending],
-    terminalBlockCount: 0
-  };
-}
-function closingMessageAsksUser(closingMessage) {
-  return typeof closingMessage === "string" && closingMessage.includes("?");
-}
-function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
-  const blockCount = state.terminalBlockCount ?? 0;
-  if ((state.terminalPending ?? []).length === 0) {
-    return { action: "none" /* None */, blockCount };
-  }
-  if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount };
-  }
-  return { action: "block" /* Block */, blockCount: blockCount + 1 };
-}
-
-// src/guardrails/capabilityClaim.ts
-var SENTENCE = /[^.!?\n]+/g;
-var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
-var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential|sms|text message|texted code|authenticator app|google authenticator|authy|totp)/i;
-var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
-var GENUINELY_UNSUPPORTED = /\b(?:phone call|voice call|oauth|social (?:login|sign[- ]?in)|sign in with (?:google|github|apple|facebook)|no (?:phone )?number (?:is )?provisioned|no provisioned (?:phone )?number)\b/i;
-function detectFalseCapabilityClaim(text) {
-  const sentences = (text ?? "").match(SENTENCE) ?? [];
-  return sentences.some(
-    (sentence) => IMPOSSIBILITY.test(sentence) && MUGGLE_CLEARS.test(sentence) && TESTING_CONTEXT.test(sentence) && !GENUINELY_UNSUPPORTED.test(sentence)
-  );
-}
-function lastAssistantText(transcriptJsonl) {
-  const lines = (transcriptJsonl ?? "").split("\n");
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index]?.trim();
-    if (!line) continue;
-    let entry;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (entry.type !== "assistant") continue;
-    const content = entry.message?.content;
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) continue;
-    const prose = content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
-    if (prose) return prose;
-  }
-  return "";
-}
-function resolvePluginRoot(env = process.env) {
-  return env.CLAUDE_PLUGIN_ROOT || env.CURSOR_PLUGIN_ROOT || dirname(dirname(fileURLToPath(import.meta.url)));
-}
-
-// src/guardrails/mandatoryStages.ts
-var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
-var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
-var FLOW_LIST = /^\s*\[(.*)\]\s*$/;
-var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
-var SKILLS_DIR_NAME = "skills";
-var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
-var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
-var SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
-var SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
-var SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
-var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
-var MARKDOWN_FILE = /\.md$/i;
-var unquote = (raw) => raw.trim().replace(/^["']|["']$/g, "").trim();
-function parseDeclaredStages(skillMarkdown) {
-  const frontmatter = FRONTMATTER.exec(skillMarkdown)?.[1];
-  if (!frontmatter) return [];
-  const lines = frontmatter.split(/\r?\n/);
-  const keyIndex = lines.findIndex(
-    (line) => line.startsWith(`${MANDATORY_STAGES_FRONTMATTER_KEY}:`)
-  );
-  if (keyIndex < 0) return [];
-  const inlineValue = lines[keyIndex].slice(MANDATORY_STAGES_FRONTMATTER_KEY.length + 1).trim();
-  const flowEntries = FLOW_LIST.exec(inlineValue)?.[1];
-  if (flowEntries !== void 0) {
-    return flowEntries.split(",").map(unquote).filter((entry) => entry.length > 0);
-  }
-  const declared = [];
-  for (const line of lines.slice(keyIndex + 1)) {
-    const entry = SEQUENCE_ENTRY.exec(line);
-    if (!entry) break;
-    declared.push(unquote(entry[1]));
-  }
-  return declared;
-}
-function normalizeStagePath(filePath) {
-  return filePath.replaceAll("\\", "/").toLowerCase();
-}
-function stageLabel(normalizedStagePath) {
-  const insideSkills = normalizedStagePath.lastIndexOf(SKILLS_PATH_SEGMENT);
-  if (insideSkills < 0) return normalizedStagePath;
-  return normalizedStagePath.slice(insideSkills + SKILLS_PATH_SEGMENT.length);
-}
-function resolvePluginSkillsRoot() {
-  return join(resolvePluginRoot(), SKILLS_DIR_NAME);
-}
-function resolveSkillNameFromToolInput(toolInput) {
-  if (!toolInput) return void 0;
-  const indexed = toolInput;
-  for (const inputKey of SKILL_NAME_INPUT_KEYS) {
-    const value = indexed[inputKey];
-    if (typeof value !== "string" || value.trim().length === 0) continue;
-    const skillName = value.trim().split(":").pop()?.replace(/^\//, "") ?? "";
-    return SINGLE_PATH_SEGMENT.test(skillName) ? skillName : void 0;
-  }
-  return void 0;
-}
-function resolveSkillStagePaths(skillName, skillsRootDir) {
-  const skillDir = join(skillsRootDir, skillName);
-  const skillFile = join(skillDir, "SKILL.md");
-  if (!existsSync(skillFile)) return [];
-  const normalizedRoot = normalizeStagePath(skillsRootDir);
-  const staysInsideSkillsTree = (candidate) => normalizeStagePath(candidate).startsWith(`${normalizedRoot}/`);
-  const resolved = [];
-  for (const declared of parseDeclaredStages(readFileSync(skillFile, "utf-8"))) {
-    if (isAbsolute(declared)) continue;
-    const stagePath = [resolve(skillDir, declared), resolve(skillsRootDir, declared)].find(
-      (candidate) => staysInsideSkillsTree(candidate) && existsSync(candidate)
-    );
-    if (!stagePath) continue;
-    const normalized = normalizeStagePath(stagePath);
-    if (!resolved.includes(normalized)) resolved.push(normalized);
-  }
-  return resolved;
-}
-function applySkillInvocation(state, skillName, stagePaths) {
-  const merged = [...state.mandatoryStages ?? []];
-  for (const stagePath of stagePaths) if (!merged.includes(stagePath)) merged.push(stagePath);
-  if (state.lastInvokedSkillName === skillName && merged.length === (state.mandatoryStages?.length ?? 0)) {
-    return state;
-  }
-  return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
-}
-function isSkillTreeMarkdown(filePath) {
-  const normalized = normalizeStagePath(filePath);
-  return normalized.includes(SKILLS_PATH_SEGMENT) && MARKDOWN_FILE.test(normalized);
-}
-function applyStageRead(state, filePath) {
-  const stagePath = normalizeStagePath(filePath);
-  if ((state.stagesRead ?? []).includes(stagePath)) return state;
-  return { ...state, stagesRead: [...state.stagesRead ?? [], stagePath] };
-}
-var SHELL_ESCAPABLE_UNQUOTED = /* @__PURE__ */ new Set([" ", "	", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
-var SHELL_ESCAPABLE_DOUBLE_QUOTED = /* @__PURE__ */ new Set(['"', "\\", "$", "`"]);
-function splitShellCommands(command) {
-  const commands = [];
-  let words = [];
-  let word = "";
-  let wordStarted = false;
-  let quote = null;
-  const endWord = () => {
-    if (wordStarted) words.push(word);
-    word = "";
-    wordStarted = false;
-  };
-  const endCommand = () => {
-    endWord();
-    if (words.length > 0) commands.push(words);
-    words = [];
-  };
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index];
-    const nextCharacter = command[index + 1];
-    if (quote !== null) {
-      if (character === quote) {
-        quote = null;
-      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
-        word += nextCharacter;
-        index += 1;
-      } else {
-        word += character;
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      wordStarted = true;
-    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
-      word += nextCharacter;
-      wordStarted = true;
-      index += 1;
-    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
-      endCommand();
-    } else if (/\s/.test(character)) {
-      endWord();
-    } else {
-      word += character;
-      wordStarted = true;
-    }
-  }
-  endCommand();
-  return commands;
-}
-function expandShellWord(word, variables) {
-  const withHome = word === "~" || word.startsWith("~/") ? `${homedir()}${word.slice(1)}` : word;
-  return withHome.replace(
-    SHELL_VARIABLE_REFERENCE,
-    (_reference, bracedName, bareName) => variables[bracedName ?? bareName ?? ""] ?? ""
-  );
-}
-function resolveShellPath(path, workingDirectory) {
-  return isAbsolute(path) || WINDOWS_ABSOLUTE_PATH.test(path) ? path : resolve(workingDirectory, path);
-}
-function detectShellStageReads(command, cwd, env = process.env) {
-  const variables = { ...env };
-  let workingDirectory = cwd ?? process.cwd();
-  const readPaths = [];
-  for (const words of splitShellCommands(command)) {
-    let programIndex = 0;
-    const assignments = [];
-    for (; programIndex < words.length; programIndex += 1) {
-      const assignment = SHELL_ASSIGNMENT.exec(words[programIndex]);
-      if (!assignment) break;
-      assignments.push([assignment[1], expandShellWord(assignment[2], variables)]);
-    }
-    const programWord = words[programIndex];
-    if (programWord === void 0 || programWord === "export") {
-      for (const word of words.slice(programIndex + 1)) {
-        const exported = SHELL_ASSIGNMENT.exec(word);
-        if (exported) assignments.push([exported[1], expandShellWord(exported[2], variables)]);
-      }
-      for (const [name, value] of assignments) variables[name] = value;
-      continue;
-    }
-    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
-    const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
-    if (program === "cd") {
-      const target = argumentWords.find((word) => !word.startsWith("-"));
-      if (target) workingDirectory = resolveShellPath(target, workingDirectory);
-      continue;
-    }
-    if (!FILE_PRINTING_PROGRAMS.includes(program)) continue;
-    for (const argument of argumentWords) {
-      if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
-      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
-      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
-    }
-  }
-  return readPaths;
-}
-function unreadMandatoryStages(state) {
-  const read = new Set(state.stagesRead ?? []);
-  return (state.mandatoryStages ?? []).filter((stagePath) => !read.has(stagePath));
-}
-function isStageSkipMarker(command) {
-  return STAGE_SKIP_MARKER.test(command);
-}
-function applyStageSkip(state, skipped) {
-  if (!skipped || state.stageSkipped === true) return state;
-  return { ...state, stageSkipped: true };
-}
-function stageGateDecision(state, unreadStagePaths, maxBlocks = MAX_STAGE_BLOCKS) {
-  const blockCount = state.stageBlockCount ?? 0;
-  if (state.stageSkipped === true || unreadStagePaths.length === 0) {
-    return { action: "none" /* None */, blockCount, unread: unreadStagePaths };
-  }
-  if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount, unread: unreadStagePaths };
-  }
-  return { action: "block" /* Block */, blockCount: blockCount + 1, unread: unreadStagePaths };
-}
-
-// src/guardrails/callOutcome.ts
-function renderedResponse(toolResponse) {
-  const rendered = [];
-  const collect = (value) => {
-    if (typeof value === "string") rendered.push(value);
-    else if (Array.isArray(value)) value.forEach(collect);
-    else if (value && typeof value === "object") Object.values(value).forEach(collect);
-  };
-  collect(toolResponse);
-  return rendered.join("\n");
-}
-function callFailed(input2) {
-  const rendered = renderedResponse(input2.tool_response);
-  return CALL_FAILURE_SIGNALS.some((signal) => signal.test(rendered));
-}
-
-// src/guardrails/preExecutionClassification.ts
-var CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
-function detectClassifiedTestCaseId(input2) {
-  if (!MUGGLE_EVENT_EMIT_TOOL.test(input2.tool_name ?? "")) return void 0;
-  if (input2.tool_input?.eventType !== PRE_EXECUTION_CLASSIFICATION_EVENT) return void 0;
-  if (callFailed(input2)) return void 0;
-  return input2.tool_input?.testCaseId ?? ANY_TEST_CASE;
-}
-function applyClassifiedTestCase(state, testCaseId) {
-  if ((state.classifiedTestCaseIds ?? []).includes(testCaseId)) return state;
-  return { ...state, classifiedTestCaseIds: [...state.classifiedTestCaseIds ?? [], testCaseId] };
-}
-function resolveExecutionTargetTestCaseId(input2) {
-  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
-  return input2.tool_input?.testCase?.id ?? input2.tool_input?.testScript?.testCaseId;
-}
-function isClassificationSkipMarker(command) {
-  return CLASSIFICATION_SKIP_MARKER.test(command);
-}
-function applyClassificationSkip(state, skipped) {
-  if (!skipped || state.classificationSkipped === true) return state;
-  return { ...state, classificationSkipped: true };
-}
-function classificationGateDecision(state, input2) {
-  if (state.lastInvokedSkillName !== MUGGLE_TEST_SKILL_NAME) return { deny: false };
-  if (state.classificationSkipped === true) return { deny: false };
-  const testCaseId = resolveExecutionTargetTestCaseId(input2);
-  if (!testCaseId) return { deny: false };
-  const classified = state.classifiedTestCaseIds ?? [];
-  if (classified.includes(ANY_TEST_CASE) || classified.includes(testCaseId)) return { deny: false };
-  return { deny: true, testCaseId };
-}
-
-// src/guardrails/prUrls.ts
-function extractPrUrls(text) {
-  const githubPrUrls = [...text.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
-  const gitlabMrUrls = [...text.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
-  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
-}
-
-// src/guardrails/delegatedE2e.ts
-function carriesAcceptanceReport(input2) {
-  const response = JSON.stringify(input2.tool_response ?? "");
-  return ACCEPTANCE_REPORT_MARKERS.some((marker) => response.includes(marker));
-}
-function detectBackgroundAcceptanceDispatch(input2) {
-  if (!SUBAGENT_DISPATCH_TOOL_NAMES.includes(input2.tool_name ?? "")) return null;
-  if (!ACCEPTANCE_TESTER_SUBAGENT_TYPE.test(input2.tool_input?.subagent_type ?? "")) return null;
-  if (callFailed(input2) || carriesAcceptanceReport(input2)) return null;
-  return extractPrUrls(input2.tool_input?.prompt ?? "");
-}
-function liveDelegations(state, now) {
-  return (state.e2eDelegations ?? []).filter((delegation) => now - delegation.dispatchedAt < DELEGATED_E2E_WINDOW_MS);
-}
-function applyE2eDelegation(state, delegation) {
-  return { ...state, e2eDelegations: [...liveDelegations(state, delegation.dispatchedAt), delegation] };
-}
-function isE2eDelegationInFlight(state, now) {
-  return liveDelegations(state, now).length > 0;
-}
-function withoutDelegatedPrs(prUrls, state, now) {
-  const delegatedPrUrls = new Set(liveDelegations(state, now).flatMap((delegation) => delegation.prUrls));
-  return prUrls.filter((prUrl) => !delegatedPrUrls.has(prUrl));
-}
-
-// src/guardrails/debugPath.ts
-var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
-var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
-${JSON.stringify(input2.tool_response ?? {})}`;
-function renderedResult(toolResponse) {
-  const rendered = [];
-  const collect = (value) => {
-    if (typeof value === "string") rendered.push(value);
-    else if (Array.isArray(value)) value.forEach(collect);
-    else if (value && typeof value === "object") Object.values(value).forEach(collect);
-  };
-  collect(toolResponse);
-  return rendered.join("\n");
-}
-function detectFailedRunId(input2) {
-  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
-  const rendered = renderedResult(input2.tool_response);
-  const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
-  if (!status || status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS) return void 0;
-  return MUGGLE_RUN_ID_LINE.exec(rendered)?.[1];
-}
-function applyFailedRun(state, runId) {
-  if ((state.failedRuns ?? []).includes(runId)) return state;
-  return { ...state, failedRuns: [...state.failedRuns ?? [], runId] };
-}
-function detectDebugEvidenceRunIds(input2, owedRunIds) {
-  const toolName = input2.tool_name ?? "";
-  const isDiagnosisEmit = MUGGLE_EVENT_EMIT_TOOL.test(toolName) && FAILURE_DIAGNOSIS_EVENT.test(input2.tool_input?.eventType ?? "");
-  if (!isDiagnosisEmit && !MUGGLE_FEEDBACK_CREATE_TOOL.test(toolName)) return [];
-  if (callFailed(input2)) return [];
-  const payload = serialize(input2);
-  return owedRunIds.filter((runId) => payload.includes(runId));
-}
-function applyDebugEvidence(state, runIds) {
-  const debugged = [...state.debuggedRuns ?? []];
-  for (const runId of runIds) if (!debugged.includes(runId)) debugged.push(runId);
-  if (debugged.length === (state.debuggedRuns ?? []).length) return state;
-  return { ...state, debuggedRuns: debugged };
-}
-function isDebugSkipMarker(command) {
-  return DEBUG_SKIP_MARKER.test(command);
-}
-function applyDebugSkip(state, command) {
-  if (!isDebugSkipMarker(command)) return state;
-  const namedRuns = (state.failedRuns ?? []).filter((runId) => command.includes(runId));
-  if (namedRuns.length > 0) return applyDebugEvidence(state, namedRuns);
-  if (state.debugSkipped === true) return state;
-  return { ...state, debugSkipped: true };
-}
-function undebuggedFailedRuns(state) {
-  const debugged = new Set(state.debuggedRuns ?? []);
-  return (state.failedRuns ?? []).filter((runId) => !debugged.has(runId));
-}
-function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS, now = Date.now()) {
-  const blockCount = state.debugBlockCount ?? 0;
-  const undebugged = undebuggedFailedRuns(state);
-  if (state.debugSkipped === true || undebugged.length === 0 || isE2eDelegationInFlight(state, now)) {
-    return { action: "none" /* None */, blockCount, undebugged };
-  }
-  if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount, undebugged };
-  }
-  return { action: "block" /* Block */, blockCount: blockCount + 1, undebugged };
-}
-
-// src/guardrails/testsGreen.ts
-var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
-var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
-var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
-function isTestCommand(cmd) {
-  return TEST_CMD.test(cmd);
-}
-function testsPassed(input2) {
-  const response = input2.tool_response;
-  const out = `${response?.stdout ?? ""}
-${response?.stderr ?? ""}
-${response?.output ?? ""}`;
-  if (!out.trim()) return false;
-  return !FAIL.test(out);
-}
-function isE2ERun(input2) {
-  if (E2E_TOOL.test(input2.tool_name ?? "")) return true;
-  return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
 }
 
 // src/e2e-skip/types.ts
@@ -839,6 +371,54 @@ var WEB_SURFACE_CONFIG_FILES = [
 var OAUTH_SESSION_FILE = /^oauth-session[\w.-]*\.json$/;
 var MUGGLE_HOME_DIR_NAME = ".muggle-ai";
 
+// src/guardrails/callOutcome.ts
+function renderedResponse(toolResponse) {
+  const rendered = [];
+  const collect = (value) => {
+    if (typeof value === "string") rendered.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(toolResponse);
+  return rendered.join("\n");
+}
+function callFailed(input2) {
+  const rendered = renderedResponse(input2.tool_response);
+  return CALL_FAILURE_SIGNALS.some((signal) => signal.test(rendered));
+}
+
+// src/guardrails/prUrls.ts
+function extractPrUrls(text) {
+  const githubPrUrls = [...text.matchAll(new RegExp(GITHUB_PR_URL.source, "g"))];
+  const gitlabMrUrls = [...text.matchAll(new RegExp(GITLAB_MR_URL.source, "g"))];
+  return [...new Set([...githubPrUrls, ...gitlabMrUrls].map((match) => match[0]))];
+}
+
+// src/guardrails/delegatedE2e.ts
+function carriesAcceptanceReport(input2) {
+  const response = JSON.stringify(input2.tool_response ?? "");
+  return ACCEPTANCE_REPORT_MARKERS.some((marker) => response.includes(marker));
+}
+function detectBackgroundAcceptanceDispatch(input2) {
+  if (!SUBAGENT_DISPATCH_TOOL_NAMES.includes(input2.tool_name ?? "")) return null;
+  if (!ACCEPTANCE_TESTER_SUBAGENT_TYPE.test(input2.tool_input?.subagent_type ?? "")) return null;
+  if (callFailed(input2) || carriesAcceptanceReport(input2)) return null;
+  return extractPrUrls(input2.tool_input?.prompt ?? "");
+}
+function liveDelegations(state, now) {
+  return (state.e2eDelegations ?? []).filter((delegation) => now - delegation.dispatchedAt < DELEGATED_E2E_WINDOW_MS);
+}
+function applyE2eDelegation(state, delegation) {
+  return { ...state, e2eDelegations: [...liveDelegations(state, delegation.dispatchedAt), delegation] };
+}
+function isE2eDelegationInFlight(state, now) {
+  return liveDelegations(state, now).length > 0;
+}
+function withoutDelegatedPrs(prUrls, state, now) {
+  const delegatedPrUrls = new Set(liveDelegations(state, now).flatMap((delegation) => delegation.prUrls));
+  return prUrls.filter((prUrl) => !delegatedPrUrls.has(prUrl));
+}
+
 // src/guardrails/shouldRunE2E.ts
 var MAX_E2E_BLOCKS = 3;
 function applyE2eSkipDeclaration(state, skip) {
@@ -885,6 +465,145 @@ function boundedChildTimeoutMs(ceilingMs) {
   if (childProcessDeadlineEpochMs === null) return ceilingMs;
   const remainingMs = Math.floor(childProcessDeadlineEpochMs - Date.now());
   return remainingMs > 0 ? Math.min(ceilingMs, remainingMs) : null;
+}
+
+// src/e2e-skip/probes.ts
+var readTextFile = (path) => {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return null;
+  }
+};
+var listFiles = (dir) => {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
+};
+var runGit = (args, cwd) => {
+  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
+  try {
+    return execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true
+    });
+  } catch {
+    return null;
+  }
+};
+var hostAndPort = (url) => {
+  const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+  try {
+    const parsed = new URL(withScheme);
+    const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
+    return { host: parsed.hostname, port };
+  } catch {
+    return null;
+  }
+};
+var isReachable = (url) => {
+  const target = hostAndPort(url);
+  if (!target) return false;
+  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
+  if (spawnTimeoutMs === null) return false;
+  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
+  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${socketTimeoutMs});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
+  try {
+    execFileSync(process.execPath, ["-e", script], {
+      timeout: spawnTimeoutMs,
+      stdio: "ignore",
+      windowsHide: true
+    });
+    return true;
+  } catch {
+    return false;
+  }
+};
+var defaultSkipProbes = {
+  readTextFile,
+  listFiles,
+  runGit,
+  isReachable
+};
+
+// src/guardrails/changeIdentity.ts
+function toRepoKey(host2, path) {
+  const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  return host2 && repoPath ? `${host2}/${repoPath}`.toLowerCase() : void 0;
+}
+function repoKeyOfPrUrl(prUrl) {
+  const pullsAt = prUrl.match(GITHUB_PR_URL) ? prUrl.indexOf("/pull/") : prUrl.match(GITLAB_MR_URL) ? prUrl.indexOf("/-/merge_requests/") : -1;
+  if (pullsAt < 0) return void 0;
+  try {
+    const repoUrl = new URL(prUrl.slice(0, pullsAt));
+    return toRepoKey(repoUrl.hostname, repoUrl.pathname);
+  } catch {
+    return void 0;
+  }
+}
+function repoKeyOfRemoteUrl(remoteUrl) {
+  const trimmedUrl = remoteUrl.trim();
+  const scpStyle = trimmedUrl.match(/^[^@\s/]+@([^:\s/]+):(?!\/)(.+)$/);
+  if (scpStyle) return toRepoKey(scpStyle[1], scpStyle[2]);
+  try {
+    const parsedUrl = new URL(trimmedUrl);
+    return toRepoKey(parsedUrl.hostname, parsedUrl.pathname);
+  } catch {
+    return void 0;
+  }
+}
+function resolveTreeChange(cwd, runGit2 = defaultSkipProbes.runGit) {
+  if (!cwd) return void 0;
+  const remoteUrl = runGit2(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
+  const repo = remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : void 0;
+  const branch = runGit2(["branch", "--show-current"], cwd)?.trim();
+  return repo && branch ? { repo, branch } : void 0;
+}
+function resolveOpenedPrChange(command, prUrl, cwd, runGit2 = defaultSkipProbes.runGit) {
+  const repo = repoKeyOfPrUrl(prUrl);
+  if (!repo) return void 0;
+  const openAt = command.search(PR_OPEN_COMMAND);
+  const headFlag = openAt < 0 ? null : command.slice(openAt).match(PR_HEAD_BRANCH_FLAG);
+  if (headFlag) return { repo, branch: headFlag[1].slice(headFlag[1].lastIndexOf(":") + 1) };
+  if (DIRECTORY_CHANGE_COMMAND.test(command)) return void 0;
+  const treeChange = resolveTreeChange(cwd, runGit2);
+  return treeChange?.repo === repo ? treeChange : void 0;
+}
+function isSameChange(left, right) {
+  return left !== void 0 && right !== void 0 && left.repo === right.repo && left.branch === right.branch;
+}
+
+// src/guardrails/skipScope.ts
+function isPrOfSkipChange(state, prUrl) {
+  return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
+}
+function withCoveredPrs(state, prUrls) {
+  const covered = new Set(state.e2eSkipCoveredPrs ?? []);
+  const uncovered = prUrls.filter((prUrl) => !covered.has(prUrl));
+  if (uncovered.length === 0) return state;
+  return { ...state, e2eSkipCoveredPrs: [...covered, ...uncovered] };
+}
+function isPrCoveredBySkip(state, prUrl) {
+  return (state.e2eSkipCoveredPrs ?? []).includes(prUrl);
+}
+function applyPrOpenedToSkipScope(state, prUrl, prChange) {
+  if (!prChange) return state;
+  const recorded = { ...state, prChanges: { ...state.prChanges, [prUrl]: prChange } };
+  return isPrOfSkipChange(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
+}
+function applyE2eSkipScope(state, verifiedChange) {
+  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
+  const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
+  return withCoveredPrs(
+    scoped,
+    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl))
+  );
 }
 
 // src/pr-walkthrough/constants.ts
@@ -1157,6 +876,169 @@ function watchGateDecision(state, unwatchedPrUrls, maxBlocks = MAX_WATCH_BLOCKS)
   };
 }
 
+// src/guardrails/buildFollowthrough.ts
+var BUILD_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_BUILD_SKIP\b/;
+function isBuildSkipMarker(cmd) {
+  return BUILD_SKIP_MARKER.test(cmd);
+}
+function applyBuildSkip(state, skipped) {
+  if (!skipped || state.buildSkipped === true) return state;
+  return { ...state, buildSkipped: true };
+}
+function buildFollowthroughDecision(state, maxBlocks = MAX_BUILD_BLOCKS) {
+  const blockCount = state.buildBlockCount ?? 0;
+  const owed = state.buildIntentRouted === true && state.buildSkipped !== true && state.prsHandled.length === 0;
+  if (!owed) return { action: "none" /* None */, blockCount };
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+
+// src/guardrails/shellTool.ts
+function isShellToolCall(input2) {
+  return SHELL_TOOL_NAMES.includes(input2.tool_name ?? "");
+}
+var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
+var GH_API_CMD = /\bgh\s+api\b/;
+var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
+var PATCH_METHOD = /(?:--method|-X)[=\s]+PATCH\b/;
+var defaultFileReader = (path, cwd) => {
+  try {
+    const abs = isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path);
+    if (!existsSync(abs)) return null;
+    return readFileSync(abs, "utf-8");
+  } catch {
+    return null;
+  }
+};
+function unquote(s) {
+  const t = s.trim();
+  if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
+    return t.slice(1, -1);
+  }
+  return t;
+}
+function isCommentEditCommand(cmd) {
+  return GH_API_CMD.test(cmd) && ISSUE_COMMENT_PATH.test(cmd) && PATCH_METHOD.test(cmd);
+}
+function isPrReportPostCommand(cmd) {
+  return PR_PROSE_CMD.test(cmd) || isCommentEditCommand(cmd);
+}
+function collectPrPostText(cmd, cwd, read) {
+  let text = cmd;
+  for (const match of cmd.matchAll(/(?:--body-file|--input)[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
+    const path = unquote(match[1]);
+    if (path && path !== "-") {
+      const contents = read(path, cwd);
+      if (contents) text += "\n" + contents;
+    }
+  }
+  for (const match of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
+    const contents = read(unquote(match[1]), cwd);
+    if (contents) text += "\n" + contents;
+  }
+  return text;
+}
+
+// src/guardrails/walkthroughPosted.ts
+var WALKTHROUGH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WALKTHROUGH_SKIP\b/;
+function isWalkthroughSkipMarker(cmd) {
+  return WALKTHROUGH_SKIP_MARKER.test(cmd);
+}
+function detectWalkthroughPost(input2, read = defaultFileReader) {
+  if (!isShellToolCall(input2)) return false;
+  const cmd = input2.tool_input?.command ?? "";
+  if (!isPrReportPostCommand(cmd)) return false;
+  if (callFailed(input2)) return false;
+  return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
+}
+function detectWalkthroughPostTargets(input2) {
+  return extractPrUrls(`${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`);
+}
+function applyWalkthroughPosted(state, posted, postedAt, targetPrUrls) {
+  if (!posted) return state;
+  if (targetPrUrls.length === 0) return { ...state, walkthroughPostedAt: postedAt };
+  const postedPrUrls = /* @__PURE__ */ new Set([...state.walkthroughPostedPrUrls ?? [], ...targetPrUrls]);
+  return { ...state, walkthroughPostedPrUrls: [...postedPrUrls] };
+}
+function applyWalkthroughSkip(state, skipped) {
+  if (!skipped || state.walkthroughSkipped === true) return state;
+  return { ...state, walkthroughSkipped: true };
+}
+function runGh(args) {
+  const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
+  if (timeoutMs === null) return null;
+  try {
+    return execFileSync("gh", args, {
+      encoding: "utf-8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true
+    });
+  } catch {
+    return null;
+  }
+}
+var defaultPrWalkthroughLookup = {
+  branchPrUrl: () => {
+    const url = runGh(["pr", "view", "--json", "url", "-q", ".url"])?.trim();
+    return url && url.startsWith("http") ? url : null;
+  },
+  // Scans the description as well as the comments: muggle-do embeds the
+  // walkthrough in the body at PR-creation time, and a comments-only check
+  // would report that PR as owing one it already carries.
+  prCarriesWalkthrough: (prUrl, acceptsSkip) => {
+    const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
+    if (rendered === null) return true;
+    return rendered.includes(REPORT_SENTINEL) || acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER);
+  }
+};
+function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
+  const candidates = new Set(state.prsHandled);
+  const branchPrUrl = lookup.branchPrUrl();
+  if (branchPrUrl) candidates.add(branchPrUrl);
+  const owed = [];
+  const verified2 = [];
+  for (const prUrl of candidates) {
+    const acceptsSkip = state.e2eRun !== true || isPrCoveredBySkip(state, prUrl);
+    if (lookup.prCarriesWalkthrough(prUrl, acceptsSkip)) verified2.push(prUrl);
+    else owed.push(prUrl);
+  }
+  return { owed, verified: verified2 };
+}
+function isWalkthroughGateArmed(state) {
+  const isSkipUnsettled = state.e2eSkipDeclaration !== void 0 && state.e2eSkipSettledOnPrs !== true;
+  const isOwed = state.e2eRun === true || isSkipUnsettled;
+  return isOwed && state.walkthroughsVerified !== true && state.walkthroughSkipped !== true;
+}
+function isWalkthroughScanCurrent(scan, state) {
+  const scanned = new Set(scan.prsHandled);
+  const coversHandledPrs = scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
+  const postedAt = state.walkthroughPostedAt;
+  const followsLastPost = postedAt === void 0 || (scan.startedAt ?? 0) >= postedAt;
+  return coversHandledPrs && followsLastPost;
+}
+function withoutPostedPrs(prUrls, state) {
+  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
+  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
+}
+function applyPrOpenedToWalkthroughs(state) {
+  if (state.walkthroughsVerified !== true && state.e2eSkipSettledOnPrs !== true) return state;
+  return { ...state, walkthroughsVerified: false, e2eSkipSettledOnPrs: false };
+}
+function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
+  const blockCount = state.walkthroughBlockCount ?? 0;
+  if (!isWalkthroughGateArmed(state) || owedPrUrls.length === 0) {
+    return { action: "none" /* None */, blockCount, owed: owedPrUrls };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, owed: owedPrUrls };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
+}
+
 // src/pr-watch/attempts.ts
 function recordedCount(counts, key) {
   const recorded = counts?.[key];
@@ -1300,6 +1182,512 @@ function watchFollowThroughDecision(state, owedWork) {
   if (owed.length === 0) return { action: "none" /* None */, blockCount, owed };
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed };
 }
+
+// src/guardrails/debugPath.ts
+var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
+var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
+${JSON.stringify(input2.tool_response ?? {})}`;
+function renderedResult(toolResponse) {
+  const rendered = [];
+  const collect = (value) => {
+    if (typeof value === "string") rendered.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === "object") Object.values(value).forEach(collect);
+  };
+  collect(toolResponse);
+  return rendered.join("\n");
+}
+function detectFailedRunId(input2) {
+  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
+  const rendered = renderedResult(input2.tool_response);
+  const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
+  if (!status || status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS) return void 0;
+  return MUGGLE_RUN_ID_LINE.exec(rendered)?.[1];
+}
+function applyFailedRun(state, runId) {
+  if ((state.failedRuns ?? []).includes(runId)) return state;
+  return { ...state, failedRuns: [...state.failedRuns ?? [], runId] };
+}
+function detectDebugEvidenceRunIds(input2, owedRunIds) {
+  const toolName = input2.tool_name ?? "";
+  const isDiagnosisEmit = MUGGLE_EVENT_EMIT_TOOL.test(toolName) && FAILURE_DIAGNOSIS_EVENT.test(input2.tool_input?.eventType ?? "");
+  if (!isDiagnosisEmit && !MUGGLE_FEEDBACK_CREATE_TOOL.test(toolName)) return [];
+  if (callFailed(input2)) return [];
+  const payload = serialize(input2);
+  return owedRunIds.filter((runId) => payload.includes(runId));
+}
+function applyDebugEvidence(state, runIds) {
+  const debugged = [...state.debuggedRuns ?? []];
+  for (const runId of runIds) if (!debugged.includes(runId)) debugged.push(runId);
+  if (debugged.length === (state.debuggedRuns ?? []).length) return state;
+  return { ...state, debuggedRuns: debugged };
+}
+function isDebugSkipMarker(command) {
+  return DEBUG_SKIP_MARKER.test(command);
+}
+function applyDebugSkip(state, command) {
+  if (!isDebugSkipMarker(command)) return state;
+  const namedRuns = (state.failedRuns ?? []).filter((runId) => command.includes(runId));
+  if (namedRuns.length > 0) return applyDebugEvidence(state, namedRuns);
+  if (state.debugSkipped === true) return state;
+  return { ...state, debugSkipped: true };
+}
+function undebuggedFailedRuns(state) {
+  const debugged = new Set(state.debuggedRuns ?? []);
+  return (state.failedRuns ?? []).filter((runId) => !debugged.has(runId));
+}
+function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS, now = Date.now()) {
+  const blockCount = state.debugBlockCount ?? 0;
+  const undebugged = undebuggedFailedRuns(state);
+  if (state.debugSkipped === true || undebugged.length === 0 || isE2eDelegationInFlight(state, now)) {
+    return { action: "none" /* None */, blockCount, undebugged };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, undebugged };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, undebugged };
+}
+function resolvePluginRoot(env = process.env) {
+  return env.CLAUDE_PLUGIN_ROOT || env.CURSOR_PLUGIN_ROOT || dirname(dirname(fileURLToPath(import.meta.url)));
+}
+
+// src/guardrails/mandatoryStages.ts
+var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
+var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
+var FLOW_LIST = /^\s*\[(.*)\]\s*$/;
+var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
+var SKILLS_DIR_NAME = "skills";
+var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
+var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
+var SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
+var SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+var SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
+var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
+var MARKDOWN_FILE = /\.md$/i;
+var unquote2 = (raw) => raw.trim().replace(/^["']|["']$/g, "").trim();
+function parseDeclaredStages(skillMarkdown) {
+  const frontmatter = FRONTMATTER.exec(skillMarkdown)?.[1];
+  if (!frontmatter) return [];
+  const lines = frontmatter.split(/\r?\n/);
+  const keyIndex = lines.findIndex(
+    (line) => line.startsWith(`${MANDATORY_STAGES_FRONTMATTER_KEY}:`)
+  );
+  if (keyIndex < 0) return [];
+  const inlineValue = lines[keyIndex].slice(MANDATORY_STAGES_FRONTMATTER_KEY.length + 1).trim();
+  const flowEntries = FLOW_LIST.exec(inlineValue)?.[1];
+  if (flowEntries !== void 0) {
+    return flowEntries.split(",").map(unquote2).filter((entry) => entry.length > 0);
+  }
+  const declared = [];
+  for (const line of lines.slice(keyIndex + 1)) {
+    const entry = SEQUENCE_ENTRY.exec(line);
+    if (!entry) break;
+    declared.push(unquote2(entry[1]));
+  }
+  return declared;
+}
+function normalizeStagePath(filePath) {
+  return filePath.replaceAll("\\", "/").toLowerCase();
+}
+function stageLabel(normalizedStagePath) {
+  const insideSkills = normalizedStagePath.lastIndexOf(SKILLS_PATH_SEGMENT);
+  if (insideSkills < 0) return normalizedStagePath;
+  return normalizedStagePath.slice(insideSkills + SKILLS_PATH_SEGMENT.length);
+}
+function resolvePluginSkillsRoot() {
+  return join(resolvePluginRoot(), SKILLS_DIR_NAME);
+}
+function resolveSkillNameFromToolInput(toolInput) {
+  if (!toolInput) return void 0;
+  const indexed = toolInput;
+  for (const inputKey of SKILL_NAME_INPUT_KEYS) {
+    const value = indexed[inputKey];
+    if (typeof value !== "string" || value.trim().length === 0) continue;
+    const skillName = value.trim().split(":").pop()?.replace(/^\//, "") ?? "";
+    return SINGLE_PATH_SEGMENT.test(skillName) ? skillName : void 0;
+  }
+  return void 0;
+}
+function resolveSkillStagePaths(skillName, skillsRootDir) {
+  const skillDir = join(skillsRootDir, skillName);
+  const skillFile = join(skillDir, "SKILL.md");
+  if (!existsSync(skillFile)) return [];
+  const normalizedRoot = normalizeStagePath(skillsRootDir);
+  const staysInsideSkillsTree = (candidate) => normalizeStagePath(candidate).startsWith(`${normalizedRoot}/`);
+  const resolved = [];
+  for (const declared of parseDeclaredStages(readFileSync(skillFile, "utf-8"))) {
+    if (isAbsolute(declared)) continue;
+    const stagePath = [resolve(skillDir, declared), resolve(skillsRootDir, declared)].find(
+      (candidate) => staysInsideSkillsTree(candidate) && existsSync(candidate)
+    );
+    if (!stagePath) continue;
+    const normalized = normalizeStagePath(stagePath);
+    if (!resolved.includes(normalized)) resolved.push(normalized);
+  }
+  return resolved;
+}
+function applySkillInvocation(state, skillName, stagePaths) {
+  const merged = [...state.mandatoryStages ?? []];
+  for (const stagePath of stagePaths) if (!merged.includes(stagePath)) merged.push(stagePath);
+  if (state.lastInvokedSkillName === skillName && merged.length === (state.mandatoryStages?.length ?? 0)) {
+    return state;
+  }
+  return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
+}
+function isSkillTreeMarkdown(filePath) {
+  const normalized = normalizeStagePath(filePath);
+  return normalized.includes(SKILLS_PATH_SEGMENT) && MARKDOWN_FILE.test(normalized);
+}
+function applyStageRead(state, filePath) {
+  const stagePath = normalizeStagePath(filePath);
+  if ((state.stagesRead ?? []).includes(stagePath)) return state;
+  return { ...state, stagesRead: [...state.stagesRead ?? [], stagePath] };
+}
+var SHELL_ESCAPABLE_UNQUOTED = /* @__PURE__ */ new Set([" ", "	", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
+var SHELL_ESCAPABLE_DOUBLE_QUOTED = /* @__PURE__ */ new Set(['"', "\\", "$", "`"]);
+function splitShellCommands(command) {
+  const commands = [];
+  let words = [];
+  let word = "";
+  let wordStarted = false;
+  let quote = null;
+  const endWord = () => {
+    if (wordStarted) words.push(word);
+    word = "";
+    wordStarted = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (words.length > 0) commands.push(words);
+    words = [];
+  };
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    const nextCharacter = command[index + 1];
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
+        word += nextCharacter;
+        index += 1;
+      } else {
+        word += character;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      wordStarted = true;
+    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
+      word += nextCharacter;
+      wordStarted = true;
+      index += 1;
+    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
+      endCommand();
+    } else if (/\s/.test(character)) {
+      endWord();
+    } else {
+      word += character;
+      wordStarted = true;
+    }
+  }
+  endCommand();
+  return commands;
+}
+function expandShellWord(word, variables) {
+  const withHome = word === "~" || word.startsWith("~/") ? `${homedir()}${word.slice(1)}` : word;
+  return withHome.replace(
+    SHELL_VARIABLE_REFERENCE,
+    (_reference, bracedName, bareName) => variables[bracedName ?? bareName ?? ""] ?? ""
+  );
+}
+function resolveShellPath(path, workingDirectory) {
+  return isAbsolute(path) || WINDOWS_ABSOLUTE_PATH.test(path) ? path : resolve(workingDirectory, path);
+}
+function detectShellStageReads(command, cwd, env = process.env) {
+  const variables = { ...env };
+  let workingDirectory = cwd ?? process.cwd();
+  const readPaths = [];
+  for (const words of splitShellCommands(command)) {
+    let programIndex = 0;
+    const assignments = [];
+    for (; programIndex < words.length; programIndex += 1) {
+      const assignment = SHELL_ASSIGNMENT.exec(words[programIndex]);
+      if (!assignment) break;
+      assignments.push([assignment[1], expandShellWord(assignment[2], variables)]);
+    }
+    const programWord = words[programIndex];
+    if (programWord === void 0 || programWord === "export") {
+      for (const word of words.slice(programIndex + 1)) {
+        const exported = SHELL_ASSIGNMENT.exec(word);
+        if (exported) assignments.push([exported[1], expandShellWord(exported[2], variables)]);
+      }
+      for (const [name, value] of assignments) variables[name] = value;
+      continue;
+    }
+    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+    const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
+    if (program === "cd") {
+      const target = argumentWords.find((word) => !word.startsWith("-"));
+      if (target) workingDirectory = resolveShellPath(target, workingDirectory);
+      continue;
+    }
+    if (!FILE_PRINTING_PROGRAMS.includes(program)) continue;
+    for (const argument of argumentWords) {
+      if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
+      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
+      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
+    }
+  }
+  return readPaths;
+}
+function unreadMandatoryStages(state) {
+  const read = new Set(state.stagesRead ?? []);
+  return (state.mandatoryStages ?? []).filter((stagePath) => !read.has(stagePath));
+}
+function isStageSkipMarker(command) {
+  return STAGE_SKIP_MARKER.test(command);
+}
+function applyStageSkip(state, skipped) {
+  if (!skipped || state.stageSkipped === true) return state;
+  return { ...state, stageSkipped: true };
+}
+function stageGateDecision(state, unreadStagePaths, maxBlocks = MAX_STAGE_BLOCKS) {
+  const blockCount = state.stageBlockCount ?? 0;
+  if (state.stageSkipped === true || unreadStagePaths.length === 0) {
+    return { action: "none" /* None */, blockCount, unread: unreadStagePaths };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount, unread: unreadStagePaths };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1, unread: unreadStagePaths };
+}
+
+// src/guardrails/stateCommit.ts
+function applyToolOutcome(state, outcome) {
+  const declared = applyE2eSkipDeclaration(applyRecordedRun(state, outcome.run), outcome.acceptedSkip);
+  const recorded = applyE2eSkipScope(declared, outcome.skipVerifiedChange);
+  const withWatchSkip = applyWatchSkip(recorded, outcome.isWatchSkip);
+  const withBuildSkip = applyBuildSkip(withWatchSkip, outcome.isBuildSkip);
+  const withWalkthroughPost = applyWalkthroughPosted(
+    withBuildSkip,
+    outcome.isWalkthroughPosted,
+    outcome.walkthroughPostedAt,
+    outcome.walkthroughPostTargets
+  );
+  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, outcome.isWalkthroughSkip);
+  return outcome.failedRunId ? applyFailedRun(withWalkthroughSkip, outcome.failedRunId) : withWalkthroughSkip;
+}
+function applyFields(state, fields) {
+  const isUnchanged = Object.entries(fields).every(
+    ([field, value]) => state[field] === value
+  );
+  return isUnchanged ? state : { ...state, ...fields };
+}
+function applyStateMutation(state, mutation) {
+  switch (mutation.kind) {
+    case "tool-outcome" /* ToolOutcome */:
+      return applyToolOutcome(state, mutation);
+    case "skill-invocation" /* SkillInvocation */:
+      return applyRecordedRun(applySkillInvocation(state, mutation.skillName, mutation.stagePaths), mutation.emittedRun);
+    case "pr-opened" /* PrOpened */:
+      return applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), mutation.prUrl, mutation.prChange);
+    case "e2e-delegation" /* E2eDelegation */:
+      return applyE2eDelegation(state, mutation.delegation);
+    case "watch-follow-through" /* WatchFollowThrough */:
+      return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
+    case "fields" /* Fields */:
+      return applyFields(state, mutation.fields);
+  }
+}
+function commitStateMutation(sessionId2, mutation) {
+  const committed = commitState(sessionId2, (state) => applyStateMutation(state, mutation));
+  if (committed) return committed;
+  deferStateMutation(sessionId2, mutation);
+  startBackgroundJob("commit-deferred-state" /* CommitDeferredState */, [sessionId2]);
+  return applyStateMutation(readState(sessionId2), mutation);
+}
+function commitDeferredSessionState(sessionId2) {
+  commitDeferredStateMutations(sessionId2, applyStateMutation);
+}
+
+// src/guardrails/prOpened.ts
+var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
+var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
+function detectPrOpened(input2) {
+  if (!isShellToolCall(input2)) return null;
+  const cmd = input2.tool_input?.command ?? "";
+  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
+  const out = `${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`;
+  const m = out.match(GITHUB_PR_URL) ?? out.match(GITLAB_MR_URL);
+  return m ? m[0] : null;
+}
+
+// src/guardrails/prTerminal.ts
+function terminalProvenance(input2) {
+  const command = input2.tool_input?.command;
+  if (command === void 0) return { acceptsForgeLine: true, acceptsMonitorLine: true };
+  return {
+    acceptsForgeLine: FORGE_TERMINAL_CMD.test(command),
+    acceptsMonitorLine: WATCH_TERMINAL_CMD.test(command)
+  };
+}
+function detectPrTerminal(input2) {
+  if (!isShellToolCall(input2) && input2.tool_name !== "Monitor") return null;
+  const response = input2.tool_response;
+  const provenance = terminalProvenance(input2);
+  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
+  const mergedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_MERGED_LINE) : null;
+  if (mergedMatch) {
+    return { prNumber: Number(mergedMatch[1]), verdict: "merged" /* Merged */ };
+  }
+  const closedMatch = provenance.acceptsForgeLine ? haystack.match(GH_PR_CLOSED_LINE) : null;
+  if (closedMatch) {
+    return { prNumber: Number(closedMatch[1]), verdict: "closed" /* Closed */ };
+  }
+  const monitorMatch = provenance.acceptsMonitorLine ? haystack.match(PR_MONITOR_TERMINAL_LINE) : null;
+  if (monitorMatch) {
+    return {
+      prNumber: Number(monitorMatch[1]),
+      verdict: monitorMatch[2] === "MERGED" ? "merged" /* Merged */ : "closed" /* Closed */
+    };
+  }
+  return null;
+}
+function detectPrReopened(input2) {
+  if (!isShellToolCall(input2)) return null;
+  if (!terminalProvenance(input2).acceptsForgeLine) return null;
+  const response = input2.tool_response;
+  const haystack = [response?.stdout, response?.stderr, response?.output, response?.content].filter((part) => typeof part === "string").join("\n");
+  const reopenedMatch = haystack.match(GH_PR_REOPENED_LINE);
+  return reopenedMatch ? Number(reopenedMatch[1]) : null;
+}
+function applyPrReopened(state, prNumber) {
+  const pending = state.terminalPending ?? [];
+  const handled = state.terminalHandled ?? [];
+  if (!pending.includes(prNumber) && !handled.includes(prNumber)) return state;
+  return {
+    ...state,
+    terminalPending: pending.filter((number) => number !== prNumber),
+    terminalHandled: handled.filter((number) => number !== prNumber)
+  };
+}
+function applyPrTerminalDetected(state, prNumber) {
+  const pending = state.terminalPending ?? [];
+  const handled = state.terminalHandled ?? [];
+  if (pending.includes(prNumber) || handled.includes(prNumber)) return state;
+  return { ...state, terminalPending: [...pending, prNumber] };
+}
+function applyNextOptionsOffered(state) {
+  const pending = state.terminalPending ?? [];
+  if (pending.length === 0) return state;
+  return {
+    ...state,
+    terminalPending: [],
+    terminalHandled: [...state.terminalHandled ?? [], ...pending],
+    terminalBlockCount: 0
+  };
+}
+function closingMessageAsksUser(closingMessage) {
+  return typeof closingMessage === "string" && closingMessage.includes("?");
+}
+function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
+  const blockCount = state.terminalBlockCount ?? 0;
+  if ((state.terminalPending ?? []).length === 0) {
+    return { action: "none" /* None */, blockCount };
+  }
+  if (blockCount >= maxBlocks) {
+    return { action: "release" /* Release */, blockCount };
+  }
+  return { action: "block" /* Block */, blockCount: blockCount + 1 };
+}
+
+// src/guardrails/capabilityClaim.ts
+var SENTENCE = /[^.!?\n]+/g;
+var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
+var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential|sms|text message|texted code|authenticator app|google authenticator|authy|totp)/i;
+var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
+var GENUINELY_UNSUPPORTED = /\b(?:phone call|voice call|oauth|social (?:login|sign[- ]?in)|sign in with (?:google|github|apple|facebook)|no (?:phone )?number (?:is )?provisioned|no provisioned (?:phone )?number)\b/i;
+function detectFalseCapabilityClaim(text) {
+  const sentences = (text ?? "").match(SENTENCE) ?? [];
+  return sentences.some(
+    (sentence) => IMPOSSIBILITY.test(sentence) && MUGGLE_CLEARS.test(sentence) && TESTING_CONTEXT.test(sentence) && !GENUINELY_UNSUPPORTED.test(sentence)
+  );
+}
+function lastAssistantText(transcriptJsonl) {
+  const lines = (transcriptJsonl ?? "").split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (!line) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry.type !== "assistant") continue;
+    const content = entry.message?.content;
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) continue;
+    const prose = content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
+    if (prose) return prose;
+  }
+  return "";
+}
+
+// src/guardrails/preExecutionClassification.ts
+var CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
+function detectClassifiedTestCaseId(input2) {
+  if (!MUGGLE_EVENT_EMIT_TOOL.test(input2.tool_name ?? "")) return void 0;
+  if (input2.tool_input?.eventType !== PRE_EXECUTION_CLASSIFICATION_EVENT) return void 0;
+  if (callFailed(input2)) return void 0;
+  return input2.tool_input?.testCaseId ?? ANY_TEST_CASE;
+}
+function applyClassifiedTestCase(state, testCaseId) {
+  if ((state.classifiedTestCaseIds ?? []).includes(testCaseId)) return state;
+  return { ...state, classifiedTestCaseIds: [...state.classifiedTestCaseIds ?? [], testCaseId] };
+}
+function resolveExecutionTargetTestCaseId(input2) {
+  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
+  return input2.tool_input?.testCase?.id ?? input2.tool_input?.testScript?.testCaseId;
+}
+function isClassificationSkipMarker(command) {
+  return CLASSIFICATION_SKIP_MARKER.test(command);
+}
+function applyClassificationSkip(state, skipped) {
+  if (!skipped || state.classificationSkipped === true) return state;
+  return { ...state, classificationSkipped: true };
+}
+function classificationGateDecision(state, input2) {
+  if (state.lastInvokedSkillName !== MUGGLE_TEST_SKILL_NAME) return { deny: false };
+  if (state.classificationSkipped === true) return { deny: false };
+  const testCaseId = resolveExecutionTargetTestCaseId(input2);
+  if (!testCaseId) return { deny: false };
+  const classified = state.classifiedTestCaseIds ?? [];
+  if (classified.includes(ANY_TEST_CASE) || classified.includes(testCaseId)) return { deny: false };
+  return { deny: true, testCaseId };
+}
+
+// src/guardrails/testsGreen.ts
+var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
+var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
+var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
+function isTestCommand(cmd) {
+  return TEST_CMD.test(cmd);
+}
+function testsPassed(input2) {
+  const response = input2.tool_response;
+  const out = `${response?.stdout ?? ""}
+${response?.stderr ?? ""}
+${response?.output ?? ""}`;
+  if (!out.trim()) return false;
+  return !FAIL.test(out);
+}
+function isE2ERun(input2) {
+  if (E2E_TOOL.test(input2.tool_name ?? "")) return true;
+  return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
+}
 function parseMaxCatchUpRebases(configuredValue) {
   if (configuredValue === UNBOUNDED_PREFERENCE_VALUE) return null;
   const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
@@ -1315,303 +1703,6 @@ function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePlugin
     autoRebase: typeof autoRebase === "string" ? autoRebase : void 0,
     maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
   };
-}
-
-// src/guardrails/buildFollowthrough.ts
-var BUILD_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_BUILD_SKIP\b/;
-function isBuildSkipMarker(cmd) {
-  return BUILD_SKIP_MARKER.test(cmd);
-}
-function applyBuildSkip(state, skipped) {
-  if (!skipped || state.buildSkipped === true) return state;
-  return { ...state, buildSkipped: true };
-}
-function buildFollowthroughDecision(state, maxBlocks = MAX_BUILD_BLOCKS) {
-  const blockCount = state.buildBlockCount ?? 0;
-  const owed = state.buildIntentRouted === true && state.buildSkipped !== true && state.prsHandled.length === 0;
-  if (!owed) return { action: "none" /* None */, blockCount };
-  if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount };
-  }
-  return { action: "block" /* Block */, blockCount: blockCount + 1 };
-}
-var PR_PROSE_CMD = /\bgh\s+pr\s+(comment|create|edit)\b/;
-var GH_API_CMD = /\bgh\s+api\b/;
-var ISSUE_COMMENT_PATH = /\bissues\/comments\/\d+/;
-var PATCH_METHOD = /(?:--method|-X)[=\s]+PATCH\b/;
-var defaultFileReader = (path, cwd) => {
-  try {
-    const abs = isAbsolute(path) ? path : resolve(cwd ?? process.cwd(), path);
-    if (!existsSync(abs)) return null;
-    return readFileSync(abs, "utf-8");
-  } catch {
-    return null;
-  }
-};
-function unquote2(s) {
-  const t = s.trim();
-  if (t.startsWith('"') && t.endsWith('"') || t.startsWith("'") && t.endsWith("'")) {
-    return t.slice(1, -1);
-  }
-  return t;
-}
-function isCommentEditCommand(cmd) {
-  return GH_API_CMD.test(cmd) && ISSUE_COMMENT_PATH.test(cmd) && PATCH_METHOD.test(cmd);
-}
-function isPrReportPostCommand(cmd) {
-  return PR_PROSE_CMD.test(cmd) || isCommentEditCommand(cmd);
-}
-function collectPrPostText(cmd, cwd, read) {
-  let text = cmd;
-  for (const match of cmd.matchAll(/(?:--body-file|--input)[=\s]+("[^"]+"|'[^']+'|\S+)/g)) {
-    const path = unquote2(match[1]);
-    if (path && path !== "-") {
-      const contents = read(path, cwd);
-      if (contents) text += "\n" + contents;
-    }
-  }
-  for (const match of cmd.matchAll(/jq\b[^|]*?("[^"]+\.json"|'[^']+\.json'|\S+\.json)/g)) {
-    const contents = read(unquote2(match[1]), cwd);
-    if (contents) text += "\n" + contents;
-  }
-  return text;
-}
-
-// src/guardrails/walkthroughPosted.ts
-var WALKTHROUGH_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_WALKTHROUGH_SKIP\b/;
-function isWalkthroughSkipMarker(cmd) {
-  return WALKTHROUGH_SKIP_MARKER.test(cmd);
-}
-function detectWalkthroughPost(input2, read = defaultFileReader) {
-  if (!isShellToolCall(input2)) return false;
-  const cmd = input2.tool_input?.command ?? "";
-  if (!isPrReportPostCommand(cmd)) return false;
-  if (callFailed(input2)) return false;
-  return collectPrPostText(cmd, input2.cwd, read).includes(REPORT_SENTINEL);
-}
-function detectWalkthroughPostTargets(input2) {
-  return extractPrUrls(`${input2.tool_response?.stdout ?? ""}
-${input2.tool_response?.output ?? ""}`);
-}
-function applyWalkthroughPosted(state, posted, postedAt, targetPrUrls) {
-  if (!posted) return state;
-  if (targetPrUrls.length === 0) return { ...state, walkthroughPostedAt: postedAt };
-  const postedPrUrls = /* @__PURE__ */ new Set([...state.walkthroughPostedPrUrls ?? [], ...targetPrUrls]);
-  return { ...state, walkthroughPostedPrUrls: [...postedPrUrls] };
-}
-function applyWalkthroughSkip(state, skipped) {
-  if (!skipped || state.walkthroughSkipped === true) return state;
-  return { ...state, walkthroughSkipped: true };
-}
-var readTextFile = (path) => {
-  try {
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-};
-var listFiles = (dir) => {
-  try {
-    return readdirSync(dir);
-  } catch {
-    return [];
-  }
-};
-var runGit = (args, cwd) => {
-  const timeoutMs = boundedChildTimeoutMs(GIT_PROBE_TIMEOUT_MS);
-  if (timeoutMs === null) return null;
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf8",
-      timeout: timeoutMs,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true
-    });
-  } catch {
-    return null;
-  }
-};
-var hostAndPort = (url) => {
-  const withScheme = /^https?:\/\//i.test(url) ? url : `http://${url}`;
-  try {
-    const parsed = new URL(withScheme);
-    const port = parsed.port ? Number(parsed.port) : parsed.protocol === "https:" ? 443 : 80;
-    return { host: parsed.hostname, port };
-  } catch {
-    return null;
-  }
-};
-var isReachable = (url) => {
-  const target = hostAndPort(url);
-  if (!target) return false;
-  const spawnTimeoutMs = boundedChildTimeoutMs(DEV_SERVER_PROBE_TIMEOUT_MS * 2);
-  if (spawnTimeoutMs === null) return false;
-  const socketTimeoutMs = Math.min(DEV_SERVER_PROBE_TIMEOUT_MS, Math.floor(spawnTimeoutMs / 2));
-  const script = `const net=require('net');const s=net.connect(${target.port},${JSON.stringify(target.host)});s.setTimeout(${socketTimeoutMs});s.on('connect',()=>{s.destroy();process.exit(0)});s.on('timeout',()=>{s.destroy();process.exit(1)});s.on('error',()=>process.exit(1));`;
-  try {
-    execFileSync(process.execPath, ["-e", script], {
-      timeout: spawnTimeoutMs,
-      stdio: "ignore",
-      windowsHide: true
-    });
-    return true;
-  } catch {
-    return false;
-  }
-};
-var defaultSkipProbes = {
-  readTextFile,
-  listFiles,
-  runGit,
-  isReachable
-};
-
-// src/guardrails/changeIdentity.ts
-function toRepoKey(host2, path) {
-  const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
-  return host2 && repoPath ? `${host2}/${repoPath}`.toLowerCase() : void 0;
-}
-function repoKeyOfPrUrl(prUrl) {
-  const pullsAt = prUrl.match(GITHUB_PR_URL) ? prUrl.indexOf("/pull/") : prUrl.match(GITLAB_MR_URL) ? prUrl.indexOf("/-/merge_requests/") : -1;
-  if (pullsAt < 0) return void 0;
-  try {
-    const repoUrl = new URL(prUrl.slice(0, pullsAt));
-    return toRepoKey(repoUrl.hostname, repoUrl.pathname);
-  } catch {
-    return void 0;
-  }
-}
-function repoKeyOfRemoteUrl(remoteUrl) {
-  const trimmedUrl = remoteUrl.trim();
-  const scpStyle = trimmedUrl.match(/^[^@\s/]+@([^:\s/]+):(?!\/)(.+)$/);
-  if (scpStyle) return toRepoKey(scpStyle[1], scpStyle[2]);
-  try {
-    const parsedUrl = new URL(trimmedUrl);
-    return toRepoKey(parsedUrl.hostname, parsedUrl.pathname);
-  } catch {
-    return void 0;
-  }
-}
-function resolveTreeChange(cwd, runGit2 = defaultSkipProbes.runGit) {
-  if (!cwd) return void 0;
-  const remoteUrl = runGit2(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
-  const repo = remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : void 0;
-  const branch = runGit2(["branch", "--show-current"], cwd)?.trim();
-  return repo && branch ? { repo, branch } : void 0;
-}
-function resolveOpenedPrChange(command, prUrl, cwd, runGit2 = defaultSkipProbes.runGit) {
-  const repo = repoKeyOfPrUrl(prUrl);
-  if (!repo) return void 0;
-  const openAt = command.search(PR_OPEN_COMMAND);
-  const headFlag = openAt < 0 ? null : command.slice(openAt).match(PR_HEAD_BRANCH_FLAG);
-  if (headFlag) return { repo, branch: headFlag[1].slice(headFlag[1].lastIndexOf(":") + 1) };
-  if (DIRECTORY_CHANGE_COMMAND.test(command)) return void 0;
-  const treeChange = resolveTreeChange(cwd, runGit2);
-  return treeChange?.repo === repo ? treeChange : void 0;
-}
-function isSameChange(left, right) {
-  return left !== void 0 && right !== void 0 && left.repo === right.repo && left.branch === right.branch;
-}
-
-// src/guardrails/skipScope.ts
-function isPrOfSkipChange(state, prUrl) {
-  return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
-}
-function withCoveredPrs(state, prUrls) {
-  const covered = new Set(state.e2eSkipCoveredPrs ?? []);
-  const uncovered = prUrls.filter((prUrl) => !covered.has(prUrl));
-  if (uncovered.length === 0) return state;
-  return { ...state, e2eSkipCoveredPrs: [...covered, ...uncovered] };
-}
-function isPrCoveredBySkip(state, prUrl) {
-  return (state.e2eSkipCoveredPrs ?? []).includes(prUrl);
-}
-function applyPrOpenedToSkipScope(state, prUrl, prChange) {
-  if (!prChange) return state;
-  const recorded = { ...state, prChanges: { ...state.prChanges, [prUrl]: prChange } };
-  return isPrOfSkipChange(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
-}
-function applyE2eSkipScope(state, verifiedChange) {
-  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
-  const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
-  return withCoveredPrs(
-    scoped,
-    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl))
-  );
-}
-
-// src/guardrails/walkthroughOwed.ts
-function runGh(args) {
-  const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
-  if (timeoutMs === null) return null;
-  try {
-    return execFileSync("gh", args, {
-      encoding: "utf-8",
-      timeout: timeoutMs,
-      stdio: ["ignore", "pipe", "ignore"],
-      windowsHide: true
-    });
-  } catch {
-    return null;
-  }
-}
-var defaultPrWalkthroughLookup = {
-  branchPrUrl: () => {
-    const url = runGh(["pr", "view", "--json", "url", "-q", ".url"])?.trim();
-    return url && url.startsWith("http") ? url : null;
-  },
-  // Scans the description as well as the comments: muggle-do embeds the
-  // walkthrough in the body at PR-creation time, and a comments-only check
-  // would report that PR as owing one it already carries.
-  prCarriesWalkthrough: (prUrl, acceptsSkip) => {
-    const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
-    if (rendered === null) return true;
-    return rendered.includes(REPORT_SENTINEL) || acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER);
-  }
-};
-function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
-  const candidates = new Set(state.prsHandled);
-  const branchPrUrl = lookup.branchPrUrl();
-  if (branchPrUrl) candidates.add(branchPrUrl);
-  const owed = [];
-  const verified2 = [];
-  for (const prUrl of candidates) {
-    const acceptsSkip = state.e2eRun !== true || isPrCoveredBySkip(state, prUrl);
-    if (lookup.prCarriesWalkthrough(prUrl, acceptsSkip)) verified2.push(prUrl);
-    else owed.push(prUrl);
-  }
-  return { owed, verified: verified2 };
-}
-function isWalkthroughGateArmed(state) {
-  const isSkipUnsettled = state.e2eSkipDeclaration !== void 0 && state.e2eSkipSettledOnPrs !== true;
-  const isOwed = state.e2eRun === true || isSkipUnsettled;
-  return isOwed && state.walkthroughsVerified !== true && state.walkthroughSkipped !== true;
-}
-function isWalkthroughScanCurrent(scan, state) {
-  const scanned = new Set(scan.prsHandled);
-  const coversHandledPrs = scanned.size === new Set(state.prsHandled).size && state.prsHandled.every((prUrl) => scanned.has(prUrl));
-  const postedAt = state.walkthroughPostedAt;
-  const followsLastPost = postedAt === void 0 || (scan.startedAt ?? 0) >= postedAt;
-  return coversHandledPrs && followsLastPost;
-}
-function withoutPostedPrs(prUrls, state) {
-  const postedPrUrls = new Set(state.walkthroughPostedPrUrls ?? []);
-  return prUrls.filter((prUrl) => !postedPrUrls.has(prUrl));
-}
-function applyPrOpenedToWalkthroughs(state) {
-  if (state.walkthroughsVerified !== true && state.e2eSkipSettledOnPrs !== true) return state;
-  return { ...state, walkthroughsVerified: false, e2eSkipSettledOnPrs: false };
-}
-function walkthroughGateDecision(state, owedPrUrls, maxBlocks = MAX_WALKTHROUGH_BLOCKS) {
-  const blockCount = state.walkthroughBlockCount ?? 0;
-  if (!isWalkthroughGateArmed(state) || owedPrUrls.length === 0) {
-    return { action: "none" /* None */, blockCount, owed: owedPrUrls };
-  }
-  if (blockCount >= maxBlocks) {
-    return { action: "release" /* Release */, blockCount, owed: owedPrUrls };
-  }
-  return { action: "block" /* Block */, blockCount: blockCount + 1, owed: owedPrUrls };
 }
 
 // src/e2e-skip/noAppLogicChange.ts
@@ -2303,10 +2394,7 @@ if (!isBackgroundJob(sub)) enforceHookChildProcessDeadline();
 var input = readStdin();
 var sessionId = input.session_id ?? "unknown";
 function releaseGate(field) {
-  updateState(
-    sessionId,
-    (current) => current[field] === true ? current : { ...current, [field]: true }
-  );
+  commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { [field]: true } });
   return "{}";
 }
 function muggleSkill(slashCommand) {
@@ -2325,10 +2413,11 @@ function prOpened() {
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
   markPrHandled(sessionId, url);
   const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
-  const stateAfterOpen = commitState(
-    sessionId,
-    (state) => applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, prChange)
-  ) ?? readState(sessionId);
+  const stateAfterOpen = commitStateMutation(sessionId, {
+    kind: "pr-opened" /* PrOpened */,
+    prUrl: url,
+    prChange
+  });
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : void 0;
   if (declaredSkip) {
     startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [url, declaredSkip.code, declaredSkip.detail]);
@@ -2393,32 +2482,27 @@ function recordTests() {
   const stateBefore = readState(sessionId);
   const judgedSkip = judgeE2eSkip(input, stateBefore);
   const acceptedSkip = judgedSkip?.accepted ? judgedSkip.skip : null;
-  const run = {
-    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
-    e2eRan: isE2ERun(input),
-    e2eSkipped: acceptedSkip !== null,
-    e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code)
-  };
   const walkthroughPosted = detectWalkthroughPost(input);
-  const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
-  const failedRunId = detectFailedRunId(input);
   const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
-  const verifiedChange = isDeclaredHere ? resolveTreeChange(input.cwd) : void 0;
-  const record = (state) => {
-    const declared = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
-    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, verifiedChange) : declared;
-    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(
-      withBuildSkip,
-      walkthroughPosted,
-      Date.now(),
-      walkthroughPostTargets
-    );
-    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
-    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  const outcome = {
+    kind: "tool-outcome" /* ToolOutcome */,
+    run: {
+      unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+      e2eRan: isE2ERun(input),
+      e2eSkipped: acceptedSkip !== null,
+      e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code)
+    },
+    acceptedSkip,
+    skipVerifiedChange: isDeclaredHere ? resolveTreeChange(input.cwd) : void 0,
+    isWatchSkip: isWatchSkipMarker(cmd),
+    isBuildSkip: isBuildSkipMarker(cmd),
+    isWalkthroughPosted: walkthroughPosted,
+    walkthroughPostedAt: Date.now(),
+    walkthroughPostTargets: walkthroughPosted ? detectWalkthroughPostTargets(input) : [],
+    isWalkthroughSkip: isWalkthroughSkipMarker(cmd),
+    failedRunId: detectFailedRunId(input)
   };
-  const next = commitState(sessionId, record) ?? record(readState(sessionId));
+  const next = commitStateMutation(sessionId, outcome);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   if (judgedSkip && !judgedSkip.accepted) {
@@ -2439,23 +2523,23 @@ function recordSkipReasonOnPrs(state, skip) {
 function recordDelegation() {
   const prUrls = detectBackgroundAcceptanceDispatch(input);
   if (prUrls === null) return "{}";
-  const delegate = (state) => applyE2eDelegation(state, { dispatchedAt: Date.now(), prUrls });
-  updateState(sessionId, delegate);
+  commitStateMutation(sessionId, {
+    kind: "e2e-delegation" /* E2eDelegation */,
+    delegation: { dispatchedAt: Date.now(), prUrls }
+  });
   return "{}";
 }
 function skillStages() {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
   const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
-  const emittedRun = {
-    unitTestPassed: false,
-    e2eRan: isE2ERun(input),
-    e2eSkipped: false,
-    e2eSkipCycleScoped: false
-  };
   const stateBefore = readState(sessionId);
-  const invoke = (state) => applyRecordedRun(applySkillInvocation(state, skillName, stagePaths), emittedRun);
-  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
+  const next = commitStateMutation(sessionId, {
+    kind: "skill-invocation" /* SkillInvocation */,
+    skillName,
+    stagePaths,
+    emittedRun: { unitTestPassed: false, e2eRan: isE2ERun(input), e2eSkipped: false, e2eSkipCycleScoped: false }
+  });
   startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
@@ -2567,17 +2651,19 @@ function watchFollowThroughGate() {
   const decision = watchFollowThroughDecision(state, owedWork);
   if (decision.action === "none" /* None */) {
     if (state !== stateBefore || (state.watchFollowThroughBlockCount ?? 0) > 0) {
-      updateState(sessionId, (current) => ({
-        ...applyWatchHolds(current, heldPrNumbers),
-        watchFollowThroughBlockCount: 0
-      }));
+      commitStateMutation(sessionId, {
+        kind: "watch-follow-through" /* WatchFollowThrough */,
+        heldPrNumbers,
+        blockCount: 0
+      });
     }
     return "{}";
   }
-  updateState(sessionId, (current) => ({
-    ...applyWatchHolds(current, heldPrNumbers),
-    watchFollowThroughBlockCount: decision.blockCount
-  }));
+  commitStateMutation(sessionId, {
+    kind: "watch-follow-through" /* WatchFollowThrough */,
+    heldPrNumbers,
+    blockCount: decision.blockCount
+  });
   const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
   const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:
@@ -2647,7 +2733,7 @@ function recordCommentReplies() {
   if (isReplySkipMarker(cmd)) {
     const deferred = deferredCommentIds(readLedger(slotPath), cmd);
     if (deferred.length === 0) {
-      updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+      commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { commentReplySkipped: true } });
       return "{}";
     }
     for (const { threadId, commentIds } of deferred) {
@@ -2684,7 +2770,10 @@ function commentReplyGate() {
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
   if (decision.action === "release" /* Release */) return releaseGate("commentReplyReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
+  commitStateMutation(sessionId, {
+    kind: "fields" /* Fields */,
+    fields: { commentReplyBlockCount: decision.blockCount }
+  });
   const commentList = decision.unanswered.join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took these review comments as work and never answered them: ${commentList}. Post one reply per comment in its own thread per muggle-do do/per-comment-replies.md \u2014 "Addressed in <short-sha>: <what changed for THIS comment>", signed via sign-body.sh --mode loop. A silent round leaves the reviewer with no answer in the thread, and the loop marker that reply carries is the only thing that stops the watcher re-dispatching the same thread next tick. If a comment was escalated to the user instead of answered, record it as deferred rather than replying.` : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ${commentList}. Reply per do/per-comment-replies.md, or record the deferral.`;
   return blockStop(reason, host);
@@ -2827,6 +2916,10 @@ function scanWatchPrStatesJob() {
   writePrStateScan(scannedSessionId, { states: { ...previousScan?.states, ...freshScan.states } });
   return "{}";
 }
+function commitDeferredStateJob() {
+  commitDeferredSessionState(jobArgs[0] ?? "unknown");
+  return "{}";
+}
 var backgroundJobs = {
   ["scan-walkthroughs" /* ScanWalkthroughs */]: scanWalkthroughsJob,
   ["reserve-walkthrough-comment" /* ReserveWalkthroughComment */]: reserveWalkthroughCommentJob,
@@ -2834,7 +2927,8 @@ var backgroundJobs = {
   ["settle-branch-walkthrough-skipped" /* SettleBranchWalkthroughSkipped */]: settleBranchWalkthroughSkippedJob,
   ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob,
   ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob,
-  ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob
+  ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob,
+  ["commit-deferred-state" /* CommitDeferredState */]: commitDeferredStateJob
 };
 var runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
 process.stdout.write(runSubcommand());

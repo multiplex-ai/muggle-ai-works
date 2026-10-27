@@ -38,6 +38,8 @@ var WATCH_HOLD_PHRASE_PREFIX = "HOLD WATCH #";
 var WATCH_HOLD_INSTRUCTION = /HOLD WATCH #(\d+)\b/g;
 var WATCH_HOLD_TRANSCRIPT_TAIL_BYTES = 4e6;
 var MAX_BUILD_BLOCKS = 3;
+var MUGGLE_PLUGIN_NAMESPACE = "muggle";
+var MUGGLE_DO_COMMAND_NAMES = ["muggle-do", "mdo"];
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
 function mcpToolNamePattern(hyphenatedSource) {
@@ -2422,11 +2424,29 @@ function deferredCommentIds(ledger, command) {
 var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
 var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
 var QUESTION = /^\s*(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)\b/i;
+var SKILL_COMMAND = /^[/$](?:([\w-]+):)?([\w-]+)(?:\s+([\s\S]*))?$/;
+var MENU_ARGUMENTS = /^(help|menu|\?)?$/i;
+var CHANGE_URL = /https?:\/\/\S+\/(pull\/\d+|-\/merge_requests\/\d+)/i;
+var CHANGE_DIRECTIVE = /\b(address[\s-]reviews|fix[\s-]ci|rebase|resolve[\s-]conflicts)\b/i;
+var CLEANUP_DIRECTIVE = /\bcleanup\b/i;
+var SESSION_SLOT_ARGUMENT = /(^|\s)slug=\S/;
 function detectBuildIntent(prompt) {
   const p = (prompt ?? "").trim();
   if (!p || p.startsWith("/")) return false;
   if (QUESTION.test(p)) return false;
   return BUILD.test(p) || DEVCYCLE.test(p);
+}
+function isMuggleDoForwardInvocation(prompt) {
+  const command = SKILL_COMMAND.exec((prompt ?? "").trim());
+  if (!command) return false;
+  const [, namespace, commandName, rawArguments] = command;
+  if (namespace !== void 0 && namespace.toLowerCase() !== MUGGLE_PLUGIN_NAMESPACE) return false;
+  if (!MUGGLE_DO_COMMAND_NAMES.includes(commandName.toLowerCase())) return false;
+  const commandArguments = (rawArguments ?? "").trim();
+  if (MENU_ARGUMENTS.test(commandArguments)) return false;
+  const isChangeDirective = CHANGE_URL.test(commandArguments) && CHANGE_DIRECTIVE.test(commandArguments);
+  const isCleanupDirective = CLEANUP_DIRECTIVE.test(commandArguments) && SESSION_SLOT_ARGUMENT.test(commandArguments);
+  return !isChangeDirective && !isCleanupDirective;
 }
 
 // src/guardrails/reportGate.ts
@@ -2948,11 +2968,14 @@ function resolveGate() {
   return denyTool(resolveVerdict.reason, host);
 }
 function buildRouter() {
-  if (!detectBuildIntent(input.prompt ?? "")) return "{}";
+  const prompt = input.prompt ?? "";
+  const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
+  if (!isMuggleDoInvoked && !detectBuildIntent(prompt)) return "{}";
   const state = readState(sessionId);
   if (state.buildIntentRouted) return "{}";
   state.buildIntentRouted = true;
   writeState(state);
+  if (isMuggleDoInvoked) return "{}";
   const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }

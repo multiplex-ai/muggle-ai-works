@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "set -- guardrail-classify-gate.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-classify-gate.sh guardrail-walkthrough-rerun.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }

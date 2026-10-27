@@ -46,6 +46,8 @@ existing=$(gh api "repos/<owner>/<repo>/issues/<prNumber>/comments" \
 
 Match only comments carrying one of those markers — never every comment the loop user wrote — so an unrelated reply is never overwritten.
 
+While a run is in flight, the comment carries a "new E2E run in progress" banner above the previous run's walkthrough. The PATCH replaces the whole body, banner included; never carry the banner or the previous walkthrough into the new body.
+
 Report back: PR URL, whether an overflow comment was involved, and whether this was a fresh post or an update.
 
 **Modes B/C (`render-for-new-pr` / `embed`)** — do not post, do not touch `gh`. Return the CLI output verbatim as your report:

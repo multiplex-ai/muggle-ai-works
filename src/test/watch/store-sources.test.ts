@@ -37,6 +37,19 @@ describe("readOpenWatchSlots", () => {
     expect(slots.find((slot) => slot.slug === "single-object")).toMatchObject({ isRegistered: false, ownerSessionId: undefined, heartbeatMtimeMs: undefined });
   });
 
+  it("carries the slot's last_seen.json text and followup.log lines, empty when absent", () => {
+    const slotsDir = join(makeTempDir("slots"), "sessions");
+    const lastSeen = { "o/r#1": { ci_escalated_shas: ["abc123"] } };
+    writeSlot(slotsDir, "escalated", { prsJson: [openPrEntry("o/r", 1)], lastSeen: lastSeen, followupLog: "t1 tick pr=1\r\nt2 fix-ci pr=1 escalated: x\n" });
+    writeSlot(slotsDir, "bare", { prsJson: [openPrEntry("o/r", 2)] });
+    const slots = readOpenWatchSlots(slotsDir);
+    expect(slots.find((slot) => slot.slug === "escalated")).toMatchObject({
+      lastSeenJson: JSON.stringify(lastSeen),
+      followupLogLines: ["t1 tick pr=1", "t2 fix-ci pr=1 escalated: x", ""],
+    });
+    expect(slots.find((slot) => slot.slug === "bare")).toMatchObject({ lastSeenJson: "", followupLogLines: [""] });
+  });
+
   it("reads a missing sessions dir as no slots", () => {
     expect(readOpenWatchSlots(join(makeTempDir("slots"), "absent"))).toEqual([]);
   });

@@ -2,6 +2,7 @@ import { WATCH_HEARTBEAT_STALE_MS } from "../guardrails/constants.js";
 import { ProviderPrState } from "../guardrails/types.js";
 import { MONITOR_STDOUT_CAP_MS, WATCH_FINDING_SEVERITY, WATCHER_REARM_GRACE_MS } from "./constants.js";
 import { formatDuration, shortSessionId, shortSha } from "./format.js";
+import { resolveOwnerEscalation } from "./owner-escalation.js";
 import { isTerminalPrState } from "./pr-status.js";
 import {
   CiRollupState,
@@ -11,6 +12,7 @@ import {
   WatcherLiveness,
   WatchFindingCode,
   type FindingTransitions,
+  type OwnerEscalation,
   type PrLiveStatus,
   type RepoCoverage,
   type TrackedProcess,
@@ -75,6 +77,7 @@ export function assessWatchSlots(
       slot.ownerSessionId === undefined || activeSessionIds === null ? undefined : activeSessionIds.has(slot.ownerSessionId);
     const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null);
     for (const pr of slot.openPrs) {
+      const live = liveStatusesByUrl.get(pr.url);
       assessments.push({
         slug: slot.slug,
         slotDir: slot.slotDir,
@@ -86,7 +89,8 @@ export function assessWatchSlots(
         heartbeatAgeMs: heartbeatAgeMs,
         ownerSessionId: slot.ownerSessionId,
         isOwnerSessionActive: isOwnerSessionActive,
-        live: liveStatusesByUrl.get(pr.url),
+        live: live,
+        ownerEscalation: resolveOwnerEscalation(slot.lastSeenJson, slot.followupLogLines, pr, live?.headSha),
       });
     }
   }
@@ -137,9 +141,22 @@ function watcherFinding(assessment: WatchSlotAssessment, subject: string): Watch
   return undefined;
 }
 
+function awaitingOwnerMessage(assessment: WatchSlotAssessment, escalation: OwnerEscalation, head: string): string {
+  const owner =
+    assessment.ownerSessionId === undefined ? "no owner session" : `owner session ${shortSessionId(assessment.ownerSessionId)}`;
+  const handedOver = `watcher escalated ${escalation.kinds.join(", ")} on ${head} to ${owner}; a decision waits on you`;
+  return escalation.note ? `${handedOver} — ${escalation.note}` : handedOver;
+}
+
 function prStateFindings(assessment: WatchSlotAssessment, live: PrLiveStatus, subject: string): WatchFinding[] {
   const prFindings: WatchFinding[] = [];
   const head = shortSha(live.headSha);
+  // Ahead of the red CI it explains: a notification lists only its first few lines.
+  const escalation = assessment.ownerEscalation;
+  if (escalation) {
+    prFindings.push(finding(WatchFindingCode.AwaitingOwner, [assessment.pr.url, live.headSha, escalation.kinds.join("+")], subject,
+      awaitingOwnerMessage(assessment, escalation, head)));
+  }
   if (live.ciRollup === CiRollupState.Failure || live.ciRollup === CiRollupState.Error) {
     prFindings.push(finding(WatchFindingCode.CiFailing, [assessment.pr.url, live.headSha], subject,
       `checks on ${head} are ${live.ciRollup.toLowerCase()}`));

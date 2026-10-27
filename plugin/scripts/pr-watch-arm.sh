@@ -106,12 +106,14 @@ last_seen_file="${slot}/last_seen.json"
 rebase_attempted=0
 ci_attempted=0
 blocked_digest_floor=""
+rebase_budget_exhausted=0
 while IFS= read -r evidence_line; do
     evidence_line="${evidence_line%$'\r'}"
     case "$evidence_line" in
         REBASE_ATTEMPTED=*) rebase_attempted="${evidence_line#REBASE_ATTEMPTED=}" ;;
         CI_ATTEMPTED=*) ci_attempted="${evidence_line#CI_ATTEMPTED=}" ;;
         BLOCKED_CIDIGEST=*) blocked_digest_floor="${evidence_line#BLOCKED_CIDIGEST=}" ;;
+        REBASE_BUDGET_EXHAUSTED=*) rebase_budget_exhausted="${evidence_line#REBASE_BUDGET_EXHAUSTED=}" ;;
     esac
 done < <(node "${script_dir}/pr-watch-verdict.mjs" arm-floors --pr-key "${repo}#${pr_number}" \
     --head "$head_sha" --rebase-key "$rebase_key" < "$last_seen_file" 2>/dev/null)
@@ -120,6 +122,15 @@ ci_red_floor=""
 [ -n "$ci_red_head" ] && [ "$ci_attempted" = "1" ] && ci_red_floor="$ci_red_head"
 rebase_floor=""
 [ -n "$rebase_due_key" ] && [ "$rebase_attempted" = "1" ] && rebase_floor="$rebase_due_key"
+
+# A PR that spent its catch-up rebase budget is held for its owner whether or not
+# the branch is stale yet: the tick refuses every rebase until maxCatchUpRebases
+# is raised, so announcing one — here or on the loop's next base move — only asks
+# the session for work the verdict turns down. The next arm reads a raised cap.
+rebase_held=""
+[ "$rebase_budget_exhausted" = "1" ] && rebase_held="1"
+recorded_rebase_due_key="$rebase_due_key"
+[ -n "$rebase_held" ] && recorded_rebase_due_key=""
 
 thread_count=0
 [ -n "$unresolved_threads" ] && thread_count=$(printf '%s' "$unresolved_threads" | tr ';' '\n' | grep -c .)
@@ -138,7 +149,9 @@ if [ -n "$ci_red_head" ]; then
     fi
 fi
 if [ -n "$rebase_due_key" ]; then
-    if [ -n "$rebase_floor" ]; then
+    if [ -n "$rebase_held" ]; then
+        echo "DRAIN branch stale at arm time — catch-up rebase budget spent (maxCatchUpRebases), held for the owner: no rebase to dispatch"
+    elif [ -n "$rebase_floor" ]; then
         echo "DRAIN branch stale at arm time — a rebase already ran for key ${rebase_due_key}, floored"
     else
         echo "DRAIN branch stale at arm time — no rebase attempt recorded for key ${rebase_due_key}, not floored: dispatch rebase"
@@ -152,9 +165,10 @@ fi
     printf 'CIRED="%s"\n' "$ci_red_floor"
     printf 'REBASED="%s"\n' "$rebase_floor"
     printf 'BLOCKED_CIDIGEST="%s"\n' "$blocked_digest_floor"
+    printf 'REBASE_HELD="%s"\n' "$rebase_held"
 } > "${slot}/watch-watermark.env"
 
-watch_record_due_work "$slot" "$head_sha" "$rebase_due_key" "$ci_red_head"
+watch_record_due_work "$slot" "$head_sha" "$recorded_rebase_due_key" "$ci_red_head"
 
 # Claim the slot for this session. watcher_lease_is_foreign reads an absent
 # owner.json as "not foreign", so a slot armed without one leases itself to a

@@ -54,11 +54,12 @@ function isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases) {
 }
 
 // src/pr-watch/armFloors.ts
-function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey) {
+function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases) {
   const blockedCiDigest = lastSeenEntry.blocked?.fingerprint?.ci_digest;
   return {
     isRebaseKeyAttempted: rebaseKey !== "" && isRebaseKeyAttempted(lastSeenEntry, rebaseKey),
     isCiHeadAttempted: headSha !== "" && isCiHeadAttempted(lastSeenEntry, headSha),
+    isRebaseBudgetExhausted: isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases),
     blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : ""
   };
 }
@@ -137,11 +138,12 @@ function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences)
   const headSha = flags[HEAD_FLAG] ?? "";
   const rebaseKey = flags[REBASE_KEY_FLAG] ?? "";
   if (subcommand === "arm-floors" /* ArmFloors */) {
-    const evidence = resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey);
+    const evidence = resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, resolvePreferences().maxCatchUpRebases);
     return {
       stdout: `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}
 CI_ATTEMPTED=${evidence.isCiHeadAttempted ? 1 : 0}
 BLOCKED_CIDIGEST=${evidence.blockedCiDigest}
+REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}
 `,
       stderr: "",
       exitCode: 0

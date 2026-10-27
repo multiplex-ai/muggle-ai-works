@@ -137,6 +137,7 @@ while :; do
     watermark_ci_red=$(read_watermark_value CIRED)
     watermark_rebase=$(read_watermark_value REBASED)
     watermark_blocked_digest=$(read_watermark_value BLOCKED_CIDIGEST)
+    watermark_rebase_held=$(read_watermark_value REBASE_HELD)
 
     state_line=$(watch_fetch_state "$repo" "$pr_number" "$slot" "$state_projection")
     # One quick retry before counting a strike: a single flaky call should not
@@ -207,7 +208,11 @@ while :; do
     fi
 
     rebase_key="${head_sha}..${base_tip_sha}"
-    if [ "$rebase_key" = "$watermark_rebase" ] || [ "$rebase_key" = "$floor_rebase" ]; then
+    if [ "$watermark_rebase_held" = "1" ]; then
+        # The PR spent its catch-up rebase budget: however far the base moves, the
+        # tick refuses the rebase a wake would ask for, so nothing is due either.
+        due_rebase_key=""
+    elif [ "$rebase_key" = "$watermark_rebase" ] || [ "$rebase_key" = "$floor_rebase" ]; then
         # Only a key already found due is ever floored, and the pair's standing
         # cannot change until the head or the base moves, which mints a new key.
         due_rebase_key="$rebase_key"

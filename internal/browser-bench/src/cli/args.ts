@@ -1,4 +1,5 @@
 import { DEFAULT_CONCURRENCY, MAX_STEPS_PER_TASK } from "../domain/constants";
+import { ModelSource } from "../domain/types";
 import { CliFlag, type BenchmarkCliOptions } from "./types";
 
 const readFlagValue = (argv: string[], flagIndex: number): string => {
@@ -25,6 +26,17 @@ const readPositiveInteger = (argv: string[], flagIndex: number): number => {
     throw new Error(`${argv[flagIndex]} needs a positive whole number, got "${rawValue}".`);
   }
   return parsedValue;
+};
+
+const readModelSource = (argv: string[], flagIndex: number): ModelSource => {
+  const rawValue = readFlagValue(argv, flagIndex);
+  const modelSource = Object.values(ModelSource).find((source) => source === rawValue);
+  if (modelSource === undefined) {
+    throw new Error(
+      `${argv[flagIndex]} must be one of ${Object.values(ModelSource).join(", ")}, got "${rawValue}".`,
+    );
+  }
+  return modelSource;
 };
 
 /**
@@ -87,6 +99,9 @@ export const parseCliArgs = ({
         break;
       case CliFlag.SampleSeed:
         options.sampleSeed = readInteger(argv, index);
+        break;
+      case CliFlag.ModelSource:
+        options.modelSource = readModelSource(argv, index);
         break;
       default:
         throw new Error(`Unknown flag ${flag}. Accepted: ${Object.values(CliFlag).join(", ")}.`);

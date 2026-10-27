@@ -1,6 +1,7 @@
 import { MAX_STEPS_PER_TASK } from "../domain/constants";
 import { findPastDatedYears } from "../domain/past-dated-instruction";
-import { BenchmarkOutcome, type BenchmarkTask, type TaskResult } from "../domain/types";
+import { BenchmarkOutcome, type BenchmarkTask, type ModelSource, type TaskResult } from "../domain/types";
+import { computeMedianStepMs, computePassRate } from "../stats/batch-stats";
 
 /**
  * Maps each task whose instruction pins a year already past to those years.
@@ -51,6 +52,7 @@ const collectPastDatedTasks = (tasks: BenchmarkTask[], runYear: number): Map<str
  * @param params.maxSteps - Steps each task was allowed.
  * @param params.tasks - The tasks behind these results, used only to read their instructions.
  * @param params.runYear - The calendar year the batch ran in.
+ * @param params.modelSource - The source the batch configured; absent means studio's default.
  */
 export const renderReport = (
   results: TaskResult[],
@@ -58,14 +60,16 @@ export const renderReport = (
     maxSteps = MAX_STEPS_PER_TASK,
     tasks = [],
     runYear = new Date().getFullYear(),
-  }: { maxSteps?: number; tasks?: BenchmarkTask[]; runYear?: number } = {},
+    modelSource,
+  }: { maxSteps?: number; tasks?: BenchmarkTask[]; runYear?: number; modelSource?: ModelSource } = {},
 ): string => {
   const passes = results.filter((result) => result.outcome === BenchmarkOutcome.Pass).length;
   const fails = results.filter((result) => result.outcome === BenchmarkOutcome.Fail).length;
   const errors = results.filter((result) => result.outcome === BenchmarkOutcome.Error).length;
   const blocked = results.filter((result) => result.outcome === BenchmarkOutcome.Blocked).length;
   const scored = passes + fails;
-  const passRate = scored === 0 ? 0 : (passes / scored) * 100;
+  const passRate = computePassRate(results);
+  const medianStepMs = computeMedianStepMs(results);
   const totalTokens = results.reduce((sum, result) => sum + result.tokensUsed, 0);
 
   const pastDatedTasks = collectPastDatedTasks(tasks, runYear);
@@ -97,6 +101,8 @@ export const renderReport = (
         : ""
     }`,
     `**Total tokens:** ${totalTokens}`,
+    `**Model source:** ${modelSource ?? "studio default"}`,
+    `**Median step time:** ${medianStepMs === undefined ? "n/a" : `${Math.round(medianStepMs)} ms`}`,
     ``,
     `| Task | Outcome | Steps | Duration (ms) | Tokens | Past-dated |`,
     `| :--- | :------ | ----: | ------------: | -----: | :--------- |`,

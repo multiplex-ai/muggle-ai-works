@@ -23,6 +23,7 @@ tsx internal/browser-bench/src/run.ts [flags]
 | `--max-steps <n>` | `15` | Steps an agent may take per task |
 | `--sample-size <n>` | whole file | Draw a site-stratified sample of `n` tasks |
 | `--sample-seed <n>` | — | Seed for that draw; required with `--sample-size` |
+| `--model-source <s>` | studio default | `anthropic` (your own key in `MUGGLE_LLM_API_KEY`, required) or `claude-code` (your installed Claude Code) |
 
 Raising `--max-steps` above WebVoyager's cap of 15 makes the score
 incomparable to published WebVoyager results, so the report says so in its
@@ -51,6 +52,29 @@ read the screenshots, and asking it to pick a token beats matching English in
 its reasoning — interstitial copy varies by vendor and locale. The harness
 classifies a block, never defeats one: fingerprint evasion and stealth browser
 flags are out of scope, and would put runs the wrong side of site terms.
+
+### Model sources
+
+`--model-source` sets studio's `MUGGLE_LLM_PROVIDER` for every task in the batch. Studio
+reports the source it ran on in `result.json`; an attempt that does not confirm the configured
+source is recorded as an error, so a studio build that ignores the setting cannot pass one
+source's results off as another's. The `anthropic` source refuses to start without
+`MUGGLE_LLM_API_KEY`: the API side of a comparison is measured on your own key, never on Muggle's.
+
+To judge whether one source performs on par with another, run the same task file and sample on
+each, then compare the two output directories:
+
+```
+tsx internal/browser-bench/src/run.ts --model-source anthropic --sample-size 60 --sample-seed 7 --out reports/api
+tsx internal/browser-bench/src/run.ts --model-source claude-code --sample-size 60 --sample-seed 7 --out reports/claude-code
+tsx internal/browser-bench/src/compare.ts --baseline reports/api --candidate reports/claude-code
+```
+
+The candidate is on par when its median per-step wall time is at most 1.2× the baseline's, its
+pass rate is at most 2 points below, and it shows no failure class the baseline does not. A failure
+class is the outcome for a judged failure or a block, and the error's kind for an infrastructure
+error (timeout, studio exit code, missing result, source mismatch). The verdict is written to
+`<candidate>/source-par.md`; the command exits 2 when the candidate is not on par.
 
 ### Output tree
 

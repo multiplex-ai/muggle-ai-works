@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CONCURRENCY, MAX_STEPS_PER_TASK } from "../domain/constants";
+import { ModelSource } from "../domain/types";
 import { parseCliArgs } from "./args";
 
 const parse = (argv: string[]) =>
@@ -8,6 +9,16 @@ const parse = (argv: string[]) =>
     defaultTasksPath: "/defaults/webvoyager-smoke.jsonl",
     defaultOutDir: "/defaults/reports",
   });
+
+describe("parseCliArgs model source", () => {
+  it("reads a known model source", () => {
+    expect(parse(["--model-source", "claude-code"]).modelSource).toBe(ModelSource.ClaudeCode);
+  });
+
+  it("rejects an unknown model source and names the accepted ones", () => {
+    expect(() => parse(["--model-source", "gpt"])).toThrow(/anthropic, claude-code/);
+  });
+});
 
 describe("parseCliArgs", () => {
   it("falls back to the injected defaults when no flags are given", () => {

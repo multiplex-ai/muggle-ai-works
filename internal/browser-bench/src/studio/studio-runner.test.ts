@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
 import { MAX_STEPS_PER_TASK } from "../domain/constants";
-import { BenchmarkOutcome, type BenchmarkTask } from "../domain/types";
+import { BenchmarkOutcome, ModelSource, type BenchmarkTask } from "../domain/types";
 import { runStudioTaskAsync } from "./studio-runner";
 import {
   type StudioExitReport,
@@ -70,6 +70,39 @@ const createFakeSpawn = (exitReport: Promise<StudioExitReport>) => {
 };
 
 const cleanExit: StudioExitReport = { exitCode: 0, stderrTail: "" };
+
+describe("runStudioTaskAsync model source", () => {
+  const runWithSource = (resultFileContent: string, spawnStudio: ReturnType<typeof createFakeSpawn>["spawnStudio"]) =>
+    runStudioTaskAsync({
+      task: task,
+      outDir: OUT_DIR,
+      studioBinPath: "muggle-studio",
+      authFilePath: "/tmp/studio-auth.json",
+      maxSteps: MAX_STEPS_PER_TASK,
+      taskTimeoutMs: 1_000,
+      spawnStudio: spawnStudio,
+      fileSystem: createFakeFileSystem(resultFileContent).fileSystem,
+      modelSource: ModelSource.ClaudeCode,
+    });
+
+  it("hands studio the configured source and records it once studio confirms it", async () => {
+    const { spawnStudio, invocations } = createFakeSpawn(Promise.resolve(cleanExit));
+    const confirmedResultFile = JSON.stringify({ ...JSON.parse(successfulResultFile), modelSource: "claude-code" });
+
+    const taskResult = await runWithSource(confirmedResultFile, spawnStudio);
+
+    expect(invocations[0].modelSource).toBe(ModelSource.ClaudeCode);
+    expect(taskResult.modelSource).toBe(ModelSource.ClaudeCode);
+  });
+
+  it("rejects an attempt studio did not run on the configured source", async () => {
+    const { spawnStudio } = createFakeSpawn(Promise.resolve(cleanExit));
+
+    await expect(runWithSource(successfulResultFile, spawnStudio)).rejects.toThrow(
+      /\(not reported\) but the batch configured claude-code/,
+    );
+  });
+});
 
 describe("runStudioTaskAsync", () => {
   it("maps a clean run's result file onto a TaskResult", async () => {

@@ -135,7 +135,7 @@ export interface CachedWalkthroughScan {
   startedAt?: number;
 }
 
-/** Work a hook hands to a detached run of the guardrails CLI, because it waits on the network. */
+/** Work a hook hands to a detached run of the guardrails CLI, because it waits on the network or on a contended lock. */
 export enum GuardrailBackgroundJob {
   ScanWalkthroughs = "scan-walkthroughs",
   ReserveWalkthroughComment = "reserve-walkthrough-comment",
@@ -144,7 +144,91 @@ export enum GuardrailBackgroundJob {
   SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
   SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
   ScanWatchPrStates = "scan-watch-pr-states",
+  CommitDeferredState = "commit-deferred-state",
 }
+
+/** A test run one tool call stands for, as the E2E gate folds it into session state. */
+export interface RecordedRun {
+  unitTestPassed?: boolean;
+  e2eRan?: boolean;
+  e2eSkipped?: boolean;
+  e2eSkipCycleScoped?: boolean;
+}
+
+/** Which recorded change a {@link StateMutation} carries. */
+export enum StateMutationKind {
+  ToolOutcome = "tool-outcome",
+  SkillInvocation = "skill-invocation",
+  PrOpened = "pr-opened",
+  E2eDelegation = "e2e-delegation",
+  WatchFollowThrough = "watch-follow-through",
+  Fields = "fields",
+}
+
+/**
+ * What one observed tool call records: its test run, an accepted E2E skip and the change it was verified
+ * for, the skip markers it carried, a posted walkthrough and when, a failed Muggle run.
+ */
+export interface ToolOutcomeMutation {
+  kind: StateMutationKind.ToolOutcome;
+  run: RecordedRun;
+  acceptedSkip: DeclaredSkip | null;
+  /** Set only for an environment skip declared from a working tree whose change could be resolved. */
+  skipVerifiedChange?: ChangeIdentity;
+  isWatchSkip: boolean;
+  isBuildSkip: boolean;
+  isWalkthroughPosted: boolean;
+  walkthroughPostedAt: number;
+  walkthroughPostTargets: string[];
+  isWalkthroughSkip: boolean;
+  failedRunId?: string;
+}
+
+/** A PR the session just opened, and the change it belongs to when its head branch is known. */
+export interface PrOpenedMutation {
+  kind: StateMutationKind.PrOpened;
+  prUrl: string;
+  prChange?: ChangeIdentity;
+}
+
+/** An acceptance run handed to a background agent. */
+export interface E2eDelegationMutation {
+  kind: StateMutationKind.E2eDelegation;
+  delegation: E2eDelegation;
+}
+
+/** The PRs the user held from watcher follow-through, and the gate's block count for this turn end. */
+export interface WatchFollowThroughMutation {
+  kind: StateMutationKind.WatchFollowThrough;
+  heldPrNumbers: number[];
+  blockCount: number;
+}
+
+/** A skill the session invoked, the mandatory stage files it declares, and the run its emit stands for. */
+export interface SkillInvocationMutation {
+  kind: StateMutationKind.SkillInvocation;
+  skillName: string;
+  stagePaths: string[];
+  emittedRun: RecordedRun;
+}
+
+/** Top-level fields set to fixed values, such as a gate's release stamp or its block count. */
+export interface FieldsMutation {
+  kind: StateMutationKind.Fields;
+  fields: Partial<GuardrailState>;
+}
+
+/**
+ * A session-state change as data rather than a closure, so a write that cannot take the session's
+ * lock within a hook's wait can be persisted and committed later instead of being lost.
+ */
+export type StateMutation =
+  | ToolOutcomeMutation
+  | SkillInvocationMutation
+  | PrOpenedMutation
+  | E2eDelegationMutation
+  | WatchFollowThroughMutation
+  | FieldsMutation;
 
 /** Outcome of the watcher-arm Stop gate for a turn end. */
 export enum WatchGateAction {

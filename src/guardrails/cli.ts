@@ -2,8 +2,6 @@ import { readFileSync } from "fs";
 import {
   readState,
   writeState,
-  updateState,
-  commitState,
   markPrHandled,
   readWalkthroughScan,
   writeWalkthroughScan,
@@ -11,6 +9,7 @@ import {
   writePrStateScan,
 } from "./sessionState.js";
 import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
+import { commitDeferredSessionState, commitStateMutation } from "./stateCommit.js";
 import { detectPrOpened } from "./prOpened.js";
 import {
   detectPrTerminal,
@@ -37,7 +36,6 @@ import {
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
-  applySkillInvocation,
   applyStageRead,
   applyStageSkip,
   detectShellStageReads,
@@ -60,21 +58,13 @@ import {
 import {
   applyDebugEvidence,
   applyDebugSkip,
-  applyFailedRun,
   debugGateDecision,
   detectDebugEvidenceRunIds,
   detectFailedRunId,
   undebuggedFailedRuns,
 } from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import {
-  e2eGateDecision,
-  E2eGateAction,
-  MAX_E2E_BLOCKS,
-  applyE2eSkipDeclaration,
-  applyRecordedRun,
-  type RecordedRun,
-} from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "./shouldRunE2E.js";
 import {
   findUnwatchedHandledPrs,
   ownsOpenWatchSlot,
@@ -83,7 +73,6 @@ import {
   scanProviderPrStates,
   watchGateDecision,
   isWatchSkipMarker,
-  applyWatchSkip,
 } from "./watchArmed.js";
 import {
   applyWatchHolds,
@@ -93,20 +82,9 @@ import {
 } from "./watchFollowThrough.js";
 import { resolveWatchPreferences } from "../pr-watch/watchPreferences.js";
 import { readFileTail } from "../transcript/userTurns.js";
+import { buildFollowthroughDecision, isBuildSkipMarker } from "./buildFollowthrough.js";
+import { detectWalkthroughPost, detectWalkthroughPostTargets, isWalkthroughSkipMarker } from "./walkthroughPosted.js";
 import {
-  buildFollowthroughDecision,
-  isBuildSkipMarker,
-  applyBuildSkip,
-} from "./buildFollowthrough.js";
-import {
-  detectWalkthroughPost,
-  isWalkthroughSkipMarker,
-  applyWalkthroughPosted,
-  applyWalkthroughSkip,
-  detectWalkthroughPostTargets,
-} from "./walkthroughPosted.js";
-import {
-  applyPrOpenedToWalkthroughs,
   withoutPostedPrs,
   defaultPrWalkthroughLookup,
   isWalkthroughGateArmed,
@@ -114,8 +92,8 @@ import {
   scanForOwedWalkthroughs,
   walkthroughGateDecision,
 } from "./walkthroughOwed.js";
-import { applyE2eDelegation, detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
-import { applyE2eSkipScope, applyPrOpenedToSkipScope, isPrCoveredBySkip } from "./skipScope.js";
+import { detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
+import { isPrCoveredBySkip } from "./skipScope.js";
 import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
 import {
   isWalkthroughSettledOnPr,
@@ -162,8 +140,10 @@ import {
   OwedWatchWorkKind,
   BuildFollowthroughAction,
   GuardrailBackgroundJob,
+  StateMutationKind,
   type HookInput,
   type OwedWatchWork,
+  type ToolOutcomeMutation,
 } from "./types.js";
 
 function readStdin(): HookInput {
@@ -191,12 +171,10 @@ const sessionId = input.session_id ?? "unknown";
  * is what lets the pre-filter fall through in shell instead.
  */
 function releaseGate(field: keyof GuardrailState): string {
-  // Same reference when already stamped: the wrapper pre-filter short-circuits
+  // A stamp already set commits nothing: the wrapper pre-filter short-circuits
   // from the next turn on, but a handler invoked directly must not keep
   // rewriting state — that is the churn this stamp exists to end.
-  updateState(sessionId, (current) =>
-    current[field] === true ? current : { ...current, [field]: true },
-  );
+  commitStateMutation(sessionId, { kind: StateMutationKind.Fields, fields: { [field]: true } });
   return "{}";
 }
 
@@ -229,10 +207,11 @@ function prOpened(): string {
   markPrHandled(sessionId, url);
   const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
   // A new PR has not been checked for a walkthrough or a skip's record yet, so the gate re-arms for it.
-  const stateAfterOpen =
-    commitState(sessionId, (state) =>
-      applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), url, prChange),
-    ) ?? readState(sessionId);
+  const stateAfterOpen = commitStateMutation(sessionId, {
+    kind: StateMutationKind.PrOpened,
+    prUrl: url,
+    prChange: prChange,
+  });
   // Only a skip verified for this PR's repo and branch vouches for it; a PR of
   // any other change owes its own run or skip.
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : undefined;
@@ -345,37 +324,34 @@ function recordTests(): string {
   const stateBefore = readState(sessionId);
   const judgedSkip = judgeE2eSkip(input, stateBefore);
   const acceptedSkip = judgedSkip?.accepted ? judgedSkip.skip : null;
-  const run = {
-    unitTestPassed: isTestCommand(cmd) && testsPassed(input),
-    e2eRan: isE2ERun(input),
-    e2eSkipped: acceptedSkip !== null,
-    e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code),
-  };
   const walkthroughPosted = detectWalkthroughPost(input);
-  const walkthroughPostTargets = walkthroughPosted ? detectWalkthroughPostTargets(input) : [];
-  const failedRunId = detectFailedRunId(input);
   // A cycle-scoped skip is never kept as the declaration, so only an
   // environment skip may move the declaration's change to this tree's.
   const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
-  const verifiedChange = isDeclaredHere ? resolveTreeChange(input.cwd) : undefined;
-  const record = (state: GuardrailState): GuardrailState => {
-    const declared = applyE2eSkipDeclaration(applyRecordedRun(state, run), acceptedSkip);
-    const recorded = isDeclaredHere ? applyE2eSkipScope(declared, verifiedChange) : declared;
-    const withWatchSkip = applyWatchSkip(recorded, isWatchSkipMarker(cmd));
-    const withBuildSkip = applyBuildSkip(withWatchSkip, isBuildSkipMarker(cmd));
-    const withWalkthroughPost = applyWalkthroughPosted(
-      withBuildSkip,
-      walkthroughPosted,
-      Date.now(),
-      walkthroughPostTargets,
-    );
-    const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, isWalkthroughSkipMarker(cmd));
-    return failedRunId ? applyFailedRun(withWalkthroughSkip, failedRunId) : withWalkthroughSkip;
+  // Every input is captured now, the post's time included, so a commit deferred
+  // past a contended lock records exactly what this one would have.
+  const outcome: ToolOutcomeMutation = {
+    kind: StateMutationKind.ToolOutcome,
+    run: {
+      unitTestPassed: isTestCommand(cmd) && testsPassed(input),
+      e2eRan: isE2ERun(input),
+      e2eSkipped: acceptedSkip !== null,
+      e2eSkipCycleScoped: acceptedSkip !== null && CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code),
+    },
+    acceptedSkip: acceptedSkip,
+    skipVerifiedChange: isDeclaredHere ? resolveTreeChange(input.cwd) : undefined,
+    isWatchSkip: isWatchSkipMarker(cmd),
+    isBuildSkip: isBuildSkipMarker(cmd),
+    isWalkthroughPosted: walkthroughPosted,
+    walkthroughPostedAt: Date.now(),
+    walkthroughPostTargets: walkthroughPosted ? detectWalkthroughPostTargets(input) : [],
+    isWalkthroughSkip: isWalkthroughSkipMarker(cmd),
+    failedRunId: detectFailedRunId(input),
   };
   // Committed under the store's lock: other observers write the session's state
   // concurrently, and of two unlocked read-modify-writes the later erases the
   // earlier. A skill emit's E2E run is skillStages' to record, not this hook's.
-  const next = commitState(sessionId, record) ?? record(readState(sessionId));
+  const next = commitStateMutation(sessionId, outcome);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   // A rejected declaration is the moment the session is still trying to skip,
@@ -413,9 +389,10 @@ function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void 
 function recordDelegation(): string {
   const prUrls = detectBackgroundAcceptanceDispatch(input);
   if (prUrls === null) return "{}";
-  const delegate = (state: GuardrailState): GuardrailState =>
-    applyE2eDelegation(state, { dispatchedAt: Date.now(), prUrls: prUrls });
-  updateState(sessionId, delegate);
+  commitStateMutation(sessionId, {
+    kind: StateMutationKind.E2eDelegation,
+    delegation: { dispatchedAt: Date.now(), prUrls: prUrls },
+  });
   return "{}";
 }
 
@@ -423,21 +400,16 @@ function skillStages(): string {
   const skillName = resolveSkillNameFromToolInput(input.tool_input);
   if (!skillName) return "{}";
   const stagePaths = resolveSkillStagePaths(skillName, resolvePluginSkillsRoot());
-  const emittedRun: RecordedRun = {
-    unitTestPassed: false,
-    e2eRan: isE2ERun(input),
-    e2eSkipped: false,
-    e2eSkipCycleScoped: false,
-  };
   const stateBefore = readState(sessionId);
-  const invoke = (state: GuardrailState): GuardrailState =>
-    applyRecordedRun(applySkillInvocation(state, skillName, stagePaths), emittedRun);
   // A muggle-test emit is also an E2E run (the clean-SKIP verdict), committed
-  // here with the skill so the emit has one writer: the store drops a write
-  // that cannot take the session's lock in time, and with two hooks recording
-  // one emit a slow disk could drop the skill and its stages, disarming the
-  // stage and classification gates.
-  const next = commitState(sessionId, invoke) ?? invoke(readState(sessionId));
+  // here with the skill so the emit has one writer and its skill, stages and
+  // run land as one record.
+  const next = commitStateMutation(sessionId, {
+    kind: StateMutationKind.SkillInvocation,
+    skillName: skillName,
+    stagePaths: stagePaths,
+    emittedRun: { unitTestPassed: false, e2eRan: isE2ERun(input), e2eSkipped: false, e2eSkipCycleScoped: false },
+  });
   startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
   if (unread.length === 0) return "{}";
@@ -648,17 +620,19 @@ function watchFollowThroughGate(): string {
   if (decision.action === WatchFollowThroughAction.None) {
     // Reset so the next episode opens with the full instruction again.
     if (state !== stateBefore || (state.watchFollowThroughBlockCount ?? 0) > 0) {
-      updateState(sessionId, (current) => ({
-        ...applyWatchHolds(current, heldPrNumbers),
-        watchFollowThroughBlockCount: 0,
-      }));
+      commitStateMutation(sessionId, {
+        kind: StateMutationKind.WatchFollowThrough,
+        heldPrNumbers: heldPrNumbers,
+        blockCount: 0,
+      });
     }
     return "{}";
   }
-  updateState(sessionId, (current) => ({
-    ...applyWatchHolds(current, heldPrNumbers),
-    watchFollowThroughBlockCount: decision.blockCount,
-  }));
+  commitStateMutation(sessionId, {
+    kind: StateMutationKind.WatchFollowThrough,
+    heldPrNumbers: heldPrNumbers,
+    blockCount: decision.blockCount,
+  });
   const owedList = decision.owed.map(owedWatchWorkLine).join("\n");
   const holdInstruction =
     `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. ` +
@@ -802,7 +776,7 @@ function recordCommentReplies(): string {
     // no usable id still has a way out.
     const deferred = deferredCommentIds(readLedger(slotPath), cmd);
     if (deferred.length === 0) {
-      updateState(sessionId, (current) => ({ ...current, commentReplySkipped: true }));
+      commitStateMutation(sessionId, { kind: StateMutationKind.Fields, fields: { commentReplySkipped: true } });
       return "{}";
     }
     for (const { threadId, commentIds } of deferred) {
@@ -845,7 +819,10 @@ function commentReplyGate(): string {
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
   if (decision.action === CommentReplyGateAction.Release) return releaseGate("commentReplyReleased");
   if (decision.action !== CommentReplyGateAction.Block) return "{}";
-  updateState(sessionId, (current) => ({ ...current, commentReplyBlockCount: decision.blockCount }));
+  commitStateMutation(sessionId, {
+    kind: StateMutationKind.Fields,
+    fields: { commentReplyBlockCount: decision.blockCount },
+  });
   const commentList = decision.unanswered.join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
@@ -1049,6 +1026,11 @@ function scanWatchPrStatesJob(): string {
   return "{}";
 }
 
+function commitDeferredStateJob(): string {
+  commitDeferredSessionState(jobArgs[0] ?? "unknown");
+  return "{}";
+}
+
 const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.ScanWalkthroughs]: scanWalkthroughsJob,
   [GuardrailBackgroundJob.ReserveWalkthroughComment]: reserveWalkthroughCommentJob,
@@ -1057,6 +1039,7 @@ const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
   [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
   [GuardrailBackgroundJob.ScanWatchPrStates]: scanWatchPrStatesJob,
+  [GuardrailBackgroundJob.CommitDeferredState]: commitDeferredStateJob,
 };
 
 const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));

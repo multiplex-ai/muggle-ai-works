@@ -201,8 +201,18 @@ export const MAX_REPLY_BLOCKS = 3;
 /** How much of the transcript tail the capability-claim gate parses. Only the closing turn is under judgment, and a session transcript grows to megabytes. */
 export const CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES = 64_000;
 
-/** How long a session-state write waits for the lock before dropping itself. The store sits in the critical path of every tool call, so a guardrail must never stall the harness on contention. */
+/** How long a hook's session-state write waits for the lock before deferring itself to a detached commit. The store sits in the critical path of every tool call, so a guardrail must never stall the harness on contention. */
 export const SESSION_STATE_LOCK_WAIT_MS = 250;
+
+/**
+ * How long the detached commit of a deferred session-state write waits for the lock. Off the hook
+ * path, waiting stalls nothing; the bound only keeps a lock wedged by a live, stuck holder from
+ * keeping the job alive, and the next deferral starts a fresh wait over the same entries.
+ */
+export const DEFERRED_STATE_LOCK_WAIT_MS = 30_000;
+
+/** Joins a session's state file name to each of its deferred mutations: `<session>.deferred-<ms>-<pid>-<seq>.json`. */
+export const DEFERRED_STATE_MUTATION_INFIX = ".deferred-";
 
 /** How often a waiter re-probes a lock it could not take. */
 export const LOCK_POLL_INTERVAL_MS = 10;

@@ -1,5 +1,7 @@
 /** Types for the local service-stack ledger at {@link ./service-stack.ts}. */
 
+import type { IPortListener } from "./port-listener-types.js";
+
 /** One port a checkout's E2E run needs served, and the code that must serve it. */
 export interface IStackNeed {
   port: number;
@@ -148,11 +150,24 @@ export enum StackCheckVerdict {
   PeerLease = "PEER_LEASE",
 }
 
+/** Why a needed port does not serve what the lease needs. */
+export enum StackMismatchKind {
+  /** A tracked service listens there, started from other code. */
+  OtherCode = "OTHER_CODE",
+  /** A process prepare does not track listens there, so its code is unknown. */
+  UntrackedListener = "UNTRACKED_LISTENER",
+  /** Nothing listens there. */
+  NothingListening = "NOTHING_LISTENING",
+}
+
 /** A needed port serving something other than what the lease needs. */
 export interface IStackMismatch {
   need: IStackNeed;
-  /** The tracked service serving it now; null when nothing tracked is alive there. */
+  kind: StackMismatchKind;
+  /** The tracked service recorded on the port; null when nothing tracked is alive there. */
   actual: ITrackedService | null;
+  /** The process actually listening, when the port could be read and something listens. */
+  listener: IPortListener | null;
 }
 
 /** Answer to one check. */

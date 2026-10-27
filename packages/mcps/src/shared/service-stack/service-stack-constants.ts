@@ -43,5 +43,8 @@ export const CLAIM_POLL_INTERVAL_MS = 1_000;
 /** Process exit code of a claim turned away: a temporary condition, not an error (sysexits EX_TEMPFAIL). */
 export const BUSY_EXIT_CODE = 75;
 
+/** Longest listener command line a mismatch description quotes before eliding the rest. */
+export const LISTENER_COMMAND_MAX_CHARS = 120;
+
 /** Default port of a URL with no explicit port, by scheme. */
 export const DEFAULT_PORT_BY_PROTOCOL: Readonly<Record<string, number>> = { "http:": 80, "https:": 443 };

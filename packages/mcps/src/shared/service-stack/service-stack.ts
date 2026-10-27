@@ -9,11 +9,12 @@
  * in line, and comes back later rather than waiting inside a call. A granted
  * claim says, per port, whether to keep, start or restart the service.
  *
- * The ledger never runs or stops a process. What actually listens is read
- * from the tracking files prepare writes for every service it starts, and a
- * check before a run compares them against the lease: any change since the
- * claim — a peer that did not claim, a crashed service — makes the stack stale
- * and the run is refused before it reports on the wrong code.
+ * The ledger never runs or stops a process. A check before a run compares the
+ * lease with the tracking files prepare writes for every service it starts,
+ * and with the process actually listening on each claimed port: any change
+ * since the claim — a peer that did not claim, a process nobody tracks, a
+ * crashed service — makes the stack stale and the run is refused before it
+ * reports on the wrong code.
  */
 
 import * as fs from "node:fs/promises";
@@ -24,6 +25,8 @@ import { runGitCommand } from "../git-command-runner.js";
 import type { GitCommandRunner } from "../checkout-freshness-types.js";
 import { getDataDir } from "../data-dir.js";
 import { isProcessAlive, readGenerationStore, updateGenerationStore } from "./generation-store.js";
+import { readPortListener } from "./port-listener.js";
+import type { PortListenerReader } from "./port-listener-types.js";
 import {
   CLAIM_POLL_INTERVAL_MS,
   DEFAULT_PORT_BY_PROTOCOL,
@@ -40,6 +43,7 @@ import {
 import {
   StackCheckVerdict,
   StackClaimVerdict,
+  StackMismatchKind,
   StackPortAction,
   type IStackCheckReport,
   type IStackClaimReport,
@@ -91,6 +95,7 @@ export async function claimServiceStack(params: {
  * @param params.shouldRenew - Renew a valid lease, as a run in progress does.
  * @param params.holderPid - Long-lived process renewing it, recorded so the lease ends when it exits.
  * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @param params.readListener - Port listener reader; the real one unless a test injects its own.
  * @returns The verdict, with every mismatched port.
  */
 export async function checkServiceStack(params: {
@@ -99,6 +104,7 @@ export async function checkServiceStack(params: {
   shouldRenew?: boolean;
   holderPid?: number;
   runGit?: GitCommandRunner;
+  readListener?: PortListenerReader;
 }): Promise<IStackCheckReport> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
@@ -125,15 +131,18 @@ export async function checkServiceStack(params: {
   }
 
   const services = await readTrackedServices();
-  const mismatches: IStackMismatch[] = ownLease.needs
-    .map((need) => ({ need: need, actual: trackedServiceOnPort({ services: services, port: need.port }) }))
-    .filter((pair) => pair.actual !== null && !servesNeed({ service: pair.actual, need: pair.need }));
+  const readListener = params.readListener ?? readPortListener;
+  const mismatches = (
+    await Promise.all(
+      ownLease.needs.map((need) => findPortMismatch({ need: need, services: services, readListener: readListener })),
+    )
+  ).filter((mismatch): mismatch is IStackMismatch => mismatch !== null);
   if (mismatches.length > 0) {
     const ports = mismatches.map((mismatch) => mismatch.need.port).join(", ");
     return {
       ...base,
       verdict: StackCheckVerdict.Stale,
-      reason: `port ${ports} no longer serves the code this checkout claimed`,
+      reason: `port ${ports} does not serve the code this checkout claimed`,
       mismatches: mismatches,
     };
   }
@@ -250,6 +259,35 @@ function planPort(params: { need: IStackNeed; services: ITrackedService[] }): IS
         ? StackPortAction.Keep
         : StackPortAction.Restart;
   return { ...params.need, action: action, current: current };
+}
+
+/**
+ * Why a needed port does not serve the claimed code, or null when it does.
+ *
+ * Tracking files only say what prepare started. The listener says what the
+ * port actually serves: a process prepare never recorded, or nothing at all,
+ * cannot be shown to serve the claim. A port whose listener cannot be read is
+ * judged on tracking alone, so a machine without the platform tool still runs.
+ */
+async function findPortMismatch(params: {
+  need: IStackNeed;
+  services: ITrackedService[];
+  readListener: PortListenerReader;
+}): Promise<IStackMismatch | null> {
+  const tracked = trackedServiceOnPort({ services: params.services, port: params.need.port });
+  if (tracked !== null && !servesNeed({ service: tracked, need: params.need })) {
+    return { need: params.need, kind: StackMismatchKind.OtherCode, actual: tracked, listener: null };
+  }
+
+  const reading = await params.readListener(params.need.port);
+  if (!reading.isReadable) return null;
+  if (reading.listener === null) {
+    return { need: params.need, kind: StackMismatchKind.NothingListening, actual: tracked, listener: null };
+  }
+  const isTrackedListener =
+    tracked !== null && (reading.listener.pid === tracked.pid || reading.listener.ancestorPids.includes(tracked.pid));
+  if (isTrackedListener) return null;
+  return { need: params.need, kind: StackMismatchKind.UntrackedListener, actual: tracked, listener: reading.listener };
 }
 
 function servesNeed(params: { service: ITrackedService; need: IStackNeed }): boolean {

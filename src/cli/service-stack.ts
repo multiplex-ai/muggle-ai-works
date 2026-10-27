@@ -15,6 +15,7 @@ import {
   StackClaimVerdict,
   checkServiceStack,
   claimServiceStack,
+  describeStackMismatch,
   readServiceStackStatus,
   releaseServiceStack,
   type IStackCheckReport,
@@ -63,12 +64,7 @@ export function renderStackClaimSummary(report: IStackClaimReport): string {
 
 /** Human-readable summary of a check. */
 export function renderStackCheckSummary(report: IStackCheckReport): string {
-  const lines = [`${report.verdict}: ${report.reason}`];
-  for (const mismatch of report.mismatches) {
-    const actual = mismatch.actual ? `${mismatch.actual.dir} @ ${shortSha(mismatch.actual.headSha)}` : "nothing tracked";
-    lines.push(`port ${mismatch.need.port}: claimed ${mismatch.need.runDir} @ ${shortSha(mismatch.need.headSha)}, serving ${actual}`);
-  }
-  return lines.join("\n");
+  return [`${report.verdict}: ${report.reason}`, ...report.mismatches.map(describeStackMismatch)].join("\n");
 }
 
 /** Human-readable summary of the whole ledger. */

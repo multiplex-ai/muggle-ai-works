@@ -16,6 +16,7 @@ import {
   type IStackCheckReport,
 } from "../../../shared/service-stack/service-stack-types.js";
 import type { GitCommandRunner } from "../../../shared/checkout-freshness-types.js";
+import type { PortListenerReader } from "../../../shared/service-stack/port-listener-types.js";
 
 const REFUSING_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([StackCheckVerdict.PeerLease, StackCheckVerdict.Stale]);
 
@@ -25,11 +26,13 @@ const REFUSING_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([StackCheckVer
  * @param params.cwd - The caller's checkout, as passed to the execute tool.
  * @param params.localUrl - The run target; only loopback targets are checked.
  * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @param params.readListener - Port listener reader; the real one unless a test injects its own.
  */
 export async function findRunStackRefusal(params: {
   cwd: string;
   localUrl: string;
   runGit?: GitCommandRunner;
+  readListener?: PortListenerReader;
 }): Promise<IStackCheckReport | null> {
   if (!isLoopbackUrl(params.localUrl)) return null;
   const port = portOfUrl(params.localUrl) ?? undefined;
@@ -39,6 +42,7 @@ export async function findRunStackRefusal(params: {
     shouldRenew: true,
     holderPid: process.pid,
     runGit: params.runGit,
+    readListener: params.readListener,
   });
   return REFUSING_VERDICTS.has(report.verdict) ? report : null;
 }
@@ -48,12 +52,15 @@ export async function findRunStackRefusal(params: {
  *
  * @param params.cwd - The caller's checkout.
  * @param params.localUrl - The run target; only loopback targets are checked.
+ * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @param params.readListener - Port listener reader; the real one unless a test injects its own.
  * @returns The stale report when the stack changed during the run, else null.
  */
 export async function findStackChangedDuringRun(params: {
   cwd: string;
   localUrl: string;
   runGit?: GitCommandRunner;
+  readListener?: PortListenerReader;
 }): Promise<IStackCheckReport | null> {
   if (!isLoopbackUrl(params.localUrl)) return null;
   const report = await checkServiceStack({
@@ -61,6 +68,7 @@ export async function findStackChangedDuringRun(params: {
     shouldRenew: true,
     holderPid: process.pid,
     runGit: params.runGit,
+    readListener: params.readListener,
   });
   return report.verdict === StackCheckVerdict.Stale ? report : null;
 }

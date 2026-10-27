@@ -7,6 +7,7 @@ import * as path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { GitCommandRunner } from "../shared/checkout-freshness-types.js";
+import type { IPortListener, PortListenerReader } from "../shared/service-stack/port-listener-types.js";
 
 const HOME_ENV_VAR = os.platform() === "win32" ? "USERPROFILE" : "HOME";
 const SHA_A = "a".repeat(40);
@@ -69,6 +70,15 @@ const git = fakeGit({
   [normalized("/wt/b/web")]: SHA_B,
   [normalized("/base/api")]: SHA_BASE,
 });
+
+// The listener on every port, as the platform tool would report it.
+function fakeListeners(listenerByPort: Record<number, IPortListener | null>): PortListenerReader {
+  return async (port) => ({ isReadable: true, listener: listenerByPort[port] ?? null });
+}
+
+const unreadableListeners: PortListenerReader = async () => ({ isReadable: false, listener: null });
+
+const trackedProcessListening = fakeListeners({ 3000: { pid: process.pid, commandLine: "node start.js", ancestorPids: [] } });
 
 describe("claimServiceStack", () => {
   it("grants a free stack with a per-port plan read from prepare's tracking files", async () => {
@@ -171,20 +181,100 @@ describe("checkServiceStack", () => {
     writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
 
-    const report = await checkServiceStack({ cwd: "/wt/a", port: 3000, runGit: git });
+    const report = await checkServiceStack({
+      cwd: "/wt/a",
+      port: 3000,
+      runGit: git,
+      readListener: trackedProcessListening,
+    });
 
     expect(report.verdict).toBe(StackCheckVerdict.Valid);
   });
 
   it("is stale when a claimed port now serves other code", async () => {
-    const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict, StackMismatchKind } = await loadStack();
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
     writeTracking("/wt/b", [{ name: "web", dir: "/wt/b/web", port: 3000, headSha: SHA_B }]);
 
-    const report = await checkServiceStack({ cwd: "/wt/a", port: 3000, runGit: git });
+    const report = await checkServiceStack({
+      cwd: "/wt/a",
+      port: 3000,
+      runGit: git,
+      readListener: trackedProcessListening,
+    });
 
     expect(report.verdict).toBe(StackCheckVerdict.Stale);
+    expect(report.mismatches[0].kind).toBe(StackMismatchKind.OtherCode);
     expect(report.mismatches[0].actual?.dir).toBe(normalized("/wt/b/web"));
+  });
+
+  it("is stale when a process prepare never tracked holds a claimed port", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict, StackMismatchKind, describeStackMismatch } =
+      await loadStack();
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+    const untrackedServer = { pid: 34016, commandLine: "node static_spa_server.cjs /wt/b/build 3000", ancestorPids: [880] };
+
+    const report = await checkServiceStack({
+      cwd: "/wt/a",
+      port: 3000,
+      runGit: git,
+      readListener: fakeListeners({ 3000: untrackedServer }),
+    });
+
+    expect(report.verdict).toBe(StackCheckVerdict.Stale);
+    expect(report.mismatches[0].kind).toBe(StackMismatchKind.UntrackedListener);
+    expect(report.mismatches[0].listener).toEqual(untrackedServer);
+    expect(describeStackMismatch(report.mismatches[0])).toContain("held by untracked PID 34016 (node static_spa_server.cjs");
+  });
+
+  it("is stale when a tracked service is alive but something else holds its port", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict, StackMismatchKind } = await loadStack();
+    writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    const report = await checkServiceStack({
+      cwd: "/wt/a",
+      runGit: git,
+      readListener: fakeListeners({ 3000: { pid: 34016, commandLine: "", ancestorPids: [880] } }),
+    });
+
+    expect(report.verdict).toBe(StackCheckVerdict.Stale);
+    expect(report.mismatches[0].kind).toBe(StackMismatchKind.UntrackedListener);
+    expect(report.mismatches[0].actual?.pid).toBe(process.pid);
+  });
+
+  it("is stale when nothing listens on a claimed port", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict, StackMismatchKind } = await loadStack();
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    const report = await checkServiceStack({ cwd: "/wt/a", runGit: git, readListener: fakeListeners({}) });
+
+    expect(report.verdict).toBe(StackCheckVerdict.Stale);
+    expect(report.mismatches[0].kind).toBe(StackMismatchKind.NothingListening);
+  });
+
+  it("accepts a listener started by the tracked service, such as the server npm start launches", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
+    writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+    const devServerChild = { pid: 43016, commandLine: "node react-scripts/start.js", ancestorPids: [23248, process.pid] };
+
+    const report = await checkServiceStack({
+      cwd: "/wt/a",
+      runGit: git,
+      readListener: fakeListeners({ 3000: devServerChild }),
+    });
+
+    expect(report.verdict).toBe(StackCheckVerdict.Valid);
+  });
+
+  it("falls back to tracking alone when the platform cannot say who listens", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    const report = await checkServiceStack({ cwd: "/wt/a", runGit: git, readListener: unreadableListeners });
+
+    expect(report.verdict).toBe(StackCheckVerdict.Valid);
   });
 
   it("refuses a checkout with no claim that targets a peer's leased port", async () => {
@@ -202,7 +292,14 @@ describe("checkServiceStack", () => {
 
     const parallelChecks = await Promise.all(
       Array.from({ length: 4 }, () =>
-        checkServiceStack({ cwd: "/wt/a", port: 3000, shouldRenew: true, holderPid: process.pid, runGit: git }),
+        checkServiceStack({
+          cwd: "/wt/a",
+          port: 3000,
+          shouldRenew: true,
+          holderPid: process.pid,
+          runGit: git,
+          readListener: trackedProcessListening,
+        }),
       ),
     );
 
@@ -217,7 +314,9 @@ describe("checkServiceStack", () => {
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
     writeTracking("/wt/b", [{ name: "web", dir: "/wt/b/web", port: 3000, headSha: SHA_B, pid: 987654321 }]);
 
-    expect((await checkServiceStack({ cwd: "/wt/a", runGit: git })).verdict).toBe(StackCheckVerdict.Valid);
+    expect((await checkServiceStack({ cwd: "/wt/a", runGit: git, readListener: unreadableListeners })).verdict).toBe(
+      StackCheckVerdict.Valid,
+    );
   });
 });
 

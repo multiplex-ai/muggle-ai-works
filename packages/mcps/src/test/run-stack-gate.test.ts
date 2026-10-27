@@ -52,6 +52,25 @@ describe("findRunStackRefusal", () => {
     expect(refusal?.verdict).toBe(StackCheckVerdict.PeerLease);
   });
 
+  it("refuses a run whose claimed port an untracked process holds", async () => {
+    const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
+    const { claimServiceStack, StackCheckVerdict, StackMismatchKind } = await import("../shared/service-stack/index.js");
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3999, runDir: "/wt/a/web" }], runGit: git });
+
+    const refusal = await findRunStackRefusal({
+      cwd: "/wt/a",
+      localUrl: "http://localhost:3999/muggleTestV0/landing",
+      runGit: git,
+      readListener: async () => ({
+        isReadable: true,
+        listener: { pid: 34016, commandLine: "node static_spa_server.cjs build-5277 3999", ancestorPids: [] },
+      }),
+    });
+
+    expect(refusal?.verdict).toBe(StackCheckVerdict.Stale);
+    expect(refusal?.mismatches[0].kind).toBe(StackMismatchKind.UntrackedListener);
+  });
+
   it("never gates a remote target", async () => {
     const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
     const { claimServiceStack } = await import("../shared/service-stack/index.js");

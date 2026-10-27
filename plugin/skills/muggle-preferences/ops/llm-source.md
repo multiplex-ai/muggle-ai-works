@@ -1,6 +1,6 @@
 # LLM source
 
-Who supplies the model for tests Studio runs on this computer: Muggle AI credit (default), the user's own Anthropic API key, or a local / self-hosted model. Cloud runs always use Muggle AI credit.
+Who supplies the model for tests Studio runs on this computer: Muggle AI credit (default), the user's own Anthropic API key, a local / self-hosted model, or the user's own installed Claude Code. Cloud runs always use Muggle AI credit.
 
 The CLI owns the options, labels, and storage. Render what `muggle llm-source --json` returns — never hardcode labels, and never write `preferences.json` or the credentials file directly.
 
@@ -22,6 +22,7 @@ One `AskUserQuestion`: `header` = `header`, question text = `prompt` followed by
 | `muggle-credit` | `muggle llm-source --use muggle-credit` |
 | `local-model` | Ask in chat for the endpoint URL and the vision-capable model name (neither is secret), then `muggle llm-source --use local-model --base-url <url> --model <name>`. If the endpoint needs its own key, tell the user to run `muggle llm-source` in a terminal instead. |
 | `anthropic-api-key` | Do not run anything. Tell the user to run `muggle llm-source` in their own terminal and paste the key at the hidden prompt. |
+| `claude-code` | `muggle llm-source --use claude-code`. The CLI asks Claude Code whether it is installed and signed in, and refuses the choice when it is not. On a refusal, relay the CLI's message: the user installs Claude Code from Anthropic or signs in by running `claude` in their own terminal, then picks this source again. Never start a Claude sign-in or read Claude Code's stored credentials. |
 
 ## Step 4 — confirm
 

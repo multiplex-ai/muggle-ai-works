@@ -84,6 +84,7 @@ var SESSION_STATE_LOCK_WAIT_MS = 250;
 var DEFERRED_STATE_LOCK_WAIT_MS = 3e4;
 var DEFERRED_STATE_MUTATION_INFIX = ".deferred-";
 var LOCK_POLL_INTERVAL_MS = 10;
+var UNRECORDED_LOCK_HOLDER_GRACE_MS = 1e4;
 var CALL_FAILURE_SIGNALS = [
   /\bgh:\s/,
   /\bglab:\s/,
@@ -121,10 +122,17 @@ function recordedHolder(lockPath) {
     return void 0;
   }
 }
-function breakLockIfHolderIsDead(lockPath) {
+function isUnrecordedLockPastGrace(lockPath) {
+  try {
+    return Date.now() - statSync(lockPath).mtimeMs > UNRECORDED_LOCK_HOLDER_GRACE_MS;
+  } catch {
+    return false;
+  }
+}
+function breakAbandonedLock(lockPath) {
   const holder = recordedHolder(lockPath);
-  if (!holder) return;
-  if (holder.host !== hostname() || isProcessAlive(holder.pid)) return;
+  const isAbandoned = holder ? holder.host === hostname() && !isProcessAlive(holder.pid) : isUnrecordedLockPastGrace(lockPath);
+  if (!isAbandoned) return;
   try {
     unlinkSync(lockPath);
   } catch {
@@ -149,7 +157,7 @@ function withFileLock(lockPath, waitMs, run) {
         })
       );
     } catch {
-      breakLockIfHolderIsDead(lockPath);
+      breakAbandonedLock(lockPath);
       if (Date.now() >= deadline) return void 0;
       pauseBetweenAttempts();
       continue;
@@ -264,11 +272,6 @@ function commitDeferredStateMutations(sessionId2, applyMutation, dirOverride) {
     for (const entryFile of entryFiles) rmSync(entryFile, { force: true });
     return committed;
   });
-}
-function markPrHandled(sessionId2, prUrl, dirOverride) {
-  const state = readState(sessionId2, dirOverride);
-  if (!state.prsHandled.includes(prUrl)) state.prsHandled.push(prUrl);
-  writeState(state, dirOverride);
 }
 
 // src/guardrails/types.ts
@@ -1614,67 +1617,6 @@ function stageGateDecision(state, unreadStagePaths, maxBlocks = MAX_STAGE_BLOCKS
   return { action: "block" /* Block */, blockCount: blockCount + 1, unread: unreadStagePaths };
 }
 
-// src/guardrails/stateCommit.ts
-function applyToolOutcome(state, outcome) {
-  const declared = applyE2eSkipDeclaration(applyRecordedRun(state, outcome.run), outcome.acceptedSkip);
-  const recorded = applyE2eSkipScope(declared, outcome.skipVerifiedChange);
-  const withWatchSkip = applyWatchSkip(recorded, outcome.isWatchSkip);
-  const withBuildSkip = applyBuildSkip(withWatchSkip, outcome.isBuildSkip);
-  const withWalkthroughPost = applyWalkthroughPosted(
-    withBuildSkip,
-    outcome.isWalkthroughPosted,
-    outcome.walkthroughPostedAt,
-    outcome.walkthroughPostTargets
-  );
-  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, outcome.isWalkthroughSkip);
-  return outcome.failedRunId ? applyFailedRun(withWalkthroughSkip, outcome.failedRunId) : withWalkthroughSkip;
-}
-function applyFields(state, fields) {
-  const isUnchanged = Object.entries(fields).every(
-    ([field, value]) => state[field] === value
-  );
-  return isUnchanged ? state : { ...state, ...fields };
-}
-function applyStateMutation(state, mutation) {
-  switch (mutation.kind) {
-    case "tool-outcome" /* ToolOutcome */:
-      return applyToolOutcome(state, mutation);
-    case "skill-invocation" /* SkillInvocation */:
-      return applyRecordedRun(applySkillInvocation(state, mutation.skillName, mutation.stagePaths), mutation.emittedRun);
-    case "pr-opened" /* PrOpened */:
-      return applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), mutation.prUrl, mutation.prChange);
-    case "e2e-delegation" /* E2eDelegation */:
-      return applyE2eDelegation(state, mutation.delegation);
-    case "watch-follow-through" /* WatchFollowThrough */:
-      return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
-    case "fields" /* Fields */:
-      return applyFields(state, mutation.fields);
-  }
-}
-function commitStateMutation(sessionId2, mutation) {
-  const committed = commitState(sessionId2, (state) => applyStateMutation(state, mutation));
-  if (committed) return committed;
-  deferStateMutation(sessionId2, mutation);
-  startBackgroundJob("commit-deferred-state" /* CommitDeferredState */, [sessionId2]);
-  return applyStateMutation(readState(sessionId2), mutation);
-}
-function commitDeferredSessionState(sessionId2) {
-  commitDeferredStateMutations(sessionId2, applyStateMutation);
-}
-
-// src/guardrails/prOpened.ts
-var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
-var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
-function detectPrOpened(input2) {
-  if (!isShellToolCall(input2)) return null;
-  const cmd = input2.tool_input?.command ?? "";
-  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
-  const out = `${input2.tool_response?.stdout ?? ""}
-${input2.tool_response?.output ?? ""}`;
-  const m = out.match(GITHUB_PR_URL) ?? out.match(GITLAB_MR_URL);
-  return m ? m[0] : null;
-}
-
 // src/guardrails/prTerminal.ts
 function terminalProvenance(input2) {
   const command = input2.tool_input?.command;
@@ -1754,39 +1696,6 @@ function prTerminalGateDecision(state, maxBlocks = MAX_PR_TERMINAL_BLOCKS) {
   return { action: "block" /* Block */, blockCount: blockCount + 1 };
 }
 
-// src/guardrails/capabilityClaim.ts
-var SENTENCE = /[^.!?\n]+/g;
-var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
-var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential|sms|text message|texted code|authenticator app|google authenticator|authy|totp)/i;
-var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
-var GENUINELY_UNSUPPORTED = /\b(?:phone call|voice call|oauth|social (?:login|sign[- ]?in)|sign in with (?:google|github|apple|facebook)|no (?:phone )?number (?:is )?provisioned|no provisioned (?:phone )?number)\b/i;
-function detectFalseCapabilityClaim(text) {
-  const sentences = (text ?? "").match(SENTENCE) ?? [];
-  return sentences.some(
-    (sentence) => IMPOSSIBILITY.test(sentence) && MUGGLE_CLEARS.test(sentence) && TESTING_CONTEXT.test(sentence) && !GENUINELY_UNSUPPORTED.test(sentence)
-  );
-}
-function lastAssistantText(transcriptJsonl) {
-  const lines = (transcriptJsonl ?? "").split("\n");
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index]?.trim();
-    if (!line) continue;
-    let entry;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (entry.type !== "assistant") continue;
-    const content = entry.message?.content;
-    if (typeof content === "string") return content;
-    if (!Array.isArray(content)) continue;
-    const prose = content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
-    if (prose) return prose;
-  }
-  return "";
-}
-
 // src/guardrails/preExecutionClassification.ts
 var CLASSIFICATION_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_CLASSIFY_SKIP\b/;
 function detectClassifiedTestCaseId(input2) {
@@ -1818,6 +1727,125 @@ function classificationGateDecision(state, input2) {
   const classified = state.classifiedTestCaseIds ?? [];
   if (classified.includes(ANY_TEST_CASE) || classified.includes(testCaseId)) return { deny: false };
   return { deny: true, testCaseId };
+}
+
+// src/guardrails/stateCommit.ts
+function applyToolOutcome(state, outcome) {
+  const declared = applyE2eSkipDeclaration(applyRecordedRun(state, outcome.run), outcome.acceptedSkip);
+  const recorded = applyE2eSkipScope(declared, outcome.skipVerifiedChange);
+  const withWatchSkip = applyWatchSkip(recorded, outcome.isWatchSkip);
+  const withBuildSkip = applyBuildSkip(withWatchSkip, outcome.isBuildSkip);
+  const withWalkthroughPost = applyWalkthroughPosted(
+    withBuildSkip,
+    outcome.isWalkthroughPosted,
+    outcome.walkthroughPostedAt,
+    outcome.walkthroughPostTargets
+  );
+  const withWalkthroughSkip = applyWalkthroughSkip(withWalkthroughPost, outcome.isWalkthroughSkip);
+  return outcome.failedRunId ? applyFailedRun(withWalkthroughSkip, outcome.failedRunId) : withWalkthroughSkip;
+}
+function applyStageSignals(state, signals) {
+  const withStageSkip = applyStageSkip(state, signals.isStageSkip);
+  const withClassificationSkip = applyClassificationSkip(withStageSkip, signals.isClassificationSkip);
+  const withDebugSkip = applyDebugSkip(withClassificationSkip, signals.debugSkipCommand ?? "");
+  const withClassification = signals.classifiedTestCaseId ? applyClassifiedTestCase(withDebugSkip, signals.classifiedTestCaseId) : withDebugSkip;
+  return applyDebugEvidence(withClassification, signals.debugEvidenceRunIds);
+}
+function applyPrHandled(state, prUrl) {
+  return state.prsHandled.includes(prUrl) ? state : { ...state, prsHandled: [...state.prsHandled, prUrl] };
+}
+function applyFields(state, fields) {
+  const isUnchanged = Object.entries(fields).every(
+    ([field, value]) => state[field] === value
+  );
+  return isUnchanged ? state : { ...state, ...fields };
+}
+function applyStateMutation(state, mutation) {
+  switch (mutation.kind) {
+    case "tool-outcome" /* ToolOutcome */:
+      return applyToolOutcome(state, mutation);
+    case "skill-invocation" /* SkillInvocation */:
+      return applyRecordedRun(applySkillInvocation(state, mutation.skillName, mutation.stagePaths), mutation.emittedRun);
+    case "pr-opened" /* PrOpened */:
+      return applyPrOpenedToSkipScope(
+        applyPrOpenedToWalkthroughs(applyPrHandled(state, mutation.prUrl)),
+        mutation.prUrl,
+        mutation.prChange
+      );
+    case "pr-terminal" /* PrTerminal */:
+      return applyPrTerminalDetected(state, mutation.prNumber);
+    case "pr-reopened" /* PrReopened */:
+      return applyPrReopened(state, mutation.prNumber);
+    case "next-options-offered" /* NextOptionsOffered */:
+      return applyNextOptionsOffered(state);
+    case "e2e-delegation" /* E2eDelegation */:
+      return applyE2eDelegation(state, mutation.delegation);
+    case "watch-follow-through" /* WatchFollowThrough */:
+      return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
+    case "stage-reads" /* StageReads */:
+      return mutation.readPaths.reduce(applyStageRead, state);
+    case "stage-signals" /* StageSignals */:
+      return applyStageSignals(state, mutation);
+    case "fields" /* Fields */:
+      return applyFields(state, mutation.fields);
+  }
+}
+function commitStateMutation(sessionId2, mutation, observedState) {
+  if (observedState && applyStateMutation(observedState, mutation) === observedState) return observedState;
+  const committed = commitState(sessionId2, (state) => applyStateMutation(state, mutation));
+  if (committed) return committed;
+  deferStateMutation(sessionId2, mutation);
+  startBackgroundJob("commit-deferred-state" /* CommitDeferredState */, [sessionId2]);
+  return applyStateMutation(readState(sessionId2), mutation);
+}
+function commitDeferredSessionState(sessionId2) {
+  commitDeferredStateMutations(sessionId2, applyStateMutation);
+}
+
+// src/guardrails/prOpened.ts
+var CREATE_CMD = /\bgh\s+pr\s+(create|ready)\b/;
+var MR_CREATE_CMD = /\bglab\s+mr\s+create\b|\bglab\s+mr\s+update\b.*--ready\b/;
+function detectPrOpened(input2) {
+  if (!isShellToolCall(input2)) return null;
+  const cmd = input2.tool_input?.command ?? "";
+  if (!CREATE_CMD.test(cmd) && !MR_CREATE_CMD.test(cmd)) return null;
+  const out = `${input2.tool_response?.stdout ?? ""}
+${input2.tool_response?.output ?? ""}`;
+  const m = out.match(GITHUB_PR_URL) ?? out.match(GITLAB_MR_URL);
+  return m ? m[0] : null;
+}
+
+// src/guardrails/capabilityClaim.ts
+var SENTENCE = /[^.!?\n]+/g;
+var IMPOSSIBILITY = /\b(?:can(?:'|’)?t|cannot|can not|could ?n(?:'|’)?t|unable to|no way to|not able to|impossible|infeasible|untestable|unverifiable|not testable|blocked from|no (?:local )?(?:mail|email|smtp) path)\b/i;
+var MUGGLE_CLEARS = /\b(?:magic[- ]?link|sign[- ]?in link|login link|email link|one[- ]time (?:code|password)|otp|verification (?:code|link|email|mail)|email verification|confirmation (?:code|link|email|mail)|2fa|two[- ]factor|password reset|reset link|inbox|mailbox|mailhog|mailpit|mailtrap|mailcatcher|smtp|transactional email|captcha|recaptcha|hcaptcha|log ?in|logged[- ]?in|sign ?in|signed[- ]in|authenticate|credential|sms|text message|texted code|authenticator app|google authenticator|authy|totp)/i;
+var TESTING_CONTEXT = /\b(?:e2e|end[- ]to[- ]end|test(?:s|ed|ing|able)?|verif(?:y|ied|ication)|validat(?:e|ed|ion)|automat(?:e|ed|ion)|coverage|covered|exercis(?:e|ed)|reproduc(?:e|ed)|replay|scripts?|scripted|muggle|playwright|cypress|selenium)\b/i;
+var GENUINELY_UNSUPPORTED = /\b(?:phone call|voice call|oauth|social (?:login|sign[- ]?in)|sign in with (?:google|github|apple|facebook)|no (?:phone )?number (?:is )?provisioned|no provisioned (?:phone )?number)\b/i;
+function detectFalseCapabilityClaim(text) {
+  const sentences = (text ?? "").match(SENTENCE) ?? [];
+  return sentences.some(
+    (sentence) => IMPOSSIBILITY.test(sentence) && MUGGLE_CLEARS.test(sentence) && TESTING_CONTEXT.test(sentence) && !GENUINELY_UNSUPPORTED.test(sentence)
+  );
+}
+function lastAssistantText(transcriptJsonl) {
+  const lines = (transcriptJsonl ?? "").split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]?.trim();
+    if (!line) continue;
+    let entry;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (entry.type !== "assistant") continue;
+    const content = entry.message?.content;
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) continue;
+    const prose = content.filter((part) => part.type === "text" && typeof part.text === "string").map((part) => part.text).join("\n");
+    if (prose) return prose;
+  }
+  return "";
 }
 
 // src/guardrails/testsGreen.ts
@@ -2617,6 +2645,9 @@ function releaseGate(field) {
   commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { [field]: true } });
   return "{}";
 }
+function recordGateBlock(field, blockCount) {
+  commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { [field]: blockCount } });
+}
 function muggleSkill(slashCommand) {
   return skillInvocation(slashCommand, host);
 }
@@ -2631,7 +2662,6 @@ function prOpened() {
   const url = detectPrOpened(input);
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
-  markPrHandled(sessionId, url);
   const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
   const stateAfterOpen = commitStateMutation(sessionId, {
     kind: "pr-opened" /* PrOpened */,
@@ -2657,37 +2687,30 @@ function prOpened() {
 function prTerminal() {
   const reopenedPrNumber = detectPrReopened(input);
   if (reopenedPrNumber !== null) {
-    const state2 = readState(sessionId);
-    const next2 = applyPrReopened(state2, reopenedPrNumber);
-    if (next2 !== state2) writeState(next2);
+    commitStateMutation(sessionId, { kind: "pr-reopened" /* PrReopened */, prNumber: reopenedPrNumber }, readState(sessionId));
     return "{}";
   }
   const terminalEvent = detectPrTerminal(input);
   if (!terminalEvent) return "{}";
   const state = readState(sessionId);
-  const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
-  if (next === state) return "{}";
-  writeState(next);
+  const terminalMutation = { kind: "pr-terminal" /* PrTerminal */, prNumber: terminalEvent.prNumber };
+  if (commitStateMutation(sessionId, terminalMutation, state) === state) return "{}";
   const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ${nextOptionsOfferMethod(isOfferAskedInClosingMessage())} \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
   return envelope("PostToolUse", ctx, host);
 }
 function offerRan() {
   if (!NEXT_OPTIONS_OFFER_TOOL_NAMES.includes(input.tool_name ?? "")) return "{}";
-  const state = readState(sessionId);
-  const next = applyNextOptionsOffered(state);
-  if (next !== state) writeState(next);
+  commitStateMutation(sessionId, { kind: "next-options-offered" /* NextOptionsOffered */ }, readState(sessionId));
   return "{}";
 }
 function terminalGate() {
   const pendingState = readState(sessionId);
   const isAskedInClosingMessage = isOfferAskedInClosingMessage();
-  const state = isAskedInClosingMessage && closingMessageAsksUser(closingAssistantText()) ? applyNextOptionsOffered(pendingState) : pendingState;
-  if (state !== pendingState) writeState(state);
+  const state = isAskedInClosingMessage && closingMessageAsksUser(closingAssistantText()) ? commitStateMutation(sessionId, { kind: "next-options-offered" /* NextOptionsOffered */ }, pendingState) : pendingState;
   const decision = prTerminalGateDecision(state);
   if (decision.action === "release" /* Release */) return releaseGate("terminalReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  state.terminalBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("terminalBlockCount", decision.blockCount);
   const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user ${nextOptionsOfferMethod(isAskedInClosingMessage)} \u2014 release, queued work, deferred items. Only that offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then offer the next options ${nextOptionsOfferMethod(isAskedInClosingMessage)}.`;
   return blockStop(reason, host);
@@ -2771,27 +2794,25 @@ function recordStageRead() {
   const readPaths = filePath ? [filePath].filter(isSkillTreeMarkdown) : isShellToolCall(input) ? detectShellStageReads(input.tool_input?.command ?? "", input.cwd) : [];
   if (readPaths.length === 0) return "{}";
   if (callFailed(input)) return "{}";
-  const state = readState(sessionId);
-  const next = readPaths.reduce(applyStageRead, state);
-  if (next !== state) writeState(next);
+  commitStateMutation(sessionId, { kind: "stage-reads" /* StageReads */, readPaths }, readState(sessionId));
   return "{}";
 }
 function recordStageSignals() {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  const withStageSkip = applyStageSkip(state, isStageSkipMarker(cmd));
-  const withClassificationSkip = applyClassificationSkip(
-    withStageSkip,
-    isClassificationSkipMarker(cmd)
+  commitStateMutation(
+    sessionId,
+    {
+      kind: "stage-signals" /* StageSignals */,
+      isStageSkip: isStageSkipMarker(cmd),
+      isClassificationSkip: isClassificationSkipMarker(cmd),
+      debugSkipCommand: isDebugSkipMarker(cmd) ? cmd : void 0,
+      classifiedTestCaseId: detectClassifiedTestCaseId(input),
+      // Matched against the runs owed as this hook read them; evidence for a run already debugged commits nothing.
+      debugEvidenceRunIds: detectDebugEvidenceRunIds(input, undebuggedFailedRuns(state))
+    },
+    state
   );
-  const withDebugSkip = applyDebugSkip(withClassificationSkip, cmd);
-  const classifiedTestCaseId = detectClassifiedTestCaseId(input);
-  const withClassification = classifiedTestCaseId ? applyClassifiedTestCase(withDebugSkip, classifiedTestCaseId) : withDebugSkip;
-  const next = applyDebugEvidence(
-    withClassification,
-    detectDebugEvidenceRunIds(input, undebuggedFailedRuns(withClassification))
-  );
-  if (next !== state) writeState(next);
   return "{}";
 }
 function classifyGate() {
@@ -2809,8 +2830,7 @@ function stageGate() {
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
   if (decision.action === "release" /* Release */) return releaseGate("stageReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  state.stageBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("stageBlockCount", decision.blockCount);
   const stageList = decision.unread.map(stageLabel).join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A skill invoked this session declares mandatory stages that were never opened: ${stageList}. Read them and carry out what they require \u2014 they are steps, not background reading, and SKILL.md only links to them. If they genuinely do not apply to this run, say why and run \`echo "MUGGLE_STAGE_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Mandatory stages still unread (reminder ${decision.blockCount}/${MAX_STAGE_BLOCKS}): ${stageList}. Read them, or record a legitimate skip via \`echo "MUGGLE_STAGE_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
@@ -2820,8 +2840,7 @@ function debugPathGate() {
   const decision = debugGateDecision(state);
   if (decision.action === "release" /* Release */) return releaseGate("debugReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  state.debugBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("debugBlockCount", decision.blockCount);
   const runList = decision.undebugged.join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. These runs failed and never went through the debug path: ${runList}. muggle-test Step 7C makes that mandatory \u2014 route each through _shared/debug-failed-run.md: gather the attempted steps and the failing screenshot, diagnose the bucket per _shared/failure-mode-handling.md \xA7B/\xA7C with its classified telemetry emit, and present the offer in which "give feedback & rerun" is always available. A summarized-and-dropped failure is the run a reviewer most needs to see. If a run genuinely cannot be debugged, run \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\` \u2014 that clears just that run.` : `Failed runs still owe the debug path (reminder ${decision.blockCount}/${MAX_DEBUG_BLOCKS}): ${runList}. Route each through _shared/debug-failed-run.md, or record a legitimate skip via \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\`.`;
   return blockStop(reason, host);
@@ -2836,8 +2855,7 @@ function e2eGate() {
     return releaseGate("e2eReleased");
   }
   if (decision.action === "none" /* None */) return "{}";
-  state.e2eBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("e2eBlockCount", decision.blockCount);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
   return blockStop(reason, host);
 }
@@ -2851,8 +2869,7 @@ function watchGate() {
   const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
   if (decision.action === "release" /* Release */) return releaseGate("watchReleased");
   if (decision.action === "none" /* None */) return "{}";
-  state.watchBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
   const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 6e4;
   const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
@@ -2902,8 +2919,7 @@ function buildFollowthroughGate() {
   const decision = buildFollowthroughDecision(state);
   if (decision.action === "release" /* Release */) return releaseGate("buildSkipped");
   if (decision.action === "none" /* None */) return "{}";
-  state.buildBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("buildBlockCount", decision.blockCount);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ${muggleSkill("/muggle-do")}, which runs requirements \u2192 build \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via ${muggleSkill("/muggle-do")}, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
@@ -2916,15 +2932,21 @@ function walkthroughGate() {
   const unposted = withoutPostedPrs(scan.owed, state);
   if (unposted.length === 0) {
     if (scan.verified.length + scan.owed.length > 0) {
-      writeState(state.e2eRun === true ? { ...state, walkthroughsVerified: true } : { ...state, e2eSkipSettledOnPrs: true });
+      commitStateMutation(
+        sessionId,
+        {
+          kind: "fields" /* Fields */,
+          fields: state.e2eRun === true ? { walkthroughsVerified: true } : { e2eSkipSettledOnPrs: true }
+        },
+        state
+      );
     }
     return "{}";
   }
   const decision = walkthroughGateDecision(state, withoutDelegatedPrs(unposted, state, Date.now()));
   if (decision.action === "release" /* Release */) return releaseGate("walkthroughReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  state.walkthroughBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("walkthroughBlockCount", decision.blockCount);
   const declaredSkip = state.e2eSkipDeclaration;
   const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrCoveredBySkip(state, prUrl)) : [];
   if (declaredSkip && skipOwedPrUrls.length > 0) {
@@ -2994,10 +3016,7 @@ function commentReplyGate() {
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
   if (decision.action === "release" /* Release */) return releaseGate("commentReplyReleased");
   if (decision.action !== "block" /* Block */) return "{}";
-  commitStateMutation(sessionId, {
-    kind: "fields" /* Fields */,
-    fields: { commentReplyBlockCount: decision.blockCount }
-  });
+  recordGateBlock("commentReplyBlockCount", decision.blockCount);
   const commentList = decision.unanswered.join(", ");
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took these review comments as work and never answered them: ${commentList}. Post one reply per comment in its own thread per muggle-do do/per-comment-replies.md \u2014 "Addressed in <short-sha>: <what changed for THIS comment>", signed via sign-body.sh --mode loop. A silent round leaves the reviewer with no answer in the thread, and the loop marker that reply carries is the only thing that stops the watcher re-dispatching the same thread next tick. If a comment was escalated to the user instead of answered, record it as deferred rather than replying.` : `Review comments still owe a threaded reply (reminder ${decision.blockCount}/${MAX_REPLY_BLOCKS}): ${commentList}. Reply per do/per-comment-replies.md, or record the deferral.`;
   return blockStop(reason, host);
@@ -3021,10 +3040,8 @@ function buildRouter() {
   const prompt = input.prompt ?? "";
   const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
   if (!isMuggleDoInvoked && !detectBuildIntent(prompt)) return "{}";
-  const state = readState(sessionId);
-  if (state.buildIntentRouted) return "{}";
-  state.buildIntentRouted = true;
-  writeState(state);
+  if (readState(sessionId).buildIntentRouted) return "{}";
+  commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { buildIntentRouted: true } });
   if (isMuggleDoInvoked) return "{}";
   const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
@@ -3042,11 +3059,9 @@ function closingAssistantText() {
   }
 }
 function capabilityClaimGate() {
-  const state = readState(sessionId);
-  if (state.capabilityClaimNudged) return "{}";
+  if (readState(sessionId).capabilityClaimNudged) return "{}";
   if (!detectFalseCapabilityClaim(closingAssistantText())) return "{}";
-  state.capabilityClaimNudged = true;
-  writeState(state);
+  commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { capabilityClaimNudged: true } });
   const reason = `Do not end the turn yet. This turn tells the user that a login- or code-gated flow cannot be tested, reached, or verified \u2014 the one class of blocker Muggle clears. Every managed login profile owns a live inbox, so magic-link and sign-in-link logins, emailed OTPs, email-based 2FA, verification mail, and password resets run end to end with no mail stub and no test-only backdoor. An SMS code is read from the profile's provisioned number, an authenticator code is derived offline from its stored TOTP secret, and stored credentials and CAPTCHA solving are covered too. Re-read plugin/skills/_shared/identity-and-inbox.md, then correct the claim or run the flow. Genuine limits stay sayable: a voice call, an OAuth-only provider, or an account with no phone number provisioned (the runner cannot mint one) \u2014 name the one that applies and move on.`;
   return blockStop(reason, host);
 }

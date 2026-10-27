@@ -8,12 +8,15 @@ import { applyWalkthroughPosted, applyWalkthroughSkip } from "./walkthroughPoste
 import { applyPrOpenedToWalkthroughs } from "./walkthroughOwed.js";
 import { applyE2eDelegation } from "./delegatedE2e.js";
 import { applyWatchHolds } from "./watchFollowThrough.js";
-import { applyFailedRun } from "./debugPath.js";
-import { applySkillInvocation } from "./mandatoryStages.js";
+import { applyDebugEvidence, applyDebugSkip, applyFailedRun } from "./debugPath.js";
+import { applySkillInvocation, applyStageRead, applyStageSkip } from "./mandatoryStages.js";
+import { applyNextOptionsOffered, applyPrReopened, applyPrTerminalDetected } from "./prTerminal.js";
+import { applyClassificationSkip, applyClassifiedTestCase } from "./preExecutionClassification.js";
 import {
   GuardrailBackgroundJob,
   StateMutationKind,
   type GuardrailState,
+  type StageSignalsMutation,
   type StateMutation,
   type ToolOutcomeMutation,
 } from "./types.js";
@@ -33,6 +36,20 @@ function applyToolOutcome(state: GuardrailState, outcome: ToolOutcomeMutation): 
   return outcome.failedRunId ? applyFailedRun(withWalkthroughSkip, outcome.failedRunId) : withWalkthroughSkip;
 }
 
+function applyStageSignals(state: GuardrailState, signals: StageSignalsMutation): GuardrailState {
+  const withStageSkip = applyStageSkip(state, signals.isStageSkip);
+  const withClassificationSkip = applyClassificationSkip(withStageSkip, signals.isClassificationSkip);
+  const withDebugSkip = applyDebugSkip(withClassificationSkip, signals.debugSkipCommand ?? "");
+  const withClassification = signals.classifiedTestCaseId
+    ? applyClassifiedTestCase(withDebugSkip, signals.classifiedTestCaseId)
+    : withDebugSkip;
+  return applyDebugEvidence(withClassification, signals.debugEvidenceRunIds);
+}
+
+function applyPrHandled(state: GuardrailState, prUrl: string): GuardrailState {
+  return state.prsHandled.includes(prUrl) ? state : { ...state, prsHandled: [...state.prsHandled, prUrl] };
+}
+
 // Same reference when every field already holds its value, so a gate that is
 // already stamped does not rewrite the state the hook pre-filters read.
 function applyFields(state: GuardrailState, fields: Partial<GuardrailState>): GuardrailState {
@@ -50,11 +67,25 @@ export function applyStateMutation(state: GuardrailState, mutation: StateMutatio
     case StateMutationKind.SkillInvocation:
       return applyRecordedRun(applySkillInvocation(state, mutation.skillName, mutation.stagePaths), mutation.emittedRun);
     case StateMutationKind.PrOpened:
-      return applyPrOpenedToSkipScope(applyPrOpenedToWalkthroughs(state), mutation.prUrl, mutation.prChange);
+      return applyPrOpenedToSkipScope(
+        applyPrOpenedToWalkthroughs(applyPrHandled(state, mutation.prUrl)),
+        mutation.prUrl,
+        mutation.prChange,
+      );
+    case StateMutationKind.PrTerminal:
+      return applyPrTerminalDetected(state, mutation.prNumber);
+    case StateMutationKind.PrReopened:
+      return applyPrReopened(state, mutation.prNumber);
+    case StateMutationKind.NextOptionsOffered:
+      return applyNextOptionsOffered(state);
     case StateMutationKind.E2eDelegation:
       return applyE2eDelegation(state, mutation.delegation);
     case StateMutationKind.WatchFollowThrough:
       return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
+    case StateMutationKind.StageReads:
+      return mutation.readPaths.reduce(applyStageRead, state);
+    case StateMutationKind.StageSignals:
+      return applyStageSignals(state, mutation);
     case StateMutationKind.Fields:
       return applyFields(state, mutation.fields);
   }
@@ -67,8 +98,16 @@ export function applyStateMutation(state: GuardrailState, mutation: StateMutatio
  * starts a detached commit that waits for the lock off the hook path, so
  * contention delays the record instead of losing it while both hooks exit clean.
  * The returned state is then the mutation over the latest committed state.
+ *
+ * @param observedState The state the hook already read. When the mutation leaves it unchanged, nothing is locked or
+ *   written and `observedState` itself is returned, so a recorder's no-op path costs no more than its read.
  */
-export function commitStateMutation(sessionId: string, mutation: StateMutation): GuardrailState {
+export function commitStateMutation(
+  sessionId: string,
+  mutation: StateMutation,
+  observedState?: GuardrailState,
+): GuardrailState {
+  if (observedState && applyStateMutation(observedState, mutation) === observedState) return observedState;
   const committed = commitState(sessionId, (state) => applyStateMutation(state, mutation));
   if (committed) return committed;
   deferStateMutation(sessionId, mutation);

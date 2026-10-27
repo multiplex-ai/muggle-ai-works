@@ -1,8 +1,6 @@
 import { readFileSync } from "fs";
 import {
   readState,
-  writeState,
-  markPrHandled,
   readWalkthroughScan,
   writeWalkthroughScan,
   readPrStateScan,
@@ -11,15 +9,7 @@ import {
 import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
 import { commitDeferredSessionState, commitStateMutation } from "./stateCommit.js";
 import { detectPrOpened } from "./prOpened.js";
-import {
-  detectPrTerminal,
-  detectPrReopened,
-  applyPrTerminalDetected,
-  applyPrReopened,
-  applyNextOptionsOffered,
-  closingMessageAsksUser,
-  prTerminalGateDecision,
-} from "./prTerminal.js";
+import { detectPrTerminal, detectPrReopened, closingMessageAsksUser, prTerminalGateDecision } from "./prTerminal.js";
 import {
   CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES,
   MAX_DEBUG_BLOCKS,
@@ -36,8 +26,6 @@ import {
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
-  applyStageRead,
-  applyStageSkip,
   detectShellStageReads,
   isSkillTreeMarkdown,
   isStageSkipMarker,
@@ -49,18 +37,15 @@ import {
   unreadMandatoryStages,
 } from "./mandatoryStages.js";
 import {
-  applyClassificationSkip,
-  applyClassifiedTestCase,
   classificationGateDecision,
   detectClassifiedTestCaseId,
   isClassificationSkipMarker,
 } from "./preExecutionClassification.js";
 import {
-  applyDebugEvidence,
-  applyDebugSkip,
   debugGateDecision,
   detectDebugEvidenceRunIds,
   detectFailedRunId,
+  isDebugSkipMarker,
   undebuggedFailedRuns,
 } from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
@@ -179,6 +164,11 @@ function releaseGate(field: keyof GuardrailState): string {
   return "{}";
 }
 
+/** Record a Stop gate's running block count, which its next turn end reads to escalate and finally release. */
+function recordGateBlock(field: keyof GuardrailState, blockCount: number): void {
+  commitStateMutation(sessionId, { kind: StateMutationKind.Fields, fields: { [field]: blockCount } });
+}
+
 /** A Muggle skill invocation as the firing host spells it — see skillInvocation. */
 function muggleSkill(slashCommand: string): string {
   return skillInvocation(slashCommand, host);
@@ -205,9 +195,9 @@ function prOpened(): string {
   const url = detectPrOpened(input);
   if (!url) return "{}";
   if (readState(sessionId).prsHandled.includes(url)) return "{}";
-  markPrHandled(sessionId, url);
   const prChange = resolveOpenedPrChange(input.tool_input?.command ?? "", url, input.cwd);
-  // A new PR has not been checked for a walkthrough or a skip's record yet, so the gate re-arms for it.
+  // Recorded as handled in the same commit, and a new PR has not been checked
+  // for a walkthrough or a skip's record yet, so the gate re-arms for it.
   const stateAfterOpen = commitStateMutation(sessionId, {
     kind: StateMutationKind.PrOpened,
     prUrl: url,
@@ -252,17 +242,15 @@ function prTerminal(): string {
   // must settle as open rather than arming a handoff for a live change.
   const reopenedPrNumber = detectPrReopened(input);
   if (reopenedPrNumber !== null) {
-    const state = readState(sessionId);
-    const next = applyPrReopened(state, reopenedPrNumber);
-    if (next !== state) writeState(next);
+    commitStateMutation(sessionId, { kind: StateMutationKind.PrReopened, prNumber: reopenedPrNumber }, readState(sessionId));
     return "{}";
   }
   const terminalEvent = detectPrTerminal(input);
   if (!terminalEvent) return "{}";
   const state = readState(sessionId);
-  const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
-  if (next === state) return "{}";
-  writeState(next);
+  // Unchanged means the handoff is already armed or done for this PR, so there is nothing to announce.
+  const terminalMutation = { kind: StateMutationKind.PrTerminal, prNumber: terminalEvent.prNumber } as const;
+  if (commitStateMutation(sessionId, terminalMutation, state) === state) return "{}";
   const ctx =
     `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: ` +
     `finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ` +
@@ -273,9 +261,7 @@ function prTerminal(): string {
 
 function offerRan(): string {
   if (!(NEXT_OPTIONS_OFFER_TOOL_NAMES as readonly string[]).includes(input.tool_name ?? "")) return "{}";
-  const state = readState(sessionId);
-  const next = applyNextOptionsOffered(state);
-  if (next !== state) writeState(next);
+  commitStateMutation(sessionId, { kind: StateMutationKind.NextOptionsOffered }, readState(sessionId));
   return "{}";
 }
 
@@ -286,14 +272,12 @@ function terminalGate(): string {
   // that asks it is the offer: the gate's only exit, applied at the turn end.
   const state =
     isAskedInClosingMessage && closingMessageAsksUser(closingAssistantText())
-      ? applyNextOptionsOffered(pendingState)
+      ? commitStateMutation(sessionId, { kind: StateMutationKind.NextOptionsOffered }, pendingState)
       : pendingState;
-  if (state !== pendingState) writeState(state);
   const decision = prTerminalGateDecision(state);
   if (decision.action === PrTerminalGateAction.Release) return releaseGate("terminalReleased");
   if (decision.action !== PrTerminalGateAction.Block) return "{}";
-  state.terminalBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("terminalBlockCount", decision.blockCount);
   const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
@@ -440,30 +424,26 @@ function recordStageRead(): string {
   if (readPaths.length === 0) return "{}";
   // A Read that errored opened nothing, so the stage it names is still unread.
   if (callFailed(input)) return "{}";
-  const state = readState(sessionId);
-  const next = readPaths.reduce(applyStageRead, state);
-  if (next !== state) writeState(next);
+  commitStateMutation(sessionId, { kind: StateMutationKind.StageReads, readPaths: readPaths }, readState(sessionId));
   return "{}";
 }
 
 function recordStageSignals(): string {
   const cmd = input.tool_input?.command ?? "";
   const state = readState(sessionId);
-  const withStageSkip = applyStageSkip(state, isStageSkipMarker(cmd));
-  const withClassificationSkip = applyClassificationSkip(
-    withStageSkip,
-    isClassificationSkipMarker(cmd),
+  commitStateMutation(
+    sessionId,
+    {
+      kind: StateMutationKind.StageSignals,
+      isStageSkip: isStageSkipMarker(cmd),
+      isClassificationSkip: isClassificationSkipMarker(cmd),
+      debugSkipCommand: isDebugSkipMarker(cmd) ? cmd : undefined,
+      classifiedTestCaseId: detectClassifiedTestCaseId(input),
+      // Matched against the runs owed as this hook read them; evidence for a run already debugged commits nothing.
+      debugEvidenceRunIds: detectDebugEvidenceRunIds(input, undebuggedFailedRuns(state)),
+    },
+    state,
   );
-  const withDebugSkip = applyDebugSkip(withClassificationSkip, cmd);
-  const classifiedTestCaseId = detectClassifiedTestCaseId(input);
-  const withClassification = classifiedTestCaseId
-    ? applyClassifiedTestCase(withDebugSkip, classifiedTestCaseId)
-    : withDebugSkip;
-  const next = applyDebugEvidence(
-    withClassification,
-    detectDebugEvidenceRunIds(input, undebuggedFailedRuns(withClassification)),
-  );
-  if (next !== state) writeState(next);
   return "{}";
 }
 
@@ -497,8 +477,7 @@ function stageGate(): string {
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
   if (decision.action === StageGateAction.Release) return releaseGate("stageReleased");
   if (decision.action !== StageGateAction.Block) return "{}";
-  state.stageBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("stageBlockCount", decision.blockCount);
   const stageList = decision.unread.map(stageLabel).join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
@@ -518,8 +497,7 @@ function debugPathGate(): string {
   const decision = debugGateDecision(state);
   if (decision.action === DebugGateAction.Release) return releaseGate("debugReleased");
   if (decision.action !== DebugGateAction.Block) return "{}";
-  state.debugBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("debugBlockCount", decision.blockCount);
   const runList = decision.undebugged.join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
@@ -550,8 +528,7 @@ function e2eGate(): string {
     return releaseGate("e2eReleased");
   }
   if (decision.action === E2eGateAction.None) return "{}";
-  state.e2eBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("e2eBlockCount", decision.blockCount);
   // Full instruction once; repeats are one line. The first block already
   // taught the model both exits, so repeating the paragraph is pure noise.
   const reason =
@@ -579,8 +556,7 @@ function watchGate(): string {
   const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
   if (decision.action === WatchGateAction.Release) return releaseGate("watchReleased");
   if (decision.action === WatchGateAction.None) return "{}";
-  state.watchBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("watchBlockCount", decision.blockCount);
   const prList = decision.unwatched.join(", ");
   const staleMinutes = WATCH_HEARTBEAT_STALE_MS / 60_000;
   const armCommand = `${muggleSkill("/muggle:muggle-pr-followup")} ${decision.unwatched[0]}`;
@@ -666,8 +642,7 @@ function buildFollowthroughGate(): string {
   const decision = buildFollowthroughDecision(state);
   if (decision.action === BuildFollowthroughAction.Release) return releaseGate("buildSkipped");
   if (decision.action === BuildFollowthroughAction.None) return "{}";
-  state.buildBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("buildBlockCount", decision.blockCount);
   // Full instruction once; repeats are one line — same rationale as e2eGate.
   const reason =
     decision.blockCount === 1
@@ -702,15 +677,21 @@ function walkthroughGate(): string {
     // its own flag: marking every PR verified would also mute the gate for a run
     // made later.
     if (scan.verified.length + scan.owed.length > 0) {
-      writeState(state.e2eRun === true ? { ...state, walkthroughsVerified: true } : { ...state, e2eSkipSettledOnPrs: true });
+      commitStateMutation(
+        sessionId,
+        {
+          kind: StateMutationKind.Fields,
+          fields: state.e2eRun === true ? { walkthroughsVerified: true } : { e2eSkipSettledOnPrs: true },
+        },
+        state,
+      );
     }
     return "{}";
   }
   const decision = walkthroughGateDecision(state, withoutDelegatedPrs(unposted, state, Date.now()));
   if (decision.action === WalkthroughGateAction.Release) return releaseGate("walkthroughReleased");
   if (decision.action !== WalkthroughGateAction.Block) return "{}";
-  state.walkthroughBlockCount = decision.blockCount;
-  writeState(state);
+  recordGateBlock("walkthroughBlockCount", decision.blockCount);
   // A PR the skip was applied to owes the skip's record; every other PR owes the run of its own change.
   const declaredSkip = state.e2eSkipDeclaration;
   const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrCoveredBySkip(state, prUrl)) : [];
@@ -830,10 +811,7 @@ function commentReplyGate(): string {
   const decision = commentReplyGateDecision(state, overdueThreads(slotPath, sessionId));
   if (decision.action === CommentReplyGateAction.Release) return releaseGate("commentReplyReleased");
   if (decision.action !== CommentReplyGateAction.Block) return "{}";
-  commitStateMutation(sessionId, {
-    kind: StateMutationKind.Fields,
-    fields: { commentReplyBlockCount: decision.blockCount },
-  });
+  recordGateBlock("commentReplyBlockCount", decision.blockCount);
   const commentList = decision.unanswered.join(", ");
   // Full instruction once; repeats are one line (same rationale as e2eGate).
   const reason =
@@ -872,10 +850,8 @@ function buildRouter(): string {
   const prompt = input.prompt ?? "";
   const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
   if (!isMuggleDoInvoked && !detectBuildIntent(prompt)) return "{}";
-  const state = readState(sessionId);
-  if (state.buildIntentRouted) return "{}";
-  state.buildIntentRouted = true;
-  writeState(state);
+  if (readState(sessionId).buildIntentRouted) return "{}";
+  commitStateMutation(sessionId, { kind: StateMutationKind.Fields, fields: { buildIntentRouted: true } });
   // The user already chose the pipeline the advisory would offer; only the follow-through is armed.
   if (isMuggleDoInvoked) return "{}";
   const ctx =
@@ -903,11 +879,9 @@ function closingAssistantText(): string {
 }
 
 function capabilityClaimGate(): string {
-  const state = readState(sessionId);
-  if (state.capabilityClaimNudged) return "{}";
+  if (readState(sessionId).capabilityClaimNudged) return "{}";
   if (!detectFalseCapabilityClaim(closingAssistantText())) return "{}";
-  state.capabilityClaimNudged = true;
-  writeState(state);
+  commitStateMutation(sessionId, { kind: StateMutationKind.Fields, fields: { capabilityClaimNudged: true } });
   const reason =
     `Do not end the turn yet. This turn tells the user that a login- or code-gated flow cannot be ` +
     `tested, reached, or verified — the one class of blocker Muggle clears. Every managed login profile ` +

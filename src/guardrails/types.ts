@@ -161,8 +161,13 @@ export enum StateMutationKind {
   ToolOutcome = "tool-outcome",
   SkillInvocation = "skill-invocation",
   PrOpened = "pr-opened",
+  PrTerminal = "pr-terminal",
+  PrReopened = "pr-reopened",
+  NextOptionsOffered = "next-options-offered",
   E2eDelegation = "e2e-delegation",
   WatchFollowThrough = "watch-follow-through",
+  StageReads = "stage-reads",
+  StageSignals = "stage-signals",
   Fields = "fields",
 }
 
@@ -192,6 +197,23 @@ export interface PrOpenedMutation {
   prChange?: ChangeIdentity;
 }
 
+/** A PR that went terminal (merged or closed), arming the post-merge handoff for it. */
+export interface PrTerminalMutation {
+  kind: StateMutationKind.PrTerminal;
+  prNumber: number;
+}
+
+/** A terminal PR reopened, retracting its post-merge handoff. */
+export interface PrReopenedMutation {
+  kind: StateMutationKind.PrReopened;
+  prNumber: number;
+}
+
+/** The next-options offer that ends the post-merge handoff of every pending terminal PR. */
+export interface NextOptionsOfferedMutation {
+  kind: StateMutationKind.NextOptionsOffered;
+}
+
 /** An acceptance run handed to a background agent. */
 export interface E2eDelegationMutation {
   kind: StateMutationKind.E2eDelegation;
@@ -213,6 +235,23 @@ export interface SkillInvocationMutation {
   emittedRun: RecordedRun;
 }
 
+/** The skills-tree files one tool call opened. */
+export interface StageReadsMutation {
+  kind: StateMutationKind.StageReads;
+  readPaths: string[];
+}
+
+/** The stage, classification and debug-path signals one tool call carried. */
+export interface StageSignalsMutation {
+  kind: StateMutationKind.StageSignals;
+  isStageSkip: boolean;
+  isClassificationSkip: boolean;
+  /** The command, kept only when it declares a debug skip: the runs it names are matched against the committed state. */
+  debugSkipCommand?: string;
+  classifiedTestCaseId?: string;
+  debugEvidenceRunIds: string[];
+}
+
 /** Top-level fields set to fixed values, such as a gate's release stamp or its block count. */
 export interface FieldsMutation {
   kind: StateMutationKind.Fields;
@@ -227,8 +266,13 @@ export type StateMutation =
   | ToolOutcomeMutation
   | SkillInvocationMutation
   | PrOpenedMutation
+  | PrTerminalMutation
+  | PrReopenedMutation
+  | NextOptionsOfferedMutation
   | E2eDelegationMutation
   | WatchFollowThroughMutation
+  | StageReadsMutation
+  | StageSignalsMutation
   | FieldsMutation;
 
 /** Outcome of the watcher-arm Stop gate for a turn end. */

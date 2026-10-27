@@ -8,22 +8,22 @@ import {
   commitState,
   deferStateMutation,
   readState,
-  markPrHandled,
-  isPrHandled,
   readWalkthroughScan,
   writeWalkthroughScan,
 } from "../../guardrails/sessionState";
 import { applyStateMutation } from "../../guardrails/stateCommit";
 import { StateMutationKind } from "../../guardrails/types";
 
+const PR_URL = "https://github.com/o/r/pull/7";
+
 describe("walkthrough scan sidecar", () => {
   it("reads back what was written, beside the state file rather than inside it", () => {
     const dir = mkdtempSync(join(tmpdir(), "gr-"));
-    const scan = { prsHandled: ["https://github.com/o/r/pull/7"], owed: ["https://github.com/o/r/pull/7"], verified: [] };
-    markPrHandled("s1", "https://github.com/o/r/pull/7", dir);
+    const scan = { prsHandled: [PR_URL], owed: [PR_URL], verified: [] };
+    commitState("s1", (state) => ({ ...state, prsHandled: [PR_URL] }), dir);
     writeWalkthroughScan("s1", scan, dir);
     expect(readWalkthroughScan("s1", dir)).toEqual(scan);
-    expect(readState("s1", dir)).toEqual({ sessionId: "s1", prsHandled: ["https://github.com/o/r/pull/7"] });
+    expect(readState("s1", dir)).toEqual({ sessionId: "s1", prsHandled: [PR_URL], generation: 1 });
   });
 
   it("is null for a session no scan has landed for", () => {
@@ -41,16 +41,9 @@ describe("sessionState", () => {
     expect(readState("s1", dir)).toEqual({ sessionId: "s1", prsHandled: [] });
   });
 
-  it("marks a PR handled and is idempotent", () => {
-    markPrHandled("s1", "https://github.com/o/r/pull/7", dir);
-    expect(isPrHandled("s1", "https://github.com/o/r/pull/7", dir)).toBe(true);
-    markPrHandled("s1", "https://github.com/o/r/pull/7", dir);
-    expect(readState("s1", dir).prsHandled).toEqual(["https://github.com/o/r/pull/7"]);
-  });
-
   it("isolates state per session id", () => {
-    markPrHandled("s1", "https://github.com/o/r/pull/7", dir);
-    expect(isPrHandled("s2", "https://github.com/o/r/pull/7", dir)).toBe(false);
+    commitState("s1", (state) => ({ ...state, prsHandled: [PR_URL] }), dir);
+    expect(readState("s2", dir).prsHandled).toEqual([]);
   });
 });
 

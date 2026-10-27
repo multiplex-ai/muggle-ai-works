@@ -258,6 +258,13 @@ export const DEFERRED_STATE_MUTATION_INFIX = ".deferred-";
 /** How often a waiter re-probes a lock it could not take. */
 export const LOCK_POLL_INTERVAL_MS = 10;
 
+/**
+ * How old a lock file that names no holder must be before a waiter breaks it. A holder writes its
+ * record the moment it creates the file, so one still empty after this long was left by a process
+ * killed in between — a hook cut off by its host's timeout — and has no pid left to probe.
+ */
+export const UNRECORDED_LOCK_HOLDER_GRACE_MS = 10_000;
+
 // Signals that a tool call was rejected rather than performed. Anchored tightly
 // because the bodies these recorders inspect legitimately contain "error" and
 // "failed" — a walkthrough reports failing tests, and `gh api` echoes that body

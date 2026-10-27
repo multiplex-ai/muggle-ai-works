@@ -17,7 +17,8 @@ import { WalkthroughCommentStatus, WalkthroughVerdict } from "../../pr-walkthrou
 
 const reported = `${WALKTHROUGH_SLOT_MARKER}\n<!-- muggle-pr-section:v1 -->\n### Muggle E2E\n3 passed`;
 const builderReport = "<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results\n\n**✅ PASS** — 3 tests ran";
-const PRE_CYCLE = { preCycleSha: "1a2b3c4d5e6f", reason: "README typo" };
+const PRE_CYCLE = { preCycleSha: "1a2b3c4d5e6f", baseTipSha: null, reason: "README typo" };
+const REBASED_CYCLE = { preCycleSha: "aeabe83db003", baseTipSha: "be4b765cf2ba", reason: "clean replay onto master" };
 const HEAD_SHA = "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5";
 
 describe("renderReservedComment", () => {
@@ -93,6 +94,15 @@ describe("renderNoAppLogicChangeComment", () => {
     expect(renderNoAppLogicChangeComment(PRE_CYCLE, "1a2b3c4d5e6f7a8b", null)).toContain(
       "no app-logic change since `1a2b3c4`",
     );
+  });
+
+  it("names the base a rebased cycle replayed onto and the head it started from", () => {
+    const body = renderNoAppLogicChangeComment(REBASED_CYCLE, HEAD_SHA, lastFullRunOf(builderReport));
+    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
+    expect(body).toContain("E2E skipped — the rebase onto `be4b765` changed no app logic in this PR");
+    expect(body).toContain("in the rebase of `aeabe83`");
+    expect(body).toContain("clean replay onto master");
+    expect(body).toContain("**✅ PASS** — 3 tests ran");
   });
 
   // The last run moves under the notice rather than being dropped, and the

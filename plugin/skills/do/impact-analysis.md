@@ -93,6 +93,8 @@ cycleSize: <minor | full>
 
 `minor` only when every path in `cycleFiles` is in the `NO_APP_LOGIC_CHANGE` path set defined in [`e2e-acceptance.md`](e2e-acceptance.md); otherwise `full`. The rest of this stage still runs against the default branch, so a full cycle's E2E routes from `pathClassification` as in a forward run.
 
+A rebase is not sized here: the tree diff from `rebase_sha` carries everything the base brought in. Its size comes from its `NO_APP_LOGIC_CHANGE` declaration after the push, which compares the PR's own patch per [`cycle-size.md`](cycle-size.md) Rebase size; a rejected declaration is the `full` that scopes E2E.
+
 ## Output state — e2eScope
 
 The case selection [`e2e-acceptance.md`](e2e-acceptance.md) runs. Stage 6 executes this scope rather than choosing its own, so the choice is made here, where the diff and the acceptance criteria are both in hand.

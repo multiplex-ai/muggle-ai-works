@@ -23,6 +23,8 @@ export enum E2eSkipCode {
 /** The detail of a `NO_APP_LOGIC_CHANGE` declaration: the commit the cycle started from, and what the cycle changed. */
 export interface NoAppLogicChangeDetail {
   preCycleSha: string;
+  /** The base tip the cycle rebased the PR onto, from a `<pre_cycle_sha>..<base_tip_sha>` detail; `null` when the cycle did not rebase. */
+  baseTipSha: string | null;
   reason: string;
 }
 

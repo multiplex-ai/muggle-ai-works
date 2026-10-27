@@ -7,7 +7,7 @@ Contract: never let a mutated tree ship without passing verification, and always
 ## Inputs
 
 - `pre_rebase_sha` — branch HEAD the caller captured **before** the mutating operation; the rollback point.
-- Session context: slug, PR url/number, and the persisted validation strategy (for the E2E step).
+- Session context: slug and PR url/number.
 
 ## Procedure
 
@@ -17,11 +17,12 @@ Each must pass, in order:
 
 1. **Build** — typecheck + lint on the changed surface, run via the caller's build step.
 2. **Unit suite** — the caller's unit run; record PASS.
-3. **E2E** — the caller's E2E step under the persisted [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) strategy. A poll-only session with no validation context reports `SKIPPED`, same as the normal cycle.
+
+E2E is not a verify step. The mutation replays the branch onto code its own PRs already tested, and a tree held back for a browser run leaves the PR behind or conflicting while the fix waits; the caller runs whatever E2E its cycle owes after the push.
 
 ### Step 2 — Pass → proceed
 
-Return success. The caller resumes the normal flow; the push happens downstream, so a mutated tree ships only after it has verified.
+Return success. The caller resumes the normal flow; the push happens downstream, so a mutated tree ships only after its build and unit suite passed.
 
 ### Step 3 — Fail → restore + escalate
 

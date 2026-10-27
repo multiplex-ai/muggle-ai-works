@@ -27,6 +27,34 @@ const contextFor = (environment: Environment, overrides: Partial<SkipVerificatio
 const declare = (code: string, detail = "") =>
   `echo "MUGGLE_E2E_SKIP: ${code}${detail ? `: ${detail}` : ""}"`;
 
+// A throwaway repository with an isolated identity and config, for pinning the real git invocations the fakes stand in for.
+const initRepo = (prefix: string) => {
+  const repo = mkdtempSync(join(tmpdir(), prefix));
+  const git = (...args: string[]): string =>
+    execFileSync("git", args, {
+      cwd: repo,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        HOME: repo,
+        USERPROFILE: repo,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_AUTHOR_NAME: "t",
+        GIT_AUTHOR_EMAIL: "t@example.com",
+        GIT_COMMITTER_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@example.com",
+      },
+    });
+  git("init", "-q");
+  const commitFiles = (message: string, files: Record<string, string>): string => {
+    for (const [name, content] of Object.entries(files)) writeFileSync(join(repo, name), content);
+    git("add", "-A");
+    git("commit", "-q", "-m", message);
+    return git("rev-parse", "--short", "HEAD").trim();
+  };
+  return { repo: repo, git: git, commitFiles: commitFiles };
+};
+
 describe("NO_WEB_SURFACE", () => {
   it("verifies when the repo declares no serving script and carries no web config", () => {
     const judged = resolveSkipDeclaration(
@@ -274,41 +302,98 @@ describe("NO_APP_LOGIC_CHANGE", () => {
   // Pins the real git invocations the fakes above stand in for: the `^{commit}`
   // peel, two-tree diff, and NUL-separated names.
   it("verifies and refutes against a real repository", () => {
-    const repo = mkdtempSync(join(tmpdir(), "no-app-logic-"));
-    const git = (...args: string[]): string =>
-      execFileSync("git", args, {
-        cwd: repo,
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          HOME: repo,
-          USERPROFILE: repo,
-          GIT_CONFIG_NOSYSTEM: "1",
-          GIT_AUTHOR_NAME: "t",
-          GIT_AUTHOR_EMAIL: "t@example.com",
-          GIT_COMMITTER_NAME: "t",
-          GIT_COMMITTER_EMAIL: "t@example.com",
-        },
-      });
-    git("init", "-q");
-    writeFileSync(join(repo, "app.ts"), "export const total = 1;\n");
-    git("add", "-A");
-    git("commit", "-q", "-m", "app");
-    const preCycleSha = git("rev-parse", "--short", "HEAD").trim();
-    writeFileSync(join(repo, "README.md"), "# docs\n");
-    git("add", "-A");
-    git("commit", "-q", "-m", "docs");
+    const { repo, commitFiles } = initRepo("no-app-logic-");
+    const preCycleSha = commitFiles("app", { "app.ts": "export const total = 1;\n" });
+    commitFiles("docs", { "README.md": "# docs\n" });
     const context = { cwd: repo, prsHandled: [], homeDir: repo, probe: defaultSkipProbes };
 
     expect(resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, `${preCycleSha} docs`), context)?.accepted).toBe(true);
     const unknownSha = resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, "deadbeef0 docs"), context);
     expect(unknownSha?.accepted === false && unknownSha.failure).toContain("does not resolve to a commit");
 
-    writeFileSync(join(repo, "app.ts"), "// a comment only\nexport const total = 1;\n");
-    git("add", "-A");
-    git("commit", "-q", "-m", "comment");
+    commitFiles("comment", { "app.ts": "// a comment only\nexport const total = 1;\n" });
     const judged = resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, `${preCycleSha} docs`), context);
     expect(judged?.accepted === false && judged.failure).toContain("app.ts");
+  });
+});
+
+describe("NO_APP_LOGIC_CHANGE after a rebase", () => {
+  const PRE_CYCLE = "1a2b3c4";
+  const BASE_TIP = "9f8e7d6";
+  const patchKey = (revision: string): string =>
+    `-c core.quotePath=false diff -U0 --no-renames --no-color ${BASE_TIP}...${revision}`;
+  const headerDiff = (hunk: string): string =>
+    `diff --git a/src/header.tsx b/src/header.tsx\nindex 1111111..2222222 100644\n--- a/src/header.tsx\n+++ b/src/header.tsx\n${hunk}`;
+  const rebased = (before: string, after: string) => ({
+    [`merge-base --is-ancestor ${BASE_TIP}^{commit} HEAD`]: "",
+    [patchKey(PRE_CYCLE)]: before,
+    [patchKey("HEAD")]: after,
+  });
+  const declareRebase = (reason: string) => declare(E2eSkipCode.NoAppLogicChange, `${PRE_CYCLE}..${BASE_TIP} ${reason}`);
+
+  it("verifies a replay that left the PR's own patch unchanged, whatever the base brought in", () => {
+    const patch = headerDiff("@@ -40,0 +41 @@\n+import { FanOutChoice } from \"types/FanOutChoiceEnum\";\n");
+    const judged = resolveSkipDeclaration(declareRebase("clean replay onto master"), contextFor({ git: rebased(patch, patch) }));
+    expect(judged).toEqual({
+      accepted: true,
+      skip: { code: E2eSkipCode.NoAppLogicChange, detail: `${PRE_CYCLE}..${BASE_TIP} clean replay onto master` },
+    });
+  });
+
+  it("verifies a replay whose patch changed only in docs", () => {
+    const docs = (line: string) =>
+      `diff --git a/README.md b/README.md\nindex 1111111..2222222 100644\n--- a/README.md\n+++ b/README.md\n@@ -1,0 +2 @@\n${line}\n`;
+    const judged = resolveSkipDeclaration(declareRebase("docs reworded"), contextFor({ git: rebased(docs("+Setup"), docs("+Setup steps")) }));
+    expect(judged?.accepted).toBe(true);
+  });
+
+  it("refutes a resolution that changed the PR's own edit to a source file", () => {
+    const before = headerDiff("@@ -40,0 +41 @@\n+import { FanOutChoice } from \"types/FanOutChoiceEnum\";\n");
+    const after = headerDiff("@@ -40,0 +41 @@\n+import { FanOutChoice as Choice } from \"types/FanOutChoiceEnum\";\n");
+    const judged = resolveSkipDeclaration(declareRebase("resolved a conflict"), contextFor({ git: rebased(before, after) }));
+    expect(judged).toMatchObject({ accepted: false, rejection: SkipRejection.VerificationFailed });
+    expect(judged?.accepted === false && judged.failure).toContain("src/header.tsx");
+  });
+
+  it("refutes when HEAD does not yet contain the base tip", () => {
+    const judged = resolveSkipDeclaration(declareRebase("clean replay"), contextFor({ git: {} }));
+    expect(judged?.accepted === false && judged.failure).toContain(`HEAD does not contain ${BASE_TIP}`);
+  });
+
+  it("refutes when the PR's patch against the base cannot be read", () => {
+    const judged = resolveSkipDeclaration(
+      declareRebase("clean replay"),
+      contextFor({ git: { [`merge-base --is-ancestor ${BASE_TIP}^{commit} HEAD`]: "" } }),
+    );
+    expect(judged?.accepted === false && judged.failure).toContain("could not be read");
+  });
+
+  // A base that edited the line next to the PR's — the import-block conflict a
+  // rebase resolves by keeping both sides — leaves the PR's own patch intact.
+  it("verifies against a real repository where the base edited the PR's neighbouring line", () => {
+    const { repo, git, commitFiles } = initRepo("no-app-logic-rebase-");
+    const forkPoint = commitFiles("base", { "header.ts": "import a;\nimport b;\n", "app.ts": "export const total = 1;\n" });
+    const preCycleSha = commitFiles("pr", { "header.ts": "import a;\nimport pr;\nimport b;\n" });
+    git("checkout", "-q", forkPoint);
+    const baseTipSha = commitFiles("base moves", {
+      "header.ts": "import a;\nimport base;\nimport b;\n",
+      "app.ts": "export const total = 2;\n",
+    });
+    commitFiles("pr rebased", { "header.ts": "import a;\nimport base;\nimport pr;\nimport b;\n" });
+    const context = { cwd: repo, prsHandled: [], homeDir: repo, probe: defaultSkipProbes };
+    const judge = (detail: string) => resolveSkipDeclaration(declare(E2eSkipCode.NoAppLogicChange, detail), context);
+
+    expect(judge(`${preCycleSha}..${baseTipSha} kept both import lines`)?.accepted).toBe(true);
+    const sinceCycleStart = judge(`${preCycleSha} kept both import lines`);
+    expect(sinceCycleStart?.accepted === false && sinceCycleStart.failure).toContain("app.ts");
+
+    commitFiles("pr edits its own line", { "header.ts": "import a;\nimport base;\nimport pr2;\nimport b;\n" });
+    const ownEdit = judge(`${preCycleSha}..${baseTipSha} kept both import lines`);
+    expect(ownEdit?.accepted === false && ownEdit.failure).toContain("header.ts");
+
+    git("checkout", "-q", preCycleSha);
+    const notRebased = judge(`${preCycleSha}..${baseTipSha} kept both import lines`);
+    expect(notRebased?.accepted === false && notRebased.failure).toContain("HEAD does not contain");
   });
 });
 

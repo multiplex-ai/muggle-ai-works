@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
@@ -66,7 +66,7 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
   // separately, because performing them separately is how the watermark got
   // dropped and the watch became a silent no-op.
   it("seeds every watermark key the loop reads", () => {
-    ["REV=", "COM=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST="].forEach((key) => {
+    ["REV=", "COM=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST=", "REBASE_HELD="].forEach((key) => {
       expect(body).toContain(key);
     });
   });
@@ -362,20 +362,38 @@ function stubGhFromSnapshot(fixture: BaseMovementFixture, watchedSlot?: string):
   return dir;
 }
 
+// A home whose preferences cap catch-up rebases at `maxCatchUpRebases`, so a
+// test of the budget does not depend on the machine's own preferences.
+function homeWithRebaseCap(maxCatchUpRebases: number): NodeJS.ProcessEnv {
+  const home = mkdtempSync(join(tmpdir(), "pr-watch-home-"));
+  mkdirSync(join(home, ".muggle-ai"), { recursive: true });
+  writeFileSync(
+    join(home, ".muggle-ai", "preferences.json"),
+    JSON.stringify({ preferences: { maxCatchUpRebases: maxCatchUpRebases } }),
+  );
+  return { HOME: home, USERPROFILE: home };
+}
+
 // Arms PR o/n#1 against the base-movement fixture, over `lastSeenEntry` as the
 // PR's last_seen.json entry when given. With `watch` the loop then polls once,
-// as armOverLastSeen's does.
+// as armOverLastSeen's does. `homeEnv` overrides where preferences are read.
 function armAgainstBaseMovement(
   fixture: BaseMovementFixture,
   lastSeenEntry?: object,
   watch = false,
+  homeEnv: NodeJS.ProcessEnv = {},
 ): { slot: string; stdout: string } {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   if (lastSeenEntry) writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
   const args = [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"];
   const stubDir = stubGhFromSnapshot(fixture, slot);
   const stdout = execFileSync("bash", watch ? args : [...args, "--no-exec"], {
-    env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
+    env: {
+      ...process.env,
+      ...homeEnv,
+      PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`,
+      ...UNWINDOWED_LOOP_ENV,
+    },
     encoding: "utf8",
     timeout: 60_000,
   });
@@ -385,13 +403,14 @@ function armAgainstBaseMovement(
 
 const readSlotFile = (slot: string, fileName: string): string => readFileSync(join(slot, fileName), "utf8");
 
-// Runs the loop over a slot whose rebase floor is `rebasedFloor` for exactly
-// STATE_READS_BEFORE_SUPERSEDE polls, returning only the EVENT lines it printed.
-function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: string): string[] {
+// Runs the loop over a slot whose rebase floor is `rebasedFloor` and rebase hold
+// `rebaseHeld` for exactly STATE_READS_BEFORE_SUPERSEDE polls, returning only
+// the EVENT lines it printed.
+function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: string, rebaseHeld = ""): string[] {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   writeFileSync(
     join(slot, "watch-watermark.env"),
-    `REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED="${rebasedFloor}"\nBLOCKED_CIDIGEST=""\n`,
+    `REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED="${rebasedFloor}"\nBLOCKED_CIDIGEST=""\nREBASE_HELD="${rebaseHeld}"\n`,
   );
   const stubDir = stubGhFromSnapshot(fixture, slot);
   const stdout = execFileSync(
@@ -475,6 +494,45 @@ describe.skipIf(!hasBash || !hasJq)("pr-watch-arm.sh floors only attempted work"
   it("keeps a floored key recorded as due through the loop", () => {
     const { slot } = armAgainstBaseMovement(stale, { conflict_resolve_attempts: { "HEAD1..BASENEW": 1 } }, true);
     expect(readSlotFile(slot, "watch-due.env")).toContain('REBASE_DUE="HEAD1..BASENEW"');
+  }, 60_000);
+});
+
+// The tick refuses every rebase once the PR spends its catch-up budget, so a
+// rebase the watch announced then — at each re-arm, rollover and base move —
+// asked the session for work the verdict would only turn down.
+describe.skipIf(!hasBash || !hasJq)("pr-watch-arm.sh holds a spent catch-up rebase budget", () => {
+  const stale: BaseMovementFixture = { baseRefOid: "BASEOLD", baseTipOid: "BASENEW", behindBy: 3 };
+  const spentBudget = { catch_up_rebases: 3 };
+
+  it("says the stale branch is held, never asks for a rebase, and records nothing due", () => {
+    const { slot, stdout } = armAgainstBaseMovement(stale, spentBudget, false, homeWithRebaseCap(3));
+    expect(stdout).toMatch(/^DRAIN branch stale at arm time — catch-up rebase budget spent .*held for the owner/m);
+    expect(stdout).not.toContain("dispatch rebase");
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASE_HELD="1"');
+    expect(readSlotFile(slot, "watch-due.env")).toBe("");
+  }, 60_000);
+
+  it("holds a current branch too, so the next base move stays quiet", () => {
+    const current: BaseMovementFixture = { baseRefOid: "BASE1", baseTipOid: "BASE1", behindBy: 0 };
+    const { slot, stdout } = armAgainstBaseMovement(current, spentBudget, false, homeWithRebaseCap(3));
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASE_HELD="1"');
+    expect(stdout).not.toContain("DRAIN branch stale");
+  }, 60_000);
+
+  it("keeps the re-armed loop silent on the stale branch", () => {
+    const { slot, stdout } = armAgainstBaseMovement(stale, spentBudget, true, homeWithRebaseCap(3));
+    expect(eventLines(stdout)).toEqual([]);
+    expect(readSlotFile(slot, "watch-due.env")).toBe("");
+  }, 60_000);
+
+  it("arms as before once the owner raises the cap", () => {
+    const { slot, stdout } = armAgainstBaseMovement(stale, spentBudget, false, homeWithRebaseCap(4));
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('REBASE_HELD=""');
+    expect(stdout).toMatch(/not floored: dispatch rebase$/m);
+  }, 60_000);
+
+  it("raises no rebase wake from a held watermark however far the base moves", () => {
+    expect(watchAgainstBaseMovement(stale, "HEAD1..BASEOLD", "1")).toEqual([]);
   }, 60_000);
 });
 

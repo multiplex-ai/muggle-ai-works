@@ -61,6 +61,8 @@ export interface WatchPreferences {
 export interface ArmFloorEvidence {
   isRebaseKeyAttempted: boolean;
   isCiHeadAttempted: boolean;
+  /** The PR spent its catch-up rebase budget, so the tick refuses any rebase and the watch holds rebase wakes. */
+  isRebaseBudgetExhausted: boolean;
   /** The blocked fingerprint's CI digest, empty when the PR is not blocked or the digest could forge a watermark line. */
   blockedCiDigest: string;
 }

@@ -127,15 +127,18 @@ describe("isRebaseBudgetExhausted", () => {
 });
 
 describe("resolveArmFloorEvidence", () => {
+  const CAP = 20;
+
   it("reports only attempts recorded for this key and this head", () => {
     const entry: LastSeenPrEntry = {
       conflict_resolve_attempts: { [KEY]: 1, "other..base": 4 },
       ci_fix_attempts: { other: 2 },
       conflict_escalated_keys: ["head1..base9"],
     };
-    expect(resolveArmFloorEvidence(entry, HEAD, KEY)).toEqual({
+    expect(resolveArmFloorEvidence(entry, HEAD, KEY, CAP)).toEqual({
       isRebaseKeyAttempted: true,
       isCiHeadAttempted: false,
+      isRebaseBudgetExhausted: false,
       blockedCiDigest: "",
     });
   });
@@ -143,13 +146,28 @@ describe("resolveArmFloorEvidence", () => {
   // An escalation entry is not an attempt, so it can never floor anything.
   it("does not count an escalation entry as an attempt", () => {
     const entry: LastSeenPrEntry = { conflict_escalated_keys: [KEY], ci_escalated_shas: [HEAD] };
-    expect(resolveArmFloorEvidence(entry, HEAD, KEY)).toMatchObject({ isRebaseKeyAttempted: false, isCiHeadAttempted: false });
+    expect(resolveArmFloorEvidence(entry, HEAD, KEY, CAP)).toMatchObject({
+      isRebaseKeyAttempted: false,
+      isCiHeadAttempted: false,
+    });
+  });
+
+  // The same counter check the tick verdict blocks on, so arm and tick never disagree about a spent budget.
+  it("reports the catch-up rebase budget spent once the counter reaches the cap", () => {
+    expect(resolveArmFloorEvidence({ catch_up_rebases: 19 }, HEAD, KEY, CAP).isRebaseBudgetExhausted).toBe(false);
+    expect(resolveArmFloorEvidence({ catch_up_rebases: 20 }, HEAD, KEY, CAP).isRebaseBudgetExhausted).toBe(true);
+    expect(resolveArmFloorEvidence({ catch_up_rebases: 20, rebase_budget_exhausted: true }, HEAD, KEY, 21).isRebaseBudgetExhausted).toBe(
+      false,
+    );
+    expect(resolveArmFloorEvidence({ catch_up_rebases: 500 }, HEAD, KEY, null).isRebaseBudgetExhausted).toBe(false);
   });
 
   it("drops a blocked digest spanning lines", () => {
-    expect(resolveArmFloorEvidence({ blocked: { fingerprint: { ci_digest: "a\nREV=9" } } }, HEAD, KEY).blockedCiDigest).toBe("");
-    expect(resolveArmFloorEvidence({ blocked: { fingerprint: { ci_digest: "a:SUCCESS" } } }, HEAD, KEY).blockedCiDigest).toBe(
-      "a:SUCCESS",
+    expect(resolveArmFloorEvidence({ blocked: { fingerprint: { ci_digest: "a\nREV=9" } } }, HEAD, KEY, CAP).blockedCiDigest).toBe(
+      "",
     );
+    expect(
+      resolveArmFloorEvidence({ blocked: { fingerprint: { ci_digest: "a:SUCCESS" } } }, HEAD, KEY, CAP).blockedCiDigest,
+    ).toBe("a:SUCCESS");
   });
 });

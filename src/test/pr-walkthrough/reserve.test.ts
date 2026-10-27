@@ -64,6 +64,53 @@ describe("reserveWalkthroughComment", () => {
     expect(reserveWalkthroughComment(PR_URL, gh.run)).toBe(false);
   });
 
+  describe("on a PR whose diff the provider reports", () => {
+    const MERGE_BASE = "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d";
+    const HEAD = "9f8e7d6c5b4a39281706f5e4d3c2b1a098f7e6d5";
+    const prWithDiff = (files: { path: string; previousPath: string | null }[], changedFiles = files.length) =>
+      recorder({
+        "issues/7/comments": listedComments(["looks good"]),
+        "pulls/7": JSON.stringify({ base: "b".repeat(40), head: HEAD, changedFiles: changedFiles }),
+        "compare/": JSON.stringify({ mergeBase: MERGE_BASE, files: files }),
+      });
+    const postedBody = (calls: RecordedCall[]): string =>
+      JSON.parse(calls.find((call) => call.args.includes("POST"))?.input ?? "{}").body ?? "";
+
+    it("opens a PR that changes only docs, tests or config already settled as skipped", () => {
+      const gh = prWithDiff([
+        { path: "reference/ux-taste-metrics.md", previousPath: null },
+        { path: "src/test/reserve.test.ts", previousPath: null },
+      ]);
+      expect(reserveWalkthroughComment(PR_URL, gh.run)).toBe(true);
+      const body = postedBody(gh.calls);
+      expect(body).toContain(WALKTHROUGH_SKIPPED_MARKER);
+      expect(body).toContain("NO_APP_LOGIC_CHANGE");
+      expect(body).toContain("`9f8e7d6`");
+      expect(body).toContain("`1a2b3c4`");
+    });
+
+    it("keeps the placeholder when the PR changes an app-logic path", () => {
+      const gh = prWithDiff([
+        { path: "README.md", previousPath: null },
+        { path: "src/index.ts", previousPath: null },
+      ]);
+      expect(reserveWalkthroughComment(PR_URL, gh.run)).toBe(true);
+      expect(postedBody(gh.calls)).toBe(renderReservedComment());
+    });
+
+    it("counts a renamed file's old path, so moving source into docs keeps the placeholder", () => {
+      const gh = prWithDiff([{ path: "docs/legacy.md", previousPath: "src/legacy.ts" }]);
+      reserveWalkthroughComment(PR_URL, gh.run);
+      expect(postedBody(gh.calls)).toBe(renderReservedComment());
+    });
+
+    it("keeps the placeholder when the listing holds fewer files than the PR changed", () => {
+      const gh = prWithDiff([{ path: "README.md", previousPath: null }], 301);
+      reserveWalkthroughComment(PR_URL, gh.run);
+      expect(postedBody(gh.calls)).toBe(renderReservedComment());
+    });
+  });
+
   it("fails open when the provider is unreachable", () => {
     const throwing = (): string | null => {
       throw new Error("gh: not authenticated");

@@ -667,6 +667,35 @@ function readPrHeadSha(pr, run) {
     return null;
   }
 }
+function readPrDiffPaths(pr, run) {
+  try {
+    const refs = JSON.parse(
+      run([
+        "api",
+        `repos/${pr.repo}/pulls/${pr.prNumber}`,
+        "--jq",
+        "{base: .base.sha, head: .head.sha, changedFiles: .changed_files}"
+      ]) ?? "null"
+    );
+    if (!refs?.base || !refs.head) return null;
+    const diff = JSON.parse(
+      run([
+        "api",
+        `repos/${pr.repo}/compare/${refs.base}...${refs.head}`,
+        "--jq",
+        "{mergeBase: .merge_base_commit.sha, files: [.files[] | {path: .filename, previousPath: .previous_filename}]}"
+      ]) ?? "null"
+    );
+    if (!diff?.mergeBase || !Array.isArray(diff.files) || diff.files.length !== refs.changedFiles) return null;
+    return {
+      mergeBaseSha: diff.mergeBase,
+      headSha: refs.head,
+      changedPaths: diff.files.flatMap((file) => file.previousPath ? [file.path, file.previousPath] : [file.path])
+    };
+  } catch {
+    return null;
+  }
+}
 function writeJson(args, payload, run) {
   try {
     return run(args, JSON.stringify(payload)) !== null;
@@ -1876,16 +1905,28 @@ function commentWithStatus(comments, status) {
 function designatedComment(comments) {
   return comments.find((comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */);
 }
+function openingCommentBody(pr, run) {
+  const diff = readPrDiffPaths(pr, run);
+  if (!diff || diff.changedPaths.length === 0 || !diff.changedPaths.every(isNonAppPath)) {
+    return renderReservedComment();
+  }
+  return renderNoAppLogicChangeComment(
+    { preCycleSha: diff.mergeBaseSha, baseTipSha: null, reason: "" },
+    diff.headSha,
+    null
+  );
+}
 function reserveComment(pr, comments, run) {
-  if (designatedComment(comments)) return false;
-  return postPrComment(pr, renderReservedComment(), run);
+  if (designatedComment(comments)) return null;
+  const body = openingCommentBody(pr, run);
+  return postPrComment(pr, body, run) ? body : null;
 }
 function reserveWalkthroughComment(prUrl, run = defaultGhRunner) {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
-  return reserveComment(pr, comments, run);
+  return reserveComment(pr, comments, run) !== null;
 }
 function isWalkthroughSettledOnPr(prUrl, run = defaultGhRunner) {
   const pr = parsePrUrl(prUrl);
@@ -2537,7 +2578,7 @@ function prOpened() {
     startBackgroundJob("scan-walkthroughs" /* ScanWalkthroughs */, [sessionId], input.cwd);
   }
   const slotNote = declaredSkip ? `Its Muggle AI visual-walkthrough comment is being settled with the E2E skip already recorded this session (${declaredSkip.code}); the turn cannot end until the PR shows it.
-` : `Its Muggle AI visual-walkthrough comment is reserved and empty \u2014 settle it with the E2E run of this PR's own change (a wave's PRs share one run; any other PR gets its own), or by recording why E2E does not apply from this PR's working tree.
+` : `Its Muggle AI visual-walkthrough comment is being reserved. When every path the PR changes is ${NON_APP_PATH_SUMMARY}, it opens already settled as skipped (${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}) and needs nothing more. Otherwise settle it with the E2E run of this PR's own change (a wave's PRs share one run; any other PR gets its own), or by recording why E2E does not apply from this PR's working tree.
 `;
   const ctx = `A pull request was just opened: ${url}
 ` + slotNote + `Per the autoWatchPR preference, a muggle-pr-followup watcher should handle its incoming reviews. If autoWatchPR=always, start it now by invoking ${muggleSkill("/muggle:muggle-pr-followup")} with the PR URL; if =ask, offer it to the user; if =never, do nothing.`;

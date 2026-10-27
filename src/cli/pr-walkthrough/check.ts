@@ -49,7 +49,10 @@ function judgeComments(
       };
     }
   }
-  if (verdict === WalkthroughVerdict.Missing) reserveComment(pr, comments, run);
+  // A slot reserved just now can already be settled — a PR no browser run can
+  // observe opens on its skip — so this run judges what it posted.
+  const reservedBody = verdict === WalkthroughVerdict.Missing ? reserveComment(pr, comments, run) : null;
+  const verdictNow = reservedBody === null ? verdict : walkthroughVerdict([...bodies, reservedBody]);
 
   // Ahead of the record: the run under the banner is the one being replaced, so
   // neither its pass nor its failures are this PR's verdict.
@@ -65,7 +68,7 @@ function judgeComments(
     return { outcome: WalkthroughCheckOutcome.E2eNotPassing, summary: renderNotPassingSummary(record) };
   }
   const outcome =
-    verdict === WalkthroughVerdict.Satisfied ? WalkthroughCheckOutcome.Settled : WalkthroughCheckOutcome.Unsettled;
+    verdictNow === WalkthroughVerdict.Satisfied ? WalkthroughCheckOutcome.Settled : WalkthroughCheckOutcome.Unsettled;
   return { outcome: outcome, summary: FIXED_SUMMARIES[outcome] };
 }
 

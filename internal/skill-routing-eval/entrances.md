@@ -2,7 +2,7 @@
 
 The "entrance" of a skill is the surface where it becomes relevant and should be recommended: the user intents, phrasings, and contexts that route to it — and the sibling skills it must *not* steal from. This is the contract the router eval (`eval-set.json` + `router_eval.py`) measures each skill's `description` against.
 
-Scope: the 14 skills that auto-trigger from natural language (now including `muggle-pr-followup`, which was made model-invocable). The `m*` short aliases and the remaining `disable-model-invocation` skill (`muggle-do`) fire only on explicit `/command` typing and are out of scope. `muggle-works-npm-release` is maintainer-only (relocated to `internal/`) and excluded.
+Scope: the 15 skills that auto-trigger from natural language (now including `muggle-pr-followup` and `muggle-do`, both made model-invocable). The `m*` short aliases fire only on explicit `/command` typing and are out of scope. `muggle-works-npm-release` is maintainer-only (relocated to `internal/`) and excluded.
 
 The hardest routing lives at the boundaries between siblings; each entrance below names the neighbor it is most often confused with and the discriminator.
 
@@ -65,9 +65,11 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 **Boundary vs `muggle-do`:** the watcher only polls + dispatches; the classify/edit/reply/E2E work is `muggle-do`. **Boundary vs `muggle-pr-visual-walkthrough`:** watching a PR for incoming reviews ≠ posting test results to a PR. **Boundary vs `none`:** a one-off "review this PR" or "merge my PR" is not a standing watcher.
 **Known limitation (accepted):** this skill competes with the platform's built-in `loop` skill, whose own examples ("poll for status", "keep running /babysit-prs") claim the "watch/poll/monitor a PR" phrasings. In the expanded eval it routed 6/24 — `loop` wins most of those head-to-head, and description tuning across two rewrites couldn't beat it (0→6→5). This is accepted: `loop` is a reasonable first hop that can itself run this skill, and explicit `/muggle:muggle-pr-followup` always works. Routing here is best-effort, not guaranteed.
 
-## Explicit-invocation skills (command-only, out of auto-trigger scope)
+## muggle-do
+**Engage when:** the user wants something **built, implemented, added, or fixed and carried to an opened PR** — "implement rate limiting and raise a PR", "build the CSV export and put up a PR", "take this ticket and run with it, ping me when the PR is up", "fix this bug and open a pr", "muggle do …". It writes the code, runs unit and real-browser tests, opens the PR with the walkthrough, and hands it to the watcher. Also the internal `address-reviews` directive the watcher dispatches.
+**Boundary vs `muggle-test`:** validating changes that already exist ("make sure my branch didn't break anything before I open the PR") → `muggle-test`; muggle-do is the one that writes the change. **Boundary vs `muggle-pr-followup`:** watching a PR's incoming reviews → the watcher, which dispatches muggle-do once per review wave. **Boundary vs `none`:** a code edit with no PR in the ask is ordinary coding, not this pipeline.
 
-`muggle-do` — the autonomous implement-to-PR executor (`muggle do` / the `address-reviews` directive) — carries `disable-model-invocation` and fires only when explicitly invoked, so it stays out of the auto-trigger eval.
+## Maintainer-only skills
 
 `muggle-works-npm-release` (cutting a `@muggleai/works` npm release) is maintainer-only, relocated to `internal/` (PR #217) — not a customer-facing routing target.
 

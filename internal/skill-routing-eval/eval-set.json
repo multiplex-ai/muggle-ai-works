@@ -245,6 +245,56 @@
     "note": "Compose + populate + add media + publish a listing; content-posting action."
   },
   {
+    "query": "implement rate limiting on the login endpoint and raise a PR",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "build the CSV export for the reports page and put up a PR when it's done",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "take this Jira ticket and run with it, ping me when the PR is up: PROJ-412 add a dark mode toggle to settings",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "fix the bug where the cart total ignores discounts and open a pr",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "muggle do: add a forgot-password link to the login page",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "add pagination to the users table, test it, and open a pull request",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "here's the spec for the onboarding checklist \u2014 implement it end to end and raise a PR with test evidence",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "the signup form accepts invalid emails \u2014 fix it and get a PR up with screenshots proving it works",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "build the team invite flow from this design and open the PR for review",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
+    "query": "implement the export feature described in docs/specs/export.md and open a PR when the tests pass",
+    "expected_skill": "muggle-do",
+    "note": "implement-to-PR pipeline"
+  },
+  {
     "query": "step 3 clicked the wrong button \u2014 it hit Cancel instead of Submit, give feedback on that test",
     "expected_skill": "muggle-feedback",
     "note": "step-level feedback, names step + wrong element clicked"
@@ -1093,6 +1143,16 @@
     "query": "Here's my branch with the password-reset fix and a few other edits. Before I push, run E2E on my changes and tell me if I regressed any flow.",
     "expected_skill": "muggle-test",
     "note": "HARD (vs muggle-test-feature-local): single named fix plus 'other edits', anchored on 'my changes / before push / any flow' -> change-driven muggle-test."
+  },
+  {
+    "query": "I already wrote the code \u2014 make sure my branch didn't break any user flows before I open the PR",
+    "expected_skill": "muggle-test",
+    "note": "near-miss vs muggle-do: validate existing changes, not build"
+  },
+  {
+    "query": "my changes are done and the PR is next; run the E2E acceptance tests on them first",
+    "expected_skill": "muggle-test",
+    "note": "near-miss vs muggle-do: validate existing changes, not build"
   },
   {
     "query": "Test the signup flow on localhost:3000 and make sure a brand-new user can register all the way through.",
@@ -1957,6 +2017,6 @@
   {
     "query": "create an account on our app's signup page at staging.acme.io and tell me if it works",
     "expected_skill": "muggle-browser-task",
-    "note": "negative boundary for the registration wording — creating an account ON the user's product is a browser task, not muggle's own signup"
+    "note": "negative boundary for the registration wording \u2014 creating an account ON the user's product is a browser task, not muggle's own signup"
   }
 ]

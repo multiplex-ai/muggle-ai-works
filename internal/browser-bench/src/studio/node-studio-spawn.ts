@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 
 import { STDERR_TAIL_LIMIT } from "./constants";
+import { buildStudioEnv } from "./model-source";
 import { buildStudioArgv } from "./studio-invocation";
 import { type StudioExitReport, type StudioInvocation, type StudioProcess } from "./types";
 
@@ -37,6 +38,7 @@ export const spawnStudioProcess = (invocation: StudioInvocation): StudioProcess 
   const child = spawn(invocation.studioBinPath, buildStudioArgv(invocation), {
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
+    env: buildStudioEnv({ baseEnv: process.env, modelSource: invocation.modelSource }),
   });
 
   const studioLog = fs.createWriteStream(invocation.studioLogPath, { flags: "a" });

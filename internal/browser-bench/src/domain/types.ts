@@ -21,6 +21,16 @@ export enum BenchmarkOutcome {
   Blocked = "blocked",
 }
 
+/**
+ * Who supplies the model for a batch's studio processes, as studio's `MUGGLE_LLM_PROVIDER`
+ * names it. `Anthropic` is the API on the operator's own key; `ClaudeCode` is the operator's
+ * own installed Claude Code.
+ */
+export enum ModelSource {
+  Anthropic = "anthropic",
+  ClaudeCode = "claude-code",
+}
+
 /** One task attempt's recorded result. */
 export interface TaskResult {
   taskId: string;
@@ -35,4 +45,6 @@ export interface TaskResult {
   tokensUsed: number;
   errorReason?: string;
   trajectoryDir: string;
+  /** The source studio confirmed it ran on; absent when the batch left the choice to studio's default. */
+  modelSource?: ModelSource;
 }

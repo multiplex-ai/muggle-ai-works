@@ -55,6 +55,7 @@ export const parseStudioResult = ({
     // such field, and refusing to parse its result would turn a scoreable attempt
     // into an infrastructure error over a missing cost figure.
     totalTokens: typeof record.totalTokens === "number" ? record.totalTokens : undefined,
+    modelSource: typeof record.modelSource === "string" ? record.modelSource : undefined,
   };
 
   if (studioResult.taskId !== expectedTaskId) {

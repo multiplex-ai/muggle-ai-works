@@ -31,6 +31,12 @@ export const STDERR_TAIL_LIMIT = 4_000;
  */
 export const STUDIO_RUN_MODE = "explore";
 
+/** Studio reads its model source from this variable; the harness sets it per batch. */
+export const STUDIO_MODEL_SOURCE_ENV_VAR = "MUGGLE_LLM_PROVIDER";
+
+/** The operator's own Anthropic key, which studio adopts when the source is `anthropic`. */
+export const STUDIO_USER_API_KEY_ENV_VAR = "MUGGLE_LLM_API_KEY";
+
 /** Filename for the profile studio reads as its positional auth argument. */
 export const STUDIO_AUTH_FILENAME = "studio-auth.json";
 

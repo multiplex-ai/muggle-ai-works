@@ -1,3 +1,5 @@
+import { type ModelSource } from "../domain/types";
+
 /** The `task.json` the harness writes for studio to read. */
 export interface StudioTaskFile {
   taskId: string;
@@ -23,6 +25,8 @@ export interface StudioResultFile {
   trajectoryDir: string;
   /** Absent on studio builds that predate token reporting; read as 0. */
   totalTokens?: number;
+  /** The model source studio ran on; absent on studio builds that predate source reporting. */
+  modelSource?: string;
 }
 
 /** Everything one studio process needs to attempt one task. */
@@ -34,6 +38,8 @@ export interface StudioInvocation {
   resultFilePath: string;
   /** Where this process's stdout and stderr are written, so a failed attempt can be read back. */
   studioLogPath: string;
+  /** Absent leaves studio on its own default source. */
+  modelSource?: ModelSource;
 }
 
 /** How a studio process ended. `exitCode` is null when a signal killed it. */

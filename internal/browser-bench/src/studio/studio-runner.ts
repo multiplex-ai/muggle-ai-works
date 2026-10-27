@@ -2,7 +2,9 @@ import * as path from "node:path";
 
 import { TRAJECTORIES_DIRNAME } from "../domain/constants";
 import { type BenchmarkTask, type TaskResult } from "../domain/types";
+import { type ModelSource } from "../domain/types";
 import { STUDIO_LOG_FILENAME, STUDIO_RESULT_FILENAME, STUDIO_TASK_FILENAME } from "./constants";
+import { assertStudioRanOnSource } from "./model-source";
 import { buildStudioTaskFile } from "./studio-invocation";
 import { parseStudioResult, toTaskResult } from "./studio-result";
 import { type SpawnStudio, type StudioExitReport, type StudioProcess, type TaskFileSystem } from "./types";
@@ -50,7 +52,8 @@ const awaitExitWithinBudgetAsync = async ({
  * stepCount: 7, durationMs: 41230, tokensUsed: 0, trajectoryDir: "…" }`
  *
  * @throws When studio cannot be started, outlives `taskTimeoutMs`, exits
- * non-zero, or leaves no readable result file behind.
+ * non-zero, leaves no readable result file behind, or did not run on the
+ * configured `modelSource`.
  */
 export const runStudioTaskAsync = async ({
   task,
@@ -61,6 +64,7 @@ export const runStudioTaskAsync = async ({
   taskTimeoutMs,
   spawnStudio,
   fileSystem,
+  modelSource,
 }: {
   task: BenchmarkTask;
   outDir: string;
@@ -70,6 +74,7 @@ export const runStudioTaskAsync = async ({
   taskTimeoutMs: number;
   spawnStudio: SpawnStudio;
   fileSystem: TaskFileSystem;
+  modelSource?: ModelSource;
 }): Promise<TaskResult> => {
   const pathSegment = toPathSegment(task.taskId);
   const trajectoryDir = path.join(outDir, TRAJECTORIES_DIRNAME, pathSegment);
@@ -93,6 +98,7 @@ export const runStudioTaskAsync = async ({
     taskFilePath: taskFilePath,
     resultFilePath: resultFilePath,
     studioLogPath: studioLogPath,
+    modelSource: modelSource,
   });
 
   const exitReport = await awaitExitWithinBudgetAsync({
@@ -116,5 +122,11 @@ export const runStudioTaskAsync = async ({
     );
   }
 
-  return toTaskResult(parseStudioResult({ jsonContent: resultFileContent, expectedTaskId: task.taskId }));
+  const studioResult = parseStudioResult({ jsonContent: resultFileContent, expectedTaskId: task.taskId });
+  assertStudioRanOnSource({
+    taskId: task.taskId,
+    configuredSource: modelSource,
+    reportedSource: studioResult.modelSource,
+  });
+  return { ...toTaskResult(studioResult), modelSource: modelSource };
 };

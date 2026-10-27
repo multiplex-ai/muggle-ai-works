@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BenchmarkOutcome, type BenchmarkTask, type TaskResult } from "../domain/types";
+import { BenchmarkOutcome, ModelSource, type BenchmarkTask, type TaskResult } from "../domain/types";
 import { renderReport } from "./report";
 
 const result = (taskId: string, outcome: BenchmarkOutcome): TaskResult => ({
@@ -11,6 +11,19 @@ const result = (taskId: string, outcome: BenchmarkOutcome): TaskResult => ({
   durationMs: 1000,
   tokensUsed: 500,
   trajectoryDir: "/tmp",
+});
+
+describe("renderReport model source", () => {
+  it("states the configured source and the median step time", () => {
+    const markdown = renderReport([result("a", BenchmarkOutcome.Pass)], { modelSource: ModelSource.ClaudeCode });
+
+    expect(markdown).toContain("**Model source:** claude-code");
+    expect(markdown).toContain("**Median step time:** 333 ms");
+  });
+
+  it("names studio's default when the batch set no source", () => {
+    expect(renderReport([result("a", BenchmarkOutcome.Pass)])).toContain("**Model source:** studio default");
+  });
 });
 
 describe("renderReport", () => {

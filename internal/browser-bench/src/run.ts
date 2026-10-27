@@ -36,6 +36,7 @@ import {
 } from "./studio/studio-auth";
 import { nodeTaskFileSystem } from "./studio/node-file-system";
 import { resolveBenchmarkSessionPath } from "./studio/benchmark-session";
+import { assertModelSourceUsable } from "./studio/model-source";
 import { spawnStudioProcess } from "./studio/node-studio-spawn";
 import { runStudioTaskAsync } from "./studio/studio-runner";
 import { loadWebVoyagerTasks } from "./task-source/webvoyager-source";
@@ -94,6 +95,7 @@ const mainAsync = async (): Promise<void> => {
     completedResults: resumedResults,
   });
   const studioBinPath = process.env[STUDIO_BIN_ENV_VAR] ?? DEFAULT_STUDIO_BIN;
+  assertModelSourceUsable({ env: process.env, modelSource: options.modelSource });
 
   // Checked before the first task rather than at the first verdict: a batch that
   // runs every task and only then finds it cannot score them has spent the whole
@@ -137,6 +139,7 @@ const mainAsync = async (): Promise<void> => {
           taskTimeoutMs: TASK_TIMEOUT_MS,
           spawnStudio: spawnStudioProcess,
           fileSystem: nodeTaskFileSystem,
+          modelSource: options.modelSource,
         });
 
         const taskResult = applyJudgeVerdict({
@@ -174,7 +177,7 @@ const mainAsync = async (): Promise<void> => {
     tasks: tasks,
     results: [...resumedResults, ...freshResults],
   });
-  fs.writeFileSync(reportPath, `${renderReport(orderedResults, { maxSteps: options.maxSteps, tasks: tasks })}\n`, "utf8");
+  fs.writeFileSync(reportPath, `${renderReport(orderedResults, { maxSteps: options.maxSteps, tasks: tasks, modelSource: options.modelSource })}\n`, "utf8");
 
   process.stdout.write(`Report: ${reportPath}\n`);
 };

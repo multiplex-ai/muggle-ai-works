@@ -115,9 +115,12 @@ guardrail_is_hook_script() {
 }
 
 # Runs guardrails.mjs on the payload. Never blocks a turn: any failure degrades to {}.
+# A here-string rather than a pipe, so the fallback hears only Node's exit status: a pipe's writer dies of SIGPIPE
+# when Node exits before reading all of its stdin, and pipefail would count that as Node failing and print a second
+# {} after its answer. It also spares forking a subshell to write the payload.
 guardrail_run_node() {
   local root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
-  printf '%s' "$GUARDRAIL_PAYLOAD" | node "${root}/scripts/guardrails.mjs" "$@" 2>/dev/null || printf '{}'
+  node "${root}/scripts/guardrails.mjs" "$@" <<<"$GUARDRAIL_PAYLOAD" 2>/dev/null || printf '{}'
 }
 
 # Entry for a gate script executed directly: its guardrail_wants decides whether Node runs.

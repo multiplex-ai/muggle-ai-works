@@ -16,6 +16,9 @@ const ENTRY_COMMAND = (script: string, args = ""): string =>
 const STUB_BASH_MARKER = "__STUB_BASH__";
 const STUB_NODE_MARKER = "__STUB_NODE__";
 const AFTER_ENTRY_MARKER = "__AFTER_ENTRY__";
+// More than a pipe buffer holds (64 KiB on Linux), so a payload piped to a Node that never reads it always leaves
+// its writer blocked until Node exits, then killed by SIGPIPE.
+const PIPE_OVERFLOW_PAYLOAD_BYTES = 256 * 1024;
 
 function createStubBin(): string {
   const binDir = mkdtempSync(join(tmpdir(), "hook-entry-bin-"));
@@ -102,6 +105,12 @@ describe("a gate script run through hook-entry.sh", () => {
 
   it("in Git Bash, takes its standalone path once, exactly as when bash runs it", () => {
     const inPlace = runHookCommand({ shell: "bash", prelude: `OSTYPE=${HookShellOstype.GitBash};`, command: ENTRY_COMMAND("guardrail-build-router.sh"), pluginRoot: PLUGIN_ROOT, binDir: binDir, payload: buildRequest });
+    expect(inPlace).toBe(`${STUB_NODE_MARKER} build-router${AFTER_ENTRY_MARKER}`);
+  });
+
+  it("prints Node's answer alone when Node exits without reading its stdin", () => {
+    const oversizedBuildRequest = JSON.stringify({ session_id: "s", prompt: "please implement the export", padding: "x".repeat(PIPE_OVERFLOW_PAYLOAD_BYTES) });
+    const inPlace = runHookCommand({ shell: "bash", prelude: `OSTYPE=${HookShellOstype.GitBash};`, command: ENTRY_COMMAND("guardrail-build-router.sh"), pluginRoot: PLUGIN_ROOT, binDir: binDir, payload: oversizedBuildRequest });
     expect(inPlace).toBe(`${STUB_NODE_MARKER} build-router${AFTER_ENTRY_MARKER}`);
   });
 

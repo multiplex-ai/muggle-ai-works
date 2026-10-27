@@ -8,6 +8,8 @@ import {
   renderSkippedComment,
   renderUnreasonedSkipComment,
   walkthroughVerdict,
+  withoutRerunNotice,
+  withRerunNotice,
 } from "../../pr-walkthrough/comment";
 import { E2eSkipCode } from "../../e2e-skip/types";
 import { REPORT_SENTINEL, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
@@ -104,9 +106,46 @@ describe("renderNoAppLogicChangeComment", () => {
   });
 });
 
+describe("withRerunNotice", () => {
+  const STARTED_AT = new Date("2026-10-27T05:12:40Z");
+
+  it("says a new run is in progress, when it started, and that the results below are the previous run's", () => {
+    const body = withRerunNotice(builderReport, STARTED_AT);
+    expect(body).toContain("A new E2E run is in progress");
+    expect(body).toContain("started 2026-10-27 05:12 UTC");
+    expect(body).toContain("The results below are from the previous run");
+    expect(body.endsWith(builderReport)).toBe(true);
+  });
+
+  // The check keeps judging the run underneath until the new one replaces it.
+  it("leaves the comment's classification as it was", () => {
+    expect(classifyComment(withRerunNotice(builderReport, STARTED_AT))).toBe(WalkthroughCommentStatus.Reported);
+    const skipped = renderSkippedComment(E2eSkipCode.NoWebSurface, "");
+    expect(classifyComment(withRerunNotice(skipped, STARTED_AT))).toBe(WalkthroughCommentStatus.Skipped);
+  });
+
+  it("replaces an earlier banner rather than stacking a second", () => {
+    const twice = withRerunNotice(withRerunNotice(builderReport, STARTED_AT), new Date("2026-10-28T09:00:00Z"));
+    expect(twice.match(/A new E2E run is in progress/g)).toHaveLength(1);
+    expect(twice).toContain("2026-10-28 09:00 UTC");
+  });
+
+  // GitHub can hand a comment back with CRLF line endings.
+  it("strips back to the walkthrough it sat on, whatever its line endings", () => {
+    const crlfReport = builderReport.replace(/\n/g, "\r\n");
+    expect(withoutRerunNotice(withRerunNotice(crlfReport, STARTED_AT))).toBe(crlfReport);
+  });
+});
+
 describe("lastFullRunOf", () => {
   it("is the walkthrough itself for a reported comment", () => {
     expect(lastFullRunOf(builderReport)).toBe("## E2E Acceptance Results\n\n**✅ PASS** — 3 tests ran");
+  });
+
+  it("leaves a rerun banner behind rather than carrying it forward", () => {
+    expect(lastFullRunOf(withRerunNotice(builderReport, new Date()))).toBe(
+      "## E2E Acceptance Results\n\n**✅ PASS** — 3 tests ran",
+    );
   });
 
   it("hands on the run an earlier skip carried forward, without nesting it", () => {

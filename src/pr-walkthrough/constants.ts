@@ -24,6 +24,15 @@ export const REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*--
 /** Opening of the collapsed block that keeps the last full run's walkthrough under a skipped notice; its closing tag ends the comment. */
 export const LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
 
+/** Opens the banner a new E2E run puts above the walkthrough it is about to replace. */
+export const RERUN_NOTICE_OPENING = "<!-- muggle-pr-walkthrough-rerun -->";
+
+/** Closes the banner {@link RERUN_NOTICE_OPENING} opens. */
+export const RERUN_NOTICE_CLOSING = "<!-- /muggle-pr-walkthrough-rerun -->";
+
+/** The whole rerun banner with the blank lines after it, so stripping it gives back the walkthrough it sat on. */
+export const RERUN_NOTICE_BLOCK = new RegExp(`${RERUN_NOTICE_OPENING}[\\s\\S]*?${RERUN_NOTICE_CLOSING}\\s*`, "g");
+
 /** Characters of a commit SHA shown to reviewers, matching git's default abbreviation. */
 export const SHORT_SHA_LENGTH = 7;
 

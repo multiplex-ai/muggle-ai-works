@@ -2,6 +2,7 @@ import { parseNoAppLogicChangeDetail } from "../e2e-skip/noAppLogicChange.js";
 import type { E2eSkipCode } from "../e2e-skip/types.js";
 import {
   classifyComment,
+  hasRerunNotice,
   lastFullRunOf,
   renderDependencyBotComment,
   renderNoAppLogicChangeComment,
@@ -9,6 +10,7 @@ import {
   renderSkippedComment,
   renderUnreasonedSkipComment,
   walkthroughVerdict,
+  withRerunNotice,
 } from "./comment.js";
 import {
   defaultGhRunner,
@@ -33,6 +35,12 @@ function commentWithStatus(
   return comments.find((comment) => classifyComment(comment.body) === status);
 }
 
+// The first marked comment, which is also the one the walkthrough builder
+// fills, so every write here lands where the next walkthrough will.
+function designatedComment(comments: PrComment[]): PrComment | undefined {
+  return comments.find((comment) => classifyComment(comment.body) !== WalkthroughCommentStatus.NotDesignated);
+}
+
 /**
  * Post the placeholder that holds the walkthrough slot, unless the PR already
  * has one or already carries a walkthrough.
@@ -44,10 +52,7 @@ export function reserveComment(
   comments: PrComment[],
   run: GhRunner,
 ): boolean {
-  const claimed = comments.some(
-    (comment) => classifyComment(comment.body) !== WalkthroughCommentStatus.NotDesignated,
-  );
-  if (claimed) return false;
+  if (designatedComment(comments)) return false;
   return postPrComment(pr, renderReservedComment(), run);
 }
 
@@ -149,12 +154,37 @@ export function settleWalkthroughCommentForNoAppLogicChange(
   if (!pr || !declared) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
-  const designated = comments.find(
-    (comment) => classifyComment(comment.body) !== WalkthroughCommentStatus.NotDesignated,
-  );
+  const designated = designatedComment(comments);
   const lastFullRun = designated ? lastFullRunOf(designated.body) : null;
   const body = renderNoAppLogicChangeComment(declared, readPrHeadSha(pr, run), lastFullRun);
   return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
+}
+
+/**
+ * Mark the PR's walkthrough as about to be replaced by a new E2E run.
+ *
+ * Only a comment that already shows a run or a skip gets the banner: a reserved
+ * placeholder already says a run is awaited. Idempotent across a run's many
+ * executions — the first one marks the comment, the rest find the banner — and
+ * the walkthrough the run posts replaces the whole body, banner included.
+ *
+ * @param startedAt - When the new run started.
+ * @returns Whether the banner reached the PR.
+ */
+export function noteWalkthroughRerunStarted(
+  prUrl: string,
+  run: GhRunner = defaultGhRunner,
+  startedAt: Date = new Date(),
+): boolean {
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  const designated = designatedComment(comments);
+  if (!designated) return false;
+  if (classifyComment(designated.body) === WalkthroughCommentStatus.Pending) return false;
+  if (hasRerunNotice(designated.body)) return false;
+  return patchPrComment(pr, designated.id, withRerunNotice(designated.body, startedAt), run);
 }
 
 /**

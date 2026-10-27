@@ -129,26 +129,29 @@ describe("stage-signal pre-filter reaches every payload the recorder acts on", (
   });
 });
 
-// The gate stands in front of exactly the tools that burn a browser run, so its
-// pre-filter must name the same pair the decision does — a filter that drifts
-// from the matcher denies nothing while the gate still claims to.
-describe("classify-gate pre-filter names the same execution tools the gate acts on", () => {
-  const prefilter = wrapperPayloadPrefilter("guardrail-classify-gate.sh");
+// Both gates stand in front of exactly the tools that burn a browser run, so
+// each pre-filter must name the same pair the decision does — a filter that
+// drifts from the matcher acts on nothing while the gate still claims to.
+describe.each(["guardrail-classify-gate.sh", "guardrail-walkthrough-rerun.sh"])(
+  "%s pre-filter names the same execution tools the gate acts on",
+  (wrapperScriptName) => {
+    const prefilter = wrapperPayloadPrefilter(wrapperScriptName);
 
-  it.each([
-    "mcp__plugin_muggle_muggle__muggle-local-execute-test-generation",
-    "mcp__plugin_muggle_muggle__muggle-local-execute-replay",
-  ])("spawns Node for %s", (toolName) => {
-    expect(MUGGLE_EXECUTION_TOOL.test(toolName)).toBe(true);
-    expect(prefilter.test(JSON.stringify({ tool_name: toolName }))).toBe(true);
-  });
+    it.each([
+      "mcp__plugin_muggle_muggle__muggle-local-execute-test-generation",
+      "mcp__plugin_muggle_muggle__muggle-local-execute-replay",
+    ])("spawns Node for %s", (toolName) => {
+      expect(MUGGLE_EXECUTION_TOOL.test(toolName)).toBe(true);
+      expect(prefilter.test(JSON.stringify({ tool_name: toolName }))).toBe(true);
+    });
 
-  it("short-circuits a read-only muggle tool", () => {
-    expect(
-      prefilter.test(JSON.stringify({ tool_name: "mcp__plugin_muggle_muggle__muggle-local-run-result-get" })),
-    ).toBe(false);
-  });
-});
+    it("short-circuits a read-only muggle tool", () => {
+      expect(
+        prefilter.test(JSON.stringify({ tool_name: "mcp__plugin_muggle_muggle__muggle-local-run-result-get" })),
+      ).toBe(false);
+    });
+  },
+);
 
 describe("skill-stages pre-filter reads the same input keys the resolver does", () => {
   const body = wrapperBody("guardrail-skill-stages.sh");
@@ -282,6 +285,13 @@ describe("hooks.json registers every stage guardrail", () => {
     expect(matcher.test("mcp__plugin_muggle_muggle__muggle-local-run-result-get")).toBe(false);
   });
 
+  it("marks the PR's walkthrough as rerunning from the same execution hook", () => {
+    const gate = hooks.PreToolUse.find((group) =>
+      group.hooks.some((h) => h.command.includes("guardrail-classify-gate.sh")),
+    );
+    expect(gate!.hooks.some((h) => h.command.includes("guardrail-walkthrough-rerun.sh"))).toBe(true);
+  });
+
   it("runs both new Stop gates", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command).join();
     expect(stop).toContain("guardrail-stage-gate.sh");
@@ -385,6 +395,17 @@ describe("stage guardrail cli entry", () => {
       tool_input: { command: 'echo "MUGGLE_STAGE_SKIP: reading is covered by the caller"' },
     });
     expect(runHook("stage-gate", { session_id: "skip" }).out).toBe("{}");
+  });
+
+  // It only queues the banner; a run must never be held up by it.
+  it("walkthrough-rerun-notice: never decides on the execution it observes", () => {
+    const { status, out } = runHook("walkthrough-rerun-notice", {
+      session_id: "rerun",
+      tool_name: "mcp__plugin_muggle_muggle__muggle-local-execute-replay",
+      tool_input: { cwd: home },
+    });
+    expect(status).toBe(0);
+    expect(out).toBe("{}");
   });
 
   it("classify-gate: denies an unclassified execution, allows it after the classification emit", () => {

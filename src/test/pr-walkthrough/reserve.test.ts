@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
   isWalkthroughSettledOnPr,
+  noteWalkthroughRerunStarted,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
   settleWalkthroughCommentForNoAppLogicChange,
 } from "../../pr-walkthrough/reserve";
-import { renderReservedComment } from "../../pr-walkthrough/comment";
+import { renderReservedComment, renderSkippedComment, withRerunNotice } from "../../pr-walkthrough/comment";
 import { E2eSkipCode } from "../../e2e-skip/types";
 import { WALKTHROUGH_SKIPPED_MARKER, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
 
@@ -156,6 +157,58 @@ describe("settleWalkthroughCommentForNoAppLogicChange", () => {
   it("makes no provider call for a detail that names no commit", () => {
     const gh = recorder({});
     expect(settleWalkthroughCommentForNoAppLogicChange(PR_URL, "docs only", gh.run)).toBe(false);
+    expect(gh.calls).toEqual([]);
+  });
+});
+
+describe("noteWalkthroughRerunStarted", () => {
+  const WALKTHROUGH = "<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results\n\n**⚠️ PARTIAL** — 1 test ran";
+  const STARTED_AT = new Date("2026-10-27T05:12:40Z");
+  const patchedBody = (calls: RecordedCall[]): string =>
+    JSON.parse(calls.find((call) => call.args.includes("PATCH"))?.input ?? "{}").body ?? "";
+
+  it("puts the banner on the posted walkthrough and keeps the walkthrough under it", () => {
+    const gh = recorder({ "issues/7/comments": listedComments(["looks good", WALKTHROUGH]) });
+    expect(noteWalkthroughRerunStarted(PR_URL, gh.run, STARTED_AT)).toBe(true);
+    const patched = gh.calls.filter((call) => call.args.includes("PATCH"));
+    expect(patched).toHaveLength(1);
+    expect(patched[0].args.join(" ")).toContain("issues/comments/2");
+    const body = patchedBody(gh.calls);
+    expect(body).toContain("A new E2E run is in progress");
+    expect(body).toContain("2026-10-27 05:12 UTC");
+    expect(body.endsWith(WALKTHROUGH)).toBe(true);
+  });
+
+  it("banners a skipped comment too, since the run will replace it", () => {
+    const skipped = renderSkippedComment(E2eSkipCode.NotApplicable, "only the email template changed");
+    const gh = recorder({ "issues/7/comments": listedComments([skipped]) });
+    expect(noteWalkthroughRerunStarted(PR_URL, gh.run, STARTED_AT)).toBe(true);
+    expect(patchedBody(gh.calls)).toContain(WALKTHROUGH_SKIPPED_MARKER);
+  });
+
+  // Every execution in a run fires the hook; only the first may write.
+  it("leaves a comment that already carries the banner alone", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([withRerunNotice(WALKTHROUGH, STARTED_AT)]) });
+    expect(noteWalkthroughRerunStarted(PR_URL, gh.run, new Date("2026-10-27T05:40:00Z"))).toBe(false);
+    expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
+  });
+
+  it("leaves the reserved placeholder alone, which already says a run is awaited", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([renderReservedComment()]) });
+    expect(noteWalkthroughRerunStarted(PR_URL, gh.run, STARTED_AT)).toBe(false);
+    expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
+  });
+
+  it("posts nothing on a PR without a designated comment", () => {
+    const gh = recorder({ "issues/7/comments": listedComments(["looks good"]) });
+    expect(noteWalkthroughRerunStarted(PR_URL, gh.run, STARTED_AT)).toBe(false);
+    expect(gh.calls.some((call) => call.args.includes("POST") || call.args.includes("PATCH"))).toBe(false);
+  });
+
+  it("fails open when the comments cannot be read or the url is not a PR", () => {
+    expect(noteWalkthroughRerunStarted(PR_URL, () => null, STARTED_AT)).toBe(false);
+    const gh = recorder({});
+    expect(noteWalkthroughRerunStarted("https://github.com/o/r/issues/7", gh.run, STARTED_AT)).toBe(false);
     expect(gh.calls).toEqual([]);
   });
 });

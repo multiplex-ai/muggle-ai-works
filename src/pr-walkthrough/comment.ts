@@ -4,6 +4,9 @@ import {
   LAST_FULL_RUN_OPENING,
   REPORT_SENTINEL,
   REPORT_SENTINEL_TAG,
+  RERUN_NOTICE_BLOCK,
+  RERUN_NOTICE_CLOSING,
+  RERUN_NOTICE_OPENING,
   SHORT_SHA_LENGTH,
   WALKTHROUGH_COMMENT_HEADING,
   WALKTHROUGH_SKIPPED_MARKER,
@@ -134,7 +137,9 @@ export function renderNoAppLogicChangeComment(
  */
 export function lastFullRunOf(body: string): string | null {
   const status = classifyComment(body);
-  if (status === WalkthroughCommentStatus.Reported) return body.replace(REPORT_SENTINEL_TAG, "").trim();
+  if (status === WalkthroughCommentStatus.Reported) {
+    return withoutRerunNotice(body).replace(REPORT_SENTINEL_TAG, "").trim();
+  }
   if (status !== WalkthroughCommentStatus.Skipped) return null;
   const start = body.indexOf(LAST_FULL_RUN_OPENING);
   if (start === -1) return null;
@@ -142,6 +147,40 @@ export function lastFullRunOf(body: string): string | null {
     .slice(start + LAST_FULL_RUN_OPENING.length)
     .replace(/\s*<\/details>\s*$/, "")
     .trim();
+}
+
+// Minute precision is enough for a reader to tell a run in flight from one a
+// session abandoned, and a fixed UTC zone reads the same for every reviewer.
+const formatUtcMinute = (date: Date): string => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+/** Whether a designated comment already carries the banner of a run in progress. */
+export function hasRerunNotice(body: string): boolean {
+  return body.includes(RERUN_NOTICE_OPENING);
+}
+
+/** The designated comment with any rerun banner removed. */
+export function withoutRerunNotice(body: string): string {
+  return body.replace(RERUN_NOTICE_BLOCK, "");
+}
+
+/**
+ * The designated comment with a banner on top saying a new E2E run started.
+ *
+ * The comment underneath is left whole, so it keeps classifying as it did and
+ * the walkthrough check judges the run it shows until the new run replaces it.
+ * A run that never posts leaves a banner that is still true: a run did start at
+ * the time it names.
+ *
+ * @param startedAt - When the new run started.
+ */
+export function withRerunNotice(body: string, startedAt: Date): string {
+  return (
+    `${RERUN_NOTICE_OPENING}\n` +
+    `> **A new E2E run is in progress** — started ${formatUtcMinute(startedAt)}. ` +
+    `The results below are from the previous run; this comment updates when the new run finishes.\n` +
+    `${RERUN_NOTICE_CLOSING}\n\n` +
+    withoutRerunNotice(body)
+  );
 }
 
 /**

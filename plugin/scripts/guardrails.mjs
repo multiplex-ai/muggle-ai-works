@@ -265,6 +265,7 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["SettleBranchWalkthroughSkipped"] = "settle-branch-walkthrough-skipped";
   GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
   GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
+  GuardrailBackgroundJob2["NoteWalkthroughRerun"] = "note-walkthrough-rerun";
   GuardrailBackgroundJob2["ScanWatchPrStates"] = "scan-watch-pr-states";
   GuardrailBackgroundJob2["CommitDeferredState"] = "commit-deferred-state";
   return GuardrailBackgroundJob2;
@@ -613,6 +614,9 @@ var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->"
 var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
 var REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
 var LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
+var RERUN_NOTICE_OPENING = "<!-- muggle-pr-walkthrough-rerun -->";
+var RERUN_NOTICE_CLOSING = "<!-- /muggle-pr-walkthrough-rerun -->";
+var RERUN_NOTICE_BLOCK = new RegExp(`${RERUN_NOTICE_OPENING}[\\s\\S]*?${RERUN_NOTICE_CLOSING}\\s*`, "g");
 var SHORT_SHA_LENGTH = 7;
 var GH_COMMENT_TIMEOUT_MS = 1e4;
 
@@ -1772,11 +1776,27 @@ ${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` 
 }
 function lastFullRunOf(body) {
   const status = classifyComment(body);
-  if (status === "reported" /* Reported */) return body.replace(REPORT_SENTINEL_TAG, "").trim();
+  if (status === "reported" /* Reported */) {
+    return withoutRerunNotice(body).replace(REPORT_SENTINEL_TAG, "").trim();
+  }
   if (status !== "skipped" /* Skipped */) return null;
   const start = body.indexOf(LAST_FULL_RUN_OPENING);
   if (start === -1) return null;
   return body.slice(start + LAST_FULL_RUN_OPENING.length).replace(/\s*<\/details>\s*$/, "").trim();
+}
+var formatUtcMinute = (date) => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+function hasRerunNotice(body) {
+  return body.includes(RERUN_NOTICE_OPENING);
+}
+function withoutRerunNotice(body) {
+  return body.replace(RERUN_NOTICE_BLOCK, "");
+}
+function withRerunNotice(body, startedAt) {
+  return `${RERUN_NOTICE_OPENING}
+> **A new E2E run is in progress** \u2014 started ${formatUtcMinute(startedAt)}. The results below are from the previous run; this comment updates when the new run finishes.
+${RERUN_NOTICE_CLOSING}
+
+` + withoutRerunNotice(body);
 }
 function classifyComment(body) {
   if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
@@ -1797,11 +1817,11 @@ function walkthroughVerdict(bodies) {
 function commentWithStatus(comments, status) {
   return comments.find((comment) => classifyComment(comment.body) === status);
 }
+function designatedComment(comments) {
+  return comments.find((comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */);
+}
 function reserveComment(pr, comments, run) {
-  const claimed = comments.some(
-    (comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */
-  );
-  if (claimed) return false;
+  if (designatedComment(comments)) return false;
   return postPrComment(pr, renderReservedComment(), run);
 }
 function reserveWalkthroughComment(prUrl, run = defaultGhRunner) {
@@ -1837,12 +1857,21 @@ function settleWalkthroughCommentForNoAppLogicChange(prUrl, detail, run = defaul
   if (!pr || !declared) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
-  const designated = comments.find(
-    (comment) => classifyComment(comment.body) !== "not-designated" /* NotDesignated */
-  );
+  const designated = designatedComment(comments);
   const lastFullRun = designated ? lastFullRunOf(designated.body) : null;
   const body = renderNoAppLogicChangeComment(declared, readPrHeadSha(pr, run), lastFullRun);
   return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
+}
+function noteWalkthroughRerunStarted(prUrl, run = defaultGhRunner, startedAt = /* @__PURE__ */ new Date()) {
+  const pr = parsePrUrl(prUrl);
+  if (!pr) return false;
+  const comments = listPrComments(pr, run);
+  if (comments === null) return false;
+  const designated = designatedComment(comments);
+  if (!designated) return false;
+  if (classifyComment(designated.body) === "pending" /* Pending */) return false;
+  if (hasRerunNotice(designated.body)) return false;
+  return patchPrComment(pr, designated.id, withRerunNotice(designated.body, startedAt), run);
 }
 function settleWalkthroughCommentAsUnreasoned(prUrl, run = defaultGhRunner) {
   return settleWith(prUrl, renderUnreasonedSkipComment(), run);
@@ -2580,6 +2609,10 @@ function classifyGate() {
   const reason = `Test case ${decision.testCaseId} has no pre-execution classification this session. Run muggle-test Step 6f for it first: classify replay-vs-regen per _shared/failure-mode-handling.md \xA7A, then emit one muggle-local-telemetry-event-emit with eventType "pre-execution-classification" for this test case. That step is what calls muggle-remote-test-script-list, which is the only place this run learns the test case has never passed or has failed repeatedly \u2014 cheap now, ~5 minutes of browser time to rediscover after the fact. If this execution genuinely has no classification step (a single user-picked target), say why and run \`echo "MUGGLE_CLASSIFY_SKIP: <reason>"\` \u2014 that records the skip for the rest of the session.`;
   return denyTool(reason, host);
 }
+function walkthroughRerunNotice() {
+  startBackgroundJob("note-walkthrough-rerun" /* NoteWalkthroughRerun */, [], input.tool_input?.cwd ?? input.cwd);
+  return "{}";
+}
 function stageGate() {
   const state = readState(sessionId);
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
@@ -2857,6 +2890,7 @@ var handlers = {
   "record-stage-read": recordStageRead,
   "record-stage-signals": recordStageSignals,
   "classify-gate": classifyGate,
+  "walkthrough-rerun-notice": walkthroughRerunNotice,
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate
 };
@@ -2906,6 +2940,11 @@ function settleWalkthroughNoAppLogicChangeJob() {
   if (prUrl && detail) settleWalkthroughCommentForNoAppLogicChange(prUrl, detail);
   return "{}";
 }
+function noteWalkthroughRerunJob() {
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl) noteWalkthroughRerunStarted(prUrl);
+  return "{}";
+}
 function scanWatchPrStatesJob() {
   const scannedSessionId = jobArgs[0] ?? "unknown";
   const state = readState(scannedSessionId);
@@ -2927,6 +2966,7 @@ var backgroundJobs = {
   ["settle-branch-walkthrough-skipped" /* SettleBranchWalkthroughSkipped */]: settleBranchWalkthroughSkippedJob,
   ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob,
   ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob,
+  ["note-walkthrough-rerun" /* NoteWalkthroughRerun */]: noteWalkthroughRerunJob,
   ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob,
   ["commit-deferred-state" /* CommitDeferredState */]: commitDeferredStateJob
 };

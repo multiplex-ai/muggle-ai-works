@@ -97,6 +97,7 @@ import { isPrCoveredBySkip } from "./skipScope.js";
 import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
 import {
   isWalkthroughSettledOnPr,
+  noteWalkthroughRerunStarted,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
   settleWalkthroughCommentAsUnreasoned,
@@ -479,6 +480,15 @@ function classifyGate(): string {
     `no classification step (a single user-picked target), say why and run ` +
     `\`echo "MUGGLE_CLASSIFY_SKIP: <reason>"\` — that records the skip for the rest of the session.`;
   return denyTool(reason, host);
+}
+
+// Marked before the run rather than after it, so a reviewer opening the PR
+// mid-run reads that the walkthrough is about to change instead of taking the
+// previous run for this head's. The PR is the one on the branch of the tree
+// under test, which in a worktree cycle is not the session's own directory.
+function walkthroughRerunNotice(): string {
+  startBackgroundJob(GuardrailBackgroundJob.NoteWalkthroughRerun, [], input.tool_input?.cwd ?? input.cwd);
+  return "{}";
 }
 
 function stageGate(): string {
@@ -946,6 +956,7 @@ const handlers: Record<string, () => string> = {
   "record-stage-read": recordStageRead,
   "record-stage-signals": recordStageSignals,
   "classify-gate": classifyGate,
+  "walkthrough-rerun-notice": walkthroughRerunNotice,
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate,
 };
@@ -1014,6 +1025,12 @@ function settleWalkthroughNoAppLogicChangeJob(): string {
   return "{}";
 }
 
+function noteWalkthroughRerunJob(): string {
+  const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
+  if (prUrl) noteWalkthroughRerunStarted(prUrl);
+  return "{}";
+}
+
 function scanWatchPrStatesJob(): string {
   const scannedSessionId = jobArgs[0] ?? "unknown";
   const state = readState(scannedSessionId);
@@ -1038,6 +1055,7 @@ const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.SettleBranchWalkthroughSkipped]: settleBranchWalkthroughSkippedJob,
   [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
   [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
+  [GuardrailBackgroundJob.NoteWalkthroughRerun]: noteWalkthroughRerunJob,
   [GuardrailBackgroundJob.ScanWatchPrStates]: scanWatchPrStatesJob,
   [GuardrailBackgroundJob.CommitDeferredState]: commitDeferredStateJob,
 };

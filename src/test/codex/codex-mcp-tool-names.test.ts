@@ -129,6 +129,12 @@ describe.skipIf(process.platform === "win32")("guardrail pre-filters for a Codex
     expect(wrapperRanNode("guardrail-classify-gate.sh", codexToolName("muggle-local-check-status"))).toBe(false);
   });
 
+  it("walkthrough-rerun: wakes for a Codex execution call, and only for one", () => {
+    expect(wrapperRanNode("guardrail-walkthrough-rerun.sh", codexToolName("muggle-local-execute-replay"))).toBe(true);
+    expect(wrapperRanNode("guardrail-walkthrough-rerun.sh", codexToolName("muggle-local-execute-test-generation"))).toBe(true);
+    expect(wrapperRanNode("guardrail-walkthrough-rerun.sh", codexToolName("muggle-local-check-status"))).toBe(false);
+  });
+
   it("record-stage-signals: wakes for a Codex telemetry emit or feedback submission", () => {
     expect(wrapperRanNode("guardrail-record-stage-signals.sh", codexToolName("muggle-local-telemetry-event-emit"))).toBe(true);
     expect(wrapperRanNode("guardrail-record-stage-signals.sh", codexToolName("muggle-remote-user-feedback-create"))).toBe(true);

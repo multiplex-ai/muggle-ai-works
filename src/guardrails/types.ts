@@ -143,6 +143,7 @@ export enum GuardrailBackgroundJob {
   SettleBranchWalkthroughSkipped = "settle-branch-walkthrough-skipped",
   SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
   SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
+  NoteWalkthroughRerun = "note-walkthrough-rerun",
   ScanWatchPrStates = "scan-watch-pr-states",
   CommitDeferredState = "commit-deferred-state",
 }
@@ -382,6 +383,8 @@ export interface ToolInput {
   runId?: string;
   testCase?: { id?: string };
   testScript?: { testCaseId?: string };
+  // A local Muggle execution names the working tree it tests, which may not be the session's own.
+  cwd?: string;
   subagent_type?: string;
   prompt?: string;
 }

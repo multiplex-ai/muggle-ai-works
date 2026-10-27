@@ -40,10 +40,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\"",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-classify-gate.sh guardrail-walkthrough-rerun.sh",
             "async": false,
             "timeout": 10,
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-classify-gate.sh\""
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-classify-gate.sh guardrail-walkthrough-rerun.sh"
           }
         ]
       }

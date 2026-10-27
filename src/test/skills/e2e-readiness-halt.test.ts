@@ -93,8 +93,17 @@ describe("an app that cannot be brought up halts the cycle", () => {
     expect(readinessStep).toMatch(/request that asked for the PR/);
   });
 
-  it("treats a run that never reached the app as the same halt", () => {
+  it("treats a run the app never answered as the same halt", () => {
     expect(readinessStep).toMatch(/connection refused/);
+  });
+
+  // A runner that crashes before the first step also "never reached the app", and read that way the
+  // cycle halted with no PR on a healthy app; the muggle-do.handoff e2e-fails scenario caught it.
+  it("scopes the halt to the app not answering, so a runner crash is a failing run", () => {
+    expect(readinessStep).toMatch(/Only the app not answering is this halt/);
+    expect(readinessStep).toMatch(/Electron or MCP crash, a Studio abort before the first step/);
+    expect(readinessStep).toMatch(/is a failing run, however often it repeats/);
+    expect(readinessStep).toMatch(/opens the PR `\[E2E FAILING\]` for Stage 7\.5 to classify/);
   });
 
   it("is not listed among the stage's SKIPPED exits", () => {
@@ -120,17 +129,22 @@ describe("DEV_SERVER_UNREACHABLE belongs to unit-only and skip validation only",
 });
 
 describe("Stage 7.5 never auto-waives a readiness failure", () => {
-  it("routes a run that never reached the app back to the Stage 6 halt", () => {
-    expect(clearanceCheck).toMatch(/never reached the app/);
+  it("routes a run the app did not answer back to the Stage 6 halt", () => {
+    expect(clearanceCheck).toMatch(/the app did not answer/);
     expect(clearanceCheck).toMatch(/\[`e2e-acceptance\.md`\]\(e2e-acceptance\.md\) Step 0\.5/);
     expect(clearanceCheck).toMatch(/nothing to repair and nothing to waive, attended or not/);
   });
 
   it("checks for it before the repair loop claims the entry", () => {
-    const readinessAt = clearanceCheck.search(/never reached the app/);
+    const readinessAt = clearanceCheck.search(/the app did not answer/);
     const loopAt = clearanceCheck.search(/the loop runs over every entry/);
     expect(readinessAt).toBeGreaterThanOrEqual(0);
     expect(loopAt).toBeGreaterThan(readinessAt);
+  });
+
+  it("sends a runner crash while the app answers through the loop as infra, not to the halt", () => {
+    expect(clearanceCheck).toMatch(/Electron, MCP or Studio crash, even before the first step/);
+    expect(clearanceCheck).toMatch(/is not this: it is an `infra` failure and takes the loop below/);
   });
 
   it("excludes it from the unattended automatic waive", () => {

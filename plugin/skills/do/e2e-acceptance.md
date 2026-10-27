@@ -81,6 +81,8 @@ A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every c
 
 **Readiness halt.** The cycle planned a browser run and still owes it, so an app that cannot be brought up halts the cycle and is never a `SKIPPED` exit: declare no skip code, write no waiver, run nothing downstream. Report the URL probed, what `muggle-test-prepare` tried (the start command and how it failed), and that no PR was opened or updated; then end the turn and wait for the user. This holds for unattended runs and for a request that asked for the PR. A forward cycle opens no PR, posts no walkthrough, runs no Stage 7.5 and arms no watcher; a watcher cycle pushes nothing and escalates through its own path, which keeps the watcher running. A run that failed because the app never answered (connection refused, page never loaded) returns to item 1, and still down is this halt. A Stop-hook reminder that E2E is still owed does not lift it.
 
+Only the app not answering is this halt. A run the runner itself lost while readiness passes — an Electron or MCP crash, a Studio abort before the first step — is a failing run, however often it repeats: record it in the Failed block and go on to Stage 7, which opens the PR `[E2E FAILING]` for Stage 7.5 to classify.
+
 ### Step 1: Authentication already verified
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.

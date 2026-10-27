@@ -8,6 +8,7 @@ import {
 } from "../../watch/findings.js";
 import {
   CiRollupState,
+  OwnerEscalationKind,
   PrMergeable,
   PrMergeStateStatus,
   TrackedProcessKind,
@@ -61,6 +62,8 @@ describe("assessWatchSlots", () => {
       { repo: "o/r", number: 1, url: "u1" },
       { repo: "o/r", number: 2, url: "u2" },
     ],
+    lastSeenJson: "",
+    followupLogLines: [],
   };
 
   it("judges one assessment per PR, matching the oldest loop for the slot", () => {
@@ -84,6 +87,21 @@ describe("assessWatchSlots", () => {
       live: live,
     });
     expect(assessments[1].live).toBeUndefined();
+  });
+
+  it("attaches what the watcher escalated on each PR's live head", () => {
+    const escalatedSlot = {
+      ...slot,
+      lastSeenJson: JSON.stringify({ "o/r#1": { ci_fix_attempts: { head1: 1 }, ci_escalated_shas: ["head1"] } }),
+      followupLogLines: ["2026-10-27T08:10:20Z fix-ci pr=1 head=head1 escalated: awaiting owner decision"],
+    };
+    const live: PrLiveStatus = { url: "u1", state: ProviderPrState.Open, headSha: "head1", unresolvedThreadCount: 0 };
+    const assessments = assessWatchSlots([escalatedSlot], [], new Set(["owner-1"]), new Map([["u1", live]]), NOW_MS);
+    expect(assessments[0].ownerEscalation).toEqual({
+      kinds: [OwnerEscalationKind.Ci],
+      note: "fix-ci pr=1 head=head1 escalated: awaiting owner decision",
+    });
+    expect(assessments[1].ownerEscalation).toBeUndefined();
   });
 
   it("leaves owner liveness unknown without a session listing or an owner", () => {
@@ -164,6 +182,21 @@ describe("deriveWatchFindings", () => {
     ]);
     expect(findings[0].message).toBe("checks on abcdef01 are failure");
     expect(findings[2].message).toBe("1 unresolved review thread");
+  });
+
+  it("says which escalated work waits on the owner, ahead of the red CI it explains", () => {
+    const live: PrLiveStatus = { url: "u7", state: ProviderPrState.Open, headSha: "abcdef0123", ciRollup: CiRollupState.Failure, unresolvedThreadCount: 0 };
+    const ownerEscalation = { kinds: [OwnerEscalationKind.Ci, OwnerEscalationKind.Conflict], note: "fix-ci pr=7 escalated: pick a fix" };
+    const findings = deriveWatchFindings([assessment({ live: live, ownerEscalation: ownerEscalation })], [], false);
+    expect(findings.map((current) => current.code)).toEqual([WatchFindingCode.AwaitingOwner, WatchFindingCode.CiFailing]);
+    expect(findings[0]).toMatchObject({
+      key: "AWAITING_OWNER:u7:abcdef0123:ci+conflict",
+      severity: WatchFindingSeverity.Alert,
+      subject: "o/r#7",
+      message: "watcher escalated ci, conflict on abcdef01 to owner session owner-12; a decision waits on you — fix-ci pr=7 escalated: pick a fix",
+    });
+    const unowned = deriveWatchFindings([assessment({ ownerSessionId: undefined, ownerEscalation: { kinds: [OwnerEscalationKind.Reviews] } })], [], false);
+    expect(unowned[0].message).toBe("watcher escalated reviews on abcdef01 to no owner session; a decision waits on you");
   });
 
   it("reports an errored rollup, a dirty or behind branch, and plural threads", () => {

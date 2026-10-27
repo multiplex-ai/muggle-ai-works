@@ -1,4 +1,4 @@
-import { parseNoAppLogicChangeDetail } from "../e2e-skip/noAppLogicChange.js";
+import { isNonAppPath, parseNoAppLogicChangeDetail } from "../e2e-skip/noAppLogicChange.js";
 import type { E2eSkipCode } from "../e2e-skip/types.js";
 import {
   classifyComment,
@@ -18,6 +18,7 @@ import {
   parsePrUrl,
   patchPrComment,
   postPrComment,
+  readPrDiffPaths,
   readPrHeadSha,
 } from "./gh.js";
 import {
@@ -41,19 +42,39 @@ function designatedComment(comments: PrComment[]): PrComment | undefined {
   return comments.find((comment) => classifyComment(comment.body) !== WalkthroughCommentStatus.NotDesignated);
 }
 
+// A PR no browser run can observe would wait forever for a run to fill the
+// placeholder, so it opens on its settled skip instead — judged by the same path
+// rule that verifies a declared NO_APP_LOGIC_CHANGE. Only a diff read in full
+// vouches for that; anything unread keeps the placeholder.
+function openingCommentBody(pr: PrCoordinates, run: GhRunner): string {
+  const diff = readPrDiffPaths(pr, run);
+  if (!diff || diff.changedPaths.length === 0 || !diff.changedPaths.every(isNonAppPath)) {
+    return renderReservedComment();
+  }
+  return renderNoAppLogicChangeComment(
+    { preCycleSha: diff.mergeBaseSha, baseTipSha: null, reason: "" },
+    diff.headSha,
+    null,
+  );
+}
+
 /**
- * Post the placeholder that holds the walkthrough slot, unless the PR already
- * has one or already carries a walkthrough.
+ * Post the comment that holds the walkthrough slot, unless the PR already has
+ * one or already carries a walkthrough.
  *
- * @returns Whether a comment was posted.
+ * A PR whose every changed path is docs, tests, lint/format config, or CI config
+ * gets its settled `NO_APP_LOGIC_CHANGE` skip instead of the placeholder.
+ *
+ * @returns The body posted, or `null` when nothing was.
  */
 export function reserveComment(
   pr: PrCoordinates,
   comments: PrComment[],
   run: GhRunner,
-): boolean {
-  if (designatedComment(comments)) return false;
-  return postPrComment(pr, renderReservedComment(), run);
+): string | null {
+  if (designatedComment(comments)) return null;
+  const body = openingCommentBody(pr, run);
+  return postPrComment(pr, body, run) ? body : null;
 }
 
 /**
@@ -87,7 +108,7 @@ export function reserveWalkthroughComment(prUrl: string, run: GhRunner = default
   if (!pr) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
-  return reserveComment(pr, comments, run);
+  return reserveComment(pr, comments, run) !== null;
 }
 
 /**

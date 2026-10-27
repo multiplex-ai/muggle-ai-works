@@ -103,7 +103,7 @@ import {
   settleWalkthroughCommentAsUnreasoned,
   settleWalkthroughCommentForNoAppLogicChange,
 } from "../pr-walkthrough/reserve.js";
-import { CYCLE_SCOPED_SKIP_CODES, E2E_SKIP_CODES } from "../e2e-skip/constants.js";
+import { CYCLE_SCOPED_SKIP_CODES, E2E_SKIP_CODES, NON_APP_PATH_SUMMARY } from "../e2e-skip/constants.js";
 import { explainRejection } from "../e2e-skip/resolveSkip.js";
 import { E2eSkipCode, type DeclaredSkip } from "../e2e-skip/types.js";
 import { judgeE2eSkip } from "./skipReason.js";
@@ -234,9 +234,10 @@ function prOpened(): string {
   const slotNote = declaredSkip
     ? `Its Muggle AI visual-walkthrough comment is being settled with the E2E skip already recorded this ` +
       `session (${declaredSkip.code}); the turn cannot end until the PR shows it.\n`
-    : `Its Muggle AI visual-walkthrough comment is reserved and empty — settle it with the E2E run of ` +
-      `this PR's own change (a wave's PRs share one run; any other PR gets its own), or by recording ` +
-      `why E2E does not apply from this PR's working tree.\n`;
+    : `Its Muggle AI visual-walkthrough comment is being reserved. When every path the PR changes is ` +
+      `${NON_APP_PATH_SUMMARY}, it opens already settled as skipped (${E2eSkipCode.NoAppLogicChange}) and ` +
+      `needs nothing more. Otherwise settle it with the E2E run of this PR's own change (a wave's PRs share ` +
+      `one run; any other PR gets its own), or by recording why E2E does not apply from this PR's working tree.\n`;
   const ctx =
     `A pull request was just opened: ${url}\n` +
     slotNote +

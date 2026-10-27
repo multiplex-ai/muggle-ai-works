@@ -25,5 +25,13 @@ export interface PrCoordinates {
   prNumber: number;
 }
 
+/** A PR's own diff as the provider reports it: where it forked from its base, its head, and what it changes. */
+export interface PrDiffPaths {
+  mergeBaseSha: string;
+  headSha: string;
+  /** Every path the PR changes, a renamed file's old path included. */
+  changedPaths: string[];
+}
+
 /** Runs a `gh` invocation, optionally feeding stdin; `null` when the call could not be made. */
 export type GhRunner = (args: string[], input?: string) => string | null;

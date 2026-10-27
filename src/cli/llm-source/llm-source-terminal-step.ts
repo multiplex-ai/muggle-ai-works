@@ -150,13 +150,26 @@ export async function askLlmSourceSelection(
   }
 
   const source = plan.options[pickedIndex].source;
-  if (source === LlmSource.MuggleCredit) {
+  if (source === LlmSource.MuggleCredit || source === LlmSource.ClaudeCode) {
     return { source: source };
   }
   if (source === LlmSource.AnthropicApiKey) {
     return askAnthropicApiKeySelection(prompter);
   }
   return askLocalModelSelection(prompter, plan.current, print);
+}
+
+/**
+ * Save a selection, or keep the current source when the selection is refused (Claude Code signed
+ * out, say), so the refusal reads as guidance instead of aborting `muggle init`.
+ */
+function applyLlmSourceSelectionOrKeep(selection: ILlmSourceSelection): void {
+  try {
+    console.log(`Saved. ${describeLlmSourceStatus(applyLlmSourceSelection(selection))}`);
+  } catch (error) {
+    console.log(error instanceof Error ? error.message : String(error));
+    console.log(`Kept. ${describeLlmSourceStatus(resolveLlmSourceStatus())}`);
+  }
 }
 
 /**
@@ -170,7 +183,7 @@ export async function runLlmSourceStep(): Promise<void> {
       console.log(`Kept. ${describeLlmSourceStatus(resolveLlmSourceStatus())}`);
       return;
     }
-    console.log(`Saved. ${describeLlmSourceStatus(applyLlmSourceSelection(selection))}`);
+    applyLlmSourceSelectionOrKeep(selection);
   } finally {
     prompter.close();
   }

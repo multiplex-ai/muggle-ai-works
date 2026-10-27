@@ -91,7 +91,7 @@ export async function llmSourceCommand(options: ILlmSourceCommandOptions): Promi
 
   if (!process.stdin.isTTY) {
     console.error(
-      "`muggle llm-source` needs an interactive terminal. Use `--show` to see the current source, or `--use muggle-credit` / `--use local-model --base-url <url> --model <name>` to set one.",
+      "`muggle llm-source` needs an interactive terminal. Use `--show` to see the current source, or `--use muggle-credit` / `--use claude-code` / `--use local-model --base-url <url> --model <name>` to set one.",
     );
     process.exitCode = 1;
     return;

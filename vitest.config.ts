@@ -14,7 +14,7 @@ export const WALL_CLOCK_HOOK_TESTS = [
 ];
 
 /** Env every vitest run here sets; why is noted where the config below applies it. */
-export const GUARDRAIL_TEST_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off" };
+export const TEST_RUN_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off", MUGGLE_STACK_SERVICE_STOPS: "off" };
 
 /** Share of the cores a local run may use. CI keeps vitest's default. */
 export const LOCAL_MAX_WORKERS = "25%";
@@ -47,7 +47,9 @@ export default defineConfig({
     // Guardrail hooks call `gh` for real, and the hook-execution fixtures carry
     // live PR urls. Inherited by the subprocesses those tests spawn, so no test
     // run — here or on a contributor's authenticated machine — can reach a PR.
-    env: GUARDRAIL_TEST_ENV,
+    // Ending a stack lease stops whatever listens on its ports, and the stack
+    // suites claim real port numbers, so no run may stop a real process.
+    env: TEST_RUN_ENV,
     // First entry is Vitest's default glob (kept so packages/** and internal/**
     // stay discovered); second makes the top-level test/ tree — tests mirror
     // their src/ path there — explicit.

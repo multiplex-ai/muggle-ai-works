@@ -18,6 +18,15 @@ export interface IStackNeedRequest {
   headSha?: string;
 }
 
+/** A local E2E run in flight under a lease. */
+export interface IStackActiveRun {
+  /** Id the run registered under, and ends by. */
+  runId: string;
+  /** MCP server executing it; the run is over if it exits. */
+  holderPid: number;
+  startedAt: number;
+}
+
 /** A checkout's standing claim on the ports it needs, shared with every checkout that needs the same code there. */
 export interface IStackLease {
   /** Checkout root of the claiming session. */
@@ -26,13 +35,17 @@ export interface IStackLease {
   label?: string;
   needs: IStackNeed[];
   grantedAt: number;
-  /** Last claim, check or run that renewed it (ms since epoch). */
+  /** Last grant, run start or run end (ms since epoch). */
   lastSeenAt: number;
+  /** When its last run ended (ms since epoch); unset until the first run ends. */
+  lastRunEndedAt?: number;
+  /** Runs in flight; while one is, the lease never ends for idleness. */
+  activeRuns?: IStackActiveRun[];
   /**
    * Long-lived processes acting under the lease: the MCP server of each
-   * session that ran tests with it, recorded as runs renew it. When every one
+   * session that ran tests with it, recorded as runs start. When every one
    * has exited, the session is gone and the lease ends without waiting out
-   * its TTL. Empty until the first run, when only the TTL applies.
+   * its idle window. Empty until the first run.
    */
   holderPids?: number[];
 }
@@ -67,6 +80,36 @@ export interface ITrackedService {
   headSha: string | null;
   /** Checkout root whose tracking file records it. */
   source: string;
+  /** Started by the user, not prepare; never stopped. */
+  isExternal: boolean;
+}
+
+/** A service stopped because the lease it served ended. */
+export interface IStoppedService {
+  port: number;
+  /** Root of the process tree stopped. */
+  pid: number;
+  /** Prepare's name for it; null when prepare never tracked it. */
+  name: string | null;
+  commandLine: string;
+}
+
+/** Stops a process and every process it started; injected by tests. */
+export type ProcessTreeStopper = (pid: number) => Promise<void>;
+
+/** Result of applying one release to the ledger, before anything is written. */
+export interface IStackReleaseDecision {
+  /** Record to commit, or null when nothing changes. */
+  next: IStackRecord | null;
+  /** True when the caller held a lease or a place in line. */
+  isReleased: boolean;
+}
+
+/** Answer to one release. */
+export interface IStackReleaseReport {
+  isReleased: boolean;
+  /** Services stopped because no lease needs their code any more. */
+  stoppedServices: IStoppedService[];
 }
 
 /** Result of applying one claim to the ledger, before anything is written. */
@@ -136,6 +179,8 @@ export interface IStackClaimReport {
   queueLength: number;
   /** Suggested wait before asking again, when busy. */
   retryAfterMs: number | null;
+  /** Services stopped because the leases they served ended while this claim was decided. */
+  stoppedServices: IStoppedService[];
 }
 
 /** Whether a run may trust the stack it is about to hit. */

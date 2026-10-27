@@ -133,7 +133,7 @@ describe("claimServiceStack", () => {
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
     await claimServiceStack({ cwd: "/wt/b", needs: [{ port: 3000, runDir: "/wt/b/web" }], runGit: git });
 
-    expect(await releaseServiceStack({ cwd: "/wt/a", runGit: git })).toBe(true);
+    expect((await releaseServiceStack({ cwd: "/wt/a", runGit: git })).isReleased).toBe(true);
     const report = await claimServiceStack({ cwd: "/wt/b", needs: [{ port: 3000, runDir: "/wt/b/web" }], runGit: git });
 
     expect(report.verdict).toBe(StackClaimVerdict.Granted);
@@ -285,28 +285,16 @@ describe("checkServiceStack", () => {
     expect((await checkServiceStack({ cwd: "/wt/b", port: 5173, runGit: git })).verdict).toBe(StackCheckVerdict.NoLease);
   });
 
-  it("lets one change run its test cases in parallel under a single lease", async () => {
-    const { checkServiceStack, claimServiceStack, readServiceStackStatus, StackCheckVerdict } = await loadStack();
+  it("never extends the lease it checks", async () => {
+    const { checkServiceStack, claimServiceStack, readServiceStackStatus } = await loadStack();
     writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+    const grantedSeenAt = (await readServiceStackStatus()).leases[0].lastSeenAt;
 
-    const parallelChecks = await Promise.all(
-      Array.from({ length: 4 }, () =>
-        checkServiceStack({
-          cwd: "/wt/a",
-          port: 3000,
-          shouldRenew: true,
-          holderPid: process.pid,
-          runGit: git,
-          readListener: trackedProcessListening,
-        }),
-      ),
-    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await checkServiceStack({ cwd: "/wt/a", port: 3000, runGit: git, readListener: trackedProcessListening });
 
-    expect(parallelChecks.map((report) => report.verdict)).toEqual(Array(4).fill(StackCheckVerdict.Valid));
-    const leases = (await readServiceStackStatus()).leases;
-    expect(leases).toHaveLength(1);
-    expect(leases[0].holderPids).toEqual([process.pid]);
+    expect((await readServiceStackStatus()).leases[0].lastSeenAt).toBe(grantedSeenAt);
   });
 
   it("ignores a tracked service whose process is gone", async () => {
@@ -383,10 +371,47 @@ describe("decideStackClaim", () => {
     expect(claimB(DEAD_HOLDER_GRACE_MS - 1).isGranted).toBe(false);
   });
 
-  it("keeps a lease whose holder lives, however long between runs", async () => {
+  it("ends a lease soon after its last run, though the session holding it lives", async () => {
     const { decideStackClaim } = await loadStack();
+    const { IDLE_RELEASE_MS } = await loadConstants();
+    const leaseLastRanAgo = (idleMs: number) => ({
+      leases: [
+        {
+          cwd: "/a",
+          needs: [need(3000, "/a", SHA_A)],
+          grantedAt: now - 600_000,
+          lastSeenAt: now - idleMs,
+          lastRunEndedAt: now - idleMs,
+          holderPids: [4242],
+        },
+      ],
+      queue: [],
+      portFreedAt: {},
+    });
+    const claimB = (idleMs: number) =>
+      decideStackClaim({ record: leaseLastRanAgo(idleMs), cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive });
+
+    expect(claimB(IDLE_RELEASE_MS + 1).isGranted).toBe(true);
+    // Inside the window: the turn between two runs of one batch.
+    expect(claimB(IDLE_RELEASE_MS - 1).isGranted).toBe(false);
+  });
+
+  it("keeps a lease while a run is in flight, however long it runs", async () => {
+    const { decideStackClaim } = await loadStack();
+    const { IDLE_RELEASE_MS, STARTUP_WINDOW_MS } = await loadConstants();
+    const longAgo = now - STARTUP_WINDOW_MS - IDLE_RELEASE_MS;
     const record = {
-      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - 600_000, lastSeenAt: now - 300_000, holderPids: [4242] }],
+      leases: [
+        {
+          cwd: "/a",
+          needs: [need(3000, "/a", SHA_A)],
+          grantedAt: longAgo,
+          lastSeenAt: longAgo,
+          lastRunEndedAt: longAgo,
+          activeRuns: [{ runId: "run-1", holderPid: 4242, startedAt: longAgo }],
+          holderPids: [4242],
+        },
+      ],
       queue: [],
       portFreedAt: {},
     };
@@ -394,11 +419,41 @@ describe("decideStackClaim", () => {
     expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive }).isGranted).toBe(false);
   });
 
-  it("expires a lease nobody renewed and frees its ports", async () => {
+  it("stops counting a run whose MCP server exited", async () => {
     const { decideStackClaim } = await loadStack();
-    const { LEASE_TTL_MS } = await loadConstants();
+    const { DEAD_HOLDER_GRACE_MS } = await loadConstants();
+    const startedAt = now - DEAD_HOLDER_GRACE_MS - 1;
     const record = {
-      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - LEASE_TTL_MS * 2, lastSeenAt: now - LEASE_TTL_MS - 1 }],
+      leases: [
+        {
+          cwd: "/a",
+          needs: [need(3000, "/a", SHA_A)],
+          grantedAt: startedAt,
+          lastSeenAt: startedAt,
+          activeRuns: [{ runId: "run-1", holderPid: 4242, startedAt: startedAt }],
+          holderPids: [4242],
+        },
+      ],
+      queue: [],
+      portFreedAt: {},
+    };
+
+    const decision = decideStackClaim({
+      record: record,
+      cwd: "/b",
+      needs: [need(3000, "/b", SHA_B)],
+      now: now,
+      isAlive: (pid) => pid !== 4242,
+    });
+
+    expect(decision.isGranted).toBe(true);
+  });
+
+  it("ends a grant that never ran once its startup window passes, and frees its ports", async () => {
+    const { decideStackClaim } = await loadStack();
+    const { STARTUP_WINDOW_MS } = await loadConstants();
+    const record = {
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - STARTUP_WINDOW_MS - 1, lastSeenAt: now - STARTUP_WINDOW_MS - 1 }],
       queue: [],
       portFreedAt: {},
     };
@@ -407,5 +462,217 @@ describe("decideStackClaim", () => {
 
     expect(decision.isGranted).toBe(true);
     expect(decision.next.leases.map((lease) => lease.cwd)).toEqual(["/b"]);
+  });
+
+  it("keeps a lease an older MCP server renews mid-run, though it records no runs", async () => {
+    const { decideStackClaim } = await loadStack();
+    const { STARTUP_WINDOW_MS } = await loadConstants();
+    const record = {
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - STARTUP_WINDOW_MS * 2, lastSeenAt: now - 60_000, holderPids: [4242] }],
+      queue: [],
+      portFreedAt: {},
+    };
+
+    expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive }).isGranted).toBe(false);
+  });
+
+  it("does not extend a lease its holder re-claims", async () => {
+    const { decideStackClaim, decideStackReap } = await loadStack();
+    const { STARTUP_WINDOW_MS } = await loadConstants();
+    const grantedAt = now - STARTUP_WINDOW_MS + 60_000;
+    const record = {
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: grantedAt, lastSeenAt: grantedAt }],
+      queue: [],
+      portFreedAt: {},
+    };
+
+    const reclaimed = decideStackClaim({ record: record, cwd: "/a", needs: [need(3000, "/a", SHA_A)], now: now, isAlive: alive });
+
+    expect(reclaimed.isGranted).toBe(true);
+    expect(reclaimed.next.leases[0]).toMatchObject({ grantedAt: grantedAt, lastSeenAt: grantedAt });
+    expect(decideStackReap({ record: reclaimed.next, now: now + 60_001, isAlive: alive })?.leases).toEqual([]);
+  });
+});
+
+describe("decideStackRunStart and decideStackRunEnd", () => {
+  const now = 1_000_000_000;
+  const alive = () => true;
+  const granted = {
+    leases: [{ cwd: "/a", needs: [{ port: 3000, runDir: "/a", headSha: SHA_A }], grantedAt: now - 1_000, lastSeenAt: now - 1_000 }],
+    queue: [],
+    portFreedAt: {},
+  };
+
+  it("holds the lease from a run's start until the idle window after its end", async () => {
+    const { decideStackReap, decideStackRunEnd, decideStackRunStart } = await loadStack();
+    const { IDLE_RELEASE_MS } = await loadConstants();
+
+    const running = decideStackRunStart({ record: granted, cwd: "/a", runId: "run-1", holderPid: 4242, now: now, isAlive: alive });
+    expect(running?.leases[0]).toMatchObject({ activeRuns: [{ runId: "run-1", holderPid: 4242 }], holderPids: [4242] });
+
+    const ended = decideStackRunEnd({ record: running!, cwd: "/a", runId: "run-1", now: now + 5_000, isAlive: alive });
+    expect(ended?.leases[0].activeRuns).toBeUndefined();
+    expect(ended?.leases[0].lastRunEndedAt).toBe(now + 5_000);
+
+    expect(decideStackReap({ record: ended!, now: now + 5_000 + IDLE_RELEASE_MS - 1, isAlive: alive })).toBeNull();
+    expect(decideStackReap({ record: ended!, now: now + 5_000 + IDLE_RELEASE_MS + 1, isAlive: alive })?.leases).toEqual([]);
+  });
+
+  it("keeps the lease while a parallel run is still in flight", async () => {
+    const { decideStackReap, decideStackRunEnd, decideStackRunStart } = await loadStack();
+    const { IDLE_RELEASE_MS } = await loadConstants();
+
+    const first = decideStackRunStart({ record: granted, cwd: "/a", runId: "run-1", holderPid: 4242, now: now, isAlive: alive });
+    const both = decideStackRunStart({ record: first!, cwd: "/a", runId: "run-2", holderPid: 4242, now: now, isAlive: alive });
+    const oneLeft = decideStackRunEnd({ record: both!, cwd: "/a", runId: "run-1", now: now + 1_000, isAlive: alive });
+
+    expect(both?.leases[0].holderPids).toEqual([4242]);
+    expect(oneLeft?.leases[0].activeRuns?.map((run) => run.runId)).toEqual(["run-2"]);
+    expect(decideStackReap({ record: oneLeft!, now: now + IDLE_RELEASE_MS * 10, isAlive: alive })).toBeNull();
+  });
+});
+
+describe("findVacatedNeeds", () => {
+  const leaseOf = (cwd: string, ...needs: Array<{ port: number; runDir: string; headSha: string }>) => ({
+    cwd: cwd,
+    needs: needs,
+    grantedAt: 0,
+    lastSeenAt: 0,
+  });
+  const web = { port: 3000, runDir: "/a/web", headSha: SHA_A };
+  const api = { port: 8080, runDir: "/base/api", headSha: SHA_BASE };
+
+  it("names the code a dropped lease needed and no remaining lease does", async () => {
+    const { findVacatedNeeds } = await loadStack();
+
+    const vacated = findVacatedNeeds({
+      before: { leases: [leaseOf("/a", web, api), leaseOf("/b", api)], queue: [], portFreedAt: {} },
+      after: { leases: [leaseOf("/b", api)], queue: [], portFreedAt: {} },
+    });
+
+    expect(vacated).toEqual([web]);
+  });
+
+  it("names the old code when a holder re-claims a port at a new commit", async () => {
+    const { findVacatedNeeds } = await loadStack();
+    const newWeb = { ...web, headSha: SHA_B };
+
+    const vacated = findVacatedNeeds({
+      before: { leases: [leaseOf("/a", web)], queue: [], portFreedAt: {} },
+      after: { leases: [leaseOf("/a", newWeb)], queue: [], portFreedAt: {} },
+    });
+
+    expect(vacated).toEqual([web]);
+  });
+});
+
+describe("stopVacatedServices", () => {
+  const vacatedWeb = { port: 3000, runDir: normalized("/wt/a/web"), headSha: SHA_A };
+  const trackedWeb = {
+    name: "web",
+    dir: normalized("/wt/a/web"),
+    port: 3000,
+    pid: 5100,
+    headSha: SHA_A,
+    source: normalized("/wt/a"),
+    isExternal: false,
+  };
+  const devServerChild = { pid: 5102, commandLine: "node react-scripts/start.js", ancestorPids: [5101, 5100] };
+
+  async function stopWith(params: {
+    services?: Array<typeof trackedWeb>;
+    listener: IPortListener | null;
+    remainingLeases?: Array<{ cwd: string; needs: Array<typeof vacatedWeb>; grantedAt: number; lastSeenAt: number }>;
+  }) {
+    const { stopVacatedServices } = await loadStack();
+    const stopped: number[] = [];
+    const report = await stopVacatedServices({
+      vacatedNeeds: [vacatedWeb],
+      remainingLeases: params.remainingLeases ?? [],
+      services: params.services ?? [],
+      readListener: fakeListeners({ 3000: params.listener }),
+      stopProcessTree: async (pid) => {
+        stopped.push(pid);
+      },
+    });
+    return { report: report, stopped: stopped };
+  }
+
+  it("stops the tracked service's whole tree, launcher included", async () => {
+    const { report, stopped } = await stopWith({ services: [trackedWeb], listener: devServerChild });
+
+    expect(stopped).toEqual([5100]);
+    expect(report).toEqual([{ port: 3000, pid: 5100, name: "web", commandLine: "node react-scripts/start.js" }]);
+  });
+
+  it("stops an untracked listener alone, never its parents", async () => {
+    const { stopped } = await stopWith({ listener: devServerChild });
+
+    expect(stopped).toEqual([5102]);
+  });
+
+  it("never stops a service the user started", async () => {
+    const { stopped } = await stopWith({ services: [{ ...trackedWeb, isExternal: true }], listener: devServerChild });
+
+    expect(stopped).toEqual([]);
+  });
+
+  it("leaves a service a remaining lease still needs", async () => {
+    const { stopped } = await stopWith({
+      services: [trackedWeb],
+      listener: devServerChild,
+      remainingLeases: [{ cwd: "/wt/b", needs: [vacatedWeb], grantedAt: 0, lastSeenAt: 0 }],
+    });
+
+    expect(stopped).toEqual([]);
+  });
+
+  it("stops nothing on a port nobody listens on", async () => {
+    const { report, stopped } = await stopWith({ services: [trackedWeb], listener: null });
+
+    expect(stopped).toEqual([]);
+    expect(report).toEqual([]);
+  });
+
+  it("never stops its own process", async () => {
+    const { stopped } = await stopWith({ listener: { pid: process.pid, commandLine: "node mcp", ancestorPids: [] } });
+
+    expect(stopped).toEqual([]);
+  });
+});
+
+describe("releaseServiceStack", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.doUnmock("../shared/service-stack/port-listener.js");
+    vi.doUnmock("../shared/service-stack/process-tree-stopper.js");
+  });
+
+  it("stops the services the released lease ran, and reports them", async () => {
+    const stoppedPids: number[] = [];
+    vi.doMock("../shared/service-stack/port-listener.js", () => ({
+      readPortListener: async () => ({ isReadable: true, listener: { pid: 6200, commandLine: "node serve build 3000", ancestorPids: [] } }),
+    }));
+    vi.doMock("../shared/service-stack/process-tree-stopper.js", () => ({
+      stopProcessTree: async (pid: number) => {
+        stoppedPids.push(pid);
+      },
+    }));
+    vi.stubEnv("MUGGLE_STACK_SERVICE_STOPS", "on");
+    const { claimServiceStack, releaseServiceStack } = await loadStack();
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    const report = await releaseServiceStack({ cwd: "/wt/a", runGit: git });
+
+    expect(report.isReleased).toBe(true);
+    expect(stoppedPids).toEqual([6200]);
+    expect(report.stoppedServices).toMatchObject([{ port: 3000, pid: 6200, name: null }]);
+  });
+
+  it("stops nothing while the test config turns stops off", async () => {
+    const { claimServiceStack, releaseServiceStack } = await loadStack();
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    expect((await releaseServiceStack({ cwd: "/wt/a", runGit: git })).stoppedServices).toEqual([]);
   });
 });

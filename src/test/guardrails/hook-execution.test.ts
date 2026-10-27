@@ -882,7 +882,9 @@ describe("guardrail never-block fallback", () => {
 
   it("the shared runner falls back to {} and swallows stderr", () => {
     const body = readFileSync(join(SCRIPTS, LIB), "utf-8");
-    expect(body).toMatch(/node "\$\{root\}\/scripts\/guardrails\.mjs" "\$@" 2>\/dev\/null \|\| printf '\{\}'/);
+    expect(body).toMatch(
+      /node "\$\{root\}\/scripts\/guardrails\.mjs" "\$@" <<<"\$GUARDRAIL_PAYLOAD" 2>\/dev\/null \|\| printf '\{\}'/,
+    );
   });
 
   it("no gate script calls Node except through the shared runner", () => {

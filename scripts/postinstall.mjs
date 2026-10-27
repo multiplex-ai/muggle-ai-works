@@ -26,8 +26,13 @@ import { pipeline } from "stream/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { pointClaudeMarketplaceAtPackage } from "./claude-marketplace-sync.mjs";
-import { buildElectronAppDirName, isOutdatedStreamInstall } from "./electron-app-install-dir.mjs";
+import {
+    buildElectronAppDirName,
+    isOutdatedStreamInstall,
+    shouldKeepVersionOverride,
+} from "./electron-app-install-dir.mjs";
 import { backfillOnboardingStamp } from "./onboarding-backfill.mjs";
+import { listRunningInstallDirectoryNames, normalizeInstallDirectoryName } from "./running-studio-installs.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
     resolveIntegrityPolicy,
@@ -114,20 +119,54 @@ function logError(...args) {
 }
 
 /**
- * Remove the electron-app version override file if it exists.
- * Each new install should use the bundled version from package.json.
- * Users can still override manually after install, but it resets on next install.
+ * Get the Electron app version this package pins.
+ * @returns {string} Bundled version from package.json
  */
-function removeVersionOverrideFile() {
-    const overridePath = join(homedir(), ".muggle-ai", VERSION_OVERRIDE_FILE_NAME);
+function getBundledElectronAppVersion() {
+    return (require("../package.json").muggleConfig || {}).electronAppVersion || "1.0.0";
+}
 
-    if (existsSync(overridePath)) {
-        try {
-            rmSync(overridePath, { force: true });
-            log(`Removed version override file: ${overridePath}`);
-        } catch (error) {
-            logError(`Failed to remove version override file: ${error.message}`);
-        }
+function getVersionOverridePath() {
+    return join(getDataDir(), VERSION_OVERRIDE_FILE_NAME);
+}
+
+/**
+ * Read the version the electron-app override file names.
+ * @returns {string | null} Override version, or null when the file is missing or unreadable
+ */
+function readVersionOverrideVersion() {
+    try {
+        const overrideContent = JSON.parse(readFileSync(getVersionOverridePath(), "utf-8"));
+        return typeof overrideContent.version === "string" && overrideContent.version ? overrideContent.version : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Remove the electron-app version override file unless it names a release newer
+ * than the bundled one. A newer pick was made on purpose and outlives the
+ * install; an override the pin has caught up with would hold users on an old
+ * studio, so it resets to the bundled version.
+ */
+function resetStaleVersionOverrideFile() {
+    const overridePath = getVersionOverridePath();
+    if (!existsSync(overridePath)) {
+        return;
+    }
+
+    const overrideVersion = readVersionOverrideVersion();
+    const bundledVersion = getBundledElectronAppVersion();
+    if (overrideVersion && shouldKeepVersionOverride({ overrideVersion: overrideVersion, bundledVersion: bundledVersion })) {
+        log(`Kept version override v${overrideVersion}: newer than the bundled v${bundledVersion}`);
+        return;
+    }
+
+    try {
+        rmSync(overridePath, { force: true });
+        log(`Removed version override file: ${overridePath}`);
+    } catch (error) {
+        logError(`Failed to remove version override file: ${error.message}`);
     }
 }
 
@@ -374,7 +413,10 @@ async function verifyFileChecksum(filePath, expectedChecksum) {
 }
 
 /**
- * Remove this release stream's Electron app directories other than the current install.
+ * Remove this release stream's Electron app directories older than the current
+ * install. A directory the version override names, or one a running process
+ * executes from, is another session's runner and stays; when running processes
+ * cannot be listed, nothing is removed.
  * @param {object} params - Cleanup parameters
  * @param {string} params.appDir - Base Electron app directory
  * @param {string} params.releaseStream - Stream the current install belongs to
@@ -385,32 +427,49 @@ function cleanupOutdatedStreamInstalls({ appDir, releaseStream, currentDirectory
         return;
     }
 
-    const appEntries = readdirSync(appDir, { withFileTypes: true });
-
-    for (const appEntry of appEntries) {
-        if (!appEntry.isDirectory()) {
-            continue;
-        }
-
-        if (
-            !isOutdatedStreamInstall({
-                directoryName: appEntry.name,
+    const outdatedDirectoryNames = readdirSync(appDir, { withFileTypes: true })
+        .filter((appEntry) => appEntry.isDirectory())
+        .map((appEntry) => appEntry.name)
+        .filter((directoryName) =>
+            isOutdatedStreamInstall({
+                directoryName: directoryName,
                 releaseStream: releaseStream,
                 currentDirectoryName: currentDirectoryName,
-            })
-        ) {
+            }),
+        );
+    if (outdatedDirectoryNames.length === 0) {
+        return;
+    }
+
+    const runningDirectoryNames = listRunningInstallDirectoryNames({ appDir: appDir });
+    if (runningDirectoryNames === null) {
+        log("Could not list running processes; keeping outdated Electron app versions until the next install.");
+        return;
+    }
+    const overrideVersion = readVersionOverrideVersion();
+    const overrideDirectoryName = overrideVersion
+        ? buildElectronAppDirName({ version: overrideVersion, releaseStream: releaseStream })
+        : null;
+
+    for (const directoryName of outdatedDirectoryNames) {
+        if (directoryName === overrideDirectoryName) {
+            log(`Keeping Electron app version ${directoryName}: the version override names it`);
+            continue;
+        }
+        if (runningDirectoryNames.has(normalizeInstallDirectoryName(directoryName))) {
+            log(`Keeping Electron app version ${directoryName}: a running process uses it`);
             continue;
         }
 
-        const staleVersionDir = join(appDir, appEntry.name);
+        const staleVersionDir = join(appDir, directoryName);
         try {
-            log(`Removing stale Electron app version: ${appEntry.name}`);
+            log(`Removing stale Electron app version: ${directoryName}`);
             rmSync(staleVersionDir, { recursive: true, force: true });
         } catch (error) {
             logError("\n========================================");
             logError("ERROR: Failed to remove stale Electron app version");
             logError("========================================\n");
-            logError("Version:", appEntry.name);
+            logError("Version:", directoryName);
             logError("Path:", staleVersionDir);
             logError("\nFull error details:");
             logError(error instanceof Error ? error.stack || error : error);
@@ -639,7 +698,7 @@ async function downloadElectronApp() {
         // Read config from package.json
         const packageJson = require("../package.json");
         const config = packageJson.muggleConfig || {};
-        const version = config.electronAppVersion || "1.0.0";
+        const version = getBundledElectronAppVersion();
         const baseUrl = config.downloadBaseUrl || "https://github.com/multiplex-ai/muggle-ai-works/releases/download";
 
         const runtimeTarget = resolveRuntimeTarget(config);
@@ -990,7 +1049,7 @@ function logOnboardingBackfill() {
 // Windows) keeps the event loop alive — see issue #167.
 initLogFile();
 logOnboardingBackfill();
-removeVersionOverrideFile();
+resetStaleVersionOverrideFile();
 syncCursorSkills();
 syncClaudeMarketplace();
 applyWatchServicePreference();

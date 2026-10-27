@@ -18,7 +18,7 @@ The sessions directory holds every chat's slots, so a selector drawn from the wh
 
 1. Read the session plan — the current session's TodoWrite list.
 2. **Pending items remain** → do not prompt. Append `next-step: plan has <N> pending — advancing` to `followup.log` and continue to the next pending item. The user set a course; honor it.
-3. **No pending items** → print the [status block](#status-block), then ask with one `AskUserQuestion` [selector](#selector). The status block always comes first: a selector without it asks the user to decide blind.
+3. **No pending items** → print the [status block](#status-block), then ask the [selector](#selector) — with one `AskUserQuestion`, or as text while this chat still watches an open PR. The status block always comes first: a selector without it asks the user to decide blind.
 4. Append the chosen outcome to `followup.log`.
 
 Both appends target `<slug>`'s `followup.log` and are skipped once teardown's report marks `Session slot cleared` ✅ — the log went with the slot, and an append would recreate the directory.
@@ -54,3 +54,5 @@ At most four options, in this order:
 3. **Done — stop here** — exit with no further action.
 
 A new task goes through the selector's free-text answer, which starts a fresh `/muggle-do` forward run.
+
+**Text while a watch runs.** When the status block holds an `open` or `blocked` line, print the selector as text — one numbered option per line — and end the turn on the question; the user's next message is the pick. A pending `AskUserQuestion` holds the turn, and every watcher this chat runs with it: a rollover goes unanswered and the watcher stays dead until the user replies. With no such line, ask with one `AskUserQuestion`. The adopt selector under **Other chats' work** follows the same rule.

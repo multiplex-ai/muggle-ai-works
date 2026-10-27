@@ -77,6 +77,7 @@ import {
 } from "./shouldRunE2E.js";
 import {
   findUnwatchedHandledPrs,
+  ownsOpenWatchSlot,
   prsAwaitingStateScan,
   resolveOwedWatchPrs,
   scanProviderPrStates,
@@ -205,10 +206,19 @@ function muggleSkill(slashCommand: string): string {
 }
 
 // Codex offers its structured question tool only in some modes, so there the
-// next-options offer is the question the turn closes on.
-function nextOptionsOfferMethod(): string {
-  return host === "codex"
-    ? "by asking them in your closing message (request_user_input where it is available)"
+// next-options offer is the question the turn closes on. Claude Code asks it the
+// same way while the session still owns an open PR's watch: a pending
+// AskUserQuestion holds the turn, so that watcher's rollover goes unanswered
+// until the user replies.
+function isOfferAskedInClosingMessage(): boolean {
+  return host === "codex" || ownsOpenWatchSlot(sessionId);
+}
+
+function nextOptionsOfferMethod(isAskedInClosingMessage: boolean): string {
+  if (host === "codex") return "by asking them in your closing message (request_user_input where it is available)";
+  return isAskedInClosingMessage
+    ? "as text in your closing message, numbered and ending on the question — this session still watches an open " +
+        "PR, and an AskUserQuestion would hold the turn while its watcher goes unanswered"
     : "via AskUserQuestion";
 }
 
@@ -275,7 +285,8 @@ function prTerminal(): string {
   const ctx =
     `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: ` +
     `finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ` +
-    `${nextOptionsOfferMethod()} — release, queued work, deferred items. The stop gate holds until the offer runs.`;
+    `${nextOptionsOfferMethod(isOfferAskedInClosingMessage())} — release, queued work, deferred items. ` +
+    `The stop gate holds until the offer runs.`;
   return envelope("PostToolUse", ctx, host);
 }
 
@@ -289,10 +300,11 @@ function offerRan(): string {
 
 function terminalGate(): string {
   const pendingState = readState(sessionId);
+  const isAskedInClosingMessage = isOfferAskedInClosingMessage();
   // Where the offer is the closing question rather than a tool call, the turn
   // that asks it is the offer: the gate's only exit, applied at the turn end.
   const state =
-    host === "codex" && closingMessageAsksUser(input.last_assistant_message)
+    isAskedInClosingMessage && closingMessageAsksUser(closingAssistantText())
       ? applyNextOptionsOffered(pendingState)
       : pendingState;
   if (state !== pendingState) writeState(state);
@@ -307,10 +319,10 @@ function terminalGate(): string {
     decision.blockCount === 1
       ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge ` +
         `handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next ` +
-        `options to the user ${nextOptionsOfferMethod()} — release, queued work, deferred items. Only ` +
-        `that offer clears this gate.`
+        `options to the user ${nextOptionsOfferMethod(isAskedInClosingMessage)} — release, queued work, ` +
+        `deferred items. Only that offer clears this gate.`
       : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): ` +
-        `finalize + tear down, then offer the next options ${nextOptionsOfferMethod()}.`;
+        `finalize + tear down, then offer the next options ${nextOptionsOfferMethod(isAskedInClosingMessage)}.`;
   return blockStop(reason, host);
 }
 

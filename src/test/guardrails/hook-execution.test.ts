@@ -397,6 +397,68 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(runHook("terminal-gate", event({ session_id: session })).out).toBe("{}");
   });
 
+  // A pending AskUserQuestion holds the turn, so a session still watching another
+  // PR offers in prose: the question its closing message asks clears the gate.
+  describe("while the session still watches an open PR", () => {
+    const mergeEvent = (session: string): string =>
+      event({
+        session_id: session,
+        tool_name: "Bash",
+        tool_input: { command: "gh pr merge 556 --squash" },
+        tool_response: { stderr: "✓ Squashed and merged pull request #556 (fix: watcher)\n" },
+      });
+    const seedOwnedOpenSlot = (session: string): void => {
+      writeSessionSlotFiles(home, `works-pr533-${session}`, {
+        "owner.json": JSON.stringify({ session_id: session, claimed_at: "2026-10-26T00:00:00Z" }),
+        "prs.json": JSON.stringify([{ url: "https://github.com/o/r/pull/533", state: "OPEN" }]),
+      });
+    };
+
+    it("pr-terminal -> terminal-gate: directs a text offer and clears on the closing question", () => {
+      const session = "watching-merge";
+      seedOwnedOpenSlot(session);
+      const nudge = JSON.parse(runHook("pr-terminal", mergeEvent(session)).out);
+      expect(nudge.hookSpecificOutput.additionalContext).toContain("as text in your closing message");
+
+      const blocked = JSON.parse(
+        runHook("terminal-gate", event({ session_id: session, last_assistant_message: "#556 merged and cleaned up." })).out,
+      );
+      expect(blocked.decision).toBe("block");
+      expect(blocked.reason).toContain("closing message");
+
+      expect(
+        runHook(
+          "terminal-gate",
+          event({ session_id: session, last_assistant_message: "1. Re-arm #533\n2. Done — stop here\nWhich one?" }),
+        ).out,
+      ).toBe("{}");
+    });
+
+    it("terminal-gate: reads the closing question from the Claude Code transcript", () => {
+      const session = "watching-transcript";
+      seedOwnedOpenSlot(session);
+      runHook("pr-terminal", mergeEvent(session));
+      const transcriptPath = join(home, "transcript.jsonl");
+      writeFileSync(
+        transcriptPath,
+        JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "Next: 1. Done — which?" }] } }) +
+          "\n",
+      );
+      expect(runHook("terminal-gate", event({ session_id: session, transcript_path: transcriptPath })).out).toBe("{}");
+    });
+
+    it("terminal-gate: a slot owned by another session keeps the AskUserQuestion rule", () => {
+      const session = "foreign-watch";
+      seedOwnedOpenSlot("someone-else");
+      runHook("pr-terminal", mergeEvent(session));
+      const blocked = JSON.parse(
+        runHook("terminal-gate", event({ session_id: session, last_assistant_message: "Merged. What next?" })).out,
+      );
+      expect(blocked.decision).toBe("block");
+      expect(blocked.reason).toContain("AskUserQuestion");
+    });
+  });
+
   it("terminal-gate: full instruction once, one-line reminders after, hard release after 3 blocks", () => {
     const session = "terminal-cap";
     runHook(
@@ -767,7 +829,7 @@ describe("guardrail hook execution under Codex (cli entry)", () => {
     expect(runHook("terminal-gate", { session_id: "cx-ask", last_assistant_message: "Done." })).toBe("{}");
   });
 
-  // Claude Code has AskUserQuestion, so a question in prose is not the offer there.
+  // Claude Code has AskUserQuestion, so with no open PR still watched a question in prose is not the offer there.
   it("terminal-gate: a closing question does not stand in for the offer under Claude Code", () => {
     runHook(
       "pr-terminal",

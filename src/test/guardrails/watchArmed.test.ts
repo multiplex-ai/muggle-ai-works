@@ -7,6 +7,7 @@ import {
   applyWatchSkip,
   findUnwatchedHandledPrs,
   lookupProviderPrState,
+  ownsOpenWatchSlot,
   prsAwaitingStateScan,
   resolveOwedWatchPrs,
   resolveWatchSlotStatus,
@@ -199,6 +200,52 @@ describe("findUnwatchedHandledPrs", () => {
 
   it("returns [] for no handled urls without scanning", () => {
     expect(findUnwatchedHandledPrs([], sessions)).toEqual([]);
+  });
+});
+
+describe("ownsOpenWatchSlot", () => {
+  const SESSION_ID = "chat-1";
+  let sessions: string;
+  const seedSlot = (slug: string, files: Record<string, string>): void => {
+    const dir = join(sessions, slug);
+    mkdirSync(dir, { recursive: true });
+    for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body);
+  };
+  const ownedBy = (sessionId: string): string => JSON.stringify({ session_id: sessionId, claimed_at: "2026-10-26T00:00:00Z" });
+  const prsJson = (prState: string): string => JSON.stringify([{ url: "https://x/pull/1", state: prState }]);
+
+  beforeEach(() => {
+    sessions = mkdtempSync(join(tmpdir(), "owned-scan-"));
+  });
+
+  it("is true for an owned slot whose PR is open, live heartbeat or not", () => {
+    seedSlot("seeded", { "owner.json": ownedBy(SESSION_ID), "prs.json": prsJson("OPEN") });
+    expect(ownsOpenWatchSlot(SESSION_ID, sessions)).toBe(true);
+  });
+
+  it("is false when every open slot belongs to another session or to none", () => {
+    seedSlot("foreign", { "owner.json": ownedBy("chat-2"), "prs.json": prsJson("OPEN") });
+    seedSlot("unowned", { "prs.json": prsJson("OPEN") });
+    expect(ownsOpenWatchSlot(SESSION_ID, sessions)).toBe(false);
+  });
+
+  it("is false for an owned slot that is finalized or records its PR merged or closed", () => {
+    seedSlot("finalized", { "owner.json": ownedBy(SESSION_ID), "prs.json": prsJson("OPEN"), "result.md": "# merged" });
+    seedSlot("merged", { "owner.json": ownedBy(SESSION_ID), "prs.json": prsJson("MERGED") });
+    seedSlot("closed", { "owner.json": ownedBy(SESSION_ID), "prs.json": prsJson("closed") });
+    expect(ownsOpenWatchSlot(SESSION_ID, sessions)).toBe(false);
+  });
+
+  it("is false for an owned slot with no readable PR", () => {
+    seedSlot("no-prs", { "owner.json": ownedBy(SESSION_ID) });
+    seedSlot("broken", { "owner.json": ownedBy(SESSION_ID), "prs.json": "{not json" });
+    expect(ownsOpenWatchSlot(SESSION_ID, sessions)).toBe(false);
+  });
+
+  it("is false for an empty session id or a missing sessions dir", () => {
+    seedSlot("blank-owner", { "owner.json": ownedBy(""), "prs.json": prsJson("OPEN") });
+    expect(ownsOpenWatchSlot("", sessions)).toBe(false);
+    expect(ownsOpenWatchSlot(SESSION_ID, join(sessions, "absent"))).toBe(false);
   });
 });
 

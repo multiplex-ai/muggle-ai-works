@@ -126,6 +126,13 @@ describe("do/next-step.md — selector", () => {
     expect(SELECTOR).toMatch(/listing adopts nothing/i);
   });
 
+  it("prints the selector as text while this chat still watches an open PR", () => {
+    expect(PROCEDURE).toMatch(/or as text while this chat still watches an open PR/);
+    expect(SELECTOR).toMatch(/holds an `open` or `blocked` line, print the selector as text/);
+    expect(SELECTOR).toMatch(/pending `AskUserQuestion` holds the turn, and every watcher this chat runs with it/);
+    expect(SELECTOR).toMatch(/With no such line, ask with one `AskUserQuestion`/);
+  });
+
   it("orders this chat, then other chats, then done", () => {
     const thisChat = SELECTOR.indexOf("**This chat's follow-ups**");
     const otherChats = SELECTOR.indexOf("**Other chats' work**");

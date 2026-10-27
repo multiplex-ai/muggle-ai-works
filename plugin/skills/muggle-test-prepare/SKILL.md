@@ -119,7 +119,7 @@ Cleanup stops only what runs from the caller's own checkout. Another checkout's 
 4. Wait ~2 s, verify with `kill -0`
 5. If still alive: `kill -9 <pid>`
 6. Delete that checkout's log directory and tracking file
-7. `muggle stack release --cwd "<caller's checkout>"` — gives up the lease, so the next session in line can have the ports. Run it even when nothing was stopped (a stack shared with peers, or "leave services running"): the services may stay up, but a lease nobody uses only makes peers wait for it to expire
+7. `muggle stack release --cwd "<caller's checkout>"` — gives up the lease, so the next session in line can have the ports, and stops every service on its ports that no remaining lease needs, tracked or not. A service another session's lease still needs (a shared base checkout) stays up. Run it as soon as testing ends; a lease no run uses ends on its own two minutes after the last run
 
 Report:
 
@@ -134,7 +134,7 @@ Stopped 3 services:
 
 `muggle-test-feature-local`, `muggle-do`, and local-mode `muggle-test` MUST invoke this skill before any workflow step. Idempotent — fast exit when healthy. Treat success as short-lived; re-invoke if more than a few minutes pass before testing. Never bypass on "the user knows their stack is up" — that assumption is why this skill exists.
 
-After a test run, the caller can re-invoke for cleanup or leave services running for the next run.
+After a test run, the caller re-invokes for cleanup once the batch is done. Services stay up only while runs keep coming: two minutes after the last run, the lease ends and its services stop ([claim-stack](./steps/claim-stack.md#the-lease)).
 
 **The caller's checkout.** Invoke from the checkout under test — the worktree the change lives in. Its repo is the repo under test, and its services start from that checkout; every other repo's services start from that repo's base checkout ([resolve-sources](./steps/resolve-sources.md)). Pass `base` when the change targets a branch other than the remote default.
 

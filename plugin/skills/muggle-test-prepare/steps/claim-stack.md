@@ -25,12 +25,16 @@ The claim answers at once. It never waits on a peer unless asked to.
 
 ## The lease
 
-A granted claim is a lease. Every claim, `muggle stack check`, and every local execute run renews it. The lease lasts across the whole batch: prepare once, run every test case, then release it in [Cleanup](../SKILL.md#cleanup). A lease that is never released still ends, and its ports pass to whoever is next in line:
+A granted claim is a lease, and it is held only while this session is testing. Each local execute run records itself on the lease while it is in flight. Nothing else extends it: not a re-claim, and not `muggle stack check`. So go straight from the grant to starting services and running. Never hold a lease while rebasing, editing code or waiting on CI; a renew loop cannot keep it. The lease ends, and its ports pass to whoever is next in line, when:
 
-- **The session died.** Each run records the session's MCP server as a holder of the lease. Once every holder has exited and a minute has passed with no renewal, the lease ends. The minute rides out an MCP server restart.
-- **Nobody renewed it for 20 minutes.** This covers a lease that never ran a test, so it has no holder to watch.
+- **Two minutes pass with no run in flight** after the last run ended. That covers the turn between consecutive runs of one batch. Debugging a failure, rebasing or fixing code takes longer: the lease ends, and prepare re-claims before the next run.
+- **15 minutes pass after the grant with no run started.** That is the time prepare has to start its services.
+- **The session died.** Each run records the session's MCP server as a holder. Once every holder has exited and a minute has passed, the lease ends. The minute rides out an MCP server restart.
+- **It is released** in [Cleanup](../SKILL.md#cleanup).
 
-The lease belongs to the checkout, not to one run. Every test case of the same change, including cases run in parallel, runs under it and renews it, and none of them waits on the others.
+**A lease that ends takes its services with it.** Whatever listens on a port whose code no remaining lease needs is stopped. That covers services prepare started and ones started by hand, along with their launchers. The session's own MCP server ends the lease two minutes after its last run. Otherwise the next claim, run or release on the machine does it. A service marked `external: true` is never stopped, and neither is one another lease still needs.
+
+The lease belongs to the checkout, not to one run. Every test case of the same change, including cases run in parallel, runs under it, and none of them waits on the others.
 
 The line is first come, first served per port, and it is pulled, not pushed: nothing calls a waiting session back. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
 

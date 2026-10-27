@@ -202,7 +202,7 @@ function createProgram (): Command {
 
   stack
     .command("check")
-    .description("Check that the stack still serves what this checkout claimed, renewing the lease")
+    .description("Check that the stack still serves what this checkout claimed; only runs keep the lease alive")
     .option("--cwd <dir>", "Directory inside the checkout (default: the current directory)")
     .option("--port <port>", "Port the run will target")
     .option("--json", "Print the full report as JSON")

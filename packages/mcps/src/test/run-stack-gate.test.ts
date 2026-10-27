@@ -71,6 +71,43 @@ describe("findRunStackRefusal", () => {
     expect(refusal?.mismatches[0].kind).toBe(StackMismatchKind.UntrackedListener);
   });
 
+  it("holds the caller's lease only while the run is in flight", async () => {
+    const { runUnderStackLease } = await import("../mcp/local/services/run-stack-gate.js");
+    const { claimServiceStack, readServiceStackStatus } = await import("../shared/service-stack/index.js");
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3999, runDir: "/wt/a/web" }], runGit: git });
+
+    const runsInFlight = await runUnderStackLease({
+      cwd: "/wt/a",
+      localUrl: "http://localhost:3999",
+      runGit: git,
+      execute: async () => (await readServiceStackStatus()).leases[0].activeRuns?.length,
+    });
+    const lease = (await readServiceStackStatus()).leases[0];
+
+    expect(runsInFlight).toBe(1);
+    expect(lease.activeRuns).toBeUndefined();
+    expect(lease.lastRunEndedAt).toBeTypeOf("number");
+    expect(lease.holderPids).toEqual([process.pid]);
+  });
+
+  it("records the run's end when the run throws, and rethrows", async () => {
+    const { runUnderStackLease } = await import("../mcp/local/services/run-stack-gate.js");
+    const { claimServiceStack, readServiceStackStatus } = await import("../shared/service-stack/index.js");
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3999, runDir: "/wt/a/web" }], runGit: git });
+
+    await expect(
+      runUnderStackLease({
+        cwd: "/wt/a",
+        localUrl: "http://localhost:3999",
+        runGit: git,
+        execute: async () => {
+          throw new Error("electron crashed");
+        },
+      }),
+    ).rejects.toThrow("electron crashed");
+    expect((await readServiceStackStatus()).leases[0].activeRuns).toBeUndefined();
+  });
+
   it("never gates a remote target", async () => {
     const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
     const { claimServiceStack } = await import("../shared/service-stack/index.js");

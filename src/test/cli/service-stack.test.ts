@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseStackNeed, renderStackClaimSummary } from "../../cli/service-stack";
+import { parseStackNeed, renderStackClaimSummary, renderStackReleaseSummary } from "../../cli/service-stack";
 import { StackClaimVerdict, StackPortAction, type IStackClaimReport } from "@muggleai/mcp";
 
 describe("parseStackNeed", () => {
@@ -30,7 +30,16 @@ describe("renderStackClaimSummary", () => {
     position: null,
     queueLength: 0,
     retryAfterMs: null,
+    stoppedServices: [],
   };
+
+  it("names each service a claim stopped because no lease needed it", () => {
+    const summary = renderStackClaimSummary({
+      ...base,
+      stoppedServices: [{ port: 3999, pid: 4410, name: "muggle-ai-ui-dashboard", commandLine: "node serve build 3999" }],
+    });
+    expect(summary).toContain("stopped 3999: muggle-ai-ui-dashboard (PID 4410)");
+  });
 
   it("lists what to do with each port when granted", () => {
     const summary = renderStackClaimSummary({
@@ -61,5 +70,15 @@ describe("renderStackClaimSummary", () => {
     });
     expect(summary).toContain("place 2 of 3 in line");
     expect(summary).toContain("port 3000: agent-b (/wt/b) holds /wt/b/web @ bbbbbbb (for 90s)");
+  });
+});
+
+describe("renderStackReleaseSummary", () => {
+  it("lists the untracked listeners a release stopped by their command line", () => {
+    const summary = renderStackReleaseSummary({
+      isReleased: true,
+      stoppedServices: [{ port: 5054, pid: 7712, name: null, commandLine: "node dist/server.js" }],
+    });
+    expect(summary).toBe("released\nstopped 5054: node dist/server.js (PID 7712) — no lease needs it any more");
   });
 });

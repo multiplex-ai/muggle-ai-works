@@ -8,22 +8,29 @@
  * lease needs the old code. Waiting checkouts are served first come, first
  * served per port, and a checkout keeps its turn for a grace window after the
  * port frees, so an agent that stepped away is not overtaken the moment it does.
+ *
+ * A lease is held only while its session is testing: a run in flight keeps it,
+ * and once none is, it ends shortly after the last one finished.
  */
 
 import {
   CLAIM_GRACE_MS,
   DEAD_HOLDER_GRACE_MS,
-  LEASE_TTL_MS,
+  IDLE_RELEASE_MS,
+  MAX_RUN_MS,
   OWED_RETRY_AFTER_MS,
+  STARTUP_WINDOW_MS,
   SUGGESTED_RETRY_AFTER_MS,
   TICKET_ABANDON_MS,
 } from "./service-stack-constants.js";
 import type {
+  IStackActiveRun,
   IStackBlocker,
   IStackClaimDecision,
   IStackLease,
   IStackNeed,
   IStackRecord,
+  IStackReleaseDecision,
   IStackTicket,
 } from "./service-stack-types.js";
 
@@ -43,9 +50,11 @@ export function needsConflict(left: IStackNeed, right: IStackNeed): boolean {
  * Drop ended leases and abandoned tickets, recording when each port they
  * needed stopped being needed.
  *
- * A lease ends when nobody renewed it for {@link LEASE_TTL_MS}, or sooner when
- * every holder process it recorded has exited and it has gone
- * {@link DEAD_HOLDER_GRACE_MS} without renewal — its session is dead.
+ * A lease with a run in flight never ends for idleness. Without one it ends
+ * {@link IDLE_RELEASE_MS} after its last run finished, or
+ * {@link STARTUP_WINDOW_MS} after the grant when it has not run yet. It ends
+ * sooner when every holder process it recorded has exited and it has gone
+ * {@link DEAD_HOLDER_GRACE_MS} untouched — its session is dead.
  *
  * @param params.record - The committed record.
  * @param params.now - Current time (ms since epoch).
@@ -78,8 +87,8 @@ export function sweepStackRecord(params: {
  * owed its turn, needs different code on any of the caller's ports; otherwise
  * queue the caller and name what blocks it.
  *
- * A re-claim from a checkout that already holds a lease replaces its needs and
- * renews it.
+ * A re-claim from a checkout that already holds a lease replaces its needs but
+ * does not extend it: only runs keep a lease alive.
  *
  * @param params.record - The committed record as read.
  * @param params.cwd - The caller's normalized checkout root.
@@ -127,14 +136,10 @@ export function decideStackClaim(params: {
   }
 
   const ownLease = swept.leases.find((lease) => lease.cwd === params.cwd);
-  const grantedLease: IStackLease = {
-    cwd: params.cwd,
-    label: params.label ?? ownLease?.label,
-    needs: params.needs,
-    grantedAt: ownLease?.grantedAt ?? params.now,
-    lastSeenAt: params.now,
-    holderPids: ownLease?.holderPids,
-  };
+  const grantedLease: IStackLease =
+    ownLease === undefined
+      ? { cwd: params.cwd, label: params.label, needs: params.needs, grantedAt: params.now, lastSeenAt: params.now }
+      : { ...ownLease, label: params.label ?? ownLease.label, needs: params.needs };
   const leases = [...peerLeases, grantedLease];
   return {
     isGranted: true,
@@ -159,61 +164,161 @@ export function decideStackClaim(params: {
 }
 
 /**
- * Remove the caller's lease and its place in line.
+ * Remove the caller's lease and its place in line, and drop every other lease
+ * that has ended.
  *
- * @returns The record to commit, or null when the caller holds neither.
+ * @returns The record to commit (null when nothing changes), and whether the caller held anything.
  */
-export function decideStackRelease(params: { record: IStackRecord; cwd: string; now: number }): IStackRecord | null {
-  const ownLease = params.record.leases.find((lease) => lease.cwd === params.cwd);
-  const isQueued = params.record.queue.some((ticket) => ticket.cwd === params.cwd);
-  if (ownLease === undefined && !isQueued) return null;
+export function decideStackRelease(params: {
+  record: IStackRecord;
+  cwd: string;
+  now: number;
+  isAlive: (pid: number) => boolean;
+}): IStackReleaseDecision {
+  const isReleased =
+    params.record.leases.some((lease) => lease.cwd === params.cwd) ||
+    params.record.queue.some((ticket) => ticket.cwd === params.cwd);
+  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  if (!isReleased) return { next: hasSweepDropped({ record: params.record, swept: swept }) ? swept : null, isReleased: false };
 
-  const leases = params.record.leases.filter((lease) => lease.cwd !== params.cwd);
-  return {
+  const ownLease = swept.leases.find((lease) => lease.cwd === params.cwd);
+  const leases = swept.leases.filter((lease) => lease.cwd !== params.cwd);
+  const next: IStackRecord = {
     leases: leases,
-    queue: params.record.queue.filter((ticket) => ticket.cwd !== params.cwd),
+    queue: swept.queue.filter((ticket) => ticket.cwd !== params.cwd),
     portFreedAt: markFreedPorts({
-      portFreedAt: params.record.portFreedAt,
+      portFreedAt: swept.portFreedAt,
       releasedNeeds: ownLease?.needs ?? [],
       remainingLeases: leases,
       now: params.now,
     }),
   };
+  return { next: next, isReleased: true };
 }
 
 /**
- * Renew the caller's lease, recording the process renewing it as a holder.
+ * Drop every lease and ticket that has ended.
  *
- * Every parallel run from one checkout renews the same lease; each adds its
- * MCP server's pid once, and holders that have exited are dropped.
- *
- * @param params.holderPid - Long-lived process renewing it (an MCP server); omitted by one-shot callers.
- * @returns The record to commit, or null when the caller holds no live lease.
+ * @returns The record to commit, or null when nothing has ended.
  */
-export function decideStackRenewal(params: {
+export function decideStackReap(params: {
   record: IStackRecord;
-  cwd: string;
   now: number;
   isAlive: (pid: number) => boolean;
-  holderPid?: number;
+}): IStackRecord | null {
+  const swept = sweepStackRecord(params);
+  return hasSweepDropped({ record: params.record, swept: swept }) ? swept : null;
+}
+
+/**
+ * Record a run starting under the caller's lease, and its MCP server as a holder.
+ *
+ * Every parallel run from one checkout runs under the same lease; each adds
+ * its MCP server's pid once, and holders that have exited are dropped.
+ *
+ * @param params.runId - Id the run ends by.
+ * @param params.holderPid - MCP server executing the run.
+ * @returns The record to commit, or null when the caller holds no live lease and nothing else ended.
+ */
+export function decideStackRunStart(params: {
+  record: IStackRecord;
+  cwd: string;
+  runId: string;
+  holderPid: number;
+  now: number;
+  isAlive: (pid: number) => boolean;
 }): IStackRecord | null {
   const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
-  if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return null;
-  const renew = (lease: IStackLease): IStackLease => {
+  if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return decideStackReap(params);
+  const start = (lease: IStackLease): IStackLease => {
     const liveHolders = (lease.holderPids ?? []).filter((pid) => params.isAlive(pid));
-    const isNewHolder = params.holderPid !== undefined && !liveHolders.includes(params.holderPid);
-    const holderPids = isNewHolder ? [...liveHolders, params.holderPid as number] : liveHolders;
-    return { ...lease, lastSeenAt: params.now, holderPids: holderPids.length > 0 ? holderPids : undefined };
+    const holderPids = liveHolders.includes(params.holderPid) ? liveHolders : [...liveHolders, params.holderPid];
+    const run: IStackActiveRun = { runId: params.runId, holderPid: params.holderPid, startedAt: params.now };
+    return {
+      ...lease,
+      lastSeenAt: params.now,
+      holderPids: holderPids,
+      activeRuns: [...liveRuns({ lease: lease, now: params.now, isAlive: params.isAlive }), run],
+    };
   };
-  return { ...swept, leases: swept.leases.map((lease) => (lease.cwd === params.cwd ? renew(lease) : lease)) };
+  return { ...swept, leases: swept.leases.map((lease) => (lease.cwd === params.cwd ? start(lease) : lease)) };
+}
+
+/**
+ * Record a run under the caller's lease ending, which starts its idle window
+ * once no other run is in flight.
+ *
+ * @param params.runId - Id the run started with.
+ * @returns The record to commit, or null when the caller holds no live lease and nothing else ended.
+ */
+export function decideStackRunEnd(params: {
+  record: IStackRecord;
+  cwd: string;
+  runId: string;
+  now: number;
+  isAlive: (pid: number) => boolean;
+}): IStackRecord | null {
+  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return decideStackReap(params);
+  const finish = (lease: IStackLease): IStackLease => {
+    const activeRuns = liveRuns({ lease: lease, now: params.now, isAlive: params.isAlive }).filter(
+      (run) => run.runId !== params.runId,
+    );
+    return {
+      ...lease,
+      lastSeenAt: params.now,
+      lastRunEndedAt: params.now,
+      activeRuns: activeRuns.length > 0 ? activeRuns : undefined,
+    };
+  };
+  return { ...swept, leases: swept.leases.map((lease) => (lease.cwd === params.cwd ? finish(lease) : lease)) };
+}
+
+/**
+ * Needs a ledger change dropped: needed before it, needed by no lease after.
+ * The service serving each has no one left to serve.
+ *
+ * @param params.before - The committed record the change was decided against.
+ * @param params.after - The record the change commits.
+ * @returns Each dropped need once.
+ */
+export function findVacatedNeeds(params: { before: IStackRecord; after: IStackRecord }): IStackNeed[] {
+  const keptNeeds = params.after.leases.flatMap((lease) => lease.needs);
+  const vacated: IStackNeed[] = [];
+  for (const need of params.before.leases.flatMap((lease) => lease.needs)) {
+    const isKept = keptNeeds.some((kept) => isSameNeed(kept, need));
+    const isListed = vacated.some((listed) => isSameNeed(listed, need));
+    if (!isKept && !isListed) vacated.push(need);
+  }
+  return vacated;
 }
 
 function hasLeaseEnded(params: { lease: IStackLease; now: number; isAlive: (pid: number) => boolean }): boolean {
-  const idleMs = params.now - params.lease.lastSeenAt;
-  if (idleMs > LEASE_TTL_MS) return true;
+  if (liveRuns(params).length > 0) return false;
   const holderPids = params.lease.holderPids ?? [];
   const isHolderGone = holderPids.length > 0 && !holderPids.some((pid) => params.isAlive(pid));
-  return isHolderGone && idleMs > DEAD_HOLDER_GRACE_MS;
+  if (isHolderGone && params.now - params.lease.lastSeenAt > DEAD_HOLDER_GRACE_MS) return true;
+  const lastRunEndedAt = params.lease.lastRunEndedAt;
+  // For a lease that never ran, lastSeenAt is its grant. An older MCP server records no runs and renews
+  // lastSeenAt instead, so its lease in mid-run is never mistaken for an idle one and stopped.
+  return lastRunEndedAt === undefined
+    ? params.now - params.lease.lastSeenAt > STARTUP_WINDOW_MS
+    : params.now - lastRunEndedAt > IDLE_RELEASE_MS;
+}
+
+function isSameNeed(left: IStackNeed, right: IStackNeed): boolean {
+  return left.port === right.port && left.runDir === right.runDir && left.headSha === right.headSha;
+}
+
+// A run counts only while its MCP server lives, and only up to MAX_RUN_MS: one whose end was never recorded is lost.
+function liveRuns(params: { lease: IStackLease; now: number; isAlive: (pid: number) => boolean }): IStackActiveRun[] {
+  return (params.lease.activeRuns ?? []).filter(
+    (run) => params.isAlive(run.holderPid) && params.now - run.startedAt <= MAX_RUN_MS,
+  );
+}
+
+function hasSweepDropped(params: { record: IStackRecord; swept: IStackRecord }): boolean {
+  return params.swept.leases.length !== params.record.leases.length || params.swept.queue.length !== params.record.queue.length;
 }
 
 function leaseBlockersFor(params: { lease: IStackLease; needs: IStackNeed[]; now: number }): IStackBlocker[] {

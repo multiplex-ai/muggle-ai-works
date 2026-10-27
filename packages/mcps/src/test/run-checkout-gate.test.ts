@@ -71,6 +71,7 @@ vi.mock("../mcp/local/services/index.js", () => ({
 vi.mock("../mcp/local/services/run-stack-gate.js", () => ({
   findRunStackRefusal: async () => null,
   findStackChangedDuringRun: async () => null,
+  runUnderStackLease: async (params: { execute: () => Promise<unknown> }) => await params.execute(),
 }));
 
 import {

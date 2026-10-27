@@ -1,16 +1,27 @@
 /**
  * Refuses a local E2E run whose target port is serving code other than what
  * the caller claimed — or code another checkout claimed — in the shared
- * service-stack ledger.
+ * service-stack ledger, and keeps the caller's lease alive only while its runs
+ * are in flight.
  *
  * Optimistic: nothing is held during a run. The run checks its lease before it
- * starts and again when it ends, renewing it each time; a change in between
- * marks the result as describing a stack that moved under it. A checkout that
- * never claimed is not gated unless its target port belongs to a peer's lease.
+ * starts and again when it ends; a change in between marks the result as
+ * describing a stack that moved under it. A checkout that never claimed is not
+ * gated unless its target port belongs to a peer's lease.
  */
 
+import { randomUUID } from "node:crypto";
+
 import { isLoopbackUrl } from "./run-checkout-gate.js";
-import { checkServiceStack, portOfUrl } from "../../../shared/service-stack/service-stack.js";
+import { getLogger } from "../../../shared/logger.js";
+import {
+  checkServiceStack,
+  finishStackRun,
+  portOfUrl,
+  reapServiceStack,
+  startStackRun,
+} from "../../../shared/service-stack/service-stack.js";
+import { IDLE_REAP_DELAY_MS, SERVICE_STOPS_ENV } from "../../../shared/service-stack/service-stack-constants.js";
 import {
   StackCheckVerdict,
   type IStackCheckReport,
@@ -19,6 +30,9 @@ import type { GitCommandRunner } from "../../../shared/checkout-freshness-types.
 import type { PortListenerReader } from "../../../shared/service-stack/port-listener-types.js";
 
 const REFUSING_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([StackCheckVerdict.PeerLease, StackCheckVerdict.Stale]);
+
+// One pending reap per MCP server: each run that ends pushes it back.
+let idleReapTimer: NodeJS.Timeout | null = null;
 
 /**
  * The stack check that refuses this run, or null when the run may proceed.
@@ -39,8 +53,6 @@ export async function findRunStackRefusal(params: {
   const report = await checkServiceStack({
     cwd: params.cwd,
     port: port,
-    shouldRenew: true,
-    holderPid: process.pid,
     runGit: params.runGit,
     readListener: params.readListener,
   });
@@ -48,7 +60,38 @@ export async function findRunStackRefusal(params: {
 }
 
 /**
- * Re-check the caller's lease after a run, renewing it.
+ * Run a local execution under the caller's lease: it holds while the run is in
+ * flight, and once this MCP server has had no run for the idle window, the
+ * lease ends and its services stop.
+ *
+ * @param params.cwd - The caller's checkout.
+ * @param params.localUrl - The run target; a remote target runs untouched.
+ * @param params.execute - The run itself.
+ * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @returns What the run returned.
+ */
+export async function runUnderStackLease<TRun>(params: {
+  cwd: string;
+  localUrl: string;
+  execute: () => Promise<TRun>;
+  runGit?: GitCommandRunner;
+}): Promise<TRun> {
+  if (!isLoopbackUrl(params.localUrl)) return await params.execute();
+  const runId = randomUUID();
+  await startStackRun({ cwd: params.cwd, runId: runId, holderPid: process.pid, runGit: params.runGit });
+  try {
+    return await params.execute();
+  } finally {
+    // A ledger failure here must not replace the run's own result or error.
+    await finishStackRun({ cwd: params.cwd, runId: runId, runGit: params.runGit }).catch((error: unknown) => {
+      getLogger().warn("Could not record the run's end on the service-stack lease", { error: String(error) });
+    });
+    scheduleIdleReap();
+  }
+}
+
+/**
+ * Re-check the caller's lease after a run.
  *
  * @param params.cwd - The caller's checkout.
  * @param params.localUrl - The run target; only loopback targets are checked.
@@ -65,10 +108,22 @@ export async function findStackChangedDuringRun(params: {
   if (!isLoopbackUrl(params.localUrl)) return null;
   const report = await checkServiceStack({
     cwd: params.cwd,
-    shouldRenew: true,
-    holderPid: process.pid,
     runGit: params.runGit,
     readListener: params.readListener,
   });
   return report.verdict === StackCheckVerdict.Stale ? report : null;
+}
+
+// Without this, an idle lease would end only when some other session next touched the ledger.
+// With stops off there is nothing for the reap to do, and a test's timer must not outlive its temporary ledger.
+function scheduleIdleReap(): void {
+  if (process.env[SERVICE_STOPS_ENV] === "off") return;
+  if (idleReapTimer !== null) clearTimeout(idleReapTimer);
+  idleReapTimer = setTimeout(() => {
+    idleReapTimer = null;
+    reapServiceStack().catch((error: unknown) => {
+      getLogger().warn("Could not end idle service-stack leases", { error: String(error) });
+    });
+  }, IDLE_REAP_DELAY_MS);
+  idleReapTimer.unref();
 }

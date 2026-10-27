@@ -1116,9 +1116,10 @@ var defaultPrWalkthroughLookup = {
     const url = runGh(["pr", "view", "--json", "url", "-q", ".url"])?.trim();
     return url && url.startsWith("http") ? url : null;
   },
-  // Scans the description as well as the comments: muggle-do embeds the
-  // walkthrough in the body at PR-creation time, and a comments-only check
-  // would report that PR as owing one it already carries.
+  // Scans the description as well as the comments: a PR opened through the
+  // walkthrough's render-for-new-PR mode, or by a muggle-do release that
+  // embedded it in the body, carries the walkthrough there, and a
+  // comments-only check would report that PR as owing one it already carries.
   prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;

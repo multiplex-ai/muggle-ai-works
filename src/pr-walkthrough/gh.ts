@@ -1,7 +1,7 @@
 import { execFileSync } from "child_process";
 import { boundedChildTimeoutMs } from "../hook-budget/childProcessBudget.js";
 import { GH_COMMENT_TIMEOUT_MS } from "./constants.js";
-import type { GhRunner, PrComment, PrCoordinates } from "./types.js";
+import type { GhRunner, PrComment, PrCoordinates, PrDiffPaths } from "./types.js";
 
 const GITHUB_PR_URL = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
 
@@ -58,6 +58,42 @@ export function listPrComments(pr: PrCoordinates, run: GhRunner): PrComment[] | 
 export function readPrHeadSha(pr: PrCoordinates, run: GhRunner): string | null {
   try {
     return run(["api", `repos/${pr.repo}/pulls/${pr.prNumber}`, "--jq", ".head.sha"])?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The PR's own diff against its base, or `null` when it could not be read in full.
+ *
+ * GitHub's compare lists at most 300 files, so a listing shorter than the PR's
+ * `changed_files` reads as unknown rather than as the whole diff.
+ */
+export function readPrDiffPaths(pr: PrCoordinates, run: GhRunner): PrDiffPaths | null {
+  try {
+    const refs = JSON.parse(
+      run([
+        "api",
+        `repos/${pr.repo}/pulls/${pr.prNumber}`,
+        "--jq",
+        "{base: .base.sha, head: .head.sha, changedFiles: .changed_files}",
+      ]) ?? "null",
+    ) as { base?: string; head?: string; changedFiles?: number } | null;
+    if (!refs?.base || !refs.head) return null;
+    const diff = JSON.parse(
+      run([
+        "api",
+        `repos/${pr.repo}/compare/${refs.base}...${refs.head}`,
+        "--jq",
+        "{mergeBase: .merge_base_commit.sha, files: [.files[] | {path: .filename, previousPath: .previous_filename}]}",
+      ]) ?? "null",
+    ) as { mergeBase?: string; files?: { path: string; previousPath: string | null }[] } | null;
+    if (!diff?.mergeBase || !Array.isArray(diff.files) || diff.files.length !== refs.changedFiles) return null;
+    return {
+      mergeBaseSha: diff.mergeBase,
+      headSha: refs.head,
+      changedPaths: diff.files.flatMap((file) => (file.previousPath ? [file.path, file.previousPath] : [file.path])),
+    };
   } catch {
     return null;
   }

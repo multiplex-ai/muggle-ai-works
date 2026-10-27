@@ -57,7 +57,8 @@ describe("guardrail hook execution (cli entry)", () => {
       "https://github.com/multiplex-ai/muggle-ai-ui/pull/342",
     );
     expect(parsed.hookSpecificOutput.additionalContext).toContain("autoWatchPR");
-    expect(parsed.hookSpecificOutput.additionalContext).toContain("visual-walkthrough comment is reserved");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("visual-walkthrough comment is being reserved");
+    expect(parsed.hookSpecificOutput.additionalContext).toContain("opens already settled as skipped (NO_APP_LOGIC_CHANGE)");
   });
 
   it("pr-opened: dedupes the same PR within a session (second fire is a no-op)", () => {

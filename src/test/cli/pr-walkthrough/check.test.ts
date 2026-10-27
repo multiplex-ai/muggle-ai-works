@@ -129,6 +129,22 @@ describe("runPrWalkthroughCheck", () => {
     expect(posted?.input).toContain("muggle-pr-walkthrough");
   });
 
+  it("opens a docs-only PR with no slot on its settled skip, and passes on the same run", async () => {
+    const gh = ghWithComments(["ship it"]);
+    const run = (args: string[], input?: string): string | null => {
+      const call = args.join(" ");
+      if (call.includes("changedFiles")) return JSON.stringify({ base: "b1", head: "abc123", changedFiles: 1 });
+      if (call.includes("compare/")) {
+        return JSON.stringify({ mergeBase: "1a2b3c4", files: [{ path: "README.md", previousPath: null }] });
+      }
+      return gh.run(args, input);
+    };
+    const result = await runPrWalkthroughCheck(options, run);
+    expect(result.conclusion).toBe(CheckConclusion.Success);
+    const posted = gh.calls.find((call) => call.args.includes("POST"));
+    expect(posted?.input).toContain("NO_APP_LOGIC_CHANGE");
+  });
+
   it("publishes a check run against the head sha when asked, and exits 0 either way", async () => {
     const gh = ghWithComments([renderReservedComment()]);
     const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);

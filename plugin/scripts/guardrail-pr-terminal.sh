@@ -6,7 +6,7 @@ set -uo pipefail
 # pr-followup watch scripts print in a shell result — arm the post-merge handoff:
 # record the PR as pending, nudge the model to finalize/tear down and offer
 # next options, and hold the Stop gate (guardrail-terminal-gate.sh) until the
-# AskUserQuestion offer runs. Decision logic lives in the bundled guardrails.mjs.
+# offer runs. Decision logic lives in the bundled guardrails.mjs.
 #
 # Fires after every Bash call, so a keyword pre-filter for the terminal output
 # shapes keeps Node off the hot path. The reopen line belongs here too: it is

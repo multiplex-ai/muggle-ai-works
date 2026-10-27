@@ -3,7 +3,7 @@ set -uo pipefail
 
 # PR-terminal → post-merge handoff gate (Stop). When a PR went terminal this
 # session (merged/closed) and the next-options offer hasn't run, block the
-# turn end until the handoff — finalize, teardown, AskUserQuestion offer —
+# turn end until the handoff — finalize, teardown, next-options offer —
 # happens. Releases unconditionally after 3 blocks.
 #
 # This must stay synchronous (only a sync Stop hook can block the turn end),

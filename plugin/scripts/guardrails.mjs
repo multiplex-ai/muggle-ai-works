@@ -1045,12 +1045,34 @@ function applyWatchSkip(state, skipped) {
 }
 function resolveWatchSlotStatus(evidence, nowMs, staleAfterMs = WATCH_HEARTBEAT_STALE_MS) {
   if (evidence.isStopped) return "stopped" /* Stopped */;
-  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
-  if (evidence.isFinalized || TERMINAL_SLOT_PR_STATES.includes(recordedState)) {
-    return "terminal" /* Terminal */;
-  }
+  if (isTerminalSlot(evidence)) return "terminal" /* Terminal */;
   const heartbeatAgeMs = evidence.heartbeatMtimeMs === void 0 ? Infinity : nowMs - evidence.heartbeatMtimeMs;
   return heartbeatAgeMs <= staleAfterMs ? "live" /* Live */ : "stale" /* Stale */;
+}
+function isTerminalSlot(evidence) {
+  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
+  return evidence.isFinalized || TERMINAL_SLOT_PR_STATES.includes(recordedState);
+}
+function ownsOpenWatchSlot(sessionId2, sessionsDirOverride) {
+  if (sessionId2 === "") return false;
+  const sessionsDir = join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
+  let slugs;
+  try {
+    slugs = readdirSync(sessionsDir);
+  } catch {
+    return false;
+  }
+  return slugs.some((slug) => {
+    const slotPath = join(sessionsDir, slug);
+    if (readJsonRecord(join(slotPath, OWNER_FILE_NAME)).session_id !== sessionId2) return false;
+    const slotPr = readSlotPr(slotPath);
+    if (typeof slotPr?.url !== "string") return false;
+    return !isTerminalSlot({
+      isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
+      isFinalized: existsSync(join(slotPath, RESULT_FILE_NAME)),
+      recordedPrState: typeof slotPr.state === "string" ? slotPr.state : void 0
+    });
+  });
 }
 function readHeartbeatMtimeMs(slotPath) {
   try {
@@ -2290,8 +2312,12 @@ function releaseGate(field) {
 function muggleSkill(slashCommand) {
   return skillInvocation(slashCommand, host);
 }
-function nextOptionsOfferMethod() {
-  return host === "codex" ? "by asking them in your closing message (request_user_input where it is available)" : "via AskUserQuestion";
+function isOfferAskedInClosingMessage() {
+  return host === "codex" || ownsOpenWatchSlot(sessionId);
+}
+function nextOptionsOfferMethod(isAskedInClosingMessage) {
+  if (host === "codex") return "by asking them in your closing message (request_user_input where it is available)";
+  return isAskedInClosingMessage ? "as text in your closing message, numbered and ending on the question \u2014 this session still watches an open PR, and an AskUserQuestion would hold the turn while its watcher goes unanswered" : "via AskUserQuestion";
 }
 function prOpened() {
   const url = detectPrOpened(input);
@@ -2333,7 +2359,7 @@ function prTerminal() {
   const next = applyPrTerminalDetected(state, terminalEvent.prNumber);
   if (next === state) return "{}";
   writeState(next);
-  const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ${nextOptionsOfferMethod()} \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
+  const ctx = `PR #${terminalEvent.prNumber} went terminal (${terminalEvent.verdict}). Run the post-merge handoff now: finalize the watcher slot, tear down per autoCleanup, then OFFER NEXT OPTIONS to the user ${nextOptionsOfferMethod(isOfferAskedInClosingMessage())} \u2014 release, queued work, deferred items. The stop gate holds until the offer runs.`;
   return envelope("PostToolUse", ctx, host);
 }
 function offerRan() {
@@ -2345,7 +2371,8 @@ function offerRan() {
 }
 function terminalGate() {
   const pendingState = readState(sessionId);
-  const state = host === "codex" && closingMessageAsksUser(input.last_assistant_message) ? applyNextOptionsOffered(pendingState) : pendingState;
+  const isAskedInClosingMessage = isOfferAskedInClosingMessage();
+  const state = isAskedInClosingMessage && closingMessageAsksUser(closingAssistantText()) ? applyNextOptionsOffered(pendingState) : pendingState;
   if (state !== pendingState) writeState(state);
   const decision = prTerminalGateDecision(state);
   if (decision.action === "release" /* Release */) return releaseGate("terminalReleased");
@@ -2353,7 +2380,7 @@ function terminalGate() {
   state.terminalBlockCount = decision.blockCount;
   writeState(state);
   const pendingPrList = (state.terminalPending ?? []).map((prNumber) => `#${prNumber}`).join(", ");
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user ${nextOptionsOfferMethod()} \u2014 release, queued work, deferred items. Only that offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then offer the next options ${nextOptionsOfferMethod()}.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. PR ${pendingPrList} went terminal (merged/closed) but the post-merge handoff has not run. Finalize the watcher slot, tear down per autoCleanup, then offer next options to the user ${nextOptionsOfferMethod(isAskedInClosingMessage)} \u2014 release, queued work, deferred items. Only that offer clears this gate.` : `Post-merge handoff still owed for PR ${pendingPrList} (reminder ${decision.blockCount}/${MAX_PR_TERMINAL_BLOCKS}): finalize + tear down, then offer the next options ${nextOptionsOfferMethod(isAskedInClosingMessage)}.`;
   return blockStop(reason, host);
 }
 function startWalkthroughScanOnGateArming(stateBefore, committed, hasPosted = false) {

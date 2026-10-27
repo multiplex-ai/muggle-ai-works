@@ -2,8 +2,8 @@ import { existsSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { defaultGhRunner, parsePrUrl } from "../pr-walkthrough/gh.js";
-import { MUGGLE_DO_SESSIONS_PATH_SEGMENTS, RESULT_FILE_NAME } from "../pr-watch/constants.js";
-import { readSlotPr } from "../pr-watch/slotFiles.js";
+import { MUGGLE_DO_SESSIONS_PATH_SEGMENTS, OWNER_FILE_NAME, RESULT_FILE_NAME } from "../pr-watch/constants.js";
+import { readJsonRecord, readSlotPr } from "../pr-watch/slotFiles.js";
 import type { GhRunner } from "../pr-walkthrough/types.js";
 import {
   MAX_WATCH_BLOCKS,
@@ -54,12 +54,45 @@ export function resolveWatchSlotStatus(
   staleAfterMs: number = WATCH_HEARTBEAT_STALE_MS,
 ): WatchSlotStatus {
   if (evidence.isStopped) return WatchSlotStatus.Stopped;
-  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
-  if (evidence.isFinalized || (TERMINAL_SLOT_PR_STATES as readonly string[]).includes(recordedState)) {
-    return WatchSlotStatus.Terminal;
-  }
+  if (isTerminalSlot(evidence)) return WatchSlotStatus.Terminal;
   const heartbeatAgeMs = evidence.heartbeatMtimeMs === undefined ? Infinity : nowMs - evidence.heartbeatMtimeMs;
   return heartbeatAgeMs <= staleAfterMs ? WatchSlotStatus.Live : WatchSlotStatus.Stale;
+}
+
+function isTerminalSlot(evidence: WatchSlotEvidence): boolean {
+  const recordedState = evidence.recordedPrState?.toLowerCase() ?? "";
+  return evidence.isFinalized || (TERMINAL_SLOT_PR_STATES as readonly string[]).includes(recordedState);
+}
+
+/**
+ * Whether `sessionId` owns a slot whose PR is still open — the `open` and `blocked` lines of the post-merge status block.
+ *
+ * Such a slot's watcher needs the session free between turns: a rollover is re-armed, and the watch service resumes
+ * the owner, only once the turn ends. A slot is open until it is finalized or records its PR merged or closed; a stale
+ * heartbeat still counts. An unreadable sessions dir owns nothing.
+ *
+ * `sessionsDirOverride` points the scan at a throwaway tree for tests.
+ */
+export function ownsOpenWatchSlot(sessionId: string, sessionsDirOverride?: string): boolean {
+  if (sessionId === "") return false;
+  const sessionsDir = sessionsDirOverride ?? join(homedir(), ...MUGGLE_DO_SESSIONS_PATH_SEGMENTS);
+  let slugs: string[];
+  try {
+    slugs = readdirSync(sessionsDir);
+  } catch {
+    return false;
+  }
+  return slugs.some((slug) => {
+    const slotPath = join(sessionsDir, slug);
+    if (readJsonRecord(join(slotPath, OWNER_FILE_NAME)).session_id !== sessionId) return false;
+    const slotPr = readSlotPr(slotPath);
+    if (typeof slotPr?.url !== "string") return false;
+    return !isTerminalSlot({
+      isStopped: slug.endsWith(STOPPED_SLOT_SUFFIX),
+      isFinalized: existsSync(join(slotPath, RESULT_FILE_NAME)),
+      recordedPrState: typeof slotPr.state === "string" ? slotPr.state : undefined,
+    });
+  });
 }
 
 function readHeartbeatMtimeMs(slotPath: string): number | undefined {

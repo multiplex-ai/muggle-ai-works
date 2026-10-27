@@ -10,6 +10,8 @@ import { ElectronAppReleaseStream } from "../../../packages/mcps/src/shared/runt
 import {
   buildElectronAppDirName as buildInstallerDirName,
   isOutdatedStreamInstall,
+  isStreamInstall,
+  shouldKeepVersionOverride,
 } from "../../../scripts/electron-app-install-dir.mjs";
 
 const runtimeTargets = JSON.parse(
@@ -49,11 +51,23 @@ describe("isOutdatedStreamInstall", () => {
   it("prunes the installing stream's older versions", () => {
     expect(isOutdatedStreamInstall({ ...productionInstall, directoryName: "1.10.6" })).toBe(true);
     expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.10.6-staging" })).toBe(true);
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.13.8-staging" })).toBe(true);
+  });
+
+  it("compares versions numerically, not as text", () => {
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.9.0-staging" })).toBe(true);
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.100.0-staging" })).toBe(false);
   });
 
   it("keeps the current install", () => {
     expect(isOutdatedStreamInstall({ ...productionInstall, directoryName: "1.13.9" })).toBe(false);
     expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.13.9-staging" })).toBe(false);
+  });
+
+  it("keeps newer installs, such as a dev build or a later release someone chose", () => {
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.13.99-staging" })).toBe(false);
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.19.0-staging" })).toBe(false);
+    expect(isOutdatedStreamInstall({ ...productionInstall, directoryName: "2.0.0" })).toBe(false);
   });
 
   it("never prunes another stream's runner", () => {
@@ -66,6 +80,24 @@ describe("isOutdatedStreamInstall", () => {
   it("ignores directories that are not studio installs", () => {
     expect(isOutdatedStreamInstall({ ...productionInstall, directoryName: "logs" })).toBe(false);
     expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "logs-staging" })).toBe(false);
+    expect(isOutdatedStreamInstall({ ...stagingInstall, directoryName: "1.0.0-emg-staging" })).toBe(false);
+  });
+});
+
+describe("shouldKeepVersionOverride", () => {
+  it("keeps an override naming a release newer than the bundled one", () => {
+    expect(shouldKeepVersionOverride({ overrideVersion: "1.20.0", bundledVersion: "1.17.0" })).toBe(true);
+    expect(shouldKeepVersionOverride({ overrideVersion: "1.17.99", bundledVersion: "1.17.0" })).toBe(true);
+  });
+
+  it("resets an override the bundled version has caught up with", () => {
+    expect(shouldKeepVersionOverride({ overrideVersion: "1.17.0", bundledVersion: "1.17.0" })).toBe(false);
+    expect(shouldKeepVersionOverride({ overrideVersion: "1.16.2", bundledVersion: "1.17.0" })).toBe(false);
+  });
+
+  it("resets an override naming a non-release build", () => {
+    expect(shouldKeepVersionOverride({ overrideVersion: "1.17.0-emg", bundledVersion: "1.17.0" })).toBe(false);
+    expect(shouldKeepVersionOverride({ overrideVersion: "latest", bundledVersion: "1.17.0" })).toBe(false);
   });
 });
 
@@ -90,9 +122,9 @@ describe("parseElectronAppDirName", () => {
     (releaseStream) => {
       const directoryNames = ["1.13.9", "1.13.9-staging", "1.10.6-staging", "logs", "logs-staging", "1.13.9-beta", "1.13.9-production"];
       for (const directoryName of directoryNames) {
-        expect(
-          isOutdatedStreamInstall({ directoryName: directoryName, releaseStream: releaseStream, currentDirectoryName: "" }),
-        ).toBe(parseElectronAppDirName(directoryName)?.releaseStream === releaseStream);
+        expect(isStreamInstall({ directoryName: directoryName, releaseStream: releaseStream })).toBe(
+          parseElectronAppDirName(directoryName)?.releaseStream === releaseStream,
+        );
       }
     },
   );

@@ -114,6 +114,33 @@ guardrail_is_hook_script() {
   [[ ${BASH_SOURCE[1]} == "${MUGGLE_HOOK_SCRIPT:-$0}" ]]
 }
 
+# Claims this event's tool call for the calling launch; returns 1 when a sibling launch already holds it.
+# Claude Code starts a hook once per `if` variant whose rule matches the call — every variant when it cannot
+# parse the command — all at once and with the same payload, so without a claim one `gh pr create --body-file
+# notes.md` would record and announce itself twice. The claim is a file created under noclobber, which bash
+# opens O_EXCL, so exactly one concurrent launch wins it. A payload with no tool_use_id (a turn end, a host
+# that sends none) has no sibling to race, and a claim that cannot be written leaves the call unclaimed:
+# recording a call twice beats not recording it. Noclobber is put back as found, since hook-entry.sh may have
+# sourced this into the shell Claude Code started.
+guardrail_claim_tool_call() {
+  local tool_use_id_pattern='"tool_use_id"[[:space:]]*:[[:space:]]*"([^"]+)"'
+  [[ $GUARDRAIL_PAYLOAD =~ $tool_use_id_pattern ]] || return 0
+  local claim_name="${BASH_REMATCH[1]//[^A-Za-z0-9_-]/_}"
+  guardrail_payload_field hook_event_name && claim_name="${GUARDRAIL_FIELD_VALUE//[^A-Za-z0-9_-]/_}-$claim_name"
+  guardrail_resolve_home
+  local claims_dir="$GUARDRAIL_HOME/.muggle-ai/guardrails/claims"
+  [[ -d $claims_dir ]] || mkdir -p "$claims_dir" 2>/dev/null
+  local claim_file="$claims_dir/$claim_name"
+  local is_create_failed=""
+  local was_noclobber=""
+  [[ -o noclobber ]] && was_noclobber=1
+  set -C
+  { : >"$claim_file"; } 2>/dev/null || is_create_failed=1
+  [[ -n $was_noclobber ]] || set +C
+  [[ -n $is_create_failed && -e $claim_file ]] && return 1
+  return 0
+}
+
 # Runs guardrails.mjs on the payload. Never blocks a turn: any failure degrades to {}.
 # A here-string rather than a pipe, so the fallback hears only Node's exit status: a pipe's writer dies of SIGPIPE
 # when Node exits before reading all of its stdin, and pipefail would count that as Node failing and print a second

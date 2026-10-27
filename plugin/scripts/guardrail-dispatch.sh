@@ -10,7 +10,9 @@ set -uo pipefail
 # GUARDRAIL_SUBCOMMAND without running it), and asks every pre-filter in this one process.
 # Irrelevant events — nearly all of them — end here with {} and no process started. When any
 # gate could fire, Node runs once for all of them (`guardrails.mjs run <gates...>`), merging
-# their outputs the way the harness merged separate hooks.
+# their outputs the way the harness merged separate hooks. A tool event's `if` variants can launch
+# this several times for one call, so before Node starts the launch claims the call, and only the
+# launch holding the claim runs it.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -27,7 +29,7 @@ for gate_script in "$@"; do
   fi
 done
 
-if [[ ${#firing_subcommands[@]} -eq 0 ]]; then
+if [[ ${#firing_subcommands[@]} -eq 0 ]] || ! guardrail_claim_tool_call; then
   printf '{}'
   exit 0
 fi

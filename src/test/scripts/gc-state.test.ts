@@ -87,6 +87,26 @@ describe.skipIf(!hasBash)("gc-state.sh", () => {
     expect(existsSync(deadJson)).toBe(false); // inactive 60d → collected
   }, 30_000);
 
+  it("prunes a dispatcher claim an hour after its call, keeping a fresh one", () => {
+    const home = mkdtempSync(join(tmpdir(), "muggle-gc-home-"));
+    const claims = join(home, ".muggle-ai", "guardrails", "claims");
+    mkdirSync(claims, { recursive: true });
+    const staleClaim = join(claims, "PostToolUse-toolu_stale");
+    const freshClaim = join(claims, "PostToolUse-toolu_fresh");
+    writeFileSync(staleClaim, "");
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    utimesSync(staleClaim, twoHoursAgo, twoHoursAgo);
+    writeFileSync(freshClaim, "");
+
+    execFileSync("bash", [scriptPath], {
+      env: { ...process.env, HOME: toBash(home), MUGGLE_STATE_GC_FORCE: "1" },
+      stdio: "ignore",
+    });
+
+    expect(existsSync(staleClaim)).toBe(false);
+    expect(existsSync(freshClaim)).toBe(true);
+  }, 30_000);
+
   it("is a no-op when the TTL marker is fresh (gate closed)", () => {
     const home = mkdtempSync(join(tmpdir(), "muggle-gc-home-"));
     const guardrails = join(home, ".muggle-ai", "guardrails");

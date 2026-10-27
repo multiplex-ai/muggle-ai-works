@@ -6,6 +6,7 @@ import type { GuardrailState } from "../../guardrails/types.js";
 import { E2eSkipCode } from "../../e2e-skip/types.js";
 import { commandsForSlot, loadHooksManifest } from "./footprint/footprint.js";
 import { HookEvent } from "./footprint/types.js";
+import { SHELL_RECORDER_SCRIPTS } from "./support/constants.js";
 import { wrapperPayloadPrefilter } from "./support/wrapperPrefilter.js";
 
 // Each bash wrapper re-encodes, in shell, the payloads its guardrails.mjs
@@ -281,6 +282,73 @@ describe("PreToolUse deny-gate if rules launch the gates for every command they 
       expect(launchedGateCommands("PowerShell", command)).toEqual([]);
     },
   );
+});
+
+// A recorder runs only where an `if` rule launches the dispatcher, and a payload no rule names reaches no recorder
+// with nothing failing: a skip marker that never registers keeps its Stop gate demanding an action already taken.
+describe("PostToolUse recorder if rules launch the recorders for every command they act on", () => {
+  const manifest = loadHooksManifest();
+  const launchedRecorderCommands = (toolName: string, command: string): string[] =>
+    commandsForSlot(manifest, { event: HookEvent.PostToolUse, toolName: toolName }, { tool_input: { command: command } })
+      .map((hook) => hook.command)
+      .filter((hookCommand) => SHELL_RECORDER_SCRIPTS.every((script) => hookCommand.includes(script)));
+
+  const skipMarkerCommands = [
+    ...new Set(guardrailSourceFiles().flatMap((path) => readFileSync(path, "utf-8").match(/MUGGLE_[A-Z0-9_]+_SKIP/g) ?? [])),
+  ].map((token) => `echo "${token}: reason"`);
+
+  const reaching = [
+    "gh pr create --fill",
+    "gh pr ready 12",
+    "glab mr create --fill",
+    "glab mr update 5 --ready",
+    "gh pr merge 341 --squash",
+    "gh pr close 369",
+    "gh pr reopen 369",
+    "glab mr merge 5",
+    "bash plugin/scripts/pr-watch-arm.sh --slot C:/s",
+    "bash plugin/scripts/pr-watch-loop.sh --slot C:/s",
+    "pnpm test",
+    "npm run test -- --watch=false",
+    "yarn test",
+    "npx jest --ci",
+    "npx vitest run",
+    "node node_modules/vitest/vitest.mjs run",
+    "pytest -q",
+    "go test ./...",
+    "cargo test",
+    "gh pr comment 7 --body-file walkthrough.md",
+    "gh pr edit 7 --body-file walkthrough.md",
+    "gh api --method PATCH repos/o/r/issues/comments/12345 --input walkthrough.json",
+    "gh api graphql -f query='{ reviewThreads(first: 100) { nodes { id } } }'",
+    "glab api projects/:id/merge_requests/12/discussions --paginate",
+    "gh api --method POST repos/o/r/pulls/7/comments/11/replies -f body=x",
+    "glab api --method POST projects/:id/merge_requests/12/discussions/a1b2/notes -f body=x",
+    "curl -X POST https://api.github.com/repos/o/r/pulls/7/comments/11/replies -d @reply.json",
+    `Invoke-RestMethod -Method Post -Uri https://api.github.com/graphql -Body '{"query":"{ reviewThreads(first: 100) { nodes { id } } }"}'`,
+    "Get-Content plugin/skills/muggle-do/SKILL.md",
+    "cat ../_shared/debug-failed-run.md",
+    "Get-Content ..\\_shared\\STAGE.MD",
+    "Set-Location C:\\repo; pnpm test; gh pr create --title Fix --body-file notes.md",
+    ...skipMarkerCommands,
+  ];
+
+  it.each(reaching)("PowerShell: launches the recorders for %s", (command) => {
+    expect(launchedRecorderCommands("PowerShell", command).length).toBeGreaterThan(0);
+  });
+
+  it.each(["Get-ChildItem", "git status", "gh run view 123 --log-failed", "Get-Content src/test/hook.test.ts | Select-Object -First 5"])(
+    "PowerShell: launches nothing for %s",
+    (command) => {
+      expect(launchedRecorderCommands("PowerShell", command)).toEqual([]);
+    },
+  );
+
+  // Claude Code's Bash parser gives up on a command it cannot read statically (an unresolved `$VAR`, a `$(…)`
+  // argument, a loop over one) and then launches every Bash variant, so rules per trigger would multiply launches.
+  it.each(["ls", 'ls "$PWD"', ...reaching])("Bash: launches the recorders once for %s", (command) => {
+    expect(launchedRecorderCommands("Bash", command)).toHaveLength(1);
+  });
 });
 
 // The Stop gates pre-filter on the per-session state file instead of a payload,

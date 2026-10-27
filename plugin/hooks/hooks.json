@@ -71,6 +71,98 @@
         "hooks": [
           {
             "type": "command",
+            "if": "Bash",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*gh pr *)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*gh api *)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*glab *)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*pr-watch-*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(* test*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*jest*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*vitest*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*pytest*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*MUGGLE_*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*.md*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*reviewThreads*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*discussions*)",
+            "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": false,
+            "timeout": 1
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(*/replies*)",
             "command": "set -- guardrail-dispatch.sh guardrail-pr-opened.sh guardrail-record-tests.sh guardrail-pr-terminal.sh guardrail-record-stage-signals.sh guardrail-record-comment-replies.sh guardrail-record-stage-read.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1

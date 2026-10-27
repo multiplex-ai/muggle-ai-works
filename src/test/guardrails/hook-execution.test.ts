@@ -1170,7 +1170,8 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
   it("drives one dispatcher on a shell PostToolUse, feeding all five observers (pr-opened + record-tests + pr-terminal + stage-signals + comment-replies)", () => {
     const bash = shellGroup(hooks.PostToolUse);
     expect(bash).toBeDefined();
-    const cmds = bash!.hooks.map((h) => h.command);
+    // The group's `if` variants all launch this one command, each for the calls its rule names.
+    const cmds = [...new Set(bash!.hooks.map((h) => h.command))];
     expect(cmds).toHaveLength(1);
     expect(cmds[0]).toContain("guardrail-dispatch.sh");
     expect(cmds.some((c) => c.includes("guardrail-pr-opened.sh"))).toBe(true);

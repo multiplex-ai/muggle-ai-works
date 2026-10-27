@@ -12,10 +12,16 @@ export const CHECK_RUN_TITLE = "Muggle AI PR visual walkthrough";
  */
 export const CHECK_SUMMARY_MAX_CASES = 50;
 
-/** Conclusion each outcome publishes. An unreadable PR is neutral, never a failure. */
-export const OUTCOME_CONCLUSIONS: Record<WalkthroughCheckOutcome, CheckConclusion> = {
+/**
+ * Conclusion each outcome publishes. An unreadable PR is neutral, never a failure.
+ * A rerun has none yet: its check run stays in progress, which reads as pending
+ * rather than as a pass on the run being replaced or a failure that would send
+ * a watcher to fix CI while the rerun is still going.
+ */
+export const OUTCOME_CONCLUSIONS: Record<WalkthroughCheckOutcome, CheckConclusion | null> = {
   [WalkthroughCheckOutcome.Settled]: CheckConclusion.Success,
   [WalkthroughCheckOutcome.E2eNotPassing]: CheckConclusion.Failure,
+  [WalkthroughCheckOutcome.RerunInProgress]: null,
   [WalkthroughCheckOutcome.Unsettled]: CheckConclusion.Failure,
   [WalkthroughCheckOutcome.Unreadable]: CheckConclusion.Neutral,
 };
@@ -24,6 +30,8 @@ export const OUTCOME_CONCLUSIONS: Record<WalkthroughCheckOutcome, CheckConclusio
 export const FIXED_SUMMARIES: Record<Exclude<WalkthroughCheckOutcome, WalkthroughCheckOutcome.E2eNotPassing>, string> = {
   [WalkthroughCheckOutcome.Settled]:
     "This PR's Muggle AI walkthrough comment is settled — every E2E acceptance case passed, or it states why E2E does not apply.",
+  [WalkthroughCheckOutcome.RerunInProgress]:
+    "A new E2E acceptance run is in progress on this PR. The walkthrough comment still shows the previous run; this check settles when the new run's walkthrough replaces it.",
   [WalkthroughCheckOutcome.Unsettled]:
     "This PR's Muggle AI walkthrough comment is still empty. Run the E2E acceptance suite and post the walkthrough into it (/muggle:muggle-test), or record why E2E does not apply to this change.",
   [WalkthroughCheckOutcome.Unreadable]:

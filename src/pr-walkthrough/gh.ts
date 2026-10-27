@@ -104,7 +104,8 @@ export function patchPrComment(
 }
 
 /**
- * Publishes a completed check run against a commit.
+ * Publishes a check run against a commit — completed with a conclusion, or in
+ * progress with none: GitHub completes any run sent a conclusion, whatever its status.
  *
  * A check run rather than the job's own status because the same verdict has to
  * report from an `issue_comment` trigger, whose job runs on the default branch:
@@ -113,14 +114,14 @@ export function patchPrComment(
  */
 export function createCheckRun(
   repo: string,
-  checkRun: { name: string; headSha: string; conclusion: string; title: string; summary: string },
+  checkRun: { name: string; headSha: string; status: string; conclusion: string | null; title: string; summary: string },
   run: GhRunner,
 ): boolean {
   return writeJson(["api", "--method", "POST", `repos/${repo}/check-runs`, "--input", "-"], {
     name: checkRun.name,
     head_sha: checkRun.headSha,
-    status: "completed",
-    conclusion: checkRun.conclusion,
+    status: checkRun.status,
+    ...(checkRun.conclusion ? { conclusion: checkRun.conclusion } : {}),
     output: { title: checkRun.title, summary: checkRun.summary },
   }, run);
 }

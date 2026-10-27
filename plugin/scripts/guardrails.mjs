@@ -972,6 +972,102 @@ function applyWalkthroughSkip(state, skipped) {
   if (!skipped || state.walkthroughSkipped === true) return state;
   return { ...state, walkthroughSkipped: true };
 }
+
+// src/pr-walkthrough/comment.ts
+function renderReservedComment() {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+_Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes \u2014 or records why E2E does not apply to this change._`;
+}
+function renderSkippedComment(code, detail) {
+  const stated = detail.trim();
+  if (code === "NOT_APPLICABLE" /* NotApplicable */) return renderNotApplicableComment(stated);
+  const qualifier = stated ? ` \u2014 ${stated}` : "";
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**No E2E run.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
+}
+function renderNotApplicableComment(reason) {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**No E2E run \u2014 not applicable.** ${reason.replace(/\.$/, "")}.
+
+_The coding agent judged that a browser run cannot exercise this change (\`${"NOT_APPLICABLE" /* NotApplicable */}\`). Muggle did not verify this reason._`;
+}
+function renderUnreasonedSkipComment() {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+**No E2E run, and no verified reason given.** The session ended still owing an acceptance run and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`;
+}
+var shortSha = (sha) => sha.slice(0, SHORT_SHA_LENGTH);
+function renderNoAppLogicChangeComment(declared, headSha, lastFullRun) {
+  const cycleStart = declared.preCycleSha.toLowerCase();
+  const head = headSha?.toLowerCase() ?? null;
+  const isHeadPastCycleStart = head !== null && !head.startsWith(cycleStart) && !cycleStart.startsWith(head);
+  const qualifier = declared.reason ? ` \u2014 ${declared.reason}` : "";
+  const evidence = lastFullRun ? `${LAST_FULL_RUN_OPENING}
+
+${lastFullRun}
+
+</details>` : "_No full E2E run is on record for this PR._";
+  const headline = isHeadPastCycleStart ? `**E2E skipped \u2014 no app-logic change in \`${shortSha(head)}\`.**` : `**E2E skipped \u2014 no app-logic change since \`${shortSha(cycleStart)}\`.**`;
+  const baseTip = declared.baseTipSha?.toLowerCase() ?? null;
+  const verdict = baseTip ? `**E2E skipped \u2014 the rebase onto \`${shortSha(baseTip)}\` changed no app logic in this PR.** Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path whose own patch changed in the rebase of \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}, if any did${qualifier}.` : `${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path changed since \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.`;
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_SKIPPED_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+${verdict}
+
+` + evidence;
+}
+function lastFullRunOf(body) {
+  const status = classifyComment(body);
+  if (status === "reported" /* Reported */) {
+    return withoutRerunNotice(body).replace(REPORT_SENTINEL_TAG, "").trim();
+  }
+  if (status !== "skipped" /* Skipped */) return null;
+  const start = body.indexOf(LAST_FULL_RUN_OPENING);
+  if (start === -1) return null;
+  return body.slice(start + LAST_FULL_RUN_OPENING.length).replace(/\s*<\/details>\s*$/, "").trim();
+}
+var formatUtcMinute = (date) => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+function hasRerunNotice(body) {
+  return body.includes(RERUN_NOTICE_OPENING);
+}
+function withoutRerunNotice(body) {
+  return body.replace(RERUN_NOTICE_BLOCK, "");
+}
+function withRerunNotice(body, startedAt) {
+  return `${RERUN_NOTICE_OPENING}
+> **A new E2E run is in progress** \u2014 started ${formatUtcMinute(startedAt)}. The results below are from the previous run; this comment updates when the new run finishes.
+${RERUN_NOTICE_CLOSING}
+
+` + withoutRerunNotice(body);
+}
+function classifyComment(body) {
+  if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
+  if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return "not-designated" /* NotDesignated */;
+  if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
+  return "pending" /* Pending */;
+}
+function walkthroughVerdict(bodies) {
+  const statuses = bodies.map(classifyComment);
+  if (statuses.includes("reported" /* Reported */) || statuses.includes("skipped" /* Skipped */)) {
+    return "satisfied" /* Satisfied */;
+  }
+  if (statuses.includes("pending" /* Pending */)) return "pending" /* Pending */;
+  return "missing" /* Missing */;
+}
+
+// src/guardrails/walkthroughOwed.ts
 function runGh(args) {
   const timeoutMs = boundedChildTimeoutMs(GH_LOOKUP_TIMEOUT_MS);
   if (timeoutMs === null) return null;
@@ -997,9 +1093,13 @@ var defaultPrWalkthroughLookup = {
   prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;
-    return rendered.includes(REPORT_SENTINEL) || acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER);
+    return carriesCurrentWalkthrough(rendered, acceptsSkip);
   }
 };
+function carriesCurrentWalkthrough(rendered, acceptsSkip) {
+  if (hasRerunNotice(rendered)) return false;
+  return rendered.includes(REPORT_SENTINEL) || acceptsSkip && rendered.includes(WALKTHROUGH_SKIPPED_MARKER);
+}
 function scanForOwedWalkthroughs(state, lookup = defaultPrWalkthroughLookup) {
   const candidates = new Set(state.prsHandled);
   const branchPrUrl = lookup.branchPrUrl();
@@ -1767,100 +1867,6 @@ function pathsWithChangedPatch(beforeDiff, afterDiff) {
     const afterLines = after.get(path);
     return !beforeLines || !afterLines || beforeLines.join("\n") !== afterLines.join("\n");
   });
-}
-
-// src/pr-walkthrough/comment.ts
-function renderReservedComment() {
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-_Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes \u2014 or records why E2E does not apply to this change._`;
-}
-function renderSkippedComment(code, detail) {
-  const stated = detail.trim();
-  if (code === "NOT_APPLICABLE" /* NotApplicable */) return renderNotApplicableComment(stated);
-  const qualifier = stated ? ` \u2014 ${stated}` : "";
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_SKIPPED_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-**No E2E run.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
-}
-function renderNotApplicableComment(reason) {
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_SKIPPED_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-**No E2E run \u2014 not applicable.** ${reason.replace(/\.$/, "")}.
-
-_The coding agent judged that a browser run cannot exercise this change (\`${"NOT_APPLICABLE" /* NotApplicable */}\`). Muggle did not verify this reason._`;
-}
-function renderUnreasonedSkipComment() {
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_SKIPPED_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-**No E2E run, and no verified reason given.** The session ended still owing an acceptance run and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`;
-}
-var shortSha = (sha) => sha.slice(0, SHORT_SHA_LENGTH);
-function renderNoAppLogicChangeComment(declared, headSha, lastFullRun) {
-  const cycleStart = declared.preCycleSha.toLowerCase();
-  const head = headSha?.toLowerCase() ?? null;
-  const isHeadPastCycleStart = head !== null && !head.startsWith(cycleStart) && !cycleStart.startsWith(head);
-  const qualifier = declared.reason ? ` \u2014 ${declared.reason}` : "";
-  const evidence = lastFullRun ? `${LAST_FULL_RUN_OPENING}
-
-${lastFullRun}
-
-</details>` : "_No full E2E run is on record for this PR._";
-  const headline = isHeadPastCycleStart ? `**E2E skipped \u2014 no app-logic change in \`${shortSha(head)}\`.**` : `**E2E skipped \u2014 no app-logic change since \`${shortSha(cycleStart)}\`.**`;
-  const baseTip = declared.baseTipSha?.toLowerCase() ?? null;
-  const verdict = baseTip ? `**E2E skipped \u2014 the rebase onto \`${shortSha(baseTip)}\` changed no app logic in this PR.** Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path whose own patch changed in the rebase of \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}, if any did${qualifier}.` : `${headline} Muggle verified \`${"NO_APP_LOGIC_CHANGE" /* NoAppLogicChange */}\` \u2014 every path changed since \`${shortSha(cycleStart)}\` is ${NON_APP_PATH_SUMMARY}${qualifier}.`;
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_SKIPPED_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-${verdict}
-
-` + evidence;
-}
-function lastFullRunOf(body) {
-  const status = classifyComment(body);
-  if (status === "reported" /* Reported */) {
-    return withoutRerunNotice(body).replace(REPORT_SENTINEL_TAG, "").trim();
-  }
-  if (status !== "skipped" /* Skipped */) return null;
-  const start = body.indexOf(LAST_FULL_RUN_OPENING);
-  if (start === -1) return null;
-  return body.slice(start + LAST_FULL_RUN_OPENING.length).replace(/\s*<\/details>\s*$/, "").trim();
-}
-var formatUtcMinute = (date) => `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
-function hasRerunNotice(body) {
-  return body.includes(RERUN_NOTICE_OPENING);
-}
-function withoutRerunNotice(body) {
-  return body.replace(RERUN_NOTICE_BLOCK, "");
-}
-function withRerunNotice(body, startedAt) {
-  return `${RERUN_NOTICE_OPENING}
-> **A new E2E run is in progress** \u2014 started ${formatUtcMinute(startedAt)}. The results below are from the previous run; this comment updates when the new run finishes.
-${RERUN_NOTICE_CLOSING}
-
-` + withoutRerunNotice(body);
-}
-function classifyComment(body) {
-  if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
-  if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return "not-designated" /* NotDesignated */;
-  if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
-  return "pending" /* Pending */;
-}
-function walkthroughVerdict(bodies) {
-  const statuses = bodies.map(classifyComment);
-  if (statuses.includes("reported" /* Reported */) || statuses.includes("skipped" /* Skipped */)) {
-    return "satisfied" /* Satisfied */;
-  }
-  if (statuses.includes("pending" /* Pending */)) return "pending" /* Pending */;
-  return "missing" /* Missing */;
 }
 
 // src/pr-walkthrough/reserve.ts

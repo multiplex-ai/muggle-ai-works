@@ -5,8 +5,8 @@
  * Layout (two sections):
  *   1. Summary: verdict headline + the failed/inconclusive cases with why + per-test name list (numbered;
  *      grouped by useCaseName when present).
- *   2. Test details: per test case, in report order, a result table and the ending screen, then one
- *      collapsible holding one collapsible per step with its screenshot.
+ *   2. Test details: per test case, in report order, a result table, one collapsible holding one
+ *      collapsible per step with its screenshot, then the ending screen.
  *
  * A test case that ran more than once at one runSettings record collapses to a
  * single entry carrying its latest run; see resolveLatestRuns.
@@ -377,9 +377,10 @@ function buildGroupedLayout (latestRuns: readonly ILatestRun[]): GroupedEntry[] 
 }
 
 /**
- * Render one test case: a heading, its description, the result table, the ending
- * screenshot, then one collapsible holding the steps. The ending screen stays out
- * of the collapsible so a reviewer sees where the run landed without expanding it.
+ * Render one test case: a heading, its description, the result table, one
+ * collapsible holding the steps, then the ending screenshot. The ending screen
+ * stays out of the collapsible so a reviewer sees where the run landed without
+ * expanding it, and follows it so the page reads in run order.
  *
  * The heading sits outside any <details>. GitHub lays a heading placed inside a
  * <summary> out inline-block, so a title too long for one line wraps as a whole
@@ -401,13 +402,13 @@ export function renderTestDetails (
     lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
   }
   lines.push(...renderResultTable(entry));
-  const frame = renderEndingFrame(test);
-  if (frame) {
-    lines.push("", ...frame);
-  }
   const steps = renderSteps(test, screenshotDetail);
   if (steps) {
     lines.push("", `<details><summary>${stepsToggleLabel(test, screenshotDetail)}</summary>`, ...indented(steps), "</details>");
+  }
+  const frame = renderEndingFrame(test);
+  if (frame) {
+    lines.push("", ...frame);
   }
   return lines.join("\n");
 }

@@ -3,7 +3,7 @@
  * emitters hold only layout logic.
  */
 
-/** Width of the per-test ending screenshot, shown above the steps collapsible. */
+/** Width of the per-test ending screenshot, shown below the steps collapsible. */
 export const DETAIL_IMAGE_WIDTH = 720;
 
 /** Width of a step's screenshot, shown when that step is expanded. */

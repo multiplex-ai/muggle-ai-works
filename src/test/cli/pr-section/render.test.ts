@@ -390,10 +390,10 @@ describe("renderTestDetails", () => {
     const md = renderTestDetails(latest(passedWithDesc), 1);
     const collapsible = md.indexOf("<details><summary><kbd>Show ");
     const endingScreen = md.indexOf("**Ending screen**");
-    expect(endingScreen).toBeGreaterThan(md.indexOf("| **Result** |"));
-    expect(collapsible).toBeGreaterThan(endingScreen);
+    expect(collapsible).toBeGreaterThan(md.indexOf("| **Result** |"));
     expect(md.indexOf("<summary>📷 1 · ")).toBeGreaterThan(collapsible);
-    expect(md.trimEnd().endsWith("</details>")).toBe(true);
+    expect(md).toContain("</dd></dl>\n</details>\n\n**Ending screen**");
+    expect(endingScreen).toBeGreaterThan(md.lastIndexOf("</details>"));
   });
 
   // A quote in the alt text closes the attribute early, and GitHub prints the
@@ -412,7 +412,7 @@ describe("renderTestDetails", () => {
     const md = renderTestDetails(latest(passedWithDesc), 1);
     expect(md).toMatch(/<details><summary><kbd>Show [^<]+<\/kbd><\/summary>\n<dl><dd>\n/);
     expect(md).toMatch(/<summary>📷 1 · [^\n]+<\/summary>\n<dl><dd>\n/);
-    expect(md.trimEnd().endsWith("</dd></dl>\n</details>")).toBe(true);
+    expect(md).toContain("\n\n</dd></dl>\n</details>\n\n**Ending screen**");
   });
 
   it("shows a step's before and after side by side when the report has both", () => {
@@ -575,10 +575,10 @@ describe("step collapsibles", () => {
     expect(md).toContain("<summary>📷 1 · Click the &lt;Submit&gt; button</summary>");
   });
 
-  it("places the ending screenshot ahead of the steps collapsible", () => {
+  it("places the ending screenshot after the steps collapsible", () => {
     const md = renderTestDetails(latest(passedRealSteps), 1);
     expect(md).toContain("**Ending screen** — Final page after the test completed");
-    expect(md.indexOf("**Ending screen**")).toBeLessThan(md.indexOf("<details><summary><kbd>Show "));
+    expect(md.indexOf("**Ending screen**")).toBeGreaterThan(md.lastIndexOf("</details>"));
   });
 
   it("uses endingScreenshotUrl + endingScreenshotCaption when provided on the test", () => {

@@ -150,6 +150,41 @@ export const ANY_TEST_CASE = "*";
 // (~5 minutes), which is what makes a pre-flight check worth a hook.
 export const MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
 
+// The tools that start an acceptance run: the local execution tools and the
+// remote replay launches. The run lookups name a replay too
+// (`muggle-remote-wf-get-ts-replay-latest-run`) but start nothing, and a session
+// that only checked on a past run has not run one.
+export const MUGGLE_E2E_RUN_TOOL = mcpToolNamePattern(
+  "muggle-(local-execute-(test-generation|replay)|remote-workflow-start-test-script-replay)",
+);
+
+/** A `NAME=value` shell word: an assignment, never the program a command runs. */
+export const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+
+/** Programs whose every run is a test-suite run, however they are launched. */
+export const TEST_RUNNER_PROGRAMS: readonly string[] = ["jest", "vitest", "pytest"];
+
+/** Toolchains whose `test` subcommand runs the suite: `go test`, `cargo test`. */
+export const TEST_SUBCOMMAND_PROGRAMS: readonly string[] = ["go", "cargo"];
+
+/** Package managers whose `test` script runs the suite: `pnpm test`, `npm run test`, `yarn test:unit`. */
+export const PACKAGE_MANAGER_PROGRAMS: readonly string[] = ["pnpm", "npm", "yarn"];
+
+/** Package-manager subcommands that run the binary named next: `pnpm exec vitest`. */
+export const PACKAGE_EXEC_SUBCOMMANDS: readonly string[] = ["exec", "dlx"];
+
+/** Launchers that run the binary named by their first operand: `npx jest`. */
+export const PACKAGE_RUNNER_PROGRAMS: readonly string[] = ["npx", "pnpx", "bunx"];
+
+/** Interpreters that run a module named after `-m`: `python -m pytest`. */
+export const PYTHON_PROGRAMS: readonly string[] = ["python", "python3", "py"];
+
+/** Shells that run the script passed after one of {@link SCRIPT_SHELL_FLAGS}: `bash -c "pnpm test"`. */
+export const SCRIPT_SHELL_PROGRAMS: readonly string[] = ["bash", "sh", "zsh", "pwsh", "powershell"];
+
+/** The flags, lowercased, that hand a shell its script as the next word. */
+export const SCRIPT_SHELL_FLAGS: readonly string[] = ["-c", "-lc", "-command"];
+
 /** The telemetry emit that carries the Step 6f / debug-path decisions the stage gates key on. */
 export const MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
 

@@ -55,6 +55,10 @@ echo "$$" > "${slot}/watch.pid"
 started=$(date +%s)
 fails=0
 unseeded=0
+# Set once the first iteration has run. Until then the window cannot roll the
+# loop over, so a start-up slow enough to spend the whole window still gets one
+# look at the PR rather than handing back a watch that never polled.
+has_iterated=""
 
 # In-memory floors, above the on-disk watermark. The watermark is advanced by
 # the session after it handles a wave; these stop the loop re-reporting an event
@@ -105,10 +109,11 @@ while :; do
     # the line is the owning session's cue to re-arm, and ending here is what
     # frees the lease that re-arm needs. A loop that ran on past its monitor would
     # keep that lease and heartbeat fresh while reporting to no one.
-    if watcher_window_elapsed "$started" "$(date +%s)"; then
+    if [ -n "$has_iterated" ] && watcher_window_elapsed "$started" "$(date +%s)"; then
         echo "ROLLOVER pr=$pr_number monitor window of ${MUGGLE_PR_WATCH_MONITOR_WINDOW}s elapsed — re-arm to keep watching"
         exit 0
     fi
+    has_iterated=1
     touch "${slot}/watch-heartbeat" 2>/dev/null
 
     # No watermark yet means the arming session has not finished seeding. Wait

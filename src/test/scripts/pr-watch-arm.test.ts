@@ -114,7 +114,12 @@ function supersedeAfterStateReads(stubDir: string, slot: string): string[] {
   ];
 }
 
-const stateReadsServed = (stubDir: string): number => Number(readFileSync(join(stubDir, STATE_READS_FILE), "utf8"));
+// The stub writes its counter on the first read, so a loop that never polled
+// left no file behind.
+const stateReadsServed = (stubDir: string): number => {
+  const counterPath = join(stubDir, STATE_READS_FILE);
+  return existsSync(counterPath) ? Number(readFileSync(counterPath, "utf8")) : 0;
+};
 
 // The claim happens after the state fetch, so reaching it needs the two calls
 // arming makes: the tab-separated state projection and the behind-by compare.
@@ -243,6 +248,49 @@ function runWatch(window: number, interval: number): { stdout: string; seconds: 
   return { stdout: stdout, seconds: (Date.now() - startedAt) / 1000 };
 }
 
+// Puts a gh in front of `stubDir`'s whose `auth token` takes `seconds` before
+// answering, standing in for the start-up forks of a loaded machine.
+function slowAuthInFront(stubDir: string, seconds: number): string {
+  const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
+  const gh = join(dir, "gh");
+  writeFileSync(
+    gh,
+    ["#!/usr/bin/env bash", `[ "$1" = "auth" ] && sleep ${seconds}`, `exec "${toBash(join(stubDir, "gh"))}" "$@"`, ""].join(
+      "\n",
+    ),
+  );
+  chmodSync(gh, 0o755);
+  return dir;
+}
+
+// A watermark as arming seeds it for a PR with nothing handled yet, for a test
+// that runs the loop without arming first.
+const ZERO_FLOOR_WATERMARK = 'REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\nREBASE_HELD=""\n';
+
+// Runs the loop over a seeded slot whose start-up takes `setupSeconds`, with a
+// `window`-second window and an interval no window reaches, returning what it
+// printed and how many state reads it made before it exited.
+function runSlowStartWatch(setupSeconds: number, window: number): { stdout: string; stateReads: number } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  writeFileSync(join(slot, "watch-watermark.env"), ZERO_FLOOR_WATERMARK);
+  const stubDir = stubGhDir("OPEN", "", 0, slot);
+  const stdout = execFileSync(
+    "bash",
+    [loopPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    {
+      env: {
+        ...process.env,
+        PATH: `${slowAuthInFront(stubDir, setupSeconds)}${delimiter}${process.env.PATH ?? ""}`,
+        MUGGLE_PR_WATCH_MONITOR_WINDOW: String(window),
+        MUGGLE_PR_WATCH_POLL_INTERVAL: "600",
+      },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  return { stdout: stdout, stateReads: stateReadsServed(stubDir) };
+}
+
 describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
   // The defect this closes: a loop that outlived its Monitor kept polling into a
   // closed pipe while its lease and heartbeat read healthy. Ending the loop with
@@ -269,6 +317,16 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
     expect(loopLines).toHaveLength(1);
     expect(loopLines[0]).toMatch(/^ROLLOVER /);
   }, 60_000);
+
+  // A loop whose start-up outlasts its whole window must still look at the PR
+  // once: rolling over unpolled hands back a watch that never saw a wake, and on
+  // a box loaded enough to do it once it does it every window. One read, not
+  // more: the pause after it is cut to the window's end.
+  it("polls once before rolling over a window its start-up outlasted", () => {
+    const { stdout, stateReads } = runSlowStartWatch(3, 1);
+    expect(stdout).toMatch(/^ROLLOVER pr=1 /m);
+    expect(stateReads).toBe(1);
+  }, 60_000);
 });
 
 // Runs one watch script against a merged PR and returns the command it was run
@@ -276,10 +334,7 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
 function runAgainstMergedPr(script: string): { command: string; stdout: string } {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   // The loop waits for arming to seed this before it polls at all.
-  writeFileSync(
-    join(slot, "watch-watermark.env"),
-    'REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\n',
-  );
+  writeFileSync(join(slot, "watch-watermark.env"), ZERO_FLOOR_WATERMARK);
   const args = [script, "--slot", toBash(slot), "--repo", "o/n", "--pr", "7", "--base", "master"];
   const stdout = execFileSync("bash", args, {
     env: { ...process.env, PATH: `${stubGhDir("MERGED")}${delimiter}${process.env.PATH ?? ""}` },

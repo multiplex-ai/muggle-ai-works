@@ -51,6 +51,8 @@ export function writeSlot(
     heartbeatMtimeMs?: number;
     isRegistered?: boolean;
     isFinalized?: boolean;
+    lastSeen?: unknown;
+    followupLog?: string;
   },
 ): string {
   const slotDir = join(slotsDir, slug);
@@ -68,6 +70,8 @@ export function writeSlot(
     writeFileSync(join(slotDir, "watch-registration.json"), JSON.stringify({ registered_at: "2026-10-24T00:00:00Z", registered_by: "test" }));
   }
   if (slotFiles.isFinalized) writeFileSync(join(slotDir, "result.md"), "done\n");
+  if (slotFiles.lastSeen !== undefined) writeFileSync(join(slotDir, "last_seen.json"), JSON.stringify(slotFiles.lastSeen));
+  if (slotFiles.followupLog !== undefined) writeFileSync(join(slotDir, "followup.log"), slotFiles.followupLog);
   return slotDir;
 }
 

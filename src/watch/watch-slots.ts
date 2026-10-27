@@ -2,7 +2,9 @@ import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync, statSync
 import { basename, dirname, join } from "path";
 import { STOPPED_SLOT_SUFFIX, TERMINAL_SLOT_PR_STATES } from "../guardrails/constants.js";
 import { parsePrUrl } from "../pr-walkthrough/gh.js";
-import { PR_POLLING_DISABLED_FILE, SLOT_CLOSED_OUT_BY, WATCH_REGISTRATION_FILE } from "./constants.js";
+import { LAST_SEEN_FILE_NAME } from "../pr-watch/constants.js";
+import { readSlotText } from "../pr-watch/slotFiles.js";
+import { FOLLOWUP_LOG_FILE, PR_POLLING_DISABLED_FILE, SLOT_CLOSED_OUT_BY, WATCH_REGISTRATION_FILE } from "./constants.js";
 import { optionalString } from "./field-parsers.js";
 import type { SlotPr, WatchSlotRecord, WatchSlotRegistration } from "./types.js";
 
@@ -85,6 +87,8 @@ export function readOpenWatchSlots(slotsDir: string): WatchSlotRecord[] {
       heartbeatMtimeMs: heartbeatMtimeMsOf(slotDir),
       isRegistered: existsSync(join(slotDir, WATCH_REGISTRATION_FILE)),
       openPrs: openPrs,
+      lastSeenJson: readSlotText(join(slotDir, LAST_SEEN_FILE_NAME)),
+      followupLogLines: readSlotText(join(slotDir, FOLLOWUP_LOG_FILE)).split(/\r?\n/),
     });
   }
   return slots;
@@ -117,7 +121,7 @@ function listOrNone(values: unknown): string {
 }
 
 function composeClosedOutResult(slotDir: string, pr: SlotPr, terminalState: string, at: string): string {
-  const lastSeen = readJsonFile(join(slotDir, "last_seen.json")) as Record<string, LastSeenEntry> | undefined;
+  const lastSeen = readJsonFile(join(slotDir, LAST_SEEN_FILE_NAME)) as Record<string, LastSeenEntry> | undefined;
   const history = lastSeen?.[`${pr.repo}#${pr.number}`];
   return [
     `# Result — ${basename(slotDir)}`,
@@ -155,7 +159,7 @@ export function closeOutWatchSlot(slotDir: string, pr: SlotPr, terminalState: st
     }
     writeFileSync(prsPath, `${JSON.stringify(Array.isArray(prsJson) ? entries : entries[0], null, 2)}\n`);
     const at = now.toISOString().replace(/\.\d+Z$/, "Z");
-    appendFileSync(join(slotDir, "followup.log"), `${at} tick pr=${pr.number} terminal=${terminalState} closed-out-by=${SLOT_CLOSED_OUT_BY}\n`);
+    appendFileSync(join(slotDir, FOLLOWUP_LOG_FILE),`${at} tick pr=${pr.number} terminal=${terminalState} closed-out-by=${SLOT_CLOSED_OUT_BY}\n`);
     const isSlotTerminal = entries.every(
       (entry) => typeof entry.state === "string" && (TERMINAL_SLOT_PR_STATES as readonly string[]).includes(entry.state.toLowerCase()),
     );

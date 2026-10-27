@@ -230,6 +230,9 @@ describe("build-router pre-filter reaches every prompt detectBuildIntent accepts
     ["a wire-up ask", JSON.stringify({ prompt: "wire up the export button" })],
     ["a conflict-resolution ask", JSON.stringify({ prompt: "resolve the merge conflicts on my branch" })],
     ["a drive-the-PR-green ask", JSON.stringify({ prompt: "get PR 12 to green" })],
+    ["a /mdo invocation with no build verb", JSON.stringify({ prompt: "/mdo paginate the export page" })],
+    ["a namespaced muggle-do invocation", JSON.stringify({ prompt: "/muggle:muggle-do the export page should paginate" })],
+    ["a Codex muggle-do invocation", JSON.stringify({ prompt: "$muggle:mdo the export page should paginate" })],
   ];
 
   it.each(reaching)("spawns Node for %s", (_label, payload) => {

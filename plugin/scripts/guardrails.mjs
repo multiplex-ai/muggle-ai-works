@@ -1,5 +1,5 @@
 import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync, rmSync } from 'fs';
-import { join, basename, isAbsolute, resolve, dirname } from 'path';
+import { join, isAbsolute, resolve, basename, dirname } from 'path';
 import { homedir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -38,6 +38,8 @@ var WATCH_HOLD_PHRASE_PREFIX = "HOLD WATCH #";
 var WATCH_HOLD_INSTRUCTION = /HOLD WATCH #(\d+)\b/g;
 var WATCH_HOLD_TRANSCRIPT_TAIL_BYTES = 4e6;
 var MAX_BUILD_BLOCKS = 3;
+var MUGGLE_PLUGIN_NAMESPACE = "muggle";
+var MUGGLE_DO_COMMAND_NAMES = ["muggle-do", "mdo"];
 var MAX_WALKTHROUGH_BLOCKS = 3;
 var GH_LOOKUP_TIMEOUT_MS = 1e4;
 function mcpToolNamePattern(hyphenatedSource) {
@@ -51,6 +53,18 @@ var MAX_STAGE_BLOCKS = 3;
 var MAX_DEBUG_BLOCKS = 3;
 var ANY_TEST_CASE = "*";
 var MUGGLE_EXECUTION_TOOL = mcpToolNamePattern("muggle-local-(execute-test-generation|execute-replay)");
+var MUGGLE_E2E_RUN_TOOL = mcpToolNamePattern(
+  "muggle-(local-execute-(test-generation|replay)|remote-workflow-start-test-script-replay)"
+);
+var SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
+var TEST_RUNNER_PROGRAMS = ["jest", "vitest", "pytest"];
+var TEST_SUBCOMMAND_PROGRAMS = ["go", "cargo"];
+var PACKAGE_MANAGER_PROGRAMS = ["pnpm", "npm", "yarn"];
+var PACKAGE_EXEC_SUBCOMMANDS = ["exec", "dlx"];
+var PACKAGE_RUNNER_PROGRAMS = ["npx", "pnpx", "bunx"];
+var PYTHON_PROGRAMS = ["python", "python3", "py"];
+var SCRIPT_SHELL_PROGRAMS = ["bash", "sh", "zsh", "pwsh", "powershell"];
+var SCRIPT_SHELL_FLAGS = ["-c", "-lc", "-command"];
 var MUGGLE_EVENT_EMIT_TOOL = mcpToolNamePattern("muggle-local-telemetry-event-emit");
 var MUGGLE_FEEDBACK_CREATE_TOOL = mcpToolNamePattern("muggle-remote-user-feedback-create");
 var PRE_EXECUTION_CLASSIFICATION_EVENT = "pre-execution-classification";
@@ -1116,9 +1130,10 @@ var defaultPrWalkthroughLookup = {
     const url = runGh(["pr", "view", "--json", "url", "-q", ".url"])?.trim();
     return url && url.startsWith("http") ? url : null;
   },
-  // Scans the description as well as the comments: muggle-do embeds the
-  // walkthrough in the body at PR-creation time, and a comments-only check
-  // would report that PR as owing one it already carries.
+  // Scans the description as well as the comments: a PR opened through the
+  // walkthrough's render-for-new-PR mode, or by a muggle-do release that
+  // embedded it in the body, carries the walkthrough there, and a
+  // comments-only check would report that PR as owing one it already carries.
   prCarriesWalkthrough: (prUrl, acceptsSkip) => {
     const rendered = runGh(["pr", "view", prUrl, "--json", "body,comments"]);
     if (rendered === null) return true;
@@ -1384,6 +1399,61 @@ function debugGateDecision(state, maxBlocks = MAX_DEBUG_BLOCKS, now = Date.now()
 function resolvePluginRoot(env = process.env) {
   return env.CLAUDE_PLUGIN_ROOT || env.CURSOR_PLUGIN_ROOT || dirname(dirname(fileURLToPath(import.meta.url)));
 }
+var SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
+var SHELL_ESCAPABLE_UNQUOTED = /* @__PURE__ */ new Set([" ", "	", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
+var SHELL_ESCAPABLE_DOUBLE_QUOTED = /* @__PURE__ */ new Set(['"', "\\", "$", "`"]);
+function splitShellCommands(command) {
+  const commands = [];
+  let words = [];
+  let word = "";
+  let wordStarted = false;
+  let quote = null;
+  const endWord = () => {
+    if (wordStarted) words.push(word);
+    word = "";
+    wordStarted = false;
+  };
+  const endCommand = () => {
+    endWord();
+    if (words.length > 0) commands.push(words);
+    words = [];
+  };
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    const nextCharacter = command[index + 1];
+    if (quote !== null) {
+      if (character === quote) {
+        quote = null;
+      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
+        word += nextCharacter;
+        index += 1;
+      } else {
+        word += character;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      wordStarted = true;
+    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
+      word += nextCharacter;
+      wordStarted = true;
+      index += 1;
+    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
+      endCommand();
+    } else if (/\s/.test(character)) {
+      endWord();
+    } else {
+      word += character;
+      wordStarted = true;
+    }
+  }
+  endCommand();
+  return commands;
+}
+function normalizeProgramName(programWord) {
+  return basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+}
 
 // src/guardrails/mandatoryStages.ts
 var FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---/;
@@ -1393,8 +1463,6 @@ var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
 var SKILLS_DIR_NAME = "skills";
 var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
-var SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
-var SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 var SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 var WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
 var MARKDOWN_FILE = /\.md$/i;
@@ -1477,57 +1545,6 @@ function applyStageRead(state, filePath) {
   if ((state.stagesRead ?? []).includes(stagePath)) return state;
   return { ...state, stagesRead: [...state.stagesRead ?? [], stagePath] };
 }
-var SHELL_ESCAPABLE_UNQUOTED = /* @__PURE__ */ new Set([" ", "	", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
-var SHELL_ESCAPABLE_DOUBLE_QUOTED = /* @__PURE__ */ new Set(['"', "\\", "$", "`"]);
-function splitShellCommands(command) {
-  const commands = [];
-  let words = [];
-  let word = "";
-  let wordStarted = false;
-  let quote = null;
-  const endWord = () => {
-    if (wordStarted) words.push(word);
-    word = "";
-    wordStarted = false;
-  };
-  const endCommand = () => {
-    endWord();
-    if (words.length > 0) commands.push(words);
-    words = [];
-  };
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index];
-    const nextCharacter = command[index + 1];
-    if (quote !== null) {
-      if (character === quote) {
-        quote = null;
-      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
-        word += nextCharacter;
-        index += 1;
-      } else {
-        word += character;
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      wordStarted = true;
-    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
-      word += nextCharacter;
-      wordStarted = true;
-      index += 1;
-    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
-      endCommand();
-    } else if (/\s/.test(character)) {
-      endWord();
-    } else {
-      word += character;
-      wordStarted = true;
-    }
-  }
-  endCommand();
-  return commands;
-}
 function expandShellWord(word, variables) {
   const withHome = word === "~" || word.startsWith("~/") ? `${homedir()}${word.slice(1)}` : word;
   return withHome.replace(
@@ -1559,7 +1576,7 @@ function detectShellStageReads(command, cwd, env = process.env) {
       for (const [name, value] of assignments) variables[name] = value;
       continue;
     }
-    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+    const program = normalizeProgramName(programWord);
     const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
     if (program === "cd") {
       const target = argumentWords.find((word) => !word.startsWith("-"));
@@ -1804,11 +1821,46 @@ function classificationGateDecision(state, input2) {
 }
 
 // src/guardrails/testsGreen.ts
-var TEST_CMD = /\b(pnpm|npm|yarn)\s+(run\s+)?test\b|\b(jest|vitest|pytest)\b|\bgo\s+test\b|\bcargo\s+test\b/;
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
-var E2E_TOOL = /muggle.*(execute|test-generation|replay)/i;
+var TEST_SCRIPT = /^test(:|$)/;
+var GROUPING_BRACKETS = /^[({]+|[)}]+$/g;
 function isTestCommand(cmd) {
-  return TEST_CMD.test(cmd);
+  return splitShellCommands(cmd).some(runsTestSuite);
+}
+function runsTestSuite(commandWords) {
+  const words = commandWords.map((word) => word.replace(GROUPING_BRACKETS, "")).filter((word) => word.length > 0);
+  const programIndex = words.findIndex((word) => !SHELL_ASSIGNMENT.test(word));
+  if (programIndex < 0) return false;
+  const program = normalizeProgramName(words[programIndex]);
+  const argumentWords = words.slice(programIndex + 1);
+  const operandIndex = argumentWords.findIndex((word) => !word.startsWith("-"));
+  const operand = operandIndex < 0 ? void 0 : argumentWords[operandIndex];
+  const afterOperand = operandIndex < 0 ? [] : argumentWords.slice(operandIndex + 1);
+  if (TEST_RUNNER_PROGRAMS.includes(program)) return true;
+  if (TEST_SUBCOMMAND_PROGRAMS.includes(program)) return operand === "test";
+  if (PACKAGE_MANAGER_PROGRAMS.includes(program)) return runsPackageTestScript(operand, afterOperand);
+  if (PACKAGE_RUNNER_PROGRAMS.includes(program)) return operand !== void 0 && runsTestSuite([operand, ...afterOperand]);
+  if (program === "env") return runsTestSuite(argumentWords);
+  if (program === "timeout") return runsTestSuite(afterOperand);
+  if (program === "node") {
+    const separatorIndex = argumentWords.indexOf("--");
+    return separatorIndex >= 0 && runsTestSuite(argumentWords.slice(separatorIndex + 1));
+  }
+  if (PYTHON_PROGRAMS.includes(program)) {
+    return argumentWords[0] === "-m" && TEST_RUNNER_PROGRAMS.includes(argumentWords[1] ?? "");
+  }
+  if (SCRIPT_SHELL_PROGRAMS.includes(program)) {
+    const flagIndex = argumentWords.findIndex((word) => SCRIPT_SHELL_FLAGS.includes(word.toLowerCase()));
+    const script = flagIndex < 0 ? void 0 : argumentWords[flagIndex + 1];
+    return script !== void 0 && isTestCommand(script);
+  }
+  return false;
+}
+function runsPackageTestScript(subcommand, rest) {
+  if (subcommand === void 0) return false;
+  if (subcommand === "run") return TEST_SCRIPT.test(rest[0] ?? "");
+  if (PACKAGE_EXEC_SUBCOMMANDS.includes(subcommand)) return runsTestSuite(rest.filter((word) => !word.startsWith("-")));
+  return TEST_SCRIPT.test(subcommand) || TEST_RUNNER_PROGRAMS.includes(subcommand);
 }
 function testsPassed(input2) {
   const response = input2.tool_response;
@@ -1819,7 +1871,7 @@ ${response?.output ?? ""}`;
   return !FAIL.test(out);
 }
 function isE2ERun(input2) {
-  if (E2E_TOOL.test(input2.tool_name ?? "")) return true;
+  if (MUGGLE_E2E_RUN_TOOL.test(input2.tool_name ?? "")) return true;
   return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
 }
 function parseMaxCatchUpRebases(configuredValue) {
@@ -2422,11 +2474,29 @@ function deferredCommentIds(ledger, command) {
 var BUILD = /\b(implement|build|add|create|write|fix|refactor|wire up|hook up|make (a|the|it)|change the)\b/i;
 var DEVCYCLE = /\bresolve\b[^.?!]{0,40}\bconflicts?\b|\bget\b[^.?!]{0,40}\bpr\b[^.?!]{0,40}\b(green|merged?|passing)\b/i;
 var QUESTION = /^\s*(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)\b/i;
+var SKILL_COMMAND = /^[/$](?:([\w-]+):)?([\w-]+)(?:\s+([\s\S]*))?$/;
+var MENU_ARGUMENTS = /^(help|menu|\?)?$/i;
+var CHANGE_URL = /https?:\/\/\S+\/(pull\/\d+|-\/merge_requests\/\d+)/i;
+var CHANGE_DIRECTIVE = /\b(address[\s-]reviews|fix[\s-]ci|rebase|resolve[\s-]conflicts)\b/i;
+var CLEANUP_DIRECTIVE = /\bcleanup\b/i;
+var SESSION_SLOT_ARGUMENT = /(^|\s)slug=\S/;
 function detectBuildIntent(prompt) {
   const p = (prompt ?? "").trim();
   if (!p || p.startsWith("/")) return false;
   if (QUESTION.test(p)) return false;
   return BUILD.test(p) || DEVCYCLE.test(p);
+}
+function isMuggleDoForwardInvocation(prompt) {
+  const command = SKILL_COMMAND.exec((prompt ?? "").trim());
+  if (!command) return false;
+  const [, namespace, commandName, rawArguments] = command;
+  if (namespace !== void 0 && namespace.toLowerCase() !== MUGGLE_PLUGIN_NAMESPACE) return false;
+  if (!MUGGLE_DO_COMMAND_NAMES.includes(commandName.toLowerCase())) return false;
+  const commandArguments = (rawArguments ?? "").trim();
+  if (MENU_ARGUMENTS.test(commandArguments)) return false;
+  const isChangeDirective = CHANGE_URL.test(commandArguments) && CHANGE_DIRECTIVE.test(commandArguments);
+  const isCleanupDirective = CLEANUP_DIRECTIVE.test(commandArguments) && SESSION_SLOT_ARGUMENT.test(commandArguments);
+  return !isChangeDirective && !isCleanupDirective;
 }
 
 // src/guardrails/reportGate.ts
@@ -2948,11 +3018,14 @@ function resolveGate() {
   return denyTool(resolveVerdict.reason, host);
 }
 function buildRouter() {
-  if (!detectBuildIntent(input.prompt ?? "")) return "{}";
+  const prompt = input.prompt ?? "";
+  const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
+  if (!isMuggleDoInvoked && !detectBuildIntent(prompt)) return "{}";
   const state = readState(sessionId);
   if (state.buildIntentRouted) return "{}";
   state.buildIntentRouted = true;
   writeState(state);
+  if (isMuggleDoInvoked) return "{}";
   const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }

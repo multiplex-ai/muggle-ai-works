@@ -17,4 +17,5 @@ export enum LlmEnvName {
 export enum LlmProviderValue {
   Anthropic = "anthropic",
   Local = "local",
+  ClaudeCode = "claude-code",
 }

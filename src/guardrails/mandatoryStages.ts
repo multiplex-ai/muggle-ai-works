@@ -1,13 +1,15 @@
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
-import { basename, isAbsolute, join, resolve } from "path";
+import { isAbsolute, join, resolve } from "path";
 import { resolvePluginRoot } from "../plugin-root/pluginRoot.js";
 import {
   FILE_PRINTING_PROGRAMS,
   MANDATORY_STAGES_FRONTMATTER_KEY,
   MAX_STAGE_BLOCKS,
+  SHELL_ASSIGNMENT,
   SKILL_NAME_INPUT_KEYS,
 } from "./constants.js";
+import { normalizeProgramName, splitShellCommands } from "./shellCommands.js";
 import { StageGateAction, type GuardrailState, type StageGateDecision, type ToolInput } from "./types.js";
 
 // A skill's SKILL.md is the router; the files it links to are the steps that
@@ -29,9 +31,6 @@ const SKILLS_DIR_NAME = "skills";
 const SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 const SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
-// The characters of the separators that start a new command: `a && b`, `a; b`, `a | b`, a newline.
-const SHELL_COMMAND_SEPARATOR = /[;&|\n]/;
-const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s;
 const SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
 const WINDOWS_ABSOLUTE_PATH = /^[A-Za-z]:[\\/]/;
 const MARKDOWN_FILE = /\.md$/i;
@@ -168,70 +167,6 @@ export function applyStageRead(state: GuardrailState, filePath: string): Guardra
   return { ...state, stagesRead: [...(state.stagesRead ?? []), stagePath] };
 }
 
-// A backslash escapes only the characters the shell gives meaning to, so a
-// Windows path (`C:\Users\…`) keeps its separators.
-const SHELL_ESCAPABLE_UNQUOTED = new Set([" ", "\t", "'", '"', "\\", "$", ";", "&", "|", "\n"]);
-const SHELL_ESCAPABLE_DOUBLE_QUOTED = new Set(['"', "\\", "$", "`"]);
-
-/**
- * A shell command split into its simple commands, each as its words with quotes removed.
- *
- * A best-effort reading, not a shell: quotes group words and separators split
- * commands, which is all a stage-read check needs. Substitutions and
- * redirections pass through as ordinary words.
- *
- * Output shape: `splitShellCommands("cd /p && cat 'a b.md'")` → `[["cd", "/p"], ["cat", "a b.md"]]`
- */
-function splitShellCommands(command: string): string[][] {
-  const commands: string[][] = [];
-  let words: string[] = [];
-  let word = "";
-  let wordStarted = false;
-  let quote: string | null = null;
-  const endWord = (): void => {
-    if (wordStarted) words.push(word);
-    word = "";
-    wordStarted = false;
-  };
-  const endCommand = (): void => {
-    endWord();
-    if (words.length > 0) commands.push(words);
-    words = [];
-  };
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index];
-    const nextCharacter = command[index + 1];
-    if (quote !== null) {
-      if (character === quote) {
-        quote = null;
-      } else if (character === "\\" && quote === '"' && SHELL_ESCAPABLE_DOUBLE_QUOTED.has(nextCharacter)) {
-        word += nextCharacter;
-        index += 1;
-      } else {
-        word += character;
-      }
-      continue;
-    }
-    if (character === "'" || character === '"') {
-      quote = character;
-      wordStarted = true;
-    } else if (character === "\\" && SHELL_ESCAPABLE_UNQUOTED.has(nextCharacter)) {
-      word += nextCharacter;
-      wordStarted = true;
-      index += 1;
-    } else if (SHELL_COMMAND_SEPARATOR.test(character)) {
-      endCommand();
-    } else if (/\s/.test(character)) {
-      endWord();
-    } else {
-      word += character;
-      wordStarted = true;
-    }
-  }
-  endCommand();
-  return commands;
-}
-
 // An unset variable expands to nothing, as the shell expands it, so the path is
 // the one the command actually opened.
 function expandShellWord(word: string, variables: Record<string, string | undefined>): string {
@@ -289,7 +224,7 @@ export function detectShellStageReads(
       for (const [name, value] of assignments) variables[name] = value;
       continue;
     }
-    const program = basename(programWord.replaceAll("\\", "/")).toLowerCase().replace(/\.exe$/, "");
+    const program = normalizeProgramName(programWord);
     const argumentWords = words.slice(programIndex + 1).map((word) => expandShellWord(word, variables));
     if (program === "cd") {
       const target = argumentWords.find((word) => !word.startsWith("-"));

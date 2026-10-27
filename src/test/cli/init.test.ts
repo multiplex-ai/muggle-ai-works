@@ -307,6 +307,21 @@ describe("muggle init interactive walkthrough", () => {
     });
   });
 
+  it("keeps the current source and finishes setup when Claude Code is refused", async () => {
+    onboardingMocks.applyLlmSourceSelection.mockImplementationOnce(() => {
+      throw new Error("Claude Code is not installed: no working `claude` executable is on the PATH.");
+    });
+    readlineMocks.answers = ["", "4"];
+
+    await initCommand({});
+
+    const output = logLines.join("\n");
+    expect(onboardingMocks.applyLlmSourceSelection).toHaveBeenCalledWith({ source: "claude-code" });
+    expect(output).toContain("Claude Code is not installed");
+    expect(output).toContain("Kept. LLM source: Muggle AI credit");
+    expect(process.exitCode).toBeUndefined();
+  });
+
   it("does not ask for the LLM source when setup is skipped", async () => {
     onboardingMocks.applyOnboardingAnswers.mockReturnValueOnce({
       isCompleted: false,

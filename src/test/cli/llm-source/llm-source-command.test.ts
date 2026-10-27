@@ -82,10 +82,33 @@ describe("muggle llm-source", () => {
     expect(process.exitCode).toBe(1);
   });
 
+  it("--use claude-code applies without a terminal, since it takes no secret", async () => {
+    llmSourceMocks.applyLlmSourceSelection.mockReturnValue({ source: "claude-code" });
+
+    await llmSourceCommand({ use: "claude-code" });
+
+    expect(llmSourceMocks.applyLlmSourceSelection).toHaveBeenCalledWith(
+      expect.objectContaining({ source: "claude-code" }),
+    );
+    expect(logLines).toEqual(["Saved. LLM source: Your Claude Code"]);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("--use claude-code relays Claude Code's refusal and exits non-zero", async () => {
+    llmSourceMocks.applyLlmSourceSelection.mockImplementation(() => {
+      throw new Error("Claude Code 2.1.308 (Claude Code) is not signed in. Sign in by running `claude`.");
+    });
+
+    await llmSourceCommand({ use: "claude-code" });
+
+    expect(errorLines.join("\n")).toContain("is not signed in");
+    expect(process.exitCode).toBe(1);
+  });
+
   it("--use rejects an unknown source", async () => {
     await llmSourceCommand({ use: "claude-subscription" });
 
-    expect(errorLines.join("\n")).toContain("muggle-credit, anthropic-api-key, local-model");
+    expect(errorLines.join("\n")).toContain("muggle-credit, anthropic-api-key, local-model, claude-code");
     expect(llmSourceMocks.applyLlmSourceSelection).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });

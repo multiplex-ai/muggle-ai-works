@@ -5,6 +5,7 @@ import { tmpdir } from "os";
 import { delimiter, join } from "path";
 import { fileURLToPath } from "url";
 import {
+  MUGGLE_E2E_RUN_TOOL,
   MUGGLE_EVENT_EMIT_TOOL,
   MUGGLE_EXECUTION_TOOL,
   MUGGLE_FEEDBACK_CREATE_TOOL,
@@ -85,6 +86,7 @@ describe("muggle MCP tool names under Codex", () => {
 
   it.each([
     ["MUGGLE_EXECUTION_TOOL", MUGGLE_EXECUTION_TOOL],
+    ["MUGGLE_E2E_RUN_TOOL", MUGGLE_E2E_RUN_TOOL],
     ["MUGGLE_SKILL_EMIT_TOOL", MUGGLE_SKILL_EMIT_TOOL],
     ["MUGGLE_EVENT_EMIT_TOOL", MUGGLE_EVENT_EMIT_TOOL],
     ["MUGGLE_FEEDBACK_CREATE_TOOL", MUGGLE_FEEDBACK_CREATE_TOOL],

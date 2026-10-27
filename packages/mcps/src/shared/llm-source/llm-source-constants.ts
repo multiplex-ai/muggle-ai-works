@@ -49,6 +49,45 @@ export const LLM_SOURCE_OPTIONS: readonly ILlmSourceOption[] = [
     description:
       "Any OpenAI-compatible endpoint serving a vision model (Ollama, LM Studio, vLLM). No Muggle AI credit is used.",
   },
+  {
+    source: LlmSource.ClaudeCode,
+    label: "Your Claude Code",
+    description:
+      "Muggle's designated models through your installed, signed-in Claude Code. Your Claude plan's limits apply; no Muggle AI credit is used.",
+  },
+];
+
+/** Executable name of Claude Code, resolved on the PATH the same way Studio resolves it. */
+export const CLAUDE_CODE_EXECUTABLE = "claude";
+
+/** Arguments of the installed-version check. */
+export const CLAUDE_CODE_VERSION_ARGS: readonly string[] = ["--version"];
+
+/** Arguments of the sign-in check; Claude Code itself reports whether it is signed in, as JSON. */
+export const CLAUDE_CODE_AUTH_STATUS_ARGS: readonly string[] = ["auth", "status"];
+
+/** Upper bound for each check, matching Studio's own pre-run check. */
+export const CLAUDE_CODE_CHECK_TIMEOUT_MS = 30000;
+
+/** Spawn error code when no `claude` executable is on the PATH. */
+export const CLAUDE_CODE_EXECUTABLE_NOT_FOUND_CODE = "ENOENT";
+
+/**
+ * Variables a Claude Code session sets for the processes it launches. `muggle` often runs inside
+ * one, and a `claude` child that inherits them treats itself as part of that session.
+ */
+export const CLAUDE_CODE_SESSION_LINK_ENV_VARS: readonly string[] = [
+  "CLAUDECODE",
+  "CLAUDE_CODE_ENTRYPOINT",
+  "CLAUDE_CODE_CHILD_SESSION",
+  "CLAUDE_CODE_SESSION_ID",
+  "CLAUDE_CODE_BRIDGE_SESSION_ID",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_MESSAGING_TOKEN",
+  "CLAUDE_CODE_SESSION_ATTENDED",
+  "CLAUDE_CODE_AGENT",
+  "CLAUDE_CODE_SSE_PORT",
+  "CLAUDE_PID",
 ];
 
 /** Endpoint offered when a local model is configured for the first time — Ollama's default. */

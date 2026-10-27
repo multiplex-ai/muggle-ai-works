@@ -2,9 +2,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LlmSource } from "../shared/llm-source/llm-source-types.js";
+import { resolveLlmEnvOverrides } from "../shared/llm-env-service.js";
+import { ClaudeCodeReadiness, LlmSource } from "../shared/llm-source/llm-source-types.js";
 import {
   applyLlmSourceSelection,
   buildLlmSourcePlan,
@@ -15,7 +16,12 @@ import {
 } from "../shared/llm-source/llm-source-service.js";
 import { readStoredLlmApiKey } from "../shared/llm-source/llm-credentials-store.js";
 
+const claudeCodeReadinessMocks = vi.hoisted(() => ({ checkClaudeCodeReadiness: vi.fn() }));
+
+vi.mock("../shared/llm-source/claude-code-readiness.js", () => claudeCodeReadinessMocks);
+
 const USER_ANTHROPIC_KEY = "sk-ant-user-key-a1b2";
+const INSTALLED_CLAUDE_CODE_VERSION = "2.1.308 (Claude Code)";
 
 describe("llm source service", () => {
   let dataDir: string;
@@ -38,6 +44,11 @@ describe("llm source service", () => {
 
   beforeEach(() => {
     dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "muggle-llm-source-"));
+    claudeCodeReadinessMocks.checkClaudeCodeReadiness.mockReset();
+    claudeCodeReadinessMocks.checkClaudeCodeReadiness.mockReturnValue({
+      readiness: ClaudeCodeReadiness.Ready,
+      installedVersion: INSTALLED_CLAUDE_CODE_VERSION,
+    });
   });
 
   afterEach(() => {
@@ -150,6 +161,66 @@ describe("llm source service", () => {
     expect(fs.existsSync(credentialsPath())).toBe(false);
   });
 
+  it("selects Claude Code with no key and none of the previous source's settings", () => {
+    writePreferencesFile({
+      version: 1,
+      preferences: { autoLogin: "always" },
+      llmEnv: {
+        MUGGLE_LLM_PROVIDER: "local",
+        MUGGLE_LLM_BASE_URL: "http://localhost:11434/v1",
+        MUGGLE_LLM_MODEL: "llava",
+        MUGGLE_LLM_API_KEY: "legacy-inline-key",
+        MUGGLE_LLM_MAX_TOKENS: "4096",
+      },
+    });
+    fs.writeFileSync(credentialsPath(), JSON.stringify({ apiKey: "vpc-endpoint-key" }), "utf-8");
+
+    const status = applyLlmSourceSelection({ source: LlmSource.ClaudeCode }, dataDir);
+
+    expect(status).toEqual({ source: LlmSource.ClaudeCode });
+    expect(readPreferencesFile().llmEnv).toEqual({ MUGGLE_LLM_PROVIDER: "claude-code" });
+    expect(readPreferencesFile().preferences).toEqual({ autoLogin: "always" });
+    expect(fs.existsSync(credentialsPath())).toBe(false);
+    expect(resolveLlmEnvOverrides(dataDir)).toEqual({ MUGGLE_LLM_PROVIDER: "claude-code" });
+    expect(claudeCodeReadinessMocks.checkClaudeCodeReadiness).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses Claude Code when it is not installed, writing nothing", () => {
+    claudeCodeReadinessMocks.checkClaudeCodeReadiness.mockReturnValue({ readiness: ClaudeCodeReadiness.NotInstalled });
+
+    expect(() => applyLlmSourceSelection({ source: LlmSource.ClaudeCode }, dataDir)).toThrow(
+      /Claude Code is not installed: no working `claude` executable is on the PATH/,
+    );
+    expect(fs.existsSync(preferencesPath())).toBe(false);
+  });
+
+  it("refuses a signed-out Claude Code and keeps the source in effect", () => {
+    applyLlmSourceSelection({ source: LlmSource.AnthropicApiKey, apiKey: USER_ANTHROPIC_KEY }, dataDir);
+    claudeCodeReadinessMocks.checkClaudeCodeReadiness.mockReturnValue({
+      readiness: ClaudeCodeReadiness.SignedOut,
+      installedVersion: INSTALLED_CLAUDE_CODE_VERSION,
+    });
+
+    expect(() => applyLlmSourceSelection({ source: LlmSource.ClaudeCode }, dataDir)).toThrow(
+      `Claude Code ${INSTALLED_CLAUDE_CODE_VERSION} is not signed in. Sign in by running \`claude\``,
+    );
+    expect(resolveLlmSourceStatus(dataDir)).toEqual({ source: LlmSource.AnthropicApiKey, maskedApiKey: "…a1b2" });
+  });
+
+  it("asks Claude Code for its sign-in only when it is the source picked", () => {
+    applyLlmSourceSelection({ source: LlmSource.MuggleCredit }, dataDir);
+    applyLlmSourceSelection({ source: LlmSource.AnthropicApiKey, apiKey: USER_ANTHROPIC_KEY }, dataDir);
+
+    expect(claudeCodeReadinessMocks.checkClaudeCodeReadiness).not.toHaveBeenCalled();
+  });
+
+  it("reports Claude Code from the preferences file without running it", () => {
+    writePreferencesFile({ version: 1, preferences: {}, llmEnv: { MUGGLE_LLM_PROVIDER: "claude-code" } });
+
+    expect(resolveLlmSourceStatus(dataDir)).toEqual({ source: LlmSource.ClaudeCode });
+    expect(claudeCodeReadinessMocks.checkClaudeCodeReadiness).not.toHaveBeenCalled();
+  });
+
   it("builds a plan with the current source and every option", () => {
     const plan = buildLlmSourcePlan(dataDir);
 
@@ -157,6 +228,7 @@ describe("llm source service", () => {
       LlmSource.MuggleCredit,
       LlmSource.AnthropicApiKey,
       LlmSource.LocalModel,
+      LlmSource.ClaudeCode,
     ]);
     expect(plan.current.source).toBe(LlmSource.MuggleCredit);
     expect(plan.scopeNote).toContain("Cloud runs always use Muggle AI credit");
@@ -174,6 +246,7 @@ describe("llm source service", () => {
         localModel: "qwen2.5vl",
       }),
     ).toBe("LLM source: A local or self-hosted model — qwen2.5vl at http://localhost:11434/v1");
+    expect(describeLlmSourceStatus({ source: LlmSource.ClaudeCode })).toBe("LLM source: Your Claude Code");
   });
 
   it("masks short keys entirely", () => {

@@ -345,7 +345,7 @@ muggle serve --local          # Local tools only (muggle-local-*)
 
 # Setup and diagnostics
 muggle init                   # Guided setup; saves preferences, offers the CI check
-muggle llm-source [--show]    # Who supplies the model for local runs: Muggle AI credit, your Anthropic key, or a local model
+muggle llm-source [--show]    # Who supplies the model for local runs: Muggle AI credit, your Anthropic key, a local model, or your Claude Code
 muggle setup [--force]        # Download or update the browser runner
 muggle upgrade [--check]      # Install the latest runner version
 muggle versions               # List installed runner versions

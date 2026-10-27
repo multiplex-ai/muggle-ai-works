@@ -7,6 +7,7 @@
 
 import { LlmEnvName, LlmProviderValue } from "../llm-env-types.js";
 import { readPreferencesMetadata, writeLlmEnvBlock } from "../preferences-service.js";
+import { checkClaudeCodeReadiness } from "./claude-code-readiness.js";
 import { deleteStoredLlmApiKey, readStoredLlmApiKey, writeStoredLlmApiKey } from "./llm-credentials-store.js";
 import {
   LLM_SOURCE_HEADER,
@@ -18,6 +19,7 @@ import {
   MASKED_API_KEY_VISIBLE_CHARS,
 } from "./llm-source-constants.js";
 import {
+  ClaudeCodeReadiness,
   LlmSource,
   type ILlmSourceOption,
   type ILlmSourcePlan,
@@ -75,6 +77,10 @@ export function resolveLlmSourceStatus(dataDirOverride?: string): ILlmSourceStat
     return { source: LlmSource.AnthropicApiKey, maskedApiKey: maskedApiKey };
   }
 
+  if (llmEnv[LlmEnvName.Provider] === LlmProviderValue.ClaudeCode) {
+    return { source: LlmSource.ClaudeCode };
+  }
+
   if (llmEnv[LlmEnvName.Provider] === LlmProviderValue.Local) {
     return {
       source: LlmSource.LocalModel,
@@ -125,6 +131,20 @@ export function describeLlmSourceStatus(status: ILlmSourceStatus): string {
   return `LLM source: ${label}`;
 }
 
+function assertClaudeCodeReady(): void {
+  const readinessReport = checkClaudeCodeReadiness();
+  if (readinessReport.readiness === ClaudeCodeReadiness.NotInstalled) {
+    throw new Error(
+      "Claude Code is not installed: no working `claude` executable is on the PATH. Install Claude Code from Anthropic, sign in by running `claude`, then choose this source again.",
+    );
+  }
+  if (readinessReport.readiness === ClaudeCodeReadiness.SignedOut) {
+    throw new Error(
+      `Claude Code ${readinessReport.installedVersion} is not signed in. Sign in by running \`claude\` and following its sign-in, then choose this source again.`,
+    );
+  }
+}
+
 function assertValidSelection(selection: ILlmSourceSelection): void {
   if (selection.source === LlmSource.AnthropicApiKey && !selection.apiKey?.trim()) {
     throw new Error("An Anthropic API key is required for this source.");
@@ -137,6 +157,9 @@ function assertValidSelection(selection: ILlmSourceSelection): void {
       throw new Error("A local model needs the model name the endpoint serves.");
     }
   }
+  if (selection.source === LlmSource.ClaudeCode) {
+    assertClaudeCodeReady();
+  }
 }
 
 /**
@@ -148,7 +171,7 @@ function assertValidSelection(selection: ILlmSourceSelection): void {
  * @param selection - What the user picked.
  * @param dataDirOverride - Override data dir for testing.
  * @returns The status now in effect.
- * @throws When the selection lacks a setting its source requires.
+ * @throws When the selection lacks a setting its source requires, or Claude Code is not installed or signed in.
  */
 export function applyLlmSourceSelection(
   selection: ILlmSourceSelection,
@@ -165,6 +188,12 @@ export function applyLlmSourceSelection(
   if (selection.source === LlmSource.AnthropicApiKey) {
     writeStoredLlmApiKey((selection.apiKey as string).trim(), dataDirOverride);
     writeLlmEnvBlock({ [LlmEnvName.Provider]: LlmProviderValue.Anthropic }, dataDirOverride);
+    return resolveLlmSourceStatus(dataDirOverride);
+  }
+
+  if (selection.source === LlmSource.ClaudeCode) {
+    writeLlmEnvBlock({ [LlmEnvName.Provider]: LlmProviderValue.ClaudeCode }, dataDirOverride);
+    deleteStoredLlmApiKey(dataDirOverride);
     return resolveLlmSourceStatus(dataDirOverride);
   }
 

@@ -111,6 +111,15 @@ export const PR_POLLING_DISABLED_FILE = "polling.disabled";
 /** The slot file that opts a slot into out-of-session recovery. */
 export const WATCH_REGISTRATION_FILE = "watch-registration.json";
 
+/** The slot's append-only log of what its watcher and cycles did. */
+export const FOLLOWUP_LOG_FILE = "followup.log";
+
+/** The word a watcher's `followup.log` line carries when it hands work to the owner. */
+export const FOLLOWUP_LOG_ESCALATED_WORD = "escalated";
+
+/** Longest watcher note an awaiting-owner finding quotes before cutting it short. */
+export const OWNER_ESCALATION_NOTE_MAX_CHARS = 200;
+
 /** Who wrote a registration made through the CLI. */
 export const WATCH_REGISTRATION_SOURCE_CLI = "muggle-watch-cli";
 
@@ -128,6 +137,7 @@ export const WATCH_FINDING_SEVERITY: Record<WatchFindingCode, WatchFindingSeveri
   [WatchFindingCode.WatcherDead]: WatchFindingSeverity.Alert,
   [WatchFindingCode.WatcherDeaf]: WatchFindingSeverity.Alert,
   [WatchFindingCode.CiFailing]: WatchFindingSeverity.Alert,
+  [WatchFindingCode.AwaitingOwner]: WatchFindingSeverity.Alert,
   [WatchFindingCode.BaseConflict]: WatchFindingSeverity.Alert,
   [WatchFindingCode.BehindBase]: WatchFindingSeverity.Warning,
   [WatchFindingCode.ReviewThreadsUnresolved]: WatchFindingSeverity.Warning,

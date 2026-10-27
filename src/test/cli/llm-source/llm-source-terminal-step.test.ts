@@ -107,6 +107,26 @@ describe("askLlmSourceSelection", () => {
     });
   });
 
+  it("selects Claude Code without further questions", async () => {
+    const { prompter, hiddenQuestions } = scriptedPrompter(["4"]);
+
+    expect(await askLlmSourceSelection(prompter, buildPlan(), silentPrint)).toEqual({
+      source: LlmSource.ClaudeCode,
+    });
+    expect(hiddenQuestions).toHaveLength(0);
+  });
+
+  it("offers Claude Code last, after the default", async () => {
+    const printed: string[] = [];
+    const { prompter } = scriptedPrompter([""]);
+
+    await askLlmSourceSelection(prompter, buildPlan(), (line) => printed.push(line));
+
+    const output = printed.join("\n");
+    expect(output).toContain("* 1. Muggle AI credit");
+    expect(output).toContain("  4. Your Claude Code");
+  });
+
   it("re-asks until the source number is in range", async () => {
     const { prompter } = scriptedPrompter(["9", "x", "1"]);
 

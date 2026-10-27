@@ -170,12 +170,23 @@ export function withoutRerunNotice(body: string): string {
 }
 
 /**
+ * Whether a PR's designated walkthrough carries a rerun banner — the new run it
+ * announces has not posted yet, so the walkthrough shown is not this PR's verdict.
+ *
+ * @param bodies - Every comment on the PR.
+ */
+export function isRerunInProgress(bodies: readonly string[]): boolean {
+  return bodies.some(
+    (body) => classifyComment(body) !== WalkthroughCommentStatus.NotDesignated && hasRerunNotice(body),
+  );
+}
+
+/**
  * The designated comment with a banner on top saying a new E2E run started.
  *
- * The comment underneath is left whole, so it keeps classifying as it did and
- * the walkthrough check judges the run it shows until the new run replaces it.
- * A run that never posts leaves a banner that is still true: a run did start at
- * the time it names.
+ * The comment underneath is left whole, so it keeps classifying as it did and is
+ * carried forward intact if the run never posts; until the new run's walkthrough
+ * replaces it, the walkthrough check reports the run in progress.
  *
  * @param startedAt - When the new run started.
  */

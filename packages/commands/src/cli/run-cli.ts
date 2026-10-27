@@ -91,10 +91,12 @@ function createProgram (): Command {
 
   program
     .command("llm-source")
-    .description("Choose who supplies the model for local runs: Muggle AI credit, your Anthropic key, or a local model")
+    .description(
+      "Choose who supplies the model for local runs: Muggle AI credit, your Anthropic key, a local model, or your Claude Code",
+    )
     .option("--show", "Print the source in effect")
     .option("--json", "Emit the question as JSON instead of prompting")
-    .option("--use <source>", "Set a source without prompting: muggle-credit, anthropic-api-key, local-model")
+    .option("--use <source>", "Set a source without prompting: muggle-credit, anthropic-api-key, local-model, claude-code")
     .option("--base-url <url>", "Endpoint URL, with --use local-model")
     .option("--model <name>", "Model served at the endpoint, with --use local-model")
     .action(llmSourceCommand);

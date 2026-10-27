@@ -10,6 +10,8 @@ export enum LlmSource {
   AnthropicApiKey = "anthropic-api-key",
   /** The user's OpenAI-compatible endpoint; no credit is used. */
   LocalModel = "local-model",
+  /** The user's own installed Claude Code, on whatever it is signed in with; no credit is used. */
+  ClaudeCode = "claude-code",
 }
 
 /**
@@ -78,4 +80,47 @@ export interface ILlmSourcePlan {
 export interface IStoredLlmCredentials {
   /** The user's model API key. */
   apiKey: string;
+}
+
+/** Whether the user's Claude Code can serve model calls, as Claude Code itself reports. */
+export enum ClaudeCodeReadiness {
+  /** Installed and signed in. */
+  Ready = "ready",
+  /** No working `claude` executable on the PATH. */
+  NotInstalled = "not-installed",
+  /** Installed, but reports no sign-in. */
+  SignedOut = "signed-out",
+}
+
+/**
+ * Outcome of asking Claude Code whether it is installed and signed in.
+ *
+ * Output shape: `{ readiness: "signed-out", installedVersion: "2.1.308 (Claude Code)" }`
+ */
+export interface IClaudeCodeReadinessReport {
+  /** What the checks found. */
+  readiness: ClaudeCodeReadiness;
+  /** The `claude --version` line, when the executable ran. */
+  installedVersion?: string;
+}
+
+/**
+ * One finished `claude` invocation.
+ */
+export interface IClaudeCodeCommandResult {
+  /** Exit status; null when the process never started or was killed. */
+  exitCode: number | null;
+  /** Captured standard output. */
+  stdout: string;
+  /** Error code when the process could not be spawned, e.g. `ENOENT`. */
+  spawnErrorCode?: string;
+}
+
+/** Runs `claude` once with the given arguments and returns its result. */
+export type ClaudeCodeCommandRunner = (args: readonly string[]) => IClaudeCodeCommandResult;
+
+/** The fields read from `claude auth status`; the account details it also prints are ignored. */
+export interface IClaudeCodeAuthStatus {
+  /** True when Claude Code is signed in. */
+  loggedIn?: boolean;
 }

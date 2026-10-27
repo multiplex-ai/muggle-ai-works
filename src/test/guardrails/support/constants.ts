@@ -12,6 +12,16 @@ export const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url))
 /** The shipped hook runtime: every script the plugin's hooks run, bundles and hand-written launchers alike. */
 export const PLUGIN_SCRIPTS_DIR = fileURLToPath(new URL("../../../../plugin/scripts", import.meta.url));
 
+/** The recorder wrappers the shell PostToolUse dispatcher feeds, every one of which a shell result must reach. */
+export const SHELL_RECORDER_SCRIPTS = [
+  "guardrail-pr-opened.sh",
+  "guardrail-record-tests.sh",
+  "guardrail-pr-terminal.sh",
+  "guardrail-record-stage-signals.sh",
+  "guardrail-record-comment-replies.sh",
+  "guardrail-record-stage-read.sh",
+];
+
 /** A wrapper's whole-payload pre-filter call: `guardrail_payload_matches '<pattern>'`. */
 export const PAYLOAD_PREFILTER_CALL = /guardrail_payload_matches '([^']+)'/g;
 

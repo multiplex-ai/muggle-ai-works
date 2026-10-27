@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { EVENT_HOOK_RUNTIME_BUDGET_MS, HOOK_RUNTIME_BUDGET_MS } from "../../../hook-budget/constants.js";
 import { HOOK_RUNTIME_SCENARIOS, HOOK_TIMEOUT_CAPS, RUNTIME_MEASUREMENT_TIMEOUT_MS } from "./constants.js";
-import { commandsForSlot, groupFiresForSlot, loadHooksManifest } from "./footprint.js";
+import { firingTimeoutSeconds, groupFiresForSlot, loadHooksManifest } from "./footprint.js";
 import { createSlowProgramShimDirectory, timeScenarioRuntime, waitForUpkeepSweeps } from "./runtime.js";
 import { HomeSeed, type HookEvent } from "./types.js";
 
@@ -23,10 +23,7 @@ describe("hook runtime caps in the manifest", () => {
   });
 
   it.each(scenarioRows)("%s: the hooks it fires declare no more between them than their event's per-firing cap", (label, scenario) => {
-    const declaredSeconds = commandsForSlot(manifest, scenario.slot, scenario.payload).reduce(
-      (sum, hook) => sum + (hook.timeout ?? 0),
-      0,
-    );
+    const declaredSeconds = firingTimeoutSeconds(manifest, scenario.slot, scenario.payload);
     expect(declaredSeconds, `${label} summed timeouts`).toBeLessThanOrEqual(HOOK_TIMEOUT_CAPS[scenario.slot.event].perFiringSeconds);
   });
 

@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { performance } from "perf_hooks";
 import {
+  CASE_INSENSITIVE_IF_RULE_TOOLS,
   HOOK_IF_RULE,
   NOOP_TRANSCRIPT_PLACEHOLDER,
   PLUGIN_ROOT,
@@ -38,20 +39,25 @@ export function groupFiresForSlot(group: HookGroup, slot: HookSlot): boolean {
 }
 
 /**
- * Whether Claude Code launches `hook` for a `toolName` call running `toolCommand`. With no command to judge, every
- * hook counts, so an inventory of a slot sees each gate it can reach.
+ * Whether Claude Code launches `hook` for a `toolName` call running `toolCommand`. A rule naming another tool never
+ * launches; with no command to judge, every rule for the tool counts, so an inventory of a slot sees each gate it
+ * can reach. This does not model Claude Code's Bash parser giving up on a command (an unresolved `$VAR`, a `$(…)`
+ * argument, a loop over one), which launches every Bash variant whatever its pattern.
  * @throws When the rule's pattern does not start and end with `*`: matching it against the whole command, as this
  * does, agrees with Claude Code matching each subcommand only for such a pattern.
  */
 export function hookRunsForToolCommand(hook: HookCommand, toolName: string | undefined, toolCommand: string | undefined): boolean {
-  if (hook.if === undefined || toolCommand === undefined) return true;
+  if (hook.if === undefined) return true;
   const rule = HOOK_IF_RULE.exec(hook.if);
-  if (!rule || !rule[2].startsWith("*") || !rule[2].endsWith("*")) {
+  const [, ruleToolName, rulePattern] = rule ?? [];
+  if (!rule || (rulePattern !== undefined && (!rulePattern.startsWith("*") || !rulePattern.endsWith("*")))) {
     throw new Error(`footprint harness cannot model the if rule ${hook.if}`);
   }
-  if (rule[1] !== toolName) return false;
-  const literalParts = rule[2].split("*").map((part) => part.replace(REGEXP_SYNTAX_CHARACTERS, "\\$&"));
-  return new RegExp(`^${literalParts.join("[\\s\\S]*")}$`).test(toolCommand);
+  if (toolName !== undefined && ruleToolName !== toolName) return false;
+  if (rulePattern === undefined || toolCommand === undefined) return true;
+  const literalParts = rulePattern.split("*").map((part) => part.replace(REGEXP_SYNTAX_CHARACTERS, "\\$&"));
+  const flags = CASE_INSENSITIVE_IF_RULE_TOOLS.includes(ruleToolName) ? "i" : "";
+  return new RegExp(`^${literalParts.join("[\\s\\S]*")}$`, flags).test(toolCommand);
 }
 
 /**
@@ -67,6 +73,19 @@ export function commandsForSlot(manifest: HooksManifest, slot: HookSlot, payload
     .filter((group) => groupFiresForSlot(group, slot))
     .flatMap((group) => group.hooks)
     .filter((hook) => hookRunsForToolCommand(hook, slot.toolName, toolCommand));
+}
+
+/**
+ * Seconds the hooks `slot` launches for `payload` declare between them, each distinct command once at its longest
+ * timeout: Claude Code starts a command's matching `if` variants together, and the dispatcher's claim lets one of
+ * them do the work while the rest answer in-shell, so the variants overlap rather than add up.
+ */
+export function firingTimeoutSeconds(manifest: HooksManifest, slot: HookSlot, payload?: Record<string, unknown>): number {
+  const longestTimeoutByCommand = new Map<string, number>();
+  for (const hook of commandsForSlot(manifest, slot, payload)) {
+    longestTimeoutByCommand.set(hook.command, Math.max(longestTimeoutByCommand.get(hook.command) ?? 0, hook.timeout ?? 0));
+  }
+  return [...longestTimeoutByCommand.values()].reduce((sum, seconds) => sum + seconds, 0);
 }
 
 function runBash(script: string, env: NodeJS.ProcessEnv = process.env, input = ""): { stdout: string; stderr: string } {

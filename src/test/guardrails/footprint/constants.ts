@@ -26,8 +26,11 @@ export const HOOK_TIMEOUT_CAPS: Record<HookEvent, HookTimeoutCaps> = {
   [HookEvent.UserPromptSubmit]: PER_EVENT_TIMEOUT_CAPS,
 };
 
-/** A hook's `if` rule: the tool it names, and the wildcard pattern over that tool's command. */
-export const HOOK_IF_RULE = /^(\w+)\((.*)\)$/s;
+/** A hook's `if` rule: the tool it names, and the wildcard pattern over that tool's command; a bare tool name has none and matches every call. */
+export const HOOK_IF_RULE = /^(\w+)(?:\((.*)\))?$/s;
+
+/** Tools whose `if` patterns Claude Code matches ignoring case, as PowerShell itself reads commands. */
+export const CASE_INSENSITIVE_IF_RULE_TOOLS = ["PowerShell"];
 
 /** Characters a RegExp reads as syntax, escaped when an `if` pattern's literal text becomes one. */
 export const REGEXP_SYNTAX_CHARACTERS = /[.*+?^${}()|[\]\\]/g;
@@ -74,12 +77,26 @@ export const HOT_PATH_SLOT_CAPS: HookSlotCap[] = [
   },
   {
     slot: { event: HookEvent.PostToolUse, toolName: "Bash" },
+    // Every Bash call launches the recorders: Claude Code's Bash parser gives up on about a sixth of real commands and
+    // then launches every `if` variant, so a rule per trigger would launch more commands than it saves.
     maxCommands: 1,
     maxNoopSpawns: 0,
     noopPayload: {
       session_id: NOOP_SESSION_ID,
       tool_name: "Bash",
       tool_input: { command: "ls" },
+      tool_response: { stdout: "README.md\n", stderr: "", interrupted: false },
+    },
+  },
+  {
+    slot: { event: HookEvent.PostToolUse, toolName: "PowerShell" },
+    // The recorders' `if` rules name every command they act on, so Claude Code launches nothing for any other.
+    maxCommands: 0,
+    maxNoopSpawns: 0,
+    noopPayload: {
+      session_id: NOOP_SESSION_ID,
+      tool_name: "PowerShell",
+      tool_input: { command: "Get-ChildItem" },
       tool_response: { stdout: "README.md\n", stderr: "", interrupted: false },
     },
   },
@@ -167,6 +184,9 @@ export const HOME_SEED_SESSION_SLOTS: Partial<Record<HomeSeed, Record<string, Re
 
 const RUNTIME_PAYLOAD_BASE = { session_id: RUNTIME_SESSION_ID, transcript_path: NOOP_TRANSCRIPT_PLACEHOLDER };
 
+// Claude Code names every tool call, and the dispatcher claims a call by that name.
+const RUNTIME_SHELL_RESULT_BASE = { ...RUNTIME_PAYLOAD_BASE, hook_event_name: HookEvent.PostToolUse, tool_use_id: "toolu_runtime" };
+
 /**
  * Every firing the runtime budget is held to: each hooks.json group's irrelevant path and the payloads that make its
  * gates do real work, including the `gh` lookups and the session-start upkeep. A group no scenario fires fails CI.
@@ -225,7 +245,7 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
     slot: { event: HookEvent.PostToolUse, toolName: "Bash" },
     homeSeed: HomeSeed.Installed,
     payload: {
-      ...RUNTIME_PAYLOAD_BASE,
+      ...RUNTIME_SHELL_RESULT_BASE,
       tool_name: "Bash",
       tool_input: { command: "ls" },
       tool_response: { stdout: "README.md\n", stderr: "", interrupted: false },
@@ -236,7 +256,7 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
     slot: { event: HookEvent.PostToolUse, toolName: "Bash" },
     homeSeed: HomeSeed.Installed,
     payload: {
-      ...RUNTIME_PAYLOAD_BASE,
+      ...RUNTIME_SHELL_RESULT_BASE,
       tool_name: "Bash",
       tool_input: { command: 'gh pr create --title "Fix" --body "Fix the flow."' },
       tool_response: { stdout: `${FIXTURE_PR_URL}\n`, stderr: "", interrupted: false },
@@ -247,7 +267,7 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
     slot: { event: HookEvent.PostToolUse, toolName: "Bash" },
     homeSeed: HomeSeed.WalkthroughOwed,
     payload: {
-      ...RUNTIME_PAYLOAD_BASE,
+      ...RUNTIME_SHELL_RESULT_BASE,
       tool_name: "Bash",
       tool_input: { command: "gh pr merge 1 --squash" },
       tool_response: { stdout: "", stderr: "✓ Merged pull request #1 (Fix)\n", interrupted: false },
@@ -258,10 +278,21 @@ export const HOOK_RUNTIME_SCENARIOS: HookRuntimeScenario[] = [
     slot: { event: HookEvent.PostToolUse, toolName: "PowerShell" },
     homeSeed: HomeSeed.WalkthroughOwed,
     payload: {
-      ...RUNTIME_PAYLOAD_BASE,
+      ...RUNTIME_SHELL_RESULT_BASE,
       tool_name: "PowerShell",
       tool_input: { command: "gh api repos/footprint-fixture/no-such-repo/pulls/1/comments/7/replies -f body=Done" },
       tool_response: { stdout: "{}", stderr: "", interrupted: false },
+    },
+  },
+  {
+    label: "tests run, then a PR opened with a notes file",
+    slot: { event: HookEvent.PostToolUse, toolName: "PowerShell" },
+    homeSeed: HomeSeed.Installed,
+    payload: {
+      ...RUNTIME_SHELL_RESULT_BASE,
+      tool_name: "PowerShell",
+      tool_input: { command: "pnpm test; gh pr create --title Fix --body-file notes.md" },
+      tool_response: { stdout: `Tests  3 passed\n${FIXTURE_PR_URL}\n`, stderr: "", interrupted: false },
     },
   },
   {

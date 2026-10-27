@@ -12,6 +12,7 @@ import {
   deriveCodexHooks,
   renderCodexHooks,
 } from "../../../scripts/build-codex-hooks.mjs";
+import { SHELL_RECORDER_SCRIPTS } from "./support/constants.js";
 
 // plugin/hooks/codex-hooks.json is what the Codex plugin manifest points Codex
 // at, generated from hooks.json. Codex runs Claude Code-format hooks, so the
@@ -101,6 +102,15 @@ describe("plugin/hooks/codex-hooks.json", () => {
     const claudeScripts = scriptsIn(readManifest(CLAUDE_HOOKS));
     const codexScripts = scriptsIn(codex);
     for (const script of claudeScripts) expect(codexScripts, script).toContain(script);
+  });
+
+  // With no `if` to narrow it, Codex must run the recorders' one dispatcher on every shell call, never once per variant.
+  it("runs one dispatcher feeding every shell recorder after each Bash call", () => {
+    const shellGroups = codex.hooks.PostToolUse.filter((group) => group.matcher === "Bash");
+    expect(shellGroups).toHaveLength(1);
+    expect(shellGroups[0].hooks).toHaveLength(1);
+    const dispatcherCommand = shellGroups[0].hooks[0].command;
+    for (const recorder of SHELL_RECORDER_SCRIPTS) expect(dispatcherCommand, recorder).toContain(recorder);
   });
 
   it("offers the post-merge handoff through Codex's own question tool", () => {

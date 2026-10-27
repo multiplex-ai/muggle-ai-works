@@ -14,6 +14,9 @@ set -uo pipefail
 #       rewriting it (guardrails.mjs on every guarded tool call) and refreshes it
 #       on resume (below), so its mtime tracks last activity — only a session gone
 #       quiet for the whole window is collected, and by then it has ended.
+#   guardrails/claims/<event>-<tool call>   one per guarded tool call that started
+#       Node. Only the launches Claude Code starts together for that one call ever
+#       read it, so a claim an hour old is dead.
 #   muggle-do/sessions/<slug>/  a PR-follow-up slot. Pruned only once finalized
 #       (result.md present — the terminal marker); an OPEN slot, a PR watched for
 #       any length of time, has no result.md and is never touched.
@@ -23,6 +26,7 @@ set -uo pipefail
 
 home="${HOME}"
 guardrails_dir="${home}/.muggle-ai/guardrails"
+claims_dir="${guardrails_dir}/claims"
 sessions_dir="${home}/.muggle-ai/muggle-do/sessions"
 marker_dir="${home}/.cache/muggle"
 marker="${marker_dir}/state-gc-checked"
@@ -49,6 +53,10 @@ fi
 if [ -d "$guardrails_dir" ]; then
     find "$guardrails_dir" -maxdepth 1 -type f -name '*.json' \
         -mtime "+${guardrails_ttl_days}" -delete 2>/dev/null || true
+fi
+
+if [ -d "$claims_dir" ]; then
+    find "$claims_dir" -maxdepth 1 -type f -mmin +60 -delete 2>/dev/null || true
 fi
 
 if [ -d "$sessions_dir" ]; then

@@ -387,6 +387,26 @@ describe("stage guardrail cli entry", () => {
     expect(JSON.parse(runHook("stage-gate", { session_id: "outside" }).out).decision).toBe("block");
   });
 
+  it("record-stage-read: opening a route's entry file during a skill's run owes the stages it declares", () => {
+    mkdirSync(join(pluginRoot, "skills", "do"), { recursive: true });
+    const buildStage = join(pluginRoot, "skills", "do", "build.md");
+    const routeEntry = join(pluginRoot, "skills", "do", "pre-flight.md");
+    writeFileSync(buildStage, "# build");
+    writeFileSync(routeEntry, ["---", "mandatoryStages:", "  - build.md", "---", "# Pre-flight"].join("\n"));
+    writeFileSync(join(pluginRoot, "skills", "demo-skill", "SKILL.md"), "---\nname: demo-skill\n---");
+
+    runHook("skill-stages", { session_id: "route", tool_name: "Skill", tool_input: { skill: "demo-skill" } });
+    expect(runHook("stage-gate", { session_id: "route" }).out).toBe("{}");
+
+    runHook("record-stage-read", { session_id: "route", tool_name: "Read", tool_input: { file_path: routeEntry } });
+    const blocked = JSON.parse(runHook("stage-gate", { session_id: "route" }).out);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain("do/build.md");
+
+    runHook("record-stage-read", { session_id: "route", tool_name: "Read", tool_input: { file_path: buildStage } });
+    expect(runHook("stage-gate", { session_id: "route" }).out).toBe("{}");
+  });
+
   it("stage-gate: the documented marker releases it", () => {
     runHook("skill-stages", { session_id: "skip", tool_name: "Skill", tool_input: { skill: "demo-skill" } });
     runHook("record-stage-signals", {

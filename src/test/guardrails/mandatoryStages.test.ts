@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 import {
+  applyDeclaredStages,
   applySkillInvocation,
   applyStageRead,
   applyStageSkip,
@@ -11,6 +12,8 @@ import {
   isStageSkipMarker,
   normalizeStagePath,
   parseDeclaredStages,
+  resolveDeclaredStagePaths,
+  resolveRouteStagePaths,
   resolveSkillNameFromToolInput,
   resolveSkillStagePaths,
   stageGateDecision,
@@ -105,6 +108,71 @@ describe("resolveSkillStagePaths", () => {
       ["---", "name: demo-skill", "mandatoryStages:", "  - ../../../../etc/passwd", "---"].join("\n"),
     );
     expect(resolveSkillStagePaths(skillName, skillsRoot)).toEqual([]);
+  });
+});
+
+describe("route declarations", () => {
+  // A router skill whose forward route enters through `do/pre-flight.md`.
+  function routeFixture(entryFrontmatter: string): { skillsRoot: string; routeEntry: string } {
+    const { skillsRoot } = skillsFixture("---\nname: demo-skill\n---");
+    mkdirSync(join(skillsRoot, "do"), { recursive: true });
+    writeFileSync(join(skillsRoot, "do", "build.md"), "# build");
+    const routeEntry = join(skillsRoot, "do", "pre-flight.md");
+    writeFileSync(routeEntry, `${entryFrontmatter}\n# Pre-flight`);
+    return { skillsRoot: skillsRoot, routeEntry: routeEntry };
+  }
+  const forwardRouteFrontmatter = ["---", "mandatoryStages:", "  - build.md", "  - ../_shared/debug-failed-run.md", "---"].join(
+    "\n",
+  );
+  const runningSkill = (): GuardrailState => applySkillInvocation(baseState(), "demo-skill", []);
+
+  it("resolves an entry file's declarations against that file's own directory", () => {
+    const { skillsRoot, routeEntry } = routeFixture(forwardRouteFrontmatter);
+    expect(resolveDeclaredStagePaths(routeEntry, skillsRoot)).toEqual([
+      normalizeStagePath(join(skillsRoot, "do", "build.md")),
+      normalizeStagePath(join(skillsRoot, "_shared", "debug-failed-run.md")),
+    ]);
+  });
+
+  it("owes a route's stages once its entry file is read while a skill runs", () => {
+    const { skillsRoot, routeEntry } = routeFixture(forwardRouteFrontmatter);
+    const routeStages = resolveRouteStagePaths(runningSkill(), routeEntry, skillsRoot);
+    const owed = applyDeclaredStages(applyStageRead(runningSkill(), routeEntry), routeStages);
+    expect(unreadMandatoryStages(owed)).toEqual([
+      normalizeStagePath(join(skillsRoot, "do", "build.md")),
+      normalizeStagePath(join(skillsRoot, "_shared", "debug-failed-run.md")),
+    ]);
+  });
+
+  it("owes nothing for an entry file read before any skill was invoked", () => {
+    const { skillsRoot, routeEntry } = routeFixture(forwardRouteFrontmatter);
+    expect(resolveRouteStagePaths(baseState(), routeEntry, skillsRoot)).toEqual([]);
+  });
+
+  it("owes nothing for a copy of the skills tree outside the plugin's own", () => {
+    const { routeEntry } = routeFixture(forwardRouteFrontmatter);
+    const { skillsRoot: pluginSkillsRoot } = skillsFixture("---\nname: demo-skill\n---");
+    expect(resolveRouteStagePaths(runningSkill(), routeEntry, pluginSkillsRoot)).toEqual([]);
+  });
+
+  it("leaves a SKILL.md to declare on invocation, never on a read", () => {
+    const { skillsRoot, skillName } = skillsFixture(
+      ["---", "name: demo-skill", "mandatoryStages:", "  - ../_shared/debug-failed-run.md", "---"].join("\n"),
+    );
+    expect(resolveRouteStagePaths(runningSkill(), join(skillsRoot, skillName, "SKILL.md"), skillsRoot)).toEqual([]);
+  });
+
+  it("drops a route declaration that escapes the skills tree or names a missing file", () => {
+    const { skillsRoot, routeEntry } = routeFixture(
+      ["---", "mandatoryStages:", "  - ../../../../etc/passwd", "  - ghost.md", "---"].join("\n"),
+    );
+    expect(resolveRouteStagePaths(runningSkill(), routeEntry, skillsRoot)).toEqual([]);
+  });
+
+  it("adds only stages not already owed, keeping the same state when none is new", () => {
+    const owed = applyDeclaredStages(baseState(), ["/p/skills/do/a.md", "/p/skills/do/a.md", "/p/skills/do/b.md"]);
+    expect(owed.mandatoryStages).toEqual(["/p/skills/do/a.md", "/p/skills/do/b.md"]);
+    expect(applyDeclaredStages(owed, ["/p/skills/do/b.md"])).toBe(owed);
   });
 });
 
@@ -226,6 +294,9 @@ describe("detectShellStageReads", () => {
   // paths, which on Windows prefixes the current drive.
   const resolvedStage = (relativePath: string): string => normalizeStagePath(resolve(`${root}/skills`, relativePath));
   const env = { CLAUDE_PLUGIN_ROOT: root, HOME: "/home/u" };
+  // The paths keep the casing the command used; these cases compare where they point.
+  const shellReads = (...shellRead: Parameters<typeof detectShellStageReads>): string[] =>
+    detectShellStageReads(...shellRead).map(normalizeStagePath);
 
   it.each([
     ["cat", `cat ${root}/skills/_shared/debug-failed-run.md`],
@@ -236,17 +307,17 @@ describe("detectShellStageReads", () => {
     ["the plugin-root variable", 'cat "${CLAUDE_PLUGIN_ROOT}/skills/_shared/debug-failed-run.md"'],
     ["the bare variable form", "cat $CLAUDE_PLUGIN_ROOT/skills/_shared/debug-failed-run.md"],
   ])("sees a stage printed with %s", (_label, command) => {
-    expect(detectShellStageReads(command, "/repo", env)).toEqual([stage("_shared/debug-failed-run.md")]);
+    expect(shellReads(command, "/repo", env)).toEqual([stage("_shared/debug-failed-run.md")]);
   });
 
   it("resolves a relative path against the payload's working directory", () => {
     expect(
-      detectShellStageReads("sed -n '1,200p' ../_shared/failure-mode-handling.md", `${root}/skills/muggle-test`, env),
+      shellReads("sed -n '1,200p' ../_shared/failure-mode-handling.md", `${root}/skills/muggle-test`, env),
     ).toEqual([resolvedStage("_shared/failure-mode-handling.md")]);
   });
 
   it("follows a cd earlier in the same command", () => {
-    expect(detectShellStageReads(`cd ${root}/skills && cat _shared/identity-and-inbox.md`, "/tmp", env)).toEqual([
+    expect(shellReads(`cd ${root}/skills && cat _shared/identity-and-inbox.md`, "/tmp", env)).toEqual([
       resolvedStage("_shared/identity-and-inbox.md"),
     ]);
   });
@@ -254,7 +325,7 @@ describe("detectShellStageReads", () => {
   it("collects every stage one command prints, once each", () => {
     const first = `${root}/skills/_shared/a.md`;
     const second = `${root}/skills/muggle-test/execute-local.md`;
-    expect(detectShellStageReads(`cat ${first} ${second} && head ${first}`, "/repo", env)).toEqual([
+    expect(shellReads(`cat ${first} ${second} && head ${first}`, "/repo", env)).toEqual([
       normalizeStagePath(first),
       normalizeStagePath(second),
     ]);
@@ -262,9 +333,9 @@ describe("detectShellStageReads", () => {
 
   it("applies a variable the command assigned for the rest of the command", () => {
     expect(
-      detectShellStageReads('CLAUDE_PLUGIN_ROOT=/p; cat "$CLAUDE_PLUGIN_ROOT/skills/x/SKILL.md"', "/repo", {}),
+      shellReads('CLAUDE_PLUGIN_ROOT=/p; cat "$CLAUDE_PLUGIN_ROOT/skills/x/SKILL.md"', "/repo", {}),
     ).toEqual(["/p/skills/x/skill.md"]);
-    expect(detectShellStageReads("export ROOT=/p && cat $ROOT/skills/x/SKILL.md", "/repo", {})).toEqual([
+    expect(shellReads("export ROOT=/p && cat $ROOT/skills/x/SKILL.md", "/repo", {})).toEqual([
       "/p/skills/x/skill.md",
     ]);
   });
@@ -272,20 +343,20 @@ describe("detectShellStageReads", () => {
   // The shell expands the arguments before a prefix assignment applies, so
   // this `cat` opened `/skills/x/SKILL.md` — not the stage it seems to name.
   it("does not let a prefix assignment rewrite its own command's arguments", () => {
-    expect(detectShellStageReads('CLAUDE_PLUGIN_ROOT=/p cat "$CLAUDE_PLUGIN_ROOT/skills/x/SKILL.md"', "/repo", {})).toEqual([
+    expect(shellReads('CLAUDE_PLUGIN_ROOT=/p cat "$CLAUDE_PLUGIN_ROOT/skills/x/SKILL.md"', "/repo", {})).toEqual([
       "/skills/x/skill.md",
     ]);
   });
 
   it("expands a leading tilde", () => {
-    const reads = detectShellStageReads("cat ~/.codex/skills/x/SKILL.md", "/repo", env);
+    const reads = shellReads("cat ~/.codex/skills/x/SKILL.md", "/repo", env);
     expect(reads).toHaveLength(1);
     expect(reads[0]).toMatch(/\/\.codex\/skills\/x\/skill\.md$/);
   });
 
   it("keeps a Windows path whole", () => {
     expect(
-      detectShellStageReads("Get-Content C:\\Users\\u\\plugin\\skills\\_shared\\x.md", "C:\\repo", {}),
+      shellReads("Get-Content C:\\Users\\u\\plugin\\skills\\_shared\\x.md", "C:\\repo", {}),
     ).toEqual(["c:/users/u/plugin/skills/_shared/x.md"]);
   });
 
@@ -295,7 +366,13 @@ describe("detectShellStageReads", () => {
     ["a skills-tree file that is not markdown", `cat ${root}/skills/_aliases.json`],
     ["a write", `echo hi > ${root}/skills/_shared/debug-failed-run.md`],
   ])("ignores %s", (_label, command) => {
-    expect(detectShellStageReads(command, "/repo", env)).toEqual([]);
+    expect(shellReads(command, "/repo", env)).toEqual([]);
+  });
+
+  it("keeps the casing the command used, recording a path once whatever its case", () => {
+    expect(detectShellStageReads("cat /Plugin/skills/do/Pre-Flight.md /plugin/skills/do/pre-flight.md", "/repo", {})).toEqual([
+      "/Plugin/skills/do/Pre-Flight.md",
+    ]);
   });
 });
 

@@ -9,7 +9,13 @@ import { applyPrOpenedToWalkthroughs } from "./walkthroughOwed.js";
 import { applyE2eDelegation } from "./delegatedE2e.js";
 import { applyWatchHolds } from "./watchFollowThrough.js";
 import { applyDebugEvidence, applyDebugSkip, applyFailedRun } from "./debugPath.js";
-import { applySkillInvocation, applyStageRead, applyStageSkip } from "./mandatoryStages.js";
+import {
+  applyDeclaredStages,
+  applySkillInvocation,
+  applyStageRead,
+  applyStageSkip,
+  resolveRouteStagePaths,
+} from "./mandatoryStages.js";
 import { applyNextOptionsOffered, applyPrReopened, applyPrTerminalDetected } from "./prTerminal.js";
 import { applyClassificationSkip, applyClassifiedTestCase } from "./preExecutionClassification.js";
 import {
@@ -82,8 +88,14 @@ export function applyStateMutation(state: GuardrailState, mutation: StateMutatio
       return applyE2eDelegation(state, mutation.delegation);
     case StateMutationKind.WatchFollowThrough:
       return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
-    case StateMutationKind.StageReads:
-      return mutation.readPaths.reduce(applyStageRead, state);
+    case StateMutationKind.StageReads: {
+      const withReads = mutation.readPaths.reduce(applyStageRead, state);
+      const skillsRootDir = mutation.skillsRootDir;
+      if (!skillsRootDir) return withReads;
+      // A route entry file read while a skill runs declares that route's stages; resolved under the lock with the reads.
+      const routeStagePaths = mutation.readPaths.flatMap((readPath) => resolveRouteStagePaths(withReads, readPath, skillsRootDir));
+      return applyDeclaredStages(withReads, routeStagePaths);
+    }
     case StateMutationKind.StageSignals:
       return applyStageSignals(state, mutation);
     case StateMutationKind.Fields:

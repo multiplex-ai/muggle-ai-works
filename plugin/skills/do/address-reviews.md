@@ -1,3 +1,9 @@
+---
+mandatoryStages:
+  - respawn-watcher.md
+  - ../_shared/telemetry-events/muggle-do-cycle.md
+---
+
 # Address-Reviews Orchestrator
 
 The entry procedure for `/muggle-do`'s **address-reviews** mode — invoked by the watcher loop ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)) when new submitted reviews land on a PR. Orchestrates the cycle: read reviews → classify → execute work on actionables → escalate ambiguous → push and refresh PR → reply per comment → resolve-reminder → respawn watcher.

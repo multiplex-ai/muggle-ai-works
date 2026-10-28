@@ -1,3 +1,14 @@
+---
+mandatoryStages:
+  - requirements.md
+  - build.md
+  - impact-analysis.md
+  - unit-tests.md
+  - e2e-acceptance.md
+  - open-prs/forward.md
+  - e2e-repair.md
+---
+
 # Pre-flight Agent (Stage 1)
 
 You are running the **only user-facing stage** of the muggle-do dev cycle. Your job is to consolidate every ambiguity — task scope, repos, validation strategy, environment, credentials, PR target — into a **single turn** so the rest of the cycle can run unattended.

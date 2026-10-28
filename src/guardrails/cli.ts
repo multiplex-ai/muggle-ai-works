@@ -424,7 +424,11 @@ function recordStageRead(): string {
   if (readPaths.length === 0) return "{}";
   // A Read that errored opened nothing, so the stage it names is still unread.
   if (callFailed(input)) return "{}";
-  commitStateMutation(sessionId, { kind: StateMutationKind.StageReads, readPaths: readPaths }, readState(sessionId));
+  commitStateMutation(
+    sessionId,
+    { kind: StateMutationKind.StageReads, readPaths: readPaths, skillsRootDir: resolvePluginSkillsRoot() },
+    readState(sessionId),
+  );
   return "{}";
 }
 

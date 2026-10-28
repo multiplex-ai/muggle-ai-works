@@ -1,6 +1,8 @@
 ---
 name: muggle-do
 description: Take a feature request, spec, design, bug, or ticket and carry it autonomously to an opened pull request — write the code, test it, raise the PR. The PR carries real-browser proof: email-gated flows run through live test inboxes, logins through encrypted secrets, and prerequisite flows in test-graph order, with screenshots attached. Use whenever the user wants something built, implemented, added, or fixed with a PR opened, raised, or put up at the end — "implement rate limiting and raise a PR", "build the CSV export and put up a PR", "take this Jira ticket and run with it, ping me when the PR is up", "fix this bug and open a pr", or "muggle do …". Also handles the internal `address-reviews` directive the muggle-pr-followup watcher dispatches when new reviews land. Not for testing or validating existing changes (use muggle-test), nor watching a PR's incoming reviews (use muggle-pr-followup).
+mandatoryStages:
+  - ../do/input-routing.md
 ---
 
 # Muggle Test Do
@@ -42,7 +44,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
 3. `TodoWrite` one item per stage 1–8, Stage 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
 
-**Per stage:** read the file → execute it → append a marker to `iterations/<NNN>.md` citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
+**Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
 Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision collapses, into an automatic waive. Run the whole pipeline silently — never a shortcut.
@@ -94,5 +96,6 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 - Stage 1 and Stage 7.5's user decision are the only user-facing forward stages. Stages 2–7 don't ask mid-cycle; blocker → pre-flight bug.
 - Same stage failing 3× → escalate.
+- Each route's entry file declares the stage files every run of that route opens, and a Stop gate holds the turn until they are read. A turn that ends before its route's last stage — a readiness halt, an escalation, a pause for a background run — records why with `echo "MUGGLE_STAGE_SKIP: <reason>"`.
 - 3 repair iterations reach E2E with failures → waive, ship with `[E2E FAILING]`, and hand to the watcher.
 - Address-reviews escalation (ambiguous or design-adjustment) does not block the watcher; user resolves on GitHub.

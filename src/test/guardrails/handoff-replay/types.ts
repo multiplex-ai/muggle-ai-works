@@ -3,6 +3,7 @@ export enum HandoffStep {
   BuildRequest = "build-request",
   SkillInvocation = "skill-invocation",
   StageReads = "stage-reads",
+  StageReadsSkippingRepairLoop = "stage-reads-skipping-repair-loop",
   UnitTests = "unit-tests",
   E2eExecution = "e2e-execution",
   E2eSkipDeclaration = "e2e-skip-declaration",
@@ -13,6 +14,7 @@ export enum HandoffStep {
 
 /** A Stop gate a handoff step exists to satisfy, spelled as its CLI subcommand. */
 export enum HandoffStopGate {
+  Stage = "stage-gate",
   E2e = "e2e-gate",
   Walkthrough = "walkthrough-gate",
   Watch = "watch-gate",

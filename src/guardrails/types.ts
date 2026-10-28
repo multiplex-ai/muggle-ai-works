@@ -239,6 +239,8 @@ export interface SkillInvocationMutation {
 export interface StageReadsMutation {
   kind: StateMutationKind.StageReads;
   readPaths: string[];
+  /** The plugin skills root a read route entry file must sit under to declare its stages; absent, no route declares any. */
+  skillsRootDir?: string;
 }
 
 /** The stage, classification and debug-path signals one tool call carried. */

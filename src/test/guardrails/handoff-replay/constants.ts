@@ -61,6 +61,9 @@ export const FORWARD_STAGE_FILES = [
   "muggle-pr-followup/arm-watcher.md",
 ] as const;
 
+/** The forward stage file the stage-gate case leaves unread: one the forward route's entry file declares. */
+export const UNREAD_FORWARD_STAGE_FILE = "do/e2e-repair.md";
+
 /** The telemetry emit muggle-do makes as its first step, as Claude Code names the plugin's MCP tool. */
 export const MUGGLE_TELEMETRY_SKILL_EMIT_TOOL = "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit";
 
@@ -160,6 +163,7 @@ export const FULL_HANDOFF_SEQUENCE: readonly HandoffStep[] = [
  * stable while the surrounding wording changes.
  */
 export const STOP_GATE_SKIP_MARKERS: Record<HandoffStopGate, string> = {
+  [HandoffStopGate.Stage]: "MUGGLE_STAGE_SKIP",
   [HandoffStopGate.E2e]: "MUGGLE_E2E_SKIP",
   [HandoffStopGate.Walkthrough]: "MUGGLE_WALKTHROUGH_SKIP",
   [HandoffStopGate.Watch]: "MUGGLE_WATCH_SKIP",

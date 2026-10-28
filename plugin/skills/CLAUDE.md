@@ -36,6 +36,8 @@ Invoking the skill names those files as required reading, and a Stop gate holds 
 
 The bar is "must be **read** before the skill runs", not "must be executed". A failure protocol qualifies: by the time a run fails, a skill that never read it is already improvising. What does not qualify is a file only one branch consults for its content — the gate cannot tell that the branch was not taken, so it would block work that legitimately never needed it. Aliases declare nothing; they invoke the canonical skill, which carries the declaration.
 
+A skill whose router sends runs down different routes declares per route. Its `SKILL.md` lists only what every run opens — the router — and each route's entry file carries its own `mandatoryStages` frontmatter, paths relative to that file. Opening the entry file while the skill runs adds its set; a `SKILL.md` declares only when invoked, never when read. A route lists only the files every run of that route opens, so a branch inside a route still stays out.
+
 ## Host compatibility
 
 Skills are written against Claude Code's tools and ship unchanged to Codex. [`_shared/host-tool-equivalents.md`](_shared/host-tool-equivalents.md) maps each Claude Code name a skill uses — `AskUserQuestion`, the `Skill` tool, `${CLAUDE_PLUGIN_ROOT}`, the PR watcher's monitor — to what plays its part in Codex. Every top-level `SKILL.md` links it right after its telemetry line, and the Codex SessionStart hook names it too.

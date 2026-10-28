@@ -4,6 +4,8 @@ set -uo pipefail
 # stage-read observer (PostToolUse/Read, and PostToolUse/Bash through the
 # dispatcher). Records that a file in the skills tree was opened, which is how
 # the Stop gate tells a mandatory stage that was read from one that was skipped.
+# A route's entry file that declares `mandatoryStages` adds that route's stages
+# when it is opened during a skill's run.
 # A host with no Read tool (Codex) opens stage files through the shell — `cat`,
 # `sed -n` — so a shell command that prints one counts as a read too. Emits no
 # directive.

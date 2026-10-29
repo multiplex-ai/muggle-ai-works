@@ -60,8 +60,17 @@ function normalized(cwd: string): string {
   return os.platform() === "win32" ? resolved.toLowerCase() : resolved;
 }
 
-function readLockFile() {
-  return JSON.parse(fs.readFileSync(lockFilePath(), "utf-8"));
+// A waiter still polling in this process may be mid-write: the lock truncates before it writes, and only
+// its own readers wait out a write under the modify-lock. A test reading beside them retries a torn read.
+async function readLockFile() {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return JSON.parse(fs.readFileSync(lockFilePath(), "utf-8"));
+    } catch (error) {
+      if (!(error instanceof SyntaxError) || attempt >= 50) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
 }
 
 function writeLockFile(state: unknown): void {
@@ -84,7 +93,7 @@ async function acquire(cwd: string, pullRequest: ICheckoutPullRequest | null = n
 
 async function waitForWaiters(count: number): Promise<void> {
   const deadline = Date.now() + 5_000;
-  while ((readLockFile().waiters ?? []).length < count) {
+  while (((await readLockFile()).waiters ?? []).length < count) {
     if (Date.now() > deadline) throw new Error(`never saw ${count} waiters`);
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
@@ -103,7 +112,7 @@ describe("local-execution-lock", () => {
     const handle1 = await acquire("/same/worktree");
     const handle2 = await acquire("/same/worktree");
 
-    expect(readLockFile().holderPids).toHaveLength(2);
+    expect((await readLockFile()).holderPids).toHaveLength(2);
 
     await handle1.release();
     expect(fs.existsSync(lockFilePath())).toBe(true);
@@ -129,7 +138,7 @@ describe("local-execution-lock", () => {
 
     const secondHandle = await secondAcquirePromise;
     expect(secondAcquired).toBe(true);
-    expect(readLockFile().holderCwd).toBe(normalized("/worktree/b"));
+    expect((await readLockFile()).holderCwd).toBe(normalized("/worktree/b"));
 
     await secondHandle.release();
   });
@@ -139,7 +148,7 @@ describe("local-execution-lock", () => {
 
     const handle = await acquire("/fresh/worktree");
 
-    const state = readLockFile();
+    const state = await readLockFile();
     expect(state.holderCwd).toBe(normalized("/fresh/worktree"));
     expect(state.holderPids).toEqual([process.pid]);
 
@@ -156,7 +165,7 @@ describe("local-execution-lock", () => {
 
     const handle = await acquire("/fresh/worktree");
 
-    expect(readLockFile().holderCwd).toBe(normalized("/fresh/worktree"));
+    expect((await readLockFile()).holderCwd).toBe(normalized("/fresh/worktree"));
     await handle.release();
   });
 
@@ -166,7 +175,7 @@ describe("local-execution-lock", () => {
 
     const handle = await acquire("/some/worktree");
 
-    expect(readLockFile().holdDeadlineAt).toBeGreaterThanOrEqual(before + RUN_TIMEOUT_MS + HOLD_OVERRUN_GRACE_MS);
+    expect((await readLockFile()).holdDeadlineAt).toBeGreaterThanOrEqual(before + RUN_TIMEOUT_MS + HOLD_OVERRUN_GRACE_MS);
     await handle.release();
   });
 
@@ -209,7 +218,7 @@ describe("local-execution-lock", () => {
 
     await first.release();
     const aheadHandle = await ahead;
-    expect(readLockFile().holderCwd).toBe(normalized("/worktree/b"));
+    expect((await readLockFile()).holderCwd).toBe(normalized("/worktree/b"));
     await aheadHandle.release();
     await (await join).release();
   });
@@ -217,11 +226,11 @@ describe("local-execution-lock", () => {
   it("keeps the waiting line when the last holder releases", async () => {
     const holder = await acquire("/worktree/a");
     const waiter = { cwd: normalized("/worktree/b"), pid: process.pid, enqueuedAt: Date.now(), lastPolledAt: Date.now() };
-    writeLockFile({ ...readLockFile(), waiters: [waiter] });
+    writeLockFile({ ...(await readLockFile()), waiters: [waiter] });
 
     await holder.release();
 
-    expect(readLockFile()).toMatchObject({ holderPids: [], waiters: [waiter] });
+    expect(await readLockFile()).toMatchObject({ holderPids: [], waiters: [waiter] });
   });
 
   it("drops waiters that exited or stopped polling", async () => {
@@ -238,7 +247,7 @@ describe("local-execution-lock", () => {
 
     const handle = await acquire("/worktree/fresh");
 
-    const state = readLockFile();
+    const state = await readLockFile();
     expect(state.holderCwd).toBe(normalized("/worktree/fresh"));
     expect(state.waiters).toEqual([]);
     await handle.release();

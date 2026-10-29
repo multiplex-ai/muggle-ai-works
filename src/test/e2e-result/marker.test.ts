@@ -35,6 +35,14 @@ describe("E2E result marker", () => {
     expect(parseE2eResultMarker(renderE2eResultMarker(atRecord))).toEqual(atRecord);
   });
 
+  it("round-trips a failure's verified baseline", () => {
+    const onBase: IE2eResultRecord = {
+      ...failing,
+      unpassed: [{ ...failing.unpassed[0], failsOnBase: { baselineRunId: "base-run", baselineSha: "c".repeat(40) } }],
+    };
+    expect(parseE2eResultMarker(renderE2eResultMarker(onBase))).toEqual(onBase);
+  });
+
   it("keeps an error holding --> inside the hidden comment", () => {
     const hostile: IE2eResultRecord = {
       ...failing,

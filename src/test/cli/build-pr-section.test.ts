@@ -26,6 +26,38 @@ describe("runBuildPrSection", () => {
     };
   });
 
+  it("renders the failures baseline verification credits, never a failsOnBase the input carried", async () => {
+    const failedTest = {
+      name: "Checkout",
+      testCaseId: "tc-2",
+      runId: "pr-run",
+      viewUrl: "https://example.com/pr",
+      status: "failed",
+      steps: [{ stepIndex: 0, action: "Pay", screenshotUrl: "https://cdn/p0.png" }],
+      failureStepIndex: 0,
+      error: "Pay button disabled",
+      baselineRunId: "base-run",
+      failsOnBase: { baselineRunId: "forged", baselineSha: "f".repeat(40) },
+    };
+    const reportsSeen: unknown[] = [];
+    const exitCode = await runBuildPrSection({
+      stdin: makeStdin({ projectId: "p1", tests: [failedTest] }),
+      stdoutWrite,
+      stderrWrite,
+      maxBodyBytes: 60_000,
+      verifyBaselines: async (report) => {
+        reportsSeen.push(report);
+        const [test] = report.tests;
+        if (test.status !== "failed") return report;
+        return { ...report, tests: [{ ...test, failsOnBase: { baselineRunId: "base-run", baselineSha: "c0ffee1".padEnd(40, "0") } }] };
+      },
+    });
+    expect(exitCode).toBe(0);
+    expect(reportsSeen[0]).toMatchObject({ tests: [{ baselineRunId: "base-run" }] });
+    expect((reportsSeen[0] as { tests: object[] }).tests[0]).not.toHaveProperty("failsOnBase");
+    expect(JSON.parse(stdoutChunks.join("")).body).toContain("also fails on base `c0ffee1`");
+  });
+
   it("writes JSON {body, comment} to stdout for a valid report", async () => {
     const report = {
       projectId: "p1",

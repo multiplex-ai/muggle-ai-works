@@ -189,6 +189,17 @@ describe("checkServiceStack", () => {
     });
 
     expect(report.verdict).toBe(StackCheckVerdict.Valid);
+    expect(report.servedNeeds).toHaveLength(1);
+    expect(report.servedNeeds[0]).toMatchObject({ port: 3000, headSha: SHA_A });
+  });
+
+  it("reports nothing served when the checkout holds no lease", async () => {
+    const { checkServiceStack, StackCheckVerdict } = await loadStack();
+
+    const report = await checkServiceStack({ cwd: "/wt/a", runGit: git, readListener: unreadableListeners });
+
+    expect(report.verdict).toBe(StackCheckVerdict.NoLease);
+    expect(report.servedNeeds).toEqual([]);
   });
 
   it("is stale when a claimed port now serves other code", async () => {

@@ -224,6 +224,8 @@ export interface IStackCheckReport {
   mismatches: IStackMismatch[];
   /** The lease that owns the target port, for `PEER_LEASE`. */
   peerLease: IStackLease | null;
+  /** What the caller's lease serves, every port verified, for `VALID`; empty otherwise. */
+  servedNeeds: IStackNeed[];
 }
 
 /** The whole ledger, as reported to a status reader. */

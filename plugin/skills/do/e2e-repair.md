@@ -54,6 +54,8 @@ Map each bucket to exactly one disposition. Buckets are defined in [`../_shared/
 
 A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. Without one it is `ask`, whatever the bucket said.
 
+**A failure the diff cannot explain may predate it.** When a `product-defect` or `product-uxux` failure names no code path the diff touched, replay the same test case against a checkout of the base before repairing anything: a worktree at the base tip's full SHA, with its own stack claim and services, under the same runSettings record. If that run fails the same way, its disposition is `baseline` — the defect is on the base, not this change's to fix — and the entry carries that run's id as `baselineRunId` into the walkthrough report ([`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md)). If it passes, the change caused the failure and the original disposition stands. A `baseline` entry is never re-run or waived; when every remaining failure is `baseline`, the loop clears.
+
 An Inconclusive entry Stage 6 recorded as `prerequisites unmet` never executed. It carries no bucket and none may be derived from it — there is no run to read. Its disposition is `ask`, and the question names the missing prerequisite: what failed is the project's test-plan chain, not the diff.
 
 An Inconclusive entry Stage 6 recorded as `primary failed` never executed either: it is a record held back by its test case's failed primary. It takes no disposition of its own; the primary's entry is the one repaired, and re-running the test case runs it again.

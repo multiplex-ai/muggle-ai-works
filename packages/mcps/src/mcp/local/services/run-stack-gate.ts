@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 
 import { isLoopbackUrl } from "./run-checkout-gate.js";
+import { getRunResultStorageService } from "./run-result-storage-service.js";
 import { getLogger } from "../../../shared/logger.js";
 import {
   checkServiceStack,
@@ -25,6 +26,7 @@ import { IDLE_REAP_DELAY_MS, SERVICE_STOPS_ENV } from "../../../shared/service-s
 import {
   StackCheckVerdict,
   type IStackCheckReport,
+  type IStackNeed,
 } from "../../../shared/service-stack/service-stack-types.js";
 import type { GitCommandRunner } from "../../../shared/checkout-freshness-types.js";
 import type { PortListenerReader } from "../../../shared/service-stack/port-listener-types.js";
@@ -57,6 +59,50 @@ export async function findRunStackRefusal(params: {
     readListener: params.readListener,
   });
   return REFUSING_VERDICTS.has(report.verdict) ? report : null;
+}
+
+/**
+ * What the caller's lease serves before a run, every port verified — empty when
+ * the target is remote or the lease is missing or stale, so a run that cannot
+ * prove its code records none.
+ *
+ * @param params.cwd - The caller's checkout.
+ * @param params.localUrl - The run target; only loopback targets are read.
+ * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @param params.readListener - Port listener reader; the real one unless a test injects its own.
+ */
+export async function readServedStack(params: {
+  cwd: string;
+  localUrl: string;
+  runGit?: GitCommandRunner;
+  readListener?: PortListenerReader;
+}): Promise<IStackNeed[]> {
+  if (!isLoopbackUrl(params.localUrl)) return [];
+  const report = await checkServiceStack({ cwd: params.cwd, runGit: params.runGit, readListener: params.readListener });
+  return report.servedNeeds;
+}
+
+/**
+ * Stamp a finished run with the stack it ran against, when that stack held from
+ * before the run to after it. A stack that changed mid-run is left unstamped:
+ * the run described neither the code it started on nor the code it ended on.
+ *
+ * @param params.runId - The finished run's id.
+ * @param params.servedStack - What {@link readServedStack} returned before the run.
+ * @param params.stackChange - The post-run stale report, or null when the stack held.
+ */
+export function recordServedStack(params: {
+  runId: string;
+  servedStack: IStackNeed[];
+  stackChange: IStackCheckReport | null;
+}): void {
+  if (params.servedStack.length === 0 || params.stackChange !== null) return;
+  const storage = getRunResultStorageService();
+  const runResult = storage.getRunResult(params.runId);
+  if (!runResult) return;
+  storage.updateRunResult(params.runId, {
+    localExecutionContext: { ...runResult.localExecutionContext, servedStack: params.servedStack },
+  });
 }
 
 /**

@@ -5,6 +5,8 @@
 
 import { z } from "zod";
 
+import type { IFailsOnBase } from "../../e2e-result/types.js";
+
 // `action` is the operation verb (navigate, click, halt). `description` is the
 // agent's readable account of the step — the action script's briefExplanation —
 // and is what a reader can follow; optional so reports assembled before it
@@ -61,6 +63,9 @@ const FailedTestSchema = z.object({
   steps: z.array(StepSchema),
   failureStepIndex: z.number().int().nonnegative(),
   error: z.string().min(1),
+  // A run of the same test case on the PR's base the author says failed too; build-pr-section verifies it before
+  // the walkthrough credits it.
+  baselineRunId: z.string().min(1).optional(),
   artifactsDir: z.string().min(1).optional(),
   useCaseName: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
@@ -103,12 +108,49 @@ export const E2eReportSchema = z.object({
   tests: z.array(TestResultSchema),
 });
 
-export type E2eReport = z.infer<typeof E2eReportSchema>;
-export type TestResult = z.infer<typeof TestResultSchema>;
 export type PassedTest = z.infer<typeof PassedTestSchema>;
-export type FailedTest = z.infer<typeof FailedTestSchema>;
+/**
+ * A failed test. `failsOnBase` is outside the schema, so parsing strips it from any input report: only
+ * build-pr-section's baseline verification sets it.
+ */
+export type FailedTest = z.infer<typeof FailedTestSchema> & { failsOnBase?: IFailsOnBase };
 export type InconclusiveTest = z.infer<typeof InconclusiveTestSchema>;
+export type TestResult = PassedTest | FailedTest | InconclusiveTest;
+export type E2eReport = Omit<z.infer<typeof E2eReportSchema>, "tests"> & { tests: TestResult[] };
 export type Step = z.infer<typeof StepSchema>;
+
+/** The fields of a local run result that baseline verification reads. */
+export interface IBaselineRunRecord {
+  id: string;
+  status: string;
+  cloudTestCaseId: string;
+  cloudRunSettingsId?: string;
+  viewUrl?: string;
+  localExecutionContext?: { servedStack?: Array<{ headSha: string }> };
+}
+
+/** What baseline verification reads the world through; tests inject their own. */
+export interface IBaselineVerificationDeps {
+  /** Any directory inside the PR's checkout. */
+  cwd: string;
+  /** Branch the PR merges into; the remote's default branch when omitted. */
+  baseBranch?: string;
+  /** Trimmed stdout, or null when git exits non-zero. */
+  runGit: (args: string[], cwd: string) => Promise<string | null>;
+  readRunResult: (runId: string) => IBaselineRunRecord | undefined;
+  stderrWrite: (text: string) => boolean;
+}
+
+/** The base commits a baseline must have served: from the PR's fork point up to the base tip. */
+export interface IBaseRange {
+  mergeBaseSha: string;
+  baseTipSha: string;
+}
+
+/** Whether a cited baseline holds, with what the walkthrough credits or why it refused. */
+export type BaselineJudgment =
+  | { isCredited: true; failsOnBase: IFailsOnBase }
+  | { isCredited: false; refusalReason: string };
 
 /**
  * How much of each step's screenshots a test's details carry. The overflow comment steps down this ladder when a

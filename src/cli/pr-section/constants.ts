@@ -50,3 +50,9 @@ export const STEP_PAIR_IMAGE_WIDTH = 420;
 
 /** GitHub rejects a comment longer than 65,536 characters; the overflow comment stays under this with headroom. */
 export const MAX_COMMENT_BYTES = 64_000;
+
+/** A full 40-hex commit id; anything else a run result records is not trusted as a served commit. */
+export const FULL_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+/** The run status a baseline must have ended on. */
+export const BASELINE_FAILED_STATUS = "failed";

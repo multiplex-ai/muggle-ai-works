@@ -12,6 +12,9 @@ const UnpassedCaseSchema = z.object({
   failedStep: z.number().int().positive().optional(),
   detail: z.string(),
   viewUrl: z.string(),
+  failsOnBase: z
+    .object({ baselineRunId: z.string(), baselineSha: z.string(), viewUrl: z.string().optional() })
+    .optional(),
 });
 
 const E2eResultRecordSchema = z.object({

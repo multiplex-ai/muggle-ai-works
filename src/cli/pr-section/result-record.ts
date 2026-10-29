@@ -38,6 +38,7 @@ function toUnpassedCase (test: TestResult): IUnpassedCase | null {
       failedStep: failureOrdinal(test, test.failureStepIndex),
       detail: oneLineDetail(test.error),
       viewUrl: test.viewUrl,
+      ...(test.failsOnBase && { failsOnBase: test.failsOnBase }),
     };
   }
   if (test.status === "inconclusive") {

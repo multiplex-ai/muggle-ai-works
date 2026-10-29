@@ -200,6 +200,33 @@ describe("runPrWalkthroughCheck", () => {
     expect(result.conclusion).toBe(CheckConclusion.Success);
   });
 
+  it("stays neutral when every failure is verified to fail on the base too, and names each baseline", async () => {
+    const onBase: IUnpassedCase = {
+      ...failedCase,
+      failsOnBase: { baselineRunId: "base-run", baselineSha: "c0ffee1".padEnd(40, "0"), viewUrl: "https://www.muggle-ai.com/run/b" },
+    };
+    const gh = ghWithComments([walkthrough({ total: 3, passed: 2, unpassed: [onBase] })]);
+    const result = await runPrWalkthroughCheck({ ...options, publishCheckRun: true }, gh.run);
+    expect(result.outcome).toBe(WalkthroughCheckOutcome.E2eFailsOnBase);
+    expect(result.conclusion).toBe(CheckConclusion.Neutral);
+    expect(result.exitCode).toBe(0);
+    expect(result.summary.split("\n")[0]).toBe(
+      "E2E acceptance: 1 failed of 3 test cases, each verified to fail on the base too. This PR did not cause them; fix them on the base branch.",
+    );
+    expect(result.summary).toContain("also fails on base `c0ffee1` ([baseline run](https://www.muggle-ai.com/run/b))");
+    expect(JSON.parse(checkRunCall(gh.calls)?.input ?? "{}").conclusion).toBe(CheckConclusion.Neutral);
+  });
+
+  it("stays red when any case is an uncredited failure or inconclusive, beside base failures", async () => {
+    const onBase: IUnpassedCase = { ...failedCase, failsOnBase: { baselineRunId: "base-run", baselineSha: "c".repeat(40) } };
+    for (const unpassedBeside of [{ ...failedCase, testCaseId: "tc-4" }, inconclusiveCase]) {
+      const gh = ghWithComments([walkthrough({ total: 3, passed: 1, unpassed: [onBase, unpassedBeside] })]);
+      const result = await runPrWalkthroughCheck(options, gh.run);
+      expect(result.outcome).toBe(WalkthroughCheckOutcome.E2eNotPassing);
+      expect(result.conclusion).toBe(CheckConclusion.Failure);
+    }
+  });
+
   it("judges the newest walkthrough, so a green re-run posted below a red one clears the check", async () => {
     const gh = ghWithComments([
       walkthrough({ total: 2, passed: 1, unpassed: [failedCase] }),

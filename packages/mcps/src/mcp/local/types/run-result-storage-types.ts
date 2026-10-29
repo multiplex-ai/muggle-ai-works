@@ -3,6 +3,8 @@
  * Distinct from project-types ILocalTestScript (full project entity model).
  */
 
+import type { IStackNeed } from "../../../shared/service-stack/service-stack-types.js";
+
 /**
  * Run result status.
  */
@@ -33,6 +35,8 @@ export interface ILocalExecutionContext {
   mcpServerVersion?: string;
   /** Local execution completion timestamp (epoch ms). */
   localExecutionCompletedAt?: number;
+  /** The code each local port served, recorded only when the checkout's stack lease held for the whole run. */
+  servedStack?: IStackNeed[];
 }
 
 /**

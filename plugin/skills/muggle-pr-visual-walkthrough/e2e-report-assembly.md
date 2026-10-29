@@ -30,6 +30,7 @@ For each result:
 2. `viewUrl` — from the run result (deep-links to the specific run).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
+5. If the caller hands over a `baselineRunId` for a failed entry — a run of the same test case against the base that failed too — set it on the entry. `build-pr-section` credits it only after checking the run itself: same test case, failed, same runSettings record, and a stack that served a base commit between the PR's fork point and the base tip. A credited failure reads "also fails on base" and stops holding the walkthrough check red; a refused one is named on stderr and stays a plain failure. Pass `--base <branch>` when the PR does not target the remote's default branch.
 
 ## Last-resort: no cloud refs on the run result
 

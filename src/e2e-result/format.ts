@@ -1,5 +1,6 @@
+import { SHORT_SHA_LENGTH } from "../pr-walkthrough/constants.js";
 import { UNPASSED_STATUS_EMOJI } from "./constants.js";
-import { UnpassedCaseStatus, type IUnpassedCase } from "./types.js";
+import { UnpassedCaseStatus, type IFailsOnBase, type IUnpassedCase } from "./types.js";
 
 /** Escape text placed inside HTML, so an agent's `<…>` cannot break the markup around it. */
 export function escapeHtml(s: string): string {
@@ -35,15 +36,26 @@ function describeUnpassedCase(unpassed: IUnpassedCase): string {
 }
 
 /**
+ * The verified baseline behind a failure, as a phrase that ends the case's bullet.
+ *
+ * Output shape: ` · also fails on base \`c0ffee1\` ([baseline run](https://…))`
+ */
+function describeFailsOnBase(failsOnBase: IFailsOnBase): string {
+  const baselineLink = failsOnBase.viewUrl ? ` ([baseline run](${failsOnBase.viewUrl}))` : "";
+  return ` · also fails on base \`${failsOnBase.baselineSha.slice(0, SHORT_SHA_LENGTH)}\`${baselineLink}`;
+}
+
+/**
  * One markdown bullet naming a non-passing case and why, ending in a link the
  * caller picks — an in-page anchor on the walkthrough, the run on the dashboard
- * in a check summary.
+ * in a check summary — and, for a failure the PR did not cause, its baseline.
  *
  * Output shape: `- ❌ **Checkout** — failed at step 4: Pay button disabled · [open run](https://…)`
  */
 export function renderUnpassedCaseBullet(unpassed: IUnpassedCase, linkText: string, linkTarget: string): string {
   return (
     `- ${UNPASSED_STATUS_EMOJI[unpassed.status]} **${escapeHtml(withResolutionLabel(unpassed.name, unpassed.resolutionLabel))}** — ` +
-    `${describeUnpassedCase(unpassed)} · [${linkText}](${linkTarget})`
+    `${describeUnpassedCase(unpassed)} · [${linkText}](${linkTarget})` +
+    (unpassed.failsOnBase ? describeFailsOnBase(unpassed.failsOnBase) : "")
   );
 }

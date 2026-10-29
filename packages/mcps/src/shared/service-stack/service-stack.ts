@@ -121,7 +121,7 @@ export async function checkServiceStack(params: {
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
   const swept = sweepStackRecord({ record: snapshot.record, now: Date.now(), isAlive: isProcessAlive });
   const ownLease = swept.leases.find((lease) => lease.cwd === cwd) ?? null;
-  const base = { cwd: cwd, generation: snapshot.generation, mismatches: [], peerLease: null };
+  const base = { cwd: cwd, generation: snapshot.generation, mismatches: [], peerLease: null, servedNeeds: [] };
 
   const isClaimedByCaller = ownLease?.needs.some((need) => need.port === params.port) ?? false;
   const peerLease =
@@ -158,7 +158,12 @@ export async function checkServiceStack(params: {
     };
   }
 
-  return { ...base, verdict: StackCheckVerdict.Valid, reason: "every claimed port serves the claimed code" };
+  return {
+    ...base,
+    verdict: StackCheckVerdict.Valid,
+    reason: "every claimed port serves the claimed code",
+    servedNeeds: ownLease.needs,
+  };
 }
 
 /**

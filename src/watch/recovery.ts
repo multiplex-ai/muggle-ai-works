@@ -35,8 +35,7 @@ import {
  */
 export function isRecoverable(assessment: WatchSlotAssessment, ownerSession?: WorkSession): boolean {
   const isOwnerRestartable =
-    assessment.isOwnerSessionActive === false ||
-    (assessment.isOwnerSessionActive === true && ownerSession !== undefined && isIdleBackgroundSession(ownerSession));
+    ownerSession === undefined ? assessment.isOwnerSessionActive === false : isIdleBackgroundSession(ownerSession);
   return (
     assessment.isRegistered &&
     assessment.watcher === WatcherLiveness.Dead &&
@@ -57,16 +56,24 @@ export function isSlotCloseOutDue(assessment: WatchSlotAssessment): boolean {
   return isTerminalPrState(assessment.live?.state) && assessment.watcher === WatcherLiveness.Dead && assessment.isOwnerSessionActive !== true;
 }
 
+// A job that continued under a new transcript keeps listing under the short id
+// it started with, so an owner whose own id is no longer listed is found by that.
+function findRunningOwner(sessionsById: Map<string, WorkSession>, ownerSessionId: string): WorkSession | undefined {
+  const ownerShortId = shortSessionId(ownerSessionId);
+  return sessionsById.get(ownerSessionId) ?? [...sessionsById.values()].find((session) => session.shortId === ownerShortId);
+}
+
 /**
  * One recovery per owner session whose registered slots have dead watchers. A
  * single resume restores all of them, because reconcile re-arms every slot the
- * resumed session owns. An owner whose last reply is the usage-limit notice
- * keeps being retried past the attempt cap: those attempts never ran.
+ * resumed session owns. A running owner whose last reply is the usage-limit
+ * notice is left to retry its own turn; every resume attempt counts toward
+ * the cap, since one landing on the limit only starts another copy.
  *
  * Output shape: `[{ ownerSessionId: "349a…", slotSlugs: ["csv-export"], outcome: "resume-due", ownerShortId: "349a8d3f" }]`
  *
  * @param sessionsById - Running sessions, so a live owner can be judged idle.
- * @param isStoppedAtUsageLimit - Whether the owner's last turn ended on the usage limit.
+ * @param isStoppedAtUsageLimit - Whether the session's last turn ended on the usage limit.
  */
 export function planWatcherRecoveries(
   assessments: WatchSlotAssessment[],
@@ -79,7 +86,7 @@ export function planWatcherRecoveries(
   if (isPollingDisabled) return [];
   const slugsByOwner = new Map<string, Set<string>>();
   for (const assessment of assessments) {
-    const ownerSession = assessment.ownerSessionId === undefined ? undefined : sessionsById.get(assessment.ownerSessionId);
+    const ownerSession = assessment.ownerSessionId === undefined ? undefined : findRunningOwner(sessionsById, assessment.ownerSessionId);
     if (!isRecoverable(assessment, ownerSession)) continue;
     const ownerSessionId = assessment.ownerSessionId as string;
     const slugs = slugsByOwner.get(ownerSessionId) ?? new Set<string>();
@@ -93,18 +100,21 @@ export function planWatcherRecoveries(
       .map((attemptedAt) => Date.parse(attemptedAt))
       .filter((attemptedAtMs) => !Number.isNaN(attemptedAtMs) && nowMs - attemptedAtMs < RECOVERY_ATTEMPT_WINDOW_MS);
     const lastAttemptMs = Math.max(-Infinity, ...recentAttemptsMs);
-    const isCapReached = recentAttemptsMs.length >= RECOVERY_MAX_ATTEMPTS && !isStoppedAtUsageLimit(ownerSessionId);
+    const runningOwner = findRunningOwner(sessionsById, ownerSessionId);
+    const isRunningAtUsageLimit =
+      runningOwner !== undefined && [ownerSessionId, runningOwner.sessionId].some((sessionId) => isStoppedAtUsageLimit(sessionId));
     let outcome = WatcherRecoveryOutcome.ResumeDue;
-    if (isCapReached) outcome = WatcherRecoveryOutcome.AttemptsExhausted;
+    if (isRunningAtUsageLimit) outcome = WatcherRecoveryOutcome.AwaitingUsageLimitReset;
+    else if (recentAttemptsMs.length >= RECOVERY_MAX_ATTEMPTS) outcome = WatcherRecoveryOutcome.AttemptsExhausted;
     else if (nowMs - lastAttemptMs < RECOVERY_COOLDOWN_MS) outcome = WatcherRecoveryOutcome.CoolingDown;
     else if (resumesPlanned >= MAX_RESUMES_PER_TICK) outcome = WatcherRecoveryOutcome.DeferredByTickCap;
     if (outcome === WatcherRecoveryOutcome.ResumeDue) resumesPlanned++;
-    const runningOwner = sessionsById.get(ownerSessionId);
     recoveries.push({
       ownerSessionId: ownerSessionId,
       slotSlugs: [...(slugsByOwner.get(ownerSessionId) ?? [])].sort(),
       outcome: outcome,
       ...(runningOwner?.shortId === undefined ? {} : { ownerShortId: runningOwner.shortId }),
+      ...(runningOwner === undefined || runningOwner.sessionId === ownerSessionId ? {} : { ownerRunningSessionId: runningOwner.sessionId }),
     });
   }
   return recoveries;
@@ -144,7 +154,7 @@ export function executeWatcherRecoveries(
       return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.RestartRefused };
     }
     const isResumed = resumeOnReconcile(
-      { sessionId: recovery.ownerSessionId, cwd: cwd, runningShortId: recovery.ownerShortId },
+      { sessionId: recovery.ownerSessionId, cwd: cwd, runningShortId: recovery.ownerShortId, runningSessionId: recovery.ownerRunningSessionId },
       deps.runCommand,
       deps.waitForExit,
     );

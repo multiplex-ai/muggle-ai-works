@@ -1,3 +1,10 @@
+---
+mandatoryStages:
+  - ../_shared/session-state-writes.md
+  - respawn-watcher.md
+  - ../_shared/telemetry-events/muggle-do-cycle.md
+---
+
 # Fix-CI (watcher-dispatched)
 
 Resolve red CI on a PR's head — lint/format, typecheck, failing unit tests, and a red Muggle E2E walkthrough check — verifying green before re-push. A dumb-pipe dispatch like address-reviews: the executor receives a PR URL, slug, and the failing check names, and fixes them — it owns the fix, not the decision to dispatch.

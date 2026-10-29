@@ -47,6 +47,11 @@ const HANDOFF_CASES: HandoffReplayCase[] = [
     steps: withStepReplaced(FULL_HANDOFF_SEQUENCE, HandoffStep.E2eExecution, HandoffStep.E2eSkipDeclaration),
   },
   {
+    label: "a forward stage file left unread blocks on the stage gate alone",
+    steps: withStepReplaced(FULL_HANDOFF_SEQUENCE, HandoffStep.StageReads, HandoffStep.StageReadsSkippingRepairLoop),
+    blockingGate: HandoffStopGate.Stage,
+  },
+  {
     label: "no E2E run blocks on the E2E gate alone",
     steps: withoutStep(FULL_HANDOFF_SEQUENCE, HandoffStep.E2eExecution),
     blockingGate: HandoffStopGate.E2e,

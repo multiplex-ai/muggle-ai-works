@@ -1464,6 +1464,7 @@ var SEQUENCE_ENTRY = /^\s*-\s*(.+?)\s*$/;
 var FLOW_LIST = /^\s*\[(.*)\]\s*$/;
 var STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
 var SKILLS_DIR_NAME = "skills";
+var SKILL_ENTRY_FILE_NAME = "SKILL.md";
 var SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 var SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
 var SHELL_VARIABLE_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g;
@@ -1513,17 +1514,15 @@ function resolveSkillNameFromToolInput(toolInput) {
   }
   return void 0;
 }
-function resolveSkillStagePaths(skillName, skillsRootDir) {
-  const skillDir = join(skillsRootDir, skillName);
-  const skillFile = join(skillDir, "SKILL.md");
-  if (!existsSync(skillFile)) return [];
-  const normalizedRoot = normalizeStagePath(skillsRootDir);
-  const staysInsideSkillsTree = (candidate) => normalizeStagePath(candidate).startsWith(`${normalizedRoot}/`);
+var isInsideDirectory = (candidatePath, directory) => normalizeStagePath(candidatePath).startsWith(`${normalizeStagePath(directory)}/`);
+function resolveDeclaredStagePaths(declaringFile, skillsRootDir) {
+  if (!existsSync(declaringFile)) return [];
+  const declaringDir = dirname(declaringFile);
   const resolved = [];
-  for (const declared of parseDeclaredStages(readFileSync(skillFile, "utf-8"))) {
+  for (const declared of parseDeclaredStages(readFileSync(declaringFile, "utf-8"))) {
     if (isAbsolute(declared)) continue;
-    const stagePath = [resolve(skillDir, declared), resolve(skillsRootDir, declared)].find(
-      (candidate) => staysInsideSkillsTree(candidate) && existsSync(candidate)
+    const stagePath = [resolve(declaringDir, declared), resolve(skillsRootDir, declared)].find(
+      (candidate) => isInsideDirectory(candidate, skillsRootDir) && existsSync(candidate)
     );
     if (!stagePath) continue;
     const normalized = normalizeStagePath(stagePath);
@@ -1531,13 +1530,27 @@ function resolveSkillStagePaths(skillName, skillsRootDir) {
   }
   return resolved;
 }
+function resolveSkillStagePaths(skillName, skillsRootDir) {
+  return resolveDeclaredStagePaths(join(skillsRootDir, skillName, SKILL_ENTRY_FILE_NAME), skillsRootDir);
+}
+function resolveRouteStagePaths(state, readPath, skillsRootDir) {
+  if (!state.lastInvokedSkillName) return [];
+  if (basename(readPath).toLowerCase() === SKILL_ENTRY_FILE_NAME.toLowerCase()) return [];
+  if (!isInsideDirectory(readPath, skillsRootDir)) return [];
+  return resolveDeclaredStagePaths(readPath, skillsRootDir);
+}
+function applyDeclaredStages(state, stagePaths) {
+  const owed = state.mandatoryStages ?? [];
+  const added = stagePaths.filter(
+    (stagePath, index) => !owed.includes(stagePath) && stagePaths.indexOf(stagePath) === index
+  );
+  if (added.length === 0) return state;
+  return { ...state, mandatoryStages: [...owed, ...added] };
+}
 function applySkillInvocation(state, skillName, stagePaths) {
-  const merged = [...state.mandatoryStages ?? []];
-  for (const stagePath of stagePaths) if (!merged.includes(stagePath)) merged.push(stagePath);
-  if (state.lastInvokedSkillName === skillName && merged.length === (state.mandatoryStages?.length ?? 0)) {
-    return state;
-  }
-  return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
+  const declared = applyDeclaredStages(state, stagePaths);
+  if (declared === state && state.lastInvokedSkillName === skillName) return state;
+  return { ...declared, lastInvokedSkillName: skillName };
 }
 function isSkillTreeMarkdown(filePath) {
   const normalized = normalizeStagePath(filePath);
@@ -1589,8 +1602,10 @@ function detectShellStageReads(command, cwd, env = process.env) {
     if (!FILE_PRINTING_PROGRAMS.includes(program)) continue;
     for (const argument of argumentWords) {
       if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
-      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
-      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
+      const readPath = resolveShellPath(argument, workingDirectory);
+      const readKey = normalizeStagePath(readPath);
+      const isRecorded = readPaths.some((recordedPath) => normalizeStagePath(recordedPath) === readKey);
+      if (isSkillTreeMarkdown(readPath) && !isRecorded) readPaths.push(readPath);
     }
   }
   return readPaths;
@@ -1782,8 +1797,13 @@ function applyStateMutation(state, mutation) {
       return applyE2eDelegation(state, mutation.delegation);
     case "watch-follow-through" /* WatchFollowThrough */:
       return { ...applyWatchHolds(state, mutation.heldPrNumbers), watchFollowThroughBlockCount: mutation.blockCount };
-    case "stage-reads" /* StageReads */:
-      return mutation.readPaths.reduce(applyStageRead, state);
+    case "stage-reads" /* StageReads */: {
+      const withReads = mutation.readPaths.reduce(applyStageRead, state);
+      const skillsRootDir = mutation.skillsRootDir;
+      if (!skillsRootDir) return withReads;
+      const routeStagePaths = mutation.readPaths.flatMap((readPath) => resolveRouteStagePaths(withReads, readPath, skillsRootDir));
+      return applyDeclaredStages(withReads, routeStagePaths);
+    }
     case "stage-signals" /* StageSignals */:
       return applyStageSignals(state, mutation);
     case "fields" /* Fields */:
@@ -2794,7 +2814,11 @@ function recordStageRead() {
   const readPaths = filePath ? [filePath].filter(isSkillTreeMarkdown) : isShellToolCall(input) ? detectShellStageReads(input.tool_input?.command ?? "", input.cwd) : [];
   if (readPaths.length === 0) return "{}";
   if (callFailed(input)) return "{}";
-  commitStateMutation(sessionId, { kind: "stage-reads" /* StageReads */, readPaths }, readState(sessionId));
+  commitStateMutation(
+    sessionId,
+    { kind: "stage-reads" /* StageReads */, readPaths, skillsRootDir: resolvePluginSkillsRoot() },
+    readState(sessionId)
+  );
   return "{}";
 }
 function recordStageSignals() {

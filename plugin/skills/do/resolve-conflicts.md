@@ -1,3 +1,10 @@
+---
+mandatoryStages:
+  - ../_shared/session-state-writes.md
+  - respawn-watcher.md
+  - ../_shared/telemetry-events/muggle-do-cycle.md
+---
+
 # Rebase (watcher-dispatched)
 
 Rebase a PR's branch onto its base — whether it's merely **behind** (out of date, no conflict) or actually **conflicting** — behind a verify-or-rollback gate, then force-push, so a PR doesn't sit stale or un-mergeable forever. A dumb-pipe dispatch like fix-ci: the watcher detects the branch is behind or conflicting and hands off; the executor owns the rebase (and any conflict resolution), never the decision to dispatch.

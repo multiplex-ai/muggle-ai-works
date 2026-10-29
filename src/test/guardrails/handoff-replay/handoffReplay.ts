@@ -2,7 +2,11 @@ import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { HOOK_HOST_ENV_VAR } from "../../../guardrails/constants.js";
-import { normalizeStagePath, resolveSkillStagePaths } from "../../../guardrails/mandatoryStages.js";
+import {
+  normalizeStagePath,
+  resolveDeclaredStagePaths,
+  resolveSkillStagePaths,
+} from "../../../guardrails/mandatoryStages.js";
 import { PLUGIN_ROOT } from "../footprint/constants.js";
 import { HookEvent, type HookSlot } from "../footprint/types.js";
 import {
@@ -44,6 +48,7 @@ import {
   TELEMETRY_EMIT_RESULT,
   UNIT_TEST_COMMAND,
   UNIT_TEST_OUTPUT,
+  UNREAD_FORWARD_STAGE_FILE,
   WALKTHROUGH_BODY,
   WALKTHROUGH_BODY_FILE,
   WALKTHROUGH_COMMENT_URL,
@@ -87,16 +92,22 @@ function mcpTextResult(text: string): unknown {
   return [{ type: "text", text: text }];
 }
 
-// The forward run's stage files plus anything muggle-do declares as mandatory, so a declaration added later is
-// read the way the skill would have it read.
+// The forward run's stage files plus anything muggle-do or a forward stage declares as mandatory, so a declaration
+// added later is read the way the skill would have it read.
 function stageFilesToRead(): string[] {
   const forwardStagePaths = FORWARD_STAGE_FILES.map((relativePath) => join(PLUGIN_SKILLS_ROOT, relativePath));
   const forwardStageKeys = new Set(forwardStagePaths.map(normalizeStagePath));
-  const declaredStagePaths = resolveSkillStagePaths(MUGGLE_DO_SKILL_NAME, PLUGIN_SKILLS_ROOT).filter(
-    (declaredPath) => !forwardStageKeys.has(declaredPath),
-  );
+  const declaredStagePaths = [
+    ...resolveSkillStagePaths(MUGGLE_DO_SKILL_NAME, PLUGIN_SKILLS_ROOT),
+    ...forwardStagePaths.flatMap((stagePath) => resolveDeclaredStagePaths(stagePath, PLUGIN_SKILLS_ROOT)),
+  ].filter((declaredPath, index, all) => !forwardStageKeys.has(declaredPath) && all.indexOf(declaredPath) === index);
   return [...forwardStagePaths, ...declaredStagePaths];
 }
+
+const stageReads = (stagePaths: string[]): ReplayedToolCall[] =>
+  stagePaths.map((stagePath) =>
+    toolCall("Read", { file_path: stagePath }, { type: "text", file: { filePath: stagePath } }),
+  );
 
 function watcherHandoffInteractions(session: HandoffSession): ReplayedInteraction[] {
   const slotDirectory = sessionSlotDirectory(session.home, HANDOFF_SLOT_SLUG);
@@ -156,10 +167,11 @@ const HANDOFF_STEP_INTERACTIONS: Record<HandoffStep, (session: HandoffSession) =
     ),
     toolCall(MUGGLE_TELEMETRY_SKILL_EMIT_TOOL, { skillName: MUGGLE_DO_SKILL_NAME }, mcpTextResult(TELEMETRY_EMIT_RESULT)),
   ],
-  [HandoffStep.StageReads]: () =>
-    stageFilesToRead().map((stagePath) =>
-      toolCall("Read", { file_path: stagePath }, { type: "text", file: { filePath: stagePath } }),
-    ),
+  [HandoffStep.StageReads]: () => stageReads(stageFilesToRead()),
+  [HandoffStep.StageReadsSkippingRepairLoop]: () => {
+    const unreadStageKey = normalizeStagePath(join(PLUGIN_SKILLS_ROOT, UNREAD_FORWARD_STAGE_FILE));
+    return stageReads(stageFilesToRead().filter((stagePath) => normalizeStagePath(stagePath) !== unreadStageKey));
+  },
   [HandoffStep.UnitTests]: () => [shellCall(UNIT_TEST_COMMAND, UNIT_TEST_OUTPUT)],
   [HandoffStep.E2eExecution]: () => [
     toolCall(

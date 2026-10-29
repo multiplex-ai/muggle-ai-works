@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "fs";
 import { homedir } from "os";
-import { isAbsolute, join, resolve } from "path";
+import { basename, dirname, isAbsolute, join, resolve } from "path";
 import { resolvePluginRoot } from "../plugin-root/pluginRoot.js";
 import {
   FILE_PRINTING_PROGRAMS,
@@ -28,6 +28,7 @@ const FLOW_LIST = /^\s*\[(.*)\]\s*$/;
 const STAGE_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_STAGE_SKIP\b/;
 
 const SKILLS_DIR_NAME = "skills";
+const SKILL_ENTRY_FILE_NAME = "SKILL.md";
 const SKILLS_PATH_SEGMENT = `/${SKILLS_DIR_NAME}/`;
 const SINGLE_PATH_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
@@ -110,28 +111,27 @@ export function resolveSkillNameFromToolInput(toolInput: ToolInput | undefined):
   return undefined;
 }
 
-/**
- * The absolute, normalized stage files a skill declares.
- *
- * Declarations resolve against the skill directory, so both `../_shared/x.md`
- * (the form the skill's own links use) and `_shared/x.md` land on the same
- * file. A declaration that escapes the skills tree, or names a file that isn't
- * there, is dropped — a gate must never block on a path it can't point at.
- */
-export function resolveSkillStagePaths(skillName: string, skillsRootDir: string): string[] {
-  const skillDir = join(skillsRootDir, skillName);
-  const skillFile = join(skillDir, "SKILL.md");
-  if (!existsSync(skillFile)) return [];
+const isInsideDirectory = (candidatePath: string, directory: string): boolean =>
+  normalizeStagePath(candidatePath).startsWith(`${normalizeStagePath(directory)}/`);
 
-  const normalizedRoot = normalizeStagePath(skillsRootDir);
-  const staysInsideSkillsTree = (candidate: string): boolean =>
-    normalizeStagePath(candidate).startsWith(`${normalizedRoot}/`);
+/**
+ * The absolute, normalized stage files a skills-tree markdown file declares.
+ *
+ * Declarations resolve against the declaring file's directory, so both
+ * `../_shared/x.md` (the form the file's own links use) and `_shared/x.md`
+ * land on the same file. A declaration that escapes the skills tree, or names
+ * a file that isn't there, is dropped — a gate must never block on a path it
+ * can't point at.
+ */
+export function resolveDeclaredStagePaths(declaringFile: string, skillsRootDir: string): string[] {
+  if (!existsSync(declaringFile)) return [];
+  const declaringDir = dirname(declaringFile);
 
   const resolved: string[] = [];
-  for (const declared of parseDeclaredStages(readFileSync(skillFile, "utf-8"))) {
+  for (const declared of parseDeclaredStages(readFileSync(declaringFile, "utf-8"))) {
     if (isAbsolute(declared)) continue;
-    const stagePath = [resolve(skillDir, declared), resolve(skillsRootDir, declared)].find(
-      (candidate) => staysInsideSkillsTree(candidate) && existsSync(candidate),
+    const stagePath = [resolve(declaringDir, declared), resolve(skillsRootDir, declared)].find(
+      (candidate) => isInsideDirectory(candidate, skillsRootDir) && existsSync(candidate),
     );
     if (!stagePath) continue;
     const normalized = normalizeStagePath(stagePath);
@@ -140,18 +140,48 @@ export function resolveSkillStagePaths(skillName: string, skillsRootDir: string)
   return resolved;
 }
 
+/** The absolute, normalized stage files a skill's SKILL.md declares — nothing for a skill this plugin does not ship. */
+export function resolveSkillStagePaths(skillName: string, skillsRootDir: string): string[] {
+  return resolveDeclaredStagePaths(join(skillsRootDir, skillName, SKILL_ENTRY_FILE_NAME), skillsRootDir);
+}
+
+/**
+ * The stages a file just read declares for the route it enters.
+ *
+ * A skill whose router sends different runs down different routes cannot
+ * declare every route's stages in SKILL.md: a file only one route opens would
+ * block every other route. Each route's entry file declares its own set
+ * instead, and opening that file is what puts the set on the session. Only a
+ * file inside the plugin's own skills tree counts, and only once a skill was
+ * invoked — opening a checkout of the skills to edit them is not running one.
+ * A SKILL.md declares on invocation, never on a read.
+ */
+export function resolveRouteStagePaths(state: GuardrailState, readPath: string, skillsRootDir: string): string[] {
+  if (!state.lastInvokedSkillName) return [];
+  if (basename(readPath).toLowerCase() === SKILL_ENTRY_FILE_NAME.toLowerCase()) return [];
+  if (!isInsideDirectory(readPath, skillsRootDir)) return [];
+  return resolveDeclaredStagePaths(readPath, skillsRootDir);
+}
+
+/** Add declared stages to the session's owed set, returning the same reference when none is new. */
+export function applyDeclaredStages(state: GuardrailState, stagePaths: string[]): GuardrailState {
+  const owed = state.mandatoryStages ?? [];
+  const added = stagePaths.filter(
+    (stagePath, index) => !owed.includes(stagePath) && stagePaths.indexOf(stagePath) === index,
+  );
+  if (added.length === 0) return state;
+  return { ...state, mandatoryStages: [...owed, ...added] };
+}
+
 /** Record which skill is running and what it declared, returning the same reference when nothing changed so the caller can skip a redundant write. */
 export function applySkillInvocation(
   state: GuardrailState,
   skillName: string,
   stagePaths: string[],
 ): GuardrailState {
-  const merged = [...(state.mandatoryStages ?? [])];
-  for (const stagePath of stagePaths) if (!merged.includes(stagePath)) merged.push(stagePath);
-  if (state.lastInvokedSkillName === skillName && merged.length === (state.mandatoryStages?.length ?? 0)) {
-    return state;
-  }
-  return { ...state, lastInvokedSkillName: skillName, mandatoryStages: merged };
+  const declared = applyDeclaredStages(state, stagePaths);
+  if (declared === state && state.lastInvokedSkillName === skillName) return state;
+  return { ...declared, lastInvokedSkillName: skillName };
 }
 
 /** Whether a path is a markdown file inside a skills tree — the only place a mandatory stage lives. */
@@ -183,7 +213,9 @@ function resolveShellPath(path: string, workingDirectory: string): string {
 }
 
 /**
- * The skill-tree markdown files a shell command prints, as normalized paths.
+ * The skill-tree markdown files a shell command prints, as resolved paths in
+ * the casing the command used — a path is opened again to read what it
+ * declares, which a lowercased path fails on a case-sensitive filesystem.
  *
  * A host with no Read tool opens a stage file through the shell — Codex runs
  * `cat`, `sed -n` or `head` on it — so the stage gate has to see those reads
@@ -194,7 +226,7 @@ function resolveShellPath(path: string, workingDirectory: string): string {
  * set. Only markdown under a `skills/` directory is returned: a read anywhere
  * else is not a stage.
  *
- * Output shape: `["/home/u/.codex/plugins/cache/muggle-works/muggle/5.18.0/skills/_shared/debug-failed-run.md"]`
+ * Output shape: `["/home/U/.codex/plugins/cache/muggle-works/muggle/5.18.0/skills/_shared/debug-failed-run.md"]`
  */
 export function detectShellStageReads(
   command: string,
@@ -234,8 +266,10 @@ export function detectShellStageReads(
     if (!(FILE_PRINTING_PROGRAMS as readonly string[]).includes(program)) continue;
     for (const argument of argumentWords) {
       if (argument.startsWith("-") || !MARKDOWN_FILE.test(argument)) continue;
-      const readPath = normalizeStagePath(resolveShellPath(argument, workingDirectory));
-      if (isSkillTreeMarkdown(readPath) && !readPaths.includes(readPath)) readPaths.push(readPath);
+      const readPath = resolveShellPath(argument, workingDirectory);
+      const readKey = normalizeStagePath(readPath);
+      const isRecorded = readPaths.some((recordedPath) => normalizeStagePath(recordedPath) === readKey);
+      if (isSkillTreeMarkdown(readPath) && !isRecorded) readPaths.push(readPath);
     }
   }
   return readPaths;

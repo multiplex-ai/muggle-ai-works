@@ -86,7 +86,7 @@ If `prs.json` is empty, **do not arm** — record the reason in `result.md` and 
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Overflow comments posted:** repo → PR #
 **Stage 7.5:** `green` | `waived — <reason>` | `iteration-cap`
-**Stage 8:** `Watching <N> PR(s) — one monitor per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
+**Stage 8:** `Watching <N> PR(s) — one watch loop per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
 **Errors:** repo → message
 
 ## Post-merge cleanup

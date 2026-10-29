@@ -9,10 +9,11 @@ set -euo pipefail
 # The nudge is owner-scoped. Each slot records the session that armed it in
 # owner.json; only slots owned by THIS session are a recovery the agent should
 # run, because re-arming a stranger's PR would hand review work to a session with
-# no context for it. Slots owned by another session (or none) are reported as
-# orphans with the adopt command, never as work to pick up. A pure directory scan
-# — no gh, no writes, bash builtins only — so it stays cheap enough for every
-# session start however many slots have piled up.
+# no context for it. A session that owns none hears nothing: the hook speaks into
+# every session start, and slots owned elsewhere are no work of this one's —
+# `muggle watch status` reports them. A pure directory scan — no gh, no writes,
+# bash builtins only — so it stays cheap enough for every session start however
+# many slots have piled up.
 
 hook_dir="${BASH_SOURCE[0]%/*}"
 [ "$hook_dir" = "${BASH_SOURCE[0]}" ] && hook_dir=.
@@ -56,8 +57,6 @@ fi
 # stopped watchers back as work.
 sessions_dir="${HOME}/.muggle-ai/muggle-do/sessions"
 owned_count=0
-orphan_count=0
-first_orphan_slug=""
 
 if [ -d "$sessions_dir" ]; then
     for slot in "$sessions_dir"/*/; do
@@ -76,20 +75,11 @@ if [ -d "$sessions_dir" ]; then
         # (legacy slot) is likewise foreign — never adopted by default.
         if [ -n "$current_session_id" ] && [ "$slot_owner" = "$current_session_id" ]; then
             owned_count=$((owned_count + 1))
-        else
-            orphan_count=$((orphan_count + 1))
-            if [ -z "$first_orphan_slug" ]; then
-                first_orphan_slug="${slot%/}"
-                first_orphan_slug="${first_orphan_slug##*/}"
-            fi
         fi
     done
 fi
 
-# Clean state: nothing of this session's to recover and no orphans → stay silent.
-if [ "$owned_count" -eq 0 ] && [ "$orphan_count" -eq 0 ]; then
-    exit 0
-fi
+[ "$owned_count" -gt 0 ] || exit 0
 
 if [ "$owned_count" -eq 1 ]; then
     owned_word="watcher"
@@ -97,20 +87,7 @@ else
     owned_word="watchers"
 fi
 
-if [ "$owned_count" -gt 0 ]; then
-    context="muggle-pr-followup: ${owned_count} open ${owned_word} owned by this session may have lost its poller. Run \`/muggle:muggle-pr-followup reconcile\` to finalize any whose PR went terminal and re-arm the silently-stopped ones. Reconcile is idempotent and re-arms only watchers this session armed itself."
-else
-    context="muggle-pr-followup: no watchers belong to this session — nothing to re-arm."
-fi
-
-if [ "$orphan_count" -gt 0 ]; then
-    if [ "$orphan_count" -eq 1 ]; then
-        orphan_word="slot is"
-    else
-        orphan_word="slots are"
-    fi
-    context="${context} ${orphan_count} open ${orphan_word} owned by other sessions; reconcile will finalize them if their PR already merged or closed, but will never re-arm them. Adopt one deliberately with \`/muggle:muggle-pr-followup adopt <slug>\` (e.g. ${first_orphan_slug}) only if the user asks — do not offer or adopt on your own."
-fi
+context="muggle-pr-followup: ${owned_count} open ${owned_word} owned by this session may have lost its poller. Run \`/muggle:muggle-pr-followup reconcile\` to finalize any whose PR went terminal and re-arm the silently-stopped ones. Reconcile is idempotent and re-arms only watchers this session armed itself."
 
 escaped_context=$(escape_for_json "$context")
 

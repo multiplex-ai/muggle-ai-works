@@ -46,11 +46,18 @@ describe("pr-followup arming wiring", () => {
     expect(armWatcher).toMatch(/watch-watermark/);
   });
 
-  it("the monitor survives events and self-terminates, never unbounded", () => {
-    expect(armWatcher).toMatch(/keeps watching/i);
-    expect(armWatcher).toMatch(/exits when the PR goes terminal/i);
+  it("the loop reports by exiting and self-terminates, never unbounded", () => {
+    expect(armWatcher).toMatch(/exits on its first report/i);
+    expect(armWatcher).toMatch(/when the PR goes terminal/i);
     expect(armWatcher).toMatch(/self-terminating/i);
     expect(armWatcher).toMatch(/never\b.{0,15}while true.{0,15}unbounded/i);
+  });
+
+  // A Monitor stops reading after 30 minutes, so a watch under one costs a model
+  // turn per PR every half hour to re-arm, quiet PR or not.
+  it("runs the loop as a background shell, never under a Monitor", () => {
+    expect(armWatcher).toMatch(/run_in_background: true/);
+    expect(armWatcher).toMatch(/never `Monitor`/);
   });
 
   // Wake turns run the cycle inline in the owning session — a subagent only

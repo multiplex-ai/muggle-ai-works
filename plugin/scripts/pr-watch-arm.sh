@@ -8,9 +8,10 @@
 # and never reaching its terminal check. Every health signal said fine. Doing
 # the three steps here, in one command, is what makes that unskippable.
 #
-# The floors are taken from the drain's own read rather than from a fresh fetch
-# afterwards: anything that lands between the two would otherwise be marked seen
-# without ever being reported.
+# A first arm takes its floors from the drain's own read rather than from a fresh
+# fetch afterwards: anything that lands between the two would otherwise be marked
+# seen without ever being reported. A re-arm keeps the review, comment and thread
+# floors the session already holds, for the same reason.
 #
 # A stale branch or a red head is floored only when the slot proves a cycle ran
 # for it. Flooring whatever was outstanding at arm time let a session that never
@@ -38,7 +39,7 @@ if [ -z "$slot" ] || [ -z "$repo" ] || [ -z "$pr_number" ] || [ -z "$base_branch
     exit 2
 fi
 
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh; do
     if [ ! -f "${script_dir}/${lib}" ]; then
         echo "pr-watch-arm: missing ${lib} beside this script" >&2
         exit 2
@@ -135,9 +136,10 @@ recorded_rebase_due_key="$rebase_due_key"
 thread_count=0
 [ -n "$unresolved_threads" ] && thread_count=$(printf '%s' "$unresolved_threads" | tr ';' '\n' | grep -c .)
 
-# Printed, not swallowed: these are the things the arming session owes action on
-# before the monitor takes over. Unattempted work is left unfloored, so the
-# loop's first pass reports it again as an event.
+# A record of the PR as armed, read from the watch's output when its loop ends.
+# Printing wakes nobody: the session hears the watch only when the loop exits.
+# Unattempted work is left unfloored, so the loop's first poll reports it and
+# exits — that report is the wake.
 echo "DRAIN pr=$pr_number state=$pr_state head=${head_sha:0:8}"
 echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} latest-comment=${latest_comment:-0}"
 echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behind-base=${behind_count:-unknown} mergeable=${mergeable:-UNKNOWN}"
@@ -158,10 +160,25 @@ if [ -n "$rebase_due_key" ]; then
     fi
 fi
 
+# A re-arm carries the review, comment and thread floors forward. The session
+# advanced them past what it handled, so anything newer — a review landing
+# between its last tick's read and this one — is above them, and the loop's
+# first poll reports it. Seeding them from this read would floor that review
+# unseen. Only a first arm, with nothing handled yet, takes them from its read.
+review_floor="${latest_review:-0}"
+comment_floor="${latest_comment:-0}"
+threads_floor="$unresolved_threads"
+if [ -f "${slot}/watch-watermark.env" ]; then
+    review_floor="$(watch_read_slot_value "$slot" watch-watermark.env REV)"
+    comment_floor="$(watch_read_slot_value "$slot" watch-watermark.env COM)"
+    threads_floor="$(watch_threads_still_unresolved \
+        "$(watch_read_slot_value "$slot" watch-watermark.env THREADS)" "$unresolved_threads")"
+fi
+
 {
-    printf 'REV=%s\n' "${latest_review:-0}"
-    printf 'COM=%s\n' "${latest_comment:-0}"
-    printf 'THREADS="%s"\n' "$unresolved_threads"
+    printf 'REV=%s\n' "${review_floor:-0}"
+    printf 'COM=%s\n' "${comment_floor:-0}"
+    printf 'THREADS="%s"\n' "$threads_floor"
     printf 'CIRED="%s"\n' "$ci_red_floor"
     printf 'REBASED="%s"\n' "$rebase_floor"
     printf 'BLOCKED_CIDIGEST="%s"\n' "$blocked_digest_floor"

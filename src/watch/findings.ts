@@ -1,6 +1,6 @@
 import { WATCH_HEARTBEAT_STALE_MS } from "../guardrails/constants.js";
 import { ProviderPrState } from "../guardrails/types.js";
-import { MONITOR_STDOUT_CAP_MS, WATCH_FINDING_SEVERITY, WATCHER_REARM_GRACE_MS } from "./constants.js";
+import { WATCH_FINDING_SEVERITY, WATCHER_REARM_GRACE_MS } from "./constants.js";
 import { formatDuration, shortSessionId, shortSha } from "./format.js";
 import { resolveOwnerEscalation } from "./owner-escalation.js";
 import { isTerminalPrState } from "./pr-status.js";
@@ -27,8 +27,9 @@ import {
  *
  * The loop is found by its `--slot` argument, never by `watch.pid` (an MSYS pid
  * Node cannot probe) or by its parent (Git Bash's exec breaks the Windows chain
- * even under a live Monitor). A loop older than the Monitor's stdout cap, or one
- * whose owning session has ended, prints into a pipe nobody reads. With no
+ * even under a live Monitor). A loop whose owning session has ended prints into
+ * a pipe nobody reads. Age alone says nothing: the loop runs as a background
+ * shell, which has no read cap, for as long as its PR stays quiet. With no
  * process table the heartbeat is the only signal left.
  */
 export function resolveWatcherLiveness(
@@ -42,8 +43,7 @@ export function resolveWatcherLiveness(
     return isHeartbeatWithin(WATCH_HEARTBEAT_STALE_MS) ? WatcherLiveness.Polling : WatcherLiveness.Dead;
   }
   if (loop) {
-    const hasOutlivedMonitor = (loop.ageMs ?? 0) > MONITOR_STDOUT_CAP_MS;
-    return hasOutlivedMonitor || isOwnerSessionActive === false ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
+    return isOwnerSessionActive === false ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
   }
   return isHeartbeatWithin(WATCHER_REARM_GRACE_MS) ? WatcherLiveness.Rearming : WatcherLiveness.Dead;
 }
@@ -131,12 +131,8 @@ function watcherFinding(assessment: WatchSlotAssessment, subject: string): Watch
       `no watch loop is running (${heartbeat}); ${ownerPhrase(assessment)}`);
   }
   if (assessment.watcher === WatcherLiveness.Deaf) {
-    const reason =
-      assessment.isOwnerSessionActive === false
-        ? `its owner session ${shortSessionId(assessment.ownerSessionId ?? "")} has ended`
-        : `it has run ${formatDuration(assessment.loopAgeMs ?? 0)}, past the 30-minute Monitor cap`;
     return finding(WatchFindingCode.WatcherDeaf, [assessment.pr.url, assessment.loopPid], subject,
-      `watch loop pid ${assessment.loopPid} reports to no session: ${reason}`);
+      `watch loop pid ${assessment.loopPid} reports to no session: its owner session ${shortSessionId(assessment.ownerSessionId ?? "")} has ended`);
   }
   return undefined;
 }

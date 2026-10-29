@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 # The muggle-pr-followup watch loop. One process per PR slot: polls provider
-# state, prints one line per new event, and exits when the PR goes terminal.
+# state silently, and exits as soon as a poll finds something — printing one line
+# per new event — or the PR goes terminal.
+#
+# It runs as a background shell, which wakes the owning session only when the
+# process exits. So a quiet PR costs the session nothing, and each report costs
+# one turn, after which the session handles it and arms a fresh loop.
 #
 # Ships as a file so arming runs it rather than rewrites it. A loop re-derived
 # from prose on every arm drifts — the behind-base wake went missing from half
@@ -39,7 +44,7 @@ fi
 # gone. Guards missing means the plugin moved or upgraded underneath this loop —
 # a newer version's watcher owns the slot now, so step down rather than run on
 # without the supersede check.
-for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh; do
+for lib in pr-watch-guards.sh pr-watch-events.sh pr-watch-fetch.sh pr-watch-due.sh pr-watch-floors.sh; do
     [ -f "${script_dir}/${lib}" ] || exit 0
     # shellcheck source=/dev/null
     . "${script_dir}/${lib}"
@@ -60,16 +65,6 @@ unseeded=0
 # look at the PR rather than handing back a watch that never polled.
 has_iterated=""
 
-# In-memory floors, above the on-disk watermark. The watermark is advanced by
-# the session after it handles a wave; these stop the loop re-reporting an event
-# in the window before that write lands.
-floor_review=0
-floor_comment=0
-floor_threads=";"
-floor_ci_red=""
-floor_rebase=""
-floor_blocked_digest=""
-
 # What watch-due.env last recorded, so the file is rewritten only when the due
 # work changes rather than every poll.
 due_rebase_key=""
@@ -81,19 +76,28 @@ pinned_token="$(gh auth token 2>/dev/null)"
 [ -n "$pinned_token" ] && export GH_TOKEN="$pinned_token"
 
 
-read_watermark_value() {
-    local key="$1" line value=""
-    while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%$'\r'}"
-        case "$line" in
-            "${key}="*)
-                value="${line#"${key}"=}"
-                value="${value%\"}"
-                value="${value#\"}"
-                ;;
-        esac
-    done < "${slot}/watch-watermark.env"
-    printf '%s' "$value"
+# What earlier loops already reported. Without these, work the session saw and
+# chose not to act on — a HOLD WATCH, a comment needing no reply — would end
+# every fresh loop on its first poll. A blocked-resume floor holds only for the
+# block it was reported under (BLOCKED_FOR), so the same digest can resume a
+# later block.
+read_reported() {
+    watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" "$1"
+}
+reported_review=$(read_reported REV)
+reported_comment=$(read_reported COM)
+reported_threads=$(read_reported THREADS)
+floor_ci_red=$(read_reported CIRED)
+floor_rebase=$(read_reported REBASED)
+floor_blocked_digest=$(read_reported BLOCKED_CIDIGEST)
+floor_blocked_for=$(read_reported BLOCKED_FOR)
+
+read_watermark() {
+    watch_read_slot_value "$slot" watch-watermark.env "$1"
+}
+
+higher_id() {
+    if [ "${1:-0}" -gt "${2:-0}" ] 2>/dev/null; then printf '%s' "${1:-0}"; else printf '%s' "${2:-0}"; fi
 }
 
 # Every wait goes through here so that none, however long, can carry the loop
@@ -104,7 +108,10 @@ pause() {
 
 while :; do
     watcher_superseded "$slot" "$$" && exit 0
-    watcher_lifetime_exceeded "$started" "$(date +%s)" && exit 0
+    if watcher_lifetime_exceeded "$started" "$(date +%s)"; then
+        echo "EXPIRED pr=$pr_number watch lifetime of ${MUGGLE_PR_WATCH_MAX_LIFETIME}s reached — re-arm to keep watching"
+        exit 0
+    fi
     # Exit while the Monitor that owns this stdout is still reading, and say so:
     # the line is the owning session's cue to re-arm, and ending here is what
     # frees the lease that re-arm needs. A loop that ran on past its monitor would
@@ -136,13 +143,13 @@ while :; do
     fi
     unseeded=0
 
-    watermark_review=$(read_watermark_value REV)
-    watermark_comment=$(read_watermark_value COM)
-    watermark_threads=$(read_watermark_value THREADS)
-    watermark_ci_red=$(read_watermark_value CIRED)
-    watermark_rebase=$(read_watermark_value REBASED)
-    watermark_blocked_digest=$(read_watermark_value BLOCKED_CIDIGEST)
-    watermark_rebase_held=$(read_watermark_value REBASE_HELD)
+    watermark_review=$(read_watermark REV)
+    watermark_comment=$(read_watermark COM)
+    watermark_threads=$(read_watermark THREADS)
+    watermark_ci_red=$(read_watermark CIRED)
+    watermark_rebase=$(read_watermark REBASED)
+    watermark_blocked_digest=$(read_watermark BLOCKED_CIDIGEST)
+    watermark_rebase_held=$(read_watermark REBASE_HELD)
 
     state_line=$(watch_fetch_state "$repo" "$pr_number" "$slot" "$state_projection")
     # One quick retry before counting a strike: a single flaky call should not
@@ -187,29 +194,25 @@ while :; do
         continue
     fi
     fails=0
+    has_reported=""
 
-    if watch_wake_review "$pr_number" "$latest_review" \
-        "$(( watermark_review > floor_review ? watermark_review : floor_review ))"; then
-        floor_review="$latest_review"
-    fi
-
-    if watch_wake_comment "$pr_number" "$latest_comment" \
-        "$(( watermark_comment > floor_comment ? watermark_comment : floor_comment ))"; then
-        floor_comment="$latest_comment"
-    fi
+    watch_wake_review "$pr_number" "$latest_review" "$(higher_id "$watermark_review" "$reported_review")" && has_reported=1
+    watch_wake_comment "$pr_number" "$latest_comment" "$(higher_id "$watermark_comment" "$reported_comment")" && has_reported=1
 
     if [ -n "$unresolved_threads" ]; then
         IFS=';' read -ra thread_ids <<< "$unresolved_threads"
         for thread_id in "${thread_ids[@]}"; do
-            if watch_wake_thread "$pr_number" "$thread_id" "${watermark_threads};${floor_threads}"; then
-                floor_threads="${floor_threads}${thread_id};"
-            fi
+            watch_wake_thread "$pr_number" "$thread_id" "${watermark_threads};${reported_threads}" && has_reported=1
         done
     fi
 
-    if watch_wake_ci_red "$pr_number" "$pending_checks" "$failed_checks" "$head_sha" \
-        "${floor_ci_red:-$watermark_ci_red}"; then
+    # Either floor quiets the head: the watermark's when a fix already ran for
+    # it, the reported one when a loop already told the session it went red.
+    ci_red_floor="$watermark_ci_red"
+    [ "$floor_ci_red" = "$head_sha" ] && ci_red_floor="$floor_ci_red"
+    if watch_wake_ci_red "$pr_number" "$pending_checks" "$failed_checks" "$head_sha" "$ci_red_floor"; then
         floor_ci_red="$head_sha"
+        has_reported=1
     fi
 
     rebase_key="${head_sha}..${base_tip_sha}"
@@ -227,6 +230,7 @@ while :; do
         if watch_wake_rebase "$pr_number" "$mergeable" "$behind_count" "$rebase_key" ""; then
             floor_rebase="$rebase_key"
             due_rebase_key="$rebase_key"
+            has_reported=1
         fi
     fi
 
@@ -239,12 +243,21 @@ while :; do
     fi
 
     # The tick owns clearing the block, and it may not run for a while. Holding
-    # the emitted digest stops the loop repeating itself every iteration in the
-    # meantime — the repeat nagging the design rules out — while a further move
-    # still wakes it.
+    # the reported digest stops each fresh loop repeating it in the meantime — the
+    # repeat nagging the design rules out — while a further move still wakes it.
+    [ "$floor_blocked_for" = "$watermark_blocked_digest" ] || floor_blocked_digest=""
     if [ "$ci_digest" != "$floor_blocked_digest" ] \
         && watch_wake_blocked_resume "$pr_number" "$ci_digest" "$watermark_blocked_digest"; then
         floor_blocked_digest="$ci_digest"
+        floor_blocked_for="$watermark_blocked_digest"
+        has_reported=1
+    fi
+
+    if [ -n "$has_reported" ]; then
+        watch_record_reported "$slot" "$(higher_id "$latest_review" "$reported_review")" \
+            "$(higher_id "$latest_comment" "$reported_comment")" "$unresolved_threads" \
+            "$floor_ci_red" "$floor_rebase" "$floor_blocked_digest" "$floor_blocked_for"
+        exit 0
     fi
 
     pause "$MUGGLE_PR_WATCH_POLL_INTERVAL"

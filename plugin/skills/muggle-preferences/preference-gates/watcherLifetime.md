@@ -14,9 +14,9 @@ How long a `muggle-pr-followup` watch loop polls before retiring itself.
 
 A watch loop is a detached process. On Windows it survives the session that launched it, so an abandoned loop keeps polling the provider indefinitely. `watcher_superseded` retires one only when a *newer* arm claims the same slot, which never happens if nothing re-arms, so a time-based bound is needed.
 
-Under a monitor that bound is `MUGGLE_PR_WATCH_MONITOR_WINDOW`, not this value. Arming runs the loop under a monitor, and the loop ends itself after the window (1740s) so it never outlives the monitor reading its output; an abandoned loop therefore retires within about 29 minutes, well before `1d` or `7d`. This lifetime bounds a loop run with the window disabled.
+Arming runs the loop as a background shell, which has no time cap, so this value is the bound. It also sets how often a quiet PR costs its owning session a turn: the loop announces the end of its lifetime with an `EXPIRED` line, and the session re-arms it.
 
-**`never` removes this bound.** Under a monitor the window still retires the loop; a loop run outside one then polls until the machine restarts or someone kills it.
+**`never` removes this bound.** An abandoned loop then polls until the machine restarts or someone kills it.
 
 ## Applying it
 

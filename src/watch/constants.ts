@@ -16,16 +16,9 @@ export const WATCH_EVENTS_FILE = "events.jsonl";
 export const WATCH_EVENTS_ROTATE_BYTES = 5 * 1024 * 1024;
 
 /**
- * The longest a Monitor keeps reading its command's stdout. A watch loop older
- * than this has outlived the pipe it reports into, so its events reach no
- * session even though it still polls and heartbeats.
- */
-export const MONITOR_STDOUT_CAP_MS = 30 * 60_000;
-
-/**
- * How long a slot may sit with no loop process before it counts as dead. A
- * rollover exits the loop and the owning session re-arms it on its next turn
- * boundary, so a short gap is the normal handoff, not a death.
+ * How long a slot may sit with no loop process before it counts as dead. A loop
+ * exits on every report and the owning session re-arms it once it has handled
+ * the report, so a short gap is the normal handoff, not a death.
  */
 export const WATCHER_REARM_GRACE_MS = 5 * 60_000;
 

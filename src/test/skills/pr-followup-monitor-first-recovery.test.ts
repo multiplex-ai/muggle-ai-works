@@ -1,12 +1,12 @@
 /**
- * Static lint for monitor-first recovery.
+ * Static lint for loop-first recovery.
  *
- * The failure this suite pins: after a compaction killed the session monitors,
+ * The failure this suite pins: after a compaction killed the session watchers,
  * the per-minute recovery crons became the primary pollers — six slots burned a
  * full model turn per tick, every minute, for hours, on PRs that never changed.
  * Two doc gaps allowed it: reconcile re-armed dead watchers with a recurring
  * cron, and the tick contract had no step handing a cron-delivered tick back to
- * the token-free monitor. Prose is the implementation here, so these assert the
+ * the token-free loop. Prose is the implementation here, so these assert the
  * procedure still says the load-bearing thing; they do NOT catch an agent that
  * ignores the doc.
  */
@@ -59,27 +59,29 @@ describe("parser sanity: refuse to pass vacuously", () => {
   });
 });
 
-describe("contract Step 7.5 — a cron-delivered tick hands back to the monitor", () => {
-  it("gates on the watch-heartbeat liveness beacon", () => {
-    expect(step75).toMatch(/watch-heartbeat/);
+describe("contract Step 7.5 — every idle tick leaves one loop polling", () => {
+  // A loop exits on every report, and a heartbeat it touched a minute ago reads
+  // fresh after it is gone, so only the lease says whether anything still polls.
+  it("gates on the watch.pid lease", () => {
+    expect(step75).toMatch(/watch\.pid/);
   });
 
-  it("re-arms the dead monitor per arm-watcher and cancels the cron", () => {
+  it("re-arms a dead loop per arm-watcher and cancels a delivering cron", () => {
     expect(step75).toMatch(/arm-watcher\.md/);
     expect(step75).toMatch(/cancel-cron\.md/);
   });
 
-  it("cancels a duplicate cron even when the monitor is alive", () => {
-    expect(step75).toMatch(/[Ff]resh.*duplicate poller/s);
+  it("cancels a delivering cron whether or not a loop is alive", () => {
+    expect(step75).toMatch(/recovery cron[\s\S]*also cancel the cron/);
   });
 
-  it("names the cost that makes this load-bearing: cron fires are model turns, the monitor is token-free", () => {
+  it("names the cost that makes this load-bearing: cron fires are model turns, the loop is token-free", () => {
     expect(step75).toMatch(/model turn/);
     expect(step75).toMatch(/token-free/);
   });
 
-  it("exempts a monitor wake — it already owns the cadence", () => {
-    expect(step75).toMatch(/monitor wake/i);
+  it("leaves re-arming after a dispatch to the cycle's settle", () => {
+    expect(step75).toMatch(/dispatching tick skips it/);
   });
 
   it("both Step 7 idle branches and a Step 2.5 held block route through it", () => {
@@ -89,10 +91,10 @@ describe("contract Step 7.5 — a cron-delivered tick hands back to the monitor"
   });
 });
 
-describe("reconcile Step 3.6 — re-arm is monitor-first, never a recurring cron", () => {
-  it("re-arms per arm-watcher (drain, watermark, persistent monitor)", () => {
+describe("reconcile Step 3.6 — re-arm is loop-first, never a recurring cron", () => {
+  it("re-arms per arm-watcher (drain, watermark, background loop)", () => {
     expect(rearm).toMatch(/arm-watcher\.md/);
-    expect(rearm).toMatch(/persistent monitor/);
+    expect(rearm).toMatch(/background loop/);
   });
 
   it("never instructs CronCreate — the regression that turned recovery crons into primary pollers", () => {
@@ -104,6 +106,6 @@ describe("reconcile Step 3.6 — re-arm is monitor-first, never a recurring cron
 describe("SKILL.md — crons deliver recovery ticks, never the ongoing cadence", () => {
   it("routes the reader to the Step 7.5 hand-back", () => {
     expect(skill).toMatch(/Step 7\.5/);
-    expect(skill).toMatch(/monitor-first/);
+    expect(skill).toMatch(/loop-first/);
   });
 });

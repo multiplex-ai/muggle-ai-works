@@ -13,26 +13,26 @@
 #   watcher_superseded    — <slot>/watch.pid holds the PID of the watcher that
 #                           owns the slot. A loop whose PID no longer matches has
 #                           been replaced by a newer arm and must exit.
-#   watcher_window_elapsed — a loop exits once it has run for its monitor
-#                           window, before the Monitor that owns its stdout ends.
-#                           It announces the exit so the owning session re-arms.
+#   watcher_window_elapsed — a loop run under a Monitor exits once it has run for
+#                           its window, before the Monitor that owns its stdout
+#                           ends. It announces the exit so the owning session
+#                           re-arms. Off unless MUGGLE_PR_WATCH_MONITOR_WINDOW is set.
 #   watcher_lifetime_exceeded — a loop exits after MUGGLE_PR_WATCH_MAX_LIFETIME
 #                           regardless, so an orphan nothing supersedes still dies
 #                           on its own; reconcile re-arms an open PR inside a live
 #                           session.
 
 # Seconds a watch loop may live. 0 means unbounded — the `never` setting of the
-# watcherLifetime preference. Under a Monitor the window below ends a loop long
-# before this does; this bounds a loop run with the window disabled.
+# watcherLifetime preference.
 MUGGLE_PR_WATCH_MAX_LIFETIME="${MUGGLE_PR_WATCH_MAX_LIFETIME:-604800}"
 MUGGLE_PR_WATCH_POLL_INTERVAL="${MUGGLE_PR_WATCH_POLL_INTERVAL:-60}"
 # Seconds one loop process runs before handing the watch back for a fresh arm.
-# The Monitor tool ends a background task after 1800s but does not stop the
-# process it launched, so a loop that outlives its monitor polls into a closed
-# pipe: every event it prints reaches nobody while its lease and heartbeat read
-# healthy. 1740 closes the window one poll interval inside that cap. 0 means
-# unbounded, for a loop run outside a Monitor.
-MUGGLE_PR_WATCH_MONITOR_WINDOW="${MUGGLE_PR_WATCH_MONITOR_WINDOW:-1740}"
+# Only a loop run under a Monitor needs one: the Monitor tool stops reading after
+# 1800s without stopping the process, so such a loop must end itself first, and
+# every hand-back costs the session a model turn. The watch runs as a background
+# shell, which has no cap and wakes the session only when the loop exits, so the
+# default is 0, unbounded.
+MUGGLE_PR_WATCH_MONITOR_WINDOW="${MUGGLE_PR_WATCH_MONITOR_WINDOW:-0}"
 # Consecutive failed fetches before a loop gives up. A watcher must ride through
 # a GitHub / network outage — an observed drop lasted ~8 minutes — not die and
 # leave the PR unwatched until its owning session next starts. With the backoff, 60

@@ -44,7 +44,7 @@ This is a statement, not a gate — the user asked. It exists because the failur
 
 Write `owner.json` ([`state-schemas.md`](state-schemas.md#ownerjson)) with `session_id` from `$CLAUDE_CODE_SESSION_ID` and `claimed_at` now, overwriting any previous owner. If `$CLAUDE_CODE_SESSION_ID` is unset, stop with `cannot adopt: no session id to record` — an unidentifiable owner leaves the slot recoverable by nobody.
 
-Then arm per [`arm-watcher.md`](arm-watcher.md): one drain tick, then the persistent monitor. The drain is what makes the adoption honest — it acts on everything outstanding now, rather than resuming from a watermark seeded against a wave the original session read and this one never saw.
+Then arm per [`arm-watcher.md`](arm-watcher.md): one drain tick, then the background loop. The drain is what makes the adoption honest — it acts on everything outstanding now, rather than resuming from a watermark seeded against a wave the original session read and this one never saw.
 
 Append `adopted (from <previous-owner | unowned>)` to the slot's `followup.log`.
 
@@ -57,4 +57,4 @@ One line: `adopted <slug> → <owner>/<repo>#<n> — armed`.
 - **Explicit only.** Adoption runs when the user names it. No sweep, hook, auto-track, or tick ever calls this procedure, and nothing offers it unprompted.
 - **One slot per invocation.** No bulk adopt, no `--all`. Adopting every orphan in one command is the behavior the ownership gate exists to prevent, wearing a different name.
 - **Stopped stays stopped.** A `.stopped` slot is unreachable here, as it is from every other recovery path.
-- **Claim before arm.** `owner.json` is written before the monitor starts, so a crash between the two leaves a slot this session owns and can recover — never an armed watcher no session claims.
+- **Claim before arm.** `owner.json` is written before the loop starts, so a crash between the two leaves a slot this session owns and can recover — never an armed watcher no session claims.

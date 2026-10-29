@@ -600,6 +600,23 @@ describe("decideStackClaim", () => {
     expect(decision.next.queue.map((ticket) => ticket.cwd)).toEqual(["/old-pr", "/new-pr", "/no-pr"]);
   });
 
+  it("keeps the ask order of checkouts that first asked in the same millisecond when one asks again", async () => {
+    const { decideStackClaim } = await loadStack();
+    const record = {
+      leases: [{ cwd: "/holder", needs: [need(3000, "/holder", SHA_BASE)], grantedAt: now - 1_000, lastSeenAt: now - 1_000 }],
+      queue: [
+        { cwd: "/b", needs: [need(3000, "/b", SHA_B)], enqueuedAt: now - 5_000, lastSeenAt: now - 1_000 },
+        { cwd: "/c", needs: [need(3000, "/c", SHA_A)], enqueuedAt: now - 5_000, lastSeenAt: now - 1_000 },
+      ],
+      portFreedAt: {},
+    };
+
+    const reasked = decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive });
+
+    expect(reasked.position).toBe(1);
+    expect(reasked.next.queue.map((ticket) => ticket.cwd)).toEqual(["/b", "/c"]);
+  });
+
   it("puts a re-run of an older pull request back ahead of newer ones, whenever it asks again", async () => {
     const { decideStackClaim } = await loadStack();
     const olderPullRequest = { number: 7, url: "", createdAt: now - 3_600_000 };

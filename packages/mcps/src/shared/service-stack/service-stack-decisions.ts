@@ -420,6 +420,8 @@ function ticketBlockersFor(params: { ticket: IStackTicket; needs: IStackNeed[] }
 }
 
 // A lookup that failed this time keeps the pull request an earlier ask found, so a gh hiccup never costs a place.
+// A re-ask updates the ticket where it stands: the sort is stable, so checkouts that first asked in the same
+// millisecond keep the order they asked in.
 function upsertTicket(params: {
   queue: IStackTicket[];
   cwd: string;
@@ -446,7 +448,11 @@ function upsertTicket(params: {
           pullRequest: params.pullRequest ?? existing.pullRequest,
           lastSeenAt: params.now,
         };
-  return [...params.queue.filter((queued) => queued.cwd !== params.cwd), ticket].sort(compareQueuePlaces);
+  const queue =
+    existing === undefined
+      ? [...params.queue, ticket]
+      : params.queue.map((queued) => (queued.cwd === params.cwd ? ticket : queued));
+  return queue.sort(compareQueuePlaces);
 }
 
 function isOwedTurn(params: { ticket: IStackTicket; portFreedAt: Record<string, number>; now: number }): boolean {

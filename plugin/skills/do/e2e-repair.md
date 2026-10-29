@@ -26,7 +26,7 @@ Read the Stage 6 run-level verdict, defined in [`../_shared/failure-mode-handlin
 - `PASS` or `SKIPPED` → nothing to repair. Append `e2e-repair: clear (<verdict>)` to the iteration log and hand to Stage 8.
 - A verdict the user waived earlier in this session → clear on the recorded waiver; never re-ask.
 - An entry whose run failed because the app did not answer — connection refused, page never loaded — is the readiness halt of [`e2e-acceptance.md`](e2e-acceptance.md) Step 0.5 arriving late. Nothing ran, so there is nothing to repair and nothing to waive, attended or not: re-check readiness there, and if the app is still down, stop as Step 4's **Stop here** and report the halt. A run the runner lost while the app answers — an Electron, MCP or Studio crash, even before the first step — is not this: it is an `infra` failure and takes the loop below.
-- `FAIL`, `PARTIAL`, `INCONCLUSIVE`, or `BLOCKED` → the loop runs over every entry in the Failed and Inconclusive blocks.
+- `FAIL`, `PARTIAL`, `INCONCLUSIVE`, or `BLOCKED` → the loop runs over every entry in the Failed and Inconclusive blocks, and every non-`PASS` entry in the Deliverables block.
 
 ## Step 1: Root-cause each failure
 
@@ -55,6 +55,8 @@ Map each bucket to exactly one disposition. Buckets are defined in [`../_shared/
 A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. Without one it is `ask`, whatever the bucket said.
 
 **A failure the diff cannot explain may predate it.** When a `product-defect` or `product-uxux` failure names no code path the diff touched, replay the same test case against a checkout of the base before repairing anything: a worktree at the base tip's full SHA, with its own stack claim and services, under the same runSettings record. If that run fails the same way, its disposition is `baseline` — the defect is on the base, not this change's to fix — and the entry carries that run's id as `baselineRunId` into the walkthrough report ([`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md)). If it passes, the change caused the failure and the original disposition stands. A `baseline` entry is never re-run or waived; when every remaining failure is `baseline`, the loop clears.
+
+A Deliverables entry carries no bucket. A `FAIL` entry is already a named defect — the failed probe or review with its expected and observed values — so its disposition is `repair`. An `INCONCLUSIVE` entry is `ask`, naming its reason: a missing tool or unreachable source is the machine's to fix, not the diff's. A Step 5 re-run re-checks only the deliverable entries the repair touched.
 
 An Inconclusive entry Stage 6 recorded as `prerequisites unmet` never executed. It carries no bucket and none may be derived from it — there is no run to read. Its disposition is `ask`, and the question names the missing prerequisite: what failed is the project's test-plan chain, not the diff.
 

@@ -73,7 +73,7 @@ When other work is in front of the session as this change reaches Stage 6, the m
 
 ### Step 0.5: Readiness check
 
-A `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:
+A scope with deliverable checks and no browser case runs none of these and goes to Step 5. Otherwise a `local-e2e` cycle runs these before any `muggle-local-execute-*` call, every cycle — even when pre-flight already reported the app ready, since a server can die while stages 2–5 run and a healthy one fast-exits:
 
 1. **Dev-server + backend readiness** — invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from the cycle's worktree, passing the PR target as `base` — the readiness/service-start owner (idempotent fast-exit when healthy; probes via `dev-server-readiness.md` and starts what is down). It syncs the worktree onto the latest base before starting anything, and serves every other repo from its latest default branch. Its readiness table must show the cycle's worktree as the `Source` of the changed repo's services, at the worktree's current HEAD; any other source is not ready. Still not ready after its start attempts → the readiness halt below.
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
@@ -87,7 +87,7 @@ Only the app not answering is this halt. A run the runner itself lost while read
 
 Pre-flight handled auth. If `muggle-remote-auth-status` somehow shows expired here (session clock skew, etc.), re-auth silently via `muggle-remote-auth-login` + `muggle-remote-auth-poll` — but do not ask the user "continue with this account?" again.
 
-If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly. This is the only exit `DEV_SERVER_UNREACHABLE` belongs to, because pre-flight never planned a browser run; on a `local-e2e` cycle an unreachable server is the Step 0.5 readiness halt.
+If validation is `unit-only` or `skip`, emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo has nothing to drive, `DEV_SERVER_UNREACHABLE` when it does but nothing answers — and exit cleanly. A `unit-only` cycle whose scope holds deliverable checks records that code as the report's `**Browser skip:**` line instead, and goes straight to Step 5 rather than exiting. This is the only exit `DEV_SERVER_UNREACHABLE` belongs to, because pre-flight never planned a browser run; on a `local-e2e` cycle an unreachable server is the Step 0.5 readiness halt.
 
 If validation is `staging-replay`, emit `INCONCLUSIVE` with reason `staging replay not handled in Stage 6 local runner path` and exit cleanly.
 
@@ -141,6 +141,12 @@ Inputs to the loop: `mode` from the script-exists check, `localUrl`/project from
 
 Each record's run is its own report entry carrying its `runSettingsId` and `resolutionLabel`. A record skipped because its primary failed is an Inconclusive entry with reason `primary failed`, not a skipped test case.
 
+### Step 5: Run the deliverable checks
+
+Run every `deliverableChecks` entry of the scope per [`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md): obtain the artifact from the working tree recorded in `state.md`, run each planned probe plus the category's review, and record one report entry per check in the **Deliverables** block. Probe output, extracted frames, and transcripts go in a scratch directory outside the worktree, recorded as the entry's `evidenceDir`. A check that could not run is an `INCONCLUSIVE` entry with its reason, never absent.
+
+Deliverable checks do not satisfy the session's browser E2E gate. A cycle that ran no browser case still declares its browser skip with `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"`: `NO_WEB_SURFACE` when that holds, else `NOT_APPLICABLE` with a detail naming the categories checked instead, e.g. `NOT_APPLICABLE: change ships only video and image deliverables, verified by deliverable checks DC1-DC2`.
+
 ### Step 7: Collect Results
 
 For each test case:
@@ -185,6 +191,10 @@ For each test case:
   - reason: `<one short sentence>`
   - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]` (empty only when the run produced no steps)
 
+**Deliverables:** (count) — one entry per deliverable check from Step 5, in the report-entry shape of [`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md#report-entry). Omitted when the scope planned none.
+
+**Browser skip:** `<CODE>: <detail>` — only when Step 1 skipped the browser part of a cycle that still ran deliverable checks.
+
 **Scope:** (from `e2eScope`, after Step 3)
 - impacted: `<testCaseId>`, ...
 - new: `<key>` → `<testCaseId>`, ...
@@ -194,7 +204,7 @@ For each test case:
 **Metadata:**
 - projectId: `<projectId>`
 
-**Overall:** PASS | FAIL | PARTIAL | INCONCLUSIVE | BLOCKED | SKIPPED — see [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F for the canonical taxonomy.
+**Overall:** PASS | FAIL | PARTIAL | INCONCLUSIVE | BLOCKED | SKIPPED — see [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section F for the canonical taxonomy. Deliverable entries count toward it like test cases: a `FAIL` entry fails the run, an `INCONCLUSIVE` one is a gap. A browser skip beside deliverable entries is not `SKIPPED` — the run's verdict comes from the entries that ran.
 
 A non-passing verdict does not end the cycle. [`e2e-repair.md`](e2e-repair.md) consumes this report at Stage 7.5 and root-causes every Failed and Inconclusive entry before a watcher is armed, so write those blocks in full — the bucket, failing step, and `artifactsDir` recorded here are that stage's entire input.
 

@@ -45,6 +45,8 @@ When the subagent aggregates per-script results from sections B and C into one v
 | `agent-course` (regen) | C | **INCONCLUSIVE** (agent couldn't complete, not a PR defect) |
 | `transient` (regen) | C | retry once; if still transient → **INCONCLUSIVE** |
 
+A deliverable check ([`deliverable-categories.md`](deliverable-categories.md)) carries no bucket; its own `FAIL` or `INCONCLUSIVE` verdict counts as a test case's **FAIL** or **INCONCLUSIVE** here.
+
 When a run mixes buckets across multiple test cases, take the most-significant verdict in this priority order: **FAIL > PARTIAL > BLOCKED > INCONCLUSIVE > SKIPPED > PASS**. If any one test case maps to FAIL, the run is FAIL. If some passed and some were INCONCLUSIVE, the run is PARTIAL.
 
 ### How orchestrators consume the verdict

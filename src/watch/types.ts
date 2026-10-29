@@ -249,7 +249,7 @@ export enum WatcherRecoveryOutcome {
   TranscriptMissing = "transcript-missing",
   /** The owner is still running and Claude would not resume it in its workspace, so it was left running. */
   RestartRefused = "restart-refused",
-  /** The owner is still running at the usage limit and retries its own turn once the limit resets; a resume could only start a copy. */
+  /** The account is at a usage limit that has not reset yet, so a resume would only land on it; held without counting an attempt. */
   AwaitingUsageLimitReset = "awaiting-usage-limit-reset",
 }
 
@@ -410,6 +410,7 @@ export interface WatchPaths {
   claudeSessionRegistryDir: string;
   claudeProjectsDir: string;
   claudeInstalledPluginsFile: string;
+  claudeGlobalConfigFile: string;
   codexSessionsDir: string;
   muggleInstallLogFile: string;
 }

@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import { readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
-import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "./claude-transcripts.js";
+import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
@@ -26,6 +26,7 @@ import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
 import { hasLiveProcess } from "./session-liveness.js";
 import { partitionByTerminalCache, updateTerminalCache } from "./terminal-pr-cache.js";
 import { classifyTrackedProcesses } from "./tracked-processes.js";
+import { isClaudeUsageLimitInForce } from "./usage-limit.js";
 import {
   closeOutWatchSlot,
   isPrPollingDisabled,
@@ -220,7 +221,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       deps.nowMs,
       isPollingDisabled,
       new Map(runningSessions.map((session) => [session.sessionId, session])),
-      (sessionId) => isStoppedAtUsageLimit(deps.paths.claudeProjectsDir, sessionId),
+      isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
     );
     const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, {
       runCommand: deps.runCommand,

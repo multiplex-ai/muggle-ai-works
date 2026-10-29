@@ -137,26 +137,31 @@ describe("planWatcherRecoveries", () => {
     ]);
   });
 
-  it("counts resumes that only hit the usage limit toward the attempt cap", () => {
-    const attempts = { limited: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] };
-    const planned = planWatcherRecoveries([deadSlot("a", "limited")], attempts, NOW_MS, false, new Map(), (sessionId) => sessionId === "limited");
-    expect(planned[0].outcome).toBe(WatcherRecoveryOutcome.AttemptsExhausted);
-  });
-
-  it("leaves a running owner at the usage limit to retry its own turn, without spending the tick cap", () => {
+  it("holds every owner while the account sits at a usage limit, before the attempt cap or the tick cap", () => {
     const planned = planWatcherRecoveries(
-      [deadSlot("a", "limited", { isOwnerSessionActive: true }), deadSlot("b", "o2"), deadSlot("c", "o3")],
-      {},
+      [deadSlot("a", "exhausted"), deadSlot("b", "o2", { isOwnerSessionActive: true }), deadSlot("c", "o3"), deadSlot("d", "o4")],
+      { exhausted: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] },
       NOW_MS,
       false,
-      new Map([["limited", liveOwner("limited")]]),
-      (sessionId) => sessionId === "limited",
+      new Map([["o2", liveOwner("o2")]]),
+      true,
     );
-    expect(Object.fromEntries(planned.map((recovery) => [recovery.ownerSessionId, recovery.outcome]))).toEqual({
-      limited: WatcherRecoveryOutcome.AwaitingUsageLimitReset,
-      o2: WatcherRecoveryOutcome.ResumeDue,
-      o3: WatcherRecoveryOutcome.ResumeDue,
-    });
+    expect(planned.map((recovery) => recovery.outcome)).toEqual([
+      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
+      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
+      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
+      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
+    ]);
+  });
+
+  it("resumes an owner once the limit has reset, counting attempts made while it held", () => {
+    const attempts = { o1: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] };
+    expect(planWatcherRecoveries([deadSlot("a", "o1")], attempts, NOW_MS, false, new Map(), false)[0].outcome).toBe(
+      WatcherRecoveryOutcome.AttemptsExhausted,
+    );
+    expect(planWatcherRecoveries([deadSlot("a", "o2")], {}, NOW_MS, false, new Map([["o2", liveOwner("o2")]]), false)[0].outcome).toBe(
+      WatcherRecoveryOutcome.ResumeDue,
+    );
   });
 
   it("finds an owner whose job continued under a newer session id by the short id it started with", () => {
@@ -175,8 +180,6 @@ describe("planWatcherRecoveries", () => {
     ]);
     const busy = liveOwner("a9667d3f-5225", { shortId: "030d66e7", turnStatus: ClaudeTurnStatus.Busy });
     expect(planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[busy.sessionId, busy]]))).toEqual([]);
-    const limited = planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[continued.sessionId, continued]]), (sessionId) => sessionId === ownerSessionId);
-    expect(limited[0].outcome).toBe(WatcherRecoveryOutcome.AwaitingUsageLimitReset);
   });
 });
 

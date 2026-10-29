@@ -415,6 +415,20 @@ describe("runWatchTick", () => {
     expect(runner.calls.some((call) => call.args[0] === "--resume")).toBe(false);
   });
 
+  it("holds recovery while Claude's cached usage shows a limit that has not reset", () => {
+    const { deps, runner, paths } = buildMachine();
+    const resetsAt = new Date(NOW_MS + HOUR_MS).toISOString();
+    writeFileSync(
+      paths.claudeGlobalConfigFile,
+      JSON.stringify({ cachedUsageUtilization: { utilization: { seven_day: { utilization: 100, resets_at: resetsAt, locked_reason: null } } } }),
+    );
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.recoveries.length).toBeGreaterThan(0);
+    expect(snapshot.recoveries.every((recovery) => recovery.outcome === WatcherRecoveryOutcome.AwaitingUsageLimitReset)).toBe(true);
+    expect(runner.calls.some((call) => call.args[0] === "--resume" || call.args[0] === "stop")).toBe(false);
+  });
+
   it("judges by heartbeat alone when the process table cannot be read", () => {
     const { deps } = buildMachine();
     const snapshot = runWatchTick({ ...deps, runCommand: (executable, args, options) => (executable === "ps" ? null : deps.runCommand(executable, args, options)) });

@@ -113,6 +113,7 @@ describe("resolveWatchPaths", () => {
     expect(paths.claudeSessionRegistryDir).toBe(join("/c", "sessions"));
     expect(paths.claudeProjectsDir).toBe(join("/c", "projects"));
     expect(paths.claudeInstalledPluginsFile).toBe(join("/c", "plugins", "installed_plugins.json"));
+    expect(paths.claudeGlobalConfigFile).toBe(join("/c", ".claude.json"));
     expect(paths.codexSessionsDir).toBe(join("/x", "sessions"));
   });
 
@@ -121,6 +122,7 @@ describe("resolveWatchPaths", () => {
     expect(paths.watchDir).toBe(join(homedir(), ".muggle-ai", "watch"));
     expect(paths.slotsDir).toBe(join(homedir(), ".muggle-ai", "muggle-do", "sessions"));
     expect(paths.claudeSessionRegistryDir).toBe(join(homedir(), ".claude", "sessions"));
+    expect(paths.claudeGlobalConfigFile).toBe(join(homedir(), ".claude.json"));
     expect(paths.codexSessionsDir).toBe(join(homedir(), ".codex", "sessions"));
     expect(paths.muggleInstallLogFile).toBe(join(homedir(), ".muggle-ai", "postinstall.log"));
   });

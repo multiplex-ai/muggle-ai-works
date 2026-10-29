@@ -3,7 +3,7 @@ import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
 import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "../../watch/constants.js";
-import { findClaudeSessionCwd, isStoppedAtUsageLimit } from "../../watch/claude-transcripts.js";
+import { findClaudeSessionCwd } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
 import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead } from "../../watch/field-parsers.js";
 import { hasLiveProcess, isIdleBackgroundSession } from "../../watch/session-liveness.js";
@@ -125,28 +125,6 @@ describe("waitForSessionExit", () => {
     expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
     expect(waitForSessionExit(scriptedRunner(() => null).runCommand, registryDir(), "s1-full", () => undefined)).toBe(false);
     expect(waitForSessionExit(scriptedRunner(() => succeeded("[]")).runCommand, registryDir(), "s1-full", () => undefined)).toBe(true);
-  });
-});
-
-describe("isStoppedAtUsageLimit", () => {
-  function transcript(lines: unknown[]): string {
-    const projectsDir = makeTempDir("claude-projects");
-    mkdirSync(join(projectsDir, "C--repo"));
-    writeFileSync(join(projectsDir, "C--repo", "sess-1.jsonl"), `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
-    return projectsDir;
-  }
-  const reply = (text: string) => ({ type: "assistant", message: { content: [{ type: "text", text: text }] } });
-
-  it("reads the last assistant reply, past the metadata lines Claude appends after it", () => {
-    const limited = transcript([
-      reply("Rebased #23."),
-      { type: "user", message: { content: "/muggle:muggle-pr-followup reconcile" } },
-      reply("You've hit your session limit · resets 4:10am (America/Los_Angeles)"),
-      { type: "last-prompt", lastPrompt: "/muggle:muggle-pr-followup reconcile" },
-    ]);
-    expect(isStoppedAtUsageLimit(limited, "sess-1")).toBe(true);
-    expect(isStoppedAtUsageLimit(transcript([reply("You've hit your session limit"), reply("Re-armed 2 watchers.")]), "sess-1")).toBe(false);
-    expect(isStoppedAtUsageLimit(limited, "sess-2")).toBe(false);
   });
 });
 

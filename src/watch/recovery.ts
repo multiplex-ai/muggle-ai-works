@@ -66,14 +66,14 @@ function findRunningOwner(sessionsById: Map<string, WorkSession>, ownerSessionId
 /**
  * One recovery per owner session whose registered slots have dead watchers. A
  * single resume restores all of them, because reconcile re-arms every slot the
- * resumed session owns. A running owner whose last reply is the usage-limit
- * notice is left to retry its own turn; every resume attempt counts toward
- * the cap, since one landing on the limit only starts another copy.
+ * resumed session owns. While the account sits at a usage limit nothing is
+ * resumed or counted, since a resume would only land on the limit; once it
+ * resets, every attempt counts toward the cap.
  *
  * Output shape: `[{ ownerSessionId: "349a…", slotSlugs: ["csv-export"], outcome: "resume-due", ownerShortId: "349a8d3f" }]`
  *
  * @param sessionsById - Running sessions, so a live owner can be judged idle.
- * @param isStoppedAtUsageLimit - Whether the session's last turn ended on the usage limit.
+ * @param isUsageLimitInForce - Whether the account is at a usage limit that has not reset yet.
  */
 export function planWatcherRecoveries(
   assessments: WatchSlotAssessment[],
@@ -81,7 +81,7 @@ export function planWatcherRecoveries(
   nowMs: number,
   isPollingDisabled: boolean,
   sessionsById: Map<string, WorkSession> = new Map(),
-  isStoppedAtUsageLimit: (sessionId: string) => boolean = () => false,
+  isUsageLimitInForce = false,
 ): WatcherRecovery[] {
   if (isPollingDisabled) return [];
   const slugsByOwner = new Map<string, Set<string>>();
@@ -101,10 +101,8 @@ export function planWatcherRecoveries(
       .filter((attemptedAtMs) => !Number.isNaN(attemptedAtMs) && nowMs - attemptedAtMs < RECOVERY_ATTEMPT_WINDOW_MS);
     const lastAttemptMs = Math.max(-Infinity, ...recentAttemptsMs);
     const runningOwner = findRunningOwner(sessionsById, ownerSessionId);
-    const isRunningAtUsageLimit =
-      runningOwner !== undefined && [ownerSessionId, runningOwner.sessionId].some((sessionId) => isStoppedAtUsageLimit(sessionId));
     let outcome = WatcherRecoveryOutcome.ResumeDue;
-    if (isRunningAtUsageLimit) outcome = WatcherRecoveryOutcome.AwaitingUsageLimitReset;
+    if (isUsageLimitInForce) outcome = WatcherRecoveryOutcome.AwaitingUsageLimitReset;
     else if (recentAttemptsMs.length >= RECOVERY_MAX_ATTEMPTS) outcome = WatcherRecoveryOutcome.AttemptsExhausted;
     else if (nowMs - lastAttemptMs < RECOVERY_COOLDOWN_MS) outcome = WatcherRecoveryOutcome.CoolingDown;
     else if (resumesPlanned >= MAX_RESUMES_PER_TICK) outcome = WatcherRecoveryOutcome.DeferredByTickCap;

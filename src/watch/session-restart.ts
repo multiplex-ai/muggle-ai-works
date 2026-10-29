@@ -18,7 +18,7 @@ export function resumeOnReconcile(
 ): boolean {
   if (target.runningShortId !== undefined) {
     runCommand("claude", ["stop", target.runningShortId]);
-    if (!waitForExit(target.sessionId)) return false;
+    if (!waitForExit(target.runningSessionId ?? target.sessionId)) return false;
   }
   const resumed = runCommand("claude", ["--resume", target.sessionId, "--bg", RECOVERY_RESUME_PROMPT], { cwd: target.cwd });
   return resumed?.exitCode === 0;

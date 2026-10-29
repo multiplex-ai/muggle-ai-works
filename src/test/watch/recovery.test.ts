@@ -137,10 +137,46 @@ describe("planWatcherRecoveries", () => {
     ]);
   });
 
-  it("keeps retrying past the cap an owner whose last resume only hit the usage limit", () => {
+  it("counts resumes that only hit the usage limit toward the attempt cap", () => {
     const attempts = { limited: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] };
     const planned = planWatcherRecoveries([deadSlot("a", "limited")], attempts, NOW_MS, false, new Map(), (sessionId) => sessionId === "limited");
-    expect(planned[0].outcome).toBe(WatcherRecoveryOutcome.ResumeDue);
+    expect(planned[0].outcome).toBe(WatcherRecoveryOutcome.AttemptsExhausted);
+  });
+
+  it("leaves a running owner at the usage limit to retry its own turn, without spending the tick cap", () => {
+    const planned = planWatcherRecoveries(
+      [deadSlot("a", "limited", { isOwnerSessionActive: true }), deadSlot("b", "o2"), deadSlot("c", "o3")],
+      {},
+      NOW_MS,
+      false,
+      new Map([["limited", liveOwner("limited")]]),
+      (sessionId) => sessionId === "limited",
+    );
+    expect(Object.fromEntries(planned.map((recovery) => [recovery.ownerSessionId, recovery.outcome]))).toEqual({
+      limited: WatcherRecoveryOutcome.AwaitingUsageLimitReset,
+      o2: WatcherRecoveryOutcome.ResumeDue,
+      o3: WatcherRecoveryOutcome.ResumeDue,
+    });
+  });
+
+  it("finds an owner whose job continued under a newer session id by the short id it started with", () => {
+    const ownerSessionId = "030d66e7-1ca3-4e4c";
+    const continued = liveOwner("a9667d3f-5225", { shortId: "030d66e7" });
+    const slot = deadSlot("a", ownerSessionId);
+    const planned = planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[continued.sessionId, continued]]));
+    expect(planned).toEqual([
+      {
+        ownerSessionId: ownerSessionId,
+        slotSlugs: ["a"],
+        outcome: WatcherRecoveryOutcome.ResumeDue,
+        ownerShortId: "030d66e7",
+        ownerRunningSessionId: "a9667d3f-5225",
+      },
+    ]);
+    const busy = liveOwner("a9667d3f-5225", { shortId: "030d66e7", turnStatus: ClaudeTurnStatus.Busy });
+    expect(planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[busy.sessionId, busy]]))).toEqual([]);
+    const limited = planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[continued.sessionId, continued]]), (sessionId) => sessionId === ownerSessionId);
+    expect(limited[0].outcome).toBe(WatcherRecoveryOutcome.AwaitingUsageLimitReset);
   });
 });
 
@@ -191,6 +227,35 @@ describe("executeWatcherRecoveries", () => {
     ]);
     expect(awaitedSessionIds).toEqual(["o1"]);
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
+  });
+
+  it("awaits the exit of the id a continued job runs under before resuming the owner's own id", () => {
+    const projectCwd = makeTempDir("project");
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const awaitedSessionIds: string[] = [];
+    executeWatcherRecoveries(
+      [
+        {
+          ownerSessionId: "o1",
+          slotSlugs: ["a"],
+          outcome: WatcherRecoveryOutcome.ResumeDue,
+          ownerShortId: "o1-short",
+          ownerRunningSessionId: "o1-continued",
+        },
+      ],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+        waitForExit: (sessionId) => {
+          awaitedSessionIds.push(sessionId);
+          return true;
+        },
+      }),
+    );
+    expect(awaitedSessionIds).toEqual(["o1-continued"]);
+    expect(runner.calls.map((call) => call.args)).toEqual([
+      ["stop", "o1-short"],
+      ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"],
+    ]);
   });
 
   it("does not resume an owner still running after the stop, since that would start a copy", () => {

@@ -249,6 +249,8 @@ export enum WatcherRecoveryOutcome {
   TranscriptMissing = "transcript-missing",
   /** The owner is still running and Claude would not resume it in its workspace, so it was left running. */
   RestartRefused = "restart-refused",
+  /** The owner is still running at the usage limit and retries its own turn once the limit resets; a resume could only start a copy. */
+  AwaitingUsageLimitReset = "awaiting-usage-limit-reset",
 }
 
 /** One owner session whose registered slots have dead watchers, and what the watch did about it. */
@@ -259,6 +261,8 @@ export interface WatcherRecovery {
   cwd?: string;
   /** Set when the owner is still running, idle between turns: the id `claude stop` takes before the resume. */
   ownerShortId?: string;
+  /** Set when the owner's job continued under a newer session id than `ownerSessionId`: the id its exit is awaited by. */
+  ownerRunningSessionId?: string;
 }
 
 /** A session to resume on reconcile, from the project dir its transcript names. */
@@ -267,6 +271,8 @@ export interface ReconcileResumeTarget {
   cwd: string;
   /** Set when the session is still running: the id `claude stop` takes before the resume. */
   runningShortId?: string;
+  /** Set when the running job lists under a newer session id than `sessionId`: the id its exit is awaited by. */
+  runningSessionId?: string;
 }
 
 /** The edges `executeWatcherRecoveries` acts through. */

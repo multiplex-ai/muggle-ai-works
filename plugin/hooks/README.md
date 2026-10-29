@@ -77,9 +77,9 @@ Codex runs a plugin's hooks only once the user trusts them: it asks at startup (
 
 `SessionStart` (`scripts/reconcile-stale-watchers.sh`) — a standalone advisory, not part of the `guardrails.mjs` decision tree above.
 
-`muggle-pr-followup` watchers are session-only (a monitor or `/loop` cron); they die with their session, leaving open PRs with no live poller. This is by design — a review is addressed only inside a session that carries the context to address it. The skill's [`reconcile`](../skills/muggle-pr-followup/reconcile.md) procedure recovers them at the next session start — finalizes slots whose PR went terminal, sweeps orphan crons, re-arms silently-stopped open watchers — but re-arming needs Claude tools a shell hook can't call. So this hook nudges rather than acts.
+`muggle-pr-followup` watchers are session-only (a background watch loop or `/loop` cron); they die with their session, leaving open PRs with no live poller. This is by design — a review is addressed only inside a session that carries the context to address it. The skill's [`reconcile`](../skills/muggle-pr-followup/reconcile.md) procedure recovers them at the next session start — finalizes slots whose PR went terminal, sweeps orphan crons, re-arms silently-stopped open watchers — but re-arming needs Claude tools a shell hook can't call. So this hook nudges rather than acts.
 
-The nudge counts only slots **this session owns**, and reports the rest as orphans it will not act on — ownership and the recovery rules it gates are defined in [`reconcile`](../skills/muggle-pr-followup/reconcile.md). Nothing owned and nothing orphaned → it emits nothing. A pure directory scan (no `gh`, no writes), so it's cheap enough for every session start.
+The nudge counts only slots **this session owns** — ownership and the recovery rules it gates are defined in [`reconcile`](../skills/muggle-pr-followup/reconcile.md). A session that owns none hears nothing: the hook speaks into every session start, and slots owned elsewhere are no work of this one's — `muggle watch status` reports them. A pure directory scan (no `gh`, no writes), so it's cheap enough for every session start.
 
 ## Session-start upkeep
 

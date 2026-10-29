@@ -55,4 +55,4 @@ At most four options, in this order:
 
 A new task goes through the selector's free-text answer, which starts a fresh `/muggle-do` forward run.
 
-**Text while a watch runs.** When the status block holds an `open` or `blocked` line, print the selector as text — one numbered option per line — and end the turn on the question; the user's next message is the pick. A pending `AskUserQuestion` holds the turn, and every watcher this chat runs with it: a rollover goes unanswered and the watcher stays dead until the user replies. With no such line, ask with one `AskUserQuestion`. The adopt selector under **Other chats' work** follows the same rule.
+**Text while a watch runs.** When the status block holds an `open` or `blocked` line, print the selector as text — one numbered option per line — and end the turn on the question; the user's next message is the pick. A pending `AskUserQuestion` holds the turn, and every watcher this chat runs with it: a loop that ends on a report goes unanswered and the watcher stays dead until the user replies. With no such line, ask with one `AskUserQuestion`. The adopt selector under **Other chats' work** follows the same rule.

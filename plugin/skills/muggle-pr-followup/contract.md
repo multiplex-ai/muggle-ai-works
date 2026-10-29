@@ -178,20 +178,22 @@ Any tick that did not dispatch. The Step 6 verdict says **why** it idled. It is 
 
 `idle` is **transient** — green and waiting for the next review, CI still pending, or `mergeable == UNKNOWN` — and must keep the responsive `1m` cadence; those turn a state on their own and the watcher should catch it promptly.
 
-**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit through Step 7.5. The next tick fires from the monitor ([`arm-watcher.md`](arm-watcher.md)).
+**Transient idle** (no durable block): unchanged — increment `last_seen.idle_tick_count`, append an idle line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md), emit a `tick` event with `idle: true`, `blocked: false`, `actionable_threads: 0`, `dispatched_review_ids: []`, `rebase_needed: <bool>`, `dispatched_rebase: false`, `checks_red: <count or 0>`, `dispatched_ci_fix: false`. Exit through Step 7.5. The next tick fires from the loop that step leaves running ([`arm-watcher.md`](arm-watcher.md)).
 
 **Blocked pending a human** (a durable block, and `last_seen.blocked` not already set): enter the blocked path per [`blocked-tick.md`](blocked-tick.md) — flag `last_seen.blocked` and emit the one-line owner reminder, **once per block**. From the next tick on, the Step 2.5 gate carries the block silently. Exit through Step 7.5.
 
-### Step 7.5 — Hand a cron-delivered tick back to the monitor
+### Step 7.5 — Leave one loop polling
 
-Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block — and only when the tick was **delivered by a recovery cron** (`/loop` fired it). A monitor wake skips this step (the monitor already owns the cadence). The cron's job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the monitor polls token-free at the same `1m` cadence ([`arm-watcher.md`](arm-watcher.md)).
+Runs on every tick that idles — both Step 7 branches and a Step 2.5 held block. A loop exits on every report, so after a wake nothing polls the PR until this step arms one; a dispatching tick skips it, because the cycle's settle re-arms when the cycle ends.
 
-Check the slot's `watch-heartbeat` mtime — a live monitor touches it every iteration:
+Check the slot's `watch.pid` lease ([`state-schemas.md`](state-schemas.md#watchpid)):
 
-- **Stale or missing (older than 3 minutes)** — the monitor is dead and this cron has become the primary poller. This tick already served as the drain, so finish the arming sequence per [`arm-watcher.md`](arm-watcher.md): seed the watermark to the ids this tick itself read — its own observed max, never a fresh post-tick fetch (a later fetch would swallow a comment that arrived after the tick read the wave) — and start the persistent monitor. Then cancel this cron per [`cancel-cron.md`](cancel-cron.md) and append a `re-armed (monitor restored)` line to `followup.log`.
-- **Fresh** — a monitor already owns the cadence and this cron is a duplicate poller. Cancel the cron per [`cancel-cron.md`](cancel-cron.md); nothing to arm.
+- **Dead or missing** — arm per [`arm-watcher.md`](arm-watcher.md) and append a `re-armed` line to `followup.log`. The arm carries the slot's review, comment and thread floors forward, so anything that landed after this tick's read still reaches the session.
+- **Live** — a loop already owns the cadence (this tick was not its wake). Nothing to arm.
 
-Either way exactly one poller remains — the monitor — and at most one model turn was spent. Without this step a recovery cron keeps firing a model-turn tick every minute until its 7-day expiry, burning tokens on unchanged PRs the whole time.
+When a **recovery cron** delivered the tick (`/loop` fired it), also cancel the cron per [`cancel-cron.md`](cancel-cron.md). Its job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the loop polls token-free at the same `1m` cadence.
+
+Either way exactly one poller remains — the loop — and this tick was the only model turn spent.
 
 ## Output
 

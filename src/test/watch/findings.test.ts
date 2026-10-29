@@ -33,13 +33,17 @@ describe("resolveWatcherLiveness", () => {
     expect(resolveWatcherLiveness(loop("s", 5 * MINUTE_MS), 30_000, undefined, true)).toBe(WatcherLiveness.Polling);
   });
 
-  it("calls a loop deaf once it outlives the Monitor cap or its owner", () => {
-    expect(resolveWatcherLiveness(loop("s", 31 * MINUTE_MS), 30_000, true, true)).toBe(WatcherLiveness.Deaf);
+  it("calls a loop deaf once its owner has ended", () => {
     expect(resolveWatcherLiveness(loop("s", 5 * MINUTE_MS), 30_000, false, true)).toBe(WatcherLiveness.Deaf);
     expect(resolveWatcherLiveness({ ...loop("s", 0), ageMs: undefined }, 30_000, true, true)).toBe(WatcherLiveness.Polling);
   });
 
-  it("gives a missing loop the rollover hand-off before calling it dead", () => {
+  // A background shell has no read cap, so a quiet PR's loop runs for days.
+  it("hears a loop of any age under a live owner", () => {
+    expect(resolveWatcherLiveness(loop("s", 3 * 24 * 60 * MINUTE_MS), 30_000, true, true)).toBe(WatcherLiveness.Polling);
+  });
+
+  it("gives a missing loop the re-arm hand-off before calling it dead", () => {
     expect(resolveWatcherLiveness(undefined, 2 * MINUTE_MS, true, true)).toBe(WatcherLiveness.Rearming);
     expect(resolveWatcherLiveness(undefined, 6 * MINUTE_MS, true, true)).toBe(WatcherLiveness.Dead);
     expect(resolveWatcherLiveness(undefined, undefined, true, true)).toBe(WatcherLiveness.Dead);
@@ -154,10 +158,8 @@ describe("deriveWatchFindings", () => {
   });
 
   it("explains why a deaf loop is unheard", () => {
-    const pastCap = deriveWatchFindings([assessment({ watcher: WatcherLiveness.Deaf, loopPid: 42, loopAgeMs: 47 * MINUTE_MS })], [], false)[0];
-    expect(pastCap).toMatchObject({ code: WatchFindingCode.WatcherDeaf, severity: WatchFindingSeverity.Alert, key: "WATCHER_DEAF:u7:42" });
-    expect(pastCap.message).toContain("past the 30-minute Monitor cap");
     const ownerGone = deriveWatchFindings([assessment({ watcher: WatcherLiveness.Deaf, loopPid: 42, isOwnerSessionActive: false })], [], false)[0];
+    expect(ownerGone).toMatchObject({ code: WatchFindingCode.WatcherDeaf, severity: WatchFindingSeverity.Alert, key: "WATCHER_DEAF:u7:42" });
     expect(ownerGone.message).toContain("owner session owner-12 has ended");
   });
 

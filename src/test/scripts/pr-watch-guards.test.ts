@@ -120,10 +120,10 @@ describe.skipIf(!hasBash)("pr-watch-guards.sh watcher_window_elapsed", () => {
     expect(runGuard("watcher_window_elapsed 1000 2739 1740")).toBe(1);
   });
 
-  // The window has to close before the Monitor's 1800s cap, or the loop
-  // outlives the pipe it reports into.
-  it("defaults to one poll interval inside the Monitor's 30-minute cap", () => {
-    expect(runGuard('[ "$MUGGLE_PR_WATCH_MONITOR_WINDOW" = "1740" ]')).toBe(0);
+  // The watch runs as a background shell, which has no read cap; every window
+  // hand-back would cost the owning session a model turn on a quiet PR.
+  it("defaults to no window", () => {
+    expect(runGuard('[ "$MUGGLE_PR_WATCH_MONITOR_WINDOW" = "0" ]')).toBe(0);
   });
 
   it("treats a zero window as unbounded, for a loop run outside a Monitor", () => {

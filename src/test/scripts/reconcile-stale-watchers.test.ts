@@ -63,7 +63,7 @@ function runHook(home: string, sessionId: string | null, bashArgs: string[] = [s
 const BUILTINS_ONLY_BASH_ARGS = ["-c", 'PATH=/no-programs-on-this-path exec "$BASH" "$1"', "_", scriptPath];
 
 describe.skipIf(!hasBash)("reconcile-stale-watchers.sh", () => {
-  it("counts only this session's slots as re-armable and reports the rest as orphans", () => {
+  it("counts only this session's slots as re-armable and leaves the rest unmentioned", () => {
     const home = seedSessionsDir([
       { slug: "mine-pr1", ownerSessionId: OWNING_SESSION_ID },
       { slug: "theirs-pr2", ownerSessionId: FOREIGN_SESSION_ID },
@@ -73,26 +73,23 @@ describe.skipIf(!hasBash)("reconcile-stale-watchers.sh", () => {
     const nudge = runHook(home, OWNING_SESSION_ID);
 
     expect(nudge).toContain("1 open watcher owned by this session");
-    expect(nudge).toContain("2 open slots are owned by other sessions");
-    expect(nudge).toContain("never re-arm them");
+    expect(nudge).not.toContain("other sessions");
   }, 30_000);
 
-  it("treats a slot with no owner.json as foreign, so legacy slots are never adopted", () => {
-    const home = seedSessionsDir([{ slug: "legacy-pr1" }, { slug: "legacy-pr2" }]);
+  // The hook speaks into every session start; one owning nothing has nothing to do.
+  it("stays silent for a session that owns no slot", () => {
+    const home = seedSessionsDir([
+      { slug: "theirs-pr1", ownerSessionId: FOREIGN_SESSION_ID },
+      { slug: "legacy-pr2" },
+    ]);
 
-    const nudge = runHook(home, OWNING_SESSION_ID);
-
-    expect(nudge).toContain("no watchers belong to this session");
-    expect(nudge).toContain("2 open slots are owned by other sessions");
+    expect(runHook(home, OWNING_SESSION_ID)).toBe("");
   }, 30_000);
 
   it("fails closed when the payload carries no session id", () => {
     const home = seedSessionsDir([{ slug: "mine-pr1", ownerSessionId: OWNING_SESSION_ID }]);
 
-    const nudge = runHook(home, null);
-
-    expect(nudge).toContain("no watchers belong to this session");
-    expect(nudge).toContain("1 open slot is owned by other sessions");
+    expect(runHook(home, null)).toBe("");
   }, 30_000);
 
   it("ignores stopped slots, which the owner deliberately killed", () => {

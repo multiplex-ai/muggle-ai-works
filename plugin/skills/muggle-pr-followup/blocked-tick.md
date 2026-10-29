@@ -4,7 +4,7 @@ The watcher's conditional path for a PR **blocked pending a human** — a durabl
 
 A block is entered only on a `block-*` verdict from the Step 6 verdict script. An escalation entry no cycle attempted is not a block — the verdict dispatches the work instead — and neither is the cost of running it.
 
-**Governing rule — one reminder per block, and the watch never stops.** The tick that flags the block reminds the owner once; every later blocked tick is silent. The watch keeps standing — the monitor stays visible, and ticks still run at their normal cadence (historically `1m`) whenever a wake or recovery cron fires — with fingerprint-based auto-resume clearing the block the moment external state moves. No repeat nagging, no cadence swap, no separate `reminded` flag: `blocked` present means the reminder has already been sent.
+**Governing rule — one reminder per block, and the watch never stops.** The tick that flags the block reminds the owner once; every later blocked tick is silent. The watch keeps standing — the loop stays visible, and ticks still run at their normal cadence (historically `1m`) whenever a wake or recovery cron fires — with fingerprint-based auto-resume clearing the block the moment external state moves. No repeat nagging, no cadence swap, no separate `reminded` flag: `blocked` present means the reminder has already been sent.
 
 ## The fingerprint
 
@@ -21,7 +21,7 @@ Any component moving means the block may have cleared — a new push (`head_sha`
 When an idle tick is a durable human-block and `last_seen.blocked` is not already set:
 
 1. Increment `last_seen.idle_tick_count`.
-2. Write `last_seen.blocked = { reason, since: <now>, fingerprint }` (reuse the `latest_review_id` / `ci_digest` already fetched this tick). Mirror the fingerprint's `ci_digest` into the watch-watermark's `BLOCKED_CIDIGEST` ([`state-schemas.md`](state-schemas.md#watch-watermarkenv)) — a whole-file rewrite of `watch-watermark.env` that leaves the other floors untouched. That non-empty value is what arms the monitor's blocked-resume probe, so a block resumes on any CI move ([`arm-watcher.md`](arm-watcher.md)), not just red — without it the probe stays dormant.
+2. Write `last_seen.blocked = { reason, since: <now>, fingerprint }` (reuse the `latest_review_id` / `ci_digest` already fetched this tick). Mirror the fingerprint's `ci_digest` into the watch-watermark's `BLOCKED_CIDIGEST` ([`state-schemas.md`](state-schemas.md#watch-watermarkenv)) — a whole-file rewrite of `watch-watermark.env` that leaves the other floors untouched. That non-empty value is what arms the loop's blocked-resume probe, so a block resumes on any CI move ([`arm-watcher.md`](arm-watcher.md)), not just red — without it the probe stays dormant.
 3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context. This is the block's **only** reminder.
 4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, and the same other fields as a transient idle. Exit.
 
@@ -32,7 +32,7 @@ Every subsequent tick while `last_seen.blocked` is present: recompute the finger
 - **Unchanged** → still blocked. Stay **silent** — the reminder went out when the block was flagged. Increment `last_seen.idle_tick_count`, append a `blocked reason=<reason>` line to `followup.log`, emit a `tick` event with `idle: true`, `blocked: true`. Exit.
 `reason: "rebase_budget_exhausted"` is the one exception to the gate: treat it as **Unchanged** whatever the fingerprint says. The budget was spent by the base advancing, so resuming on a fingerprint move would hand the PR straight back into the unbounded rebase loop the cap exists to end. It clears only when the owner raises [`maxCatchUpRebases`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) or the PR goes terminal.
 
-- **Changed** → clear `last_seen.blocked`, clear the watch-watermark's `BLOCKED_CIDIGEST` to empty (whole-file rewrite — disarms the monitor's blocked-resume probe now that the watch is unblocked), and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick: a dispatch hands the PR to the cycle (its exit settles the watch); a transient idle changes nothing; idling back into a block re-flags per Step 7 — a new block, which sends its own single reminder (and re-arms `BLOCKED_CIDIGEST` afresh).
+- **Changed** → clear `last_seen.blocked`, clear the watch-watermark's `BLOCKED_CIDIGEST` to empty (whole-file rewrite — disarms the loop's blocked-resume probe now that the watch is unblocked), and **fall through to [`contract.md`](contract.md) Step 3** to re-evaluate against the moved state this same tick: a dispatch hands the PR to the cycle (its exit settles the watch); a transient idle changes nothing; idling back into a block re-flags per Step 7 — a new block, which sends its own single reminder (and re-arms `BLOCKED_CIDIGEST` afresh).
 
 ## Invariants
 

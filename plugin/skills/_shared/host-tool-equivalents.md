@@ -11,7 +11,7 @@ These skills are written against Claude Code's tools. In another agent host — 
 | `$CLAUDE_CODE_SESSION_ID` | This session's id | `$CODEX_SESSION_ID` — the same id the hooks receive as `session_id`. |
 | Dispatch a plugin agent (`agents/*.md`, subagent type `muggle:<agent>`) | The Agent tool | `spawn_agent` with that agent file's instructions as the task, when multi-agent is enabled; otherwise run the agent file inline, as each skill already allows for a host with no subagents. |
 | `TodoWrite` | The session task list | `update_plan` |
-| `Monitor`, `/loop`, `CronCreate`/`CronDelete` (the PR watcher's background watch) | Wake the session when the watch reports an event | No equivalent: nothing in Codex wakes a session from a background process. Run the drain tick, seed the slot without a loop (`pr-watch-arm.sh … --no-exec`), and tell the user that following the PR up means invoking `$muggle:muggle-pr-followup` again — or scheduling it with `codex exec`. Never leave a loop polling that no session will hear. |
+| A background `Bash` command (`run_in_background`), `/loop`, `CronCreate`/`CronDelete` (the PR watcher's background watch) | Wake the session when the watch reports an event | No equivalent: nothing in Codex wakes a session from a background process. Run the drain tick, seed the slot without a loop (`pr-watch-arm.sh … --no-exec`), and tell the user that following the PR up means invoking `$muggle:muggle-pr-followup` again — or scheduling it with `codex exec`. Never leave a loop polling that no session will hear. |
 | `model:` in a skill's frontmatter | Runs the skill on that model | Ignored — the session's model runs every skill. |
 
 ## Codex's sandbox

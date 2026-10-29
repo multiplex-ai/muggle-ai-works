@@ -137,37 +137,37 @@
     },
     {
       "id": 11,
-      "eval_name": "cron-delivered-idle-with-live-monitor-cancels-duplicate",
-      "prompt": "Tick muggle-ai-works-pr520 520 — this fire was delivered by a /loop recovery cron, not a monitor wake. The slot is open, watch-heartbeat was touched 40 seconds ago, there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
+      "eval_name": "cron-delivered-idle-with-live-loop-cancels-duplicate",
+      "prompt": "Tick muggle-ai-works-pr520 520 — this fire was delivered by a /loop recovery cron, not a loop's wake. The slot is open, watch.pid names a live loop process, there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
       "files": [],
       "assertions": [
-        { "name": "recognises_cron_delivered_fire", "text": "Plan recognises this tick was delivered by a /loop recovery cron and therefore runs the hand-back-to-monitor step — a monitor wake would skip it." },
-        { "name": "reads_heartbeat_as_live_monitor", "text": "Plan reads watch-heartbeat mtime, sees it is fresh (within 3 minutes), and concludes a live monitor already owns the 1m cadence." },
+        { "name": "recognises_cron_delivered_fire", "text": "Plan recognises this tick was delivered by a /loop recovery cron, so besides leaving one loop polling it must cancel the cron." },
+        { "name": "reads_lease_as_live_loop", "text": "Plan checks the slot's watch.pid lease, finds a live loop, and concludes it already owns the 1m cadence." },
         { "name": "cancels_duplicate_cron", "text": "Plan cancels this cron per cancel-cron.md (recorded-id first) because it is a duplicate poller — there is nothing to arm." },
-        { "name": "never_recreates_cron_or_double_arms", "text": "Plan does NOT CronCreate a recurring cron and does NOT start a second monitor over the live one; exactly one poller (the monitor) remains." }
+        { "name": "never_recreates_cron_or_double_arms", "text": "Plan does NOT CronCreate a recurring cron and does NOT start a second loop over the live one; exactly one poller (the loop) remains." }
       ]
     },
     {
       "id": 12,
-      "eval_name": "cron-delivered-idle-with-dead-monitor-rearms-monitor",
-      "prompt": "Tick muggle-ai-works-pr521 521 — this fire was delivered by a /loop recovery cron. The slot is open, watch-heartbeat is missing (the last monitor died), there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
+      "eval_name": "cron-delivered-idle-with-dead-loop-rearms-loop",
+      "prompt": "Tick muggle-ai-works-pr521 521 — this fire was delivered by a /loop recovery cron. The slot is open, watch.pid is missing (the last loop is gone), there are no unresolved review threads, CI is green, and the branch is level with master. Walk me through the plan for this tick.",
       "files": [],
       "assertions": [
-        { "name": "detects_dead_monitor_from_beacon", "text": "Plan reads watch-heartbeat, finds it missing or older than 3 minutes, and concludes the monitor is dead and this cron has become the primary poller." },
-        { "name": "finishes_arming_a_monitor", "text": "Plan finishes the arm-watcher sequence — seed the watermark to the ids this tick itself read (its own observed max, not a fresh post-tick fetch), start the persistent labeled monitor — using this tick as the drain." },
-        { "name": "cancels_cron_after_arming", "text": "Plan then cancels this cron per cancel-cron.md and appends a re-armed (monitor restored) line to followup.log, so the 1m cadence lives in the token-free monitor rather than a per-minute model turn." },
+        { "name": "detects_dead_loop_from_lease", "text": "Plan checks the slot's watch.pid lease, finds it missing or naming a dead process, and concludes nothing is polling the PR." },
+        { "name": "rearms_a_background_loop", "text": "Plan re-arms per arm-watcher.md, running pr-watch-arm.sh as a background shell command (Bash run_in_background), never a Monitor, and appends a re-armed line to followup.log." },
+        { "name": "cancels_cron_after_arming", "text": "Plan also cancels this cron per cancel-cron.md, so the 1m cadence lives in the token-free loop rather than a per-minute model turn." },
         { "name": "never_rearms_with_a_cron", "text": "Plan does NOT restore the poller by creating a recurring /loop cron; the cron is only ever a one-shot recovery delivery." }
       ]
     },
     {
       "id": 13,
-      "eval_name": "reconcile-rearms-silent-open-watcher-with-monitor",
+      "eval_name": "reconcile-rearms-silent-open-watcher-with-loop",
       "prompt": "Reconcile the slots. muggle-ai-works-pr522 522 is open (no result.md), but its watch-heartbeat is 40 minutes stale and the newest followup.log line is 40 minutes old — the watcher stopped silently (a crashed cycle that never respawned). The global kill file is absent. Walk me through the plan for this slot.",
       "files": [],
       "assertions": [
         { "name": "classifies_silent_watcher_from_freshest_beacon", "text": "Plan judges the watcher dead because the freshest beacon (watch-heartbeat mtime or newest followup.log line) is older than the staleness window." },
-        { "name": "rearms_via_arm_watcher_monitor", "text": "Plan re-arms per arm-watcher.md — drain tick, watermark seed, persistent monitor — restoring a token-free poller." },
-        { "name": "never_rearms_with_cron", "text": "Plan does NOT re-arm by creating a recurring /loop cron; the 1m cadence belongs in the monitor and a cron fire would be a full model turn." },
+        { "name": "rearms_via_arm_watcher_loop", "text": "Plan re-arms per arm-watcher.md — drain tick, watermark seed, a background loop (Bash run_in_background, never a Monitor) — restoring a token-free poller." },
+        { "name": "never_rearms_with_cron", "text": "Plan does NOT re-arm by creating a recurring /loop cron; the 1m cadence belongs in the loop and a cron fire would be a full model turn." },
         { "name": "would_skip_under_killfile", "text": "Plan notes it would skip re-arming entirely if polling.disabled existed — here it is absent, so it proceeds." }
       ]
     },
@@ -284,13 +284,13 @@
     {
       "id": 23,
       "eval_name": "arm-runs-the-shipped-loop-never-authors-one",
-      "prompt": "Arm the watch for muggle-ai-works-pr600 600 after a clean drain. The slot has no watch.pid. Walk me through exactly how you start the monitor, including the command you run.",
+      "prompt": "Arm the watch for muggle-ai-works-pr600 600 after a clean drain. The slot has no watch.pid. Walk me through exactly how you start the watch, including the command you run and the tool you run it with.",
       "files": [],
       "assertions": [
         { "name": "runs_the_shipped_loop", "text": "Plan starts the shipped scripts/pr-watch-loop.sh, passing --slot, --repo and --pr, with the script path resolved to an absolute path under CLAUDE_PLUGIN_ROOT." },
         { "name": "does_not_author_a_watch_sh", "text": "Plan does NOT write, generate, or hand-author a per-slot watch.sh, and does NOT copy one from another slot." },
-        { "name": "persistent_labeled_monitor", "text": "Plan starts it as a persistent background monitor labeled 'PR #<n> — <title>', one per PR." },
-        { "name": "claims_owner_first", "text": "Plan writes owner.json with this session's $CLAUDE_CODE_SESSION_ID before starting the monitor." }
+        { "name": "background_shell_not_monitor", "text": "Plan starts it as a background shell command (the Bash tool with run_in_background) described 'PR #<n> — <title>', one per PR, and NOT as a Monitor, whose 30-minute cap would cost the session a model turn per re-arm." },
+        { "name": "claims_owner_first", "text": "Plan writes owner.json with this session's $CLAUDE_CODE_SESSION_ID before starting the loop." }
       ]
     },
     {

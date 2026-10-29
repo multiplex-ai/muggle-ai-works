@@ -89,10 +89,8 @@ describe("pr-followup session-start reconcile nudge", () => {
       expect(script).toMatch(/!\s*-f\s+[^\n]*result\.md/);
     });
 
-    it("emits nothing when no open slot exists — the empty-state exit precedes any context emission", () => {
-      const emptyGuard = script.search(
-        /owned_count["'}]?\s*-eq\s*0\s*\]\s*&&\s*\[\s*["'$]*orphan_count["'}]?\s*-eq\s*0/,
-      );
+    it("emits nothing unless this session owns an open slot — the exit precedes any context emission", () => {
+      const emptyGuard = script.search(/owned_count["'}]?\s*-gt\s*0\s*\]\s*\|\|\s*exit 0/);
       const emit = script.indexOf("additionalContext");
       expect(emptyGuard, "no zero-slot guard found").toBeGreaterThan(-1);
       expect(emit, "no additionalContext emission found").toBeGreaterThan(-1);

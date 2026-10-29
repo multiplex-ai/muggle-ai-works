@@ -329,6 +329,119 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh monitor window", () => {
   }, 60_000);
 });
 
+// Runs the loop over `slot` with gh answering from `stubDir`, until it reports
+// or the stub supersedes it, returning what it printed.
+function runLoopOverSlot(slot: string, stubDir: string, extraEnv: NodeJS.ProcessEnv = {}): string {
+  return execFileSync(
+    "bash",
+    [loopPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    {
+      env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV, ...extraEnv },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+}
+
+// A slot seeded as arming leaves it, with `blockedDigest` as the block's floor.
+function seededSlot(blockedDigest = ""): string {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  writeFileSync(
+    join(slot, "watch-watermark.env"),
+    `REV=0\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST="${blockedDigest}"\nREBASE_HELD=""\n`,
+  );
+  return slot;
+}
+
+// The owning session hears a background loop only when it exits, so a loop that
+// reported and kept polling would leave its report unheard.
+describe.skipIf(!hasBash)("pr-watch-loop.sh exits on report", () => {
+  it("ends on the poll that found something, printing it", () => {
+    const slot = seededSlot();
+    const stubDir = stubGhDir("OPEN", "unit:FAILURE", 1, slot);
+    const events = eventLines(runLoopOverSlot(slot, stubDir));
+    expect(events).toEqual(["EVENT pr=1 checks settled red head=HEAD1"]);
+    expect(stateReadsServed(stubDir)).toBe(1);
+  }, 60_000);
+
+  // Work the session saw and held would otherwise end every fresh loop at once.
+  it("keeps what it reported quiet for the next loop", () => {
+    const slot = seededSlot();
+    runLoopOverSlot(slot, stubGhDir("OPEN", "unit:FAILURE", 1, slot));
+    expect(readSlotFile(slot, "watch-reported.env")).toContain('CIRED="HEAD1"');
+    const stubDir = stubGhDir("OPEN", "unit:FAILURE", 1, slot);
+    expect(eventLines(runLoopOverSlot(slot, stubDir))).toEqual([]);
+    expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
+  }, 60_000);
+
+  it("holds a reported digest only for the block it was reported under", () => {
+    const slot = seededSlot(blockedDigest);
+    expect(eventLines(runLoopOverSlot(slot, stubGhDir("OPEN", rerunDigest, 0, slot)))).toHaveLength(1);
+    expect(eventLines(runLoopOverSlot(slot, stubGhDir("OPEN", rerunDigest, 0, slot)))).toEqual([]);
+    const reblocked = seededSlot("a-later-block:FAILURE");
+    writeFileSync(join(reblocked, "watch-reported.env"), readSlotFile(slot, "watch-reported.env"));
+    expect(eventLines(runLoopOverSlot(reblocked, stubGhDir("OPEN", rerunDigest, 0, reblocked)))).toHaveLength(1);
+  }, 60_000);
+
+  // A comment the session read and left needs no second wake.
+  it("reports a comment once, however many loops follow", () => {
+    const slot = seededSlot();
+    const commentedStub = (): string => {
+      const stubDir = stubGhDir("OPEN", "", 0, slot);
+      writeFileSync(join(stubDir, "state.tsv"), "OPEN\tHEAD1\tBASE1\tMERGEABLE\t0\t7\t\t0\t0\t\n");
+      return stubDir;
+    };
+    expect(eventLines(runLoopOverSlot(slot, commentedStub()))).toEqual(["EVENT pr=1 new thread comment id=7"]);
+    expect(eventLines(runLoopOverSlot(slot, commentedStub()))).toEqual([]);
+  }, 60_000);
+
+  // Its exit wakes the session like any report, so it must say why.
+  it("announces the end of its lifetime", () => {
+    const slot = seededSlot();
+    const stdout = runLoopOverSlot(slot, stubGhDir(), {
+      MUGGLE_PR_WATCH_MAX_LIFETIME: "1",
+      MUGGLE_PR_WATCH_POLL_INTERVAL: "1",
+    });
+    expect(stdout).toMatch(/^EXPIRED pr=1 /m);
+  }, 60_000);
+});
+
+// Every idle wake now ends in a re-arm, so a review landing between the session's
+// last read and the re-arm's must not be floored by the re-arm's own read.
+describe.skipIf(!hasBash)("pr-watch-arm.sh re-arms over the session's floors", () => {
+  function rearm(previousWatermark: string, liveStateLine: string): { slot: string; stdout: string } {
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+    writeFileSync(join(slot, "watch-watermark.env"), previousWatermark);
+    const stubDir = stubGhDir("OPEN", "", 0, slot);
+    writeFileSync(join(stubDir, "state.tsv"), liveStateLine);
+    const stdout = execFileSync(
+      "bash",
+      [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+      { env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV }, encoding: "utf8", timeout: 60_000 },
+    );
+    return { slot: slot, stdout: stdout };
+  }
+
+  it("keeps the review floor the session held, so the newer review still wakes it", () => {
+    const { slot, stdout } = rearm(
+      'REV=5\nCOM=0\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\nREBASE_HELD=""\n',
+      "OPEN\tHEAD1\tBASE1\tMERGEABLE\t9\t0\t\t0\t0\t\n",
+    );
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("REV=5\n");
+    expect(eventLines(stdout)).toEqual(["EVENT pr=1 new submitted review id=9"]);
+  }, 60_000);
+
+  // A thread resolved since it was floored drops out, so unresolving it again is news.
+  it("keeps only the floored threads that are still unresolved", () => {
+    const { slot, stdout } = rearm(
+      'REV=0\nCOM=0\nTHREADS="t1;t2"\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\nREBASE_HELD=""\n',
+      "OPEN\tHEAD1\tBASE1\tMERGEABLE\t0\t0\tt2;t3\t0\t0\t\n",
+    );
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('THREADS="t2"\n');
+    expect(eventLines(stdout)).toEqual(["EVENT pr=1 thread newly unresolved id=t3"]);
+  }, 60_000);
+});
+
 // Runs one watch script against a merged PR and returns the command it was run
 // as alongside what it printed — the two halves the post-merge guardrail reads.
 function runAgainstMergedPr(script: string): { command: string; stdout: string } {
@@ -459,8 +572,8 @@ function armAgainstBaseMovement(
 const readSlotFile = (slot: string, fileName: string): string => readFileSync(join(slot, fileName), "utf8");
 
 // Runs the loop over a slot whose rebase floor is `rebasedFloor` and rebase hold
-// `rebaseHeld` for exactly STATE_READS_BEFORE_SUPERSEDE polls, returning only
-// the EVENT lines it printed.
+// `rebaseHeld` until it reports or STATE_READS_BEFORE_SUPERSEDE quiet polls
+// pass, returning only the EVENT lines it printed.
 function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: string, rebaseHeld = ""): string[] {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   writeFileSync(
@@ -477,8 +590,9 @@ function watchAgainstBaseMovement(fixture: BaseMovementFixture, rebasedFloor: st
       timeout: 60_000,
     },
   );
-  expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
-  return stdout.split("\n").filter((line) => line.startsWith("EVENT "));
+  const events = stdout.split("\n").filter((line) => line.startsWith("EVENT "));
+  expect(stateReadsServed(stubDir)).toBe(events.length > 0 ? 1 : STATE_READS_BEFORE_SUPERSEDE);
+  return events;
 }
 
 // GitHub advances baseRefOid only when the head is pushed, never when the base

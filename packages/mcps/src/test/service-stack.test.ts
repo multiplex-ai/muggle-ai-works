@@ -162,6 +162,21 @@ describe("claimServiceStack", () => {
     expect((await claim("/q/c")).verdict).toBe(StackClaimVerdict.Granted);
   });
 
+  it("ranks a waiting checkout by the open pull request its lookup finds", async () => {
+    const { claimServiceStack, readServiceStackStatus } = await loadStack();
+    const lookUpPullRequest = async (cwd: string) =>
+      cwd === normalized("/wt/b") ? { number: 7, url: "https://github.com/o/r/pull/7", createdAt: 1_000 } : null;
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+
+    await claimServiceStack({ cwd: "/wt/b", needs: [{ port: 3000, runDir: "/wt/b/web" }], runGit: git, lookUpPullRequest });
+
+    expect((await readServiceStackStatus()).queue[0].pullRequest).toEqual({
+      number: 7,
+      url: "https://github.com/o/r/pull/7",
+      createdAt: 1_000,
+    });
+  });
+
   it("grants exactly one of several checkouts racing for different code on one port", async () => {
     const { claimServiceStack, StackClaimVerdict } = await loadStack();
     const racers = Array.from({ length: 6 }, (_, index) => `/race/${index}`);
@@ -308,6 +323,27 @@ describe("checkServiceStack", () => {
     expect((await readServiceStackStatus()).leases[0].lastSeenAt).toBe(grantedSeenAt);
   });
 
+  it("reports a lease the ledger ended for going unused until its checkout claims again", async () => {
+    const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
+    const { SERVE_WINDOW_MS } = await loadConstants();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+      vi.setSystemTime(Date.now() + SERVE_WINDOW_MS + 1);
+
+      const ended = await checkServiceStack({ cwd: "/wt/a", port: 3000, runGit: git, readListener: unreadableListeners });
+      expect(ended.verdict).toBe(StackCheckVerdict.Ended);
+      expect(ended.reason).toContain("did not serve the claimed code");
+
+      writeTracking("/wt/a", [{ name: "web", dir: "/wt/a/web", port: 3000, headSha: SHA_A }]);
+      await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
+      const reclaimed = await checkServiceStack({ cwd: "/wt/a", port: 3000, runGit: git, readListener: unreadableListeners });
+      expect(reclaimed.verdict).toBe(StackCheckVerdict.Valid);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores a tracked service whose process is gone", async () => {
     const { checkServiceStack, claimServiceStack, StackCheckVerdict } = await loadStack();
     await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3000, runDir: "/wt/a/web" }], runGit: git });
@@ -409,8 +445,8 @@ describe("decideStackClaim", () => {
 
   it("keeps a lease while a run is in flight, however long it runs", async () => {
     const { decideStackClaim } = await loadStack();
-    const { IDLE_RELEASE_MS, STARTUP_WINDOW_MS } = await loadConstants();
-    const longAgo = now - STARTUP_WINDOW_MS - IDLE_RELEASE_MS;
+    const { IDLE_RELEASE_MS, SERVE_WINDOW_MS } = await loadConstants();
+    const longAgo = now - SERVE_WINDOW_MS - IDLE_RELEASE_MS;
     const record = {
       leases: [
         {
@@ -460,26 +496,78 @@ describe("decideStackClaim", () => {
     expect(decision.isGranted).toBe(true);
   });
 
-  it("ends a grant that never ran once its startup window passes, and frees its ports", async () => {
-    const { decideStackClaim } = await loadStack();
-    const { STARTUP_WINDOW_MS } = await loadConstants();
+  it("ends a grant whose ports never serve the claimed code once the serve window passes, and remembers why", async () => {
+    const { decideStackClaim, StackLeaseEndReason } = await loadStack();
+    const { SERVE_WINDOW_MS } = await loadConstants();
+    const grantedAgo = (ms: number) => ({
+      leases: [{ cwd: "/a", label: "agent-a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - ms, lastSeenAt: now - ms }],
+      queue: [],
+      portFreedAt: {},
+    });
+    const claimB = (ms: number) =>
+      decideStackClaim({ record: grantedAgo(ms), cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive });
+
+    expect(claimB(SERVE_WINDOW_MS - 1).isGranted).toBe(false);
+    const decision = claimB(SERVE_WINDOW_MS + 1);
+    expect(decision.isGranted).toBe(true);
+    expect(decision.next.leases.map((lease) => lease.cwd)).toEqual(["/b"]);
+    expect(decision.next.endedLeases).toEqual([
+      { cwd: "/a", label: "agent-a", endedAt: now, reason: StackLeaseEndReason.NeverServed },
+    ]);
+  });
+
+  it("ends a grant whose services came up but saw no run once the first-run window passes", async () => {
+    const { decideStackClaim, StackLeaseEndReason } = await loadStack();
+    const { FIRST_RUN_WINDOW_MS } = await loadConstants();
+    const grantedAt = now - FIRST_RUN_WINDOW_MS - 120_000;
     const record = {
-      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - STARTUP_WINDOW_MS - 1, lastSeenAt: now - STARTUP_WINDOW_MS - 1 }],
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: grantedAt, lastSeenAt: grantedAt }],
+      queue: [],
+      portFreedAt: {},
+    };
+    const claimBWhenServedAgo = (ms: number) =>
+      decideStackClaim({
+        record: record,
+        cwd: "/b",
+        needs: [need(3000, "/b", SHA_B)],
+        now: now,
+        isAlive: alive,
+        servedSince: (claimed) => (claimed.headSha === SHA_A ? now - ms : null),
+      });
+
+    expect(claimBWhenServedAgo(FIRST_RUN_WINDOW_MS - 1).isGranted).toBe(false);
+    const decision = claimBWhenServedAgo(FIRST_RUN_WINDOW_MS + 1);
+    expect(decision.isGranted).toBe(true);
+    expect(decision.next.endedLeases?.[0].reason).toBe(StackLeaseEndReason.NoRunAfterServed);
+  });
+
+  it("counts a port a peer's shared service already served from the grant, not from that service's start", async () => {
+    const { decideStackClaim } = await loadStack();
+    const { FIRST_RUN_WINDOW_MS } = await loadConstants();
+    const grantedAt = now - FIRST_RUN_WINDOW_MS + 1_000;
+    const record = {
+      leases: [{ cwd: "/a", needs: [need(8080, "/base", SHA_BASE)], grantedAt: grantedAt, lastSeenAt: grantedAt }],
       queue: [],
       portFreedAt: {},
     };
 
-    const decision = decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive });
+    const decision = decideStackClaim({
+      record: record,
+      cwd: "/b",
+      needs: [need(8080, "/b", SHA_B)],
+      now: now,
+      isAlive: alive,
+      servedSince: () => now - 60 * 60_000,
+    });
 
-    expect(decision.isGranted).toBe(true);
-    expect(decision.next.leases.map((lease) => lease.cwd)).toEqual(["/b"]);
+    expect(decision.isGranted).toBe(false);
   });
 
   it("keeps a lease an older MCP server renews mid-run, though it records no runs", async () => {
     const { decideStackClaim } = await loadStack();
-    const { STARTUP_WINDOW_MS } = await loadConstants();
+    const { SERVE_WINDOW_MS } = await loadConstants();
     const record = {
-      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - STARTUP_WINDOW_MS * 2, lastSeenAt: now - 60_000, holderPids: [4242] }],
+      leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: now - SERVE_WINDOW_MS * 2, lastSeenAt: now - 60_000, holderPids: [4242] }],
       queue: [],
       portFreedAt: {},
     };
@@ -487,10 +575,73 @@ describe("decideStackClaim", () => {
     expect(decideStackClaim({ record: record, cwd: "/b", needs: [need(3000, "/b", SHA_B)], now: now, isAlive: alive }).isGranted).toBe(false);
   });
 
+  it("serves open pull requests oldest first, then checkouts without one in the order they asked", async () => {
+    const { decideStackClaim } = await loadStack();
+    const pullRequest = (number: number, openedAgoMs: number) => ({ number: number, url: "", createdAt: now - openedAgoMs });
+    const record = {
+      leases: [{ cwd: "/holder", needs: [need(3000, "/holder", SHA_BASE)], grantedAt: now - 1_000, lastSeenAt: now - 1_000 }],
+      queue: [
+        { cwd: "/no-pr", needs: [need(3000, "/no-pr", SHA_A)], enqueuedAt: now - 9_000, lastSeenAt: now - 1_000 },
+        { cwd: "/new-pr", needs: [need(3000, "/new-pr", SHA_A)], pullRequest: pullRequest(12, 60_000), enqueuedAt: now - 8_000, lastSeenAt: now - 1_000 },
+      ],
+      portFreedAt: {},
+    };
+
+    const decision = decideStackClaim({
+      record: record,
+      cwd: "/old-pr",
+      needs: [need(3000, "/old-pr", SHA_B)],
+      pullRequest: pullRequest(7, 3_600_000),
+      now: now,
+      isAlive: alive,
+    });
+
+    expect(decision.position).toBe(1);
+    expect(decision.next.queue.map((ticket) => ticket.cwd)).toEqual(["/old-pr", "/new-pr", "/no-pr"]);
+  });
+
+  it("puts a re-run of an older pull request back ahead of newer ones, whenever it asks again", async () => {
+    const { decideStackClaim } = await loadStack();
+    const olderPullRequest = { number: 7, url: "", createdAt: now - 3_600_000 };
+    const record = {
+      leases: [{ cwd: "/holder", needs: [need(3000, "/holder", SHA_BASE)], grantedAt: now - 1_000, lastSeenAt: now - 1_000 }],
+      queue: [
+        {
+          cwd: "/new-pr",
+          needs: [need(3000, "/new-pr", SHA_A)],
+          pullRequest: { number: 12, url: "", createdAt: now - 60_000 },
+          enqueuedAt: now - 600_000,
+          lastSeenAt: now - 1_000,
+        },
+      ],
+      portFreedAt: {},
+    };
+
+    const rerun = decideStackClaim({
+      record: record,
+      cwd: "/old-pr",
+      needs: [need(3000, "/old-pr", SHA_B)],
+      pullRequest: olderPullRequest,
+      now: now,
+      isAlive: alive,
+    });
+    const afterLookupFailed = decideStackClaim({
+      record: rerun.next,
+      cwd: "/old-pr",
+      needs: [need(3000, "/old-pr", SHA_B)],
+      pullRequest: null,
+      now: now + 1_000,
+      isAlive: alive,
+    });
+
+    expect(rerun.position).toBe(1);
+    expect(afterLookupFailed.position).toBe(1);
+  });
+
   it("does not extend a lease its holder re-claims", async () => {
     const { decideStackClaim, decideStackReap } = await loadStack();
-    const { STARTUP_WINDOW_MS } = await loadConstants();
-    const grantedAt = now - STARTUP_WINDOW_MS + 60_000;
+    const { SERVE_WINDOW_MS } = await loadConstants();
+    const grantedAt = now - SERVE_WINDOW_MS + 60_000;
     const record = {
       leases: [{ cwd: "/a", needs: [need(3000, "/a", SHA_A)], grantedAt: grantedAt, lastSeenAt: grantedAt }],
       queue: [],

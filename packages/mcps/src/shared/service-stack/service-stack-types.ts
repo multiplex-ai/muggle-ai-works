@@ -1,6 +1,7 @@
 /** Types for the local service-stack ledger at {@link ./service-stack.ts}. */
 
 import type { IPortListener } from "./port-listener-types.js";
+import type { IQueuePlace } from "../queue-priority/queue-priority-types.js";
 
 /** One port a checkout's E2E run needs served, and the code that must serve it. */
 export interface IStackNeed {
@@ -50,14 +51,35 @@ export interface IStackLease {
   holderPids?: number[];
 }
 
-/** A checkout waiting for ports another lease holds. One per checkout. */
-export interface IStackTicket {
+/**
+ * A checkout waiting for ports another lease holds. One per checkout. Its
+ * pull request and first ask fix its place in line.
+ */
+export interface IStackTicket extends IQueuePlace {
   cwd: string;
   label?: string;
   needs: IStackNeed[];
-  /** Fixes the checkout's place in line. */
-  enqueuedAt: number;
   lastSeenAt: number;
+}
+
+/** Why the ledger ended a lease its holder never released. */
+export enum StackLeaseEndReason {
+  /** It never ran, and its ports did not serve the claimed code within the serve window. */
+  NeverServed = "NEVER_SERVED",
+  /** Its ports served the claimed code, but no run started within the first-run window. */
+  NoRunAfterServed = "NO_RUN_AFTER_SERVED",
+  /** No run started within the idle window after the last one ended. */
+  Idle = "IDLE",
+  /** Every MCP server that ran under it has exited. */
+  HolderExited = "HOLDER_EXITED",
+}
+
+/** A lease the ledger ended, remembered so its checkout's next run is refused rather than sent at stopped services. */
+export interface IStackEndedLease {
+  cwd: string;
+  label?: string;
+  endedAt: number;
+  reason: StackLeaseEndReason;
 }
 
 /** Contents of one committed ledger generation. */
@@ -67,7 +89,16 @@ export interface IStackRecord {
   queue: IStackTicket[];
   /** When each port last stopped being needed by any lease (ms since epoch), keyed by port. */
   portFreedAt: Record<string, number>;
+  /** Leases the ledger ended recently; absent from records older writers committed. */
+  endedLeases?: IStackEndedLease[];
 }
+
+/**
+ * When a need's port started serving the claimed code.
+ *
+ * @returns Ms since epoch, or null when no tracked service serves that code there.
+ */
+export type StackServedSince = (need: IStackNeed) => number | null;
 
 /** A service prepare started and recorded, with its process still alive. */
 export interface ITrackedService {
@@ -82,6 +113,8 @@ export interface ITrackedService {
   source: string;
   /** Started by the user, not prepare; never stopped. */
   isExternal: boolean;
+  /** When prepare started it (ms since epoch); the tracking file's last write when it records none. */
+  startedAt: number;
 }
 
 /** A service stopped because the lease it served ended. */
@@ -193,6 +226,8 @@ export enum StackCheckVerdict {
   Stale = "STALE",
   /** The target port is leased to a different checkout's code, and the caller holds no claim on it. */
   PeerLease = "PEER_LEASE",
+  /** The ledger ended the caller's lease for going unused, and stopped its services; claim again. */
+  Ended = "ENDED",
 }
 
 /** Why a needed port does not serve what the lease needs. */

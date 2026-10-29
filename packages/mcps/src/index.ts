@@ -19,6 +19,7 @@ export * from "./shared/config.js";
 export * from "./shared/auth.js";
 export * from "./shared/checkout-freshness.js";
 export * from "./shared/service-stack/index.js";
+export * from "./shared/queue-priority/index.js";
 export * from "./shared/tool-input-schema/tool-input-schema.js";
 export * as mcp from "./mcp/index.js";
 export * as e2e from "./mcp/e2e/index.js";

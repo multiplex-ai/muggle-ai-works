@@ -3,17 +3,25 @@
 import { StackCheckVerdict, type IStackCheckReport } from "../../../shared/service-stack/service-stack-types.js";
 import { describeStackMismatch } from "../../../shared/service-stack/stack-mismatch-description.js";
 
+const RE_PREPARE_REMEDY = "Re-run muggle-test-prepare from this checkout: it re-claims the stack and restarts what moved.";
+
+const REFUSAL_HEADING_BY_VERDICT: Partial<Record<StackCheckVerdict, string>> = {
+  [StackCheckVerdict.PeerLease]: "## Run refused — the target port is leased to another checkout",
+  [StackCheckVerdict.Stale]: "## Run refused — the service stack changed since this checkout claimed it",
+  [StackCheckVerdict.Ended]: "## Run refused — this checkout's stack lease ended and its services were stopped",
+};
+
 /** Tool-result text for a run refused by the stack check: what holds the port and how to get it. */
 export function formatRunStackRefusal(report: IStackCheckReport, cwd: string): string {
   const mismatchLines = report.mismatches.map((mismatch) => `- ${describeStackMismatch(mismatch)}`);
   const remedy =
     report.verdict === StackCheckVerdict.PeerLease
       ? `Claim the stack for this checkout — \`muggle stack claim --cwd "${cwd}" --need <port>=<run-dir>\` — then wait your turn or re-run prepare once it is granted.`
-      : `Re-run muggle-test-prepare from this checkout: it re-claims the stack and restarts what moved.`;
+      : report.verdict === StackCheckVerdict.Ended
+        ? `${RE_PREPARE_REMEDY} Ask any question before invoking it: a lease ends when its first run does not follow soon after its services come up.`
+        : RE_PREPARE_REMEDY;
   return [
-    report.verdict === StackCheckVerdict.PeerLease
-      ? "## Run refused — the target port is leased to another checkout"
-      : "## Run refused — the service stack changed since this checkout claimed it",
+    REFUSAL_HEADING_BY_VERDICT[report.verdict] ?? `## Run refused — ${report.verdict}`,
     "",
     `**Verdict:** ${report.verdict}`,
     `**Checkout:** ${report.cwd}`,

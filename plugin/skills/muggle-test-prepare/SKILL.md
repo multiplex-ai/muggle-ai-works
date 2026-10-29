@@ -91,11 +91,11 @@ Decide stages, in order; read each detail file when you reach it:
 | [derive-service-graph](./steps/derive-service-graph.md) | Derive services from workspace manifests |
 | [rebase-check](./steps/rebase-check.md) | Sync every checkout under test onto the latest base — replays too |
 | [resolve-sources](./steps/resolve-sources.md) | Pick the checkout each service runs from — replays too |
-| [claim-stack](./steps/claim-stack.md) | Claim the shared ports this run needs — replays too; busy returns to the caller |
 | [scope](./steps/scope.md) | Frontend / backend / full stack |
 | [viability-check](./steps/viability-check.md) | Exclude services that can't run locally |
 | [identify-services](./steps/identify-services.md) | Confirm the derived graph; fill the gaps |
 | [e2e-instructions](./steps/e2e-instructions.md) | Startup order, manual steps, local gotchas |
+| [claim-stack](./steps/claim-stack.md) | Claim the shared ports this run needs, after the last question — replays too; busy returns to the caller |
 
 The Decide phase's output is the **resolved prepare plan**: `services[]` (name, run directory from [resolve-sources](./steps/resolve-sources.md), start command, expected port, `external` flag, approval granted, and the port's `keep` / `start` / `restart` from [claim-stack](./steps/claim-stack.md)), `testingScope`, `excludedServices[]`, the recorded dev-server URL, the E2E run instructions, and resolved gate outcomes.
 
@@ -132,9 +132,11 @@ Stopped 3 services:
 
 ## Integration Contract (for other skills)
 
-`muggle-test-feature-local`, `muggle-do`, and local-mode `muggle-test` MUST invoke this skill before any workflow step. Idempotent — fast exit when healthy. Treat success as short-lived; re-invoke if more than a few minutes pass before testing. Never bypass on "the user knows their stack is up" — that assumption is why this skill exists.
+`muggle-test-feature-local`, `muggle-do`, and local-mode `muggle-test` MUST invoke this skill before their first run. Idempotent — fast exit when healthy. Never bypass on "the user knows their stack is up" — that assumption is why this skill exists.
 
-After a test run, the caller re-invokes for cleanup once the batch is done. Services stay up only while runs keep coming: two minutes after the last run, the lease ends and its services stop ([claim-stack](./steps/claim-stack.md#the-lease)).
+**Ask first, then prepare.** Every question a caller asks before its first run — target, local URL, which script, browser visibility — is answered before it invokes this skill. From the grant to the first run nothing waits on the user or on any other work: a lease whose services are up ends four minutes later with no run, and its services stop ([claim-stack](./steps/claim-stack.md#the-lease)).
+
+After a test run, the caller re-invokes for cleanup once the batch is done. Services stay up only while runs keep coming: two minutes after the last run, the lease ends and its services stop.
 
 **The caller's checkout.** Invoke from the checkout under test — the worktree the change lives in. Its repo is the repo under test, and its services start from that checkout; every other repo's services start from that repo's base checkout ([resolve-sources](./steps/resolve-sources.md)). Pass `base` when the change targets a branch other than the remote default.
 
@@ -158,7 +160,8 @@ The readiness table names the directory and commit each service runs from, so th
 - **Never leave orphan processes untracked** — every background PID goes into its checkout's tracking file.
 - **Never kill a process the user started independently** — `external: true` survives cleanup.
 - **Never kill or test against another checkout's service** — a listener tracked under a different checkout belongs to a peer session; see [check-running](./steps/check-running.md). The one exception is a port the stack claim planned as `restart`: no session's lease needs that service any more.
-- **Never start, restart or kill a service on a port this run has not claimed** — [claim-stack](./steps/claim-stack.md) runs first, and a busy stack goes back to the caller instead of being worked around.
+- **Never start, restart or kill a service on a port this run has not claimed** — [claim-stack](./steps/claim-stack.md) runs before anything is started, and a busy stack goes back to the caller instead of being worked around.
+- **Never hold a lease while waiting** — every question goes before [claim-stack](./steps/claim-stack.md); a `needs-input:` from the runner is a question too, so release before asking it and claim again after.
 - **Never start code that is not on the latest base** — no replay, preference, or approval skips [rebase-check](./steps/rebase-check.md) or [resolve-sources](./steps/resolve-sources.md).
 - **Never assume start commands** — verify via indicator file; confirm with user.
 - **Bail early on non-viable services** — don't start what can't run locally.

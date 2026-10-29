@@ -11,9 +11,13 @@
  *
  * A lease lasts only while its session is testing. Local runs record
  * themselves on it as they start and end; once none is in flight it ends
- * shortly after the last one, and so does a grant that never runs. Whenever a
- * lease ends — released, idle, or its session dead — the commit that drops it
- * stops the services serving code no remaining lease needs.
+ * shortly after the last one. A grant that never runs ends once its services
+ * fail to come up in time, or come up and see no run. Whenever a lease ends —
+ * released, idle, or its session dead — the commit that drops it stops the
+ * services serving code no remaining lease needs.
+ *
+ * Checkouts waiting for a port are served oldest open pull request first, so
+ * the work nearest to merging drains the backlog.
  *
  * A check before a run compares the lease with the tracking files prepare
  * writes for every service it starts, and with the process actually listening
@@ -29,6 +33,8 @@ import * as path from "node:path";
 import { runGitCommand } from "../git-command-runner.js";
 import type { GitCommandRunner } from "../checkout-freshness-types.js";
 import { getDataDir } from "../data-dir.js";
+import { lookUpCheckoutPullRequest } from "../queue-priority/pull-request-lookup.js";
+import type { ICheckoutPullRequest, PullRequestLookup } from "../queue-priority/queue-priority-types.js";
 import { isProcessAlive, readGenerationStore, updateGenerationStore } from "./generation-store.js";
 import { readPortListener } from "./port-listener.js";
 import type { PortListenerReader } from "./port-listener-types.js";
@@ -36,6 +42,7 @@ import { stopProcessTree } from "./process-tree-stopper.js";
 import {
   CLAIM_POLL_INTERVAL_MS,
   DEFAULT_PORT_BY_PROTOCOL,
+  LEASE_END_REASON_TEXT,
   PREPARE_TRACKING_DIR_SEGMENTS,
   SERVICE_STOPS_ENV,
   STACK_LEDGER_DIR_NAME,
@@ -68,6 +75,7 @@ import {
   type IStackStatusReport,
   type IStoppedService,
   type ITrackedService,
+  type StackServedSince,
 } from "./service-stack-types.js";
 
 /**
@@ -78,6 +86,7 @@ import {
  * @param params.needs - Ports and the directory (and optionally commit) each must serve.
  * @param params.waitMs - Keep re-asking this long while busy; omitted, answer after one attempt.
  * @param params.runGit - Git runner; the real one unless a test injects its own.
+ * @param params.lookUpPullRequest - Finds the checkout's open pull request, which ranks its place in line; `gh` unless a test injects its own.
  * @returns Granted with a per-port plan, or busy with blockers and the caller's place in line.
  * @throws When a need's commit cannot be resolved from its directory.
  */
@@ -87,14 +96,16 @@ export async function claimServiceStack(params: {
   needs: IStackNeedRequest[];
   waitMs?: number;
   runGit?: GitCommandRunner;
+  lookUpPullRequest?: PullRequestLookup;
 }): Promise<IStackClaimReport> {
   const runGit = params.runGit ?? runGitCommand;
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: runGit });
   const needs = await resolveNeeds({ needs: params.needs, runGit: runGit });
+  const pullRequest = await (params.lookUpPullRequest ?? lookUpCheckoutPullRequest)(cwd);
   const startedAt = Date.now();
 
   for (;;) {
-    const report = await claimOnce({ cwd: cwd, label: params.label, needs: needs });
+    const report = await claimOnce({ cwd: cwd, label: params.label, needs: needs, pullRequest: pullRequest });
     const hasWaitLeft = params.waitMs !== undefined && Date.now() - startedAt < params.waitMs;
     if (report.verdict === StackClaimVerdict.Granted || !hasWaitLeft) return report;
     await sleep(CLAIM_POLL_INTERVAL_MS);
@@ -119,7 +130,13 @@ export async function checkServiceStack(params: {
 }): Promise<IStackCheckReport> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
-  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now(), isAlive: isProcessAlive });
+  const services = await readTrackedServices();
+  const swept = sweepStackRecord({
+    record: snapshot.record,
+    now: Date.now(),
+    isAlive: isProcessAlive,
+    servedSince: servedSinceFrom(services),
+  });
   const ownLease = swept.leases.find((lease) => lease.cwd === cwd) ?? null;
   const base = { cwd: cwd, generation: snapshot.generation, mismatches: [], peerLease: null, servedNeeds: [] };
 
@@ -137,11 +154,18 @@ export async function checkServiceStack(params: {
       peerLease: peerLease,
     };
   }
+  const endedLease = ownLease === null ? swept.endedLeases?.find((ended) => ended.cwd === cwd) : undefined;
+  if (endedLease !== undefined) {
+    return {
+      ...base,
+      verdict: StackCheckVerdict.Ended,
+      reason: `this checkout's lease ended ${Math.round((Date.now() - endedLease.endedAt) / 1000)}s ago: ${LEASE_END_REASON_TEXT[endedLease.reason]}`,
+    };
+  }
   if (ownLease === null) {
     return { ...base, verdict: StackCheckVerdict.NoLease, reason: "this checkout holds no stack lease" };
   }
 
-  const services = await readTrackedServices();
   const readListener = params.readListener ?? readPortListener;
   const mismatches = (
     await Promise.all(
@@ -181,7 +205,7 @@ export async function startStackRun(params: {
   runGit?: GitCommandRunner;
 }): Promise<void> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
-  await updateLedger((record) => ({
+  await updateLedger((record, servedSince) => ({
     next: decideStackRunStart({
       record: record,
       cwd: cwd,
@@ -189,6 +213,7 @@ export async function startStackRun(params: {
       holderPid: params.holderPid,
       now: Date.now(),
       isAlive: isProcessAlive,
+      servedSince: servedSince,
     }),
     result: null,
   }));
@@ -204,8 +229,15 @@ export async function startStackRun(params: {
  */
 export async function finishStackRun(params: { cwd: string; runId: string; runGit?: GitCommandRunner }): Promise<void> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
-  await updateLedger((record) => ({
-    next: decideStackRunEnd({ record: record, cwd: cwd, runId: params.runId, now: Date.now(), isAlive: isProcessAlive }),
+  await updateLedger((record, servedSince) => ({
+    next: decideStackRunEnd({
+      record: record,
+      cwd: cwd,
+      runId: params.runId,
+      now: Date.now(),
+      isAlive: isProcessAlive,
+      servedSince: servedSince,
+    }),
     result: null,
   }));
 }
@@ -216,8 +248,8 @@ export async function finishStackRun(params: { cwd: string; runId: string; runGi
  * @returns Services stopped.
  */
 export async function reapServiceStack(): Promise<IStoppedService[]> {
-  const update = await updateLedger((record) => ({
-    next: decideStackReap({ record: record, now: Date.now(), isAlive: isProcessAlive }),
+  const update = await updateLedger((record, servedSince) => ({
+    next: decideStackReap({ record: record, now: Date.now(), isAlive: isProcessAlive, servedSince: servedSince }),
     result: null,
   }));
   return update.stoppedServices;
@@ -233,8 +265,14 @@ export async function reapServiceStack(): Promise<IStoppedService[]> {
  */
 export async function releaseServiceStack(params: { cwd: string; runGit?: GitCommandRunner }): Promise<IStackReleaseReport> {
   const cwd = await resolveCheckoutRoot({ cwd: params.cwd, runGit: params.runGit ?? runGitCommand });
-  const update = await updateLedger((record) => {
-    const decision = decideStackRelease({ record: record, cwd: cwd, now: Date.now(), isAlive: isProcessAlive });
+  const update = await updateLedger((record, servedSince) => {
+    const decision = decideStackRelease({
+      record: record,
+      cwd: cwd,
+      now: Date.now(),
+      isAlive: isProcessAlive,
+      servedSince: servedSince,
+    });
     return { next: decision.next, result: decision.isReleased };
   });
   return { isReleased: update.result, stoppedServices: update.stoppedServices };
@@ -247,12 +285,18 @@ export async function releaseServiceStack(params: { cwd: string; runGit?: GitCom
  */
 export async function readServiceStackStatus(): Promise<IStackStatusReport> {
   const snapshot = await readGenerationStore<IStackRecord>({ directory: ledgerDir(), emptyRecord: EMPTY_STACK_RECORD });
-  const swept = sweepStackRecord({ record: snapshot.record, now: Date.now(), isAlive: isProcessAlive });
+  const services = await readTrackedServices();
+  const swept = sweepStackRecord({
+    record: snapshot.record,
+    now: Date.now(),
+    isAlive: isProcessAlive,
+    servedSince: servedSinceFrom(services),
+  });
   return {
     generation: snapshot.generation,
     leases: swept.leases,
     queue: swept.queue,
-    services: await readTrackedServices(),
+    services: services,
   };
 }
 
@@ -272,15 +316,22 @@ export function portOfUrl(url: string): number | null {
   }
 }
 
-async function claimOnce(params: { cwd: string; label?: string; needs: IStackNeed[] }): Promise<IStackClaimReport> {
-  const update = await updateLedger((record) => {
+async function claimOnce(params: {
+  cwd: string;
+  label?: string;
+  needs: IStackNeed[];
+  pullRequest: ICheckoutPullRequest | null;
+}): Promise<IStackClaimReport> {
+  const update = await updateLedger((record, servedSince) => {
     const decision = decideStackClaim({
       record: record,
       cwd: params.cwd,
       label: params.label,
       needs: params.needs,
+      pullRequest: params.pullRequest,
       now: Date.now(),
       isAlive: isProcessAlive,
+      servedSince: servedSince,
     });
     return { next: decision.next, result: decision };
   });
@@ -305,17 +356,20 @@ async function claimOnce(params: { cwd: string; label?: string; needs: IStackNee
 /**
  * Commit one ledger decision, then stop the services serving needs it dropped.
  *
- * The stop follows the commit that drops a lease, and only that one: a commit
- * that loses the race drops nothing, and the next to commit drops what is left.
+ * The decision sees which claimed ports serve their code, read once before it:
+ * that is how a grant that never ran is judged. The stop follows the commit
+ * that drops a lease, and only that one: a commit that loses the race drops
+ * nothing, and the next to commit drops what is left.
  */
 async function updateLedger<TResult>(
-  decide: (record: IStackRecord) => { next: IStackRecord | null; result: TResult },
+  decide: (record: IStackRecord, servedSince: StackServedSince) => { next: IStackRecord | null; result: TResult },
 ): Promise<{ isCommitted: boolean; generation: number; result: TResult; stoppedServices: IStoppedService[] }> {
+  const servedSince = servedSinceFrom(await readTrackedServices());
   const outcome = await updateGenerationStore({
     directory: ledgerDir(),
     emptyRecord: EMPTY_STACK_RECORD,
     decide: (snapshot) => {
-      const update = decide(snapshot.record);
+      const update = decide(snapshot.record, servedSince);
       const vacatedNeeds = update.next === null ? [] : findVacatedNeeds({ before: snapshot.record, after: update.next });
       return {
         next: update.next,
@@ -388,6 +442,13 @@ async function findPortMismatch(params: {
   return { need: params.need, kind: StackMismatchKind.UntrackedListener, actual: tracked, listener: reading.listener };
 }
 
+function servedSinceFrom(services: ITrackedService[]): StackServedSince {
+  return (need) => {
+    const service = trackedServiceOnPort({ services: services, port: need.port });
+    return service !== null && servesNeed({ service: service, need: need }) ? service.startedAt : null;
+  };
+}
+
 function servesNeed(params: { service: ITrackedService; need: IStackNeed }): boolean {
   return params.service.dir === params.need.runDir && params.service.headSha === params.need.headSha;
 }
@@ -409,7 +470,9 @@ async function readTrackedServices(): Promise<ITrackedService[]> {
       .filter((fileName) => fileName.endsWith(".json"))
       .map(async (fileName) => {
         try {
-          const parsed = JSON.parse(await fs.readFile(path.join(directory, fileName), "utf-8")) as {
+          const filePath = path.join(directory, fileName);
+          const [content, stat] = await Promise.all([fs.readFile(filePath, "utf-8"), fs.stat(filePath)]);
+          const parsed = JSON.parse(content) as {
             source?: string;
             services?: Array<{
               name?: string;
@@ -418,6 +481,7 @@ async function readTrackedServices(): Promise<ITrackedService[]> {
               pid?: number;
               headSha?: string;
               external?: boolean;
+              startedAt?: string;
             }>;
           };
           return (parsed.services ?? [])
@@ -432,6 +496,7 @@ async function readTrackedServices(): Promise<ITrackedService[]> {
                 headSha: service.headSha ?? null,
                 source: normalizePath(parsed.source ?? ""),
                 isExternal: service.external === true,
+                startedAt: parseStartedAt(service.startedAt) ?? stat.mtimeMs,
               }),
             );
         } catch {
@@ -440,6 +505,11 @@ async function readTrackedServices(): Promise<ITrackedService[]> {
       }),
   );
   return perFile.flat();
+}
+
+function parseStartedAt(startedAt: string | undefined): number | null {
+  const parsed = startedAt === undefined ? Number.NaN : Date.parse(startedAt);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 async function resolveNeeds(params: { needs: IStackNeedRequest[]; runGit: GitCommandRunner }): Promise<IStackNeed[]> {

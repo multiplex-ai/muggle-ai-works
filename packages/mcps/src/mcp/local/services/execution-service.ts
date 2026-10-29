@@ -36,6 +36,7 @@ import {
   resolveStoppedRunStatus,
 } from "./execution-stop.js";
 import { RunStopReasonEnum } from "./execution-stop-types.js";
+import { DEFAULT_GENERATION_TIMEOUT_MS, DEFAULT_REPLAY_TIMEOUT_MS } from "./execution-timeout-constants.js";
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
@@ -738,7 +739,10 @@ export async function executeTestGeneration(params: {
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
 }): Promise<ILocalRunResult> {
-  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  const lockHandle = await acquireLocalExecutionLock({
+    cwd: params.cwd,
+    runTimeoutMs: params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS,
+  });
   try {
     return await runTestGenerationLocked(params);
   } finally {
@@ -757,7 +761,7 @@ async function runTestGenerationLocked(params: {
   runSettingsId?: string;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
-  const timeoutMs = params.timeoutMs ?? 300000;
+  const timeoutMs = params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
   const userId = getAuthenticatedUserId(); // Throws if not authenticated
@@ -1009,7 +1013,10 @@ export async function executeReplay(params: {
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
-  const lockHandle = await acquireLocalExecutionLock({ cwd: params.cwd });
+  const lockHandle = await acquireLocalExecutionLock({
+    cwd: params.cwd,
+    runTimeoutMs: params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS,
+  });
   try {
     return await runReplayLocked(params);
   } finally {
@@ -1029,7 +1036,7 @@ async function runReplayLocked(params: {
   displayResolution?: DisplayResolution;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
-  const timeoutMs = params.timeoutMs ?? 180000;
+  const timeoutMs = params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
   const userId = getAuthenticatedUserId(); // Throws if not authenticated

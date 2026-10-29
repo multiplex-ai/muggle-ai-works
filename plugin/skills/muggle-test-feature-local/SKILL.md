@@ -31,7 +31,7 @@ Three gates apply, each per the standard procedure in [`preference-gates/README.
 
 ## Local environment prerequisites
 
-Before any workflow step, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from the checkout under test. Halt on what it surfaces — a checkout it cannot bring onto the latest base included.
+Before the first run, once every question that run needs is answered (Step 3), invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from the checkout under test. Halt on what it surfaces — a checkout it cannot bring onto the latest base included.
 
 Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. A gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
 
@@ -112,7 +112,9 @@ Prompt for projects: "Pick the project to group this test into:"
 
 ### 3. Ensure Local Services Are Ready
 
-Before detecting the local URL, invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool from the checkout under test — every run, even when services look up. Live PIDs prove nothing about which code they serve: prepare syncs this checkout onto the latest base, starts sibling services from base checkouts on the latest default branch, and keeps a running service only when it still serves the right commit. It fast-exits when everything is proven. Once it reports ready, check its readiness table: this checkout's services must show this checkout as their `Source` at its current HEAD. Then proceed to Step 4.
+**Ask first.** Prepare's grant holds ports other sessions wait for, and its lease ends four minutes after the services come up with no run. So before invoking it, resolve every question asked on the way to the first run: Step 4's URL gate, Step 5's script choice (applied after Step 4a), and Step 7's `showElectronBrowser` gate. From prepare to the first execute call, ask nothing.
+
+Then invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool from the checkout under test — every run, even when services look up. Live PIDs prove nothing about which code they serve: prepare syncs this checkout onto the latest base, starts sibling services from base checkouts on the latest default branch, and keeps a running service only when it still serves the right commit. It fast-exits when everything is proven. Once it reports ready, check its readiness table: this checkout's services must show this checkout as their `Source` at its current HEAD. Then proceed to Step 4.
 
 This step is especially important when the user's app depends on sibling services (a backend API, an auth service, etc.) that may not be running yet. The prepare skill handles discovery, startup, and cleanup so this skill doesn't have to.
 

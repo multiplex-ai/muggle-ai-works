@@ -1,5 +1,7 @@
 /** Tunables for the local service-stack ledger at {@link ./service-stack.ts}. */
 
+import { StackLeaseEndReason } from "./service-stack-types.js";
+
 /** Directory under the Muggle home holding the ledger's committed generations. */
 export const STACK_LEDGER_DIR_NAME = "service-stack";
 
@@ -7,10 +9,25 @@ export const STACK_LEDGER_DIR_NAME = "service-stack";
 export const PREPARE_TRACKING_DIR_SEGMENTS = ["prepare", "running"] as const;
 
 /**
- * A granted lease that has not run a test yet ends this long after the grant:
- * the time prepare has to start its services and begin the first run.
+ * A granted lease that has not run yet ends this long after the grant unless
+ * every port it claimed is served by a service prepare tracks at the claimed
+ * code: the time prepare has to install and start them. Every question is
+ * asked before the claim, so nothing in this window waits on a person.
  */
-export const STARTUP_WINDOW_MS = 15 * 60_000;
+export const SERVE_WINDOW_MS = 8 * 60_000;
+
+/**
+ * Once every claimed port serves the claimed code, a lease that has not run
+ * yet ends this long after: time for a dev server to compile and the first run
+ * to start, too short to hold the ports while the session waits on anything else.
+ */
+export const FIRST_RUN_WINDOW_MS = 4 * 60_000;
+
+/**
+ * How long the ledger remembers a lease it ended without a release, so that
+ * checkout's next run is refused instead of sent at services that were stopped.
+ */
+export const ENDED_LEASE_MEMORY_MS = 30 * 60_000;
 
 /**
  * A lease with no run in flight ends this long after its last run ended: its
@@ -67,6 +84,14 @@ export const BUSY_EXIT_CODE = 75;
 
 /** Longest listener command line a mismatch description quotes before eliding the rest. */
 export const LISTENER_COMMAND_MAX_CHARS = 120;
+
+/** Why the ledger ended a lease, as a check or a refused run states it. */
+export const LEASE_END_REASON_TEXT: Readonly<Record<StackLeaseEndReason, string>> = {
+  [StackLeaseEndReason.NeverServed]: `its ports did not serve the claimed code within ${SERVE_WINDOW_MS / 60_000} minutes of the grant`,
+  [StackLeaseEndReason.NoRunAfterServed]: `no run started within ${FIRST_RUN_WINDOW_MS / 60_000} minutes of its services coming up`,
+  [StackLeaseEndReason.Idle]: `no run started within ${IDLE_RELEASE_MS / 60_000} minutes of the last one`,
+  [StackLeaseEndReason.HolderExited]: "every MCP server that ran under it exited",
+};
 
 /** Default port of a URL with no explicit port, by scheme. */
 export const DEFAULT_PORT_BY_PROTOCOL: Readonly<Record<string, number>> = { "http:": 80, "https:": 443 };

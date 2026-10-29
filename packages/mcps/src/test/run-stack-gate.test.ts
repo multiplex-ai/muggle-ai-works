@@ -71,6 +71,25 @@ describe("findRunStackRefusal", () => {
     expect(refusal?.mismatches[0].kind).toBe(StackMismatchKind.UntrackedListener);
   });
 
+  it("refuses a run whose lease ended unused, and says to re-run prepare", async () => {
+    const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
+    const { formatRunStackRefusal } = await import("../mcp/tools/local/run-stack-refusal.js");
+    const { claimServiceStack, StackCheckVerdict } = await import("../shared/service-stack/index.js");
+    const { SERVE_WINDOW_MS } = await import("../shared/service-stack/service-stack-constants.js");
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3999, runDir: "/wt/a/web" }], runGit: git });
+      vi.setSystemTime(Date.now() + SERVE_WINDOW_MS + 1);
+
+      const refusal = await findRunStackRefusal({ cwd: "/wt/a", localUrl: "http://localhost:3999", runGit: git });
+
+      expect(refusal?.verdict).toBe(StackCheckVerdict.Ended);
+      expect(formatRunStackRefusal(refusal!, "/wt/a")).toContain("Re-run muggle-test-prepare");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("holds the caller's lease only while the run is in flight", async () => {
     const { runUnderStackLease } = await import("../mcp/local/services/run-stack-gate.js");
     const { claimServiceStack, readServiceStackStatus } = await import("../shared/service-stack/index.js");

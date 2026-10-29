@@ -7,7 +7,9 @@
  * Optimistic: nothing is held during a run. The run checks its lease before it
  * starts and again when it ends; a change in between marks the result as
  * describing a stack that moved under it. A checkout that never claimed is not
- * gated unless its target port belongs to a peer's lease.
+ * gated unless its target port belongs to a peer's lease. One whose lease the
+ * ledger ended for going unused is refused until it claims again: its
+ * services were stopped with the lease.
  */
 
 import { randomUUID } from "node:crypto";
@@ -31,7 +33,11 @@ import {
 import type { GitCommandRunner } from "../../../shared/checkout-freshness-types.js";
 import type { PortListenerReader } from "../../../shared/service-stack/port-listener-types.js";
 
-const REFUSING_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([StackCheckVerdict.PeerLease, StackCheckVerdict.Stale]);
+const REFUSING_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([
+  StackCheckVerdict.PeerLease,
+  StackCheckVerdict.Stale,
+  StackCheckVerdict.Ended,
+]);
 
 // One pending reap per MCP server: each run that ends pushes it back.
 let idleReapTimer: NodeJS.Timeout | null = null;

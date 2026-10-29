@@ -30,6 +30,12 @@ import type { StackCheckFlags, StackClaimFlags, StackReleaseFlags, StackStatusFl
 
 const NEED_PATTERN = /^(\d+)=(.+?)(?:@([0-9a-f]{7,40}))?$/i;
 
+const FAILING_CHECK_VERDICTS: ReadonlySet<StackCheckVerdict> = new Set([
+  StackCheckVerdict.Stale,
+  StackCheckVerdict.PeerLease,
+  StackCheckVerdict.Ended,
+]);
+
 /**
  * Parse one `--need` value.
  *
@@ -88,7 +94,10 @@ export function renderStackStatusSummary(report: IStackStatusReport): string {
   }
   report.queue.forEach((ticket, index) => {
     const ports = ticket.needs.map((need) => need.port).join(", ");
-    lines.push(`waiting ${index + 1}: ${ticket.label ?? ticket.cwd} — port ${ports} (asked ${seconds(now - ticket.lastSeenAt)} ago)`);
+    const rank = ticket.pullRequest
+      ? `PR #${ticket.pullRequest.number} opened ${minutes(now - ticket.pullRequest.createdAt)} ago`
+      : "no open PR";
+    lines.push(`waiting ${index + 1}: ${ticket.label ?? ticket.cwd} — port ${ports}, ${rank} (asked ${seconds(now - ticket.lastSeenAt)} ago)`);
   });
   for (const service of report.services) {
     lines.push(`service: ${service.port} ${service.name} — ${service.dir} @ ${shortSha(service.headSha)} (PID ${service.pid})`);
@@ -120,7 +129,7 @@ export async function stackClaimCommand(flags: StackClaimFlags): Promise<void> {
  * Check that the stack still serves what this checkout claimed. Does not
  * extend the lease: only runs keep it alive.
  *
- * Exits 1 on `STALE` or `PEER_LEASE`.
+ * Exits 1 on every verdict a run would be refused for: `STALE`, `PEER_LEASE`, `ENDED`.
  *
  * @param flags - `--cwd`, `--port`, `--json`.
  */
@@ -130,7 +139,7 @@ export async function stackCheckCommand(flags: StackCheckFlags): Promise<void> {
     port: flags.port === undefined ? undefined : Number(flags.port),
   });
   writeReport({ json: flags.json, report: report, summary: renderStackCheckSummary(report) });
-  if (report.verdict === StackCheckVerdict.Stale || report.verdict === StackCheckVerdict.PeerLease) process.exitCode = 1;
+  if (FAILING_CHECK_VERDICTS.has(report.verdict)) process.exitCode = 1;
 }
 
 /**
@@ -169,4 +178,8 @@ function shortSha(sha: string | null): string {
 
 function seconds(ms: number): string {
   return `${Math.max(0, Math.round(ms / 1000))}s`;
+}
+
+function minutes(ms: number): string {
+  return `${Math.max(0, Math.round(ms / 60_000))}m`;
 }

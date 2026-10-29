@@ -1,6 +1,6 @@
 # Claim the stack
 
-The machine runs **one** set of local services: one process per port, shared by every session on it. Before anything is checked, started or restarted, claim the ports this run needs, so two sessions never restart each other's services mid-run, or test against code that isn't theirs. Runs on every invocation, learning runs and replays alike, right after [resolve-sources](./resolve-sources.md) — in-session, never in the agent, because a busy stack has to reach the caller.
+The machine runs **one** set of local services: one process per port, shared by every session on it. Before anything is checked, started or restarted, claim the ports this run needs, so two sessions never restart each other's services mid-run, or test against code that isn't theirs. Runs on every invocation, learning runs and replays alike, as the **last** Decide stage — after every question this run asks is answered, right before dispatching the runner — in-session, never in the agent, because a busy stack has to reach the caller. A claim made before a question holds peers' ports while the user reads it.
 
 ## Claim
 
@@ -25,23 +25,29 @@ The claim answers at once. It never waits on a peer unless asked to.
 
 ## The lease
 
-A granted claim is a lease, and it is held only while this session is testing. Each local execute run records itself on the lease while it is in flight. Nothing else extends it: not a re-claim, and not `muggle stack check`. So go straight from the grant to starting services and running. Never hold a lease while rebasing, editing code or waiting on CI; a renew loop cannot keep it. The lease ends, and its ports pass to whoever is next in line, when:
+A granted claim is a lease, and it is held only while this session is testing. Each local execute run records itself on the lease while it is in flight. Nothing else extends it: not a re-claim, and not `muggle stack check`. So go straight from the grant to starting services and running. Never hold a lease while asking the user anything, rebasing, editing code or waiting on CI; a renew loop cannot keep it. The lease ends, and its ports pass to whoever is next in line, when:
 
 - **Two minutes pass with no run in flight** after the last run ended. That covers the turn between consecutive runs of one batch. Debugging a failure, rebasing or fixing code takes longer: the lease ends, and prepare re-claims before the next run.
-- **15 minutes pass after the grant with no run started.** That is the time prepare has to start its services.
+- **Eight minutes pass after the grant before every claimed port serves the claimed code.** That is the time prepare has to install and start its services. A port counts as served once a service tracked at the claimed directory and commit is alive on it.
+- **Four minutes pass after the services come up with no run started.** That covers the dev server's compile, the smoke test and the first execute call — not a question to the user.
 - **The session died.** Each run records the session's MCP server as a holder. Once every holder has exited and a minute has passed, the lease ends. The minute rides out an MCP server restart.
 - **It is released** in [Cleanup](../SKILL.md#cleanup).
+
+A lease that ends any way but a release is remembered for 30 minutes: the checkout's next run is refused `Run refused — this checkout's stack lease ended and its services were stopped` (`muggle stack check` answers `ENDED`). Re-invoke prepare; it claims again.
 
 **A lease that ends takes its services with it.** Whatever listens on a port whose code no remaining lease needs is stopped. That covers services prepare started and ones started by hand, along with their launchers. The session's own MCP server ends the lease two minutes after its last run. Otherwise the next claim, run or release on the machine does it. A service marked `external: true` is never stopped, and neither is one another lease still needs.
 
 The lease belongs to the checkout, not to one run. Every test case of the same change, including cases run in parallel, runs under it, and none of them waits on the others.
 
-The line is first come, first served per port, and it is pulled, not pushed: nothing calls a waiting session back. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
+The line is ordered per port by the checkout's open pull request: the oldest-opened PR first, so the work nearest to merging drains the backlog, and a re-run after a rebase or a review fix goes back ahead of newer PRs rather than to the end. Checkouts with no open PR yet follow, in the order they first asked. The claim finds the PR itself with `gh pr view`; without `gh` or a PR, the checkout ranks as one with none. `muggle stack status` shows each waiter's PR. The machine-wide execution lock every local run takes orders its waiters the same way.
+
+The line is pulled, not pushed: nothing calls a waiting session back. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
 
 Holding a lease is optimistic, not exclusive. Nothing stops another process from binding a port. Instead, the local execute tools check the lease before every run and again when it ends:
 
 - A run whose port another session's lease holds, from a checkout that never claimed it, is refused: `Run refused — the target port is leased to another checkout`.
 - A run whose claimed port no longer serves the claimed code is refused: `Run refused — the service stack changed since this checkout claimed it`. Re-invoke prepare: it re-claims and restarts what moved.
+- A run whose lease ended unreleased is refused: `Run refused — this checkout's stack lease ended and its services were stopped`. Re-invoke prepare.
 - A run during which the stack changed returns its result with a warning, and that result is not trusted until it has been re-run.
 
 None of these is a test result. Never route them through failure handling.

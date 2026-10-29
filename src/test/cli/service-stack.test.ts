@@ -2,7 +2,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseStackNeed, renderStackClaimSummary, renderStackReleaseSummary } from "../../cli/service-stack";
+import {
+  parseStackNeed,
+  renderStackClaimSummary,
+  renderStackReleaseSummary,
+  renderStackStatusSummary,
+} from "../../cli/service-stack";
 import { StackClaimVerdict, StackPortAction, type IStackClaimReport } from "@muggleai/mcp";
 
 describe("parseStackNeed", () => {
@@ -70,6 +75,31 @@ describe("renderStackClaimSummary", () => {
     });
     expect(summary).toContain("place 2 of 3 in line");
     expect(summary).toContain("port 3000: agent-b (/wt/b) holds /wt/b/web @ bbbbbbb (for 90s)");
+  });
+});
+
+describe("renderStackStatusSummary", () => {
+  it("shows what ranks each waiting checkout: its open pull request, or none", () => {
+    const now = Date.now();
+    const summary = renderStackStatusSummary({
+      generation: 9,
+      leases: [],
+      services: [],
+      queue: [
+        {
+          cwd: "/wt/a",
+          label: "agent-a",
+          needs: [{ port: 3999, runDir: "/wt/a/web", headSha: "a".repeat(40) }],
+          pullRequest: { number: 709, url: "", createdAt: now - 3 * 60 * 60_000 },
+          enqueuedAt: now,
+          lastSeenAt: now,
+        },
+        { cwd: "/wt/b", needs: [{ port: 3999, runDir: "/wt/b/web", headSha: "b".repeat(40) }], enqueuedAt: now, lastSeenAt: now },
+      ],
+    });
+
+    expect(summary).toContain("waiting 1: agent-a — port 3999, PR #709 opened 180m ago");
+    expect(summary).toContain("waiting 2: /wt/b — port 3999, no open PR");
   });
 });
 

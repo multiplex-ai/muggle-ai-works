@@ -39,6 +39,7 @@ const NOT_FORWARDED: Record<string, string> = {
   APPLICATIONINSIGHTS_CONNECTION_STRING: "inlined into the published build by tsup define, never read from the user",
   VITE_APPLICATIONINSIGHTS_CONNECTION_STRING: "read only by browser builds of the telemetry client",
   MUGGLE_STACK_SERVICE_STOPS: "set only by the test config, so no test run stops a real process; a user never sets it",
+  MUGGLE_PR_LOOKUP: "set only by the test config, so no test run is ordered by a real pull request; a user never sets it",
 };
 
 // The code that runs inside the process `muggle serve` starts.

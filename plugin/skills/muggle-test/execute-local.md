@@ -8,13 +8,9 @@
 - Per-case `mode` — `replay` or `regen`, chosen during replay-vs-regen classification.
 - `cwd` — the PR-branch worktree if one exists, else the repo root.
 
-## Local environment readiness
-
-Before anything else, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from `cwd` — the readiness/service-start owner (idempotent; halt on what it surfaces). It syncs `cwd` onto the latest base before starting anything, and serves every other repo from its latest default branch. The URL gate below only *selects* the target; prepare is what guarantees the right code is listening and compiled. Confirm its readiness table shows `cwd` as the `Source` of this repo's services, at `cwd`'s current HEAD — a different source means the run would test someone else's code; halt.
-
-Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. Use it to interpret what you see: a gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
-
 ## Pre-flight question — Local URL (gated by `autoSelectLocalHost`)
+
+Both pre-flight gates resolve before prepare runs: prepare's grant holds ports peers wait for, and its lease ends if the first run does not follow soon after the services come up.
 
 Skill responsibilities (the rest is in `preference-gates/autoSelectLocalHost.md`):
 - **Read the cache**: `Muggle Test Last Host: <url>` session-context line, or `muggle-local-last-host-get`. Pass as `{lastHost}` substitution.
@@ -29,6 +25,12 @@ Gate `showElectronBrowser` (per `preference-gates/README.md`). Resolve once; app
 - `always` → omit `showUi` (defaults visible).
 - `never` → pass `showUi: false`.
 - `ask` → run Picker 1 from `preference-gates/showElectronBrowser.md` via `AskUserQuestion`; map the answer back to one of the actions above.
+
+## Local environment readiness
+
+Once both pre-flight questions are answered, invoke [`muggle-test-prepare`](../muggle-test-prepare/SKILL.md) from `cwd` — the readiness/service-start owner (idempotent; halt on what it surfaces). It syncs `cwd` onto the latest base before starting anything, and serves every other repo from its latest default branch. The URL gate above only *selects* the target; prepare is what guarantees the right code is listening and compiled. Confirm its readiness table shows `cwd` as the `Source` of this repo's services, at `cwd`'s current HEAD — a different source means the run would test someone else's code; halt. From here to the first run, ask nothing.
+
+Then read `~/.muggle-ai/e2e-instructions/<key>.md` when it exists — this stack's recorded startup order, manual steps, and local gotchas. Use it to interpret what you see: a gotcha listed there explains a symptom that would otherwise read as a failure. Absent is normal.
 
 ## Prerequisite chain
 

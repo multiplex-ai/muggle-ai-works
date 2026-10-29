@@ -6,6 +6,11 @@
  * is reentrant — multiple parallel calls from the same `cwd` share it via a
  * pid list and refcount.
  *
+ * Waiting callers form a line served oldest open pull request first, then in
+ * the order they asked; a waiter that stops polling or exits loses its place.
+ * A holder past its run's timeout and grace is taken as stuck and passed over,
+ * so no live but unresponsive process holds every other session back.
+ *
  * Key identity = caller's absolute cwd. A "change" = a worktree path.
  */
 
@@ -15,17 +20,23 @@ import * as path from "node:path";
 
 import { getDataDir } from "../../../shared/data-dir.js";
 import { getLogger } from "../../../shared/logger.js";
+import { lookUpCheckoutPullRequest } from "../../../shared/queue-priority/pull-request-lookup.js";
+import { compareQueuePlaces } from "../../../shared/queue-priority/queue-priority.js";
+import type { PullRequestLookup } from "../../../shared/queue-priority/queue-priority-types.js";
 import {
+  HOLD_OVERRUN_GRACE_MS,
   LOCK_FILE_NAME,
   MODIFY_LOCK_RETRY_MS,
   MODIFY_LOCK_STALE_MS,
   MODIFY_LOCK_SUFFIX,
   POLL_INTERVAL_MS,
   WAIT_LOG_INTERVAL_MS,
+  WAITER_ABANDON_MS,
 } from "./local-execution-lock-constants.js";
 import type {
   ILocalExecutionLockHandle,
   ILockState,
+  ILockWaiter,
   ITryAcquireOutcome,
 } from "./local-execution-lock-types.js";
 
@@ -121,49 +132,71 @@ async function withModifyLock<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-async function tryAcquireOnce(params: { normalizedCwd: string; pid: number }): Promise<ITryAcquireOutcome> {
+/**
+ * One attempt, under the modify-lock. The caller takes the lock when no other
+ * checkout holds it and no other checkout's waiter ranks ahead; otherwise it
+ * records its place in line and is told who blocks it.
+ */
+async function tryAcquireOnce(params: { caller: ILockWaiter; holdLimitMs: number }): Promise<ITryAcquireOutcome> {
   return await withModifyLock(async (): Promise<ITryAcquireOutcome> => {
+    const now = Date.now();
     const existing = await readState();
-
-    if (existing === null) {
-      await writeState({
-        holderCwd: params.normalizedCwd,
-        holderPids: [params.pid],
-        acquiredAt: Date.now(),
-      });
-      return { acquired: true };
-    }
-
-    const liveHolderPids = existing.holderPids.filter((pid) => pidIsAlive(pid));
-
-    if (liveHolderPids.length === 0) {
-      getLogger().warn("Breaking stale local-execution lock", {
-        staleCwd: existing.holderCwd,
-        stalePids: existing.holderPids,
-      });
-      await writeState({
-        holderCwd: params.normalizedCwd,
-        holderPids: [params.pid],
-        acquiredAt: Date.now(),
-      });
-      return { acquired: true };
-    }
-
-    if (existing.holderCwd === params.normalizedCwd) {
-      const updated: ILockState = {
-        holderCwd: existing.holderCwd,
-        holderPids: [...liveHolderPids, params.pid],
-        acquiredAt: existing.acquiredAt,
-      };
-      await writeState(updated);
-      return { acquired: true };
-    }
-
-    return {
-      acquired: false,
-      blockingState: { ...existing, holderPids: liveHolderPids },
+    const isCaller = (waiter: ILockWaiter) => waiter.cwd === params.caller.cwd && waiter.pid === params.caller.pid;
+    const previousPlace = existing?.waiters?.find(isCaller);
+    const caller: ILockWaiter = {
+      ...params.caller,
+      enqueuedAt: Math.min(params.caller.enqueuedAt, previousPlace?.enqueuedAt ?? Number.POSITIVE_INFINITY),
+      lastPolledAt: now,
     };
+    const otherWaiters = (existing?.waiters ?? []).filter(
+      (waiter) => !isCaller(waiter) && pidIsAlive(waiter.pid) && now - waiter.lastPolledAt <= WAITER_ABANDON_MS,
+    );
+    const holderPids = existing === null ? [] : findResponsiveHolderPids({ state: existing, now: now });
+    const isHeldByPeer = holderPids.length > 0 && existing?.holderCwd !== caller.cwd;
+    // Waiters from the caller's own checkout share the lock with it, so only other checkouts can be ahead.
+    const isPeerAhead = otherWaiters.some((waiter) => waiter.cwd !== caller.cwd && compareQueuePlaces(waiter, caller) < 0);
+
+    if (!isHeldByPeer && !isPeerAhead) {
+      const isJoining = existing !== null && holderPids.length > 0;
+      await writeState({
+        holderCwd: caller.cwd,
+        holderPids: [...holderPids, caller.pid],
+        acquiredAt: isJoining ? existing.acquiredAt : now,
+        holdDeadlineAt: Math.max(isJoining ? (existing.holdDeadlineAt ?? 0) : 0, now + params.holdLimitMs),
+        waiters: otherWaiters,
+      });
+      return { acquired: true };
+    }
+
+    const line = [...otherWaiters, caller].sort(compareQueuePlaces);
+    const blockingState: ILockState =
+      existing === null || holderPids.length === 0
+        ? { holderCwd: "", holderPids: [], acquiredAt: 0, waiters: line }
+        : { ...existing, holderPids: holderPids, waiters: line };
+    await writeState(blockingState);
+    return { acquired: false, blockingState: blockingState, position: line.findIndex(isCaller) + 1 };
   });
+}
+
+// A holder whose process exited crashed; one alive past its deadline is stuck. Either way the lock passes on.
+function findResponsiveHolderPids(params: { state: ILockState; now: number }): number[] {
+  const liveHolderPids = params.state.holderPids.filter((pid) => pidIsAlive(pid));
+  if (liveHolderPids.length < params.state.holderPids.length) {
+    getLogger().warn("Dropping exited local-execution lock holders", {
+      holderCwd: params.state.holderCwd,
+      exitedPids: params.state.holderPids.filter((pid) => !liveHolderPids.includes(pid)),
+    });
+  }
+  const isStuck = params.state.holdDeadlineAt !== undefined && params.now > params.state.holdDeadlineAt;
+  if (liveHolderPids.length > 0 && isStuck) {
+    getLogger().warn("Breaking stuck local-execution lock — its holder outran its run timeout", {
+      stuckCwd: params.state.holderCwd,
+      stuckPids: liveHolderPids,
+      overrunSec: Math.round((params.now - (params.state.holdDeadlineAt as number)) / 1000),
+    });
+    return [];
+  }
+  return liveHolderPids;
 }
 
 async function decrementHolder(params: { normalizedCwd: string; pid: number }): Promise<void> {
@@ -171,51 +204,62 @@ async function decrementHolder(params: { normalizedCwd: string; pid: number }): 
     const existing = await readState();
     if (existing === null) return;
 
-    if (existing.holderCwd !== params.normalizedCwd) {
-      getLogger().warn("Release skipped — holder cwd no longer matches", {
+    const removalIndex = existing.holderPids.indexOf(params.pid);
+    if (existing.holderCwd !== params.normalizedCwd || removalIndex < 0) {
+      getLogger().warn("Release skipped — no longer a holder; the lock passed on", {
         ourCwd: params.normalizedCwd,
         holderCwd: existing.holderCwd,
       });
       return;
     }
 
-    const removalIndex = existing.holderPids.indexOf(params.pid);
-    const remainingPids =
-      removalIndex >= 0
-        ? [...existing.holderPids.slice(0, removalIndex), ...existing.holderPids.slice(removalIndex + 1)]
-        : existing.holderPids;
-
-    if (remainingPids.length === 0) {
+    const remainingPids = [...existing.holderPids.slice(0, removalIndex), ...existing.holderPids.slice(removalIndex + 1)];
+    if (remainingPids.length > 0) {
+      await writeState({ ...existing, holderPids: remainingPids });
+      return;
+    }
+    if ((existing.waiters ?? []).length === 0) {
       await deleteStateFile();
       return;
     }
-
-    await writeState({
-      holderCwd: existing.holderCwd,
-      holderPids: remainingPids,
-      acquiredAt: existing.acquiredAt,
-    });
+    await writeState({ holderCwd: "", holderPids: [], acquiredAt: 0, waiters: existing.waiters });
   });
 }
 
 /**
  * Acquire the local-execution lock. Resolves when the caller may proceed.
  *
- * Same `cwd` as the current holder → reentrant, returns immediately.
- * Different `cwd` → polls every {@link POLL_INTERVAL_MS}ms until the holder releases.
- * Dead holder pids → break-and-take-over (assumes crash).
+ * Same `cwd` as the current holder → reentrant, returns immediately unless
+ * another checkout waits ahead of it.
+ * Different `cwd` → takes a place in line and polls every {@link POLL_INTERVAL_MS}ms
+ * until the holder releases and no checkout ahead still waits.
+ * Dead holder pids, or live ones past their deadline → break-and-take-over.
  *
  * Logs a "waiting for ..." line every {@link WAIT_LOG_INTERVAL_MS}ms while blocked.
+ *
+ * @param params.cwd - The caller's checkout.
+ * @param params.runTimeoutMs - The run's own timeout; past it and {@link HOLD_OVERRUN_GRACE_MS}, the caller is taken as stuck.
+ * @param params.lookUpPullRequest - Finds the checkout's open pull request, which ranks its place; `gh` unless a test injects its own.
  */
-export async function acquireLocalExecutionLock(params: { cwd: string }): Promise<ILocalExecutionLockHandle> {
+export async function acquireLocalExecutionLock(params: {
+  cwd: string;
+  runTimeoutMs: number;
+  lookUpPullRequest?: PullRequestLookup;
+}): Promise<ILocalExecutionLockHandle> {
   const normalizedCwd = normalizeCwd(params.cwd);
   const pid = process.pid;
-
   const startWaitAt = Date.now();
+  const caller: ILockWaiter = {
+    cwd: normalizedCwd,
+    pid: pid,
+    pullRequest: await (params.lookUpPullRequest ?? lookUpCheckoutPullRequest)(normalizedCwd),
+    enqueuedAt: startWaitAt,
+    lastPolledAt: startWaitAt,
+  };
   let lastWaitLogAt = 0;
 
   while (true) {
-    const outcome = await tryAcquireOnce({ normalizedCwd, pid });
+    const outcome = await tryAcquireOnce({ caller: caller, holdLimitMs: params.runTimeoutMs + HOLD_OVERRUN_GRACE_MS });
     if (outcome.acquired) {
       return {
         release: () => decrementHolder({ normalizedCwd, pid }),
@@ -229,6 +273,8 @@ export async function acquireLocalExecutionLock(params: { cwd: string }): Promis
         ourCwd: normalizedCwd,
         heldBy: outcome.blockingState?.holderCwd,
         heldByPids: outcome.blockingState?.holderPids,
+        position: outcome.position,
+        lineLength: outcome.blockingState?.waiters?.length,
         waitedSec: waitedSec,
       });
       lastWaitLogAt = now;

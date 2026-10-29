@@ -14,7 +14,7 @@ export const WALL_CLOCK_HOOK_TESTS = [
 ];
 
 /** Env every vitest run here sets; why is noted where the config below applies it. */
-export const TEST_RUN_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off", MUGGLE_STACK_SERVICE_STOPS: "off" };
+export const TEST_RUN_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off", MUGGLE_STACK_SERVICE_STOPS: "off", MUGGLE_PR_LOOKUP: "off" };
 
 /** Share of the cores a local run may use. CI keeps vitest's default. */
 export const LOCAL_MAX_WORKERS = "25%";
@@ -49,6 +49,8 @@ export default defineConfig({
     // run — here or on a contributor's authenticated machine — can reach a PR.
     // Ending a stack lease stops whatever listens on its ports, and the stack
     // suites claim real port numbers, so no run may stop a real process.
+    // The local E2E queues rank a checkout by its open pull request; no run
+    // may be ordered by whatever PR the contributor's own branch has.
     env: TEST_RUN_ENV,
     // First entry is Vitest's default glob (kept so packages/** and internal/**
     // stay discovered); second makes the top-level test/ tree — tests mirror

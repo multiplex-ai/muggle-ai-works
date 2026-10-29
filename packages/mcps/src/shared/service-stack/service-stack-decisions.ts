@@ -5,33 +5,42 @@
  *
  * The contested resource is a port. Checkouts that need the same code on a
  * port share it; a checkout that needs different code there waits until no
- * lease needs the old code. Waiting checkouts are served first come, first
- * served per port, and a checkout keeps its turn for a grace window after the
- * port frees, so an agent that stepped away is not overtaken the moment it does.
+ * lease needs the old code. Waiting checkouts are served per port oldest open
+ * pull request first, then those without one in the order they asked, and a
+ * checkout keeps its turn for a grace window after the port frees, so an agent
+ * that stepped away is not overtaken the moment it does.
  *
  * A lease is held only while its session is testing: a run in flight keeps it,
- * and once none is, it ends shortly after the last one finished.
+ * and once none is, it ends shortly after the last one finished. A grant that
+ * never runs must bring its ports up, then start a run, each within a window.
  */
 
+import { compareQueuePlaces } from "../queue-priority/queue-priority.js";
+import type { ICheckoutPullRequest } from "../queue-priority/queue-priority-types.js";
 import {
   CLAIM_GRACE_MS,
   DEAD_HOLDER_GRACE_MS,
+  ENDED_LEASE_MEMORY_MS,
+  FIRST_RUN_WINDOW_MS,
   IDLE_RELEASE_MS,
   MAX_RUN_MS,
   OWED_RETRY_AFTER_MS,
-  STARTUP_WINDOW_MS,
+  SERVE_WINDOW_MS,
   SUGGESTED_RETRY_AFTER_MS,
   TICKET_ABANDON_MS,
 } from "./service-stack-constants.js";
-import type {
-  IStackActiveRun,
-  IStackBlocker,
-  IStackClaimDecision,
-  IStackLease,
-  IStackNeed,
-  IStackRecord,
-  IStackReleaseDecision,
-  IStackTicket,
+import {
+  StackLeaseEndReason,
+  type IStackActiveRun,
+  type IStackBlocker,
+  type IStackClaimDecision,
+  type IStackEndedLease,
+  type IStackLease,
+  type IStackNeed,
+  type IStackRecord,
+  type IStackReleaseDecision,
+  type IStackTicket,
+  type StackServedSince,
 } from "./service-stack-types.js";
 
 /** An empty ledger. */
@@ -48,35 +57,50 @@ export function needsConflict(left: IStackNeed, right: IStackNeed): boolean {
 
 /**
  * Drop ended leases and abandoned tickets, recording when each port they
- * needed stopped being needed.
+ * needed stopped being needed and why each lease ended.
  *
  * A lease with a run in flight never ends for idleness. Without one it ends
- * {@link IDLE_RELEASE_MS} after its last run finished, or
- * {@link STARTUP_WINDOW_MS} after the grant when it has not run yet. It ends
- * sooner when every holder process it recorded has exited and it has gone
+ * {@link IDLE_RELEASE_MS} after its last run finished. One that has not run
+ * yet ends {@link SERVE_WINDOW_MS} after the grant while its ports do not all
+ * serve the claimed code, and {@link FIRST_RUN_WINDOW_MS} after they do. It
+ * ends sooner when every holder process it recorded has exited and it has gone
  * {@link DEAD_HOLDER_GRACE_MS} untouched — its session is dead.
  *
  * @param params.record - The committed record.
  * @param params.now - Current time (ms since epoch).
  * @param params.isAlive - Whether a process id is still running.
- * @returns The record with only live leases and tickets.
+ * @param params.servedSince - When each need's port started serving its code; omitted, nothing serves any.
+ * @returns The record with only live leases and tickets, the line in serving order.
  */
 export function sweepStackRecord(params: {
   record: IStackRecord;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackRecord {
   const { record, now } = params;
-  const isLive = (lease: IStackLease) => !hasLeaseEnded({ lease: lease, now: now, isAlive: params.isAlive });
-  const liveLeases = record.leases.filter(isLive);
-  const expiredLeases = record.leases.filter((lease) => !isLive(lease));
+  const servedSince = params.servedSince ?? isServedByNothing;
+  const endings = record.leases.map((lease) => ({
+    lease: lease,
+    reason: findLeaseEndReason({ lease: lease, now: now, isAlive: params.isAlive, servedSince: servedSince }),
+  }));
+  const liveLeases = endings.filter((ending) => ending.reason === null).map((ending) => ending.lease);
+  const endedNow = endings.flatMap(({ lease, reason }): IStackEndedLease[] =>
+    reason === null ? [] : [{ cwd: lease.cwd, label: lease.label, endedAt: now, reason: reason }],
+  );
   return {
     leases: liveLeases,
-    queue: record.queue.filter((ticket) => now - ticket.lastSeenAt <= TICKET_ABANDON_MS),
+    queue: record.queue.filter((ticket) => now - ticket.lastSeenAt <= TICKET_ABANDON_MS).sort(compareQueuePlaces),
     portFreedAt: markFreedPorts({
       portFreedAt: forgetSettledPorts({ portFreedAt: record.portFreedAt, now: now }),
-      releasedNeeds: expiredLeases.flatMap((lease) => lease.needs),
+      releasedNeeds: endings.filter((ending) => ending.reason !== null).flatMap((ending) => ending.lease.needs),
       remainingLeases: liveLeases,
+      now: now,
+    }),
+    endedLeases: rememberEndedLeases({
+      endedLeases: record.endedLeases ?? [],
+      endedNow: endedNow,
+      liveLeases: liveLeases,
       now: now,
     }),
   };
@@ -94,8 +118,10 @@ export function sweepStackRecord(params: {
  * @param params.cwd - The caller's normalized checkout root.
  * @param params.label - Name the caller shows peers.
  * @param params.needs - Ports the caller needs and the code each must serve.
+ * @param params.pullRequest - The caller's open pull request, which ranks its place in line.
  * @param params.now - Current time (ms since epoch).
  * @param params.isAlive - Whether a process id is still running.
+ * @param params.servedSince - When each need's port started serving its code.
  * @returns The verdict and the record to commit.
  */
 export function decideStackClaim(params: {
@@ -103,10 +129,12 @@ export function decideStackClaim(params: {
   cwd: string;
   label?: string;
   needs: IStackNeed[];
+  pullRequest?: ICheckoutPullRequest | null;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackClaimDecision {
-  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  const swept = sweepStackRecord(params);
   const peerLeases = swept.leases.filter((lease) => lease.cwd !== params.cwd);
   const leaseBlockers = peerLeases.flatMap((lease) => leaseBlockersFor({ lease: lease, needs: params.needs, now: params.now }));
 
@@ -115,6 +143,7 @@ export function decideStackClaim(params: {
     cwd: params.cwd,
     label: params.label,
     needs: params.needs,
+    pullRequest: params.pullRequest,
     now: params.now,
   });
   const position = queueWithCaller.findIndex((ticket) => ticket.cwd === params.cwd) + 1;
@@ -152,6 +181,7 @@ export function decideStackClaim(params: {
         remainingLeases: leases,
         now: params.now,
       }),
+      endedLeases: (swept.endedLeases ?? []).filter((ended) => ended.cwd !== params.cwd),
     },
     blockers: [],
     sharedWith: peerLeases
@@ -174,11 +204,12 @@ export function decideStackRelease(params: {
   cwd: string;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackReleaseDecision {
   const isReleased =
     params.record.leases.some((lease) => lease.cwd === params.cwd) ||
     params.record.queue.some((ticket) => ticket.cwd === params.cwd);
-  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  const swept = sweepStackRecord(params);
   if (!isReleased) return { next: hasSweepDropped({ record: params.record, swept: swept }) ? swept : null, isReleased: false };
 
   const ownLease = swept.leases.find((lease) => lease.cwd === params.cwd);
@@ -192,6 +223,7 @@ export function decideStackRelease(params: {
       remainingLeases: leases,
       now: params.now,
     }),
+    endedLeases: (swept.endedLeases ?? []).filter((ended) => ended.cwd !== params.cwd),
   };
   return { next: next, isReleased: true };
 }
@@ -205,6 +237,7 @@ export function decideStackReap(params: {
   record: IStackRecord;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackRecord | null {
   const swept = sweepStackRecord(params);
   return hasSweepDropped({ record: params.record, swept: swept }) ? swept : null;
@@ -227,8 +260,9 @@ export function decideStackRunStart(params: {
   holderPid: number;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackRecord | null {
-  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  const swept = sweepStackRecord(params);
   if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return decideStackReap(params);
   const start = (lease: IStackLease): IStackLease => {
     const liveHolders = (lease.holderPids ?? []).filter((pid) => params.isAlive(pid));
@@ -257,8 +291,9 @@ export function decideStackRunEnd(params: {
   runId: string;
   now: number;
   isAlive: (pid: number) => boolean;
+  servedSince?: StackServedSince;
 }): IStackRecord | null {
-  const swept = sweepStackRecord({ record: params.record, now: params.now, isAlive: params.isAlive });
+  const swept = sweepStackRecord(params);
   if (!swept.leases.some((lease) => lease.cwd === params.cwd)) return decideStackReap(params);
   const finish = (lease: IStackLease): IStackLease => {
     const activeRuns = liveRuns({ lease: lease, now: params.now, isAlive: params.isAlive }).filter(
@@ -293,17 +328,52 @@ export function findVacatedNeeds(params: { before: IStackRecord; after: IStackRe
   return vacated;
 }
 
-function hasLeaseEnded(params: { lease: IStackLease; now: number; isAlive: (pid: number) => boolean }): boolean {
-  if (liveRuns(params).length > 0) return false;
+function findLeaseEndReason(params: {
+  lease: IStackLease;
+  now: number;
+  isAlive: (pid: number) => boolean;
+  servedSince: StackServedSince;
+}): StackLeaseEndReason | null {
+  if (liveRuns(params).length > 0) return null;
   const holderPids = params.lease.holderPids ?? [];
   const isHolderGone = holderPids.length > 0 && !holderPids.some((pid) => params.isAlive(pid));
-  if (isHolderGone && params.now - params.lease.lastSeenAt > DEAD_HOLDER_GRACE_MS) return true;
+  if (isHolderGone && params.now - params.lease.lastSeenAt > DEAD_HOLDER_GRACE_MS) return StackLeaseEndReason.HolderExited;
   const lastRunEndedAt = params.lease.lastRunEndedAt;
+  if (lastRunEndedAt !== undefined) return params.now - lastRunEndedAt > IDLE_RELEASE_MS ? StackLeaseEndReason.Idle : null;
+
   // For a lease that never ran, lastSeenAt is its grant. An older MCP server records no runs and renews
   // lastSeenAt instead, so its lease in mid-run is never mistaken for an idle one and stopped.
-  return lastRunEndedAt === undefined
-    ? params.now - params.lease.lastSeenAt > STARTUP_WINDOW_MS
-    : params.now - lastRunEndedAt > IDLE_RELEASE_MS;
+  const servedAt = findLeaseServedAt({ lease: params.lease, servedSince: params.servedSince });
+  if (servedAt === null) return params.now - params.lease.lastSeenAt > SERVE_WINDOW_MS ? StackLeaseEndReason.NeverServed : null;
+  return params.now - Math.max(servedAt, params.lease.lastSeenAt) > FIRST_RUN_WINDOW_MS
+    ? StackLeaseEndReason.NoRunAfterServed
+    : null;
+}
+
+// A port already serving the claimed code before the grant — a peer's service, shared — counts from the grant.
+function findLeaseServedAt(params: { lease: IStackLease; servedSince: StackServedSince }): number | null {
+  const servedTimes = params.lease.needs.map((need) => params.servedSince(need));
+  if (servedTimes.some((servedAt) => servedAt === null)) return null;
+  return Math.max(params.lease.grantedAt, ...(servedTimes as number[]));
+}
+
+function isServedByNothing(): null {
+  return null;
+}
+
+// A checkout that holds a lease again, or ended again just now, has nothing older worth remembering.
+function rememberEndedLeases(params: {
+  endedLeases: IStackEndedLease[];
+  endedNow: IStackEndedLease[];
+  liveLeases: IStackLease[];
+  now: number;
+}): IStackEndedLease[] {
+  const isSuperseded = (ended: IStackEndedLease) =>
+    params.endedNow.some((latest) => latest.cwd === ended.cwd) || params.liveLeases.some((lease) => lease.cwd === ended.cwd);
+  const remembered = params.endedLeases.filter(
+    (ended) => params.now - ended.endedAt <= ENDED_LEASE_MEMORY_MS && !isSuperseded(ended),
+  );
+  return [...remembered, ...params.endedNow];
 }
 
 function isSameNeed(left: IStackNeed, right: IStackNeed): boolean {
@@ -349,25 +419,40 @@ function ticketBlockersFor(params: { ticket: IStackTicket; needs: IStackNeed[] }
     }));
 }
 
+// A lookup that failed this time keeps the pull request an earlier ask found, so a gh hiccup never costs a place.
+// A re-ask updates the ticket where it stands: the sort is stable, so checkouts that first asked in the same
+// millisecond keep the order they asked in.
 function upsertTicket(params: {
   queue: IStackTicket[];
   cwd: string;
   label?: string;
   needs: IStackNeed[];
+  pullRequest?: ICheckoutPullRequest | null;
   now: number;
 }): IStackTicket[] {
   const existing = params.queue.find((ticket) => ticket.cwd === params.cwd);
-  if (existing === undefined) {
-    return [
-      ...params.queue,
-      { cwd: params.cwd, label: params.label, needs: params.needs, enqueuedAt: params.now, lastSeenAt: params.now },
-    ];
-  }
-  return params.queue.map((ticket) =>
-    ticket.cwd === params.cwd
-      ? { ...ticket, label: params.label ?? ticket.label, needs: params.needs, lastSeenAt: params.now }
-      : ticket,
-  );
+  const ticket: IStackTicket =
+    existing === undefined
+      ? {
+          cwd: params.cwd,
+          label: params.label,
+          needs: params.needs,
+          pullRequest: params.pullRequest ?? undefined,
+          enqueuedAt: params.now,
+          lastSeenAt: params.now,
+        }
+      : {
+          ...existing,
+          label: params.label ?? existing.label,
+          needs: params.needs,
+          pullRequest: params.pullRequest ?? existing.pullRequest,
+          lastSeenAt: params.now,
+        };
+  const queue =
+    existing === undefined
+      ? [...params.queue, ticket]
+      : params.queue.map((queued) => (queued.cwd === params.cwd ? ticket : queued));
+  return queue.sort(compareQueuePlaces);
 }
 
 function isOwedTurn(params: { ticket: IStackTicket; portFreedAt: Record<string, number>; now: number }): boolean {

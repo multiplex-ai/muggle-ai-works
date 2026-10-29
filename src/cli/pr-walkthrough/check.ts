@@ -1,4 +1,5 @@
 import { latestE2eResult } from "../../e2e-result/marker.js";
+import { UnpassedCaseStatus } from "../../e2e-result/types.js";
 import { isRerunInProgress, walkthroughVerdict } from "../../pr-walkthrough/comment.js";
 import { DEPENDENCY_BOT_LOGINS } from "../../pr-walkthrough/constants.js";
 import { createCheckRun, defaultGhRunner, listPrComments, readPrAuthorLogin } from "../../pr-walkthrough/gh.js";
@@ -10,7 +11,7 @@ import {
   type PrCoordinates,
 } from "../../pr-walkthrough/types.js";
 import { CHECK_RUN_NAME, CHECK_RUN_TITLE, FIXED_SUMMARIES, OUTCOME_CONCLUSIONS } from "./constants.js";
-import { renderNotPassingSummary } from "./summary.js";
+import { renderFailsOnBaseSummary, renderNotPassingSummary } from "./summary.js";
 import {
   CheckConclusion,
   CheckRunStatus,
@@ -65,7 +66,13 @@ function judgeComments(
 
   const record = latestE2eResult(bodies);
   if (record && record.unpassed.length > 0) {
-    return { outcome: WalkthroughCheckOutcome.E2eNotPassing, summary: renderNotPassingSummary(record) };
+    // An inconclusive run proves nothing about the PR either way, so no baseline excuses one.
+    const isEveryUnpassedOnBase = record.unpassed.every(
+      (unpassed) => unpassed.status === UnpassedCaseStatus.Failed && unpassed.failsOnBase !== undefined,
+    );
+    return isEveryUnpassedOnBase
+      ? { outcome: WalkthroughCheckOutcome.E2eFailsOnBase, summary: renderFailsOnBaseSummary(record) }
+      : { outcome: WalkthroughCheckOutcome.E2eNotPassing, summary: renderNotPassingSummary(record) };
   }
   const outcome =
     verdictNow === WalkthroughVerdict.Satisfied ? WalkthroughCheckOutcome.Settled : WalkthroughCheckOutcome.Unsettled;

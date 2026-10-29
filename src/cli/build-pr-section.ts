@@ -8,7 +8,9 @@
 
 import { ZodError } from "zod";
 
-import { buildPrSection, E2eReportSchema } from "./pr-section/index.js";
+import { localQa, runGitCommand } from "../../packages/mcps/src/index.js";
+import { verifyBaselineFailures } from "./pr-section/baseline.js";
+import { buildPrSection, E2eReportSchema, type E2eReport } from "./pr-section/index.js";
 import { resolveGsScreenshotUrls } from "./pr-section/resolve-urls.js";
 
 /** Default UTF-8 byte budget for the PR description. */
@@ -31,6 +33,10 @@ interface IRunOptions {
   stdoutWrite: (s: string) => boolean;
   stderrWrite: (s: string) => boolean;
   maxBodyBytes: number;
+  /** Branch the PR merges into, for baseline verification; the remote's default branch when omitted. */
+  baseBranch?: string;
+  /** Credits verified baselines; the real git and run store unless a test injects its own. */
+  verifyBaselines?: (report: E2eReport) => Promise<E2eReport>;
 }
 
 async function readAll (stream: NodeJS.ReadableStream): Promise<string> {
@@ -79,7 +85,18 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
     }
     return 1;
   }
-  const resolvedReport = await resolveGsScreenshotUrls(report, { stderrWrite: opts.stderrWrite });
+  const verifyBaselines =
+    opts.verifyBaselines ??
+    ((parsedReport: E2eReport) =>
+      verifyBaselineFailures(parsedReport, {
+        cwd: process.cwd(),
+        baseBranch: opts.baseBranch,
+        runGit: runGitCommand,
+        readRunResult: (runId) => localQa.getRunResultStorageService().getRunResult(runId),
+        stderrWrite: opts.stderrWrite,
+      }));
+  const verifiedReport = await verifyBaselines(report);
+  const resolvedReport = await resolveGsScreenshotUrls(verifiedReport, { stderrWrite: opts.stderrWrite });
   const sentinelCost = Buffer.byteLength(`${REPORT_SECTION_SENTINEL}\n`, "utf-8");
   const renderedSection = buildPrSection(resolvedReport, {
     maxBodyBytes: opts.maxBodyBytes - sentinelCost,
@@ -94,7 +111,7 @@ export async function runBuildPrSection (opts: IRunOptions): Promise<number> {
 }
 
 /** Commander action. */
-export async function buildPrSectionCommand (options: { maxBodyBytes?: string }): Promise<void> {
+export async function buildPrSectionCommand (options: { maxBodyBytes?: string; base?: string }): Promise<void> {
   const maxBodyBytes = options.maxBodyBytes ? Number(options.maxBodyBytes) : DEFAULT_MAX_BODY_BYTES;
   if (!Number.isFinite(maxBodyBytes) || maxBodyBytes <= 0) {
     process.stderr.write(`build-pr-section: --max-body-bytes must be a positive number\n`);
@@ -106,6 +123,7 @@ export async function buildPrSectionCommand (options: { maxBodyBytes?: string })
     stdoutWrite: (s) => process.stdout.write(s),
     stderrWrite: (s) => process.stderr.write(s),
     maxBodyBytes,
+    baseBranch: options.base,
   });
   if (code !== 0) {
     process.exitCode = code;

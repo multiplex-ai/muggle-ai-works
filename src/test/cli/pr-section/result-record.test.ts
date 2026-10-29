@@ -49,6 +49,13 @@ describe("buildE2eResultRecord", () => {
     ]);
   });
 
+  it("carries a verified baseline on the failure it credits, and none on an uncredited one", () => {
+    const failsOnBase = { baselineRunId: "base-run", baselineSha: "c".repeat(40), viewUrl: "https://www.muggle-ai.com/run/b" };
+    const [credited] = buildE2eResultRecord([{ ...failed, failsOnBase: failsOnBase }]).unpassed;
+    expect(credited.failsOnBase).toEqual(failsOnBase);
+    expect(buildE2eResultRecord([failed]).unpassed[0]).not.toHaveProperty("failsOnBase");
+  });
+
   it("numbers the failing step by its place in the run, flattening the error to one line", () => {
     const [unpassed] = buildE2eResultRecord([failed]).unpassed;
     expect(unpassed.failedStep).toBe(2);

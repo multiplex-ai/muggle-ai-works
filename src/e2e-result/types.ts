@@ -4,6 +4,20 @@ export enum UnpassedCaseStatus {
   Inconclusive = "inconclusive",
 }
 
+/**
+ * A verified run of the same test case on the PR's base that failed too, so the
+ * failure predates the PR.
+ *
+ * Output shape: `{ baselineRunId: "9b1e…", baselineSha: "c0ffee…", viewUrl: "https://…" }`
+ */
+export interface IFailsOnBase {
+  baselineRunId: string;
+  /** The base commit the baseline run served. */
+  baselineSha: string;
+  /** Dashboard link to the baseline run; absent when its publish never landed. */
+  viewUrl?: string;
+}
+
 /** One test case whose latest run did not pass. */
 export interface IUnpassedCase {
   /** Test case name as the walkthrough shows it. */
@@ -21,6 +35,8 @@ export interface IUnpassedCase {
   detail: string;
   /** Dashboard link to the run. */
   viewUrl: string;
+  /** Set only on a failure Muggle verified also fails on the PR's base. */
+  failsOnBase?: IFailsOnBase;
 }
 
 /**

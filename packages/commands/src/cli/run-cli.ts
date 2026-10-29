@@ -154,6 +154,7 @@ function createProgram (): Command {
     .command("build-pr-section")
     .description("Render a muggle-do PR body evidence block from an e2e report on stdin")
     .option("--max-body-bytes <n>", "Max UTF-8 byte budget for the PR body (default 60000)")
+    .option("--base <branch>", "Branch the PR merges into, for verifying cited baseline runs (default: the remote's default branch)")
     .action(buildPrSectionCommand);
 
   program

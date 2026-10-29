@@ -17,6 +17,8 @@ export enum WalkthroughCheckOutcome {
   Settled = "settled",
   /** The walkthrough reports at least one failed or inconclusive case. */
   E2eNotPassing = "e2e-not-passing",
+  /** Every case that did not pass is a failure verified to fail on the PR's base too. */
+  E2eFailsOnBase = "e2e-fails-on-base",
   /** A new E2E run has started and will replace the walkthrough the comment still shows. */
   RerunInProgress = "rerun-in-progress",
   /** The designated comment is still empty, or the PR has none. */

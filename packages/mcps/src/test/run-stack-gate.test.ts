@@ -108,6 +108,59 @@ describe("findRunStackRefusal", () => {
     expect((await readServiceStackStatus()).leases[0].activeRuns).toBeUndefined();
   });
 
+  it("reads what a valid lease serves, and nothing for a remote target or a checkout with no lease", async () => {
+    const { readServedStack } = await import("../mcp/local/services/run-stack-gate.js");
+    const { claimServiceStack } = await import("../shared/service-stack/index.js");
+    const unreadableListener = async () => ({ isReadable: false, listener: null });
+    await claimServiceStack({ cwd: "/wt/a", needs: [{ port: 3999, runDir: "/wt/a/web" }], runGit: git });
+
+    const served = await readServedStack({ cwd: "/wt/a", localUrl: "http://localhost:3999", runGit: git, readListener: unreadableListener });
+
+    expect(served).toHaveLength(1);
+    expect(served[0]).toMatchObject({ port: 3999, headSha: "a".repeat(40) });
+    expect(await readServedStack({ cwd: "/wt/a", localUrl: "https://staging.example.com", runGit: git })).toEqual([]);
+    expect(await readServedStack({ cwd: "/wt/b", localUrl: "http://localhost:3000", runGit: git, readListener: unreadableListener })).toEqual([]);
+  });
+
+  it("stamps a run with its stack only when the stack held through the run", async () => {
+    const { recordServedStack } = await import("../mcp/local/services/run-stack-gate.js");
+    const { getRunResultStorageService } = await import("../mcp/local/services/run-result-storage-service.js");
+    const { StackCheckVerdict } = await import("../shared/service-stack/index.js");
+    const storage = getRunResultStorageService();
+    const newRun = () =>
+      storage.createRunResult({
+        runType: "replay",
+        cloudTestCaseId: "tc-1",
+        projectId: "p-1",
+        useCaseId: "uc-1",
+        localUrl: "http://localhost:3999",
+        productionUrl: "https://example.com",
+        localExecutionContext: { originalUrl: "http://localhost:3999", productionUrl: "https://example.com", runByUserId: "u-1" },
+      });
+    const servedStack = [{ port: 3999, runDir: "/wt/a/web", headSha: "a".repeat(40) }];
+    const staleReport = {
+      verdict: StackCheckVerdict.Stale,
+      cwd: "/wt/a",
+      reason: "moved",
+      generation: 2,
+      mismatches: [],
+      peerLease: null,
+      servedNeeds: [],
+    };
+    const held = newRun();
+    const moved = newRun();
+    const unproven = newRun();
+
+    recordServedStack({ runId: held.id, servedStack: servedStack, stackChange: null });
+    recordServedStack({ runId: moved.id, servedStack: servedStack, stackChange: staleReport });
+    recordServedStack({ runId: unproven.id, servedStack: [], stackChange: null });
+    recordServedStack({ runId: "missing-run", servedStack: servedStack, stackChange: null });
+
+    expect(storage.getRunResult(held.id)?.localExecutionContext).toMatchObject({ runByUserId: "u-1", servedStack: servedStack });
+    expect(storage.getRunResult(moved.id)?.localExecutionContext.servedStack).toBeUndefined();
+    expect(storage.getRunResult(unproven.id)?.localExecutionContext.servedStack).toBeUndefined();
+  });
+
   it("never gates a remote target", async () => {
     const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
     const { claimServiceStack } = await import("../shared/service-stack/index.js");

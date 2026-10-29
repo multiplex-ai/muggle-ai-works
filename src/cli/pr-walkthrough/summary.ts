@@ -19,18 +19,52 @@ function countLabel(count: number, status: UnpassedCaseStatus): string | null {
  * ```
  */
 export function renderNotPassingSummary(record: IE2eResultRecord): string {
+  return renderCaseSummary(
+    record,
+    `E2E acceptance did not pass — ${unpassedTally(record)} of ${testCaseCount(record)}. ` +
+      "Fix them, re-run the whole suite, and update the walkthrough comment; editing it re-runs this check.",
+  );
+}
+
+/**
+ * Check-run summary for a walkthrough whose every non-passing case is a failure
+ * verified to fail on the PR's base too: the PR did not cause them, so the
+ * check is neutral, but each still names its baseline run for the reviewer.
+ *
+ * Output shape:
+ * ```
+ * E2E acceptance: 1 failed of 3 test cases, each verified to fail on the base too. …
+ *
+ * - ❌ **Checkout** — failed at step 4: Pay button disabled · [open run](https://…) · also fails on base `c0ffee1` ([baseline run](https://…))
+ * ```
+ */
+export function renderFailsOnBaseSummary(record: IE2eResultRecord): string {
+  return renderCaseSummary(
+    record,
+    `E2E acceptance: ${unpassedTally(record)} of ${testCaseCount(record)}, each verified to fail on the base too. ` +
+      "This PR did not cause them; fix them on the base branch.",
+  );
+}
+
+function testCaseCount(record: IE2eResultRecord): string {
+  return `${record.total} test ${record.total === 1 ? "case" : "cases"}`;
+}
+
+function unpassedTally(record: IE2eResultRecord): string {
   const failed = record.unpassed.filter((c) => c.status === UnpassedCaseStatus.Failed).length;
-  const tally = [
+  return [
     countLabel(failed, UnpassedCaseStatus.Failed),
     countLabel(record.unpassed.length - failed, UnpassedCaseStatus.Inconclusive),
   ].filter((part): part is string => part !== null).join(", ");
+}
+
+function renderCaseSummary(record: IE2eResultRecord, headline: string): string {
   const listed = record.unpassed
     .slice(0, CHECK_SUMMARY_MAX_CASES)
     .map((unpassed) => renderUnpassedCaseBullet(unpassed, "open run", unpassed.viewUrl));
   const hidden = record.unpassed.length - listed.length;
   return [
-    `E2E acceptance did not pass — ${tally} of ${record.total} test ${record.total === 1 ? "case" : "cases"}. ` +
-      "Fix them, re-run the whole suite, and update the walkthrough comment; editing it re-runs this check.",
+    headline,
     "",
     ...listed,
     ...(hidden > 0 ? [`- …and ${hidden} more — see the walkthrough comment.`] : []),

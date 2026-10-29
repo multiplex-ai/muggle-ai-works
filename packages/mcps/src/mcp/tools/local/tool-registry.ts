@@ -69,6 +69,8 @@ import {
 import {
   findRunStackRefusal,
   findStackChangedDuringRun,
+  readServedStack,
+  recordServedStack,
   runUnderStackLease,
 } from "../../local/services/run-stack-gate.js";
 import { resolveElectronBrowserVisibilityFromPreferences } from "../../local/services/electron-browser-visibility.js";
@@ -410,6 +412,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
       return { content: formatRunStackRefusal(stackRefusal, input.cwd), isError: true, data: stackRefusal };
     }
 
+    const servedStack = await readServedStack({ cwd: input.cwd, localUrl: input.localUrl });
     try {
       const generationRun = await runUnderStackLease({
         cwd: input.cwd,
@@ -440,6 +443,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
       ].filter(Boolean).join("\n");
 
       const stackChange = await findStackChangedDuringRun({ cwd: input.cwd, localUrl: input.localUrl });
+      recordServedStack({ runId: generationRun.id, servedStack: servedStack, stackChange: stackChange });
       const reportedContent = stackChange ? content + formatStackChangedDuringRun(stackChange) : content;
 
       return {
@@ -486,6 +490,7 @@ const executeReplayTool: ILocalMcpTool = {
       return { content: formatRunStackRefusal(stackRefusal, input.cwd), isError: true, data: stackRefusal };
     }
 
+    const servedStack = await readServedStack({ cwd: input.cwd, localUrl: input.localUrl });
     try {
       const replayRun = await runUnderStackLease({
         cwd: input.cwd,
@@ -517,6 +522,7 @@ const executeReplayTool: ILocalMcpTool = {
       ].filter(Boolean).join("\n");
 
       const stackChange = await findStackChangedDuringRun({ cwd: input.cwd, localUrl: input.localUrl });
+      recordServedStack({ runId: replayRun.id, servedStack: servedStack, stackChange: stackChange });
       const reportedContent = stackChange ? content + formatStackChangedDuringRun(stackChange) : content;
 
       return {

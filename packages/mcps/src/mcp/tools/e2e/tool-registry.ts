@@ -102,7 +102,7 @@ const projectTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-list",
     description:
-      "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
+      "List projects accessible to the authenticated user: the projects they own plus the projects shared with them. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check `hasMore` to decide whether to fetch additional pages.",
     inputSchema: schemas.ProjectListInputSchema,
     dashboardLink: linkToProjects,
     mapToUpstream: (input) => {
@@ -111,6 +111,7 @@ const projectTools: IQaToolDefinition[] = [
         method: "GET",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
         queryParams: {
+          includeShared: true,
           page: toolInput.page,
           pageSize: toolInput.pageSize,
           sortBy: toolInput.sortBy,

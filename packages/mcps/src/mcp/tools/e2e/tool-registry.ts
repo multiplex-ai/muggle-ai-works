@@ -1019,7 +1019,7 @@ const reportTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-test-runs-summary-get",
     description:
-      "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { page, pageSize, totalCount, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). `totalCount` is the project-wide total after the replay-status filter; `runs` is the page slice. Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-case-get / muggle-remote-wf-get-ts-replay-latest-run for full per-run detail.",
+      "Get a paginated, slimmed summary of latest test runs for a project. Response shape: { page, pageSize, totalCount, totalPages, hasMore, runs: [{ status, testCaseId, testCaseTitle, useCaseId, useCaseTitle, lastRunAt, error, latestWorkflowRunId }] }. Returns 20 runs per page by default (max 100). `totalCount` is the project-wide total after the replay-status filter; `runs` is the page slice. Check `hasMore` to decide whether to fetch additional pages. Use muggle-remote-test-case-get for per-case detail. `latestWorkflowRunId` is a run id, not a workflow runtime id, so the *-latest-run tools will not find it.",
     inputSchema: schemas.ProjectTestRunsSummaryInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.Runs),
     mapToUpstream: (input) => {

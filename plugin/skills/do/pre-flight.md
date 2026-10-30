@@ -60,7 +60,7 @@ Present **one `AskUserQuestion`** (or the platform's structured-selection equiva
 4. **Validation strategy** — the single most important question. Options:
    - **Local E2E** (Muggle Test Electron against a running localhost) — default if a dev server was detected.
    - **Staging replay** — for changes already deployed to a preview URL.
-   - **Unit tests only** — skip E2E, acceptable for pure refactors or backend-only changes.
+   - **Unit tests only** — skip browser E2E, acceptable for pure refactors or backend-only changes. Deliverable checks on video, image, audio, data, or research artifacts still run.
    - **Skip validation** — explicit opt-out; the PR title gets `[UNVERIFIED]`.
 5. **Local URL** — only if validation is Local E2E. Default: the detected port. "Confirm `<detected>`" / "Type a different URL".
 6. **Backend reachable?** — only if validation is Local E2E and a backend URL is declared. If the health probe failed, ask "Start the backend now and I'll re-probe" / "Proceed anyway" / "Skip to unit tests only".

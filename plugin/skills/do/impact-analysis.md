@@ -101,6 +101,8 @@ The case selection [`e2e-acceptance.md`](e2e-acceptance.md) runs. Stage 6 execut
 
 Scope only when this cycle runs E2E: `Validation` is `local-e2e`, `pathClassification` is not `none`, and in a watcher cycle `cycleSize` is `full`. Otherwise emit `e2eScope: not-scoped — <the condition that failed>`.
 
+Deliverable checks ([`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md)) need no browser, dev server, or Muggle session, so they are scoped on their own rule: whenever `Validation` is not `skip`, `pathClassification` is not `none`, and in a watcher cycle `cycleSize` is `full`. A cycle that scopes deliverable checks but no browser cases emits only `projectId: none`, `deliverableChecks`, and `criteria`; the browser lists are written empty.
+
 The criteria are the acceptance criteria in the session's `requirements.md`, plus each review-derived change item that alters behavior in an address-reviews cycle. A session with no `requirements.md` (an adopted PR) scopes from the diff alone and writes `criteria: []`.
 
 ### Procedure
@@ -113,8 +115,10 @@ The criteria are the acceptance criteria in the session's `requirements.md`, plu
    - **Removed** — the change removes the feature it verifies. `replacedBy: none`.
 
    A use case is retired only when the change removes its whole flow **and** every test case under it is retired: deleting a use case cascades to all its test cases and scripts, so one surviving test case keeps the use case. Retired cases are deleted after the PR merges ([`cleanup.md`](cleanup.md)), never during the cycle — an unmerged change must leave the project's suite intact for the default branch.
-5. **Map every criterion.** Each criterion carries `coveredBy` (impacted or new test cases that verify it) or `unobservable` (why no browser can observe it: a log line, a unit-test requirement, a config value). A criterion with neither is a scoping failure.
+5. **Map every criterion.** A criterion's mapping follows its category's flow file ([`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md#category-flows)), never the category's name. A flow **Verified by** test cases gives the criterion `coveredBy` (impacted or new test cases that verify it); a flow **Verified by** a deliverable check gives it `verifiedBy` (the deliverable checks that verify it). Either may instead carry `unobservable` (why no check can observe it: a log line, a unit-test requirement, a config value). A criterion with none of the three is a scoping failure.
 6. **Plan the new cases.** Each uncovered criterion gets a new test case under the impacted use case its behavior belongs to, or under a new use case when none fits. A test case instruction names one atomic behavior to verify, with no signup, login, navigation, or seed-data steps, per [`../_shared/test-case-design.md`](../_shared/test-case-design.md); prerequisites come from the test-plan graph at run time ([`../_shared/test-case-chain-readiness.md`](../_shared/test-case-chain-readiness.md)).
+
+7. **Plan the deliverable checks.** One check per artifact that the criteria mapped to `verifiedBy` are about, keyed `DC1`, `DC2`, …: its category, the artifact and how it is obtained (committed path, or the build command), the probes with their expected values, and the criteria it verifies. A changed artifact that no criterion names is still checked when the diff touches it — the probes alone, with expected values from its base-branch version.
 
 This stage plans new cases and creates nothing. Stage 6 creates them, so a cycle that never reaches E2E leaves no cases behind in the project.
 
@@ -148,11 +152,21 @@ e2eScope:
       - key: NTC1
         useCase: <useCaseId | new use case key>
         instruction: <one atomic behavior to verify>
+    deliverableChecks:
+      - key: DC1
+        category: <video | image | audio | data | research>
+        artifact: <repo-relative path | build: <command> → <output>>
+        probes:
+          - probe: <property>
+            expected: <value or range>
+        criteria: [<criterion>, ...]
     criteria:
-      - criterion: <acceptance criterion>
+      - criterion: <[<category verified by test cases>] acceptance criterion>
         coveredBy: [<testCaseId | new test case key>, ...]
+      - criterion: <[<category verified by a deliverable check>] acceptance criterion>
+        verifiedBy: [<DC key>, ...]
       - criterion: <acceptance criterion>
-        unobservable: <why no browser can observe it>
+        unobservable: <why no check can observe it>
 ```
 
 An empty list is written empty, never omitted; an absent list reads as "not scoped". Record the scope in this stage's marker in `iterations/<NNN>.md`, so Stage 6, a Stage 7.5 re-run, and a resumed session read the same one.

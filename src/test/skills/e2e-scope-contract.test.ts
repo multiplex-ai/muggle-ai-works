@@ -80,10 +80,11 @@ describe("impact analysis scopes the E2E cases", () => {
     expect(scopeSection).toContain("e2eScope: not-scoped — <the condition that failed>");
   });
 
-  it("maps every acceptance criterion to a test case or to unobservable", () => {
+  it("maps every acceptance criterion to a test case, a deliverable check, or unobservable", () => {
     expect(scopeSection).toMatch(/coveredBy/);
+    expect(scopeSection).toMatch(/verifiedBy/);
     expect(scopeSection).toMatch(/unobservable/);
-    expect(scopeSection).toMatch(/criterion with neither is a scoping failure/);
+    expect(scopeSection).toMatch(/criterion with none of the three is a scoping failure/);
   });
 
   it("retires a test case the change replaces or removes instead of replaying it", () => {

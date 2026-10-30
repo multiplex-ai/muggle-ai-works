@@ -7,6 +7,7 @@ import { z } from "zod";
 import { EntityReferenceProjectIdSchema, EntityReferenceSchema } from "../../contracts/entity-reference-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
+import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 import { SecretFieldEnum, SecretTypeEnum } from "./secret-group-types.js";
@@ -160,7 +161,7 @@ export const PrdFileProcessStartInputSchema = z.object({
 });
 
 export const PrdFileProcessLatestRunInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("PRD processing workflow runtime ID (UUID)"),
+  workflowRuntimeId: IdSchema.describe(`PRD processing workflow runtime ID (UUID). ${WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT}`),
 });
 
 export const SecretListInputSchema = z.object({
@@ -472,11 +473,11 @@ export const WorkflowListRuntimesInputSchema = z.object({
 });
 
 export const WorkflowGetLatestRunInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID)"),
+  workflowRuntimeId: IdSchema.describe(`Workflow runtime ID (UUID). ${WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT}`),
 });
 
 export const WorkflowGetReplayLatestRunInputSchema = z.object({
-  workflowRuntimeId: EntityReferenceSchema.describe("Replay workflow runtime ID (UUID), or the replay's short ID, e.g. R-2051"),
+  workflowRuntimeId: EntityReferenceSchema.describe(`Replay workflow runtime ID (UUID), or the replay's short ID, e.g. R-2051. ${WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT}`),
   projectId: EntityReferenceProjectIdSchema,
 });
 
@@ -545,7 +546,7 @@ export const WorkflowCancelRunInputSchema = z.object({
 });
 
 export const WorkflowCancelRuntimeInputSchema = z.object({
-  workflowRuntimeId: IdSchema.describe("Workflow runtime ID (UUID) to cancel"),
+  workflowRuntimeId: IdSchema.describe(`Workflow runtime ID (UUID) to cancel. ${WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT}`),
 });
 
 export const ProjectTestResultsSummaryInputSchema = z.object({

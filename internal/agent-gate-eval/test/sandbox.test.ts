@@ -99,6 +99,28 @@ describe("isArtifactSatisfied", () => {
     }
   });
 
+  it("is satisfied by a Bash attempt reaching the path through a cd or a directory variable, as a shell would", () => {
+    for (const command of [
+      `cd ~/.muggle-ai/muggle-do/sessions/s && echo '{"number": 7}' > prs.json`,
+      `cd "$HOME/.muggle-ai/muggle-do/sessions" && echo '{"number": 7}' >> s/prs.json`,
+      `SLOT=~/.muggle-ai/muggle-do/sessions/s; echo '{"number": 7}' > "$SLOT/prs.json"`,
+      `SLOT="$HOME/.muggle-ai/muggle-do/sessions/s" && echo '{"number": 7}' > \${SLOT}/prs.json`,
+    ]) {
+      expect(isArtifactSatisfied({ path: prsJson, contains: "number" }, snapshotWith(null), [bash(command)]), command).toBe(true);
+    }
+  });
+
+  it("is not satisfied by a relative path the command never anchors in the artifact's directory", () => {
+    for (const command of [
+      `cd ~/.muggle-ai/muggle-do/sessions/other && echo '{"number": 7}' > prs.json`,
+      `echo '{"number": 7}' > prs.json`,
+      `cd ~/.muggle-ai/muggle-do/sessions/s && echo '{"number": 7}' > notprs.json`,
+      `OTHER=~/.muggle-ai/muggle-do/sessions/other; echo '{"number": 7}' > "$OTHER/prs.json"`,
+    ]) {
+      expect(isArtifactSatisfied({ path: prsJson, contains: "number" }, snapshotWith(null), [bash(command)]), command).toBe(false);
+    }
+  });
+
   it("is not satisfied by a Bash attempt that names the path without the expected content, or names another file", () => {
     expect(
       isArtifactSatisfied({ path: prsJson, contains: "\"number\"" }, snapshotWith(null), [bash("touch ~/.muggle-ai/muggle-do/sessions/s/prs.json")]),

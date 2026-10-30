@@ -54,6 +54,18 @@ describe("classifyRun", () => {
     ).toBe(OutcomeClass.Fail);
   });
 
+  it("bug_detected is a product-defect fail, not a crash or a keyword bucket", () => {
+    const v = classifyRun(run({
+      studioReturnedResult: {
+        status: StudioResultStatus.BugDetected,
+        structuredSummary: { failure: { reason: { text: "duplicate email accepted; element not found for the error banner", type: null } } },
+      },
+    }));
+    expect(v.outcome).toBe(OutcomeClass.Fail);
+    expect(v.bucket).toBe(FailureBucket.ProductDefect);
+    expect(v.reason).toBe("duplicate email accepted; element not found for the error banner");
+  });
+
   it("account / credential reasons are errors, not studio fails", () => {
     const blocked = classifyRun(run({
       studioReturnedResult: {

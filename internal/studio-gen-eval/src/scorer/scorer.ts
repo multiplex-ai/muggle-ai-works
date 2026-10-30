@@ -87,6 +87,9 @@ export function classifyRun (
       return { outcome: OutcomeClass.Pass };
     case StudioResultStatus.Timeout:
       return { outcome: OutcomeClass.Error, bucket: FailureBucket.Timeout, reason: reasonText || "studio timeout" };
+    case StudioResultStatus.BugDetected:
+      // The run proved the app under test wrong, so the reason text describes the app, not a studio gap.
+      return { outcome: OutcomeClass.Fail, bucket: FailureBucket.ProductDefect, reason: reasonText || String(studio.status) };
     case StudioResultStatus.Failure:
     case StudioResultStatus.GoalNotAchievable:
       return { outcome: OutcomeClass.Fail, bucket: bucketFromText(reasonText), reason: reasonText || String(studio.status) };

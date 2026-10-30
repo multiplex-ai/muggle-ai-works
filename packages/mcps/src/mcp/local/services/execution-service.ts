@@ -148,8 +148,10 @@ function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs
 
 /**
  * Read the studio's `cloudrefs_<input>.json` sidecar written next to the input
- * script after it publishes the run. Returns undefined when absent (e.g. an
- * older studio build that doesn't publish) — callers narrow defensively.
+ * script after it publishes the run. A replay stores it whole as its `studioReturnedResult`, so its
+ * optional `status` (the studio verdict, absent from older studio builds) reaches the run report.
+ * Returns undefined when absent (e.g. an older studio build that doesn't publish) — callers narrow
+ * defensively.
  */
 async function readCloudRefsFile(inputFilePath: string): Promise<unknown> {
   const cloudRefsPath = path.join(

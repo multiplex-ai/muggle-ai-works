@@ -41,6 +41,7 @@ When the subagent aggregates per-script results from sections B and C into one v
 | `infra` (replay or regen) | B / C | **BLOCKED** |
 | `stale-script` (replay) | B | **INCONCLUSIVE** |
 | `product-defect` (replay) | B | **FAIL** |
+| studio verdict `bug_detected` (replay or regen) | B / C | **FAIL** |
 | `product-uxux` (regen) | C | **FAIL** |
 | `agent-course` (regen) | C | **INCONCLUSIVE** (agent couldn't complete, not a PR defect) |
 | `transient` (regen) | C | retry once; if still transient → **INCONCLUSIVE** |
@@ -125,6 +126,7 @@ Call `muggle-local-run-result-get` (local) or the remote equivalent and read **s
 - **infra** signals: `electron-crash`, `chromium-error`, `click-no-effect-on-clickable-element`, `timeout-on-trivial-wait`, `internal-error-in-mcp-output`.
 - **stale-script** signals: `element-not-found`, `selector-timeout`, `label-path-mismatch`, `nav-target-404`, `aria-label-changed`.
 - **product-defect** signals: `assertion-failed-on-passing-step`, `unexpected-error-toast`, `wrong-page-after-action`, `network-500-from-app`, `form-validation-rejected-valid-input`.
+- Studio verdict `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) settles the bucket as **product-defect**, status `failed`: it is a product bug the run proved. Surface it to the user as a bug in their app; do not retry, regenerate, or debug the test.
 
 If signals span multiple buckets, pick the most specific one and list all signals in telemetry — the user can override.
 
@@ -215,6 +217,7 @@ Order:
 - **infra**: `electron-mcp-handler-crash`, `internal-validation-error`, `pipeline-stuck`, identical failure repeated more than twice.
 - **agent-course**: `goal_not_achievable` with summary mentioning the agent picked a different element, looped on a modal, kept trying the same wrong action; many steps but no real progress.
 - **product-uxux**: server 5xx in step screenshots, "page not found" reached repeatedly, expected element provably absent (visible in screenshot), product clearly broken in the artifact log.
+- Studio verdict `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) settles the bucket as **product-uxux**, status `failed`: it is a product bug the run proved. Surface it to the user as a bug in their app; do not retry, regenerate, or debug the test.
 
 ### Suggestions per bucket
 

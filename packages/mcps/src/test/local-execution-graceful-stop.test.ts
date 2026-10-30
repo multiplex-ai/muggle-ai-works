@@ -232,4 +232,38 @@ describe("a replay that fails on its own", () => {
     await runPromise;
     expect(_finalRunResultUpdate()).toMatchObject({ cloudRunSettingsId: "rs-390" });
   });
+
+  it("records a bug_detected verdict from the sidecar as a failed run that keeps the verdict", async () => {
+    const runPromise = _startReplay();
+    const studio = await _spawnedStudio();
+
+    await fs.writeFile(
+      path.join(harness.dataDir, "temp", `cloudrefs_${RUN_ID}_input.json`),
+      JSON.stringify({ viewUrl: "https://www.muggle-ai.com/run/failed", status: "bug_detected" }),
+    );
+    studio.exit(1, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({
+      status: "failed",
+      viewUrl: "https://www.muggle-ai.com/run/failed",
+      studioReturnedResult: { status: "bug_detected" },
+    });
+  });
+
+  it("stores no verdict when an older studio's sidecar carries none", async () => {
+    const runPromise = _startReplay();
+    const studio = await _spawnedStudio();
+
+    await fs.writeFile(
+      path.join(harness.dataDir, "temp", `cloudrefs_${RUN_ID}_input.json`),
+      JSON.stringify({ viewUrl: "https://www.muggle-ai.com/run/failed" }),
+    );
+    studio.exit(1, null);
+
+    await runPromise;
+    const finalUpdate = _finalRunResultUpdate();
+    expect(finalUpdate).toMatchObject({ status: "failed", viewUrl: "https://www.muggle-ai.com/run/failed" });
+    expect(finalUpdate.studioReturnedResult).not.toHaveProperty("status");
+  });
 });

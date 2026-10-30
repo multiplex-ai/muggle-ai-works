@@ -152,6 +152,7 @@ Deliverable checks do not satisfy the session's browser E2E gate. A cycle that r
 For each test case:
 - Record pass or fail from the run result
 - If failed, capture the error message, failure step index, and `artifactsDir` for local debugging
+- A studio verdict of `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) is failed: it is a product bug the run proved. Surface it to the user as a bug in their app; do not retry, regenerate, or debug the test
 - In `local-e2e` mode, every scoped test case must be executed — generate a new script if none exists (no skips)
 
 ## Output

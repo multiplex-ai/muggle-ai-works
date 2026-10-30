@@ -122,6 +122,67 @@ describe("local tool registry — studio publishes", () => {
     expect(result.content).toContain("**Cloud Run Settings ID:** rs-390");
   });
 
+  it("labels a bug_detected verdict as Bug Detected on a failed run", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "generation",
+      status: "failed",
+      cloudTestCaseId: "tc-1",
+      executionTimeMs: 1234,
+      studioReturnedResult: { status: "bug_detected" },
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.content).toContain("**Status:** failed");
+    expect(result.content).toContain("**Studio Verdict:** Bug Detected (bug_detected)");
+  });
+
+  it("shows a replay's verdict read from the studio's cloud refs sidecar", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "replay",
+      status: "failed",
+      cloudTestCaseId: "tc-1",
+      viewUrl: "https://www.muggle-ai.com/run/abc",
+      studioReturnedResult: { viewUrl: "https://www.muggle-ai.com/run/abc", status: "bug_detected" },
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.content).toContain("**Studio Verdict:** Bug Detected (bug_detected)");
+  });
+
+  it("shows an unrecognized verdict verbatim and omits the line without one", async () => {
+    mockGetRunResult.mockReturnValueOnce({
+      id: RUN_ID,
+      runType: "generation",
+      status: "failed",
+      cloudTestCaseId: "tc-1",
+      studioReturnedResult: { status: "novel_verdict" },
+    });
+    mockGetRunResult.mockReturnValueOnce({
+      id: RUN_ID,
+      runType: "replay",
+      status: "passed",
+      cloudTestCaseId: "tc-1",
+      studioReturnedResult: { viewUrl: "https://www.muggle-ai.com/run/abc" },
+    });
+
+    const tool = getTool("muggle-local-run-result-get")!;
+    const unrecognized = await tool.execute({ input: { runId: RUN_ID }, correlationId: "test-corr" } as never);
+    const withoutVerdict = await tool.execute({ input: { runId: RUN_ID }, correlationId: "test-corr" } as never);
+
+    expect(unrecognized.content).toContain("**Studio Verdict:** novel_verdict");
+    expect(withoutVerdict.content).not.toContain("**Studio Verdict:**");
+  });
+
   it("links an unpublished run to its test case on the MCP's lane", async () => {
     mockGetRunResult.mockReturnValue({
       id: RUN_ID,

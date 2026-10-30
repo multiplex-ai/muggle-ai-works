@@ -60,6 +60,8 @@ Verdict policy (matches the CLI's `computeVerdict`):
 
 A test is **inconclusive** when the run could not yield a pass/fail signal for reasons outside the product itself: no replayable script, environment precondition unmet, infra error blocked execution, agent stalled before reaching the assertion (auth/cookie banner, missing secret). The product is not implicated. If you are tempted to call a run "passed except for one that didn't really run," that one is inconclusive.
 
+A run whose studio verdict is `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) is **failed**: it is a product bug the run proved. Report it as a FAIL whose blocking issue is that bug in the user's app; do not retry, regenerate, or debug the test.
+
 **Section 2 — Per-Test Highlights**
 
 Order failures first, then inconclusives, then passes.

@@ -29,6 +29,16 @@ A test case runs once per runSettings record its local lane fans out to. Before 
 
 Every run's result carries its record: `runSettingsId` is the run result's `cloudRunSettingsId` (see [`failures.md`](failures.md)) and `resolutionLabel` is the plan record's. Rerunning one record's run, including the debug path's "give feedback & rerun", is the Regen branch with that record's `runSettingsId` and `displayResolution`.
 
+## PR progress
+
+When `cwd`'s branch has a PR, its reviewers see the batch move. Before the batch's first execute call — prerequisite generations included — post the test cases about to run, in run order, as a background shell command (`run_in_background: true`, or a trailing `&`), so nothing waits on it:
+
+```bash
+echo '[{"testCaseId":"<id>","title":"<title>"}]' | muggle e2e-plan --cwd "<cwd>"
+```
+
+It writes them as queued rows under the in-progress banner of the PR's walkthrough comment, and prints `{"posted":false}` when the branch has no PR — never wait on, retry, or report it. Each row then fills in as its execute call returns, from a hook that runs off the main thread; a case the plan did not name, such as a prerequisite, is appended as its own row. Never post per-case updates by hand. The run's walkthrough replaces the whole table once it posts.
+
 ## Sequence
 
 One local browser exists, so **execution is sequential** — one test case at a time, in the caller's order. The pre/post fetches are independent across test cases and should be issued in parallel batches around the sequential execute calls.

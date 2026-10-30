@@ -254,7 +254,7 @@ const runResultGetTool: ILocalMcpTool = {
       `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",
       // The studio publishes the run during execution; these are its returned cloud refs.
-      storedRunResult.viewUrl ? `**View URL:** ${storedRunResult.viewUrl}` : `**Dashboard:** ${fallbackDashboardUrl}`,
+      formatRunViewUrlLine(storedRunResult.id) || `**Dashboard:** ${fallbackDashboardUrl}`,
       storedRunResult.cloudTestScriptId ? `**Cloud Test Script ID:** ${storedRunResult.cloudTestScriptId}` : "",
       storedRunResult.cloudActionScriptId ? `**Cloud Action Script ID:** ${storedRunResult.cloudActionScriptId}` : "",
       storedRunResult.cloudRunSettingsId ? `**Cloud Run Settings ID:** ${storedRunResult.cloudRunSettingsId}` : "",
@@ -383,6 +383,13 @@ const testScriptGetTool: ILocalMcpTool = {
 };
 
 
+// The studio publishes each run while it executes, so its dashboard link is
+// known by the time the verdict prints; the PR progress hook links each row to it.
+function formatRunViewUrlLine(runId: string): string {
+  const viewUrl = getRunResultStorageService().getRunResult(runId)?.viewUrl;
+  return viewUrl ? `**View URL:** ${viewUrl}` : "";
+}
+
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
   description: "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
@@ -440,6 +447,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         `**Test Script ID:** ${generationRun.testScriptId}`,
         `**Status:** ${generationRun.status}`,
         `**Duration:** ${generationRun.executionTimeMs}ms`,
+        formatRunViewUrlLine(generationRun.id),
         formatElectronBrowserVisibilityLine(browserVisibility),
         generationRun.errorMessage ? `**Error:** ${generationRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");
@@ -519,6 +527,7 @@ const executeReplayTool: ILocalMcpTool = {
         `**Test Script ID:** ${replayRun.testScriptId}`,
         `**Status:** ${replayRun.status}`,
         `**Duration:** ${replayRun.executionTimeMs}ms`,
+        formatRunViewUrlLine(replayRun.id),
         formatElectronBrowserVisibilityLine(browserVisibility),
         replayRun.errorMessage ? `**Error:** ${replayRun.errorMessage}` : "",
       ].filter(Boolean).join("\n");

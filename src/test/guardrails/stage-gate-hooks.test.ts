@@ -132,7 +132,7 @@ describe("stage-signal pre-filter reaches every payload the recorder acts on", (
 // Both gates stand in front of exactly the tools that burn a browser run, so
 // each pre-filter must name the same pair the decision does — a filter that
 // drifts from the matcher acts on nothing while the gate still claims to.
-describe.each(["guardrail-classify-gate.sh", "guardrail-walkthrough-rerun.sh"])(
+describe.each(["guardrail-classify-gate.sh", "guardrail-walkthrough-rerun.sh", "guardrail-walkthrough-progress.sh"])(
   "%s pre-filter names the same execution tools the gate acts on",
   (wrapperScriptName) => {
     const prefilter = wrapperPayloadPrefilter(wrapperScriptName);
@@ -292,6 +292,16 @@ describe("hooks.json registers every stage guardrail", () => {
     expect(gate!.hooks.some((h) => h.command.includes("guardrail-walkthrough-rerun.sh"))).toBe(true);
   });
 
+  it("fills each finished case into the PR's progress table after both local execution tools", () => {
+    const recorder = hooks.PostToolUse.find((group) =>
+      group.hooks.some((h) => h.command.includes("guardrail-walkthrough-progress.sh")),
+    );
+    expect(recorder).toBeDefined();
+    const matcher = new RegExp(recorder!.matcher!);
+    expect(matcher.test("mcp__plugin_muggle_muggle__muggle-local-execute-test-generation")).toBe(true);
+    expect(matcher.test("mcp__plugin_muggle_muggle__muggle-local-execute-replay")).toBe(true);
+  });
+
   it("runs both new Stop gates", () => {
     const stop = hooks.Stop[0].hooks.map((h) => h.command).join();
     expect(stop).toContain("guardrail-stage-gate.sh");
@@ -423,6 +433,17 @@ describe("stage guardrail cli entry", () => {
       session_id: "rerun",
       tool_name: "mcp__plugin_muggle_muggle__muggle-local-execute-replay",
       tool_input: { cwd: home },
+    });
+    expect(status).toBe(0);
+    expect(out).toBe("{}");
+  });
+
+  it("walkthrough-progress-update: never decides on the execution it observes", () => {
+    const { status, out } = runHook("walkthrough-progress-update", {
+      session_id: "progress",
+      tool_name: "mcp__plugin_muggle_muggle__muggle-local-execute-replay",
+      tool_input: { cwd: home, testScript: { testCaseId: "tc-1", name: "Login" } },
+      tool_response: { content: "**Run ID:** run-1\n**Status:** passed" },
     });
     expect(status).toBe(0);
     expect(out).toBe("{}");

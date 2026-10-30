@@ -35,3 +35,19 @@ export interface PrDiffPaths {
 
 /** Runs a `gh` invocation, optionally feeding stdin; `null` when the call could not be made. */
 export type GhRunner = (args: string[], input?: string) => string | null;
+
+/** Where one test case of an E2E run in flight stands. */
+export enum E2eProgressStatus {
+  Queued = "queued",
+  Passed = "passed",
+  Failed = "failed",
+}
+
+/** One test case's row in the progress table an in-flight run's banner carries. */
+export interface E2eProgressCase {
+  testCaseId: string;
+  title: string;
+  status: E2eProgressStatus;
+  /** The run's dashboard page; absent while queued or when the run was not published. */
+  viewUrl?: string;
+}

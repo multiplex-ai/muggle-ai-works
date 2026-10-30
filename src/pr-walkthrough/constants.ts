@@ -1,3 +1,5 @@
+import { E2eProgressStatus } from "./types.js";
+
 /**
  * Substring present in every `muggle build-pr-section` rendering (see
  * src/cli/build-pr-section.ts). Version-agnostic so recognisers keep working
@@ -52,3 +54,31 @@ export const GH_COMMENT_TIMEOUT_MS = 10_000;
  * walkthrough check settles it itself.
  */
 export const DEPENDENCY_BOT_LOGINS: readonly string[] = ["dependabot[bot]", "renovate[bot]"];
+
+/** Opens the machine-readable progress state kept inside the in-progress banner; the JSON case list follows it. */
+export const PROGRESS_STATE_OPENING = "<!-- muggle-e2e-progress ";
+
+/** The progress state tag, capturing its JSON case list. */
+export const PROGRESS_STATE_TAG = /<!-- muggle-e2e-progress ([\s\S]*?) -->/;
+
+/**
+ * The progress section — state tag and table, which always sit right above the
+ * banner's closing tag — with the whitespace around it; matches just that
+ * whitespace when the banner carries no section yet.
+ */
+export const PROGRESS_SECTION = new RegExp(
+  `(?:\\s*${PROGRESS_STATE_OPENING}[\\s\\S]*?)?\\s*(?=${RERUN_NOTICE_CLOSING})`,
+);
+
+/** Start of the per-PR lock file name, in the OS temp directory, that serializes writes to the designated comment. */
+export const DESIGNATED_COMMENT_LOCK_PREFIX = "muggle-pr-walkthrough-";
+
+/** How long a write to a PR's designated comment waits for another write to it before giving up. */
+export const DESIGNATED_COMMENT_LOCK_WAIT_MS = 30_000;
+
+/** What a reviewer reads in the progress table for each status. */
+export const PROGRESS_STATUS_LABELS: Record<E2eProgressStatus, string> = {
+  [E2eProgressStatus.Queued]: "⏳ Queued",
+  [E2eProgressStatus.Passed]: "✅ Passed",
+  [E2eProgressStatus.Failed]: "❌ Failed",
+};

@@ -1,5 +1,8 @@
+import { tmpdir } from "os";
+import { join } from "path";
 import { isNonAppPath, parseNoAppLogicChangeDetail } from "../e2e-skip/noAppLogicChange.js";
 import type { E2eSkipCode } from "../e2e-skip/types.js";
+import { withFileLock } from "../guardrails/store/fileLock.js";
 import {
   classifyComment,
   hasRerunNotice,
@@ -10,8 +13,11 @@ import {
   renderRunningComment,
   renderSkippedComment,
   walkthroughVerdict,
+  withoutRerunNotice,
   withRerunNotice,
 } from "./comment.js";
+import { DESIGNATED_COMMENT_LOCK_PREFIX, DESIGNATED_COMMENT_LOCK_WAIT_MS } from "./constants.js";
+import { readProgressCases, withFinishedCase, withProgressSection } from "./progress.js";
 import {
   defaultGhRunner,
   listPrComments,
@@ -22,8 +28,10 @@ import {
   readPrHeadSha,
 } from "./gh.js";
 import {
+  E2eProgressStatus,
   WalkthroughCommentStatus,
   WalkthroughVerdict,
+  type E2eProgressCase,
   type GhRunner,
   type PrComment,
   type PrCoordinates,
@@ -198,16 +206,82 @@ export function noteE2eRunStarted(
   run: GhRunner = defaultGhRunner,
   startedAt: Date = new Date(),
 ): boolean {
+  return rewriteDesignatedComment(prUrl, run, (body) =>
+    hasRerunNotice(body) ? null : withRunStartedNotice(body, startedAt),
+  );
+}
+
+/**
+ * Post the test cases a run is about to execute, each queued, under a fresh
+ * in-progress banner — so a reviewer sees what the run covers before its first
+ * result. Replaces any earlier run's banner and progress: a plan starts a run.
+ *
+ * @param planned - The cases in the order they will run; their status is ignored.
+ * @param startedAt - When the run started.
+ * @returns Whether the plan reached the PR.
+ */
+export function noteE2ePlan(
+  prUrl: string,
+  planned: Pick<E2eProgressCase, "testCaseId" | "title">[],
+  run: GhRunner = defaultGhRunner,
+  startedAt: Date = new Date(),
+): boolean {
+  const queued = planned.map((plannedCase) => ({
+    testCaseId: plannedCase.testCaseId,
+    title: plannedCase.title,
+    status: E2eProgressStatus.Queued,
+  }));
+  return rewriteDesignatedComment(prUrl, run, (body) =>
+    withProgressSection(withRunStartedNotice(body, startedAt), queued),
+  );
+}
+
+/**
+ * Record one finished test case in the progress table of the run in flight.
+ *
+ * Does nothing once no banner is left — the run's walkthrough has replaced it,
+ * and a late update must never write the in-progress body back over the report.
+ *
+ * @returns Whether the update reached the PR.
+ */
+export function noteE2eCaseFinished(
+  prUrl: string,
+  finished: E2eProgressCase,
+  run: GhRunner = defaultGhRunner,
+): boolean {
+  return rewriteDesignatedComment(prUrl, run, (body) =>
+    withProgressSection(body, withFinishedCase(readProgressCases(body), finished)),
+  );
+}
+
+// A pending placeholder becomes the running notice; a comment that shows a run
+// or a skip gets the banner on top. An earlier banner is dropped first, so a
+// run abandoned mid-way never leaves its start time on the next one.
+function withRunStartedNotice(body: string, startedAt: Date): string {
+  const unmarked = withoutRerunNotice(body);
+  return classifyComment(unmarked) === WalkthroughCommentStatus.Pending
+    ? renderRunningComment(startedAt)
+    : withRerunNotice(unmarked, startedAt);
+}
+
+// A run's plan, its start banner, and each finished case are written by
+// separate detached jobs that can overlap; the lock keeps each read-modify-write
+// from landing on a body another one already replaced.
+function rewriteDesignatedComment(
+  prUrl: string,
+  run: GhRunner,
+  rewrite: (body: string) => string | null,
+): boolean {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
-  const comments = listPrComments(pr, run);
-  if (comments === null) return false;
-  const designated = designatedComment(comments);
-  if (!designated) return false;
-  if (hasRerunNotice(designated.body)) return false;
-  const body =
-    classifyComment(designated.body) === WalkthroughCommentStatus.Pending
-      ? renderRunningComment(startedAt)
-      : withRerunNotice(designated.body, startedAt);
-  return patchPrComment(pr, designated.id, body, run);
+  const lockPath = join(tmpdir(), `${DESIGNATED_COMMENT_LOCK_PREFIX}${pr.repo.replace("/", "-")}-${pr.prNumber}.lock`);
+  const isWritten = withFileLock(lockPath, DESIGNATED_COMMENT_LOCK_WAIT_MS, () => {
+    const comments = listPrComments(pr, run);
+    if (comments === null) return false;
+    const designated = designatedComment(comments);
+    if (!designated) return false;
+    const body = rewrite(designated.body);
+    return body !== null && patchPrComment(pr, designated.id, body, run);
+  });
+  return isWritten ?? false;
 }

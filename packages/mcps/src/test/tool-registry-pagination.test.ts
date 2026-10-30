@@ -110,7 +110,7 @@ describe("cloud E2E tool registry — pagination", () => {
     expect(snapshot).toMatchInlineSnapshot(`
       [
         {
-          "description": "List projects accessible to the authenticated user. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
+          "description": "List projects accessible to the authenticated user: the projects they own plus the projects shared with them. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
           "name": "muggle-remote-project-list",
         },
         {
@@ -140,6 +140,7 @@ describe("cloud E2E tool registry — pagination", () => {
         name: "muggle-remote-project-list",
         input: { page: 2, pageSize: 25, sortBy: "updatedAt", sortOrder: "asc" },
         expectedPath: "/v1/protected/muggle-test/projects",
+        expectedExtraParams: { includeShared: true },
       },
       {
         name: "muggle-remote-use-case-list",

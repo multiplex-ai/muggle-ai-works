@@ -2,6 +2,8 @@
 
 The flow for an `[audio]` criterion. Shared rules — obtaining the artifact, verdicts, the report entry — live in the `deliverable-categories.md` index beside this folder, which opens this file.
 
+**Verified by:** deliverable check.
+
 ## Artifact
 
 An audio file: committed at head, or produced by the repo's render or text-to-speech command.

@@ -2,6 +2,8 @@
 
 The flow for an `[image]` criterion. Shared rules — obtaining the artifact, verdicts, the report entry — live in the `deliverable-categories.md` index beside this folder, which opens this file.
 
+**Verified by:** deliverable check.
+
 ## Artifact
 
 A raster or vector image: committed at head, or produced by the repo's build or export command.

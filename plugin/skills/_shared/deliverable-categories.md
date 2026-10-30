@@ -1,6 +1,6 @@
 # Deliverable categories
 
-A **deliverable** is the artifact an acceptance criterion is about. Its **deliverable category** is one of `web`, `video`, `image`, `audio`, `data`, `research` — the one list of categories, which other files reference rather than restate. A `web` criterion is verified by browser test cases. Every other category is verified by a **deliverable check**: obtain the artifact, probe it, review it, return a verdict.
+A **deliverable** is the artifact an acceptance criterion is about. Its **deliverable category** is one of `web`, `video`, `image`, `audio`, `data`, `research` — the one list of categories, which other files reference rather than restate. No category is special-cased: each criterion is verified the way its category's flow file declares under **Verified by** — **test cases** (Muggle browser test cases, run against the app) or a **deliverable check** (obtain the artifact, probe it, review it, return a verdict). Scoping and the acceptance stage read that declaration from the criterion's category and never branch on a category's name.
 
 ## Tagging a criterion
 
@@ -21,17 +21,18 @@ Media probes use `ffprobe`, and frame extraction and media filters use `ffmpeg`.
 
 ## Category flows
 
-Each non-web category's flow lives in its own file, so it can be customized without touching the others. Each file names the artifact, the probes, the review, and when the check is `INCONCLUSIVE`; the rules on this page apply to all of them.
+Every category's flow lives in its own file, so it can be customized without touching the others. Each file declares **Verified by**, then names the artifact, how it is verified, and when the verification is `INCONCLUSIVE`; the rules on this page apply to all of them. Changing a category's **Verified by** changes how its criteria are scoped and run, with no edit anywhere else.
 
-| Category | Flow |
-| :-- | :-- |
-| video | [`deliverable-categories/video.md`](deliverable-categories/video.md) |
-| image | [`deliverable-categories/image.md`](deliverable-categories/image.md) |
-| audio | [`deliverable-categories/audio.md`](deliverable-categories/audio.md) |
-| data | [`deliverable-categories/data.md`](deliverable-categories/data.md) |
-| research | [`deliverable-categories/research.md`](deliverable-categories/research.md) |
+| Category | Verified by | Flow |
+| :-- | :-- | :-- |
+| web | test cases | [`deliverable-categories/web.md`](deliverable-categories/web.md) |
+| video | deliverable check | [`deliverable-categories/video.md`](deliverable-categories/video.md) |
+| image | deliverable check | [`deliverable-categories/image.md`](deliverable-categories/image.md) |
+| audio | deliverable check | [`deliverable-categories/audio.md`](deliverable-categories/audio.md) |
+| data | deliverable check | [`deliverable-categories/data.md`](deliverable-categories/data.md) |
+| research | deliverable check | [`deliverable-categories/research.md`](deliverable-categories/research.md) |
 
-A deliverable check opens the flow file for its category before running anything.
+Scoping and the acceptance stage open the flow file of every category the cycle's criteria carry before planning or running anything.
 
 ## Verdict
 

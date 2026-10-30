@@ -1,11 +1,13 @@
 /**
  * Layer 1 of the skill-gate eval: static contract lint.
  *
- * Pins the deliverable categories muggle-do verifies beyond web. A criterion
- * about a video, image, audio file, dataset, or research brief used to be
- * scoped `unobservable` or skipped as NOT_APPLICABLE, so those changes reached
- * review with no acceptance evidence. Each category now has a check contract,
- * and every stage that scopes, runs, reports, or repairs acceptance reads it.
+ * Pins the deliverable categories muggle-do verifies. A criterion about a
+ * video, image, audio file, dataset, or research brief used to be scoped
+ * `unobservable` or skipped as NOT_APPLICABLE, so those changes reached review
+ * with no acceptance evidence. Every category, web included, now has a flow file
+ * declaring how its criteria are verified, and every stage that scopes, runs,
+ * reports, or repairs acceptance reads that declaration rather than branching
+ * on a category's name.
  *
  * Prose is the implementation here. These assertions do NOT catch an agent that
  * reads the contract and ignores it.
@@ -24,7 +26,22 @@ const DO_DIR = path.join(SKILLS_DIR, "do");
 
 const read = (...segments: string[]): string => fs.readFileSync(path.join(...segments), "utf8");
 
-const NON_WEB_CATEGORIES = ["video", "image", "audio", "data", "research"];
+const TEST_CASES_VERIFICATION = "test cases";
+const DELIVERABLE_CHECK_VERIFICATION = "deliverable check";
+
+const VERIFICATION_BY_CATEGORY: Record<string, string> = {
+  web: TEST_CASES_VERIFICATION,
+  video: DELIVERABLE_CHECK_VERIFICATION,
+  image: DELIVERABLE_CHECK_VERIFICATION,
+  audio: DELIVERABLE_CHECK_VERIFICATION,
+  data: DELIVERABLE_CHECK_VERIFICATION,
+  research: DELIVERABLE_CHECK_VERIFICATION,
+};
+
+const FLOW_HEADINGS_BY_VERIFICATION: Record<string, string[]> = {
+  [TEST_CASES_VERIFICATION]: ["Artifact", "Test cases", "Review", "Inconclusive when"],
+  [DELIVERABLE_CHECK_VERIFICATION]: ["Artifact", "Probes", "Review", "Inconclusive when"],
+};
 const CONTRACT_LINK = /deliverable-categories\.md/;
 
 const CATEGORIES_DOC = read(SKILLS_DIR, "_shared", "deliverable-categories.md");
@@ -49,16 +66,22 @@ describe("parser sanity: refuse to pass vacuously", () => {
 });
 
 describe("the categories file is the one list", () => {
-  it("names web plus every non-web category", () => {
+  it("names every category", () => {
     expect(CATEGORIES_DOC).toMatch(/one of `web`, `video`, `image`, `audio`, `data`, `research`/);
   });
 
-  it("gives every non-web category its own flow file, linked from the index", () => {
-    for (const category of NON_WEB_CATEGORIES) {
+  it("special-cases no category: each is routed by its flow's declaration", () => {
+    expect(CATEGORIES_DOC).toMatch(/No category is special-cased/);
+    expect(CATEGORIES_DOC).toMatch(/never branch on a category's name/);
+  });
+
+  it("gives every category a flow file whose Verified by matches the index", () => {
+    for (const [category, verification] of Object.entries(VERIFICATION_BY_CATEGORY)) {
       const flowFile = `deliverable-categories/${category}.md`;
       const flow = read(SKILLS_DIR, "_shared", flowFile);
-      expect(CATEGORIES_DOC, `${category} link`).toContain(`](${flowFile})`);
-      for (const heading of ["Artifact", "Probes", "Review", "Inconclusive when"]) {
+      expect(CATEGORIES_DOC, `${category} row`).toContain(`| ${category} | ${verification} | [\`${flowFile}\`](${flowFile}) |`);
+      expect(flow, `${category} declaration`).toContain(`**Verified by:** ${verification}.`);
+      for (const heading of FLOW_HEADINGS_BY_VERIFICATION[verification]) {
         expect(flow, `${category} ${heading}`).toMatch(new RegExp(`^## ${heading}$`, "m"));
       }
       // A flow file linking back up to the index would make a cycle the skill-deps guard rejects.
@@ -85,6 +108,8 @@ describe("every acceptance stage reads the contract", () => {
     expect(scopeSection).toMatch(CONTRACT_LINK);
     expect(scopeSection).toMatch(/^\s+deliverableChecks:$/m);
     expect(scopeSection).toMatch(/verifiedBy/);
+    expect(IMPACT_ANALYSIS).toMatch(/follows its category's flow file .*never the category's name/);
+    expect(IMPACT_ANALYSIS).not.toMatch(/\[web\]/);
     expect(scopeSection).toMatch(/whenever `Validation` is not `skip`/);
   });
 

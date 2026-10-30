@@ -2,6 +2,8 @@
 
 The flow for a `[video]` criterion. Shared rules — obtaining the artifact, verdicts, the report entry — live in the `deliverable-categories.md` index beside this folder, which opens this file.
 
+**Verified by:** deliverable check.
+
 ## Artifact
 
 A rendered video file: committed at head, or produced by the repo's render command.

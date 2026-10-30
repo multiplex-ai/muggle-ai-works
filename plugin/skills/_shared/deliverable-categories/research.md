@@ -2,6 +2,8 @@
 
 The flow for a `[research]` criterion. Shared rules — obtaining the artifact, verdicts, the report entry — live in the `deliverable-categories.md` index beside this folder, which opens this file.
 
+**Verified by:** deliverable check.
+
 ## Artifact
 
 A report or brief: committed at head, or produced by the repo's generation command.

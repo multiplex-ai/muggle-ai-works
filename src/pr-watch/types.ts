@@ -55,6 +55,8 @@ export interface WatchPreferences {
   autoRebase?: string;
   /** The `maxCatchUpRebases` cap; null when unbounded (`never`) or unreadable. */
   maxCatchUpRebases: number | null;
+  /** The `watcherLifetime` cap in seconds, 0 for `never`; undefined when unreadable, leaving the loop's own default. */
+  watcherLifetimeSeconds?: number;
 }
 
 /** What the arm step needs to decide which outstanding work it may floor as already handled. */

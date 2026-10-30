@@ -11,9 +11,15 @@ set -euo pipefail
 # run, because re-arming a stranger's PR would hand review work to a session with
 # no context for it. A session that owns none hears nothing: the hook speaks into
 # every session start, and slots owned elsewhere are no work of this one's —
-# `muggle watch status` reports them. A pure directory scan — no gh, no writes,
-# bash builtins only — so it stays cheap enough for every session start however
-# many slots have piled up.
+# `muggle watch status` reports them.
+#
+# A slot registered with the muggle watch service needs no nudge either: the
+# service restarts its loop outside the session and wakes the session only with
+# that PR's own report. A session gets this hook's context only on a resume or
+# a compaction, mid-work, so nudging a sweep for a slot the service already
+# keeps would only cut into that work. A pure directory scan — no gh, no
+# writes, bash builtins only — so it stays cheap enough for every session start
+# however many slots have piled up.
 
 hook_dir="${BASH_SOURCE[0]%/*}"
 [ "$hook_dir" = "${BASH_SOURCE[0]}" ] && hook_dir=.
@@ -64,6 +70,7 @@ if [ -d "$sessions_dir" ]; then
         case "$slot" in *.stopped/) continue ;; esac
         [ -f "${slot}prs.json" ] || continue
         [ ! -f "${slot}result.md" ] || continue
+        [ ! -f "${slot}watch-registration.json" ] || continue
 
         slot_owner=""
         if [ -f "${slot}owner.json" ]; then
@@ -87,7 +94,7 @@ else
     owned_word="watchers"
 fi
 
-context="muggle-pr-followup: ${owned_count} open ${owned_word} owned by this session may have lost its poller. Run \`/muggle:muggle-pr-followup reconcile\` to finalize any whose PR went terminal and re-arm the silently-stopped ones. Reconcile is idempotent and re-arms only watchers this session armed itself."
+context="muggle-pr-followup: ${owned_count} open ${owned_word} owned by this session, not kept by the muggle watch service, may have lost its poller. Run \`/muggle:muggle-pr-followup reconcile\` to finalize any whose PR went terminal and re-arm the silently-stopped ones. Reconcile is idempotent and re-arms only watchers this session armed itself."
 
 escaped_context=$(escape_for_json "$context")
 

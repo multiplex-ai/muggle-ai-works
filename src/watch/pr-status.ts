@@ -18,6 +18,7 @@ export function isTerminalPrState(state: ProviderPrState | undefined): boolean {
 const PR_STATUS_FRAGMENT = `fragment WatchPr on PullRequest {
   state
   headRefOid
+  baseRefName
   mergeable
   mergeStateStatus
   commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
@@ -27,6 +28,7 @@ const PR_STATUS_FRAGMENT = `fragment WatchPr on PullRequest {
 interface PullRequestNode {
   state?: unknown;
   headRefOid?: unknown;
+  baseRefName?: unknown;
   mergeable?: unknown;
   mergeStateStatus?: unknown;
   commits?: { nodes?: Array<{ commit?: { statusCheckRollup?: { state?: unknown } | null } }> };
@@ -64,6 +66,7 @@ export function parsePullRequestNode(url: string, node: PullRequestNode | null |
     mergeStateStatus: enumValueOf(PrMergeStateStatus, node.mergeStateStatus),
     ciRollup: enumValueOf(CiRollupState, node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state),
     unresolvedThreadCount: (node.reviewThreads?.nodes ?? []).filter((thread) => thread.isResolved === false).length,
+    baseBranch: optionalString(node.baseRefName),
   };
 }
 

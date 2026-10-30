@@ -16,6 +16,8 @@ import {
   ReloadAction,
   TrackedProcessKind,
   WatcherLiveness,
+  ServiceArmOutcome,
+  ServiceLoopReportKind,
   WatcherRecoveryOutcome,
   WatchFindingCode,
   WatchFindingSeverity,
@@ -30,20 +32,20 @@ function alert(subject: string, severity = WatchFindingSeverity.Alert): WatchFin
 }
 
 describe("composeTickNotification", () => {
-  it("lists new alerts, attempted resumes, and sessions that must reload by hand", () => {
+  it("lists new alerts, attempted wakes, and sessions that must reload by hand", () => {
     const lines = composeTickNotification(
       [alert("o/r#1"), alert("o/r#2", WatchFindingSeverity.Warning)],
       [
-        { ownerSessionId: "aaaaaaaa-1", slotSlugs: ["csv"], outcome: WatcherRecoveryOutcome.Resumed },
-        { ownerSessionId: "bbbbbbbb-1", slotSlugs: ["x", "y"], outcome: WatcherRecoveryOutcome.ResumeFailed },
-        { ownerSessionId: "cccccccc-1", slotSlugs: ["z"], outcome: WatcherRecoveryOutcome.CoolingDown },
+        { ownerSessionId: "aaaaaaaa-1", slotSlug: "csv", slotDir: "/s/csv", prNumber: 7, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.Resumed },
+        { ownerSessionId: "bbbbbbbb-1", slotSlug: "x", slotDir: "/s/x", prNumber: 8, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.ResumeFailed },
+        { ownerSessionId: "cccccccc-1", slotSlug: "z", slotDir: "/s/z", prNumber: 9, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.CoolingDown },
       ],
       undefined,
     );
     expect(lines).toEqual([
       "o/r#1: checks are failure",
-      "Resumed session aaaaaaaa to re-arm csv",
-      "Could not resume session bbbbbbbb for x, y",
+      "Woke session aaaaaaaa for PR #7 (event)",
+      "Could not wake session bbbbbbbb for PR #8 (event)",
     ]);
     const reload = {
       decisions: [
@@ -197,7 +199,8 @@ describe("renderWatchStatus", () => {
       { key: "w", code: WatchFindingCode.BehindBase, severity: WatchFindingSeverity.Warning, subject: "o/r#7", message: "behind" },
       { key: "a", code: WatchFindingCode.WatcherDead, severity: WatchFindingSeverity.Alert, subject: "o/r#7", message: "dead" },
     ],
-    recoveries: [{ ownerSessionId: "aaaaaaaa-1", slotSlugs: ["csv"], outcome: WatcherRecoveryOutcome.Resumed }],
+    recoveries: [{ ownerSessionId: "aaaaaaaa-1", slotSlug: "csv", slotDir: "/s/csv", prNumber: 7, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.Resumed }],
+    serviceArms: [{ slug: "csv-export", prUrl: "u", outcome: ServiceArmOutcome.Armed }],
     reload: {
       decisions: [
         { sessionId: "d", action: ReloadAction.Defer, reason: "" },
@@ -226,7 +229,8 @@ describe("renderWatchStatus", () => {
     expect(text).toContain("owner c (active)");
     expect(text).toMatch(/no owner {2}status unavailable/);
     expect(text.indexOf("WATCHER_DEAD")).toBeLessThan(text.indexOf("BEHIND_BASE"));
-    expect(text).toContain("session aaaaaaaa  resumed  csv");
+    expect(text).toContain("session aaaaaaaa  resumed  csv PR #7 (event)");
+    expect(text).toContain("Watch loops started by the watch:");
     expect(text).toContain("Plugin reload: 1 restarted, 0 failed, 1 deferred, 2 need /reload-plugins by hand");
   });
 

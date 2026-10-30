@@ -10,7 +10,6 @@ import {
   type ReloadDecision,
   type WorkSession,
 } from "../../watch/types.js";
-import { RECOVERY_RESUME_PROMPT } from "../../watch/constants.js";
 import { scriptedRunner, succeeded } from "./fixtures.js";
 
 const CHANGED_AT_MS = 1_000_000;
@@ -60,11 +59,12 @@ describe("planReloadFanOut", () => {
       background("unknown", { turnStatus: undefined }),
       { agent: WorkSessionAgent.Codex, sessionId: "codex" },
       background("idle-2", { startedAtMs: undefined }),
+      background("idle-3"),
     ];
     const decisions = planReloadFanOut(sessions, pending, new Set(["owner"]), 2);
     expect(decisions.map((planned) => [planned.sessionId, planned.action, planned.reason])).toEqual([
       ["idle-1", ReloadAction.Respawn, "idle background session"],
-      ["owner", ReloadAction.ResumeReconcile, "idle, owns open PR watches"],
+      ["owner", ReloadAction.Skip, "owns open PR watches — left running; run /reload-plugins in it"],
       ["gone", ReloadAction.Skip, "no live process"],
       ["new", ReloadAction.Skip, "already on the installed build"],
       ["reloaded", ReloadAction.Skip, "already on the installed build"],
@@ -76,53 +76,33 @@ describe("planReloadFanOut", () => {
       ["noid", ReloadAction.Skip, "not a background session the watch can restart"],
       ["busy", ReloadAction.Defer, "turn in flight (busy)"],
       ["unknown", ReloadAction.Defer, "turn in flight (unknown)"],
-      ["idle-2", ReloadAction.Defer, "restart cap reached this pass"],
+      ["idle-2", ReloadAction.Respawn, "idle background session"],
+      ["idle-3", ReloadAction.Defer, "restart cap reached this pass"],
     ]);
     expect(decisions[0].cwd).toBe("/work/idle-1");
   });
 });
 
 describe("executeReloadFanOut", () => {
-  it("respawns, resumes watch owners on reconcile, and records failures", () => {
+  it("respawns only, never resuming a session on a prompt, and records failures", () => {
     const runner = scriptedRunner((_, args) => (args[1] === "bad" ? { exitCode: 1, stdout: "" } : succeeded("")));
     const report = executeReloadFanOut(
       [
         decision("good", ReloadAction.Respawn),
         decision("bad", ReloadAction.Respawn),
-        decision("own", ReloadAction.ResumeReconcile),
+        decision("owner", ReloadAction.Skip),
         decision("defer", ReloadAction.Defer),
       ],
       runner.runCommand,
-      () => true,
       () => true,
     );
     expect(runner.calls.map((call) => call.args)).toEqual([
       ["respawn", "good"],
       ["respawn", "bad"],
-      ["stop", "own"],
-      ["--resume", "s-own", "--bg", RECOVERY_RESUME_PROMPT],
     ]);
-    expect(runner.calls[3].options?.cwd).toBe("/work/own");
-    expect(report.respawnedSessionIds).toEqual(["s-good", "s-own"]);
+    expect(report.respawnedSessionIds).toEqual(["s-good"]);
     expect(report.failedSessionIds).toEqual(["s-bad"]);
     expect(report.untrustedSessionIds).toEqual([]);
-  });
-
-  it("does not resume a watch owner that is still running after the stop, so no copy of it starts", () => {
-    const runner = scriptedRunner(() => succeeded(""));
-    const awaitedSessionIds: string[] = [];
-    const report = executeReloadFanOut(
-      [decision("own", ReloadAction.ResumeReconcile)],
-      runner.runCommand,
-      () => true,
-      (sessionId) => {
-        awaitedSessionIds.push(sessionId);
-        return false;
-      },
-    );
-    expect(awaitedSessionIds).toEqual(["s-own"]);
-    expect(runner.calls.map((call) => call.args)).toEqual([["stop", "own"]]);
-    expect(report.failedSessionIds).toEqual(["s-own"]);
   });
 
   it("never touches a session whose workspace refuses a background restart, probing each workspace once", () => {
@@ -131,7 +111,7 @@ describe("executeReloadFanOut", () => {
     const report = executeReloadFanOut(
       [
         decision("a", ReloadAction.Respawn, "/locked"),
-        decision("b", ReloadAction.ResumeReconcile, "/locked"),
+        decision("b", ReloadAction.Respawn, "/locked"),
         { ...decision("c", ReloadAction.Respawn), cwd: undefined },
       ],
       runner.runCommand,
@@ -139,7 +119,6 @@ describe("executeReloadFanOut", () => {
         probedCwds.push(cwd);
         return false;
       },
-      () => true,
     );
     expect(runner.calls).toEqual([]);
     expect(probedCwds).toEqual(["/locked"]);

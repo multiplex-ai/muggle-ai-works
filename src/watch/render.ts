@@ -91,10 +91,18 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
     }
   }
 
+  const serviceArms = snapshot.serviceArms ?? [];
+  if (serviceArms.length > 0) {
+    lines.push("", "Watch loops started by the watch:");
+    for (const serviceArm of serviceArms) {
+      lines.push(`  ${serviceArm.slug.padEnd(44)} ${serviceArm.outcome}`);
+    }
+  }
+
   if (snapshot.recoveries.length > 0) {
-    lines.push("", "Recoveries:");
+    lines.push("", "Owner wakes:");
     for (const recovery of snapshot.recoveries) {
-      lines.push(`  session ${shortSessionId(recovery.ownerSessionId)}  ${recovery.outcome}  ${recovery.slotSlugs.join(", ")}`);
+      lines.push(`  session ${shortSessionId(recovery.ownerSessionId)}  ${recovery.outcome}  ${recovery.slotSlug} PR #${recovery.prNumber} (${recovery.reportKind})`);
     }
   }
 

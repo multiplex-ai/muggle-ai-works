@@ -59,9 +59,19 @@ The slot's opt-in to recovery by the muggle watch service (`muggle watch`, a per
 }
 ```
 
-Recovery requires all of: the slot is registered, the PR is open on GitHub, no loop process carries the slot's `--slot` path, the heartbeat is older than the re-arm hand-off, `polling.disabled` is absent, and the `owner.json` session either has no running process or is a background session idle between turns. The service then resumes that session in the background from the project dir its transcript records, starting it on `/muggle:muggle-pr-followup reconcile`. An idle running owner is stopped first, and only after a throwaway background launch confirms Claude will resume it in that workspace. Reconcile re-arms only the slots the session owns, so recovery never moves a PR to another session. One resume per owner covers every slot it owns. The service caps resumes per pass and per owner, then falls back to a desktop alert. A resume whose turn ended on the usage-limit notice doesn't count toward the per-owner cap.
+Recovery requires all of: the slot is registered, the PR is open on GitHub, no loop is heard (no loop process carries the slot's `--slot` path, or the one that does prints into a session that has ended), the heartbeat is older than the re-arm hand-off, `polling.disabled` is absent, `owner.json` names an owner, and that owner is not mid-turn. The service then runs `pr-watch-arm.sh` itself, detached, with `MUGGLE_PR_WATCH_LISTENER=muggle-watch`. The loop records [`watch-listener`](#watch-listener) and writes its output to [`watch-service.out`](#watch-serviceout), and no session spends a turn on it.
 
-**Absent ⇒ observed only.** The service still reports on the slot's watcher, CI and branch standing, but never resumes its owner. Slots armed before this file existed stay that way until their next arm. The file lives in the slot, so a `.stopped` rename or a `result.md` retires it with the slot.
+When that loop exits on an `EVENT` or `TERMINAL` line, the service wakes the owner with `/muggle:muggle-pr-followup <slug> <n> --wake=<event|terminal>`, naming that slot and PR only. It resumes the owner in the background from the project dir its transcript records. A running owner is woken only as a background session idle between turns: it is stopped first, and only after a throwaway background launch confirms Claude will resume it in that workspace. An owner that is mid-turn, waiting on its user, or open in a terminal keeps the report, and the service alerts once the report is overdue. The service never wakes the ended owner of a merged or closed PR; it closes that slot out instead. An `EXPIRED` loop is restarted without waking anyone. The service caps loop starts and wakes per pass, caps failed wakes per owner, and holds every wake while the account sits at a usage limit.
+
+**Absent ⇒ observed only.** The service still reports on the slot's watcher, CI and branch standing, but never starts its loop or wakes its owner. Slots armed before this file existed stay that way until their next arm. The file lives in the slot, so a `.stopped` rename or a `result.md` retires it with the slot.
+
+## `watch-listener`
+
+Who hears the leased loop's exit. A loop started with `MUGGLE_PR_WATCH_LISTENER` set writes that value here (the muggle watch service sets `muggle-watch`). A loop started without it deletes the file, because the session that armed it hears it. The service counts a loop it started as heard even after the owner session ends.
+
+## `watch-service.out`
+
+The output of the last loop the muggle watch service started for the slot. Its `EVENT`, `TERMINAL`, `EXPIRED`, `WATCH-FAIL` or `ARM-FAIL` line says why the loop ended. Once the owner is woken for an `EVENT` or `TERMINAL` report, the file is renamed `watch-service.delivered.out`, so no later pass wakes the owner for it again. A loop a session arms deletes the file, because that arm's drain covers whatever it held.
 
 ## `cron.json`
 

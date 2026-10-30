@@ -88,11 +88,21 @@ describe("resolveWatchPreferences", () => {
     expect(resolveWatchPreferences(home, plugin).maxCatchUpRebases).toBeNull();
   });
 
-  it("matches the shipped defaults for autoRebase", () => {
+  it("reads the watcher lifetime as seconds, never as unbounded, and an unknown value as no override", () => {
+    const lifetimeOf = (userValue: unknown): number | undefined =>
+      resolveWatchPreferences(...homeAndPlugin({ watcherLifetime: userValue }, { watcherLifetime: "7d" })).watcherLifetimeSeconds;
+    expect(lifetimeOf("1d")).toBe(86_400);
+    expect(lifetimeOf("never")).toBe(0);
+    expect(lifetimeOf("3w")).toBe(604_800);
+    expect(resolveWatchPreferences(...homeAndPlugin(undefined, {})).watcherLifetimeSeconds).toBeUndefined();
+  });
+
+  it("matches the shipped defaults", () => {
     const pluginRoot = fileURLToPath(new URL("../../../plugin", import.meta.url));
     expect(resolveWatchPreferences(mkdtempSync(join(tmpdir(), "pr-watch-home-")), pluginRoot)).toEqual({
       autoRebase: "always",
       maxCatchUpRebases: 20,
+      watcherLifetimeSeconds: 604_800,
     });
   });
 

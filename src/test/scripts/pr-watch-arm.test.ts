@@ -425,6 +425,19 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh exits on report", () => {
     });
     expect(stdout).toMatch(/^EXPIRED pr=1 /m);
   }, 60_000);
+
+  // The watch service hears a loop it started from the slot, so the loop says so;
+  // a session's arm takes the slot back, along with any report the service held.
+  it("records the watch service as its listener, and a session arm clears it", () => {
+    const slot = seededSlot();
+    const quickExit = { MUGGLE_PR_WATCH_MAX_LIFETIME: "1", MUGGLE_PR_WATCH_POLL_INTERVAL: "1" };
+    runLoopOverSlot(slot, stubGhDir(), { ...quickExit, MUGGLE_PR_WATCH_LISTENER: "muggle-watch" });
+    expect(readSlotFile(slot, "watch-listener").trim()).toBe("muggle-watch");
+    writeFileSync(join(slot, "watch-service.out"), "EVENT pr=1 new submitted review id=42\n");
+    runLoopOverSlot(slot, stubGhDir(), quickExit);
+    expect(existsSync(join(slot, "watch-listener"))).toBe(false);
+    expect(existsSync(join(slot, "watch-service.out"))).toBe(false);
+  }, 60_000);
 });
 
 // Every idle wake now ends in a re-arm, so a review landing between the session's

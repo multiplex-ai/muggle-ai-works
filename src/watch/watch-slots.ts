@@ -4,8 +4,16 @@ import { STOPPED_SLOT_SUFFIX, TERMINAL_SLOT_PR_STATES } from "../guardrails/cons
 import { parsePrUrl } from "../pr-walkthrough/gh.js";
 import { LAST_SEEN_FILE_NAME } from "../pr-watch/constants.js";
 import { readSlotText } from "../pr-watch/slotFiles.js";
-import { FOLLOWUP_LOG_FILE, PR_POLLING_DISABLED_FILE, SLOT_CLOSED_OUT_BY, WATCH_REGISTRATION_FILE } from "./constants.js";
+import {
+  FOLLOWUP_LOG_FILE,
+  PR_POLLING_DISABLED_FILE,
+  SERVICE_WATCH_LISTENER,
+  SLOT_CLOSED_OUT_BY,
+  WATCH_LISTENER_FILE,
+  WATCH_REGISTRATION_FILE,
+} from "./constants.js";
 import { optionalString } from "./field-parsers.js";
+import { readServiceLoopReport } from "./service-loop.js";
 import type { SlotPr, WatchSlotRecord, WatchSlotRegistration } from "./types.js";
 
 interface PrsJsonEntry {
@@ -89,6 +97,8 @@ export function readOpenWatchSlots(slotsDir: string): WatchSlotRecord[] {
       openPrs: openPrs,
       lastSeenJson: readSlotText(join(slotDir, LAST_SEEN_FILE_NAME)),
       followupLogLines: readSlotText(join(slotDir, FOLLOWUP_LOG_FILE)).split(/\r?\n/),
+      isHeardByService: readSlotText(join(slotDir, WATCH_LISTENER_FILE)).trim() === SERVICE_WATCH_LISTENER,
+      serviceLoopReport: readServiceLoopReport(slotDir),
     });
   }
   return slots;

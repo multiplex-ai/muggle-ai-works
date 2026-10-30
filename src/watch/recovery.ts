@@ -3,20 +3,23 @@ import { ProviderPrState } from "../guardrails/types.js";
 import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import {
   MAX_RESUMES_PER_TICK,
+  PR_FOLLOWUP_COMMAND,
   RECOVERY_ATTEMPT_WINDOW_MS,
   RECOVERY_COOLDOWN_MS,
   RECOVERY_MAX_ATTEMPTS,
 } from "./constants.js";
 import { shortSessionId } from "./format.js";
 import { isTerminalPrState } from "./pr-status.js";
+import { isOwnerWakeReport, markServiceLoopReportDelivered } from "./service-loop.js";
 import { isIdleBackgroundSession } from "./session-liveness.js";
-import { resumeOnReconcile } from "./session-restart.js";
+import { resumeSession } from "./session-restart.js";
 import {
   WatcherLiveness,
   WatcherRecoveryOutcome,
   WatchEventKind,
   type ExecutedRecoveries,
   type RecoveryExecutionDeps,
+  type ServiceLoopReportKind,
   type WatcherRecovery,
   type WatchEvent,
   type WatchSlotAssessment,
@@ -24,53 +27,64 @@ import {
 } from "./types.js";
 
 /**
- * Whether the watch may restore this slot's watcher itself. Every condition
- * closes a way recovery could do harm: an unregistered slot never opted in, an
- * unconfirmed or terminal PR owes no watch, a live loop would mean two pollers,
- * and an unknown owner has no context to resume into. A running owner is
- * recoverable only between turns — a turn in flight may be re-arming already,
- * and one waiting on its user must not lose the question.
+ * Whether the watch may wake this slot's owner for what its loop reported.
+ * Only a report from a loop the watch started counts, and only once that loop
+ * has exited. A running owner is woken only between turns — never while it
+ * works or waits on its user — and an ended one is resumed, unless its PR has
+ * merged or closed: that slot is closed out instead, without waking anyone.
  *
  * @param ownerSession - The owner's session listing, when it is running.
  */
-export function isRecoverable(assessment: WatchSlotAssessment, ownerSession?: WorkSession): boolean {
-  const isOwnerRestartable =
-    ownerSession === undefined ? assessment.isOwnerSessionActive === false : isIdleBackgroundSession(ownerSession);
+export function isOwnerWakeDue(assessment: WatchSlotAssessment, ownerSession?: WorkSession): boolean {
+  const isOwnerEnded = ownerSession === undefined && assessment.isOwnerSessionActive === false;
+  const isOwnerReachable = isOwnerEnded
+    ? assessment.live?.state === ProviderPrState.Open
+    : ownerSession !== undefined && isIdleBackgroundSession(ownerSession);
   return (
     assessment.isRegistered &&
-    assessment.watcher === WatcherLiveness.Dead &&
-    assessment.live?.state === ProviderPrState.Open &&
+    isOwnerWakeReport(assessment.serviceLoopReport) &&
+    assessment.watcher !== WatcherLiveness.Polling &&
     assessment.ownerSessionId !== undefined &&
-    isOwnerRestartable
+    assessment.live !== undefined &&
+    (assessment.live.state === ProviderPrState.Open || isTerminalPrState(assessment.live.state)) &&
+    isOwnerReachable
   );
 }
 
 /**
  * Whether the watch should close out this slot itself: GitHub reports its PR
  * merged or closed, no loop is watching it, and its owner session is not
- * running. A running owner's own watcher or reconcile finalizes the slot and
- * dispatches its post-merge cleanup, and closing the slot first would make that
- * session skip the cleanup.
+ * running. A running owner finalizes the slot and dispatches its post-merge
+ * cleanup on its own turn, and closing the slot first would make that session
+ * skip the cleanup.
  */
 export function isSlotCloseOutDue(assessment: WatchSlotAssessment): boolean {
   return isTerminalPrState(assessment.live?.state) && assessment.watcher === WatcherLiveness.Dead && assessment.isOwnerSessionActive !== true;
 }
 
-// A job that continued under a new transcript keeps listing under the short id
-// it started with, so an owner whose own id is no longer listed is found by that.
-function findRunningOwner(sessionsById: Map<string, WorkSession>, ownerSessionId: string): WorkSession | undefined {
+/**
+ * The owner's running session listing. A job that continued under a new
+ * transcript keeps listing under the short id it started with, so an owner
+ * whose own id is no longer listed is found by that.
+ */
+export function findRunningOwner(sessionsById: Map<string, WorkSession>, ownerSessionId: string): WorkSession | undefined {
   const ownerShortId = shortSessionId(ownerSessionId);
   return sessionsById.get(ownerSessionId) ?? [...sessionsById.values()].find((session) => session.shortId === ownerShortId);
 }
 
+/** The one command a woken owner starts on: its own slot and PR, never a sweep of other sessions' work. */
+export function composeOwnerWakePrompt(slotSlug: string, prNumber: number, reportKind: ServiceLoopReportKind): string {
+  return `${PR_FOLLOWUP_COMMAND} ${slotSlug} ${prNumber} --wake=${reportKind}`;
+}
+
 /**
- * One recovery per owner session whose registered slots have dead watchers. A
- * single resume restores all of them, because reconcile re-arms every slot the
- * resumed session owns. While the account sits at a usage limit nothing is
- * resumed or counted, since a resume would only land on the limit; once it
- * resets, every attempt counts toward the cap.
+ * At most one wake per owner session per tick, for the first of its slots with
+ * a report waiting; the rest wait for later ticks, after that wake's turn. Only
+ * failed wakes count toward the cooldown and cap, since a delivered report is
+ * set aside and never wakes anyone twice. While the account sits at a usage
+ * limit nothing is woken or counted.
  *
- * Output shape: `[{ ownerSessionId: "349a…", slotSlugs: ["csv-export"], outcome: "resume-due", ownerShortId: "349a8d3f" }]`
+ * Output shape: `[{ ownerSessionId: "349a…", slotSlug: "csv-export", slotDir: "…", prNumber: 7, reportKind: "event", outcome: "resume-due", ownerShortId: "349a8d3f" }]`
  *
  * @param sessionsById - Running sessions, so a live owner can be judged idle.
  * @param isUsageLimitInForce - Whether the account is at a usage limit that has not reset yet.
@@ -84,18 +98,17 @@ export function planWatcherRecoveries(
   isUsageLimitInForce = false,
 ): WatcherRecovery[] {
   if (isPollingDisabled) return [];
-  const slugsByOwner = new Map<string, Set<string>>();
-  for (const assessment of assessments) {
+  const dueByOwner = new Map<string, WatchSlotAssessment>();
+  for (const assessment of [...assessments].sort((left, right) => left.slug.localeCompare(right.slug))) {
     const ownerSession = assessment.ownerSessionId === undefined ? undefined : findRunningOwner(sessionsById, assessment.ownerSessionId);
-    if (!isRecoverable(assessment, ownerSession)) continue;
+    if (!isOwnerWakeDue(assessment, ownerSession)) continue;
     const ownerSessionId = assessment.ownerSessionId as string;
-    const slugs = slugsByOwner.get(ownerSessionId) ?? new Set<string>();
-    slugs.add(assessment.slug);
-    slugsByOwner.set(ownerSessionId, slugs);
+    if (!dueByOwner.has(ownerSessionId)) dueByOwner.set(ownerSessionId, assessment);
   }
   let resumesPlanned = 0;
   const recoveries: WatcherRecovery[] = [];
-  for (const ownerSessionId of [...slugsByOwner.keys()].sort()) {
+  for (const ownerSessionId of [...dueByOwner.keys()].sort()) {
+    const assessment = dueByOwner.get(ownerSessionId) as WatchSlotAssessment;
     const recentAttemptsMs = (attemptsByOwner[ownerSessionId] ?? [])
       .map((attemptedAt) => Date.parse(attemptedAt))
       .filter((attemptedAtMs) => !Number.isNaN(attemptedAtMs) && nowMs - attemptedAtMs < RECOVERY_ATTEMPT_WINDOW_MS);
@@ -109,7 +122,10 @@ export function planWatcherRecoveries(
     if (outcome === WatcherRecoveryOutcome.ResumeDue) resumesPlanned++;
     recoveries.push({
       ownerSessionId: ownerSessionId,
-      slotSlugs: [...(slugsByOwner.get(ownerSessionId) ?? [])].sort(),
+      slotSlug: assessment.slug,
+      slotDir: assessment.slotDir,
+      prNumber: assessment.pr.number,
+      reportKind: assessment.serviceLoopReport?.kind as ServiceLoopReportKind,
       outcome: outcome,
       ...(runningOwner?.shortId === undefined ? {} : { ownerShortId: runningOwner.shortId }),
       ...(runningOwner === undefined || runningOwner.sessionId === ownerSessionId ? {} : { ownerRunningSessionId: runningOwner.sessionId }),
@@ -119,10 +135,11 @@ export function planWatcherRecoveries(
 }
 
 /**
- * Resume each due owner in the background from its own project dir, so its
- * reconcile re-arms the slots it armed. A still-running owner is restarted
- * only where `canRestartIn` confirms Claude will bring it back. Anything not
- * due passes through as planned.
+ * Wake each due owner in the background from its own project dir, on the one
+ * command that hands it its PR's report. A still-running owner is restarted
+ * only where `canRestartIn` confirms Claude will bring it back. A delivered
+ * report is set aside; a failed or refused wake is counted, so it is retried
+ * only after the cooldown. Anything not due passes through as planned.
  */
 export function executeWatcherRecoveries(
   planned: WatcherRecovery[],
@@ -135,38 +152,40 @@ export function executeWatcherRecoveries(
     const recent = attempts.filter((attemptedAt) => deps.nowMs - Date.parse(attemptedAt) < RECOVERY_ATTEMPT_WINDOW_MS);
     if (recent.length > 0) nextAttemptsByOwner[ownerSessionId] = recent;
   }
+  const countAttempt = (ownerSessionId: string): void => {
+    nextAttemptsByOwner[ownerSessionId] = [...(nextAttemptsByOwner[ownerSessionId] ?? []), nowIso];
+  };
   const events: WatchEvent[] = [];
   const recoveries = planned.map((recovery): WatcherRecovery => {
     if (recovery.outcome !== WatcherRecoveryOutcome.ResumeDue) return recovery;
     const cwd = findClaudeSessionCwd(deps.claudeProjectsDir, recovery.ownerSessionId);
     if (!cwd || !existsSync(cwd)) return { ...recovery, outcome: WatcherRecoveryOutcome.TranscriptMissing };
-    // A refused restart counts too, so the trust probe waits out the cooldown instead of relaunching every tick.
-    nextAttemptsByOwner[recovery.ownerSessionId] = [...(nextAttemptsByOwner[recovery.ownerSessionId] ?? []), nowIso];
+    const subject = `session ${shortSessionId(recovery.ownerSessionId)}`;
+    const prompt = composeOwnerWakePrompt(recovery.slotSlug, recovery.prNumber, recovery.reportKind);
     if (recovery.ownerShortId !== undefined && !deps.canRestartIn(cwd)) {
+      countAttempt(recovery.ownerSessionId);
       events.push({
         at: nowIso,
         kind: WatchEventKind.RestartRefused,
-        subject: `session ${shortSessionId(recovery.ownerSessionId)}`,
-        message: `left running: Claude would not resume it in ${cwd}, so ${recovery.slotSlugs.join(", ")} stay unwatched`,
+        subject: subject,
+        message: `left running: Claude would not resume it in ${cwd}, so PR #${recovery.prNumber}'s ${recovery.reportKind} waits`,
       });
       return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.RestartRefused };
     }
-    const isResumed = resumeOnReconcile(
-      { sessionId: recovery.ownerSessionId, cwd: cwd, runningShortId: recovery.ownerShortId, runningSessionId: recovery.ownerRunningSessionId },
+    const isResumed = resumeSession(
+      { sessionId: recovery.ownerSessionId, cwd: cwd, prompt: prompt, runningShortId: recovery.ownerShortId, runningSessionId: recovery.ownerRunningSessionId },
       deps.runCommand,
       deps.waitForExit,
     );
+    if (isResumed) markServiceLoopReportDelivered(recovery.slotDir);
+    else countAttempt(recovery.ownerSessionId);
     events.push({
       at: nowIso,
       kind: isResumed ? WatchEventKind.Resumed : WatchEventKind.ResumeFailed,
-      subject: `session ${shortSessionId(recovery.ownerSessionId)}`,
-      message: `${isResumed ? "resumed" : "could not resume"} to re-arm ${recovery.slotSlugs.join(", ")}`,
+      subject: subject,
+      message: `${isResumed ? "woke it" : "could not wake it"} with ${prompt}`,
     });
-    return {
-      ...recovery,
-      cwd: cwd,
-      outcome: isResumed ? WatcherRecoveryOutcome.Resumed : WatcherRecoveryOutcome.ResumeFailed,
-    };
+    return { ...recovery, cwd: cwd, outcome: isResumed ? WatcherRecoveryOutcome.Resumed : WatcherRecoveryOutcome.ResumeFailed };
   });
   return { recoveries: recoveries, attemptsByOwner: nextAttemptsByOwner, events: events };
 }

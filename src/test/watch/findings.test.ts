@@ -150,9 +150,10 @@ describe("deriveWatchFindings", () => {
       assessment({ watcher: WatcherLiveness.Dead, ownerSessionId: undefined }),
       assessment({ watcher: WatcherLiveness.Dead, isOwnerSessionActive: undefined }),
     ].map((current) => deriveWatchFindings([current], [], false)[0].message);
-    expect(messages[0]).toBe("no watch loop is running (heartbeat 1h30m old); owner session owner-12 is running — run /muggle:muggle-pr-followup reconcile there, or the watch does once it idles in the background");
-    expect(messages[1]).toBe("no watch loop is running (no heartbeat); owner session owner-12 has ended");
-    expect(messages[2]).toContain("not registered for recovery");
+    expect(messages[0]).toBe("no watch loop is running (heartbeat 1h30m old); owner session owner-12 is running — the watch restarts the loop once that session is between turns");
+    expect(messages[1]).toBe("no watch loop is running (no heartbeat); owner session owner-12 has ended — the watch restarts the loop");
+    expect(messages[2]).toContain("slot is not registered, so the watch leaves it to owner session owner-12");
+    expect(messages.some((message) => message.includes("reconcile"))).toBe(false);
     expect(messages[3]).toContain("adopt it with /muggle:muggle-pr-followup adopt csv");
     expect(messages[4]).toContain("could not be checked");
   });

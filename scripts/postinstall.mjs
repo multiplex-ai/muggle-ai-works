@@ -38,6 +38,7 @@ import {
     resolveIntegrityPolicy,
     verifyReleaseSignature,
 } from "./release-integrity/index.mjs";
+import { buildPostInstallGuide, showPostInstallGuide } from "./post-install-guide/index.mjs";
 
 const require = createRequire(import.meta.url);
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
@@ -1056,4 +1057,17 @@ applyWatchServicePreference();
 upsertCursorMcpConfig();
 downloadElectronApp()
     .catch(logError)
-    .finally(() => process.exit(0));
+    .finally(() => {
+        try {
+            showPostInstallGuide({
+                guide: buildPostInstallGuide(),
+                isStdoutTerminal: Boolean(process.stdout.isTTY),
+                env: process.env,
+                platformName: platform(),
+                writeToStdout: log,
+            });
+        } catch (error) {
+            logError(`Failed to show the post-install guide: ${error.message}`);
+        }
+        process.exit(0);
+    });

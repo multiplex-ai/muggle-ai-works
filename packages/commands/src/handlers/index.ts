@@ -10,6 +10,7 @@ export { checkoutFreshnessCommand } from "../../../../src/cli/checkout-freshness
 export { ciInstallCommand } from "../../../../src/cli/ci-install.js";
 export { cleanupCommand, versionsCommand } from "../../../../src/cli/cleanup.js";
 export { doctorCommand } from "../../../../src/cli/doctor.js";
+export { e2ePlanCommand } from "../../../../src/cli/e2e-plan.js";
 export { helpCommand } from "../../../../src/cli/help.js";
 export { initCommand } from "../../../../src/cli/init/init-command.js";
 export { llmSourceCommand } from "../../../../src/cli/llm-source/llm-source-command.js";

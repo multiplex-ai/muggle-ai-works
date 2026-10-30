@@ -1,6 +1,6 @@
 import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync, rmSync } from 'fs';
 import { join, isAbsolute, resolve, basename, dirname } from 'path';
-import { homedir, hostname } from 'os';
+import { homedir, tmpdir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -72,6 +72,7 @@ var FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 var MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
 var MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
 var MUGGLE_RUN_PASSED_STATUS = "passed";
+var MUGGLE_RUN_VIEW_URL_LINE = /\*\*View URL:\*\*\s*(https?:\/\/\S+)/;
 var GITHUB_RESOLVE_THREAD_MUTATION = /\bresolveReviewThread\b/;
 var GITLAB_RESOLVE_DISCUSSION_CALL = /discussions\/[^\s"']*[?&]resolved=true/i;
 var PROVIDER_API_INVOCATION = /\b(?:gh|glab)\s+api\b/;
@@ -305,6 +306,7 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["SettleBranchWalkthroughSkipped"] = "settle-branch-walkthrough-skipped";
   GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
   GuardrailBackgroundJob2["NoteWalkthroughRerun"] = "note-walkthrough-rerun";
+  GuardrailBackgroundJob2["NoteWalkthroughProgress"] = "note-walkthrough-progress";
   GuardrailBackgroundJob2["ScanWatchPrStates"] = "scan-watch-pr-states";
   GuardrailBackgroundJob2["CommitDeferredState"] = "commit-deferred-state";
   return GuardrailBackgroundJob2;
@@ -647,6 +649,14 @@ function applyE2eSkipScope(state, verifiedChange) {
   );
 }
 
+// src/pr-walkthrough/types.ts
+var E2eProgressStatus = /* @__PURE__ */ ((E2eProgressStatus2) => {
+  E2eProgressStatus2["Queued"] = "queued";
+  E2eProgressStatus2["Passed"] = "passed";
+  E2eProgressStatus2["Failed"] = "failed";
+  return E2eProgressStatus2;
+})(E2eProgressStatus || {});
+
 // src/pr-walkthrough/constants.ts
 var REPORT_SENTINEL = "muggle-pr-section";
 var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
@@ -660,6 +670,18 @@ var RERUN_NOTICE_CLOSING = "<!-- /muggle-pr-walkthrough-rerun -->";
 var RERUN_NOTICE_BLOCK = new RegExp(`${RERUN_NOTICE_OPENING}[\\s\\S]*?${RERUN_NOTICE_CLOSING}\\s*`, "g");
 var SHORT_SHA_LENGTH = 7;
 var GH_COMMENT_TIMEOUT_MS = 1e4;
+var PROGRESS_STATE_OPENING = "<!-- muggle-e2e-progress ";
+var PROGRESS_STATE_TAG = /<!-- muggle-e2e-progress ([\s\S]*?) -->/;
+var PROGRESS_SECTION = new RegExp(
+  `(?:\\s*${PROGRESS_STATE_OPENING}[\\s\\S]*?)?\\s*(?=${RERUN_NOTICE_CLOSING})`
+);
+var DESIGNATED_COMMENT_LOCK_PREFIX = "muggle-pr-walkthrough-";
+var DESIGNATED_COMMENT_LOCK_WAIT_MS = 3e4;
+var PROGRESS_STATUS_LABELS = {
+  ["queued" /* Queued */]: "\u23F3 Queued",
+  ["passed" /* Passed */]: "\u2705 Passed",
+  ["failed" /* Failed */]: "\u274C Failed"
+};
 
 // src/pr-walkthrough/gh.ts
 var GITHUB_PR_URL2 = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/pull\/(\d+)/;
@@ -773,6 +795,8 @@ var USER_PREFERENCES_PATH_SEGMENTS = [".muggle-ai", "preferences.json"];
 var PREFERENCE_DEFAULTS_PATH_SEGMENTS = ["config", "preference-defaults.json"];
 var AUTO_REBASE_PREFERENCE_KEY = "autoRebase";
 var MAX_CATCH_UP_REBASES_PREFERENCE_KEY = "maxCatchUpRebases";
+var WATCHER_LIFETIME_PREFERENCE_KEY = "watcherLifetime";
+var WATCHER_LIFETIME_SECONDS = { "1d": 86400, "7d": 604800, never: 0 };
 var ALWAYS_PREFERENCE_VALUE = "always";
 var UNBOUNDED_PREFERENCE_VALUE = "never";
 var POSITIVE_INTEGER = /^[1-9]\d*$/;
@@ -1361,11 +1385,8 @@ function watchFollowThroughDecision(state, owedWork) {
   return { action: "block" /* Block */, blockCount: blockCount + 1, owed };
 }
 
-// src/guardrails/debugPath.ts
-var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
-var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
-${JSON.stringify(input2.tool_response ?? {})}`;
-function renderedResult(toolResponse) {
+// src/guardrails/toolResponse.ts
+function flattenToolResponse(toolResponse) {
   const rendered = [];
   const collect = (value) => {
     if (typeof value === "string") rendered.push(value);
@@ -1375,9 +1396,14 @@ function renderedResult(toolResponse) {
   collect(toolResponse);
   return rendered.join("\n");
 }
+
+// src/guardrails/debugPath.ts
+var DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
+var serialize = (input2) => `${JSON.stringify(input2.tool_input ?? {})}
+${JSON.stringify(input2.tool_response ?? {})}`;
 function detectFailedRunId(input2) {
   if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
-  const rendered = renderedResult(input2.tool_response);
+  const rendered = flattenToolResponse(input2.tool_response);
   const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
   if (!status || status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS) return void 0;
   return MUGGLE_RUN_ID_LINE.exec(rendered)?.[1];
@@ -1996,10 +2022,89 @@ function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePlugin
   const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const lifetimeSecondsOf = (configuredValue) => typeof configuredValue === "string" ? WATCHER_LIFETIME_SECONDS[configuredValue] : void 0;
   return {
     autoRebase,
-    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
+    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null,
+    watcherLifetimeSeconds: lifetimeSecondsOf(userPreferences[WATCHER_LIFETIME_PREFERENCE_KEY]) ?? lifetimeSecondsOf(shippedDefaults[WATCHER_LIFETIME_PREFERENCE_KEY])
   };
+}
+
+// src/guardrails/finishedRun.ts
+function detectFinishedRun(input2) {
+  if (!MUGGLE_EXECUTION_TOOL.test(input2.tool_name ?? "")) return void 0;
+  const rendered = flattenToolResponse(input2.tool_response);
+  const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
+  if (!status || !MUGGLE_RUN_ID_LINE.test(rendered)) return void 0;
+  const testCaseId = input2.tool_input?.testCase?.id ?? input2.tool_input?.testScript?.testCaseId;
+  if (!testCaseId) return void 0;
+  const viewUrl = MUGGLE_RUN_VIEW_URL_LINE.exec(rendered)?.[1];
+  return {
+    testCaseId,
+    title: input2.tool_input?.testCase?.title ?? input2.tool_input?.testScript?.name ?? testCaseId,
+    status: status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS ? "passed" /* Passed */ : "failed" /* Failed */,
+    ...viewUrl ? { viewUrl } : {}
+  };
+}
+
+// src/pr-walkthrough/progress.ts
+var encodeState = (cases) => JSON.stringify(cases).replace(/--/g, "-\\u002d");
+var tableCell = (text) => text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
+var isProgressCase = (value) => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value;
+  return typeof candidate.testCaseId === "string" && typeof candidate.title === "string" && Object.values(E2eProgressStatus).includes(candidate.status);
+};
+function renderResultCell(progressCase) {
+  const label = PROGRESS_STATUS_LABELS[progressCase.status];
+  return progressCase.viewUrl ? `[${label}](${progressCase.viewUrl})` : label;
+}
+function renderProgressSection(cases) {
+  const finishedCount = cases.filter((progressCase) => progressCase.status !== "queued" /* Queued */).length;
+  const rows = cases.map((progressCase) => `| ${tableCell(progressCase.title)} | ${renderResultCell(progressCase)} |`);
+  return [
+    `${PROGRESS_STATE_OPENING}${encodeState(cases)} -->`,
+    `**E2E tests \u2014 ${finishedCount} of ${cases.length} finished**`,
+    "",
+    "| Test case | Result |",
+    "| :--- | :--- |",
+    ...rows
+  ].join("\n");
+}
+function parseProgressCase(encoded) {
+  if (!encoded) return void 0;
+  try {
+    const parsed = JSON.parse(encoded);
+    return isProgressCase(parsed) ? parsed : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function readProgressCases(body) {
+  const encoded = PROGRESS_STATE_TAG.exec(body)?.[1];
+  if (!encoded) return [];
+  try {
+    const parsed = JSON.parse(encoded);
+    return Array.isArray(parsed) ? parsed.filter(isProgressCase) : [];
+  } catch {
+    return [];
+  }
+}
+function withProgressSection(body, cases) {
+  if (!hasRerunNotice(body)) return null;
+  const section = cases.length > 0 ? `
+
+${renderProgressSection(cases)}
+` : "\n";
+  return body.replace(PROGRESS_SECTION, section);
+}
+function withFinishedCase(cases, finished) {
+  const plannedIndex = cases.findIndex((progressCase) => progressCase.testCaseId === finished.testCaseId);
+  if (plannedIndex === -1) return [...cases, finished];
+  const planned = cases[plannedIndex];
+  return cases.map(
+    (progressCase, index) => index === plannedIndex ? { ...finished, title: planned.title || finished.title } : progressCase
+  );
 }
 
 // src/e2e-skip/noAppLogicChange.ts
@@ -2123,15 +2228,36 @@ function settleWalkthroughCommentForNoAppLogicChange(prUrl, detail, run = defaul
   return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
 }
 function noteE2eRunStarted(prUrl, run = defaultGhRunner, startedAt = /* @__PURE__ */ new Date()) {
+  return rewriteDesignatedComment(
+    prUrl,
+    run,
+    (body) => hasRerunNotice(body) ? null : withRunStartedNotice(body, startedAt)
+  );
+}
+function noteE2eCaseFinished(prUrl, finished, run = defaultGhRunner) {
+  return rewriteDesignatedComment(
+    prUrl,
+    run,
+    (body) => withProgressSection(body, withFinishedCase(readProgressCases(body), finished))
+  );
+}
+function withRunStartedNotice(body, startedAt) {
+  const unmarked = withoutRerunNotice(body);
+  return classifyComment(unmarked) === "pending" /* Pending */ ? renderRunningComment(startedAt) : withRerunNotice(unmarked, startedAt);
+}
+function rewriteDesignatedComment(prUrl, run, rewrite) {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
-  const comments = listPrComments(pr, run);
-  if (comments === null) return false;
-  const designated = designatedComment(comments);
-  if (!designated) return false;
-  if (hasRerunNotice(designated.body)) return false;
-  const body = classifyComment(designated.body) === "pending" /* Pending */ ? renderRunningComment(startedAt) : withRerunNotice(designated.body, startedAt);
-  return patchPrComment(pr, designated.id, body, run);
+  const lockPath = join(tmpdir(), `${DESIGNATED_COMMENT_LOCK_PREFIX}${pr.repo.replace("/", "-")}-${pr.prNumber}.lock`);
+  const isWritten = withFileLock(lockPath, DESIGNATED_COMMENT_LOCK_WAIT_MS, () => {
+    const comments = listPrComments(pr, run);
+    if (comments === null) return false;
+    const designated = designatedComment(comments);
+    if (!designated) return false;
+    const body = rewrite(designated.body);
+    return body !== null && patchPrComment(pr, designated.id, body, run);
+  });
+  return isWritten ?? false;
 }
 
 // src/e2e-skip/parseSkipDeclaration.ts
@@ -2918,6 +3044,17 @@ function walkthroughRerunNotice() {
   startBackgroundJob("note-walkthrough-rerun" /* NoteWalkthroughRerun */, [], input.tool_input?.cwd ?? input.cwd);
   return "{}";
 }
+function walkthroughProgressUpdate() {
+  const finished = detectFinishedRun(input);
+  if (finished) {
+    startBackgroundJob(
+      "note-walkthrough-progress" /* NoteWalkthroughProgress */,
+      [JSON.stringify(finished)],
+      input.tool_input?.cwd ?? input.cwd
+    );
+  }
+  return "{}";
+}
 function stageGate() {
   const state = readState(sessionId);
   const decision = stageGateDecision(state, unreadMandatoryStages(state));
@@ -3204,6 +3341,7 @@ var handlers = {
   "record-stage-signals": recordStageSignals,
   "classify-gate": classifyGate,
   "walkthrough-rerun-notice": walkthroughRerunNotice,
+  "walkthrough-progress-update": walkthroughProgressUpdate,
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate
 };
@@ -3253,6 +3391,12 @@ function noteWalkthroughRerunJob() {
   if (prUrl) noteE2eRunStarted(prUrl);
   return "{}";
 }
+function noteWalkthroughProgressJob() {
+  const finished = parseProgressCase(jobArgs[0]);
+  const prUrl = finished ? defaultPrWalkthroughLookup.branchPrUrl() : null;
+  if (prUrl && finished) noteE2eCaseFinished(prUrl, finished);
+  return "{}";
+}
 function scanWatchPrStatesJob() {
   const scannedSessionId = jobArgs[0] ?? "unknown";
   const state = readState(scannedSessionId);
@@ -3274,6 +3418,7 @@ var backgroundJobs = {
   ["settle-branch-walkthrough-skipped" /* SettleBranchWalkthroughSkipped */]: settleBranchWalkthroughSkippedJob,
   ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob,
   ["note-walkthrough-rerun" /* NoteWalkthroughRerun */]: noteWalkthroughRerunJob,
+  ["note-walkthrough-progress" /* NoteWalkthroughProgress */]: noteWalkthroughProgressJob,
   ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob,
   ["commit-deferred-state" /* CommitDeferredState */]: commitDeferredStateJob
 };

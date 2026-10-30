@@ -203,6 +203,7 @@ export const FAILURE_DIAGNOSIS_EVENT = /-failure-(classified|resolved)$/;
 export const MUGGLE_RUN_ID_LINE = /\*\*Run ID:\*\*\s*([^\s*]+)/;
 export const MUGGLE_RUN_STATUS_LINE = /\*\*Status:\*\*\s*([A-Za-z_]+)/;
 export const MUGGLE_RUN_PASSED_STATUS = "passed";
+export const MUGGLE_RUN_VIEW_URL_LINE = /\*\*View URL:\*\*\s*(https?:\/\/\S+)/;
 
 // GitHub's GraphQL mutation that closes a review thread. The `\b` prefix is
 // load-bearing: `unresolveReviewThread` re-opens a thread — the opposite act,

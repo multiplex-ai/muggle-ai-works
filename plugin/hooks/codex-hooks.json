@@ -66,10 +66,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\"",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-record-tests.sh guardrail-walkthrough-progress.sh",
             "async": false,
             "timeout": 10,
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-record-tests.sh\""
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-record-tests.sh guardrail-walkthrough-progress.sh"
           }
         ]
       },

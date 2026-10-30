@@ -11,6 +11,7 @@ import {
 import { DebugGateAction, type DebugGateDecision, type GuardrailState, type HookInput } from "./types.js";
 import { callFailed } from "./callOutcome.js";
 import { isE2eDelegationInFlight } from "./delegatedE2e.js";
+import { flattenToolResponse } from "./toolResponse.js";
 
 // muggle-test Step 7C routes every non-passing run through the debug path —
 // evidence, diagnosis, and a guaranteed "give feedback & rerun" offer. It is
@@ -22,21 +23,6 @@ const DEBUG_SKIP_MARKER = /^\s*echo\s+["']?MUGGLE_DEBUG_SKIP\b/;
 const serialize = (input: HookInput): string =>
   `${JSON.stringify(input.tool_input ?? {})}\n${JSON.stringify(input.tool_response ?? {})}`;
 
-// An MCP tool's result is structured, and its shape differs by host: a plain
-// string on one, an array of typed parts on another, sometimes wrapped again.
-// Reading one assumed field is how a detector becomes dead code on the host
-// that nests it differently, so every string in the response is flattened.
-function renderedResult(toolResponse: unknown): string {
-  const rendered: string[] = [];
-  const collect = (value: unknown): void => {
-    if (typeof value === "string") rendered.push(value);
-    else if (Array.isArray(value)) value.forEach(collect);
-    else if (value && typeof value === "object") Object.values(value).forEach(collect);
-  };
-  collect(toolResponse);
-  return rendered.join("\n");
-}
-
 /**
  * The run id of a local execution that did not pass.
  *
@@ -46,7 +32,7 @@ function renderedResult(toolResponse: unknown): string {
  */
 export function detectFailedRunId(input: HookInput): string | undefined {
   if (!MUGGLE_EXECUTION_TOOL.test(input.tool_name ?? "")) return undefined;
-  const rendered = renderedResult(input.tool_response);
+  const rendered = flattenToolResponse(input.tool_response);
   const status = MUGGLE_RUN_STATUS_LINE.exec(rendered)?.[1];
   if (!status || status.toLowerCase() === MUGGLE_RUN_PASSED_STATUS) return undefined;
   return MUGGLE_RUN_ID_LINE.exec(rendered)?.[1];

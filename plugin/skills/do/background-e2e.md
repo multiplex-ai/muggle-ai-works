@@ -53,7 +53,7 @@ Dispatch it as `subagent_type: "muggle:acceptance-tester"` (bare `acceptance-tes
 ## What the agent never does
 
 - Dispatch another agent or fork. It runs every step itself; a re-delegated run escapes the queue and lands on the browser alongside the next one.
-- Edit code, commit, push, open or edit a PR, post or edit a comment, or arm a watcher. Every PR write stays in the main session, the one place that knows which change a PR belongs to.
+- Edit code, commit, push, open or edit a PR, post or edit a comment, or arm a watcher. Every PR write stays in the main session, the one place that knows which change a PR belongs to. The one exception is the run's [PR progress](../_shared/dev-loop/run.md#pr-progress) — the `muggle e2e-plan` post and the per-case rows its execute hooks fill — which writes only to the walkthrough slot of the PR on the worktree's own branch.
 - Declare a skip marker. A `SKIPPED` verdict returns its code; the main session declares it from the PR's worktree, where it is verified and where it settles that PR alone.
 - Stop the stack it started.
 
@@ -85,5 +85,5 @@ A session that fixed bugs by hand and opened each PR itself follows the same lan
 
 - One run and one report per change per full cycle; a wave is one change.
 - At most one local acceptance run in flight from the session.
-- Every PR write happens in the main session.
+- Every PR write happens in the main session, save the run's PR progress to its own branch's walkthrough slot.
 - A report settles only the PRs of the change it tested, at the SHA it tested.

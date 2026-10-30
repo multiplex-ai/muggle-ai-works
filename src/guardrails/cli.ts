@@ -90,8 +90,11 @@ import {
 import { detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
 import { isPrCoveredBySkip } from "./skipScope.js";
 import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
+import { detectFinishedRun } from "./finishedRun.js";
+import { parseProgressCase } from "../pr-walkthrough/progress.js";
 import {
   isWalkthroughSettledOnPr,
+  noteE2eCaseFinished,
   noteE2eRunStarted,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
@@ -484,6 +487,20 @@ function classifyGate(): string {
 // under test, which in a worktree cycle is not the session's own directory.
 function walkthroughRerunNotice(): string {
   startBackgroundJob(GuardrailBackgroundJob.NoteWalkthroughRerun, [], input.tool_input?.cwd ?? input.cwd);
+  return "{}";
+}
+
+// Each case's result lands on the PR as its run finishes, not when the whole
+// batch reports, so a long run shows its progress to a reviewer watching it.
+function walkthroughProgressUpdate(): string {
+  const finished = detectFinishedRun(input);
+  if (finished) {
+    startBackgroundJob(
+      GuardrailBackgroundJob.NoteWalkthroughProgress,
+      [JSON.stringify(finished)],
+      input.tool_input?.cwd ?? input.cwd,
+    );
+  }
   return "{}";
 }
 
@@ -959,6 +976,7 @@ const handlers: Record<string, () => string> = {
   "record-stage-signals": recordStageSignals,
   "classify-gate": classifyGate,
   "walkthrough-rerun-notice": walkthroughRerunNotice,
+  "walkthrough-progress-update": walkthroughProgressUpdate,
   "stage-gate": stageGate,
   "debug-path-gate": debugPathGate,
 };
@@ -1027,6 +1045,13 @@ function noteWalkthroughRerunJob(): string {
   return "{}";
 }
 
+function noteWalkthroughProgressJob(): string {
+  const finished = parseProgressCase(jobArgs[0]);
+  const prUrl = finished ? defaultPrWalkthroughLookup.branchPrUrl() : null;
+  if (prUrl && finished) noteE2eCaseFinished(prUrl, finished);
+  return "{}";
+}
+
 function scanWatchPrStatesJob(): string {
   const scannedSessionId = jobArgs[0] ?? "unknown";
   const state = readState(scannedSessionId);
@@ -1051,6 +1076,7 @@ const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.SettleBranchWalkthroughSkipped]: settleBranchWalkthroughSkippedJob,
   [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
   [GuardrailBackgroundJob.NoteWalkthroughRerun]: noteWalkthroughRerunJob,
+  [GuardrailBackgroundJob.NoteWalkthroughProgress]: noteWalkthroughProgressJob,
   [GuardrailBackgroundJob.ScanWatchPrStates]: scanWatchPrStatesJob,
   [GuardrailBackgroundJob.CommitDeferredState]: commitDeferredStateJob,
 };

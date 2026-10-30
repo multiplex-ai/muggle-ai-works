@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   isWalkthroughSettledOnPr,
+  noteE2eCaseFinished,
+  noteE2ePlan,
   noteE2eRunStarted,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
@@ -14,6 +16,7 @@ import {
 } from "../../pr-walkthrough/comment";
 import { E2eSkipCode } from "../../e2e-skip/types";
 import { WALKTHROUGH_SKIPPED_MARKER, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
+import { E2eProgressStatus } from "../../pr-walkthrough/types";
 
 const PR_URL = "https://github.com/o/r/pull/7";
 
@@ -269,6 +272,88 @@ describe("noteE2eRunStarted", () => {
     const gh = recorder({});
     expect(noteE2eRunStarted("https://github.com/o/r/issues/7", gh.run, STARTED_AT)).toBe(false);
     expect(gh.calls).toEqual([]);
+  });
+});
+
+describe("noteE2ePlan", () => {
+  const WALKTHROUGH = "<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results\n\n**⚠️ PARTIAL** — 1 test ran";
+  const STARTED_AT = new Date("2026-10-30T09:00:00Z");
+  const PLAN = [
+    { testCaseId: "tc-1", title: "Login" },
+    { testCaseId: "tc-2", title: "Checkout" },
+  ];
+  const patchedBody = (calls: RecordedCall[]): string =>
+    JSON.parse(calls.find((call) => call.args.includes("PATCH"))?.input ?? "{}").body ?? "";
+
+  it("turns the placeholder into the running notice with every planned case queued", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([renderReservedComment()]) });
+    expect(noteE2ePlan(PR_URL, PLAN, gh.run, STARTED_AT)).toBe(true);
+    const body = patchedBody(gh.calls);
+    expect(body).toContain("E2E running — waiting for the report");
+    expect(body).toContain("| Login | ⏳ Queued |");
+    expect(body).toContain("| Checkout | ⏳ Queued |");
+  });
+
+  it("banners the previous walkthrough and keeps it whole underneath", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([WALKTHROUGH]) });
+    expect(noteE2ePlan(PR_URL, PLAN, gh.run, STARTED_AT)).toBe(true);
+    const body = patchedBody(gh.calls);
+    expect(body).toContain("A new E2E run is in progress");
+    expect(body.endsWith(WALKTHROUGH)).toBe(true);
+  });
+
+  // A banner left by an abandoned run would otherwise show its start time and results on the new run.
+  it("replaces an earlier run's banner and progress", () => {
+    const stale = noteE2eCaseFinishedBody(withRerunNotice(WALKTHROUGH, new Date("2026-10-29T01:00:00Z")));
+    const gh = recorder({ "issues/7/comments": listedComments([stale]) });
+    expect(noteE2ePlan(PR_URL, PLAN, gh.run, STARTED_AT)).toBe(true);
+    const body = patchedBody(gh.calls);
+    expect(body).toContain("2026-10-30 09:00 UTC");
+    expect(body).not.toContain("2026-10-29");
+    expect(body).not.toContain("Stale case");
+    expect(body.match(/A new E2E run is in progress/g)).toHaveLength(1);
+  });
+
+  function noteE2eCaseFinishedBody(body: string): string {
+    const gh = recorder({ "issues/7/comments": listedComments([body]) });
+    noteE2eCaseFinished(PR_URL, { testCaseId: "tc-9", title: "Stale case", status: E2eProgressStatus.Passed }, gh.run);
+    return patchedBody(gh.calls);
+  }
+});
+
+describe("noteE2eCaseFinished", () => {
+  const STARTED_AT = new Date("2026-10-30T09:00:00Z");
+  const patchedBody = (calls: RecordedCall[]): string =>
+    JSON.parse(calls.find((call) => call.args.includes("PATCH"))?.input ?? "{}").body ?? "";
+  const FINISHED = {
+    testCaseId: "tc-2",
+    title: "tc-2",
+    status: E2eProgressStatus.Failed,
+    viewUrl: "https://www.muggle-ai.com/run/2",
+  };
+
+  it("fills the finished case's planned row", () => {
+    const planGh = recorder({ "issues/7/comments": listedComments([renderReservedComment()]) });
+    noteE2ePlan(PR_URL, [{ testCaseId: "tc-1", title: "Login" }, { testCaseId: "tc-2", title: "Checkout" }], planGh.run, STARTED_AT);
+    const gh = recorder({ "issues/7/comments": listedComments([patchedBody(planGh.calls)]) });
+    expect(noteE2eCaseFinished(PR_URL, FINISHED, gh.run)).toBe(true);
+    const body = patchedBody(gh.calls);
+    expect(body).toContain("**E2E tests — 1 of 2 finished**");
+    expect(body).toContain("| Login | ⏳ Queued |");
+    expect(body).toContain("| Checkout | [❌ Failed](https://www.muggle-ai.com/run/2) |");
+  });
+
+  it("starts the table itself when the run posted no plan", () => {
+    const gh = recorder({ "issues/7/comments": listedComments([renderRunningComment(STARTED_AT)]) });
+    expect(noteE2eCaseFinished(PR_URL, FINISHED, gh.run)).toBe(true);
+    expect(patchedBody(gh.calls)).toContain("**E2E tests — 1 of 1 finished**");
+  });
+
+  // A late update must never write the in-progress body back over the report.
+  it("leaves the comment alone once the run's walkthrough has replaced the banner", () => {
+    const gh = recorder({ "issues/7/comments": listedComments(["<!-- muggle-pr-section:v1 -->\n## E2E Acceptance Results"]) });
+    expect(noteE2eCaseFinished(PR_URL, FINISHED, gh.run)).toBe(false);
+    expect(gh.calls.some((call) => call.args.includes("PATCH"))).toBe(false);
   });
 });
 

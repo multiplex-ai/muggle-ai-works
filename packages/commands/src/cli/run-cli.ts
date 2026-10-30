@@ -9,6 +9,7 @@ import {
   buildPrSectionCommand,
   checkoutFreshnessCommand,
   ciInstallCommand,
+  e2ePlanCommand,
   prWalkthroughCheckCommand,
   runViewCommand,
   cleanupCommand,
@@ -174,6 +175,13 @@ function createProgram (): Command {
     .option("--head-sha <sha>", "Commit the check run attaches to (default: the PR head)")
     .option("--check-run", "Publish the verdict as a check run instead of failing the process")
     .action(prWalkthroughCheckCommand);
+
+  program
+    .command("e2e-plan")
+    .description("Post the test cases a local E2E run is about to execute (JSON on stdin) to the PR's walkthrough comment")
+    .option("--pr <url>", "Pull request URL (default: the PR of the branch checked out in --cwd)")
+    .option("--cwd <dir>", "Working tree under test (default: the current directory)")
+    .action(e2ePlanCommand);
 
   program
     .command("checkout-freshness")

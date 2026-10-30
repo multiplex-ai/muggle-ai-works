@@ -174,7 +174,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "set -- guardrail-record-tests.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-record-tests.sh guardrail-walkthrough-progress.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }

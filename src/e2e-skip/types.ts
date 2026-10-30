@@ -57,6 +57,8 @@ export interface SkipVerificationContext {
   transcriptPath?: string;
   homeDir: string;
   probe: SkipProbes;
+  /** `autoE2ETest` as the user's own preferences file sets it; `always` withdraws the agent's judgment as a skip. */
+  userAutoE2ETest?: string;
 }
 
 /** The side-effecting lookups verifiers need, injected so tests can supply answers instead of an environment. */

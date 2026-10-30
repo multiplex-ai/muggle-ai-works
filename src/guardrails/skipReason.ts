@@ -1,6 +1,8 @@
 import { homedir } from "os";
 import { defaultSkipProbes } from "../e2e-skip/probes.js";
 import { resolveSkipDeclaration } from "../e2e-skip/resolveSkip.js";
+import { resolveUserPreferenceValue } from "../pr-watch/watchPreferences.js";
+import { AUTO_E2E_TEST_PREFERENCE_KEY } from "./constants.js";
 import type { SkipJudgment, SkipProbes } from "../e2e-skip/types.js";
 import type { GuardrailState, HookInput } from "./types.js";
 
@@ -17,11 +19,13 @@ export function judgeE2eSkip(
   state: GuardrailState,
   probes: SkipProbes = defaultSkipProbes,
 ): SkipJudgment | null {
+  const homeDir = homedir();
   return resolveSkipDeclaration(input.tool_input?.command ?? "", {
     cwd: input.cwd,
     prsHandled: state.prsHandled,
     transcriptPath: input.transcript_path,
-    homeDir: homedir(),
+    homeDir: homeDir,
     probe: probes,
+    userAutoE2ETest: resolveUserPreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY, homeDir),
   });
 }

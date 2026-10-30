@@ -1,7 +1,9 @@
 import { readFileSync } from "fs";
 import {
+  readE2eShellBlockCount,
   readState,
   readWalkthroughScan,
+  writeE2eStopVerdict,
   writeWalkthroughScan,
   readPrStateScan,
   writePrStateScan,
@@ -11,7 +13,9 @@ import { commitDeferredSessionState, commitStateMutation } from "./stateCommit.j
 import { detectPrOpened } from "./prOpened.js";
 import { detectPrTerminal, detectPrReopened, closingMessageAsksUser, prTerminalGateDecision } from "./prTerminal.js";
 import {
+  AUTO_E2E_TEST_PREFERENCE_KEY,
   CAPABILITY_CLAIM_TRANSCRIPT_TAIL_BYTES,
+  POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY,
   MAX_DEBUG_BLOCKS,
   MAX_PR_TERMINAL_BLOCKS,
   MAX_REPLY_BLOCKS,
@@ -49,7 +53,8 @@ import {
   undebuggedFailedRuns,
 } from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS } from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, shouldRunE2E } from "./shouldRunE2E.js";
+import { buildE2eOwedReason } from "./e2eOwedReason.js";
 import {
   findUnwatchedHandledPrs,
   ownsOpenWatchSlot,
@@ -65,7 +70,12 @@ import {
   heldPrNumbersIn,
   watchFollowThroughDecision,
 } from "./watchFollowThrough.js";
-import { resolveWatchPreferences } from "../pr-watch/watchPreferences.js";
+import {
+  resolvePreferenceValue,
+  resolveUserPreferenceValue,
+  resolveWatchPreferences,
+} from "../pr-watch/watchPreferences.js";
+import { ALWAYS_PREFERENCE_VALUE } from "../pr-watch/constants.js";
 import { readFileTail } from "../transcript/userTurns.js";
 import { buildFollowthroughDecision, isBuildSkipMarker } from "./buildFollowthrough.js";
 import { detectWalkthroughPost, detectWalkthroughPostTargets, isWalkthroughSkipMarker } from "./walkthroughPosted.js";
@@ -204,6 +214,7 @@ function prOpened(): string {
   });
   // Only a skip verified for this PR's repo and branch vouches for it; a PR of
   // any other change owes its own run or skip.
+  renderE2eStopVerdict(stateAfterOpen);
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : undefined;
   // A skip accepted before the PR existed — the forward cycle's order, Stage 6
   // before Stage 7 — is written straight into the slot, so the PR never shows
@@ -337,6 +348,7 @@ function recordTests(): string {
   // concurrently, and of two unlocked read-modify-writes the later erases the
   // earlier. A skill emit's E2E run is skillStages' to record, not this hook's.
   const next = commitStateMutation(sessionId, outcome);
+  if (outcome.run.unitTestPassed) renderE2eStopVerdict(next);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   // A rejected declaration is the moment the session is still trying to skip,
@@ -518,28 +530,39 @@ function debugPathGate(): string {
   return blockStop(reason, host);
 }
 
+function e2eOwedReason(blockCount: number): string {
+  return buildE2eOwedReason({
+    blockCount: blockCount,
+    maxBlocks: MAX_E2E_BLOCKS,
+    autoE2ETest: resolvePreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY),
+    postPRVisualWalkthrough: resolvePreferenceValue(POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY),
+    isE2eMandatedByUser: resolveUserPreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY) === ALWAYS_PREFERENCE_VALUE,
+    muggleTestSkill: muggleSkill("/muggle:muggle-test"),
+    walkthroughSkill: muggleSkill("/muggle:muggle-pr-visual-walkthrough"),
+  });
+}
+
+/** Render the owed-E2E block ahead of the turn end, so guardrail-e2e-gate.sh can return it without Node. */
+function renderE2eStopVerdict(state: GuardrailState): void {
+  if (!shouldRunE2E(state)) return;
+  writeE2eStopVerdict(sessionId, MAX_E2E_BLOCKS, blockStop(e2eOwedReason(1), host));
+}
+
 function e2eGate(): string {
   const state = readState(sessionId);
-  const decision = e2eGateDecision(state);
+  // The shell's blocks spend the same budget, so the release still lands after MAX_E2E_BLOCKS in all.
+  const shellBlockCount = readE2eShellBlockCount(sessionId);
+  const decision = e2eGateDecision({ ...state, e2eBlockCount: (state.e2eBlockCount ?? 0) + shellBlockCount });
   // The release only frees the session. The PR's comment stays at the stage it
   // reached, so a reviewer still sees it waiting on the feasibility check or
   // the run, and the walkthrough check stays unsettled.
   if (decision.action === E2eGateAction.Release) return releaseGate("e2eReleased");
   if (decision.action === E2eGateAction.None) return "{}";
-  recordGateBlock("e2eBlockCount", decision.blockCount);
+  recordGateBlock("e2eBlockCount", decision.blockCount - shellBlockCount);
+  renderE2eStopVerdict(state);
   // Full instruction once; repeats are one line. The first block already
   // taught the model both exits, so repeating the paragraph is pure noise.
-  const reason =
-    decision.blockCount === 1
-      ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. ` +
-        `Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, ` +
-        `then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ` +
-        `${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this ` +
-        `gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, ` +
-        `cite ${E2eSkipCode.NotApplicable} with the reason — the PR shows it as your unverified judgment.`
-      : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): ` +
-        `run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
-  return blockStop(reason, host);
+  return blockStop(e2eOwedReason(decision.blockCount), host);
 }
 
 function watchGate(): string {

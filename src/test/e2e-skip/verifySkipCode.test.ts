@@ -398,6 +398,15 @@ describe("NO_APP_LOGIC_CHANGE after a rebase", () => {
 });
 
 describe("NOT_APPLICABLE", () => {
+  it("refutes any reason once the user's own file sets autoE2ETest=always", () => {
+    const judged = resolveSkipDeclaration(
+      declare(E2eSkipCode.NotApplicable, "only the transactional email template changed"),
+      contextFor({}, { userAutoE2ETest: "always" }),
+    );
+    expect(judged?.accepted).toBe(false);
+    expect(judged?.accepted === false && judged.failure).toContain("autoE2ETest=always");
+  });
+
   it("accepts a stated reason, whatever the environment", () => {
     const judged = resolveSkipDeclaration(
       declare(E2eSkipCode.NotApplicable, "only the transactional email template changed"),

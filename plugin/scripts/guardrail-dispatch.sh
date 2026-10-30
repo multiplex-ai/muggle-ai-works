@@ -23,8 +23,14 @@ guardrail_read_payload
 firing_subcommands=()
 for gate_script in "$@"; do
   GUARDRAIL_SUBCOMMAND=""
+  unset -f guardrail_shell_verdict
   . "$guardrail_script_dir/$gate_script" || continue
   if [[ -n $GUARDRAIL_SUBCOMMAND ]] && guardrail_wants; then
+    # A gate that can answer in-shell blocks the turn here, before Node's cold start can outlast the hook's cap;
+    # the gates after it run on the turn end that follows.
+    if declare -F guardrail_shell_verdict >/dev/null && guardrail_shell_verdict; then
+      exit 0
+    fi
     firing_subcommands+=("$GUARDRAIL_SUBCOMMAND")
   fi
 done

@@ -105,6 +105,10 @@ var SUBAGENT_DISPATCH_TOOL_NAMES = ["Agent", "Task"];
 var ACCEPTANCE_TESTER_SUBAGENT_TYPE = /(?:^|:)acceptance-tester$/;
 var ACCEPTANCE_REPORT_MARKERS = ["## Test Summary", "**Overall:**"];
 var DELEGATED_E2E_WINDOW_MS = 60 * 6e4;
+var E2E_STOP_VERDICT_SUFFIX = ".e2e-stop-verdict";
+var E2E_SHELL_BLOCKS_SUFFIX = ".e2e-shell-blocks";
+var AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
+var POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -219,6 +223,25 @@ function readPrStateScan(sessionId2, dirOverride) {
 }
 function writePrStateScan(sessionId2, scan, dirOverride) {
   writeAtomically(fileFor(sessionId2, dirOverride, PR_STATE_SCAN_SUFFIX), scan, dirOverride);
+}
+function writeE2eStopVerdict(sessionId2, maxBlocks, hookOutput, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const target = fileFor(sessionId2, dirOverride, E2E_STOP_VERDICT_SUFFIX);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, `${maxBlocks}
+${hookOutput}`);
+  renameSync(staging, target);
+  writeFileSync(fileFor(sessionId2, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), "", { flag: "a" });
+}
+function readE2eShellBlockCount(sessionId2, dirOverride) {
+  try {
+    return readFileSync(fileFor(sessionId2, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), "utf-8").length;
+  } catch {
+    return 0;
+  }
+}
+function clearE2eShellBlocks(sessionId2, dirOverride) {
+  rmSync(fileFor(sessionId2, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), { force: true });
 }
 var lockFor = (sessionId2, dirOverride) => `${fileFor(sessionId2, dirOverride)}.lock`;
 function commitUnderHeldLock(sessionId2, mutate, dirOverride) {
@@ -1816,10 +1839,14 @@ function applyStateMutation(state, mutation) {
 function commitStateMutation(sessionId2, mutation, observedState) {
   if (observedState && applyStateMutation(observedState, mutation) === observedState) return observedState;
   const committed = commitState(sessionId2, (state) => applyStateMutation(state, mutation));
-  if (committed) return committed;
+  if (committed) return withShellBlocksReset(committed);
   deferStateMutation(sessionId2, mutation);
   startBackgroundJob("commit-deferred-state" /* CommitDeferredState */, [sessionId2]);
-  return applyStateMutation(readState(sessionId2), mutation);
+  return withShellBlocksReset(applyStateMutation(readState(sessionId2), mutation));
+}
+function withShellBlocksReset(state) {
+  if (state.e2eRun === true) clearE2eShellBlocks(state.sessionId);
+  return state;
 }
 function commitDeferredSessionState(sessionId2) {
   commitDeferredStateMutations(sessionId2, applyStateMutation);
@@ -1925,19 +1952,52 @@ function isE2ERun(input2) {
   if (MUGGLE_E2E_RUN_TOOL.test(input2.tool_name ?? "")) return true;
   return MUGGLE_SKILL_EMIT_TOOL.test(input2.tool_name ?? "") && input2.tool_input?.skillName === MUGGLE_TEST_SKILL_NAME;
 }
+
+// src/guardrails/e2eOwedReason.ts
+var describePreference = (preferenceKey, configuredValue) => `${preferenceKey}=${configuredValue ?? "unset"}`;
+function buildE2eOwedReason(input2) {
+  const isE2eMandated = input2.isE2eMandatedByUser;
+  const isWalkthroughMandated = input2.postPRVisualWalkthrough === ALWAYS_PREFERENCE_VALUE;
+  const preferenceSummary = `${describePreference(AUTO_E2E_TEST_PREFERENCE_KEY, input2.autoE2ETest)}, ${describePreference(POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY, input2.postPRVisualWalkthrough)} (~/.muggle-ai/preferences.json)`;
+  const walkthroughStep = isWalkthroughMandated ? `, then post the run's walkthrough to the PR via ${input2.walkthroughSkill}` : "";
+  const offeredSkipCodes = isE2eMandated ? E2E_SKIP_CODES.filter((skipCode) => skipCode !== "NOT_APPLICABLE" /* NotApplicable */) : E2E_SKIP_CODES;
+  const skipClause = `To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${offeredSkipCodes.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this gate blocked.`;
+  if (input2.blockCount > 1) {
+    return `E2E acceptance run still owed (reminder ${input2.blockCount}/${input2.maxBlocks}; ${preferenceSummary}): run ${input2.muggleTestSkill}${walkthroughStep}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
+  }
+  const owedSentence = `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Preferences: ${preferenceSummary}. `;
+  if (isE2eMandated) {
+    return owedSentence + `That is the user's standing answer: do not ask them whether to test, and do not end the turn handing the decision back. Run change-driven E2E now via ${input2.muggleTestSkill}${walkthroughStep}, then finish. ${skipClause} A judgment that the change is not worth a run is not a skip.`;
+  }
+  return owedSentence + `Run change-driven E2E now via ${input2.muggleTestSkill}${walkthroughStep}, then finish. ${skipClause} Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.`;
+}
 function parseMaxCatchUpRebases(configuredValue) {
   if (configuredValue === UNBOUNDED_PREFERENCE_VALUE) return null;
   const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
   return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : void 0;
 }
+var readUserPreferences = (homeDir) => asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
+function readPreferenceLayers(homeDir, pluginRoot) {
+  return [readUserPreferences(homeDir), readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS))];
+}
+function pickPreferenceValue(preferenceLayers, preferenceKey) {
+  const configuredValue = preferenceLayers.map((layer) => layer[preferenceKey]).find((layerValue) => layerValue != null);
+  return typeof configuredValue === "string" ? configuredValue : void 0;
+}
+function resolvePreferenceValue(preferenceKey, homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
+  return pickPreferenceValue(readPreferenceLayers(homeDir, pluginRoot), preferenceKey);
+}
+function resolveUserPreferenceValue(preferenceKey, homeDir = homedir()) {
+  return pickPreferenceValue([readUserPreferences(homeDir)], preferenceKey);
+}
 function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
-  const shippedDefaults = readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS));
-  const userPreferences = asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
-  const autoRebase = userPreferences[AUTO_REBASE_PREFERENCE_KEY] ?? shippedDefaults[AUTO_REBASE_PREFERENCE_KEY];
+  const preferenceLayers = readPreferenceLayers(homeDir, pluginRoot);
+  const [userPreferences, shippedDefaults] = preferenceLayers;
+  const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   return {
-    autoRebase: typeof autoRebase === "string" ? autoRebase : void 0,
+    autoRebase,
     maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
   };
 }
@@ -2216,7 +2276,12 @@ var verifyNoAppLogicChange = (context, detail) => {
   if (appLogicPaths.length > 0) return refuted(`app-logic paths changed since ${sha}: ${namePaths(appLogicPaths)}`);
   return verified;
 };
-var verifyNotApplicable = (_context, detail) => {
+var verifyNotApplicable = (context, detail) => {
+  if (context.userAutoE2ETest === ALWAYS_PREFERENCE_VALUE) {
+    return refuted(
+      `autoE2ETest=always in ~/.muggle-ai/preferences.json, so a judgment that the change needs no run is not a skip the user allows \u2014 run the E2E, or cite a code Muggle can verify`
+    );
+  }
   const words = detail.trim().split(/\s+/).filter(Boolean).length;
   if (words >= MIN_NOT_APPLICABLE_REASON_WORDS) return verified;
   return refuted(
@@ -2261,12 +2326,14 @@ function explainRejection(judged) {
   return `The skip cited ${judged.claimedCode}, but that could not be verified: ${judged.failure}. E2E is still owed \u2014 cite a code that holds, or run it.`;
 }
 function judgeE2eSkip(input2, state, probes = defaultSkipProbes) {
+  const homeDir = homedir();
   return resolveSkipDeclaration(input2.tool_input?.command ?? "", {
     cwd: input2.cwd,
     prsHandled: state.prsHandled,
     transcriptPath: input2.transcript_path,
-    homeDir: homedir(),
-    probe: probes
+    homeDir,
+    probe: probes,
+    userAutoE2ETest: resolveUserPreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY, homeDir)
   });
 }
 
@@ -2688,6 +2755,7 @@ function prOpened() {
     prUrl: url,
     prChange
   });
+  renderE2eStopVerdict(stateAfterOpen);
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : void 0;
   if (declaredSkip) {
     startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [url, declaredSkip.code, declaredSkip.detail]);
@@ -2766,6 +2834,7 @@ function recordTests() {
     failedRunId: detectFailedRunId(input)
   };
   const next = commitStateMutation(sessionId, outcome);
+  if (outcome.run.unitTestPassed) renderE2eStopVerdict(next);
   startWalkthroughScanOnGateArming(stateBefore, next, walkthroughPosted);
   if (acceptedSkip) recordSkipReasonOnPrs(next, acceptedSkip);
   if (judgedSkip && !judgedSkip.accepted) {
@@ -2869,14 +2938,30 @@ function debugPathGate() {
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. These runs failed and never went through the debug path: ${runList}. muggle-test Step 7C makes that mandatory \u2014 route each through _shared/debug-failed-run.md: gather the attempted steps and the failing screenshot, diagnose the bucket per _shared/failure-mode-handling.md \xA7B/\xA7C with its classified telemetry emit, and present the offer in which "give feedback & rerun" is always available. A summarized-and-dropped failure is the run a reviewer most needs to see. If a run genuinely cannot be debugged, run \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\` \u2014 that clears just that run.` : `Failed runs still owe the debug path (reminder ${decision.blockCount}/${MAX_DEBUG_BLOCKS}): ${runList}. Route each through _shared/debug-failed-run.md, or record a legitimate skip via \`echo "MUGGLE_DEBUG_SKIP: <runId> <reason>"\`.`;
   return blockStop(reason, host);
 }
+function e2eOwedReason(blockCount) {
+  return buildE2eOwedReason({
+    blockCount,
+    maxBlocks: MAX_E2E_BLOCKS,
+    autoE2ETest: resolvePreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY),
+    postPRVisualWalkthrough: resolvePreferenceValue(POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY),
+    isE2eMandatedByUser: resolveUserPreferenceValue(AUTO_E2E_TEST_PREFERENCE_KEY) === ALWAYS_PREFERENCE_VALUE,
+    muggleTestSkill: muggleSkill("/muggle:muggle-test"),
+    walkthroughSkill: muggleSkill("/muggle:muggle-pr-visual-walkthrough")
+  });
+}
+function renderE2eStopVerdict(state) {
+  if (!shouldRunE2E(state)) return;
+  writeE2eStopVerdict(sessionId, MAX_E2E_BLOCKS, blockStop(e2eOwedReason(1), host));
+}
 function e2eGate() {
   const state = readState(sessionId);
-  const decision = e2eGateDecision(state);
+  const shellBlockCount = readE2eShellBlockCount(sessionId);
+  const decision = e2eGateDecision({ ...state, e2eBlockCount: (state.e2eBlockCount ?? 0) + shellBlockCount });
   if (decision.action === "release" /* Release */) return releaseGate("e2eReleased");
   if (decision.action === "none" /* None */) return "{}";
-  recordGateBlock("e2eBlockCount", decision.blockCount);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
-  return blockStop(reason, host);
+  recordGateBlock("e2eBlockCount", decision.blockCount - shellBlockCount);
+  renderE2eStopVerdict(state);
+  return blockStop(e2eOwedReason(decision.blockCount), host);
 }
 function watchGate() {
   const state = readState(sessionId);

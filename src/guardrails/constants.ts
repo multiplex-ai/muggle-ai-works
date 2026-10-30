@@ -331,3 +331,22 @@ export const ACCEPTANCE_REPORT_MARKERS = ["## Test Summary", "**Overall:**"] as 
 // agent's, and two studio runs corrupt each other; staying open late only delays
 // a reminder that the PR's own walkthrough check keeps enforcing regardless.
 export const DELEGATED_E2E_WINDOW_MS = 60 * 60_000;
+
+// The owed-E2E Stop block, rendered ahead of time beside the session state so
+// guardrail-e2e-gate.sh can return it without starting Node. A Stop hook that
+// outlives its one-second cap is dropped and the turn ends unblocked, and on a
+// loaded Windows machine Node's cold start alone has taken seconds — so a block
+// that needs Node to be decided is a block that silently never lands. The file
+// holds the block budget on its first line and the hook output after it.
+export const E2E_STOP_VERDICT_SUFFIX = ".e2e-stop-verdict";
+
+// One byte per block the shell returned from the rendered verdict, appended
+// with a builtin redirect. Node adds it to `e2eBlockCount`, so the shell and
+// Node share one budget and the release still happens after MAX_E2E_BLOCKS.
+export const E2E_SHELL_BLOCKS_SUFFIX = ".e2e-shell-blocks";
+
+/** The preference that makes an acceptance run owed whenever a session opens a PR or goes unit-green. */
+export const AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
+
+/** The preference that makes posting the run's visual walkthrough to the PR owed. */
+export const POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";

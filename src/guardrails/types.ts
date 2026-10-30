@@ -446,3 +446,17 @@ export interface GuardrailHookOutput {
     permissionDecisionReason?: string;
   };
 }
+
+/** What the e2e Stop gate's reason is worded from: the block it is, and the user's resolved preferences. */
+export interface E2eOwedReasonInput {
+  blockCount: number;
+  maxBlocks: number;
+  autoE2ETest: string | undefined;
+  postPRVisualWalkthrough: string | undefined;
+  /** Whether the user's own preferences file sets `autoE2ETest=always`, which only an explicit choice may make binding. */
+  isE2eMandatedByUser: boolean;
+  /** The acceptance-run skill as the firing host invokes it, e.g. `/muggle:muggle-test`. */
+  muggleTestSkill: string;
+  /** The walkthrough skill as the firing host invokes it, e.g. `/muggle:muggle-pr-visual-walkthrough`. */
+  walkthroughSkill: string;
+}

@@ -19,6 +19,42 @@ export function parseMaxCatchUpRebases(configuredValue: unknown): number | null 
   return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : undefined;
 }
 
+const readUserPreferences = (homeDir: string): Record<string, unknown> =>
+  asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
+
+function readPreferenceLayers(homeDir: string, pluginRoot: string): Record<string, unknown>[] {
+  return [readUserPreferences(homeDir), readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS))];
+}
+
+function pickPreferenceValue(preferenceLayers: Record<string, unknown>[], preferenceKey: string): string | undefined {
+  const configuredValue = preferenceLayers.map((layer) => layer[preferenceKey]).find((layerValue) => layerValue != null);
+  return typeof configuredValue === "string" ? configuredValue : undefined;
+}
+
+/**
+ * One string preference as the session's preferences line resolves it: the user's
+ * `~/.muggle-ai/preferences.json` over the plugin's shipped defaults.
+ *
+ * @returns The configured value (e.g. `"always"`), or undefined when neither layer sets a string
+ */
+export function resolvePreferenceValue(
+  preferenceKey: string,
+  homeDir: string = homedir(),
+  pluginRoot: string = resolvePluginRoot(),
+): string | undefined {
+  return pickPreferenceValue(readPreferenceLayers(homeDir, pluginRoot), preferenceKey);
+}
+
+/**
+ * One string preference as the user's own `~/.muggle-ai/preferences.json` sets it, ignoring the shipped defaults —
+ * for behavior that only an explicit choice may switch on.
+ *
+ * @returns The user's value, or undefined when their file does not set a string for it
+ */
+export function resolveUserPreferenceValue(preferenceKey: string, homeDir: string = homedir()): string | undefined {
+  return pickPreferenceValue([readUserPreferences(homeDir)], preferenceKey);
+}
+
 /**
  * The watch's preferences: the user's `~/.muggle-ai/preferences.json` over the plugin's shipped defaults, the same
  * resolution the session's preferences line comes from. An invalid user value falls back to the default.
@@ -27,13 +63,13 @@ export function resolveWatchPreferences(
   homeDir: string = homedir(),
   pluginRoot: string = resolvePluginRoot(),
 ): WatchPreferences {
-  const shippedDefaults = readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS));
-  const userPreferences = asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
-  const autoRebase = userPreferences[AUTO_REBASE_PREFERENCE_KEY] ?? shippedDefaults[AUTO_REBASE_PREFERENCE_KEY];
+  const preferenceLayers = readPreferenceLayers(homeDir, pluginRoot);
+  const [userPreferences, shippedDefaults] = preferenceLayers;
+  const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   return {
-    autoRebase: typeof autoRebase === "string" ? autoRebase : undefined,
+    autoRebase: autoRebase,
     maxCatchUpRebases: userCap !== undefined ? userCap : (shippedCap ?? null),
   };
 }

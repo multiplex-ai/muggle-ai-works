@@ -783,7 +783,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 1 done — "
+            "matches": "(^|\\n|[\"'])Stage 1 done — "
           },
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
@@ -970,7 +970,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 2 done — "
+            "matches": "(^|\\n|[\"'])Stage 2 done — "
           }
         ]
       }
@@ -1234,7 +1234,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 3 done — "
+            "matches": "(^|\\n|[\"'])Stage 3 done — "
           }
         ]
       }
@@ -1658,7 +1658,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 4 done — "
+            "matches": "(^|\\n|[\"'])Stage 4 done — "
           }
         ]
       }
@@ -2181,7 +2181,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 5 done — "
+            "matches": "(^|\\n|[\"'])Stage 5 done — "
           }
         ]
       }
@@ -2791,7 +2791,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 6 done — "
+            "matches": "(^|\\n|[\"'])Stage 6 done — "
           }
         ]
       }
@@ -3506,7 +3506,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 7 done — "
+            "matches": "(^|\\n|[\"'])Stage 7 done — "
           }
         ]
       }
@@ -4359,7 +4359,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 7\\.5 done — "
+            "matches": "(^|\\n|[\"'])Stage 7\\.5 done — "
           }
         ]
       }
@@ -5286,7 +5286,7 @@
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-            "matches": "(^|\\n)Stage 8 done — "
+            "matches": "(^|\\n|[\"'])Stage 8 done — "
           },
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",

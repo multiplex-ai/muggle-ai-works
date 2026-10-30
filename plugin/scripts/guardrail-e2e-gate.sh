@@ -9,8 +9,9 @@ set -uo pipefail
 # it fires on EVERY turn end. There is no command payload to key off, so the
 # pre-filter reads the same per-session state file guardrails.mjs uses and only
 # spawns Node when the gate could actually fire — i.e. shouldRunE2E's two
-# triggers, with no E2E run recorded yet. It must track that predicate exactly:
-# a pre-filter narrower than the gate retires the gate silently. On the
+# triggers, with no E2E run or accepted skip recorded yet. It must track that
+# predicate exactly: a pre-filter narrower than the gate retires the gate
+# silently, and one wider replays a block rendered before the skip landed. On the
 # overwhelming majority of turns (no test run, no PR) the state file is absent,
 # or unitTestsGreen is unset while prsHandled is empty, so we return {} in-shell
 # and never pay Node cold-start. Degrades to {}.
@@ -25,7 +26,8 @@ guardrail_wants() {
   guardrail_load_state \
     && { guardrail_state_has '"unitTestsGreen": true' || ! guardrail_state_has '"prsHandled": []'; } \
     && ! guardrail_state_has '"e2eReleased": true' \
-    && ! guardrail_state_has '"e2eRun": true'
+    && ! guardrail_state_has '"e2eRun": true' \
+    && ! guardrail_state_has '"e2eSkipped": true'
 }
 
 # Returns the block guardrails.mjs rendered ahead of time (writeE2eStopVerdict), without starting Node, while the

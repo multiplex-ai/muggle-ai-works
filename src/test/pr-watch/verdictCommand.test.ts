@@ -43,7 +43,7 @@ describe("runPrWatchVerdictCommand", () => {
       preferences,
     );
     expect(outcome).toEqual({
-      stdout: "REBASE_ATTEMPTED=1\nCI_ATTEMPTED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n",
+      stdout: "REBASE_ATTEMPTED=1\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n",
       stderr: "",
       exitCode: 0,
     });
@@ -100,7 +100,7 @@ describe("the shipped pr-watch-verdict.mjs", () => {
       [SHIPPED_BUNDLE, "arm-floors", "--pr-key", "o/r#7", "--head", "h1", "--rebase-key", "h1..b1"],
       { input: "", encoding: "utf-8", windowsHide: true },
     );
-    expect(run.stdout).toBe("REBASE_ATTEMPTED=0\nCI_ATTEMPTED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n");
+    expect(run.stdout).toBe("REBASE_ATTEMPTED=0\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n");
   });
 });
 

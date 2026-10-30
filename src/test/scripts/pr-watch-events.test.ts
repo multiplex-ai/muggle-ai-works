@@ -132,21 +132,32 @@ describe.skipIf(!hasBash)("watch_wake_rebase", () => {
 
 describe.skipIf(!hasBash)("watch_wake_ci_red", () => {
   it("wakes when checks have settled red", () => {
-    expect(wake('watch_wake_ci_red 383 0 2 "headsha" ""')).toContain("checks settled red");
+    expect(wake('watch_wake_ci_red 383 0 2 "headsha" "headsha@ci#1" ""')).toContain("checks settled red");
   });
 
   it("stays quiet while any check is still pending", () => {
     // A run in flight may yet go green, and the tick would idle on it anyway.
-    expect(wake('watch_wake_ci_red 383 1 2 "headsha" ""')).toBe("");
+    expect(wake('watch_wake_ci_red 383 1 2 "headsha" "headsha@ci#1" ""')).toBe("");
   });
 
   it("stays quiet when everything passed", () => {
-    expect(wake('watch_wake_ci_red 383 0 0 "headsha" ""')).toBe("");
+    expect(wake('watch_wake_ci_red 383 0 0 "headsha" "headsha@" ""')).toBe("");
   });
 
-  it("fires once per red head, then re-arms on the next push", () => {
-    expect(wake('watch_wake_ci_red 383 0 1 "headsha" "headsha"')).toBe("");
-    expect(wake('watch_wake_ci_red 383 0 1 "newhead" "headsha"')).toContain("head=newhead");
+  it("fires once per red verdict, then re-arms on the next push", () => {
+    expect(wake('watch_wake_ci_red 383 0 1 "headsha" "headsha@ci#1" "headsha@ci#1"')).toBe("");
+    expect(wake('watch_wake_ci_red 383 0 1 "newhead" "newhead@ci#2" "headsha@ci#1"')).toContain("head=newhead");
+  });
+
+  // A settle or rerun keeps the head; its red run is what fix-ci waits on.
+  it("re-arms on a fresh red run of the same head", () => {
+    expect(wake('watch_wake_ci_red 383 0 1 "headsha" "headsha@ci#2" "headsha@ci#1"')).toContain("head=headsha");
+  });
+});
+
+describe.skipIf(!hasBash)("watch_ci_red_key", () => {
+  it("joins the head and its red runs", () => {
+    expect(wake('watch_ci_red_key "headsha" "ci#1,lint#2"')).toBe("headsha@ci#1,lint#2");
   });
 });
 

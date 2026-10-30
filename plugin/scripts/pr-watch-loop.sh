@@ -178,6 +178,7 @@ while :; do
     pending_checks="${STATE_FIELDS[7]-}"
     failed_checks="${STATE_FIELDS[8]-}"
     ci_digest="${STATE_FIELDS[9]-}"
+    ci_red_key="$(watch_ci_red_key "$head_sha" "${STATE_FIELDS[10]-}")"
 
     if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
         echo "TERMINAL pr=$pr_number state=$pr_state"
@@ -206,12 +207,12 @@ while :; do
         done
     fi
 
-    # Either floor quiets the head: the watermark's when a fix already ran for
-    # it, the reported one when a loop already told the session it went red.
+    # Either floor quiets the red verdict: the watermark's when fix-ci settled
+    # it, the reported one when a loop already told the session about it.
     ci_red_floor="$watermark_ci_red"
-    [ "$floor_ci_red" = "$head_sha" ] && ci_red_floor="$floor_ci_red"
-    if watch_wake_ci_red "$pr_number" "$pending_checks" "$failed_checks" "$head_sha" "$ci_red_floor"; then
-        floor_ci_red="$head_sha"
+    [ "$floor_ci_red" = "$ci_red_key" ] && ci_red_floor="$floor_ci_red"
+    if watch_wake_ci_red "$pr_number" "$pending_checks" "$failed_checks" "$head_sha" "$ci_red_key" "$ci_red_floor"; then
+        floor_ci_red="$ci_red_key"
         has_reported=1
     fi
 

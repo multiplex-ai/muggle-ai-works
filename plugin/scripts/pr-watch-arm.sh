@@ -13,10 +13,12 @@
 # seen without ever being reported. A re-arm keeps the review, comment and thread
 # floors the session already holds, for the same reason.
 #
-# A stale branch or a red head is floored only when the slot proves a cycle ran
-# for it. Flooring whatever was outstanding at arm time let a session that never
-# rebased or fixed anything re-arm at every rollover and silence the loop each
-# time; the drain line said "handled" and nothing checked.
+# A stale branch is floored only when the slot proves a rebase ran for it, and a
+# red head only once fix-ci is finished with it — escalated, or out of attempts.
+# Flooring whatever was outstanding at arm time let a session that never rebased
+# or fixed anything re-arm at every rollover and silence the loop each time; the
+# drain line said "handled" and nothing checked. A bare attempt count is no
+# better proof for CI: writing it costs nothing and changes nothing on the PR.
 set -uo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,6 +79,7 @@ latest_comment="${STATE_FIELDS[5]-}"
 unresolved_threads="${STATE_FIELDS[6]-}"
 pending_checks="${STATE_FIELDS[7]-}"
 failed_checks="${STATE_FIELDS[8]-}"
+ci_red_key="$(watch_ci_red_key "$head_sha" "${STATE_FIELDS[10]-}")"
 
 if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
     echo "TERMINAL pr=$pr_number state=$pr_state — nothing to arm"
@@ -92,7 +95,8 @@ rebase_due_key=""
 behind_count="$(watch_fetch_behind_count "$repo" "$base_branch" "$head_sha" "$slot")"
 watch_branch_needs_rebase "$mergeable" "$behind_count" && rebase_due_key="$rebase_key"
 
-# Whether a cycle already ran for this key and this head, and the blocked
+# Whether a rebase already ran for this key, whether fix-ci is done with this
+# head, and the blocked
 # fingerprint's digest. A slot re-armed while blocked keeps its resume probe
 # live: empty is the not-blocked state, so seeding it empty would leave the loop
 # asleep through the very CI move the block is waiting on.
@@ -105,14 +109,14 @@ watch_branch_needs_rebase "$mergeable" "$behind_count" && rebase_due_key="$rebas
 last_seen_file="${slot}/last_seen.json"
 [ -f "$last_seen_file" ] || last_seen_file=/dev/null
 rebase_attempted=0
-ci_attempted=0
+ci_settled=0
 blocked_digest_floor=""
 rebase_budget_exhausted=0
 while IFS= read -r evidence_line; do
     evidence_line="${evidence_line%$'\r'}"
     case "$evidence_line" in
         REBASE_ATTEMPTED=*) rebase_attempted="${evidence_line#REBASE_ATTEMPTED=}" ;;
-        CI_ATTEMPTED=*) ci_attempted="${evidence_line#CI_ATTEMPTED=}" ;;
+        CI_SETTLED=*) ci_settled="${evidence_line#CI_SETTLED=}" ;;
         BLOCKED_CIDIGEST=*) blocked_digest_floor="${evidence_line#BLOCKED_CIDIGEST=}" ;;
         REBASE_BUDGET_EXHAUSTED=*) rebase_budget_exhausted="${evidence_line#REBASE_BUDGET_EXHAUSTED=}" ;;
     esac
@@ -120,7 +124,7 @@ done < <(node "${script_dir}/pr-watch-verdict.mjs" arm-floors --pr-key "${repo}#
     --head "$head_sha" --rebase-key "$rebase_key" < "$last_seen_file" 2>/dev/null)
 
 ci_red_floor=""
-[ -n "$ci_red_head" ] && [ "$ci_attempted" = "1" ] && ci_red_floor="$ci_red_head"
+[ -n "$ci_red_head" ] && [ "$ci_settled" = "1" ] && ci_red_floor="$ci_red_key"
 rebase_floor=""
 [ -n "$rebase_due_key" ] && [ "$rebase_attempted" = "1" ] && rebase_floor="$rebase_due_key"
 
@@ -145,9 +149,9 @@ echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} l
 echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behind-base=${behind_count:-unknown} mergeable=${mergeable:-UNKNOWN}"
 if [ -n "$ci_red_head" ]; then
     if [ -n "$ci_red_floor" ]; then
-        echo "DRAIN ci red at arm time — a fix-ci cycle already ran for head ${head_sha:0:8}, floored"
+        echo "DRAIN ci red at arm time — fix-ci escalated or spent its attempts on head ${head_sha:0:8}, floored"
     else
-        echo "DRAIN ci red at arm time — no fix-ci attempt recorded for head ${head_sha:0:8}, not floored: dispatch fix-ci"
+        echo "DRAIN ci red at arm time — fix-ci not finished with head ${head_sha:0:8}, not floored: dispatch fix-ci"
     fi
 fi
 if [ -n "$rebase_due_key" ]; then

@@ -628,9 +628,11 @@ function watchFollowThroughGate(): string {
       ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:\n` +
         `${owedList}\n` +
         `autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to ` +
-        `wait. Act now — if the tick finds actionable review feedback it dispatches that first. A recorded attempt ` +
-        `(conflict_resolve_attempts / ci_fix_attempts) or a new head clears this; an escalation entry with no attempt ` +
-        `behind it does not, and neither does re-arming the watch. ${holdInstruction}`
+        `wait. Act now: run the cycle the tick dispatches — if it finds actionable review feedback it dispatches that ` +
+        `first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like ` +
+        `a new head, clears this. Writing the count without running the cycle — or for an E2E run queued for a ` +
+        `different PR — leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not ` +
+        `clear this, and neither does re-arming the watch. ${holdInstruction}`
       : `Watcher work still owed (reminder ${decision.blockCount}):\n${owedList}\n${holdInstruction}`;
   return blockStop(reason, host);
 }

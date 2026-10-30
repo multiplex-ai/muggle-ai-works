@@ -25,7 +25,7 @@ query($owner: String!, $name: String!, $number: Int!) {
               contexts(first: 100) {
                 nodes {
                   __typename
-                  ... on CheckRun { name status conclusion }
+                  ... on CheckRun { databaseId name status conclusion }
                   ... on StatusContext { context state }
                 }
               }

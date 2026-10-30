@@ -43,7 +43,7 @@ const usageFailure = (problem: string): PrWatchVerdictOutcome => ({
  * Run one `pr-watch-verdict.mjs` invocation against a slot's `last_seen.json` text.
  *
  * Output shape: `arm-floors` prints
- * `REBASE_ATTEMPTED=0\nCI_ATTEMPTED=1\nBLOCKED_CIDIGEST=<digest>\nREBASE_BUDGET_EXHAUSTED=0\n`;
+ * `REBASE_ATTEMPTED=0\nCI_SETTLED=1\nBLOCKED_CIDIGEST=<digest>\nREBASE_BUDGET_EXHAUSTED=0\n`;
  * `tick` prints `VERDICT=dispatch-rebase\n`.
  */
 export function runPrWatchVerdictCommand(
@@ -64,7 +64,7 @@ export function runPrWatchVerdictCommand(
     return {
       stdout:
         `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}\n` +
-        `CI_ATTEMPTED=${evidence.isCiHeadAttempted ? 1 : 0}\n` +
+        `CI_SETTLED=${evidence.isCiHeadSettled ? 1 : 0}\n` +
         `BLOCKED_CIDIGEST=${evidence.blockedCiDigest}\n` +
         `REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}\n`,
       stderr: "",

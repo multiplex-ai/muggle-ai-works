@@ -26,6 +26,34 @@ function writeAttemptNamesArtifact(
   return written === expected && carriesExpectedContent(attempt.args.content, artifact);
 }
 
+function escapeForRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Whether the command reaches `spelling` the way a shell resolves it, from a
+ * directory it names: `cd <dir>` then a relative tail, or `NAME=<dir>` then
+ * `$NAME/<tail>`. The tail must start a word, so `notprs.json` never stands in
+ * for `prs.json`.
+ */
+function reachesPathThroughDirectory(normalizedCommand: string, spelling: string): boolean {
+  const segments = spelling.split("/");
+  for (let cut = 1; cut < segments.length; cut++) {
+    const directory = escapeForRegExp(segments.slice(0, cut).join("/"));
+    const tail = escapeForRegExp(segments.slice(cut).join("/"));
+    const directoryEnd = `/?["']?(?=[\\s;&|]|$)`;
+    const changesIntoDirectory = new RegExp(`(^|[\\s;&|(])cd\\s+["']?${directory}${directoryEnd}`);
+    const namesRelativeTail = new RegExp(`(^|[\\s"'>=])${tail}(?=[\\s"';&|)]|$)`);
+    if (changesIntoDirectory.test(normalizedCommand) && namesRelativeTail.test(normalizedCommand)) return true;
+    const assignment = new RegExp(`(?:^|[\\s;&|(])([a-z_][a-z0-9_]*)=["']?${directory}${directoryEnd}`, "gi");
+    for (const [, variableName] of normalizedCommand.matchAll(assignment)) {
+      const expansion = new RegExp(`\\$(\\{${variableName}\\}|${variableName}(?![a-z0-9_]))/${tail}`, "i");
+      if (expansion.test(normalizedCommand)) return true;
+    }
+  }
+  return false;
+}
+
 function bashAttemptNamesArtifact(
   attempt: ToolAttempt,
   artifact: ArtifactExpectation,
@@ -34,16 +62,16 @@ function bashAttemptNamesArtifact(
   const command = attempt.args.command;
   if (attempt.tool !== "Bash" || typeof command !== "string") return false;
   const normalizedCommand = normalizePathText(command);
-  return (
-    spellings.some((spelling) => normalizedCommand.includes(spelling)) &&
-    carriesExpectedContent(command, artifact)
+  const namesPath = spellings.some(
+    (spelling) => normalizedCommand.includes(spelling) || reachesPathThroughDirectory(normalizedCommand, spelling),
   );
+  return namesPath && carriesExpectedContent(command, artifact);
 }
 
 /**
  * True when the sandbox holds the artifact (carrying `contains` and matching
- * `matches`, when set), or a recorded Write or Bash attempt names its path and
- * carries the same.
+ * `matches`, when set), or a recorded Write or Bash attempt names its path — a
+ * Bash one directly or through a `cd` or directory variable — and carries the same.
  */
 export function isArtifactSatisfied(
   artifact: ArtifactExpectation,

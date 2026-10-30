@@ -91,6 +91,55 @@ describe("agent run isolation", () => {
   });
 });
 
+describe("turn cap", () => {
+  const definition = {
+    kind: EvalTargetKind.Agent,
+    name: "a",
+    modelAlias: "sonnet",
+    model: "claude-sonnet-4-6",
+    body: "contract",
+    filePath: "/repo/plugin/agents/a.md",
+  } as const;
+
+  /** One tool call, the turn-cap result, then the error the SDK throws after it. */
+  function turnCapStream(): AsyncGenerator<unknown> {
+    return (async function* () {
+      yield {
+        type: "assistant",
+        message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "/p/skills/do/input-routing.md" } }] },
+      };
+      yield { type: "result", subtype: "error_max_turns", total_cost_usd: 0.1, duration_ms: 10, num_turns: 6 };
+      throw new Error("Claude Code returned an error result: Reached maximum number of turns (6)");
+    })();
+  }
+
+  it("judges a scenario that stops at its cap on the trace it built before the cap", async () => {
+    sdk.query.mockReturnValue(turnCapStream());
+
+    const verdict = await runAgentScenarioOnce({
+      definition: definition,
+      scenario: {
+        name: "s",
+        prompt: "go",
+        maxTurns: 6,
+        stopsAtMaxTurns: true,
+        expect: { requireToolAttempts: [{ tool: "Read", argContains: "input-routing.md" }] },
+      },
+    });
+
+    expect(verdict.pass).toBe(true);
+    expect(verdict.usage?.turns).toBe(6);
+  });
+
+  it("still aborts a run that reaches its cap when the scenario does not stop there by design", async () => {
+    sdk.query.mockReturnValue(turnCapStream());
+
+    await expect(
+      runAgentScenarioOnce({ definition: definition, scenario: { name: "s", prompt: "go", maxTurns: 6, expect: {} } }),
+    ).rejects.toThrow("maximum number of turns");
+  });
+});
+
 describe("skill run setup", () => {
   const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), "agent-gate-eval-plugin-"));
   fs.mkdirSync(path.join(pluginRoot, "skills", "demo"), { recursive: true });

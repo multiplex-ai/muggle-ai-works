@@ -40,6 +40,9 @@ export const DEFAULT_AGENT_RUNS = 5;
 /** Turn cap when neither the caller nor the scenario sets one. */
 export const DEFAULT_MAX_TURNS = 60;
 
+/** The SDK's terminal result subtype for a run that reached its turn cap. */
+export const MAX_TURNS_RESULT_SUBTYPE = "error_max_turns";
+
 /** The model a skill runs on when neither `--model` nor its frontmatter names one. */
 export const DEFAULT_SKILL_MODEL = "claude-sonnet-5-5";
 

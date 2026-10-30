@@ -84,6 +84,13 @@ describe("judgeAgentRun", () => {
     const v = judgeAgentRun(scenario({ forbidAskUserQuestion: false }), "ok", [], 1);
     expect(v.pass).toBe(true);
   });
+
+  it("maxAskUserQuestions allows up to that many questions and fails one past it", () => {
+    expect(judgeAgentRun(scenario({ maxAskUserQuestions: 1 }), "ok", [], 1).pass).toBe(true);
+    const twice = judgeAgentRun(scenario({ maxAskUserQuestions: 1 }), "ok", [], 2);
+    expect(twice.pass).toBe(false);
+    expect(twice.reasons[0]).toContain("at most 1");
+  });
 });
 
 describe("requireToolSequence", () => {
@@ -120,6 +127,21 @@ describe("requireToolSequence", () => {
 
   it("is satisfied by an empty sequence", () => {
     expect(judgeAgentRun(scenario({ requireToolSequence: [] }), "", [], 0).pass).toBe(true);
+  });
+
+  it("checks each of requireToolSequences on its own, so reading every stage first still passes", () => {
+    const readBeforeAction: ToolAttemptPattern[][] = [
+      [{ tool: "Read", argContains: "build.md" }, { tool: "Edit", argContains: "greeting.js" }],
+      [{ tool: "Read", argContains: "unit-tests.md" }, { tool: "Bash", argContains: "guard-run" }],
+    ];
+    const readAllFirst = [read("do/build.md"), read("do/unit-tests.md"), { tool: "Edit", args: { file_path: "src/greeting.js" } }, bash("guard-run -- npm test")];
+    expect(judgeAgentRun(scenario({ requireToolSequences: readBeforeAction }), "", readAllFirst, 0).pass).toBe(true);
+
+    const testsBeforeTheirFile = [read("do/build.md"), { tool: "Edit", args: { file_path: "src/greeting.js" } }, bash("guard-run -- npm test"), read("do/unit-tests.md")];
+    const v = judgeAgentRun(scenario({ requireToolSequences: readBeforeAction }), "", testsBeforeTheirFile, 0);
+    expect(v.pass).toBe(false);
+    expect(v.reasons).toHaveLength(1);
+    expect(v.reasons[0]).toContain('missing Bash~"guard-run"');
   });
 
   it("lets an anyOf step be met by any one of its alternatives, so either arming wording passes", () => {

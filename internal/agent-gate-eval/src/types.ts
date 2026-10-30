@@ -239,6 +239,11 @@ export interface AgentScenarioExpectation {
   forbidToolAttempts?: ToolAttemptPattern[];
   /** Attempts that must occur in this order, each after the previous; other attempts may interleave. */
   requireToolSequence?: ToolAttemptPattern[];
+  /**
+   * Several orders, each checked on its own like `requireToolSequence` — for steps that must each follow
+   * their own predecessor (a stage's file read before that stage's action) without one fixed order across them.
+   */
+  requireToolSequences?: ToolAttemptPattern[][];
   /** Files the run must leave in the sandbox or name in a recorded Write or Bash attempt. */
   requireArtifacts?: ArtifactExpectation[];
   /**
@@ -246,6 +251,11 @@ export interface AgentScenarioExpectation {
    * a scenario can only relax it explicitly.
    */
   forbidAskUserQuestion?: boolean;
+  /**
+   * The most AskUserQuestion calls the run may make, for a flow that owes the user exactly one
+   * consolidated question. Set, it replaces `forbidAskUserQuestion`.
+   */
+  maxAskUserQuestions?: number;
 }
 
 /** One behavioral scenario, run N times. */
@@ -271,6 +281,11 @@ export interface AgentScenario {
   seed?: ScenarioSeed;
   /** Turn cap for this scenario; unset, DEFAULT_MAX_TURNS. */
   maxTurns?: number;
+  /**
+   * Set when the scenario judges only how a run begins: reaching `maxTurns` ends the run and it is
+   * judged on what it did by then, instead of counting as an aborted run.
+   */
+  stopsAtMaxTurns?: boolean;
   /** Unset, the scenario runs on every in-scope PR. */
   cadence?: ScenarioCadence;
   expect: AgentScenarioExpectation;

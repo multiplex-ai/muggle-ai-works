@@ -121,6 +121,8 @@ describe("loadAgentScenarioFile", () => {
     ["a transcript turn with neither text nor a tool call", { seed: { transcript: { turns: [{}], resumePrompt: "go" } } }, /needs text or a tool call/],
     ["a transcript tool call without an input object", { seed: { transcript: { turns: [{ toolCalls: [{ tool: "Read" }] }], resumePrompt: "go" } } }, /input object/],
     ["a malformed tool-attempt pattern", { expect: { requireToolSequence: [{ tool: "Bash" }] } }, /requireToolSequence\[0\]/],
+    ["requireToolSequences that is not a list of lists", { expect: { requireToolSequences: [{ tool: "Bash", argContains: "x" }] } }, /list of lists/],
+    ["a malformed pattern inside requireToolSequences", { expect: { requireToolSequences: [[{ tool: "Bash" }]] } }, /requireToolSequences\[0\]/],
     ["an anyOf with no alternatives", { expect: { forbidToolAttempts: [{ anyOf: [] }] } }, /forbidToolAttempts\[0\]/],
     ["a reference to an undefined pattern", { expect: { requireToolAttempts: [{ pattern: "watcher-armed" }] } }, /names pattern "watcher-armed"/],
     ["an artifact regex that does not compile", { expect: { requireArtifacts: [{ path: "~/x", matches: "(" }] } }, /invalid matches regex/],
@@ -144,6 +146,7 @@ describe("loadAgentScenarioFile", () => {
           ...minimalScenario,
           expect: {
             requireToolSequence: [{ tool: "Bash", argContains: "gh pr create" }, { pattern: "watcher-armed" }],
+            requireToolSequences: [[{ tool: "Read", argContains: "arm-watcher.md" }, { pattern: "watcher-armed" }]],
             forbidToolAttempts: [{ pattern: "watcher-armed" }],
           },
         },
@@ -151,6 +154,7 @@ describe("loadAgentScenarioFile", () => {
     });
     const [scenario] = loadAgentScenarioFile(p).scenarios;
     expect(scenario.expect.requireToolSequence).toEqual([{ tool: "Bash", argContains: "gh pr create" }, watcherArmed]);
+    expect(scenario.expect.requireToolSequences).toEqual([[{ tool: "Read", argContains: "arm-watcher.md" }, watcherArmed]]);
     expect(scenario.expect.forbidToolAttempts).toEqual([watcherArmed]);
   });
 

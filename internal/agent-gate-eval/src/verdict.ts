@@ -28,6 +28,13 @@ export function countOrderedMatches(toolAttempts: ToolAttempt[], patterns: ToolA
   return matched;
 }
 
+/** Why the attempts miss `sequence` as an ordered subsequence, or null when they hold it. */
+function sequenceMissReason(toolAttempts: ToolAttempt[], sequence: ToolAttemptPattern[]): string | null {
+  const orderedMatches = countOrderedMatches(toolAttempts, sequence);
+  if (orderedMatches === sequence.length) return null;
+  return `expected tool sequence ${sequence.map(describeToolAttemptPattern).join(" → ")}; matched ${orderedMatches}/${sequence.length}, missing ${describeToolAttemptPattern(sequence[orderedMatches])} after the earlier steps`;
+}
+
 /**
  * Score one completed run. `finalOutput` is the run's terminal report text;
  * `artifactSnapshot` is the sandbox after the run, required when the scenario
@@ -75,12 +82,9 @@ export function judgeAgentRun(
     }
   }
 
-  const sequence = expect.requireToolSequence ?? [];
-  const orderedMatches = countOrderedMatches(toolAttempts, sequence);
-  if (orderedMatches < sequence.length) {
-    reasons.push(
-      `expected tool sequence ${sequence.map(describeToolAttemptPattern).join(" → ")}; matched ${orderedMatches}/${sequence.length}, missing ${describeToolAttemptPattern(sequence[orderedMatches])} after the earlier steps`,
-    );
+  for (const sequence of [expect.requireToolSequence ?? [], ...(expect.requireToolSequences ?? [])]) {
+    const missReason = sequenceMissReason(toolAttempts, sequence);
+    if (missReason) reasons.push(missReason);
   }
 
   for (const artifact of expect.requireArtifacts ?? []) {
@@ -95,7 +99,13 @@ export function judgeAgentRun(
   }
 
   const forbidAsk = expect.forbidAskUserQuestion ?? true;
-  if (forbidAsk && askQuestionCount > 0) {
+  if (expect.maxAskUserQuestions !== undefined) {
+    if (askQuestionCount > expect.maxAskUserQuestions) {
+      reasons.push(
+        `agent asked the user ${askQuestionCount} time(s); the flow allows at most ${expect.maxAskUserQuestions}`,
+      );
+    }
+  } else if (forbidAsk && askQuestionCount > 0) {
     reasons.push(
       `agent asked the user ${askQuestionCount} time(s) — the no-user-channel contract requires needs-input: instead`,
     );

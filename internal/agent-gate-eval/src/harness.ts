@@ -44,6 +44,7 @@ import {
   HOST_STUB_PREFIX,
   HOST_STUB_SERVER_NAME,
   HOST_STUB_SPECS,
+  MAX_TURNS_RESULT_SUBTYPE,
   MOCK_MCP_NOTE_LINES,
   MOCK_MCP_SERVER_NAME,
   SCRIPTED_BASH_NOTE_LINES,
@@ -84,6 +85,12 @@ function runUsageOf(resultMessage: unknown): RunUsage | undefined {
   };
   if (typeof costUsd !== "number" || typeof durationMs !== "number" || typeof turns !== "number") return undefined;
   return { costUsd: costUsd, durationMs: durationMs, turns: turns };
+}
+
+/** Whether the SDK's terminal result is the turn cap a `stopsAtMaxTurns` scenario ends on by design. */
+export function isPlannedTurnCapEnd(scenario: AgentScenario, resultMessage: unknown): boolean {
+  const subtype = (resultMessage as { subtype?: unknown } | null)?.subtype;
+  return scenario.stopsAtMaxTurns === true && subtype === MAX_TURNS_RESULT_SUBTYPE;
 }
 
 /** The system prompt an agent target runs under: its definition body plus the environment note. */
@@ -237,6 +244,19 @@ export async function runAgentScenarioOnce(
     let finalOutput = "";
     let lastAssistantText = "";
     let lastResult: unknown = null;
+    const judgeRun = (): AgentRunVerdict => {
+      const askQuestionCount = toolAttempts.filter((attempt) => attempt.tool === ScriptedTool.AskUserQuestion).length;
+      const artifactSnapshot = snapshotArtifacts(scenario.expect.requireArtifacts ?? [], paths);
+      const verdict = judgeAgentRun(
+        scenario,
+        finalOutput || lastAssistantText,
+        toolAttempts,
+        askQuestionCount,
+        artifactSnapshot,
+      );
+      const usage = runUsageOf(lastResult);
+      return usage ? { ...verdict, usage: usage } : verdict;
+    };
     try {
       for await (const msg of stream) {
         if (onMessage) onMessage(msg);
@@ -258,6 +278,8 @@ export async function runAgentScenarioOnce(
         }
       }
     } catch (err) {
+      // The SDK throws after a run's turn-cap result; a scenario that stops there by design is judged on its trace.
+      if (isPlannedTurnCapEnd(scenario, lastResult)) return judgeRun();
       if (lastResult !== null) {
         process.stderr.write(
           `[agent-gate-eval] final SDK message before failure: ${JSON.stringify(lastResult)}\n`,
@@ -265,13 +287,7 @@ export async function runAgentScenarioOnce(
       }
       throw err;
     }
-
-    if (!finalOutput) finalOutput = lastAssistantText;
-    const askQuestionCount = toolAttempts.filter((attempt) => attempt.tool === ScriptedTool.AskUserQuestion).length;
-    const artifactSnapshot = snapshotArtifacts(scenario.expect.requireArtifacts ?? [], paths);
-    const verdict = judgeAgentRun(scenario, finalOutput, toolAttempts, askQuestionCount, artifactSnapshot);
-    const usage = runUsageOf(lastResult);
-    return usage ? { ...verdict, usage: usage } : verdict;
+    return judgeRun();
   } finally {
     removeRunSandbox(sandbox);
   }

@@ -59,6 +59,15 @@ function resolveExpectationPatterns(
     if (!Array.isArray(entries)) throw new Error(`${label}: expect.${key} must be a list`);
     resolved[key] = resolvePatternReferences(entries, namedPatterns, `${label} expect.${key}`);
   }
+  const sequences = expectation.requireToolSequences as unknown;
+  if (sequences !== undefined) {
+    if (!Array.isArray(sequences) || !sequences.every(Array.isArray)) {
+      throw new Error(`${label}: expect.requireToolSequences must be a list of lists`);
+    }
+    resolved.requireToolSequences = sequences.map((sequence: unknown[], index) =>
+      resolvePatternReferences(sequence, namedPatterns, `${label} expect.requireToolSequences[${index}]`),
+    );
+  }
   return resolved;
 }
 

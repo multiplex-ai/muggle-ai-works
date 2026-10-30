@@ -37,7 +37,7 @@ function showWith(overrides: Partial<Parameters<typeof showPostInstallGuide>[0]>
 describe("buildPostInstallGuide", () => {
   const guide = buildPostInstallGuide();
 
-  it.each(["muggle init", "muggle doctor", "muggle help", "/mdo", POST_INSTALL_DOCS_URL])(
+  it.each(["/mdo", "/mtest", "/mbt", "/m ", "muggle init", "muggle help", POST_INSTALL_DOCS_URL])(
     "mentions %s",
     (expected) => {
       expect(guide).toContain(expected);

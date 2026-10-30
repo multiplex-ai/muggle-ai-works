@@ -796,7 +796,7 @@
     {
       "name": "stage-2-entry",
       "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away, so open the PR when it's done.",
-      "maxTurns": 10,
+      "maxTurns": 12,
       "stopsAtMaxTurns": true,
       "seed": {
         "repo": "tiny-web-app",

@@ -37,12 +37,40 @@ function showWith(overrides: Partial<Parameters<typeof showPostInstallGuide>[0]>
 describe("buildPostInstallGuide", () => {
   const guide = buildPostInstallGuide();
 
-  it.each(["/mdo", "/mtest", "/mbt", "/m ", "muggle init", "muggle help", POST_INSTALL_DOCS_URL])(
-    "mentions %s",
-    (expected) => {
-      expect(guide).toContain(expected);
-    },
-  );
+  it.each([
+    "/m ",
+    "/mimport",
+    "/muggle:muggle-test-import",
+    "/mdo",
+    "/muggle:muggle-do",
+    "/mtest",
+    "/muggle:muggle-test",
+    "/mprefs",
+    "/muggle:muggle-preferences",
+    "muggle help",
+    POST_INSTALL_DOCS_URL,
+  ])("mentions %s", (expected) => {
+    expect(guide).toContain(expected);
+  });
+
+  it("does not repeat plugin install steps", () => {
+    expect(guide).not.toMatch(/marketplace|plugin install|plugin add/);
+  });
+
+  it("orders the sections menu, import, build, run, guidance, preferences", () => {
+    const sectionTitles = [
+      "See the menu",
+      "Import your existing tests first",
+      "Build something",
+      "Run a test",
+      "Get run guidance",
+      "Manage preferences",
+    ];
+    const positions = sectionTitles.map((title) => guide.indexOf(title));
+
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((first, second) => first - second));
+  });
 
   it("is plain text so it reads the same in the install log", () => {
     expect(guide).not.toContain("\x1b[");

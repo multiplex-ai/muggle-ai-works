@@ -4,7 +4,11 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { fileURLToPath } from "url";
 import { lastSeenEntryFor, parseWatchDueRecord, readSlotPr } from "../../pr-watch/slotFiles.js";
-import { resolveWatchPreferences } from "../../pr-watch/watchPreferences.js";
+import {
+  resolvePreferenceValue,
+  resolveUserPreferenceValue,
+  resolveWatchPreferences,
+} from "../../pr-watch/watchPreferences.js";
 
 describe("parseWatchDueRecord", () => {
   it("reads the record pr-watch-due.sh writes, CRLF included", () => {
@@ -90,5 +94,21 @@ describe("resolveWatchPreferences", () => {
       autoRebase: "always",
       maxCatchUpRebases: 20,
     });
+  });
+
+  it("resolves any one preference the same way: the user's string over the default, a null falling through", () => {
+    const [home, plugin] = homeAndPlugin(
+      { autoE2ETest: "ask", postPRVisualWalkthrough: null },
+      { autoE2ETest: "always", postPRVisualWalkthrough: "always" },
+    );
+    expect(resolvePreferenceValue("autoE2ETest", home, plugin)).toBe("ask");
+    expect(resolvePreferenceValue("postPRVisualWalkthrough", home, plugin)).toBe("always");
+    expect(resolvePreferenceValue("unknownPreference", home, plugin)).toBeUndefined();
+  });
+
+  it("reads only the user's own file for an explicit choice, never the shipped default", () => {
+    const [home] = homeAndPlugin({ autoE2ETest: "always" }, { postPRVisualWalkthrough: "always" });
+    expect(resolveUserPreferenceValue("autoE2ETest", home)).toBe("always");
+    expect(resolveUserPreferenceValue("postPRVisualWalkthrough", home)).toBeUndefined();
   });
 });

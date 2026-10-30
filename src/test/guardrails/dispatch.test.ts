@@ -196,4 +196,12 @@ describe.skipIf(process.platform === "win32").each([
     const openedPr = { sessionId: "pr", prsHandled: ["https://github.com/o/r/pull/1"] };
     expect(fire(hookCommand("Stop"), { session_id: "pr" }, openedPr)).toBe(`${NODE_RAN} run e2e-gate watch-gate`);
   });
+
+  it("answers an owed E2E run's turn end with its rendered block, without Node", () => {
+    const home = createHome();
+    const renderedBlock = JSON.stringify({ decision: "block", reason: "run /muggle:muggle-test" });
+    writeFileSync(join(home, ".muggle-ai", "guardrails", "rendered.e2e-stop-verdict"), `3\n${renderedBlock}`);
+    const openedPr = { sessionId: "rendered", prsHandled: ["https://github.com/o/r/pull/1"] };
+    expect(fire(hookCommand("Stop"), { session_id: "rendered" }, openedPr, home)).toBe(renderedBlock);
+  });
 });

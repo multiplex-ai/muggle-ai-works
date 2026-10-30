@@ -6,6 +6,8 @@ import { withFileLock } from "./store/fileLock.js";
 import {
   DEFERRED_STATE_LOCK_WAIT_MS,
   DEFERRED_STATE_MUTATION_INFIX,
+  E2E_SHELL_BLOCKS_SUFFIX,
+  E2E_STOP_VERDICT_SUFFIX,
   SESSION_STATE_LOCK_WAIT_MS,
 } from "./constants.js";
 
@@ -74,6 +76,32 @@ export function readPrStateScan(sessionId: string, dirOverride?: string): Cached
 /** Replace the session's provider PR-state lookup atomically. */
 export function writePrStateScan(sessionId: string, scan: CachedPrStateScan, dirOverride?: string): void {
   writeAtomically(fileFor(sessionId, dirOverride, PR_STATE_SCAN_SUFFIX), scan, dirOverride);
+}
+
+/** Write the session's pre-rendered e2e Stop block: the block budget, a newline, then the hook output. */
+export function writeE2eStopVerdict(sessionId: string, maxBlocks: number, hookOutput: string, dirOverride?: string): void {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const target = fileFor(sessionId, dirOverride, E2E_STOP_VERDICT_SUFFIX);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, `${maxBlocks}\n${hookOutput}`);
+  renameSync(staging, target);
+  // Created here, off the Stop path, because creating a file from Git Bash has
+  // taken most of a second where appending to one takes milliseconds.
+  writeFileSync(fileFor(sessionId, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), "", { flag: "a" });
+}
+
+/** How many e2e Stop blocks the shell returned from the pre-rendered verdict; 0 when it has returned none. */
+export function readE2eShellBlockCount(sessionId: string, dirOverride?: string): number {
+  try {
+    return readFileSync(fileFor(sessionId, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), "utf-8").length;
+  } catch {
+    return 0;
+  }
+}
+
+/** Forget the shell's e2e Stop blocks, so a later owed run starts with the full budget. */
+export function clearE2eShellBlocks(sessionId: string, dirOverride?: string): void {
+  rmSync(fileFor(sessionId, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), { force: true });
 }
 
 const lockFor = (sessionId: string, dirOverride?: string): string => `${fileFor(sessionId, dirOverride)}.lock`;

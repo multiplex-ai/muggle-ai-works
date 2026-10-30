@@ -1,4 +1,10 @@
-import { commitDeferredStateMutations, commitState, deferStateMutation, readState } from "./sessionState.js";
+import {
+  clearE2eShellBlocks,
+  commitDeferredStateMutations,
+  commitState,
+  deferStateMutation,
+  readState,
+} from "./sessionState.js";
 import { startBackgroundJob } from "./backgroundJob.js";
 import { applyE2eSkipDeclaration, applyRecordedRun } from "./shouldRunE2E.js";
 import { applyE2eSkipScope, applyPrOpenedToSkipScope } from "./skipScope.js";
@@ -121,10 +127,17 @@ export function commitStateMutation(
 ): GuardrailState {
   if (observedState && applyStateMutation(observedState, mutation) === observedState) return observedState;
   const committed = commitState(sessionId, (state) => applyStateMutation(state, mutation));
-  if (committed) return committed;
+  if (committed) return withShellBlocksReset(committed);
   deferStateMutation(sessionId, mutation);
   startBackgroundJob(GuardrailBackgroundJob.CommitDeferredState, [sessionId]);
-  return applyStateMutation(readState(sessionId), mutation);
+  return withShellBlocksReset(applyStateMutation(readState(sessionId), mutation));
+}
+
+// A registered E2E run rewinds `e2eBlockCount` (applyRecordedRun); the shell's
+// share of the same budget lives beside the state and rewinds with it.
+function withShellBlocksReset(state: GuardrailState): GuardrailState {
+  if (state.e2eRun === true) clearE2eShellBlocks(state.sessionId);
+  return state;
 }
 
 /** Commit every mutation the session's hooks deferred, for the detached job `commitStateMutation` starts. */

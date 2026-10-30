@@ -11,6 +11,7 @@ import {
   WEB_SURFACE_CONFIG_FILES,
 } from "./constants.js";
 import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
+import { ALWAYS_PREFERENCE_VALUE } from "../pr-watch/constants.js";
 import { isNonAppPath, parseNoAppLogicChangeDetail, pathsWithChangedPatch } from "./noAppLogicChange.js";
 import {
   E2eSkipCode,
@@ -193,7 +194,15 @@ const verifyNoAppLogicChange: SkipVerifier = (context, detail) => {
 // Nothing about the environment can confirm this one, so what is checked is the
 // reason itself: there has to be one a reviewer can weigh, since the PR shows it
 // in place of a run.
-const verifyNotApplicable: SkipVerifier = (_context, detail) => {
+const verifyNotApplicable: SkipVerifier = (context, detail) => {
+  // The one code backed by nothing but the agent's judgment, and `always` is the
+  // user saying that judgment is not theirs to make.
+  if (context.userAutoE2ETest === ALWAYS_PREFERENCE_VALUE) {
+    return refuted(
+      `autoE2ETest=always in ~/.muggle-ai/preferences.json, so a judgment that the change needs no run is not a ` +
+        `skip the user allows — run the E2E, or cite a code Muggle can verify`,
+    );
+  }
   const words = detail.trim().split(/\s+/).filter(Boolean).length;
   if (words >= MIN_NOT_APPLICABLE_REASON_WORDS) return verified;
   return refuted(

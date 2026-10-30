@@ -28,6 +28,30 @@ guardrail_wants() {
     && ! guardrail_state_has '"e2eRun": true'
 }
 
+# Returns the block guardrails.mjs rendered ahead of time (writeE2eStopVerdict), without starting Node, while the
+# budget it shares with Node's own blocks lasts. A Stop hook that outlives its one-second cap is dropped and the turn
+# ends unblocked, and Node's cold start alone has taken seconds on a loaded Windows machine, so a block that waits on
+# Node is one that can silently never land. Returns 1, leaving the decision and the release to Node, when nothing is
+# rendered or the budget is spent.
+guardrail_shell_verdict() {
+  local verdict_file="${GUARDRAIL_STATE_FILE%.json}.e2e-stop-verdict"
+  local shell_blocks_file="${GUARDRAIL_STATE_FILE%.json}.e2e-shell-blocks"
+  [[ -f $verdict_file ]] || return 1
+  local verdict=""
+  IFS= read -r -d '' verdict <"$verdict_file" || true
+  local max_blocks="${verdict%%$'\n'*}"
+  local hook_output="${verdict#*$'\n'}"
+  [[ $max_blocks =~ ^[0-9]+$ && -n $hook_output && $hook_output != "$verdict" ]] || return 1
+  local recorded_blocks_pattern='"e2eBlockCount"[[:space:]]*:[[:space:]]*([0-9]+)'
+  local recorded_blocks=0
+  [[ $GUARDRAIL_STATE =~ $recorded_blocks_pattern ]] && recorded_blocks="${BASH_REMATCH[1]}"
+  local shell_blocks=""
+  [[ -f $shell_blocks_file ]] && { IFS= read -r -d '' shell_blocks <"$shell_blocks_file" || true; }
+  ((recorded_blocks + ${#shell_blocks} < max_blocks)) || return 1
+  { printf 'x' >>"$shell_blocks_file"; } 2>/dev/null || return 1
+  printf '%s' "$hook_output"
+}
+
 if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
 fi

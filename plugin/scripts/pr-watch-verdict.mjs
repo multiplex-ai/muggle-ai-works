@@ -180,14 +180,22 @@ function parseMaxCatchUpRebases(configuredValue) {
   const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
   return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : void 0;
 }
+var readUserPreferences = (homeDir) => asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
+function readPreferenceLayers(homeDir, pluginRoot) {
+  return [readUserPreferences(homeDir), readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS))];
+}
+function pickPreferenceValue(preferenceLayers, preferenceKey) {
+  const configuredValue = preferenceLayers.map((layer) => layer[preferenceKey]).find((layerValue) => layerValue != null);
+  return typeof configuredValue === "string" ? configuredValue : void 0;
+}
 function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
-  const shippedDefaults = readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS));
-  const userPreferences = asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
-  const autoRebase = userPreferences[AUTO_REBASE_PREFERENCE_KEY] ?? shippedDefaults[AUTO_REBASE_PREFERENCE_KEY];
+  const preferenceLayers = readPreferenceLayers(homeDir, pluginRoot);
+  const [userPreferences, shippedDefaults] = preferenceLayers;
+  const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   return {
-    autoRebase: typeof autoRebase === "string" ? autoRebase : void 0,
+    autoRebase,
     maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
   };
 }

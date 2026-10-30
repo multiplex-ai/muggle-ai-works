@@ -154,6 +154,7 @@ guardrail_run_node() {
 guardrail_run_standalone() {
   guardrail_read_payload
   if guardrail_wants; then
+    declare -F guardrail_shell_verdict >/dev/null && guardrail_shell_verdict && return 0
     guardrail_run_node "$1"
   else
     printf '{}'

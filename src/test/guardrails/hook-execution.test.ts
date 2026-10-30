@@ -595,6 +595,63 @@ describe("guardrail hook execution (cli entry)", () => {
     expect(second.reason.length).toBeLessThan(first.reason.length);
   });
 
+  const e2eSidecar = (session: string, suffix: string): string =>
+    guardrailStateFile(home, session).replace(/\.json$/, suffix);
+  const prCreateEvent = (session: string): string =>
+    event({
+      session_id: session,
+      tool_name: "PowerShell",
+      tool_input: { command: "gh pr create --repo o/r --base master --head b --title t --body-file body.md" },
+      tool_response: { stdout: "https://github.com/o/r/pull/723\n" },
+    });
+
+  it("pr-opened -> e2e-gate: renders the owed-E2E block for the shell, whose blocks spend the same budget", () => {
+    const session = "rendered-verdict";
+    runHook("pr-opened", prCreateEvent(session));
+
+    const [maxBlocksLine, hookOutput] = readFileSync(e2eSidecar(session, ".e2e-stop-verdict"), "utf-8").split("\n");
+    expect(maxBlocksLine).toBe("3");
+    expect(JSON.parse(hookOutput).decision).toBe("block");
+
+    writeFileSync(e2eSidecar(session, ".e2e-shell-blocks"), "x");
+    expect(JSON.parse(runHook("e2e-gate", event({ session_id: session })).out).reason).toContain("2/3");
+
+    writeFileSync(e2eSidecar(session, ".e2e-shell-blocks"), "xx");
+    expect(runHook("e2e-gate", event({ session_id: session })).out).toBe("{}");
+  });
+
+  it("e2e-gate: under autoE2ETest=always the reason names the preferences and forbids handing the decision back", () => {
+    const session = "always-prefs";
+    mkdirSync(join(home, ".muggle-ai"), { recursive: true });
+    writeFileSync(
+      join(home, ".muggle-ai", "preferences.json"),
+      JSON.stringify({ preferences: { autoE2ETest: "always", postPRVisualWalkthrough: "always" } }),
+    );
+    runHook("pr-opened", prCreateEvent(session));
+
+    const reason = JSON.parse(runHook("e2e-gate", event({ session_id: session })).out).reason as string;
+    expect(reason).toContain("autoE2ETest=always");
+    expect(reason).toContain("postPRVisualWalkthrough=always");
+    expect(reason).toContain("do not ask them whether to test");
+    expect(reason).toContain("muggle-pr-visual-walkthrough");
+    expect(reason).not.toContain(E2eSkipCode.NotApplicable);
+  });
+
+  it("skill-stages: a registered E2E run rewinds the shell's share of the block budget", () => {
+    const session = "shell-blocks-reset";
+    runHook("pr-opened", prCreateEvent(session));
+    writeFileSync(e2eSidecar(session, ".e2e-shell-blocks"), "xx");
+    runHook(
+      "skill-stages",
+      event({
+        session_id: session,
+        tool_name: "mcp__plugin_muggle_muggle__muggle-local-telemetry-skill-emit",
+        tool_input: { skillName: "muggle-test" },
+      }),
+    );
+    expect(existsSync(e2eSidecar(session, ".e2e-shell-blocks"))).toBe(false);
+  });
+
   it("build-router: nudges a build ask toward muggle-do, once per session", () => {
     const ev = event({ session_id: "br", prompt: "implement a dark-mode toggle" });
     const first = JSON.parse(runHook("build-router", ev).out);
@@ -1085,6 +1142,30 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(
       runWrapper("guardrail-e2e-gate.sh", event({ session_id: "pr" }), { ...openedPr, e2eRun: true }),
     ).toBe("{}");
+  });
+
+  // A Stop hook past its one-second cap is dropped and the turn ends unblocked, so an owed run's block must not wait
+  // on Node's cold start.
+  it("e2e-gate: returns the rendered block in-shell, without Node, until the shared budget is spent", () => {
+    const home = createHookHome("gr-home-");
+    const openedPr = { sessionId: "rendered", prsHandled: ["https://github.com/o/r/pull/7"], e2eBlockCount: 1 };
+    writeGuardrailState(home, openedPr);
+    const sidecar = (suffix: string): string => guardrailStateFile(home, "rendered").replace(/\.json$/, suffix);
+    const renderedBlock = JSON.stringify({ decision: "block", reason: "run /muggle:muggle-test" });
+    writeFileSync(sidecar(".e2e-stop-verdict"), `3\n${renderedBlock}`);
+    const fireStop = (): string =>
+      (
+        spawnSync("bash", [join(SCRIPTS, "guardrail-e2e-gate.sh")], {
+          input: event({ session_id: "rendered" }),
+          encoding: "utf-8",
+          env: { ...process.env, PATH: pathWithDirectoryFirst(binDir), CLAUDE_PLUGIN_ROOT: root, HOME: home, USERPROFILE: home },
+        }).stdout ?? ""
+      ).trim();
+
+    expect(fireStop()).toBe(renderedBlock);
+    expect(fireStop()).toBe(renderedBlock);
+    expect(readFileSync(sidecar(".e2e-shell-blocks"), "utf-8")).toBe("xx");
+    expect(fireStop()).toContain(NODE_RAN);
   });
 
   it("e2e-gate: skips Node for a session with neither a green unit run nor a PR", () => {

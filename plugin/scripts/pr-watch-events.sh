@@ -80,15 +80,24 @@ watch_checks_settled_red() {
     [ "${failed_count:-0}" -gt 0 ] 2>/dev/null
 }
 
+# The identity of one red verdict: the head plus the run ids of its failed
+# checks (the state line's red-check-runs).
+watch_ci_red_key() {
+    printf '%s@%s' "$1" "$2"
+}
+
 # The head's checks having settled red (watch_checks_settled_red).
 #
-# The floor is the head SHA rather than a monotonic id because a check rollup is
-# not monotonic: it flips green to red and resets on every push. Keying on the
-# red head fires once per red head and re-arms on the next push.
+# The floor is a red key (watch_ci_red_key) rather than a monotonic id because a
+# check rollup is not monotonic: it flips green to red and resets on every push.
+# The head alone is not enough: a fix-ci cycle that settles the walkthrough or
+# reruns a check keeps the head, and when that new run comes back red too it is
+# news the cycle is waiting on. A head-only floor swallowed it, so the re-run's
+# verdict never reached anyone.
 watch_wake_ci_red() {
-    local pr="$1" pending_count="$2" failed_count="$3" head_sha="$4" floor="$5"
+    local pr="$1" pending_count="$2" failed_count="$3" head_sha="$4" red_key="$5" floor="$6"
     [ -n "$head_sha" ] || return 1
-    [ "$head_sha" != "$floor" ] || return 1
+    [ "$red_key" != "$floor" ] || return 1
     watch_checks_settled_red "$pending_count" "$failed_count" || return 1
     echo "EVENT pr=$pr checks settled red head=$head_sha"
 }

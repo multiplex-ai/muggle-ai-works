@@ -48,6 +48,12 @@ function isRebaseKeyEscalated(lastSeenEntry, rebaseKey) {
 function isCiHeadEscalated(lastSeenEntry, headSha) {
   return (lastSeenEntry.ci_escalated_shas ?? []).includes(headSha) && isCiHeadAttempted(lastSeenEntry, headSha);
 }
+function isCiHeadBudgetSpent(lastSeenEntry, headSha) {
+  return ciFixAttemptsFor(lastSeenEntry, headSha) >= MAX_CI_FIX_ATTEMPTS_PER_HEAD;
+}
+function isCiHeadSettled(lastSeenEntry, headSha) {
+  return isCiHeadEscalated(lastSeenEntry, headSha) || isCiHeadBudgetSpent(lastSeenEntry, headSha);
+}
 function isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases) {
   const catchUpRebases = lastSeenEntry.catch_up_rebases;
   return maxCatchUpRebases !== null && typeof catchUpRebases === "number" && catchUpRebases >= maxCatchUpRebases;
@@ -58,7 +64,7 @@ function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRe
   const blockedCiDigest = lastSeenEntry.blocked?.fingerprint?.ci_digest;
   return {
     isRebaseKeyAttempted: rebaseKey !== "" && isRebaseKeyAttempted(lastSeenEntry, rebaseKey),
-    isCiHeadAttempted: headSha !== "" && isCiHeadAttempted(lastSeenEntry, headSha),
+    isCiHeadSettled: headSha !== "" && isCiHeadSettled(lastSeenEntry, headSha),
     isRebaseBudgetExhausted: isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases),
     blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : ""
   };
@@ -104,7 +110,8 @@ function resolveWatchTickVerdict(lastSeenEntry, observation, preferences) {
     if (isCiHeadBudgetLeft && !isCiHeadEscalated(lastSeenEntry, headSha)) return "dispatch-fix-ci" /* DispatchFixCi */;
   }
   if (isRebaseKeyEscalated(lastSeenEntry, rebaseKey)) return "block-conflict-escalated" /* BlockConflictEscalated */;
-  if (isCiHeadEscalated(lastSeenEntry, headSha)) return "block-ci-escalated" /* BlockCiEscalated */;
+  const isRedHeadOutOfAttempts = observation.ciBucket === "red" /* Red */ && isCiHeadBudgetSpent(lastSeenEntry, headSha);
+  if (isCiHeadEscalated(lastSeenEntry, headSha) || isRedHeadOutOfAttempts) return "block-ci-escalated" /* BlockCiEscalated */;
   if ((lastSeenEntry.escalated_review_ids ?? []).length > 0) return "block-reviews-escalated" /* BlockReviewsEscalated */;
   return "idle" /* Idle */;
 }
@@ -141,7 +148,7 @@ function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences)
     const evidence = resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, resolvePreferences().maxCatchUpRebases);
     return {
       stdout: `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}
-CI_ATTEMPTED=${evidence.isCiHeadAttempted ? 1 : 0}
+CI_SETTLED=${evidence.isCiHeadSettled ? 1 : 0}
 BLOCKED_CIDIGEST=${evidence.blockedCiDigest}
 REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}
 `,

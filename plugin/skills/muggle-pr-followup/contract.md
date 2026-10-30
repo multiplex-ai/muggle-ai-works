@@ -135,7 +135,7 @@ It prints one line, `VERDICT=<verdict>`. A non-zero exit is a broken install: re
 
 1. A rebase is due and `catch_up_rebases >= maxCatchUpRebases` (the cap from the user's preferences; the `rebase_budget_exhausted` flag is not consulted) → `block-rebase-budget-exhausted`.
 2. A rebase is due, `conflict_resolve_attempts[rebase_key] < 2`, and `rebase_key` ∉ `conflict_escalated_keys` → `dispatch-rebase`. With the per-key budget spent — `conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys` — it falls through to CI.
-3. CI is `red`, `ci_fix_attempts[head_sha] < 3`, and `head_sha` ∉ `ci_escalated_shas` → `dispatch-fix-ci`. Red with `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas` dispatches nothing — the fix budget is spent and the watcher does not re-dispatch. A check still pending (`bucket == "pending"`) never dispatches: the tick idles until CI settles, and a green head idles too.
+3. CI is `red`, `ci_fix_attempts[head_sha] < 3`, and `head_sha` ∉ `ci_escalated_shas` → `dispatch-fix-ci`. Red with `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas` dispatches nothing — the fix budget is spent and the watcher does not re-dispatch; it holds as `block-ci-escalated` (Step 4) even when fix-ci never wrote the escalation, because idling there leaves a red PR with nobody told. A check still pending (`bucket == "pending"`) never dispatches: the tick idles until CI settles, and a green head idles too.
 4. Otherwise `block-conflict-escalated`, `block-ci-escalated`, or `block-reviews-escalated` when the matching escalation stands, else `idle`.
 
 **An escalation counts only with an attempt behind it.** An entry in `conflict_escalated_keys` suppresses a rebase only when `conflict_resolve_attempts[rebase_key] >= 1`, and an entry in `ci_escalated_shas` suppresses fix-ci only when `ci_fix_attempts[head_sha] >= 1`: a cycle ran and gave up. An entry with no attempt is ignored, and the work dispatches. Those fields are the executor's record of what its cycles did — never write an escalation entry or an attempt counter by hand.
@@ -172,7 +172,7 @@ Act on the verdict:
 Any tick that did not dispatch. The Step 6 verdict says **why** it idled. It is **blocked pending a human** on a `block-*` verdict, a durable block only the user can clear:
 
 - `block-conflict-escalated` — a rebase `/muggle-do` attempted and gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`. This block clears on its own when the base moves: the new `base_tip_sha` yields a key the set does not contain, and the branch re-arms for a fresh rebase attempt;
-- `block-ci-escalated` — CI the fix-ci stage attempted and gave up on, reason `ci_escalated`;
+- `block-ci-escalated` — CI the fix-ci stage gave up on, or a red head that spent all 3 fix-ci attempts, reason `ci_escalated`;
 - `block-reviews-escalated` — an ambiguous review in `last_seen.escalated_review_ids` awaiting the user's direction, with the actionable set empty, reason `reviews_escalated`;
 - `block-rebase-budget-exhausted` — reason `rebase_budget_exhausted` (Step 6).
 

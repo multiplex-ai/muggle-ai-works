@@ -57,7 +57,7 @@ You receive everything from `state.md` already — pre-flight resolved it:
 
 Read `state.md`.
 
-**No `## Pre-flight answers` block at all** → the session was seeded poll-only (e.g. by auto-track, [`../muggle-pr-followup/auto-track.md`](../muggle-pr-followup/auto-track.md)). Treat `Validation` as `skip`: emit a `SKIPPED` report citing `NO_PR` and exit cleanly. The watcher owns no E2E context by design; "no context" is a clean skip, not a failure.
+**No `## Pre-flight answers` block at all** → the session was seeded poll-only (e.g. by auto-track, [`../muggle-pr-followup/auto-track.md`](../muggle-pr-followup/auto-track.md)). Treat `Validation` as `skip`: emit a `SKIPPED` report citing the code that holds — `NO_WEB_SURFACE` when the repo serves nothing to drive, `NOT_APPLICABLE` when no browser run can reach the change — and exit cleanly. Never `NO_PR`: this cycle is on a PR, so the guardrail refutes it and the walkthrough stays unsettled. When a browser run *could* reach the change, no code holds: report `SKIPPED` without declaring one and leave the walkthrough to the owner's E2E decision. The watcher owns no E2E context by design; "no context" is a clean skip, not a failure.
 
 Otherwise the block was seeded by pre-flight or bootstrap per [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) — read it the same way regardless of seeder. The persisted `Validation` field (`local-e2e`, `staging-replay`, `unit-only`, `skip`) picks execution vs early-exit below. In a forward run, [`autoE2ETest`](../muggle-preferences/preference-gates/autoE2ETest.md) `ask` was resolved by pre-flight Q13; in a watcher cycle there is no per-tick pre-flight, so `Validation` **is** the standing decision — don't re-resolve `ask`.
 

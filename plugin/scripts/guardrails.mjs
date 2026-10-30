@@ -3013,7 +3013,7 @@ function watchFollowThroughGate() {
   const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:
 ${owedList}
-autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now \u2014 if the tick finds actionable review feedback it dispatches that first. A recorded attempt (conflict_resolve_attempts / ci_fix_attempts) or a new head clears this; an escalation entry with no attempt behind it does not, and neither does re-arming the watch. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
+autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now: run the cycle the tick dispatches \u2014 if it finds actionable review feedback it dispatches that first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like a new head, clears this. Writing the count without running the cycle \u2014 or for an E2E run queued for a different PR \u2014 leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not clear this, and neither does re-arming the watch. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
 ${owedList}
 ${holdInstruction}`;
   return blockStop(reason, host);

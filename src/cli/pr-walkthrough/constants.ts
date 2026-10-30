@@ -37,7 +37,7 @@ export const FIXED_SUMMARIES: Record<
   [WalkthroughCheckOutcome.Settled]:
     "This PR's Muggle AI walkthrough comment is settled — every E2E acceptance case passed, or it states why E2E does not apply.",
   [WalkthroughCheckOutcome.RerunInProgress]:
-    "A new E2E acceptance run is in progress on this PR. The walkthrough comment still shows the previous run; this check settles when the new run's walkthrough replaces it.",
+    "An E2E acceptance run is in progress on this PR. This check settles when the run's walkthrough replaces the comment.",
   [WalkthroughCheckOutcome.Unsettled]:
     "This PR's Muggle AI walkthrough comment is still empty. Run the E2E acceptance suite and post the walkthrough into it (/muggle:muggle-test), or record why E2E does not apply to this change.",
   [WalkthroughCheckOutcome.Unreadable]:

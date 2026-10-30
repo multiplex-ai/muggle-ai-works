@@ -7,8 +7,8 @@ import {
   renderDependencyBotComment,
   renderNoAppLogicChangeComment,
   renderReservedComment,
+  renderRunningComment,
   renderSkippedComment,
-  renderUnreasonedSkipComment,
   walkthroughVerdict,
   withRerunNotice,
 } from "./comment.js";
@@ -182,17 +182,18 @@ export function settleWalkthroughCommentForNoAppLogicChange(
 }
 
 /**
- * Mark the PR's walkthrough as about to be replaced by a new E2E run.
+ * Mark the PR's walkthrough as having an E2E run in progress.
  *
- * Only a comment that already shows a run or a skip gets the banner: a reserved
- * placeholder already says a run is awaited. Idempotent across a run's many
- * executions — the first one marks the comment, the rest find the banner — and
- * the walkthrough the run posts replaces the whole body, banner included.
+ * A pending placeholder is replaced with the running notice; a comment that
+ * already shows a run or a skip gets the banner on top, kept whole underneath.
+ * Idempotent across a run's many executions — the first one marks the comment,
+ * the rest find the banner — and the walkthrough the run posts replaces the
+ * whole body, banner included.
  *
- * @param startedAt - When the new run started.
- * @returns Whether the banner reached the PR.
+ * @param startedAt - When the run started.
+ * @returns Whether the notice reached the PR.
  */
-export function noteWalkthroughRerunStarted(
+export function noteE2eRunStarted(
   prUrl: string,
   run: GhRunner = defaultGhRunner,
   startedAt: Date = new Date(),
@@ -203,20 +204,10 @@ export function noteWalkthroughRerunStarted(
   if (comments === null) return false;
   const designated = designatedComment(comments);
   if (!designated) return false;
-  if (classifyComment(designated.body) === WalkthroughCommentStatus.Pending) return false;
   if (hasRerunNotice(designated.body)) return false;
-  return patchPrComment(pr, designated.id, withRerunNotice(designated.body, startedAt), run);
-}
-
-/**
- * Record that the session ended owing an acceptance run and never cited a
- * verifiable code.
- *
- * @returns Whether the notice reached the PR.
- */
-export function settleWalkthroughCommentAsUnreasoned(
-  prUrl: string,
-  run: GhRunner = defaultGhRunner,
-): boolean {
-  return settleWith(prUrl, renderUnreasonedSkipComment(), run);
+  const body =
+    classifyComment(designated.body) === WalkthroughCommentStatus.Pending
+      ? renderRunningComment(startedAt)
+      : withRerunNotice(designated.body, startedAt);
+  return patchPrComment(pr, designated.id, body, run);
 }

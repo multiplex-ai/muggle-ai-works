@@ -15,6 +15,13 @@ export const WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
 /** Marks the designated comment as deliberately settled without a run. */
 export const WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
 
+/**
+ * Headline of the retired settle a released E2E gate once posted. It carried
+ * {@link WALKTHROUGH_SKIPPED_MARKER} with no reason, so a comment showing it
+ * classifies as pending: the PR is still owed a run or a reason.
+ */
+export const RETIRED_UNREASONED_SKIP_HEADLINE = "**No E2E run, and no verified reason given.**";
+
 /** Heading every rendering of the designated comment opens with. */
 export const WALKTHROUGH_COMMENT_HEADING = "### Muggle AI — PR visual walkthrough";
 
@@ -24,7 +31,7 @@ export const REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*--
 /** Opening of the collapsed block that keeps the last full run's walkthrough under a skipped notice; its closing tag ends the comment. */
 export const LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
 
-/** Opens the banner a new E2E run puts above the walkthrough it is about to replace. */
+/** Opens the banner saying an E2E run is in progress — above the walkthrough it will replace, or in place of the placeholder on a first run. */
 export const RERUN_NOTICE_OPENING = "<!-- muggle-pr-walkthrough-rerun -->";
 
 /** Closes the banner {@link RERUN_NOTICE_OPENING} opens. */

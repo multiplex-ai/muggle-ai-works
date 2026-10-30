@@ -141,7 +141,6 @@ export enum GuardrailBackgroundJob {
   ReserveWalkthroughComment = "reserve-walkthrough-comment",
   SettleWalkthroughSkipped = "settle-walkthrough-skipped",
   SettleBranchWalkthroughSkipped = "settle-branch-walkthrough-skipped",
-  SettleWalkthroughUnreasoned = "settle-walkthrough-unreasoned",
   SettleWalkthroughNoAppLogicChange = "settle-walkthrough-no-app-logic-change",
   NoteWalkthroughRerun = "note-walkthrough-rerun",
   ScanWatchPrStates = "scan-watch-pr-states",

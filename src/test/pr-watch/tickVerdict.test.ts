@@ -96,8 +96,15 @@ describe("resolveWatchTickVerdict: red CI", () => {
     ).toBe(WatchTickVerdict.BlockCiEscalated);
   });
 
-  it("idles once the per-head budget is spent without an escalation entry", () => {
-    expect(verdictFor({ ci_fix_attempts: { [HEAD]: 3 } }, { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.Idle);
+  // Idling here left a red PR with nobody told.
+  it("holds a red head whose per-head budget is spent without an escalation entry", () => {
+    expect(verdictFor({ ci_fix_attempts: { [HEAD]: 3 } }, { ciBucket: CiRollupBucket.Red })).toBe(
+      WatchTickVerdict.BlockCiEscalated,
+    );
+  });
+
+  it("idles once a spent head goes green", () => {
+    expect(verdictFor({ ci_fix_attempts: { [HEAD]: 3 } }, { ciBucket: CiRollupBucket.Green })).toBe(WatchTickVerdict.Idle);
   });
 
   it("idles while checks are pending or green", () => {
@@ -137,7 +144,7 @@ describe("resolveArmFloorEvidence", () => {
     };
     expect(resolveArmFloorEvidence(entry, HEAD, KEY, CAP)).toEqual({
       isRebaseKeyAttempted: true,
-      isCiHeadAttempted: false,
+      isCiHeadSettled: false,
       isRebaseBudgetExhausted: false,
       blockedCiDigest: "",
     });
@@ -148,8 +155,17 @@ describe("resolveArmFloorEvidence", () => {
     const entry: LastSeenPrEntry = { conflict_escalated_keys: [KEY], ci_escalated_shas: [HEAD] };
     expect(resolveArmFloorEvidence(entry, HEAD, KEY, CAP)).toMatchObject({
       isRebaseKeyAttempted: false,
-      isCiHeadAttempted: false,
+      isCiHeadSettled: false,
     });
+  });
+
+  // The count is written before the fix, so on its own it proves a cycle started, not that anything changed.
+  it("settles a red head only once fix-ci escalated it or spent its attempts", () => {
+    expect(resolveArmFloorEvidence({ ci_fix_attempts: { [HEAD]: 2 } }, HEAD, KEY, CAP).isCiHeadSettled).toBe(false);
+    expect(resolveArmFloorEvidence({ ci_fix_attempts: { [HEAD]: 3 } }, HEAD, KEY, CAP).isCiHeadSettled).toBe(true);
+    expect(
+      resolveArmFloorEvidence({ ci_fix_attempts: { [HEAD]: 1 }, ci_escalated_shas: [HEAD] }, HEAD, KEY, CAP).isCiHeadSettled,
+    ).toBe(true);
   });
 
   // The same counter check the tick verdict blocks on, so arm and tick never disagree about a spent budget.

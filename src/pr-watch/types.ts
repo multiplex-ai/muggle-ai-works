@@ -60,7 +60,8 @@ export interface WatchPreferences {
 /** What the arm step needs to decide which outstanding work it may floor as already handled. */
 export interface ArmFloorEvidence {
   isRebaseKeyAttempted: boolean;
-  isCiHeadAttempted: boolean;
+  /** Fix-ci escalated the head or spent its attempts on it, so its red verdict is no longer news. */
+  isCiHeadSettled: boolean;
   /** The PR spent its catch-up rebase budget, so the tick refuses any rebase and the watch holds rebase wakes. */
   isRebaseBudgetExhausted: boolean;
   /** The blocked fingerprint's CI digest, empty when the PR is not blocked or the digest could forge a watermark line. */

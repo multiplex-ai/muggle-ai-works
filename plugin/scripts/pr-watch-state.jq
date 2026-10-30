@@ -5,7 +5,14 @@
 #
 # Field order is the contract pr-watch-loop.sh reads positionally:
 #   state, headRefOid, base-tip, mergeable, latest-review, latest-comment,
-#   unresolved-thread-ids, pending-checks, failed-checks, check-digest
+#   unresolved-thread-ids, pending-checks, failed-checks, check-digest,
+#   red-check-runs
+#
+# red-check-runs names each failed check with its run id (`name#id`, sorted).
+# A settle, a rerun or a comment-triggered re-check publishes a new run on the
+# same head, so this is what tells a fresh red verdict from the one already
+# reported. check-digest cannot carry the ids: it must equal the digest the
+# blocked tick builds from `gh pr checks`, which has none.
 #
 # base-tip is where the base branch points now, the base half of the rebase key.
 # Not baseRefOid: GitHub moves that only when the head is pushed, so a key built
@@ -19,9 +26,11 @@ def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
 | (($pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes) // []) as $contexts
 | ($contexts | map(
     if .__typename == "CheckRun"
-    then {name: .name, verdict: (if .status != "COMPLETED" then "PENDING" else (.conclusion // "NEUTRAL") end)}
-    else {name: .context, verdict: (.state // "PENDING")}
+    then {name: .name, runId: (.databaseId // ""), verdict: (if .status != "COMPLETED" then "PENDING" else (.conclusion // "NEUTRAL") end)}
+    else {name: .context, runId: "", verdict: (.state // "PENDING")}
     end)) as $checks
+| ($checks | map(select(.verdict == "FAILURE" or .verdict == "ERROR" or .verdict == "TIMED_OUT" or .verdict == "STARTUP_FAILURE")))
+    as $failedChecks
 
 # Every comment on a live thread that belongs to a submitted review. A PENDING
 # review is the reviewer's own draft and is not feedback yet.
@@ -53,6 +62,7 @@ def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
   ([$pr.reviewThreads.nodes[] | select(.isResolved == false) | select(.isOutdated == false)
     | select((.comments.nodes[0].pullRequestReview.state // "SUBMITTED") != "PENDING") | .id] | join(";")),
   ($checks | map(select(.verdict == "PENDING")) | length),
-  ($checks | map(select(.verdict == "FAILURE" or .verdict == "ERROR" or .verdict == "TIMED_OUT" or .verdict == "STARTUP_FAILURE")) | length),
-  ($checks | sort_by(.name) | map(.name + ":" + .verdict) | join(","))
+  ($failedChecks | length),
+  ($checks | sort_by(.name) | map(.name + ":" + .verdict) | join(",")),
+  ($failedChecks | map(.name + "#" + (.runId | tostring)) | sort | join(","))
 ] | @tsv

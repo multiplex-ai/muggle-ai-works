@@ -45,6 +45,7 @@ enum Field {
   PendingChecks = 7,
   FailedChecks = 8,
   CheckDigest = 9,
+  RedCheckRuns = 10,
 }
 
 interface ThreadFixture {
@@ -216,16 +217,35 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
     expect(fields[Field.CheckDigest]).toBe("ci:FAILURE,lint:PENDING");
   });
 
+  // A settle or rerun publishes a new run on the same head; the run id is what
+  // tells its verdict from the one already reported.
+  it("names each failed check with its run id, sorted", () => {
+    const fields = project(
+      snapshot(
+        [],
+        [],
+        [
+          { __typename: "CheckRun", databaseId: 92, name: "muggle-walkthrough", status: "COMPLETED", conclusion: "FAILURE" },
+          { __typename: "CheckRun", databaseId: 41, name: "build", status: "COMPLETED", conclusion: "TIMED_OUT" },
+          { __typename: "CheckRun", databaseId: 17, name: "lint", status: "COMPLETED", conclusion: "SUCCESS" },
+          { __typename: "StatusContext", context: "deploy", state: "ERROR" },
+        ],
+      ),
+    );
+    expect(fields[Field.RedCheckRuns]).toBe("build#41,deploy#,muggle-walkthrough#92");
+    expect(fields[Field.CheckDigest]).toBe("build:TIMED_OUT,deploy:ERROR,lint:SUCCESS,muggle-walkthrough:FAILURE");
+  });
+
   // The loop reads these positionally, so a field added anywhere but the end
   // silently shifts every reader after it.
-  it("emits exactly the ten fields the loop reads positionally", () => {
+  it("emits exactly the eleven fields the loop reads positionally", () => {
     const fields = project(
       snapshot(
         [{ databaseId: 300, body: "" }],
         [{ id: "T1", commentId: 13, body: humanComment, reviewId: 300 }],
       ),
     );
-    expect(fields).toHaveLength(10);
+    expect(fields).toHaveLength(11);
   });
 
   // baseRefOid ("bbb") only moves when the head is pushed, so a rebase key built
@@ -236,7 +256,7 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
 
   it("keeps the base tip's slot when the base branch is gone", () => {
     const fields = project(snapshot([], [], [], null));
-    expect(fields).toHaveLength(10);
+    expect(fields).toHaveLength(11);
     expect(fields[Field.BaseTip]).toBe("");
     expect(fields[Field.Mergeable]).toBe("MERGEABLE");
   });

@@ -127,11 +127,21 @@ const stateReadsServed = (stubDir: string): number => {
 // digest, and `failedChecks` how many checks settled red. The line is served
 // from a file so a digest's quotes and `$` reach the script byte for byte rather
 // than through the stub's own quoting. With `watchedSlot`, the loop watching
-// that slot steps down after STATE_READS_BEFORE_SUPERSEDE reads.
-function stubGhDir(prState = "OPEN", ciDigest = "", failedChecks = 0, watchedSlot?: string): string {
+// that slot steps down after STATE_READS_BEFORE_SUPERSEDE reads. `redCheckRuns`
+// is the projection's red-check-runs field.
+function stubGhDir(
+  prState = "OPEN",
+  ciDigest = "",
+  failedChecks = 0,
+  watchedSlot?: string,
+  redCheckRuns = "",
+): string {
   const dir = mkdtempSync(join(tmpdir(), "pr-watch-gh-"));
   const stateLinePath = join(dir, "state.tsv");
-  writeFileSync(stateLinePath, `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t${failedChecks}\t${ciDigest}\n`);
+  writeFileSync(
+    stateLinePath,
+    `${prState}\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t${failedChecks}\t${ciDigest}\t${redCheckRuns}\n`,
+  );
   const gh = join(dir, "gh");
   writeFileSync(
     gh,
@@ -367,11 +377,22 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh exits on report", () => {
   // Work the session saw and held would otherwise end every fresh loop at once.
   it("keeps what it reported quiet for the next loop", () => {
     const slot = seededSlot();
-    runLoopOverSlot(slot, stubGhDir("OPEN", "unit:FAILURE", 1, slot));
-    expect(readSlotFile(slot, "watch-reported.env")).toContain('CIRED="HEAD1"');
-    const stubDir = stubGhDir("OPEN", "unit:FAILURE", 1, slot);
+    runLoopOverSlot(slot, stubGhDir("OPEN", "unit:FAILURE", 1, slot, "unit#7"));
+    expect(readSlotFile(slot, "watch-reported.env")).toContain('CIRED="HEAD1@unit#7"');
+    const stubDir = stubGhDir("OPEN", "unit:FAILURE", 1, slot, "unit#7");
     expect(eventLines(runLoopOverSlot(slot, stubDir))).toEqual([]);
     expect(stateReadsServed(stubDir)).toBe(STATE_READS_BEFORE_SUPERSEDE);
+  }, 60_000);
+
+  // A settled walkthrough comment or a rerun publishes a new check run on the
+  // same head; fix-ci waits on that verdict, so a red one must still be heard.
+  it("reports a fresh red run on the same head", () => {
+    const slot = seededSlot();
+    runLoopOverSlot(slot, stubGhDir("OPEN", "muggle-walkthrough:FAILURE", 1, slot, "muggle-walkthrough#7"));
+    const events = eventLines(
+      runLoopOverSlot(slot, stubGhDir("OPEN", "muggle-walkthrough:FAILURE", 1, slot, "muggle-walkthrough#8")),
+    );
+    expect(events).toEqual(["EVENT pr=1 checks settled red head=HEAD1"]);
   }, 60_000);
 
   it("holds a reported digest only for the block it was reported under", () => {
@@ -713,7 +734,10 @@ function armOverRedHead(lastSeenEntry?: object): { slot: string; stdout: string 
     "bash",
     [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master", "--no-exec"],
     {
-      env: { ...process.env, PATH: `${stubGhDir("OPEN", "unit:FAILURE", 1)}${delimiter}${process.env.PATH ?? ""}` },
+      env: {
+        ...process.env,
+        PATH: `${stubGhDir("OPEN", "unit:FAILURE", 1, undefined, "unit#7")}${delimiter}${process.env.PATH ?? ""}`,
+      },
       encoding: "utf8",
       timeout: 60_000,
     },
@@ -725,7 +749,7 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh red-CI floor", () => {
   it("leaves a red head unfloored when no fix was attempted", () => {
     const { slot, stdout } = armOverRedHead();
     expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED=""');
-    expect(stdout).toMatch(/^DRAIN ci red at arm time — no fix-ci attempt recorded for head HEAD1, not floored/m);
+    expect(stdout).toMatch(/^DRAIN ci red at arm time — fix-ci not finished with head HEAD1, not floored/m);
     expect(readSlotFile(slot, "watch-due.env")).toContain('CI_RED_HEAD="HEAD1"');
   }, 60_000);
 
@@ -733,10 +757,23 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh red-CI floor", () => {
     expect(readSlotFile(armOverRedHead({ ci_escalated_shas: ["HEAD1"] }).slot, "watch-watermark.env")).toContain('CIRED=""');
   }, 60_000);
 
-  it("floors a red head a fix-ci cycle already ran for", () => {
+  // The count is written before the fix runs, so writing it alone proves nothing
+  // changed on the PR.
+  it("does not take a lone fix-ci attempt as handled", () => {
     const { slot, stdout } = armOverRedHead({ ci_fix_attempts: { HEAD1: 1 } });
-    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED="HEAD1"');
-    expect(stdout).toMatch(/^DRAIN ci red at arm time — a fix-ci cycle already ran for head HEAD1, floored/m);
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED=""');
+    expect(stdout).toMatch(/not floored: dispatch fix-ci$/m);
+  }, 60_000);
+
+  it("floors the red verdict once fix-ci escalated it", () => {
+    const { slot, stdout } = armOverRedHead({ ci_fix_attempts: { HEAD1: 1 }, ci_escalated_shas: ["HEAD1"] });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED="HEAD1@unit#7"');
+    expect(stdout).toMatch(/^DRAIN ci red at arm time — fix-ci escalated or spent its attempts on head HEAD1, floored/m);
+  }, 60_000);
+
+  it("floors the red verdict once fix-ci spent its attempts", () => {
+    const { slot } = armOverRedHead({ ci_fix_attempts: { HEAD1: 3 } });
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain('CIRED="HEAD1@unit#7"');
   }, 60_000);
 });
 

@@ -1,5 +1,6 @@
 import {
   ciFixAttemptsFor,
+  isCiHeadBudgetSpent,
   isCiHeadEscalated,
   isRebaseBudgetExhausted,
   isRebaseKeyEscalated,
@@ -20,6 +21,8 @@ import {
  *
  * An escalation suppresses dispatch only when a cycle actually ran and gave up on the same key or head
  * (see {@link isRebaseKeyEscalated}); an entry written without an attempt behind it is ignored, so the work dispatches.
+ * A red head whose fix-ci budget is spent holds as escalated even when no escalation was written: idling there would
+ * leave the PR red with nobody told.
  */
 export function resolveWatchTickVerdict(
   lastSeenEntry: LastSeenPrEntry,
@@ -39,7 +42,9 @@ export function resolveWatchTickVerdict(
     if (isCiHeadBudgetLeft && !isCiHeadEscalated(lastSeenEntry, headSha)) return WatchTickVerdict.DispatchFixCi;
   }
   if (isRebaseKeyEscalated(lastSeenEntry, rebaseKey)) return WatchTickVerdict.BlockConflictEscalated;
-  if (isCiHeadEscalated(lastSeenEntry, headSha)) return WatchTickVerdict.BlockCiEscalated;
+  const isRedHeadOutOfAttempts =
+    observation.ciBucket === CiRollupBucket.Red && isCiHeadBudgetSpent(lastSeenEntry, headSha);
+  if (isCiHeadEscalated(lastSeenEntry, headSha) || isRedHeadOutOfAttempts) return WatchTickVerdict.BlockCiEscalated;
   if ((lastSeenEntry.escalated_review_ids ?? []).length > 0) return WatchTickVerdict.BlockReviewsEscalated;
   return WatchTickVerdict.Idle;
 }

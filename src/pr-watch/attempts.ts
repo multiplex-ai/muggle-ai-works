@@ -1,4 +1,4 @@
-import { REBASE_KEY_SEPARATOR } from "./constants.js";
+import { MAX_CI_FIX_ATTEMPTS_PER_HEAD, REBASE_KEY_SEPARATOR } from "./constants.js";
 import type { LastSeenPrEntry } from "./types.js";
 
 function recordedCount(counts: Record<string, number> | undefined, key: string): number {
@@ -42,6 +42,19 @@ export function isRebaseKeyEscalated(lastSeenEntry: LastSeenPrEntry, rebaseKey: 
 /** Whether the head's CI escalation counts: listed in `ci_escalated_shas` and backed by at least one fix-ci cycle. */
 export function isCiHeadEscalated(lastSeenEntry: LastSeenPrEntry, headSha: string): boolean {
   return (lastSeenEntry.ci_escalated_shas ?? []).includes(headSha) && isCiHeadAttempted(lastSeenEntry, headSha);
+}
+
+/** Whether fix-ci spent every cycle the watch dispatches for the head. */
+export function isCiHeadBudgetSpent(lastSeenEntry: LastSeenPrEntry, headSha: string): boolean {
+  return ciFixAttemptsFor(lastSeenEntry, headSha) >= MAX_CI_FIX_ATTEMPTS_PER_HEAD;
+}
+
+/**
+ * Whether fix-ci is finished with the head: it escalated, or spent its budget. Only then is the head's red no longer
+ * news. A lone attempt is not: the count is written before the fix, so it proves a cycle started, not that it settled.
+ */
+export function isCiHeadSettled(lastSeenEntry: LastSeenPrEntry, headSha: string): boolean {
+  return isCiHeadEscalated(lastSeenEntry, headSha) || isCiHeadBudgetSpent(lastSeenEntry, headSha);
 }
 
 /**

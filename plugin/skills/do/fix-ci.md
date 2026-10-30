@@ -31,6 +31,8 @@ Check out the PR branch in the session's working tree (per `state.md`). Capture 
 
 Then increment `last_seen.ci_fix_attempts[red_sha]` — before any fix, re-run or escalation, as a whole-file rewrite (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md), never the Edit tool. Every dispatched cycle is an attempt, including one that only re-runs a check or escalates without pushing. That count is the only record the watcher and its turn-end gate accept that this red head was acted on; an escalation written without it is ignored and fix-ci is dispatched again ([`../muggle-pr-followup/state-schemas.md`](../muggle-pr-followup/state-schemas.md#last_seenjson)).
 
+The increment opens a cycle this turn carries through Step 5 or Step 6 — it never stands in for one. The single exception is a red `muggle-walkthrough` whose E2E run for **this** PR is already queued or running (its `state.md` shows `E2E dispatch: queued` or `running`): that run is the cycle, and its report settles the comment. Writing the count for a PR with no such run, or because another PR's run is in flight, clears the turn-end gate while the PR stays red; the watch never asks again until the head moves, and the PR can merge red.
+
 ### Step 2 — Map each failing check to a local command
 
 Per [`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md). Fix the in-scope checks in the working tree; record out-of-scope checks for escalation (Step 6). A red `muggle-walkthrough` check takes Step 2.5; a red non-deterministic check takes Step 2.6.
@@ -45,7 +47,13 @@ How long a check takes to run — a 45-minute eval included — is never a reaso
 4. **Order the settle after the push.** If Step 2 changed code, run Steps 3–4 below first, so the new head carries the fix. Then settle the walkthrough comment with the re-run's report via [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A; editing the comment re-runs the check against the head. With no code change (only retries and regenerations) there is nothing to push — the comment edit alone re-runs the check.
 5. **Wait for the fresh verdict** before Step 5's respawn: poll the check run until one completes later than the `completed_at` recorded in item 1, for up to 5 minutes. A watcher respawned sooner reads the stale red verdict and spends a fix attempt on a run already repaired. On timeout, respawn anyway — the per-SHA budget still bounds it.
 
-An empty-comment failure (no run ever posted) skips items 1–2: run the suite and settle the comment. Under a `unit-only` or `skip` validation in `state.md`, settle it with the verified skip code instead.
+An empty-comment failure (no run ever posted) skips items 1–2. Pick the branch from `state.md`:
+
+- **`local-e2e` or `staging-replay`** → run the suite and settle the comment with its report.
+- **`unit-only`, `skip`, or no `## Pre-flight answers` block at all** (a poll-only session — auto-track, or bootstrap on a PR it found no testable surface for) → settle it with the skip code that holds per [`e2e-acceptance.md`](e2e-acceptance.md): `NO_WEB_SURFACE` when the repo serves nothing to drive, `NO_APP_LOGIC_CHANGE` (detail opening with the PR's merge-base commit) when every path the PR changed is docs, tests, lint or CI config, else `NOT_APPLICABLE` with the reason no browser run can reach the change. Run `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"` from the PR's working tree. The write runs detached, so confirm it landed: run the foreground command the walkthrough gate's block names until it prints `{"settled":true}`, never a hand-written PATCH. Never `NO_PR`: the guardrail refutes it whenever the session handled a PR.
+- **A poll-only PR whose change a browser run *can* reach** → no code holds, so do not cite one. Escalate per Step 6, naming the missing E2E decision; the owner chooses run, project or waive.
+
+`muggle-walkthrough` is never a Step 2.6 check: it reads the comment, so re-running it without editing the comment returns the same verdict.
 
 ### Step 2.6 — Red non-deterministic check: re-run once per head
 

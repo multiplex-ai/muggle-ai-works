@@ -75,6 +75,7 @@ import {
 } from "../../local/services/run-stack-gate.js";
 import { resolveElectronBrowserVisibilityFromPreferences } from "../../local/services/electron-browser-visibility.js";
 import { formatElectronBrowserVisibilityLine } from "./electron-browser-visibility-line.js";
+import { formatStudioVerdictLine } from "./studio-verdict-line.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 import { formatRunStackRefusal, formatStackChangedDuringRun } from "./run-stack-refusal.js";
 
@@ -248,6 +249,7 @@ const runResultGetTool: ILocalMcpTool = {
       `**ID:** ${storedRunResult.id}`,
       `**Type:** ${storedRunResult.runType}`,
       `**Status:** ${storedRunResult.status}`,
+      formatStudioVerdictLine(storedRunResult.studioReturnedResult),
       `**Cloud Test Case:** ${storedRunResult.cloudTestCaseId}`,
       `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",

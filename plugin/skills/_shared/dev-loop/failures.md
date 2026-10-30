@@ -1,6 +1,6 @@
 # Dev Loop — Reading the Result
 
-For each `runId`, call `muggle-local-run-result-get` and read **structured fields**, never `execute`'s stdout tail (a truncated display excerpt). Order: `Status` → `Error` → `Artifacts`. Retain per run: `testCaseId`, `testScriptId` (if any), `runId`, `status`, `artifactsDir`, plus the record it ran: `runSettingsId` from the `cloudRunSettingsId` the result prints as `**Cloud Run Settings ID:**` (absent on a run filed under no record), and the `resolutionLabel` of the plan record it ran.
+For each `runId`, call `muggle-local-run-result-get` and read **structured fields**, never `execute`'s stdout tail (a truncated display excerpt). Order: `Status` → `Studio Verdict` → `Error` → `Artifacts`. Retain per run: `testCaseId`, `testScriptId` (if any), `runId`, `status`, `artifactsDir`, plus the record it ran: `runSettingsId` from the `cloudRunSettingsId` the result prints as `**Cloud Run Settings ID:**` (absent on a run filed under no record), and the `resolutionLabel` of the plan record it ran.
 
 ## Artifacts
 
@@ -11,6 +11,7 @@ Per-step frames are **not** absent on the failure path — the `Artifacts` secti
 ## Common failures
 
 - `Electron execution timed out after 300000ms` → orchestration wait too short; see [`timeouts.md`](timeouts.md).
+- **`Studio Verdict: Bug Detected (bug_detected)`** → status `failed`: it is a product bug the run proved. Surface it to the user as a bug in their app; do not retry, regenerate, or debug the test.
 - **Exit code 26** (with "LLM failed to generate / replay action script") is usually a completed exploration whose outcome was **goal not achievable** (`goal_not_achievable`, summary with `halt`) — e.g. asserting "view a completed run" on an account that has none. Read the summary; don't assume a crash. Fix the precondition: pick a project/account that already has the needed state, or narrow the goal so generation isn't forced to create resources from scratch.
 
 Then route via [`../failure-mode-handling.md`](../failure-mode-handling.md).

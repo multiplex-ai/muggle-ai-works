@@ -10,6 +10,8 @@ Include **all** runs — passed, failed, **and inconclusive**. Never drop a run.
 | `failed` | Run completed and the assertion failed, or the product itself broke before the assertion could be made (server error, 500, broken page). | `failureStepIndex`, `error` |
 | `inconclusive` | Run could not yield a pass/fail signal for reasons **outside the product**: no replayable script existed, environment precondition unmet, infra/Electron error, agent stalled on a cookie banner or login wall, missing secrets, agent went off-course. | `reason` (one short sentence). Include every step the run produced; `steps[]` is empty only when it produced none. |
 
+A run whose studio verdict is `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) is `failed`, never `inconclusive`: it is a product bug the run proved. Put what the app did against what was expected in `error`; do not retry, regenerate, or debug the test.
+
 If a test should be inconclusive but you don't have a real `runId` / `viewUrl` (e.g., generation never ran), use the same project-level dashboard fallback as the "last-resort" failed branch below: synthesize a UUID-shaped runId and use the project runs page as `viewUrl`. The schema requires both fields — but a working dashboard link is better than nothing.
 
 A record skipped because its test case's primary failed never ran either: an `inconclusive` entry with `reason: "primary failed"`, the `runSettingsId` and `resolutionLabel` the caller carried for it, `steps: []`, and that same synthesized `runId` and project-level `viewUrl`.

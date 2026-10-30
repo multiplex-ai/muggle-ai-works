@@ -13,6 +13,7 @@ export enum WorkflowRunStatus {
 /** The studio's own verdict for a run, orthogonal to the workflow status. */
 export enum StudioResultStatus {
   Success = "success",
+  BugDetected = "bug_detected",
   GoalNotAchievable = "goal_not_achievable",
   Failure = "failure",
   Timeout = "timeout",
@@ -77,6 +78,7 @@ export enum FailureBucket {
   DatePickerGap = "date-picker-gap",
   SecretInputUnresolved = "secret-input-unresolved",
   ScrollContainerBlindness = "scroll-container-blindness",
+  ProductDefect = "product-defect",
   UnclassifiedFail = "unclassified-fail",
 }
 

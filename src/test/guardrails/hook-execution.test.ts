@@ -1168,6 +1168,22 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     expect(fireStop()).toContain(NODE_RAN);
   });
 
+  // shouldRunE2E clears the duty on an accepted skip, so a block rendered before the skip landed must not replay.
+  it("e2e-gate: replays no rendered block and skips Node once a skip is accepted", () => {
+    const home = createHookHome("gr-home-");
+    const skipped = { sessionId: "skipped", prsHandled: ["https://github.com/o/r/pull/7"], e2eSkipped: true };
+    writeGuardrailState(home, skipped);
+    const renderedBlock = JSON.stringify({ decision: "block", reason: "run /muggle:muggle-test" });
+    writeFileSync(guardrailStateFile(home, "skipped").replace(/\.json$/, ".e2e-stop-verdict"), `3\n${renderedBlock}`);
+    const stdout = spawnSync("bash", [join(SCRIPTS, "guardrail-e2e-gate.sh")], {
+      input: event({ session_id: "skipped" }),
+      encoding: "utf-8",
+      env: { ...process.env, PATH: pathWithDirectoryFirst(binDir), CLAUDE_PLUGIN_ROOT: root, HOME: home, USERPROFILE: home },
+    }).stdout;
+
+    expect((stdout ?? "").trim()).toBe("{}");
+  });
+
   it("e2e-gate: skips Node for a session with neither a green unit run nor a PR", () => {
     expect(
       runWrapper("guardrail-e2e-gate.sh", event({ session_id: "idle" }), {

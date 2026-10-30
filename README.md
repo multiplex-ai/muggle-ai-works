@@ -165,7 +165,7 @@ Nested GitLab namespaces of any depth are handled — the project path is everyt
 
 ### The pull-request walkthrough check
 
-When a PR is opened from a session running this plugin, Muggle reserves a comment for the acceptance walkthrough and holds the turn open until it's settled — by the walkthrough, or by a stated reason acceptance testing doesn't apply. A PR that changes only docs, tests, lint/format config, or CI config needs neither: its comment opens already settled as skipped.
+When a PR is opened from a session running this plugin, Muggle reserves a comment for the acceptance walkthrough and holds the turn open until it's settled. The comment moves through three stages, edited in place: **waiting for the E2E feasibility check**; then **E2E running — waiting for the report** or **E2E not feasible** with the reason; then the E2E report. A PR that changes only docs, tests, lint/format config, or CI config opens straight at its reason. A session that ends without a run or a reason leaves the comment at the stage it reached, and the check stays unsettled.
 
 A PR opened any other way — the web UI, a teammate without the plugin — never passes through that session, so the same check also runs in GitHub Actions. It fails while the comment is still empty, and whenever the walkthrough reports a failed or inconclusive test case; the check's summary names each one with its failing step and a link to the run. While a new E2E run is underway on the PR, the check stays in progress until that run's walkthrough replaces the previous one. When the Muggle PR watcher sees it red, it repairs the cases, re-runs the whole suite, and re-settles the comment.
 

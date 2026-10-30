@@ -280,7 +280,6 @@ var GuardrailBackgroundJob = /* @__PURE__ */ ((GuardrailBackgroundJob2) => {
   GuardrailBackgroundJob2["ReserveWalkthroughComment"] = "reserve-walkthrough-comment";
   GuardrailBackgroundJob2["SettleWalkthroughSkipped"] = "settle-walkthrough-skipped";
   GuardrailBackgroundJob2["SettleBranchWalkthroughSkipped"] = "settle-branch-walkthrough-skipped";
-  GuardrailBackgroundJob2["SettleWalkthroughUnreasoned"] = "settle-walkthrough-unreasoned";
   GuardrailBackgroundJob2["SettleWalkthroughNoAppLogicChange"] = "settle-walkthrough-no-app-logic-change";
   GuardrailBackgroundJob2["NoteWalkthroughRerun"] = "note-walkthrough-rerun";
   GuardrailBackgroundJob2["ScanWatchPrStates"] = "scan-watch-pr-states";
@@ -629,6 +628,7 @@ function applyE2eSkipScope(state, verifiedChange) {
 var REPORT_SENTINEL = "muggle-pr-section";
 var WALKTHROUGH_SLOT_MARKER = "<!-- muggle-pr-walkthrough:v1 -->";
 var WALKTHROUGH_SKIPPED_MARKER = "<!-- muggle-pr-walkthrough-status:skipped -->";
+var RETIRED_UNREASONED_SKIP_HEADLINE = "**No E2E run, and no verified reason given.**";
 var WALKTHROUGH_COMMENT_HEADING = "### Muggle AI \u2014 PR visual walkthrough";
 var REPORT_SENTINEL_TAG = new RegExp(`<!--\\s*${REPORT_SENTINEL}[^>]*-->\\s*`, "g");
 var LAST_FULL_RUN_OPENING = "<details><summary>Last full E2E run on this PR</summary>";
@@ -1024,7 +1024,15 @@ function renderReservedComment() {
   return `${WALKTHROUGH_SLOT_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
-_Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes \u2014 or records why E2E does not apply to this change._`;
+**Waiting for the E2E feasibility check.** This comment updates in place \u2014 next with the E2E run in progress or why E2E is not feasible for this change, then with the E2E report.`;
+}
+function renderRunningComment(startedAt) {
+  return `${WALKTHROUGH_SLOT_MARKER}
+${WALKTHROUGH_COMMENT_HEADING}
+
+${RERUN_NOTICE_OPENING}
+**E2E running \u2014 waiting for the report.** Started ${formatUtcMinute(startedAt)}. This comment becomes the E2E report when the run finishes.
+${RERUN_NOTICE_CLOSING}`;
 }
 function renderSkippedComment(code, detail) {
   const stated = detail.trim();
@@ -1034,23 +1042,16 @@ function renderSkippedComment(code, detail) {
 ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
-**No E2E run.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
+**E2E not feasible.** Muggle verified \`${code}\` \u2014 ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`;
 }
 function renderNotApplicableComment(reason) {
   return `${WALKTHROUGH_SLOT_MARKER}
 ${WALKTHROUGH_SKIPPED_MARKER}
 ${WALKTHROUGH_COMMENT_HEADING}
 
-**No E2E run \u2014 not applicable.** ${reason.replace(/\.$/, "")}.
+**E2E not feasible.** ${reason.replace(/\.$/, "")}.
 
 _The coding agent judged that a browser run cannot exercise this change (\`${"NOT_APPLICABLE" /* NotApplicable */}\`). Muggle did not verify this reason._`;
-}
-function renderUnreasonedSkipComment() {
-  return `${WALKTHROUGH_SLOT_MARKER}
-${WALKTHROUGH_SKIPPED_MARKER}
-${WALKTHROUGH_COMMENT_HEADING}
-
-**No E2E run, and no verified reason given.** The session ended still owing an acceptance run and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`;
 }
 var shortSha = (sha) => sha.slice(0, SHORT_SHA_LENGTH);
 function renderNoAppLogicChangeComment(declared, headSha, lastFullRun) {
@@ -1101,7 +1102,9 @@ ${RERUN_NOTICE_CLOSING}
 function classifyComment(body) {
   if (body.includes(REPORT_SENTINEL)) return "reported" /* Reported */;
   if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return "not-designated" /* NotDesignated */;
-  if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return "skipped" /* Skipped */;
+  if (body.includes(WALKTHROUGH_SKIPPED_MARKER) && !body.includes(RETIRED_UNREASONED_SKIP_HEADLINE)) {
+    return "skipped" /* Skipped */;
+  }
   return "pending" /* Pending */;
 }
 function walkthroughVerdict(bodies) {
@@ -2059,19 +2062,16 @@ function settleWalkthroughCommentForNoAppLogicChange(prUrl, detail, run = defaul
   const body = renderNoAppLogicChangeComment(declared, readPrHeadSha(pr, run), lastFullRun);
   return designated ? patchPrComment(pr, designated.id, body, run) : postPrComment(pr, body, run);
 }
-function noteWalkthroughRerunStarted(prUrl, run = defaultGhRunner, startedAt = /* @__PURE__ */ new Date()) {
+function noteE2eRunStarted(prUrl, run = defaultGhRunner, startedAt = /* @__PURE__ */ new Date()) {
   const pr = parsePrUrl(prUrl);
   if (!pr) return false;
   const comments = listPrComments(pr, run);
   if (comments === null) return false;
   const designated = designatedComment(comments);
   if (!designated) return false;
-  if (classifyComment(designated.body) === "pending" /* Pending */) return false;
   if (hasRerunNotice(designated.body)) return false;
-  return patchPrComment(pr, designated.id, withRerunNotice(designated.body, startedAt), run);
-}
-function settleWalkthroughCommentAsUnreasoned(prUrl, run = defaultGhRunner) {
-  return settleWith(prUrl, renderUnreasonedSkipComment(), run);
+  const body = classifyComment(designated.body) === "pending" /* Pending */ ? renderRunningComment(startedAt) : withRerunNotice(designated.body, startedAt);
+  return patchPrComment(pr, designated.id, body, run);
 }
 
 // src/e2e-skip/parseSkipDeclaration.ts
@@ -2872,12 +2872,7 @@ function debugPathGate() {
 function e2eGate() {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === "release" /* Release */) {
-    for (const prUrl of state.prsHandled) {
-      startBackgroundJob("settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */, [prUrl]);
-    }
-    return releaseGate("e2eReleased");
-  }
+  if (decision.action === "release" /* Release */) return releaseGate("e2eReleased");
   if (decision.action === "none" /* None */) return "{}";
   recordGateBlock("e2eBlockCount", decision.blockCount);
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session went unit-green or opened a PR, but no E2E acceptance run has happened. Per the autoE2ETest preference (default: always), run change-driven E2E now via ${muggleSkill("/muggle:muggle-test")}, then finish. To skip, run \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\` citing one of ${E2E_SKIP_CODES.join(", ")}. Muggle verifies each code itself, so one that does not hold leaves this gate blocked. Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.` : `E2E acceptance run still owed (reminder ${decision.blockCount}/${MAX_E2E_BLOCKS}): run ${muggleSkill("/muggle:muggle-test")}, or cite a verifiable code via \`echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"\`.`;
@@ -3162,11 +3157,6 @@ function settleBranchWalkthroughSkippedJob() {
   if (prUrl) settleWalkthroughCommentAsSkipped(prUrl, code, detail ?? "");
   return "{}";
 }
-function settleWalkthroughUnreasonedJob() {
-  const [prUrl] = jobArgs;
-  if (prUrl) settleWalkthroughCommentAsUnreasoned(prUrl);
-  return "{}";
-}
 function settleWalkthroughNoAppLogicChangeJob() {
   const [detail] = jobArgs;
   const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
@@ -3175,7 +3165,7 @@ function settleWalkthroughNoAppLogicChangeJob() {
 }
 function noteWalkthroughRerunJob() {
   const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
-  if (prUrl) noteWalkthroughRerunStarted(prUrl);
+  if (prUrl) noteE2eRunStarted(prUrl);
   return "{}";
 }
 function scanWatchPrStatesJob() {
@@ -3197,7 +3187,6 @@ var backgroundJobs = {
   ["reserve-walkthrough-comment" /* ReserveWalkthroughComment */]: reserveWalkthroughCommentJob,
   ["settle-walkthrough-skipped" /* SettleWalkthroughSkipped */]: settleWalkthroughSkippedJob,
   ["settle-branch-walkthrough-skipped" /* SettleBranchWalkthroughSkipped */]: settleBranchWalkthroughSkippedJob,
-  ["settle-walkthrough-unreasoned" /* SettleWalkthroughUnreasoned */]: settleWalkthroughUnreasonedJob,
   ["settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */]: settleWalkthroughNoAppLogicChangeJob,
   ["note-walkthrough-rerun" /* NoteWalkthroughRerun */]: noteWalkthroughRerunJob,
   ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob,

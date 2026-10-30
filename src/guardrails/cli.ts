@@ -82,10 +82,9 @@ import { isPrCoveredBySkip } from "./skipScope.js";
 import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
 import {
   isWalkthroughSettledOnPr,
-  noteWalkthroughRerunStarted,
+  noteE2eRunStarted,
   reserveWalkthroughComment,
   settleWalkthroughCommentAsSkipped,
-  settleWalkthroughCommentAsUnreasoned,
   settleWalkthroughCommentForNoAppLogicChange,
 } from "../pr-walkthrough/reserve.js";
 import { CYCLE_SCOPED_SKIP_CODES, E2E_SKIP_CODES, NON_APP_PATH_SUMMARY } from "../e2e-skip/constants.js";
@@ -522,15 +521,10 @@ function debugPathGate(): string {
 function e2eGate(): string {
   const state = readState(sessionId);
   const decision = e2eGateDecision(state);
-  if (decision.action === E2eGateAction.Release) {
-    // The release exists so an un-runnable E2E cannot trap a session, but it
-    // must not read on the PR as though E2E did not apply. No code was ever
-    // verified here, and the reviewer is the person who needs to know that.
-    for (const prUrl of state.prsHandled) {
-      startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughUnreasoned, [prUrl]);
-    }
-    return releaseGate("e2eReleased");
-  }
+  // The release only frees the session. The PR's comment stays at the stage it
+  // reached, so a reviewer still sees it waiting on the feasibility check or
+  // the run, and the walkthrough check stays unsettled.
+  if (decision.action === E2eGateAction.Release) return releaseGate("e2eReleased");
   if (decision.action === E2eGateAction.None) return "{}";
   recordGateBlock("e2eBlockCount", decision.blockCount);
   // Full instruction once; repeats are one line. The first block already
@@ -995,12 +989,6 @@ function settleBranchWalkthroughSkippedJob(): string {
   return "{}";
 }
 
-function settleWalkthroughUnreasonedJob(): string {
-  const [prUrl] = jobArgs;
-  if (prUrl) settleWalkthroughCommentAsUnreasoned(prUrl);
-  return "{}";
-}
-
 function settleWalkthroughNoAppLogicChangeJob(): string {
   const [detail] = jobArgs;
   const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
@@ -1010,7 +998,7 @@ function settleWalkthroughNoAppLogicChangeJob(): string {
 
 function noteWalkthroughRerunJob(): string {
   const prUrl = defaultPrWalkthroughLookup.branchPrUrl();
-  if (prUrl) noteWalkthroughRerunStarted(prUrl);
+  if (prUrl) noteE2eRunStarted(prUrl);
   return "{}";
 }
 
@@ -1036,7 +1024,6 @@ const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.ReserveWalkthroughComment]: reserveWalkthroughCommentJob,
   [GuardrailBackgroundJob.SettleWalkthroughSkipped]: settleWalkthroughSkippedJob,
   [GuardrailBackgroundJob.SettleBranchWalkthroughSkipped]: settleBranchWalkthroughSkippedJob,
-  [GuardrailBackgroundJob.SettleWalkthroughUnreasoned]: settleWalkthroughUnreasonedJob,
   [GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange]: settleWalkthroughNoAppLogicChangeJob,
   [GuardrailBackgroundJob.NoteWalkthroughRerun]: noteWalkthroughRerunJob,
   [GuardrailBackgroundJob.ScanWatchPrStates]: scanWatchPrStatesJob,

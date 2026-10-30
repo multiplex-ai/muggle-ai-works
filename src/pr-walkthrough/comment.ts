@@ -7,6 +7,7 @@ import {
   RERUN_NOTICE_BLOCK,
   RERUN_NOTICE_CLOSING,
   RERUN_NOTICE_OPENING,
+  RETIRED_UNREASONED_SKIP_HEADLINE,
   SHORT_SHA_LENGTH,
   WALKTHROUGH_COMMENT_HEADING,
   WALKTHROUGH_SKIPPED_MARKER,
@@ -14,13 +15,36 @@ import {
 } from "./constants.js";
 import { WalkthroughCommentStatus, WalkthroughVerdict } from "./types.js";
 
-/** Body of the placeholder posted when a PR opens, holding the slot until a run settles it. */
+/**
+ * Body of the placeholder posted when a PR opens: the first of the comment's
+ * three stages — feasibility check, then the run in progress or why E2E is not
+ * feasible, then the E2E report.
+ */
 export function renderReservedComment(): string {
   return (
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `_Awaiting the E2E acceptance run. Muggle edits this comment in place when the run finishes — ` +
-    `or records why E2E does not apply to this change._`
+    `**Waiting for the E2E feasibility check.** This comment updates in place — next with the E2E run ` +
+    `in progress or why E2E is not feasible for this change, then with the E2E report.`
+  );
+}
+
+/**
+ * Body that replaces the placeholder when the PR's first E2E run starts.
+ *
+ * Carries the run-in-progress banner, so it stays pending, keeps the
+ * walkthrough check in progress, and is not re-marked by the run's later executions.
+ *
+ * @param startedAt - When the run started.
+ */
+export function renderRunningComment(startedAt: Date): string {
+  return (
+    `${WALKTHROUGH_SLOT_MARKER}\n` +
+    `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
+    `${RERUN_NOTICE_OPENING}\n` +
+    `**E2E running — waiting for the report.** Started ${formatUtcMinute(startedAt)}. ` +
+    `This comment becomes the E2E report when the run finishes.\n` +
+    `${RERUN_NOTICE_CLOSING}`
   );
 }
 
@@ -40,7 +64,7 @@ export function renderSkippedComment(code: E2eSkipCode, detail: string): string 
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `**No E2E run.** Muggle verified \`${code}\` — ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`
+    `**E2E not feasible.** Muggle verified \`${code}\` — ${E2E_SKIP_CODE_CLAIMS[code]}${qualifier}.`
   );
 }
 
@@ -51,7 +75,7 @@ function renderNotApplicableComment(reason: string): string {
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `**No E2E run — not applicable.** ${reason.replace(/\.$/, "")}.\n\n` +
+    `**E2E not feasible.** ${reason.replace(/\.$/, "")}.\n\n` +
     `_The coding agent judged that a browser run cannot exercise this change (\`${E2eSkipCode.NotApplicable}\`). ` +
     `Muggle did not verify this reason._`
   );
@@ -67,25 +91,7 @@ export function renderDependencyBotComment(login: string): string {
     `${WALKTHROUGH_SLOT_MARKER}\n` +
     `${WALKTHROUGH_SKIPPED_MARKER}\n` +
     `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `**No E2E run — not applicable.** A dependency update opened by \`${login}\`; no coding session ran on it.`
-  );
-}
-
-/**
- * Body that settles the slot when the Stop gate gave up without a verified code.
- *
- * The gate releases after a bounded number of reminders so an un-runnable E2E
- * cannot trap a session. That release used to be silent, which made "nobody
- * gave a reason" indistinguishable on the PR from "E2E did not apply" — so it
- * now says so in the one place a reviewer is already looking.
- */
-export function renderUnreasonedSkipComment(): string {
-  return (
-    `${WALKTHROUGH_SLOT_MARKER}\n` +
-    `${WALKTHROUGH_SKIPPED_MARKER}\n` +
-    `${WALKTHROUGH_COMMENT_HEADING}\n\n` +
-    `**No E2E run, and no verified reason given.** The session ended still owing an acceptance run ` +
-    `and cited no skip code that Muggle could verify. Treat this PR as unvalidated by E2E.`
+    `**E2E not feasible.** A dependency update opened by \`${login}\`; no coding session ran on it.`
   );
 }
 
@@ -210,7 +216,9 @@ export function withRerunNotice(body: string, startedAt: Date): string {
 export function classifyComment(body: string): WalkthroughCommentStatus {
   if (body.includes(REPORT_SENTINEL)) return WalkthroughCommentStatus.Reported;
   if (!body.includes(WALKTHROUGH_SLOT_MARKER)) return WalkthroughCommentStatus.NotDesignated;
-  if (body.includes(WALKTHROUGH_SKIPPED_MARKER)) return WalkthroughCommentStatus.Skipped;
+  if (body.includes(WALKTHROUGH_SKIPPED_MARKER) && !body.includes(RETIRED_UNREASONED_SKIP_HEADLINE)) {
+    return WalkthroughCommentStatus.Skipped;
+  }
   return WalkthroughCommentStatus.Pending;
 }
 

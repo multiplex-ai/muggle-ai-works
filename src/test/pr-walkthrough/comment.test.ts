@@ -6,14 +6,20 @@ import {
   renderDependencyBotComment,
   renderNoAppLogicChangeComment,
   renderReservedComment,
+  renderRunningComment,
   renderSkippedComment,
-  renderUnreasonedSkipComment,
   walkthroughVerdict,
   withoutRerunNotice,
   withRerunNotice,
 } from "../../pr-walkthrough/comment";
 import { E2eSkipCode } from "../../e2e-skip/types";
-import { REPORT_SENTINEL, WALKTHROUGH_SLOT_MARKER } from "../../pr-walkthrough/constants";
+import {
+  REPORT_SENTINEL,
+  RETIRED_UNREASONED_SKIP_HEADLINE,
+  WALKTHROUGH_COMMENT_HEADING,
+  WALKTHROUGH_SKIPPED_MARKER,
+  WALKTHROUGH_SLOT_MARKER,
+} from "../../pr-walkthrough/constants";
 import { WalkthroughCommentStatus, WalkthroughVerdict } from "../../pr-walkthrough/types";
 
 const reported = `${WALKTHROUGH_SLOT_MARKER}\n<!-- muggle-pr-section:v1 -->\n### Muggle E2E\n3 passed`;
@@ -31,6 +37,28 @@ describe("renderReservedComment", () => {
 
   it("classifies as pending", () => {
     expect(classifyComment(renderReservedComment())).toBe(WalkthroughCommentStatus.Pending);
+  });
+
+  it("says the E2E feasibility check is pending", () => {
+    expect(renderReservedComment()).toContain("**Waiting for the E2E feasibility check.**");
+  });
+});
+
+describe("renderRunningComment", () => {
+  const STARTED_AT = new Date("2026-10-30T18:05:12Z");
+
+  it("says the run is in progress and when it started", () => {
+    const body = renderRunningComment(STARTED_AT);
+    expect(body).toContain("**E2E running — waiting for the report.**");
+    expect(body).toContain("2026-10-30 18:05 UTC");
+    expect(body).not.toContain("feasibility check");
+  });
+
+  it("stays pending and keeps the walkthrough check in progress", () => {
+    const body = renderRunningComment(STARTED_AT);
+    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Pending);
+    expect(walkthroughVerdict([body])).toBe(WalkthroughVerdict.Pending);
+    expect(isRerunInProgress([body])).toBe(true);
   });
 });
 
@@ -52,7 +80,7 @@ describe("renderSkippedComment", () => {
 
   it("shows a NOT_APPLICABLE reason as the agent's, unverified", () => {
     const body = renderSkippedComment(E2eSkipCode.NotApplicable, "only the email template changed.");
-    expect(body).toContain("**No E2E run — not applicable.** only the email template changed.\n");
+    expect(body).toContain("**E2E not feasible.** only the email template changed.\n");
     expect(body).toContain("Muggle did not verify this reason");
     expect(body).not.toContain("Muggle verified");
     expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
@@ -66,16 +94,8 @@ describe("renderSkippedComment", () => {
 
   // The rendering takes a code, so there is nowhere to put another tool's
   // findings — which is what keeps this heading off a run that never happened.
-  it("states plainly that no run happened", () => {
-    expect(renderSkippedComment(E2eSkipCode.EmptyDiff, "")).toContain("No E2E run");
-  });
-});
-
-describe("renderUnreasonedSkipComment", () => {
-  it("settles the slot while saying no verified reason was given", () => {
-    const body = renderUnreasonedSkipComment();
-    expect(body).toContain("no verified reason given");
-    expect(classifyComment(body)).toBe(WalkthroughCommentStatus.Skipped);
+  it("states plainly that E2E is not feasible", () => {
+    expect(renderSkippedComment(E2eSkipCode.EmptyDiff, "")).toContain("**E2E not feasible.**");
   });
 });
 
@@ -184,7 +204,6 @@ describe("lastFullRunOf", () => {
   it("is null for a reserved slot or a skip that carries no run", () => {
     expect(lastFullRunOf(renderReservedComment())).toBeNull();
     expect(lastFullRunOf(renderSkippedComment(E2eSkipCode.NoWebSurface, ""))).toBeNull();
-    expect(lastFullRunOf(renderUnreasonedSkipComment())).toBeNull();
   });
 });
 
@@ -195,6 +214,14 @@ describe("classifyComment", () => {
 
   it("ignores a comment that is not the designated slot", () => {
     expect(classifyComment("looks good to me")).toBe(WalkthroughCommentStatus.NotDesignated);
+  });
+
+  it("reads the retired no-reason settle as pending, so it never passes for a skip", () => {
+    const retired =
+      `${WALKTHROUGH_SLOT_MARKER}\n${WALKTHROUGH_SKIPPED_MARKER}\n${WALKTHROUGH_COMMENT_HEADING}\n\n` +
+      `${RETIRED_UNREASONED_SKIP_HEADLINE} The session ended still owing an acceptance run.`;
+    expect(classifyComment(retired)).toBe(WalkthroughCommentStatus.Pending);
+    expect(walkthroughVerdict([retired])).toBe(WalkthroughVerdict.Pending);
   });
 
   it("reads a report as reported even without the slot marker, so walkthroughs posted before this guard still count", () => {

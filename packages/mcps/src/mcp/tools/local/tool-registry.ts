@@ -254,7 +254,7 @@ const runResultGetTool: ILocalMcpTool = {
       `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",
       // The studio publishes the run during execution; these are its returned cloud refs.
-      formatRunViewUrlLine(storedRunResult.id) || `**Dashboard:** ${fallbackDashboardUrl}`,
+      formatViewUrlLine(storedRunResult.viewUrl) || `**Dashboard:** ${fallbackDashboardUrl}`,
       storedRunResult.cloudTestScriptId ? `**Cloud Test Script ID:** ${storedRunResult.cloudTestScriptId}` : "",
       storedRunResult.cloudActionScriptId ? `**Cloud Action Script ID:** ${storedRunResult.cloudActionScriptId}` : "",
       storedRunResult.cloudRunSettingsId ? `**Cloud Run Settings ID:** ${storedRunResult.cloudRunSettingsId}` : "",
@@ -383,11 +383,14 @@ const testScriptGetTool: ILocalMcpTool = {
 };
 
 
+function formatViewUrlLine(viewUrl: string | undefined): string {
+  return viewUrl ? `**View URL:** ${viewUrl}` : "";
+}
+
 // The studio publishes each run while it executes, so its dashboard link is
 // known by the time the verdict prints; the PR progress hook links each row to it.
 function formatRunViewUrlLine(runId: string): string {
-  const viewUrl = getRunResultStorageService().getRunResult(runId)?.viewUrl;
-  return viewUrl ? `**View URL:** ${viewUrl}` : "";
+  return formatViewUrlLine(getRunResultStorageService().getRunResult(runId)?.viewUrl);
 }
 
 const executeTestGenerationTool: ILocalMcpTool = {

@@ -8,6 +8,8 @@ import {
   PREFERENCE_DEFAULTS_PATH_SEGMENTS,
   UNBOUNDED_PREFERENCE_VALUE,
   USER_PREFERENCES_PATH_SEGMENTS,
+  WATCHER_LIFETIME_PREFERENCE_KEY,
+  WATCHER_LIFETIME_SECONDS,
 } from "./constants.js";
 import { asRecord, readJsonRecord } from "./slotFiles.js";
 import type { WatchPreferences } from "./types.js";
@@ -68,8 +70,12 @@ export function resolveWatchPreferences(
   const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const lifetimeSecondsOf = (configuredValue: unknown): number | undefined =>
+    typeof configuredValue === "string" ? WATCHER_LIFETIME_SECONDS[configuredValue] : undefined;
   return {
     autoRebase: autoRebase,
     maxCatchUpRebases: userCap !== undefined ? userCap : (shippedCap ?? null),
+    watcherLifetimeSeconds:
+      lifetimeSecondsOf(userPreferences[WATCHER_LIFETIME_PREFERENCE_KEY]) ?? lifetimeSecondsOf(shippedDefaults[WATCHER_LIFETIME_PREFERENCE_KEY]),
   };
 }

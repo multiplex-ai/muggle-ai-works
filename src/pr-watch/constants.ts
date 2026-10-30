@@ -35,6 +35,10 @@ export const PREFERENCE_DEFAULTS_PATH_SEGMENTS = ["config", "preference-defaults
 
 export const AUTO_REBASE_PREFERENCE_KEY = "autoRebase";
 export const MAX_CATCH_UP_REBASES_PREFERENCE_KEY = "maxCatchUpRebases";
+export const WATCHER_LIFETIME_PREFERENCE_KEY = "watcherLifetime";
+
+/** Each `watcherLifetime` value as the seconds `MUGGLE_PR_WATCH_MAX_LIFETIME` takes; 0 is unbounded. */
+export const WATCHER_LIFETIME_SECONDS: Readonly<Record<string, number>> = { "1d": 86_400, "7d": 604_800, never: 0 };
 
 /** The preference value that makes an action binding rather than offered. */
 export const ALWAYS_PREFERENCE_VALUE = "always";

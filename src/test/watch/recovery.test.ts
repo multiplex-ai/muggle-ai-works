@@ -1,17 +1,20 @@
-import { mkdirSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { ProviderPrState } from "../../guardrails/types.js";
-import { executeWatcherRecoveries, isRecoverable, planWatcherRecoveries } from "../../watch/recovery.js";
+import { SERVICE_LOOP_DELIVERED_FILE, SERVICE_LOOP_OUTPUT_FILE } from "../../watch/constants.js";
+import { executeWatcherRecoveries, isOwnerWakeDue, planWatcherRecoveries } from "../../watch/recovery.js";
 import {
   ClaudeSessionKind,
   ClaudeTurnStatus,
+  ServiceLoopReportKind,
   WatcherLiveness,
   WatcherRecoveryOutcome,
   WatchEventKind,
   WorkSessionAgent,
   type CommandRunner,
   type RecoveryExecutionDeps,
+  type WatcherRecovery,
   type WatchSlotAssessment,
   type WorkSession,
 } from "../../watch/types.js";
@@ -19,8 +22,9 @@ import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
 
 const NOW_MS = Date.parse("2026-10-24T12:00:00Z");
 const MINUTE_MS = 60_000;
+const NEW_REVIEW_LINE = "EVENT pr=1 new submitted review id=42";
 
-function deadSlot(slug: string, ownerSessionId: string, overrides: Partial<WatchSlotAssessment> = {}): WatchSlotAssessment {
+function reportedSlot(slug: string, ownerSessionId: string, overrides: Partial<WatchSlotAssessment> = {}): WatchSlotAssessment {
   return {
     slug: slug,
     slotDir: `/s/${slug}`,
@@ -30,6 +34,8 @@ function deadSlot(slug: string, ownerSessionId: string, overrides: Partial<Watch
     ownerSessionId: ownerSessionId,
     isOwnerSessionActive: false,
     live: { url: `u-${slug}`, state: ProviderPrState.Open, unresolvedThreadCount: 0 },
+    isHeardByService: true,
+    serviceLoopReport: { kind: ServiceLoopReportKind.Event, reportLines: [NEW_REVIEW_LINE], writtenAtMs: NOW_MS - MINUTE_MS },
     ...overrides,
   };
 }
@@ -48,6 +54,24 @@ function liveOwner(sessionId: string, overrides: Partial<WorkSession> = {}): Wor
   };
 }
 
+function plannedWake(ownerSessionId: string, slotDir: string, overrides: Partial<WatcherRecovery> = {}): WatcherRecovery {
+  return {
+    ownerSessionId: ownerSessionId,
+    slotSlug: "csv",
+    slotDir: slotDir,
+    prNumber: 7,
+    reportKind: ServiceLoopReportKind.Event,
+    outcome: WatcherRecoveryOutcome.ResumeDue,
+    ...overrides,
+  };
+}
+
+function slotWithReport(): string {
+  const slotDir = makeTempDir("slot");
+  writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), `${NEW_REVIEW_LINE}\n`);
+  return slotDir;
+}
+
 function executionDeps(
   runCommand: CommandRunner,
   claudeProjectsDir: string,
@@ -63,41 +87,54 @@ function executionDeps(
   };
 }
 
-describe("isRecoverable", () => {
-  it("accepts only a registered, confirmed-open slot whose watcher and owner are both gone", () => {
-    expect(isRecoverable(deadSlot("a", "o1"))).toBe(true);
-    expect(isRecoverable(deadSlot("a", "o1", { isRegistered: false }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { watcher: WatcherLiveness.Deaf }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { watcher: WatcherLiveness.Rearming }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { live: undefined }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { live: { url: "u", state: ProviderPrState.Merged, unresolvedThreadCount: 0 } }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: true }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { isOwnerSessionActive: undefined }))).toBe(false);
-    expect(isRecoverable(deadSlot("a", "o1", { ownerSessionId: undefined }))).toBe(false);
+describe("isOwnerWakeDue", () => {
+  it("wakes an ended owner only for a registered slot's finished report on a PR still open", () => {
+    expect(isOwnerWakeDue(reportedSlot("a", "o1"))).toBe(true);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { isRegistered: false }))).toBe(false);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { watcher: WatcherLiveness.Polling }))).toBe(false);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { serviceLoopReport: undefined }))).toBe(false);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { ownerSessionId: undefined }))).toBe(false);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { live: undefined }))).toBe(false);
+    expect(isOwnerWakeDue(reportedSlot("a", "o1", { isOwnerSessionActive: undefined }))).toBe(false);
   });
 
-  it("accepts a running owner only while it sits idle in the background", () => {
-    const running = deadSlot("a", "o1", { isOwnerSessionActive: true });
-    expect(isRecoverable(running, liveOwner("o1"))).toBe(true);
-    expect(isRecoverable(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Busy }))).toBe(false);
-    expect(isRecoverable(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Waiting }))).toBe(false);
-    expect(isRecoverable(running, liveOwner("o1", { kind: ClaudeSessionKind.Interactive }))).toBe(false);
-    expect(isRecoverable(running)).toBe(false);
+  it("never wakes anyone for a loop that only expired, failed, or was superseded", () => {
+    for (const kind of [ServiceLoopReportKind.Expired, ServiceLoopReportKind.Failed, ServiceLoopReportKind.Silent]) {
+      expect(isOwnerWakeDue(reportedSlot("a", "o1", { serviceLoopReport: { kind: kind, reportLines: [], writtenAtMs: NOW_MS } }))).toBe(false);
+    }
+  });
+
+  it("closes out a merged PR of an ended owner instead of resuming it", () => {
+    const merged = reportedSlot("a", "o1", {
+      live: { url: "u", state: ProviderPrState.Merged, unresolvedThreadCount: 0 },
+      serviceLoopReport: { kind: ServiceLoopReportKind.Terminal, reportLines: ["TERMINAL pr=1 state=MERGED"], writtenAtMs: NOW_MS },
+    });
+    expect(isOwnerWakeDue(merged)).toBe(false);
+    expect(isOwnerWakeDue({ ...merged, isOwnerSessionActive: true }, liveOwner("o1"))).toBe(true);
+  });
+
+  it("wakes a running owner only between turns of a background session, never mid-turn or while it waits on its user", () => {
+    const running = reportedSlot("a", "o1", { isOwnerSessionActive: true });
+    expect(isOwnerWakeDue(running, liveOwner("o1"))).toBe(true);
+    expect(isOwnerWakeDue(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Busy }))).toBe(false);
+    expect(isOwnerWakeDue(running, liveOwner("o1", { turnStatus: ClaudeTurnStatus.Waiting }))).toBe(false);
+    expect(isOwnerWakeDue(running, liveOwner("o1", { kind: ClaudeSessionKind.Interactive }))).toBe(false);
+    expect(isOwnerWakeDue(running)).toBe(false);
   });
 });
 
 describe("planWatcherRecoveries", () => {
-  it("plans one resume per owner covering all of its slots", () => {
-    const planned = planWatcherRecoveries([deadSlot("b", "o1"), deadSlot("a", "o1"), deadSlot("c", "o2"), deadSlot("a", "o1")], {}, NOW_MS, false);
+  it("plans one wake per owner, for its first slot with a report", () => {
+    const planned = planWatcherRecoveries([reportedSlot("b", "o1"), reportedSlot("a", "o1"), reportedSlot("c", "o2")], {}, NOW_MS, false);
     expect(planned).toEqual([
-      { ownerSessionId: "o1", slotSlugs: ["a", "b"], outcome: WatcherRecoveryOutcome.ResumeDue },
-      { ownerSessionId: "o2", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.ResumeDue },
+      { ownerSessionId: "o1", slotSlug: "a", slotDir: "/s/a", prNumber: 1, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.ResumeDue },
+      { ownerSessionId: "o2", slotSlug: "c", slotDir: "/s/c", prNumber: 1, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.ResumeDue },
     ]);
   });
 
-  it("holds an owner inside its cooldown and stops after the attempt cap", () => {
+  it("holds an owner inside its cooldown after a failed wake and stops after the attempt cap", () => {
     const planned = planWatcherRecoveries(
-      [deadSlot("a", "cooling"), deadSlot("b", "exhausted"), deadSlot("c", "aged-out")],
+      [reportedSlot("a", "cooling"), reportedSlot("b", "exhausted"), reportedSlot("c", "aged-out")],
       {
         cooling: [minutesAgo(10)],
         exhausted: [minutesAgo(300), minutesAgo(200), minutesAgo(100)],
@@ -114,70 +151,47 @@ describe("planWatcherRecoveries", () => {
   });
 
   it("defers owners past the per-tick cap and plans nothing while polling is disabled", () => {
-    const planned = planWatcherRecoveries([deadSlot("a", "o1"), deadSlot("b", "o2"), deadSlot("c", "o3")], {}, NOW_MS, false);
+    const planned = planWatcherRecoveries([reportedSlot("a", "o1"), reportedSlot("b", "o2"), reportedSlot("c", "o3")], {}, NOW_MS, false);
     expect(planned.map((recovery) => recovery.outcome)).toEqual([
       WatcherRecoveryOutcome.ResumeDue,
       WatcherRecoveryOutcome.ResumeDue,
       WatcherRecoveryOutcome.DeferredByTickCap,
     ]);
-    expect(planWatcherRecoveries([deadSlot("a", "o1")], {}, NOW_MS, true)).toEqual([]);
+    expect(planWatcherRecoveries([reportedSlot("a", "o1")], {}, NOW_MS, true)).toEqual([]);
   });
 
   it("marks a running idle owner to be stopped first, by the id claude stop takes", () => {
     const planned = planWatcherRecoveries(
-      [deadSlot("a", "o1", { isOwnerSessionActive: true }), deadSlot("b", "o2")],
+      [reportedSlot("a", "o1", { isOwnerSessionActive: true }), reportedSlot("b", "o2")],
       {},
       NOW_MS,
       false,
       new Map([["o1", liveOwner("o1")]]),
     );
-    expect(planned).toEqual([
-      { ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" },
-      { ownerSessionId: "o2", slotSlugs: ["b"], outcome: WatcherRecoveryOutcome.ResumeDue },
+    expect(planned.map((recovery) => [recovery.ownerSessionId, recovery.ownerShortId])).toEqual([
+      ["o1", "o1-short"],
+      ["o2", undefined],
     ]);
   });
 
   it("holds every owner while the account sits at a usage limit, before the attempt cap or the tick cap", () => {
     const planned = planWatcherRecoveries(
-      [deadSlot("a", "exhausted"), deadSlot("b", "o2", { isOwnerSessionActive: true }), deadSlot("c", "o3"), deadSlot("d", "o4")],
+      [reportedSlot("a", "exhausted"), reportedSlot("b", "o2", { isOwnerSessionActive: true }), reportedSlot("c", "o3"), reportedSlot("d", "o4")],
       { exhausted: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] },
       NOW_MS,
       false,
       new Map([["o2", liveOwner("o2")]]),
       true,
     );
-    expect(planned.map((recovery) => recovery.outcome)).toEqual([
-      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
-      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
-      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
-      WatcherRecoveryOutcome.AwaitingUsageLimitReset,
-    ]);
-  });
-
-  it("resumes an owner once the limit has reset, counting attempts made while it held", () => {
-    const attempts = { o1: [minutesAgo(300), minutesAgo(200), minutesAgo(100)] };
-    expect(planWatcherRecoveries([deadSlot("a", "o1")], attempts, NOW_MS, false, new Map(), false)[0].outcome).toBe(
-      WatcherRecoveryOutcome.AttemptsExhausted,
-    );
-    expect(planWatcherRecoveries([deadSlot("a", "o2")], {}, NOW_MS, false, new Map([["o2", liveOwner("o2")]]), false)[0].outcome).toBe(
-      WatcherRecoveryOutcome.ResumeDue,
-    );
+    expect(planned.map((recovery) => recovery.outcome)).toEqual(Array(4).fill(WatcherRecoveryOutcome.AwaitingUsageLimitReset));
   });
 
   it("finds an owner whose job continued under a newer session id by the short id it started with", () => {
     const ownerSessionId = "030d66e7-1ca3-4e4c";
     const continued = liveOwner("a9667d3f-5225", { shortId: "030d66e7" });
-    const slot = deadSlot("a", ownerSessionId);
+    const slot = reportedSlot("a", ownerSessionId, { isOwnerSessionActive: true });
     const planned = planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[continued.sessionId, continued]]));
-    expect(planned).toEqual([
-      {
-        ownerSessionId: ownerSessionId,
-        slotSlugs: ["a"],
-        outcome: WatcherRecoveryOutcome.ResumeDue,
-        ownerShortId: "030d66e7",
-        ownerRunningSessionId: "a9667d3f-5225",
-      },
-    ]);
+    expect(planned.map((recovery) => [recovery.ownerShortId, recovery.ownerRunningSessionId])).toEqual([["030d66e7", "a9667d3f-5225"]]);
     const busy = liveOwner("a9667d3f-5225", { shortId: "030d66e7", turnStatus: ClaudeTurnStatus.Busy });
     expect(planWatcherRecoveries([slot], {}, NOW_MS, false, new Map([[busy.sessionId, busy]]))).toEqual([]);
   });
@@ -191,33 +205,35 @@ describe("executeWatcherRecoveries", () => {
     return projectsDir;
   }
 
-  it("resumes a due owner in the background from its own project dir", () => {
+  it("wakes an owner with its own slot and PR only, never a reconcile sweep, and sets the report aside", () => {
     const projectCwd = makeTempDir("project");
-    const projectsDir = projectsWithTranscript("o1", projectCwd);
+    const slotDir = slotWithReport();
     const runner = scriptedRunner(() => succeeded("started"));
     const executed = executeWatcherRecoveries(
-      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
+      [plannedWake("o1", slotDir)],
       { o1: [minutesAgo(60)], forgotten: [minutesAgo(48 * 60)] },
-      executionDeps(runner.runCommand, projectsDir),
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd)),
     );
     expect(runner.calls).toEqual([
-      { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"], options: { cwd: projectCwd } },
+      { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup csv 7 --wake=event"], options: { cwd: projectCwd } },
     ]);
-    expect(executed.recoveries).toEqual([{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.Resumed, cwd: projectCwd }]);
-    expect(executed.attemptsByOwner).toEqual({ o1: [minutesAgo(60), new Date(NOW_MS).toISOString()] });
+    expect(runner.calls.some((call) => call.args.join(" ").includes("reconcile"))).toBe(false);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(false);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_DELIVERED_FILE))).toBe(true);
+    expect(executed.attemptsByOwner).toEqual({ o1: [minutesAgo(60)] });
     expect(executed.events).toEqual([
-      { at: new Date(NOW_MS).toISOString(), kind: WatchEventKind.Resumed, subject: "session o1", message: "resumed to re-arm a" },
+      { at: new Date(NOW_MS).toISOString(), kind: WatchEventKind.Resumed, subject: "session o1", message: "woke it with /muggle:muggle-pr-followup csv 7 --wake=event" },
     ]);
   });
 
   it("stops a running idle owner and waits for it to exit before resuming it under the same id", () => {
-    const projectCwd = makeTempDir("project");
     const runner = scriptedRunner(() => succeeded("ok"));
     const awaitedSessionIds: string[] = [];
     const executed = executeWatcherRecoveries(
-      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      [plannedWake("o1", slotWithReport(), { ownerShortId: "o1-short", ownerRunningSessionId: "o1-continued" })],
       {},
-      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project")), {
         waitForExit: (sessionId) => {
           awaitedSessionIds.push(sessionId);
           return true;
@@ -226,50 +242,24 @@ describe("executeWatcherRecoveries", () => {
     );
     expect(runner.calls.map((call) => call.args)).toEqual([
       ["stop", "o1-short"],
-      ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"],
+      ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup csv 7 --wake=event"],
     ]);
-    expect(awaitedSessionIds).toEqual(["o1"]);
+    expect(awaitedSessionIds).toEqual(["o1-continued"]);
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
   });
 
-  it("awaits the exit of the id a continued job runs under before resuming the owner's own id", () => {
-    const projectCwd = makeTempDir("project");
-    const runner = scriptedRunner(() => succeeded("ok"));
-    const awaitedSessionIds: string[] = [];
-    executeWatcherRecoveries(
-      [
-        {
-          ownerSessionId: "o1",
-          slotSlugs: ["a"],
-          outcome: WatcherRecoveryOutcome.ResumeDue,
-          ownerShortId: "o1-short",
-          ownerRunningSessionId: "o1-continued",
-        },
-      ],
-      {},
-      executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
-        waitForExit: (sessionId) => {
-          awaitedSessionIds.push(sessionId);
-          return true;
-        },
-      }),
-    );
-    expect(awaitedSessionIds).toEqual(["o1-continued"]);
-    expect(runner.calls.map((call) => call.args)).toEqual([
-      ["stop", "o1-short"],
-      ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup reconcile"],
-    ]);
-  });
-
-  it("does not resume an owner still running after the stop, since that would start a copy", () => {
+  it("keeps the report and counts the attempt when the owner outlives its stop, so no copy of it starts", () => {
+    const slotDir = slotWithReport();
     const runner = scriptedRunner(() => succeeded("ok"));
     const executed = executeWatcherRecoveries(
-      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      [plannedWake("o1", slotDir, { ownerShortId: "o1-short" })],
       {},
       executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project")), { waitForExit: () => false }),
     );
     expect(runner.calls.map((call) => call.args)).toEqual([["stop", "o1-short"]]);
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(true);
+    expect(executed.attemptsByOwner.o1).toHaveLength(1);
   });
 
   it("leaves a running owner alone where Claude would not resume it, and waits out the cooldown", () => {
@@ -277,7 +267,7 @@ describe("executeWatcherRecoveries", () => {
     const runner = scriptedRunner(() => succeeded("ok"));
     const probedCwds: string[] = [];
     const executed = executeWatcherRecoveries(
-      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue, ownerShortId: "o1-short" }],
+      [plannedWake("o1", slotWithReport(), { ownerShortId: "o1-short" })],
       {},
       executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd), {
         canRestartIn: (cwd) => {
@@ -293,12 +283,11 @@ describe("executeWatcherRecoveries", () => {
     expect(executed.events[0].kind).toBe(WatchEventKind.RestartRefused);
   });
 
-  it("records a failed resume as an attempt so the cooldown still applies", () => {
-    const projectsDir = projectsWithTranscript("o1", makeTempDir("project"));
+  it("records a failed wake as an attempt so the cooldown still applies", () => {
     const executed = executeWatcherRecoveries(
-      [{ ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue }],
+      [plannedWake("o1", slotWithReport())],
       {},
-      executionDeps(scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand, projectsDir),
+      executionDeps(scriptedRunner(() => ({ exitCode: 1, stdout: "" })).runCommand, projectsWithTranscript("o1", makeTempDir("project"))),
     );
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
     expect(executed.attemptsByOwner.o1).toHaveLength(1);
@@ -310,9 +299,9 @@ describe("executeWatcherRecoveries", () => {
     const missingCwd = join(makeTempDir("project"), "deleted-worktree");
     const executed = executeWatcherRecoveries(
       [
-        { ownerSessionId: "o1", slotSlugs: ["a"], outcome: WatcherRecoveryOutcome.ResumeDue },
-        { ownerSessionId: "o2", slotSlugs: ["b"], outcome: WatcherRecoveryOutcome.ResumeDue },
-        { ownerSessionId: "o3", slotSlugs: ["c"], outcome: WatcherRecoveryOutcome.CoolingDown },
+        plannedWake("o1", "/s/a"),
+        plannedWake("o2", "/s/b"),
+        plannedWake("o3", "/s/c", { outcome: WatcherRecoveryOutcome.CoolingDown }),
       ],
       {},
       executionDeps(runner.runCommand, projectsWithTranscript("o2", missingCwd)),

@@ -202,10 +202,10 @@ if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
     claimed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '{\n  "session_id": "%s",\n  "claimed_at": "%s"\n}\n' \
         "$CLAUDE_CODE_SESSION_ID" "$claimed_at" > "${slot}/owner.json"
-    # Register the slot with the muggle watch service, which resumes this owner
-    # in the background if the loop dies while the session is down, so its own
-    # reconcile re-arms the watch. It lives in the slot, so a stop rename or a
-    # finalize retires it with no extra call; an unowned slot has nobody to resume.
+    # Register the slot with the muggle watch service, which restarts the loop
+    # outside every session if it dies and wakes this owner only when that loop
+    # reports on this PR. It lives in the slot, so a stop rename or a finalize
+    # retires it with no extra call; an unowned slot has nobody to wake.
     printf '{\n  "registered_at": "%s",\n  "registered_by": "pr-watch-arm"\n}\n' \
         "$claimed_at" > "${slot}/watch-registration.json"
 else

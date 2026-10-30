@@ -57,6 +57,15 @@ done
 state_projection="$(cat "${script_dir}/pr-watch-state.jq")"
 
 echo "$$" > "${slot}/watch.pid"
+# Who hears this loop's exit. A session hears the background command it armed;
+# a loop the muggle watch service started is heard by the service, which wakes
+# the owner session only when the loop reports. A session arming the slot takes
+# it back, and its own drain covers whatever an undelivered service report held.
+if [ -n "${MUGGLE_PR_WATCH_LISTENER:-}" ]; then
+    printf '%s\n' "$MUGGLE_PR_WATCH_LISTENER" > "${slot}/watch-listener"
+else
+    rm -f "${slot}/watch-listener" "${slot}/watch-service.out"
+fi
 started=$(date +%s)
 fails=0
 unseeded=0

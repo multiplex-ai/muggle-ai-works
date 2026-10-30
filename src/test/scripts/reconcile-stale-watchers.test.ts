@@ -26,6 +26,7 @@ interface SlotFixture {
   slug: string;
   ownerSessionId?: string;
   isFinalized?: boolean;
+  isRegistered?: boolean;
 }
 
 function seedSessionsDir(slots: SlotFixture[]): string {
@@ -45,6 +46,9 @@ function seedSessionsDir(slots: SlotFixture[]): string {
     }
     if (slot.isFinalized === true) {
       writeFileSync(join(slotDir, "result.md"), "# done");
+    }
+    if (slot.isRegistered === true) {
+      writeFileSync(join(slotDir, "watch-registration.json"), "{}");
     }
   }
   return home;
@@ -84,6 +88,22 @@ describe.skipIf(!hasBash)("reconcile-stale-watchers.sh", () => {
     ]);
 
     expect(runHook(home, OWNING_SESSION_ID)).toBe("");
+  }, 30_000);
+
+  // The service keeps a registered slot's loop without the session, so a sweep
+  // pushed into a resumed or compacted session would only interrupt its work.
+  it("stays silent about slots the muggle watch service keeps", () => {
+    const home = seedSessionsDir([
+      { slug: "mine-pr1", ownerSessionId: OWNING_SESSION_ID, isRegistered: true },
+      { slug: "mine-pr2", ownerSessionId: OWNING_SESSION_ID, isRegistered: true },
+    ]);
+
+    expect(runHook(home, OWNING_SESSION_ID)).toBe("");
+    const unkept = seedSessionsDir([
+      { slug: "mine-pr1", ownerSessionId: OWNING_SESSION_ID, isRegistered: true },
+      { slug: "mine-pr2", ownerSessionId: OWNING_SESSION_ID },
+    ]);
+    expect(runHook(unkept, OWNING_SESSION_ID)).toContain("1 open watcher owned by this session, not kept by the muggle watch service");
   }, 30_000);
 
   it("fails closed when the payload carries no session id", () => {

@@ -1,4 +1,5 @@
-import { WatchFindingCode, WatchFindingSeverity, WatchServiceInstallOutcome } from "./types.js";
+import { join } from "path";
+import { ServiceLoopReportKind, WatchFindingCode, WatchFindingSeverity, WatchServiceInstallOutcome } from "./types.js";
 
 /** Subdirectory of the muggle data dir that holds the watch ledger. */
 export const WATCH_DIR_NAME = "watch";
@@ -58,11 +59,38 @@ export const RECOVERY_MAX_ATTEMPTS = 3;
 export const RECOVERY_ATTEMPT_WINDOW_MS = 24 * 60 * 60_000;
 
 /**
- * The prompt a resumed owner session starts on. Reconcile re-arms only the
- * slots that session armed itself, which is what keeps recovery inside the
- * context that knows each PR.
+ * The command an owner session is woken with, always naming one slot and PR:
+ * a wake hands the session its own PR's report and nothing else.
  */
-export const RECOVERY_RESUME_PROMPT = "/muggle:muggle-pr-followup reconcile";
+export const PR_FOLLOWUP_COMMAND = "/muggle:muggle-pr-followup";
+
+/** Where a loop the watch started writes its output, inside its slot. */
+export const SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";
+
+/** A service loop's output once its report reached the owner session, kept for diagnosis. */
+export const SERVICE_LOOP_DELIVERED_FILE = "watch-service.delivered.out";
+
+/** The slot file naming who hears the leased loop's exit; absent when the session that armed it does. */
+export const WATCH_LISTENER_FILE = "watch-listener";
+
+/** The listener a loop the watch started records, passed to it as `MUGGLE_PR_WATCH_LISTENER`. */
+export const SERVICE_WATCH_LISTENER = "muggle-watch";
+
+/** The arm script, relative to the package root. */
+export const PR_WATCH_ARM_SCRIPT_RELATIVE_PATH = join("plugin", "scripts", "pr-watch-arm.sh");
+
+/** Cap on loops the watch starts per tick, so a mass die-off is restored over a few ticks rather than in one burst of `gh` calls. */
+export const MAX_SERVICE_ARMS_PER_TICK = 5;
+
+/** The first word of each line a loop ends on, by the reason it names. */
+export const SERVICE_LOOP_REPORT_PREFIXES: ReadonlyArray<{ prefix: string; kind: ServiceLoopReportKind }> = [
+  { prefix: "TERMINAL ", kind: ServiceLoopReportKind.Terminal },
+  { prefix: "EVENT ", kind: ServiceLoopReportKind.Event },
+  { prefix: "WATCH-FAIL ", kind: ServiceLoopReportKind.Failed },
+  { prefix: "ARM-FAIL ", kind: ServiceLoopReportKind.Failed },
+  { prefix: "EXPIRED ", kind: ServiceLoopReportKind.Expired },
+  { prefix: "ROLLOVER ", kind: ServiceLoopReportKind.Expired },
+];
 
 /** Open PRs per GraphQL request. */
 export const PR_STATUS_BATCH_SIZE = 25;
@@ -131,6 +159,7 @@ export const WATCH_FINDING_SEVERITY: Record<WatchFindingCode, WatchFindingSeveri
   [WatchFindingCode.PrStatusUnavailable]: WatchFindingSeverity.Warning,
   [WatchFindingCode.OrphanedMcpServer]: WatchFindingSeverity.Warning,
   [WatchFindingCode.SlotTerminalUnfinalized]: WatchFindingSeverity.Notice,
+  [WatchFindingCode.OwnerWakePending]: WatchFindingSeverity.Alert,
 };
 
 /** Executable names (lower-cased, `.exe` stripped) of a Claude Code process. */

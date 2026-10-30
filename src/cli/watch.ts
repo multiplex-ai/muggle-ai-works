@@ -75,10 +75,9 @@ function renderReloadReport(report: ReloadReport, isDryRun: boolean): string {
       : "";
     return `  ${decision.action.padEnd(16)} ${label}  ${decision.reason}${failed}${refused}`;
   });
-  const isRestart = (action: ReloadAction): boolean => action === ReloadAction.Respawn || action === ReloadAction.ResumeReconcile;
   const respawnVerb = isDryRun ? "would restart" : "restarted";
   const respawnCount = isDryRun
-    ? report.decisions.filter((decision) => isRestart(decision.action)).length
+    ? report.decisions.filter((decision) => decision.action === ReloadAction.Respawn).length
     : report.respawnedSessionIds.length;
   return [`muggle watch reload-plugins: ${respawnVerb} ${respawnCount}`, ...lines, ""].join("\n");
 }

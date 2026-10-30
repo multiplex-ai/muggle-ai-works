@@ -6,7 +6,7 @@ import { MUGGLE_PLUGIN_ID } from "../../watch/constants.js";
 import { readMugglePluginUpdatedAtMs } from "../../watch/plugins-updated.js";
 import { buildPrStatusRequest, fetchPrLiveStatuses, parsePullRequestNode } from "../../watch/pr-status.js";
 import { partitionByTerminalCache, updateTerminalCache } from "../../watch/terminal-pr-cache.js";
-import { CiRollupState, PrMergeable, PrMergeStateStatus } from "../../watch/types.js";
+import { CiRollupState, PrMergeable, PrMergeStateStatus, ServiceLoopReportKind } from "../../watch/types.js";
 import {
   isPrPollingDisabled,
   readOpenWatchSlots,
@@ -48,6 +48,20 @@ describe("readOpenWatchSlots", () => {
       followupLogLines: ["t1 tick pr=1", "t2 fix-ci pr=1 escalated: x", ""],
     });
     expect(slots.find((slot) => slot.slug === "bare")).toMatchObject({ lastSeenJson: "", followupLogLines: [""] });
+  });
+
+  it("knows a loop the watch started, and the report its last such loop left", () => {
+    const slotsDir = join(makeTempDir("slots"), "sessions");
+    const serviceSlot = writeSlot(slotsDir, "service", { prsJson: [openPrEntry("o/r", 1)] });
+    writeFileSync(join(serviceSlot, "watch-listener"), "muggle-watch\n");
+    writeFileSync(join(serviceSlot, "watch-service.out"), "DRAIN pr=1 state=OPEN\nEVENT pr=1 new thread comment id=7\n");
+    writeSlot(slotsDir, "session", { prsJson: [openPrEntry("o/r", 2)] });
+    const slots = readOpenWatchSlots(slotsDir);
+    expect(slots.find((slot) => slot.slug === "service")).toMatchObject({
+      isHeardByService: true,
+      serviceLoopReport: { kind: ServiceLoopReportKind.Event, reportLines: ["EVENT pr=1 new thread comment id=7"] },
+    });
+    expect(slots.find((slot) => slot.slug === "session")).toMatchObject({ isHeardByService: false, serviceLoopReport: undefined });
   });
 
   it("reads a missing sessions dir as no slots", () => {
@@ -102,6 +116,7 @@ describe("PR live status", () => {
     const node = {
       state: "OPEN",
       headRefOid: "deadbeef",
+      baseRefName: "main",
       mergeable: "CONFLICTING",
       mergeStateStatus: "DIRTY",
       commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] },
@@ -115,6 +130,7 @@ describe("PR live status", () => {
       mergeStateStatus: PrMergeStateStatus.Dirty,
       ciRollup: CiRollupState.Failure,
       unresolvedThreadCount: 2,
+      baseBranch: "main",
     });
     expect(parsePullRequestNode("u", { state: "MERGED", commits: { nodes: [{ commit: { statusCheckRollup: null } }] } })).toMatchObject({
       state: ProviderPrState.Merged,

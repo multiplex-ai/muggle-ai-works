@@ -13,8 +13,9 @@ import {
 
 /**
  * The lines of this tick's one notification, or an empty list when nothing in
- * it deserves interrupting the user: newly raised alerts, resumes attempted,
- * and terminal sessions that must reload by hand.
+ * it deserves interrupting the user: newly raised alerts, owner wakes
+ * attempted, and terminal sessions that must reload by hand. Loops the watch
+ * restarts are left out: restoring a watch disturbs nobody.
  */
 export function composeTickNotification(
   raised: WatchFinding[],
@@ -30,9 +31,9 @@ export function composeTickNotification(
   for (const recovery of recoveries) {
     const owner = shortSessionId(recovery.ownerSessionId);
     if (recovery.outcome === WatcherRecoveryOutcome.Resumed) {
-      lines.push(`Resumed session ${owner} to re-arm ${recovery.slotSlugs.join(", ")}`);
+      lines.push(`Woke session ${owner} for PR #${recovery.prNumber} (${recovery.reportKind})`);
     } else if (recovery.outcome === WatcherRecoveryOutcome.ResumeFailed) {
-      lines.push(`Could not resume session ${owner} for ${recovery.slotSlugs.join(", ")}`);
+      lines.push(`Could not wake session ${owner} for PR #${recovery.prNumber} (${recovery.reportKind})`);
     }
   }
   const decisions = reload?.decisions ?? [];

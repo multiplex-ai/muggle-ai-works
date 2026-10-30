@@ -1,8 +1,15 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "fs";
-import { dirname, join } from "path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "fs";
+import { basename, dirname, join } from "path";
 import { describe, expect, it } from "vitest";
-import { MUGGLE_PLUGIN_ID, RECOVERY_RESUME_PROMPT, SESSION_EXIT_WAIT_MS, TRUST_PROBE_SESSION_NAME } from "../../watch/constants.js";
 import {
+  MUGGLE_PLUGIN_ID,
+  SERVICE_LOOP_DELIVERED_FILE,
+  SERVICE_LOOP_OUTPUT_FILE,
+  SESSION_EXIT_WAIT_MS,
+  TRUST_PROBE_SESSION_NAME,
+} from "../../watch/constants.js";
+import {
+  ServiceArmOutcome,
   WatcherRecoveryOutcome,
   WatchEventKind,
   WatchFindingCode,
@@ -23,6 +30,7 @@ import { makeTempDir, makeWatchPaths, openPrEntry, scriptedRunner, succeeded, wr
 const NOW_MS = Date.parse("2026-10-24T12:00:00Z");
 const HOUR_MS = 3_600_000;
 const PROBE_ID = "probe01";
+const NEW_REVIEW_LINE = "EVENT pr=1 new submitted review id=42";
 
 interface MachineState {
   claudeListing: unknown[] | null;
@@ -124,8 +132,8 @@ function buildMachine() {
       "  60     1   05:00 /usr/bin/node /g/@muggleai/works/bin/muggle.js serve",
     ].join("\n"),
     prNodesByNumber: {
-      1: { state: "OPEN", headRefOid: "head1", commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] } },
-      2: { state: "OPEN", headRefOid: "head2", mergeStateStatus: "CLEAN" },
+      1: { state: "OPEN", headRefOid: "head1", baseRefName: "main", commits: { nodes: [{ commit: { statusCheckRollup: { state: "FAILURE" } } }] } },
+      2: { state: "OPEN", headRefOid: "head2", baseRefName: "main", mergeStateStatus: "CLEAN" },
     },
     untrustedCwds: new Set<string>(),
     registryDir: paths.claudeSessionRegistryDir,
@@ -133,6 +141,7 @@ function buildMachine() {
   };
   const runner = scriptedRunner((executable, args, options) => machineAnswer(machine)(executable, args, options?.cwd));
   const notifications: string[][] = [];
+  const launches: Array<[string, string]> = [];
   const deps: WatchTickDeps = {
     nowMs: NOW_MS,
     platform: "linux",
@@ -141,9 +150,29 @@ function buildMachine() {
     notify: (_, lines) => notifications.push(lines),
     isAutoReloadEnabled: true,
     isRecoveryEnabled: true,
+    // Stands in for the detached loop: it shows in the process table and names the watch as its listener.
+    launchServiceLoop: (slotDir, pr, baseBranch) => {
+      launches.push([basename(slotDir), baseBranch]);
+      machine.psOutput += `\n  ${80 + launches.length}     1   00:01 /bin/bash /p/pr-watch-loop.sh --slot ${slotDir} --repo ${pr.repo} --pr ${pr.number} --base ${baseBranch}`;
+      writeFileSync(join(slotDir, "watch-listener"), "muggle-watch\n");
+      writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), `DRAIN pr=${pr.number} state=OPEN\nARMED pr=${pr.number}\n`);
+      return true;
+    },
     sleep: () => undefined,
   };
-  return { paths: paths, machine: machine, runner: runner, notifications: notifications, deps: deps, projectCwd: projectCwd };
+  return { paths: paths, machine: machine, runner: runner, notifications: notifications, launches: launches, deps: deps, projectCwd: projectCwd };
+}
+
+// The loop the watch started exits, leaving its last line in the slot.
+function exitServiceLoop(machine: MachineState, slotDir: string, lastLine: string): void {
+  machine.psOutput = machine.psOutput.split("\n").filter((line) => !line.includes(`--slot ${slotDir} `)).join("\n");
+  writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), `DRAIN pr=1 state=OPEN\n${lastLine}\n`);
+}
+
+function sessionCalls(runner: ReturnType<typeof buildMachine>["runner"]): string[][] {
+  return runner.calls
+    .filter((call) => call.executable === "claude" && ["stop", "--resume", "respawn"].includes(call.args[0]))
+    .map((call) => call.args);
 }
 
 function readEvents(watchDir: string): Array<{ kind: WatchEventKind; code?: WatchFindingCode; message?: string }> {
@@ -155,8 +184,8 @@ function readState(watchDir: string) {
 }
 
 describe("runWatchTick", () => {
-  it("records findings, coverage and builds, resumes a dead registered watcher's owner, and notifies once", () => {
-    const { deps, runner, notifications, paths, projectCwd } = buildMachine();
+  it("records findings, coverage and builds, restarts a dead registered loop without touching any session, and notifies once", () => {
+    const { deps, runner, notifications, paths, launches } = buildMachine();
     const snapshot = runWatchTick(deps);
 
     expect(snapshot.installedVersion).toBe("1.0.0");
@@ -171,43 +200,106 @@ describe("runWatchTick", () => {
     expect(snapshot.findings.map((current) => current.code).sort()).toEqual(
       [WatchFindingCode.CiFailing, WatchFindingCode.OrphanedMcpServer, WatchFindingCode.WatcherDead].sort(),
     );
-    expect(snapshot.recoveries).toEqual([
-      { ownerSessionId: "owner-gone", slotSlugs: ["red-pr"], outcome: WatcherRecoveryOutcome.Resumed, cwd: projectCwd },
-    ]);
-    expect(runner.calls.filter((call) => call.args[0] === "--resume")).toHaveLength(1);
-    expect(snapshot.reload?.respawnedSessionIds).toEqual([]);
+    expect(launches).toEqual([["red-pr", "main"]]);
+    expect(snapshot.serviceArms).toEqual([{ slug: "red-pr", prUrl: "https://github.com/o/r/pull/1", outcome: ServiceArmOutcome.Armed }]);
+    expect(snapshot.recoveries).toEqual([]);
+    expect(sessionCalls(runner)).toEqual([]);
     expect(runner.calls.some((call) => call.args[0] === "--bg")).toBe(false);
 
     expect(notifications).toHaveLength(1);
-    expect(notifications[0]).toContain("Resumed session owner-go to re-arm red-pr");
+    expect(notifications[0].some((line) => /woke|resum/i.test(line))).toBe(false);
     expect(readEvents(paths.watchDir).map((event) => event.kind)).toEqual([
       WatchEventKind.Raised,
       WatchEventKind.Raised,
       WatchEventKind.Raised,
-      WatchEventKind.Resumed,
+      WatchEventKind.Armed,
     ]);
     expect(loadLastWatchSnapshot(paths)?.takenAt).toBe(new Date(NOW_MS).toISOString());
     const state = readState(paths.watchDir);
     expect(Object.keys(state.activeFindings)).toHaveLength(3);
-    expect(state.recoveryAttemptsByOwner["owner-gone"]).toHaveLength(1);
+    expect(state.recoveryAttemptsByOwner).toEqual({});
   });
 
-  it("stays quiet on an unchanged second tick and holds the owner in its cooldown", () => {
-    const { deps, runner, notifications } = buildMachine();
+  it("counts a loop the watch started as heard even though its owner has ended, and stays quiet", () => {
+    const { deps, notifications, launches } = buildMachine();
     runWatchTick(deps);
     const second = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+    expect(second.slots.map((slot) => [slot.slug, slot.watcher])).toEqual([["red-pr", "polling"], ["watched", "polling"]]);
+    expect(second.findings.map((current) => current.code)).not.toContain(WatchFindingCode.WatcherDead);
+    expect(launches).toHaveLength(1);
     expect(notifications).toHaveLength(1);
-    expect(second.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.CoolingDown);
-    expect(runner.calls.filter((call) => call.args[0] === "--resume")).toHaveLength(1);
+  });
+
+  it("wakes the owner with its own PR's report once the loop exits, and only once", () => {
+    const { deps, machine, runner, notifications, paths, launches, projectCwd } = buildMachine();
+    const slotDir = join(paths.slotsDir, "red-pr");
+    runWatchTick(deps);
+    exitServiceLoop(machine, slotDir, NEW_REVIEW_LINE);
+    const second = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(second.recoveries.map((recovery) => [recovery.ownerSessionId, recovery.slotSlug, recovery.outcome, recovery.cwd])).toEqual([
+      ["owner-gone", "red-pr", WatcherRecoveryOutcome.Resumed, projectCwd],
+    ]);
+    expect(sessionCalls(runner)).toEqual([["--resume", "owner-gone", "--bg", "/muggle:muggle-pr-followup red-pr 1 --wake=event"]]);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(false);
+    expect(readFileSync(join(slotDir, SERVICE_LOOP_DELIVERED_FILE), "utf-8")).toContain(NEW_REVIEW_LINE);
+    expect(launches).toHaveLength(1);
+    expect(notifications[notifications.length - 1]).toContain("Woke session owner-go for PR #1 (event)");
+
+    machine.claudeListing = [...(machine.claudeListing ?? []), { id: "owner-go", sessionId: "owner-gone", kind: "background", status: "busy" }];
+    const third = runWatchTick({ ...deps, nowMs: NOW_MS + 240_000 });
+    expect(third.recoveries).toEqual([]);
+    expect(third.serviceArms).toEqual([]);
+    expect(sessionCalls(runner)).toHaveLength(1);
+  });
+
+  it("restarts a loop that expired quietly, without waking anyone", () => {
+    const { deps, machine, runner, paths, launches } = buildMachine();
+    runWatchTick(deps);
+    exitServiceLoop(machine, join(paths.slotsDir, "red-pr"), "EXPIRED pr=1 watch lifetime of 604800s reached — re-arm to keep watching");
+    const second = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+    expect(second.recoveries).toEqual([]);
+    expect(second.serviceArms?.map((serviceArm) => serviceArm.outcome)).toEqual([ServiceArmOutcome.Armed]);
+    expect(launches).toHaveLength(2);
+    expect(sessionCalls(runner)).toEqual([]);
+  });
+
+  it("holds a report for an owner mid-turn or waiting on its user, and tells the user once it is overdue", () => {
+    const { deps, machine, runner, paths, notifications } = buildMachine();
+    const slotDir = writeSlot(paths.slotsDir, "busy-owned", {
+      prsJson: [openPrEntry("o/r", 2)],
+      ownerSessionId: "owner-live",
+      heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS,
+      isRegistered: true,
+    });
+    const reportPath = join(slotDir, SERVICE_LOOP_OUTPUT_FILE);
+    writeFileSync(reportPath, `${NEW_REVIEW_LINE}\n`);
+    utimesSync(reportPath, (NOW_MS - 60_000) / 1000, (NOW_MS - 60_000) / 1000);
+    const first = runWatchTick(deps);
+    expect(sessionCalls(runner)).toEqual([]);
+    expect(first.findings.map((current) => current.code)).not.toContain(WatchFindingCode.OwnerWakePending);
+
+    const overdue = runWatchTick({ ...deps, nowMs: NOW_MS + HOUR_MS });
+    expect(overdue.findings.find((current) => current.code === WatchFindingCode.OwnerWakePending)?.message).toContain(
+      "run /muggle:muggle-pr-followup busy-owned 2 --wake=event there",
+    );
+    expect(notifications.flat().some((line) => line.includes("waiting for owner session owner-li"))).toBe(true);
+    machine.claudeListing = (machine.claudeListing ?? []).map((listing) =>
+      (listing as { sessionId: string }).sessionId === "owner-live" ? { ...(listing as object), status: "waiting" } : listing,
+    );
+    runWatchTick({ ...deps, nowMs: NOW_MS + 2 * HOUR_MS });
+    expect(sessionCalls(runner)).toEqual([]);
   });
 
   it("closes out a merged PR's slot that nobody watches, sending nothing to the PR", () => {
     const { deps, machine, paths, runner } = buildMachine();
     runWatchTick(deps);
     machine.prNodesByNumber[1] = { state: "MERGED" };
+    exitServiceLoop(machine, join(paths.slotsDir, "red-pr"), "TERMINAL pr=1 state=MERGED");
     const second = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
 
     expect(second.closedOutSlugs).toEqual(["red-pr"]);
+    expect(sessionCalls(runner)).toEqual([]);
     expect(second.slots.map((slot) => slot.slug)).toEqual(["watched"]);
     expect(second.findings.map((current) => current.code)).not.toContain(WatchFindingCode.SlotTerminalUnfinalized);
     const slotDir = join(paths.slotsDir, "red-pr");
@@ -269,38 +361,18 @@ describe("runWatchTick", () => {
     expect(runner.calls.some((call) => call.args[0] === "respawn" || call.args[0] === "stop")).toBe(false);
   });
 
-  it("resumes an idle session that owns open PR watches on reconcile instead of respawning it", () => {
-    const { deps, runner, paths, projectCwd } = buildMachine();
+  it("leaves an idle session that owns open PR watches running through a reload, pushing nothing into it", () => {
+    const { deps, runner, paths } = buildMachine();
     writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
     runWatchTick(deps);
     appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
     const afterInstall = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
 
-    expect(afterInstall.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.ResumeReconcile);
-    expect(runner.calls.some((call) => call.args[0] === "respawn")).toBe(false);
-    const resume = runner.calls.find((call) => call.args[0] === "--resume" && call.args[1] === "idle-bg");
-    expect(resume?.args).toEqual(["--resume", "idle-bg", "--bg", RECOVERY_RESUME_PROMPT]);
-    expect(resume?.options?.cwd).toBe(projectCwd);
-    expect(runner.calls.some((call) => call.args[0] === "stop" && call.args[1] === "idle-bg1")).toBe(true);
-  });
-
-  it("resumes a watch owner from the project its transcript names, not the worktree it moved into", () => {
-    const { deps, runner, paths, machine, projectCwd } = buildMachine();
-    const lockedWorktree = join(projectCwd, "locked-worktree");
-    mkdirSync(lockedWorktree);
-    machine.untrustedCwds.add(lockedWorktree);
-    machine.claudeListing = (machine.claudeListing ?? []).map((listing) =>
-      (listing as { sessionId: string }).sessionId === "idle-bg" ? { ...(listing as object), cwd: lockedWorktree } : listing,
-    );
-    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
-    writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
-    runWatchTick(deps);
-    appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
-    const afterInstall = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
-
-    expect(afterInstall.reload?.untrustedSessionIds).toEqual([]);
-    const resume = runner.calls.find((call) => call.args[0] === "--resume" && call.args[1] === "idle-bg");
-    expect(resume?.options?.cwd).toBe(projectCwd);
+    expect(afterInstall.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")).toMatchObject({
+      action: ReloadAction.Skip,
+      reason: "owns open PR watches — left running; run /reload-plugins in it",
+    });
+    expect(sessionCalls(runner)).toEqual([]);
   });
 
   it("leaves a session in an untrusted workspace running, and reports it once", () => {
@@ -346,9 +418,8 @@ describe("runWatchTick", () => {
     expect(freshRunner.calls.some((call) => call.args[0] === "--resume")).toBe(false);
   });
 
-  it("stops and resumes an idle owner whose watcher died, and leaves it out of the same tick's reload", () => {
-    const { deps, runner, paths, projectCwd } = buildMachine();
-    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+  it("restarts an idle owner's dead loop without stopping, resuming or prompting the owner", () => {
+    const { deps, runner, paths, launches } = buildMachine();
     writeSlot(paths.slotsDir, "idle-dead", {
       prsJson: [openPrEntry("o/r", 2)],
       ownerSessionId: "idle-bg",
@@ -358,17 +429,33 @@ describe("runWatchTick", () => {
     appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
     const snapshot = runWatchTick(deps);
 
-    expect(snapshot.recoveries.find((recovery) => recovery.ownerSessionId === "idle-bg")).toEqual({
+    expect(launches.map(([slug]) => slug)).toContain("idle-dead");
+    expect(snapshot.recoveries).toEqual([]);
+    expect(sessionCalls(runner).filter((args) => args.includes("idle-bg") || args.includes("idle-bg1"))).toEqual([]);
+    expect(snapshot.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.Skip);
+  });
+
+  it("stops an idle owner and resumes it on its own PR's report, leaving it out of the same tick's reload", () => {
+    const { deps, runner, paths, projectCwd } = buildMachine();
+    writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+    const slotDir = writeSlot(paths.slotsDir, "idle-dead", {
+      prsJson: [openPrEntry("o/r", 2)],
       ownerSessionId: "idle-bg",
-      slotSlugs: ["idle-dead"],
+      heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS,
+      isRegistered: true,
+    });
+    writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), "EVENT pr=2 checks settled red head=head2\n");
+    appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.recoveries.find((recovery) => recovery.ownerSessionId === "idle-bg")).toMatchObject({
+      slotSlug: "idle-dead",
       outcome: WatcherRecoveryOutcome.Resumed,
-      cwd: projectCwd,
       ownerShortId: "idle-bg1",
     });
-    const idleBgCalls = runner.calls.filter((call) => call.args.includes("idle-bg1") || call.args.includes("idle-bg")).map((call) => call.args);
-    expect(idleBgCalls).toEqual([
+    expect(sessionCalls(runner).filter((args) => args.includes("idle-bg") || args.includes("idle-bg1"))).toEqual([
       ["stop", "idle-bg1"],
-      ["--resume", "idle-bg", "--bg", RECOVERY_RESUME_PROMPT],
+      ["--resume", "idle-bg", "--bg", "/muggle:muggle-pr-followup idle-dead 2 --wake=event"],
     ]);
     expect(snapshot.reload?.decisions.map((decision) => decision.sessionId)).not.toContain("idle-bg");
   });
@@ -376,7 +463,8 @@ describe("runWatchTick", () => {
   it("gives up on an owner that outlives its stop instead of starting a copy of it", () => {
     const { deps, runner, paths, machine, projectCwd } = buildMachine();
     writeFileSync(join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
-    writeSlot(paths.slotsDir, "idle-dead", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS, isRegistered: true });
+    const slotDir = writeSlot(paths.slotsDir, "idle-dead", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS, isRegistered: true });
+    writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), "EVENT pr=2 checks settled red head=head2\n");
     machine.unstoppableShortIds.add("idle-bg1");
     const naps: number[] = [];
     const snapshot = runWatchTick({ ...deps, sleep: (durationMs) => naps.push(durationMs) });
@@ -386,9 +474,10 @@ describe("runWatchTick", () => {
     expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
   });
 
-  it("resumes an owner that is still listed but has no process behind it", () => {
-    const { deps, runner, machine } = buildMachine();
+  it("resumes an owner that is still listed but has no process behind it, without a stop", () => {
+    const { deps, runner, machine, paths } = buildMachine();
     machine.claudeListing = [...(machine.claudeListing ?? []), { id: "owner-go", sessionId: "owner-gone", kind: "background", state: "blocked" }];
+    writeFileSync(join(paths.slotsDir, "red-pr", SERVICE_LOOP_OUTPUT_FILE), `${NEW_REVIEW_LINE}\n`);
     const snapshot = runWatchTick(deps);
 
     expect(snapshot.slots.find((slot) => slot.slug === "red-pr")?.isOwnerSessionActive).toBe(false);
@@ -398,25 +487,29 @@ describe("runWatchTick", () => {
     expect(runner.calls.some((call) => call.args[0] === "stop")).toBe(false);
   });
 
-  it("resumes an owner on reconcile even when its PR's status could not be fetched", () => {
+  it("leaves a watch owner running through a reload even when its PR's status could not be fetched", () => {
     const { deps, runner, paths } = buildMachine();
     writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 3)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
     appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
     const snapshot = runWatchTick(deps);
 
     expect(snapshot.slots.find((slot) => slot.slug === "idle-owned")?.live).toBeUndefined();
-    expect(snapshot.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.ResumeReconcile);
-    expect(runner.calls.some((call) => call.args[0] === "respawn")).toBe(false);
+    expect(snapshot.reload?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.Skip);
+    expect(sessionCalls(runner)).toEqual([]);
   });
 
-  it("reports without resuming when recovery is off", () => {
-    const { deps, runner } = buildMachine();
-    expect(runWatchTick({ ...deps, isRecoveryEnabled: false }).recoveries).toEqual([]);
+  it("reports without restarting loops or waking anyone when recovery is off", () => {
+    const { deps, runner, launches } = buildMachine();
+    const snapshot = runWatchTick({ ...deps, isRecoveryEnabled: false });
+    expect(snapshot.recoveries).toEqual([]);
+    expect(snapshot.serviceArms).toEqual([]);
+    expect(launches).toEqual([]);
     expect(runner.calls.some((call) => call.args[0] === "--resume")).toBe(false);
   });
 
-  it("holds recovery while Claude's cached usage shows a limit that has not reset", () => {
+  it("holds owner wakes while Claude's cached usage shows a limit that has not reset", () => {
     const { deps, runner, paths } = buildMachine();
+    writeFileSync(join(paths.slotsDir, "red-pr", SERVICE_LOOP_OUTPUT_FILE), `${NEW_REVIEW_LINE}\n`);
     const resetsAt = new Date(NOW_MS + HOUR_MS).toISOString();
     writeFileSync(
       paths.claudeGlobalConfigFile,
@@ -457,13 +550,13 @@ describe("runReloadPluginsPass", () => {
     expect(readEvents(paths.watchDir)[0].kind).toBe(WatchEventKind.ReloadRequested);
   });
 
-  it("resumes the last snapshot's watch owners on reconcile", () => {
+  it("leaves the last snapshot's watch owners running", () => {
     const { deps, runner, paths } = buildMachine();
     writeSlot(paths.slotsDir, "idle-owned", { prsJson: [openPrEntry("o/r", 2)], ownerSessionId: "idle-bg", heartbeatMtimeMs: NOW_MS - 30_000 });
     runWatchTick({ ...deps, isAutoReloadEnabled: false });
     const report = runReloadPluginsPass({ ...deps, nowMs: NOW_MS + 60_000 }, false);
-    expect(report?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.ResumeReconcile);
-    expect(runner.calls.some((call) => call.args[0] === "--resume" && call.args[1] === "idle-bg")).toBe(true);
+    expect(report?.decisions.find((decision) => decision.sessionId === "idle-bg")?.action).toBe(ReloadAction.Skip);
+    expect(sessionCalls(runner)).toEqual([]);
   });
 
   it("returns null when Claude's sessions cannot be listed", () => {

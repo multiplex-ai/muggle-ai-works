@@ -4,6 +4,8 @@ import { WATCH_FINDING_SEVERITY, WATCHER_REARM_GRACE_MS } from "./constants.js";
 import { formatDuration, shortSessionId, shortSha } from "./format.js";
 import { resolveOwnerEscalation } from "./owner-escalation.js";
 import { isTerminalPrState } from "./pr-status.js";
+import { composeOwnerWakePrompt } from "./recovery.js";
+import { isOwnerWakeReport } from "./service-loop.js";
 import {
   CiRollupState,
   PrMergeable,
@@ -27,23 +29,26 @@ import {
  *
  * The loop is found by its `--slot` argument, never by `watch.pid` (an MSYS pid
  * Node cannot probe) or by its parent (Git Bash's exec breaks the Windows chain
- * even under a live Monitor). A loop whose owning session has ended prints into
- * a pipe nobody reads. Age alone says nothing: the loop runs as a background
- * shell, which has no read cap, for as long as its PR stays quiet. With no
- * process table the heartbeat is the only signal left.
+ * even under a live Monitor). A loop a session armed prints into that session,
+ * so once the session has ended it prints into a pipe nobody reads; a loop the
+ * watch started writes to its slot, where the watch reads it whatever became of
+ * the owner. Age alone says nothing: the loop has no read cap and runs for as
+ * long as its PR stays quiet. With no process table the heartbeat is the only
+ * signal left.
  */
 export function resolveWatcherLiveness(
   loop: TrackedProcess | undefined,
   heartbeatAgeMs: number | undefined,
   isOwnerSessionActive: boolean | undefined,
   isProcessTableKnown: boolean,
+  isHeardByService = false,
 ): WatcherLiveness {
   const isHeartbeatWithin = (windowMs: number): boolean => heartbeatAgeMs !== undefined && heartbeatAgeMs <= windowMs;
   if (!isProcessTableKnown) {
     return isHeartbeatWithin(WATCH_HEARTBEAT_STALE_MS) ? WatcherLiveness.Polling : WatcherLiveness.Dead;
   }
   if (loop) {
-    return isOwnerSessionActive === false ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
+    return isOwnerSessionActive === false && !isHeardByService ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
   }
   return isHeartbeatWithin(WATCHER_REARM_GRACE_MS) ? WatcherLiveness.Rearming : WatcherLiveness.Dead;
 }
@@ -75,7 +80,8 @@ export function assessWatchSlots(
     const heartbeatAgeMs = slot.heartbeatMtimeMs === undefined ? undefined : Math.max(0, nowMs - slot.heartbeatMtimeMs);
     const isOwnerSessionActive =
       slot.ownerSessionId === undefined || activeSessionIds === null ? undefined : activeSessionIds.has(slot.ownerSessionId);
-    const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null);
+    const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null, slot.isHeardByService);
+    const reportAgeMs = slot.serviceLoopReport === undefined ? undefined : Math.max(0, nowMs - slot.serviceLoopReport.writtenAtMs);
     for (const pr of slot.openPrs) {
       const live = liveStatusesByUrl.get(pr.url);
       assessments.push({
@@ -91,6 +97,9 @@ export function assessWatchSlots(
         isOwnerSessionActive: isOwnerSessionActive,
         live: live,
         ownerEscalation: resolveOwnerEscalation(slot.lastSeenJson, slot.followupLogLines, pr, live?.headSha),
+        isHeardByService: slot.isHeardByService,
+        serviceLoopReport: slot.serviceLoopReport,
+        serviceLoopReportAgeMs: reportAgeMs,
       });
     }
   }
@@ -112,13 +121,14 @@ function ownerPhrase(assessment: WatchSlotAssessment): string {
     return `slot has no owner — adopt it with /muggle:muggle-pr-followup adopt ${assessment.slug}`;
   }
   const owner = shortSessionId(assessment.ownerSessionId);
+  if (!assessment.isRegistered) {
+    return `slot is not registered, so the watch leaves it to owner session ${owner}`;
+  }
   if (assessment.isOwnerSessionActive === true) {
-    return `owner session ${owner} is running — run /muggle:muggle-pr-followup reconcile there, or the watch does once it idles in the background`;
+    return `owner session ${owner} is running — the watch restarts the loop once that session is between turns`;
   }
   if (assessment.isOwnerSessionActive === false) {
-    return assessment.isRegistered
-      ? `owner session ${owner} has ended`
-      : `owner session ${owner} has ended; slot is not registered for recovery`;
+    return `owner session ${owner} has ended — the watch restarts the loop`;
   }
   return `owner session ${owner} could not be checked`;
 }
@@ -135,6 +145,18 @@ function watcherFinding(assessment: WatchSlotAssessment, subject: string): Watch
       `watch loop pid ${assessment.loopPid} reports to no session: its owner session ${shortSessionId(assessment.ownerSessionId ?? "")} has ended`);
   }
   return undefined;
+}
+
+// A report is normally delivered the tick after its loop exits; one still
+// waiting past the grace means its owner is busy, waiting on its user, or a
+// terminal session the watch cannot wake, so the user hears about it instead.
+function ownerWakeFinding(assessment: WatchSlotAssessment, subject: string): WatchFinding | undefined {
+  const report = assessment.serviceLoopReport;
+  if (!report || !isOwnerWakeReport(report) || assessment.watcher === WatcherLiveness.Polling) return undefined;
+  if ((assessment.serviceLoopReportAgeMs ?? 0) <= WATCHER_REARM_GRACE_MS || assessment.ownerSessionId === undefined) return undefined;
+  const command = composeOwnerWakePrompt(assessment.slug, assessment.pr.number, report.kind);
+  return finding(WatchFindingCode.OwnerWakePending, [assessment.pr.url, report.writtenAtMs], subject,
+    `${report.reportLines[0] ?? report.kind} — waiting for owner session ${shortSessionId(assessment.ownerSessionId)}; run ${command} there`);
 }
 
 function awaitingOwnerMessage(assessment: WatchSlotAssessment, escalation: OwnerEscalation, head: string): string {
@@ -191,7 +213,7 @@ export function deriveWatchFindings(
     const live = assessment.live;
     if (live && isTerminalPrState(live.state)) {
       findings.push(finding(WatchFindingCode.SlotTerminalUnfinalized, [assessment.pr.url], subject,
-        `PR is ${live.state.toLowerCase()} but slot ${assessment.slug} is still open — reconcile finalizes it`));
+        `PR is ${live.state.toLowerCase()} but slot ${assessment.slug} is still open — its owner finalizes it, or the watch closes it out once the owner has ended`));
       continue;
     }
     if (!live) {
@@ -201,6 +223,8 @@ export function deriveWatchFindings(
     }
     const watcherIssue = isPollingDisabled ? undefined : watcherFinding(assessment, subject);
     if (watcherIssue) findings.push(watcherIssue);
+    const pendingWake = isPollingDisabled ? undefined : ownerWakeFinding(assessment, subject);
+    if (pendingWake) findings.push(pendingWake);
     findings.push(...prStateFindings(assessment, live, subject));
   }
   for (const tracked of processes) {

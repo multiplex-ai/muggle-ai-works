@@ -1,6 +1,5 @@
 import { MAX_RESPAWNS_PER_TICK } from "./constants.js";
 import { hasLiveProcess } from "./session-liveness.js";
-import { resumeOnReconcile } from "./session-restart.js";
 import {
   ClaudeSessionKind,
   ClaudeTurnStatus,
@@ -34,10 +33,10 @@ function hasCurrentPlugins(session: WorkSession, pending: PendingReload): boolea
  * What to do with each Claude session so every live one runs the plugins installed at `pending.changedAtMs`.
  *
  * Only a restart reloads another session's plugins, so it is reserved for idle
- * background sessions — a finished job still running old code included — and a
- * session that owns open PR watches is resumed on reconcile rather than
- * respawned, because a restart takes its watchers down and nothing else would
- * bring them back. A busy or waiting session is retried on a later pass. A
+ * background sessions — a finished job still running old code included. A
+ * session that owns open PR watches is left running: a restart would cut its
+ * watch loop off from it, and nothing may be pushed into its conversation to
+ * bring the loop back. A busy or waiting session is retried on a later pass. A
  * terminal session cannot be reached — commands in cross-session messages
  * arrive as plain text — so its user is told once instead. A session with no
  * live process loads current plugins whenever it is next resumed, so it needs nothing.
@@ -68,30 +67,27 @@ export function planReloadFanOut(
       decisions.push(decide(session, ReloadAction.Skip, "not a background session the watch can restart"));
     } else if (session.turnStatus !== ClaudeTurnStatus.Idle) {
       decisions.push(decide(session, ReloadAction.Defer, `turn in flight (${session.turnStatus ?? "unknown"})`));
+    } else if (watchOwnerSessionIds.has(session.sessionId)) {
+      decisions.push(decide(session, ReloadAction.Skip, "owns open PR watches — left running; run /reload-plugins in it"));
     } else if (restartsPlanned >= maxRestarts) {
       decisions.push(decide(session, ReloadAction.Defer, "restart cap reached this pass"));
     } else {
       restartsPlanned++;
-      decisions.push(watchOwnerSessionIds.has(session.sessionId)
-        ? decide(session, ReloadAction.ResumeReconcile, "idle, owns open PR watches")
-        : decide(session, ReloadAction.Respawn, "idle background session"));
+      decisions.push(decide(session, ReloadAction.Respawn, "idle background session"));
     }
   }
   return decisions;
 }
 
 /**
- * Restart every session the plan marked, but only where `canRestartIn` confirms
- * Claude will bring it back: stopping a session it then refuses to resume
- * strands it, so an unconfirmed workspace's session is left running.
- *
- * @param waitForExit - Whether a stopped session's process has exited, so its resume continues it rather than copying it.
+ * Respawn every session the plan marked, but only where `canRestartIn` confirms
+ * Claude will bring it back: a session it then refuses to resume is stranded,
+ * so an unconfirmed workspace's session is left running.
  */
 export function executeReloadFanOut(
   decisions: ReloadDecision[],
   runCommand: CommandRunner,
   canRestartIn: (cwd: string) => boolean,
-  waitForExit: (sessionId: string) => boolean,
 ): ReloadReport {
   const restartableByCwd = new Map<string, boolean>();
   const isRestartable = (cwd: string): boolean => {
@@ -100,22 +96,12 @@ export function executeReloadFanOut(
   };
   const report: ReloadReport = { decisions: decisions, respawnedSessionIds: [], failedSessionIds: [], untrustedSessionIds: [] };
   for (const decision of decisions) {
-    const isRestart = decision.action === ReloadAction.Respawn || decision.action === ReloadAction.ResumeReconcile;
-    if (!isRestart || !decision.shortId) continue;
+    if (decision.action !== ReloadAction.Respawn || !decision.shortId) continue;
     if (!decision.cwd || !isRestartable(decision.cwd)) {
       report.untrustedSessionIds.push(decision.sessionId);
       continue;
     }
-    let isRestarted: boolean;
-    if (decision.action === ReloadAction.Respawn) {
-      isRestarted = runCommand("claude", ["respawn", decision.shortId])?.exitCode === 0;
-    } else {
-      isRestarted = resumeOnReconcile(
-        { sessionId: decision.sessionId, cwd: decision.cwd, runningShortId: decision.shortId },
-        runCommand,
-        waitForExit,
-      );
-    }
+    const isRestarted = runCommand("claude", ["respawn", decision.shortId])?.exitCode === 0;
     (isRestarted ? report.respawnedSessionIds : report.failedSessionIds).push(decision.sessionId);
   }
   return report;

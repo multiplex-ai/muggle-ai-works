@@ -1,6 +1,5 @@
 import { resolve } from "path";
 import { readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
-import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
@@ -20,8 +19,10 @@ import { resolveWatchPaths } from "./paths.js";
 import { readMugglePluginUpdatedAtMs } from "./plugins-updated.js";
 import { fetchPrLiveStatuses, isTerminalPrState } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
-import { executeWatcherRecoveries, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
+import { executeWatcherRecoveries, findRunningOwner, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
 import { advancePendingReload, executeReloadFanOut, planReloadFanOut } from "./reload-plugins.js";
+import { startServiceLoops } from "./service-loop.js";
+import { createServiceLoopLauncher } from "./service-loop-launcher.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
 import { hasLiveProcess } from "./session-liveness.js";
 import { partitionByTerminalCache, updateTerminalCache } from "./terminal-pr-cache.js";
@@ -36,12 +37,12 @@ import {
 } from "./watch-slots.js";
 import { canRestartSessionIn } from "./workspace-trust.js";
 import {
-  ReloadAction,
   WatcherRecoveryOutcome,
   WatchEventKind,
   type InstallRecord,
   type PendingReload,
   type ReloadReport,
+  type ServiceArm,
   type TrackedProcess,
   type WatcherRecovery,
   type WatchEvent,
@@ -63,6 +64,7 @@ export function createDefaultWatchTickDeps(options: { isAutoReloadEnabled: boole
     notify: createDesktopNotifier(process.platform, defaultCommandRunner),
     isAutoReloadEnabled: options.isAutoReloadEnabled,
     isRecoveryEnabled: options.isRecoveryEnabled,
+    launchServiceLoop: createServiceLoopLauncher(process.platform, defaultCommandRunner),
   };
 }
 
@@ -96,7 +98,7 @@ function isRestartAttempted(recovery: WatcherRecovery): boolean {
 }
 
 // A PR whose status this tick could not fetch still counts as open: respawning
-// its owner instead of resuming it on reconcile would take its watchers down.
+// its owner would cut its watch loop off from it.
 function watchOwnersOf(slots: WatchSlotAssessment[]): Set<string> {
   return new Set(slots.flatMap((slot) => (!isTerminalPrState(slot.live?.state) && slot.ownerSessionId ? [slot.ownerSessionId] : [])));
 }
@@ -131,14 +133,8 @@ function runReloadPass(
   deps: WatchTickDeps,
   at: string,
 ): { report: ReloadReport; pendingReload: PendingReload; events: WatchEvent[] } {
-  // A resume starts from the session's own project, which its transcript names:
-  // a session that moved into a worktree since may sit somewhere Claude refuses.
-  const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds).map((decision) =>
-    decision.action === ReloadAction.ResumeReconcile
-      ? { ...decision, cwd: findClaudeSessionCwd(deps.paths.claudeProjectsDir, decision.sessionId) ?? decision.cwd }
-      : decision,
-  );
-  const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps), waitForExitVia(deps));
+  const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds);
+  const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps));
   return { report: report, pendingReload: advancePendingReload(record, report), events: reloadEvents(report, at) };
 }
 
@@ -213,14 +209,16 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   ];
 
   let recoveries: WatcherRecovery[] = [];
+  let serviceArms: ServiceArm[] = [];
   let recoveryAttemptsByOwner = state.recoveryAttemptsByOwner;
   if (deps.isRecoveryEnabled) {
+    const sessionsById = new Map(runningSessions.map((session) => [session.sessionId, session]));
     const planned = planWatcherRecoveries(
       assessments,
       recoveryAttemptsByOwner,
       deps.nowMs,
       isPollingDisabled,
-      new Map(runningSessions.map((session) => [session.sessionId, session])),
+      sessionsById,
       isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
     );
     const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, {
@@ -233,13 +231,22 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);
+    const started = startServiceLoops(
+      assessments,
+      deps.nowMs,
+      isPollingDisabled,
+      (ownerSessionId) => findRunningOwner(sessionsById, ownerSessionId),
+      deps.launchServiceLoop,
+    );
+    serviceArms = started.serviceArms;
+    events.push(...started.events);
   }
 
   let pendingReload = state.pendingReload;
   let reload: ReloadReport | undefined;
   const targetAtMs = reloadTargetAtMs(deps, installs);
   if (deps.isAutoReloadEnabled && targetAtMs !== undefined && claudeSessions !== null) {
-    // An owner recovery just restarted loads the installed build on its own; a second restart would only cut into its reconcile.
+    // An owner just woken loads the installed build on its own; a restart would only cut into the turn it was woken for.
     const restartedOwnerIds = new Set(recoveries.filter(isRestartAttempted).map((recovery) => recovery.ownerSessionId));
     const reloadableSessions = claudeSessions.filter((session) => !restartedOwnerIds.has(session.sessionId));
     const pass = runReloadPass(reloadRecordFor(state, targetAtMs), reloadableSessions, watchOwnersOf(assessments), deps, at);
@@ -266,6 +273,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     closedOutSlugs: closeOut.closedOutSlugs,
     findings: findings,
     recoveries: recoveries,
+    serviceArms: serviceArms,
     reload: reload,
   };
   writeWatchSnapshot(deps.paths.watchDir, snapshot);
@@ -274,9 +282,10 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
 
 /**
  * One pass of the standing watch: snapshot sessions, processes and PR slots,
- * record what changed, close out slots nobody else will, restore dead watchers
- * of registered slots by resuming their owner sessions, bring sessions behind
- * the installed build up to it, and notify on what is new.
+ * record what changed, close out slots nobody else will, restart dead loops of
+ * registered slots as programs outside every session, wake an owner session
+ * only with its own PR's report, bring sessions behind the installed build up
+ * to it, and notify on what is new.
  *
  * @throws When another run holds the watch lock.
  */

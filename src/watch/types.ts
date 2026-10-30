@@ -118,6 +118,32 @@ export interface WatchSlotRecord {
   lastSeenJson: string;
   /** The slot's `followup.log` lines, oldest first. */
   followupLogLines: string[];
+  /** Whether the leased loop was started by the watch, which then hears its exit, rather than by a session. */
+  isHeardByService: boolean;
+  /** What the last loop the watch started printed, until its report reaches the owner. */
+  serviceLoopReport?: ServiceLoopReport;
+}
+
+/** Why a loop the watch started ended, read from its output. */
+export enum ServiceLoopReportKind {
+  /** It found new work on the PR: a review, a comment, red CI, a stale branch. */
+  Event = "event",
+  /** The PR merged or closed. */
+  Terminal = "terminal",
+  /** It reached its lifetime cap with nothing to report. */
+  Expired = "expired",
+  /** Arming or polling failed. */
+  Failed = "failed",
+  /** No reason printed: still running, or superseded by a newer arm. */
+  Silent = "silent",
+}
+
+/** The output of the last loop the watch started for a slot. */
+export interface ServiceLoopReport {
+  kind: ServiceLoopReportKind;
+  /** The lines that say why it ended, e.g. `EVENT pr=7 new submitted review id=42`. */
+  reportLines: string[];
+  writtenAtMs: number;
 }
 
 /** Work a PR's watcher gave up on and handed to its owner session. */
@@ -177,6 +203,7 @@ export interface PrLiveStatus {
   mergeStateStatus?: PrMergeStateStatus;
   ciRollup?: CiRollupState;
   unresolvedThreadCount: number;
+  baseBranch?: string;
 }
 
 /** Whether a slot's watch loop is delivering events to a session. */
@@ -204,6 +231,9 @@ export interface WatchSlotAssessment {
   live?: PrLiveStatus;
   /** Undefined when the watcher escalated nothing on the live head. */
   ownerEscalation?: OwnerEscalation;
+  isHeardByService: boolean;
+  serviceLoopReport?: ServiceLoopReport;
+  serviceLoopReportAgeMs?: number;
 }
 
 /** How loudly a finding is surfaced: alerts notify, warnings and notices only land in the ledger. */
@@ -225,6 +255,7 @@ export enum WatchFindingCode {
   PrStatusUnavailable = "PR_STATUS_UNAVAILABLE",
   OrphanedMcpServer = "ORPHANED_MCP_SERVER",
   SlotTerminalUnfinalized = "SLOT_TERMINAL_UNFINALIZED",
+  OwnerWakePending = "OWNER_WAKE_PENDING",
 }
 
 /** One condition the watch found this tick. `key` is stable for as long as the condition is the same one. */
@@ -237,7 +268,7 @@ export interface WatchFinding {
   message: string;
 }
 
-/** Where one owner session's watcher recovery stands this tick. */
+/** Where waking one owner session for its PR's report stands this tick. */
 export enum WatcherRecoveryOutcome {
   /** Planned and not yet run; the executor turns it into one of the outcomes below. */
   ResumeDue = "resume-due",
@@ -253,10 +284,13 @@ export enum WatcherRecoveryOutcome {
   AwaitingUsageLimitReset = "awaiting-usage-limit-reset",
 }
 
-/** One owner session whose registered slots have dead watchers, and what the watch did about it. */
+/** One owner session woken for one PR its loop reported on, and how the wake went. */
 export interface WatcherRecovery {
   ownerSessionId: string;
-  slotSlugs: string[];
+  slotSlug: string;
+  slotDir: string;
+  prNumber: number;
+  reportKind: ServiceLoopReportKind;
   outcome: WatcherRecoveryOutcome;
   cwd?: string;
   /** Set when the owner is still running, idle between turns: the id `claude stop` takes before the resume. */
@@ -265,15 +299,37 @@ export interface WatcherRecovery {
   ownerRunningSessionId?: string;
 }
 
-/** A session to resume on reconcile, from the project dir its transcript names. */
-export interface ReconcileResumeTarget {
+/** A session to resume in the background, from the project dir its transcript names. */
+export interface SessionResumeTarget {
   sessionId: string;
   cwd: string;
+  /** The one prompt the resumed session starts on. */
+  prompt: string;
   /** Set when the session is still running: the id `claude stop` takes before the resume. */
   runningShortId?: string;
   /** Set when the running job lists under a newer session id than `sessionId`: the id its exit is awaited by. */
   runningSessionId?: string;
 }
+
+/** Where starting a loop for one slot stands this tick. */
+export enum ServiceArmOutcome {
+  Armed = "armed",
+  ArmFailed = "arm-failed",
+  DeferredByTickCap = "deferred-by-tick-cap",
+}
+
+/** One slot whose loop the watch started, out of every session. */
+export interface ServiceArm {
+  slug: string;
+  prUrl: string;
+  outcome: ServiceArmOutcome;
+}
+
+/**
+ * Starts one slot's loop detached from every session, its output written to the
+ * slot; false when it could not start.
+ */
+export type ServiceLoopLauncher = (slotDir: string, pr: SlotPr, baseBranch: string) => boolean;
 
 /** The edges `executeWatcherRecoveries` acts through. */
 export interface RecoveryExecutionDeps {
@@ -296,8 +352,6 @@ export interface ExecutedRecoveries {
 /** What the reload fan-out does with one session. */
 export enum ReloadAction {
   Respawn = "respawn",
-  /** Stop, then resume on reconcile, so the session's own watchers come back with it. */
-  ResumeReconcile = "resume-reconcile",
   Defer = "defer",
   NotifyManual = "notify-manual",
   Skip = "skip",
@@ -375,6 +429,8 @@ export enum WatchEventKind {
   RespawnFailed = "respawn-failed",
   RestartRefused = "restart-refused",
   ClosedOut = "closed-out",
+  Armed = "armed",
+  ArmFailed = "arm-failed",
 }
 
 /** One line of `events.jsonl`. */
@@ -400,6 +456,8 @@ export interface WatchSnapshot {
   closedOutSlugs: string[];
   findings: WatchFinding[];
   recoveries: WatcherRecovery[];
+  /** Absent from a snapshot an earlier release wrote. */
+  serviceArms?: ServiceArm[];
   reload?: ReloadReport;
 }
 
@@ -515,6 +573,7 @@ export interface WatchTickDeps {
   notify: DesktopNotifier;
   isAutoReloadEnabled: boolean;
   isRecoveryEnabled: boolean;
+  launchServiceLoop: ServiceLoopLauncher;
   /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
   sleep?: (durationMs: number) => void;
 }

@@ -121,7 +121,7 @@ describe("watchReloadPluginsCommand", () => {
       { sessionId: "s1", shortId: "s1", name: "fix", action: ReloadAction.Respawn, reason: "idle background session" },
       { sessionId: "s2", action: ReloadAction.Respawn, reason: "idle background session" },
       { sessionId: "s3", shortId: "s3", action: ReloadAction.Defer, reason: "turn in flight (busy)" },
-      { sessionId: "s4", shortId: "s4", cwd: "/locked", action: ReloadAction.ResumeReconcile, reason: "idle, owns open PR watches" },
+      { sessionId: "s4", shortId: "s4", cwd: "/locked", action: ReloadAction.Respawn, reason: "idle background session" },
     ],
     respawnedSessionIds: ["s1"],
     failedSessionIds: ["s2"],
@@ -135,7 +135,7 @@ describe("watchReloadPluginsCommand", () => {
     expect(stdout).toContain("muggle watch reload-plugins: restarted 1");
     expect(stdout).toContain("respawn          fix  idle background session");
     expect(stdout).toContain("s2  idle background session (restart failed)");
-    expect(stdout).toContain("s4  idle, owns open PR watches (left running: /locked refuses a background restart — run /reload-plugins in it)");
+    expect(stdout).toContain("s4  idle background session (left running: /locked refuses a background restart — run /reload-plugins in it)");
   });
 
   it("counts planned respawns in a dry run, and prints JSON on request", () => {

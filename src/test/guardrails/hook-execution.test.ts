@@ -1335,10 +1335,11 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(stampedFlags.length).toBeGreaterThanOrEqual(7);
     expect(releaseBranches, "a gate reaches Release without stamping it").toBe(stampedFlags.length);
 
-    const stopWrapperBodies = hooks.Stop[0].hooks
+    // The rewake companion runs the same gates as the dispatcher, so each gate is read once.
+    const stopWrapperNames = hooks.Stop[0].hooks
       .flatMap((h) => [...h.command.matchAll(/guardrail-[a-z0-9-]+\.sh/g)].map(([name]) => name))
-      .filter((name) => name !== "guardrail-dispatch.sh")
-      .map((name) => readFileSync(join(SCRIPTS, name), "utf-8"));
+      .filter((name) => name !== "guardrail-dispatch.sh" && name !== "guardrail-rewake.sh");
+    const stopWrapperBodies = [...new Set(stopWrapperNames)].map((name) => readFileSync(join(SCRIPTS, name), "utf-8"));
 
     for (const field of stampedFlags) {
       const greped = stopWrapperBodies.filter((body) => body.includes(`"${field}": true`));

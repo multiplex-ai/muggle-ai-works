@@ -150,6 +150,13 @@ guardrail_run_node() {
   node "${root}/scripts/guardrails.mjs" "$@" <<<"$GUARDRAIL_PAYLOAD" 2>/dev/null || printf '{}'
 }
 
+# Runs guardrails.mjs for an asyncRewake companion, which answers through its stderr and exit status rather than
+# stdout: exit 2 is what makes Claude Code wake the session with that stderr, so neither is swallowed here.
+guardrail_run_rewake_node() {
+  local root="${CLAUDE_PLUGIN_ROOT:-${CURSOR_PLUGIN_ROOT:-}}"
+  node "${root}/scripts/guardrails.mjs" "$@" <<<"$GUARDRAIL_PAYLOAD"
+}
+
 # Entry for a gate script executed directly: its guardrail_wants decides whether Node runs.
 guardrail_run_standalone() {
   guardrail_read_payload

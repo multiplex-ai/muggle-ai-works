@@ -15,6 +15,8 @@ export interface HookCommand {
   command: string;
   timeout?: number;
   async?: boolean;
+  /** Runs in the background and wakes Claude with its stderr when it exits 2; nothing waits on it. */
+  asyncRewake?: boolean;
 }
 
 /** Timeout ceilings, in seconds, for the hooks of one event. */

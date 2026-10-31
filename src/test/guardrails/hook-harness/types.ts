@@ -11,6 +11,7 @@ export interface GuardrailCliInvocation {
 export interface GuardrailCliRun {
   status: number | null;
   stdout: string;
+  stderr: string;
 }
 
 /** What the walkthrough-probe `gh` stub answers to the walkthrough gate's provider reads. */

@@ -244,6 +244,13 @@
             "command": "set -- guardrail-dispatch.sh guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-watch-follow-through-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
+          },
+          {
+            "type": "command",
+            "command": "set -- guardrail-rewake.sh guardrail-e2e-gate.sh guardrail-terminal-gate.sh guardrail-watch-gate.sh guardrail-watch-follow-through-gate.sh guardrail-build-followthrough-gate.sh guardrail-walkthrough-gate.sh guardrail-comment-reply-gate.sh guardrail-stage-gate.sh guardrail-debug-path-gate.sh guardrail-capability-claim.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": true,
+            "asyncRewake": true,
+            "timeout": 30
           }
         ]
       }
@@ -256,6 +263,13 @@
             "command": "set -- guardrail-build-router.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
+          },
+          {
+            "type": "command",
+            "command": "set -- guardrail-rewake.sh guardrail-build-router.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "async": true,
+            "asyncRewake": true,
+            "timeout": 30
           }
         ]
       }

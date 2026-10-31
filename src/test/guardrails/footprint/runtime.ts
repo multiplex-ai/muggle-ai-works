@@ -87,7 +87,8 @@ export function timeScenarioRuntime(
   scenario: HookRuntimeScenario,
   slowShimDirectory: string,
 ): ScenarioRuntime {
-  const commands = commandsForSlot(manifest, scenario.slot, scenario.payload);
+  // An async hook holds no turn, so only the synchronous ones are timed against the budget.
+  const commands = commandsForSlot(manifest, scenario.slot, scenario.payload).filter((command) => !command.async);
   const runsMs: number[][] = commands.map(() => []);
   const homes: string[] = [];
   const slowShimPathForBash = toBashPathArg(slowShimDirectory);

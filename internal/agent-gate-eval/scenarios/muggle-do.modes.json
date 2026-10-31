@@ -36,6 +36,9 @@
       "anyOf": [
         {"tool":"Bash","argContains":"guard-run"},
         {"tool":"Bash","argContains":"npm test"},
+        {"tool":"Bash","argContains":"run test"},
+        {"tool":"Bash","argContains":"pnpm test"},
+        {"tool":"Bash","argContains":"yarn test"},
         {"tool":"Bash","argContains":"node --test"}
       ]
     },
@@ -203,6 +206,18 @@
       },
       {
         "commandContains": "npm test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "run test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "pnpm test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "yarn test",
         "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
       },
       {
@@ -1341,6 +1356,18 @@
         },
         {
           "commandContains": "npm test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "run test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "pnpm test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "yarn test",
           "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
         },
         {

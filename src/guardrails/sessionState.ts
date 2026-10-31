@@ -16,6 +16,7 @@ import {
   E2E_STOP_VERDICT_SUFFIX,
   SESSION_STATE_LOCK_WAIT_MS,
   SYNC_HOOK_OUTPUT_SUFFIX,
+  RECONCILED_RECORD_SUFFIX,
 } from "./constants.js";
 
 const baseDir = (override?: string): string =>
@@ -144,6 +145,24 @@ export function takeSyncHookOutput(
   } catch {
     return null;
   }
+}
+
+/** The uuid of the transcript hook record the session's last reconcile replayed; undefined before the first. */
+export function readReconciledRecord(sessionId: string, dirOverride?: string): string | undefined {
+  try {
+    return readFileSync(fileFor(sessionId, dirOverride, RECONCILED_RECORD_SUFFIX), "utf-8").trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Record the transcript hook record a reconcile replayed last, so the next replays only what follows it. */
+export function writeReconciledRecord(sessionId: string, recordUuid: string, dirOverride?: string): void {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const target = fileFor(sessionId, dirOverride, RECONCILED_RECORD_SUFFIX);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, recordUuid);
+  renameSync(staging, target);
 }
 
 const lockFor = (sessionId: string, dirOverride?: string): string => `${fileFor(sessionId, dirOverride)}.lock`;

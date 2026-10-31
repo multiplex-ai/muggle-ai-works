@@ -110,6 +110,15 @@ describe("isArtifactSatisfied", () => {
     }
   });
 
+  // printf turns `\n` into a newline, so a marker after it starts a line in the written file.
+  it("reads the escapes printf writes when matching a Bash attempt's content", () => {
+    const marker = { path: prsJson, matches: "(^|\\n)Stage 2 done — " };
+    const printfMarker = bash(`printf '\\nStage 2 done — requirements written\\n' >> ~/.muggle-ai/muggle-do/sessions/s/prs.json`);
+    expect(isArtifactSatisfied(marker, snapshotWith(null), [printfMarker])).toBe(true);
+    const noMarker = bash(`printf '\\nStage 2 pending\\n' >> ~/.muggle-ai/muggle-do/sessions/s/prs.json`);
+    expect(isArtifactSatisfied(marker, snapshotWith(null), [noMarker])).toBe(false);
+  });
+
   it("is not satisfied by a relative path the command never anchors in the artifact's directory", () => {
     for (const command of [
       `cd ~/.muggle-ai/muggle-do/sessions/other && echo '{"number": 7}' > prs.json`,

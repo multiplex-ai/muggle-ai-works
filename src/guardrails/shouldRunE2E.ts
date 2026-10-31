@@ -5,13 +5,18 @@ import type { GuardrailState, RecordedRun } from "./types.js";
 
 export const MAX_E2E_BLOCKS = 3;
 
+/** Whether an accepted skip is an environment skip, the kind kept as the session's skip declaration. */
+export function isEnvironmentSkip(skip: DeclaredSkip | null): skip is DeclaredSkip {
+  return skip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(skip.code);
+}
+
 /**
  * Keep an accepted environment skip so every PR in play can be settled with it.
  * A cycle-scoped skip is left out: it vouches for one commit range on the
  * working branch's PR, and settles that PR itself.
  */
 export function applyE2eSkipDeclaration(state: GuardrailState, skip: DeclaredSkip | null): GuardrailState {
-  if (!skip || CYCLE_SCOPED_SKIP_CODES.includes(skip.code)) return state;
+  if (!isEnvironmentSkip(skip)) return state;
   return { ...state, e2eSkipDeclaration: { code: skip.code, detail: skip.detail } };
 }
 

@@ -6,7 +6,7 @@ import {
   readState,
 } from "./sessionState.js";
 import { startBackgroundJob } from "./backgroundJob.js";
-import { applyE2eSkipDeclaration, applyRecordedRun } from "./shouldRunE2E.js";
+import { applyE2eSkipDeclaration, applyRecordedRun, isEnvironmentSkip } from "./shouldRunE2E.js";
 import { applyE2eSkipScope, applyPrOpenedToSkipScope } from "./skipScope.js";
 import { applyWatchSkip } from "./watchArmed.js";
 import { applyBuildSkip } from "./buildFollowthrough.js";
@@ -35,7 +35,10 @@ import {
 
 function applyToolOutcome(state: GuardrailState, outcome: ToolOutcomeMutation): GuardrailState {
   const declared = applyE2eSkipDeclaration(applyRecordedRun(state, outcome.run), outcome.acceptedSkip);
-  const recorded = applyE2eSkipScope(declared, outcome.skipVerifiedChange);
+  // A new declaration takes the change it was verified in, or none — never the previous declaration's.
+  const recorded = isEnvironmentSkip(outcome.acceptedSkip)
+    ? applyE2eSkipScope(declared, outcome.skipVerifiedChange)
+    : declared;
   const withWatchSkip = applyWatchSkip(recorded, outcome.isWatchSkip);
   const withBuildSkip = applyBuildSkip(withWatchSkip, outcome.isBuildSkip);
   const withWalkthroughPost = applyWalkthroughPosted(

@@ -520,8 +520,11 @@ function withoutDelegatedPrs(prUrls, state, now) {
 
 // src/guardrails/shouldRunE2E.ts
 var MAX_E2E_BLOCKS = 3;
+function isEnvironmentSkip(skip) {
+  return skip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(skip.code);
+}
 function applyE2eSkipDeclaration(state, skip) {
-  if (!skip || CYCLE_SCOPED_SKIP_CODES.includes(skip.code)) return state;
+  if (!isEnvironmentSkip(skip)) return state;
   return { ...state, e2eSkipDeclaration: { code: skip.code, detail: skip.detail } };
 }
 function shouldRunE2E(state) {
@@ -682,6 +685,9 @@ function isSameChange(left, right) {
 function isPrOfSkipChange(state, prUrl) {
   return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
 }
+function prsOfSkipChange(state) {
+  return state.prsHandled.filter((prUrl) => isPrOfSkipChange(state, prUrl));
+}
 function withCoveredPrs(state, prUrls) {
   const covered = new Set(state.e2eSkipCoveredPrs ?? []);
   const uncovered = prUrls.filter((prUrl) => !covered.has(prUrl));
@@ -697,12 +703,14 @@ function applyPrOpenedToSkipScope(state, prUrl, prChange) {
   return isPrOfSkipChange(recorded, prUrl) && recorded.e2eSkipDeclaration ? withCoveredPrs(recorded, [prUrl]) : recorded;
 }
 function applyE2eSkipScope(state, verifiedChange) {
-  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
+  if (!state.e2eSkipDeclaration) return state;
+  if (!verifiedChange) {
+    if (!state.e2eSkipVerifiedChange) return state;
+    const { e2eSkipVerifiedChange: _previousDeclarationChange, ...unscoped } = state;
+    return unscoped;
+  }
   const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
-  return withCoveredPrs(
-    scoped,
-    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl))
-  );
+  return withCoveredPrs(scoped, prsOfSkipChange(scoped));
 }
 
 // src/pr-walkthrough/types.ts
@@ -1855,7 +1863,7 @@ function classificationGateDecision(state, input2) {
 // src/guardrails/stateCommit.ts
 function applyToolOutcome(state, outcome) {
   const declared = applyE2eSkipDeclaration(applyRecordedRun(state, outcome.run), outcome.acceptedSkip);
-  const recorded = applyE2eSkipScope(declared, outcome.skipVerifiedChange);
+  const recorded = isEnvironmentSkip(outcome.acceptedSkip) ? applyE2eSkipScope(declared, outcome.skipVerifiedChange) : declared;
   const withWatchSkip = applyWatchSkip(recorded, outcome.isWatchSkip);
   const withBuildSkip = applyBuildSkip(withWatchSkip, outcome.isBuildSkip);
   const withWalkthroughPost = applyWalkthroughPosted(
@@ -3130,7 +3138,7 @@ function recordTests() {
   const judgedSkip = judgeE2eSkip(input, stateBefore);
   const acceptedSkip = judgedSkip?.accepted ? judgedSkip.skip : null;
   const walkthroughPosted = detectWalkthroughPost(input);
-  const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
+  const isDeclaredHere = isEnvironmentSkip(acceptedSkip);
   const outcome = {
     kind: "tool-outcome" /* ToolOutcome */,
     run: {
@@ -3163,7 +3171,7 @@ function recordSkipReasonOnPrs(state, skip) {
     startBackgroundJob("settle-walkthrough-no-app-logic-change" /* SettleWalkthroughNoAppLogicChange */, [skip.detail], input.cwd);
     return;
   }
-  for (const prUrl of state.prsHandled.filter((handledPrUrl) => isPrCoveredBySkip(state, handledPrUrl))) {
+  for (const prUrl of prsOfSkipChange(state)) {
     startBackgroundJob("settle-walkthrough-skipped" /* SettleWalkthroughSkipped */, [prUrl, skip.code, skip.detail]);
   }
   startBackgroundJob("settle-branch-walkthrough-skipped" /* SettleBranchWalkthroughSkipped */, [skip.code, skip.detail], input.cwd);
@@ -3379,7 +3387,7 @@ function walkthroughGate() {
   if (decision.action !== "block" /* Block */) return "{}";
   recordGateBlock("walkthroughBlockCount", decision.blockCount);
   const declaredSkip = state.e2eSkipDeclaration;
-  const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrCoveredBySkip(state, prUrl)) : [];
+  const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrOfSkipChange(state, prUrl)) : [];
   if (declaredSkip && skipOwedPrUrls.length > 0) {
     return blockOnUnsettledSkip(declaredSkip, skipOwedPrUrls, decision.blockCount);
   }

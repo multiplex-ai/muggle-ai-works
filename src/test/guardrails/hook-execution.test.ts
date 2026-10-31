@@ -1422,6 +1422,7 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
     sessionId: string,
     prContent: string,
     isPrOfSkipChange: boolean = true,
+    isCoveredByEarlierSkip: boolean = false,
   ): { output: string; home: string } {
     const home = createHookHome("gr-wt-skip-");
     const skipChange = { repo: "github.com/o/r", branch: "fix-login" };
@@ -1432,7 +1433,7 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
       e2eSkipDeclaration: { code: E2eSkipCode.NoWebSurface, detail: "a CLI with no web app" },
       e2eSkipVerifiedChange: skipChange,
       prChanges: { [PR_URL]: isPrOfSkipChange ? skipChange : { ...skipChange, branch: "fix-export" } },
-      e2eSkipCoveredPrs: isPrOfSkipChange ? [PR_URL] : [],
+      e2eSkipCoveredPrs: isPrOfSkipChange || isCoveredByEarlierSkip ? [PR_URL] : [],
     });
     runCli(home, ["scan-walkthroughs", sessionId], "", prContent, PR_URL);
     return { output: runCli(home, ["walkthrough-gate"], JSON.stringify({ session_id: sessionId }), prContent, PR_URL), home: home };
@@ -1452,6 +1453,14 @@ describe.skipIf(process.platform === "win32")("walkthrough gate provider lookups
     expect(blocked.decision).toBe("block");
     expect(blocked.reason).toContain(PR_URL);
     expect(blocked.reason).toContain("its own change");
+    expect(blocked.reason).not.toContain("settle-walkthrough-skipped");
+  });
+
+  it("never hands a PR an earlier skip covered the record of a later skip for another change", () => {
+    const placeholder = JSON.stringify({ body: "x", comments: [{ body: "<!-- muggle-pr-walkthrough:v1 -->\nAwaiting the E2E acceptance run." }] });
+    const blocked = JSON.parse(runSkippedSessionGate("wt-skip-earlier-change", placeholder, false, true).output);
+    expect(blocked.decision).toBe("block");
+    expect(blocked.reason).toContain(PR_URL);
     expect(blocked.reason).not.toContain("settle-walkthrough-skipped");
   });
 

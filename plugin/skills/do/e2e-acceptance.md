@@ -50,6 +50,7 @@ You receive everything from `state.md` already — pre-flight resolved it:
 - The list of changed repos, files, and a summary of changes
 - The requirements goal
 - The `e2eScope` from impact analysis — the impacted, retired, and new use cases and test cases this stage runs
+- In a forward run, the PR Stage 5.5 opened from the working tree — the run's [PR progress](../_shared/dev-loop/run.md#pr-progress) shows on it, and Stage 7 settles its walkthrough
 
 ## Your Job
 
@@ -79,9 +80,9 @@ A scope with deliverable checks and no browser case runs none of these and goes 
 2. **Auth** — `muggle-remote-auth-status` must be `authenticated`; else escalate.
 3. **Identity tenant/domain match** — if test credentials were marked `existing`, confirm the repo's configured identity tenant/domain matches the recorded tenant/domain. Mismatch → halt.
 
-**Readiness halt.** The cycle planned a browser run and still owes it, so an app that cannot be brought up halts the cycle and is never a `SKIPPED` exit: declare no skip code, write no waiver, run nothing downstream. Report the URL probed, what `muggle-test-prepare` tried (the start command and how it failed), and that no PR was opened or updated; then end the turn and wait for the user. This holds for unattended runs and for a request that asked for the PR. A forward cycle opens no PR, posts no walkthrough, runs no Stage 7.5 and arms no watcher; a watcher cycle pushes nothing and escalates through its own path, which keeps the watcher running. A run that failed because the app never answered (connection refused, page never loaded) returns to item 1, and still down is this halt. A Stop-hook reminder that E2E is still owed does not lift it.
+**Readiness halt.** The cycle planned a browser run and still owes it, so an app that cannot be brought up halts the cycle and is never a `SKIPPED` exit: declare no skip code, write no waiver, run nothing downstream. Report the URL probed, what `muggle-test-prepare` tried (the start command and how it failed), and that the PR's walkthrough is unsettled; then end the turn and wait for the user. This holds for unattended runs and for a request that asked for the PR. A forward cycle leaves its PR open with the walkthrough unsettled, so its walkthrough check stays red: it posts no walkthrough, runs no Stage 7.5 and arms no watcher. Nothing more is owed that PR until the app answers, so run `echo "MUGGLE_WALKTHROUGH_SKIP: readiness halt — <PR URL>"` and `echo "MUGGLE_WATCH_SKIP: readiness halt — <PR URL>"`, which keep the Stop gates from pressing for a walkthrough or watch the halt withholds. A watcher cycle pushes nothing and escalates through its own path, which keeps the watcher running. A run that failed because the app never answered (connection refused, page never loaded) returns to item 1, and still down is this halt. A Stop-hook reminder that E2E is still owed does not lift it.
 
-Only the app not answering is this halt. A run the runner itself lost while readiness passes — an Electron or MCP crash, a Studio abort before the first step — is a failing run, however often it repeats: record it in the Failed block and go on to Stage 7, which opens the PR `[E2E FAILING]` for Stage 7.5 to classify.
+Only the app not answering is this halt. A run the runner itself lost while readiness passes — an Electron or MCP crash, a Studio abort before the first step — is a failing run, however often it repeats: record it in the Failed block and go on to Stage 7, which retitles the PR `[E2E FAILING]` for Stage 7.5 to classify.
 
 ### Step 1: Authentication already verified
 

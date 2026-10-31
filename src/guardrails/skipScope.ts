@@ -36,9 +36,8 @@ export function isPrCoveredBySkip(state: GuardrailState, prUrl: string): boolean
 /**
  * Record the change a PR belongs to, and cover it with the latest skip when it is that skip's change.
  *
- * This is what lets a skip declared before its PR existed — Stage 6 before
- * Stage 7 — reach that PR, and only that PR. A PR whose change is unknown is
- * never covered.
+ * This is what lets a skip declared before its PR existed reach that PR, and
+ * only that PR. A PR whose change is unknown is never covered.
  */
 export function applyPrOpenedToSkipScope(
   state: GuardrailState,

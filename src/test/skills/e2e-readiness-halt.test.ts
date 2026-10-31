@@ -79,10 +79,22 @@ describe("an app that cannot be brought up halts the cycle", () => {
     expect(readinessStep).toMatch(/write no waiver/);
   });
 
-  it("stops the forward cycle before the PR, walkthrough, repair loop, and watcher", () => {
-    for (const downstream of [/opens no PR/, /posts no walkthrough/, /runs no Stage 7\.5/, /arms no watcher/]) {
+  it("leaves the forward cycle's PR open and unsettled, with no walkthrough, repair loop, or watcher", () => {
+    for (const downstream of [
+      /leaves its PR open with the walkthrough unsettled/,
+      /posts no walkthrough/,
+      /runs no Stage 7\.5/,
+      /arms no watcher/,
+    ]) {
       expect(readinessStep).toMatch(downstream);
     }
+  });
+
+  // The PR opens before Stage 6, so a halt ends the turn with a PR the walkthrough and watch Stop gates would
+  // otherwise press to settle and arm — the very steps the halt withholds.
+  it("quiets the walkthrough and watch gates for the PR it withholds them from", () => {
+    expect(readinessStep).toMatch(/MUGGLE_WALKTHROUGH_SKIP: readiness halt/);
+    expect(readinessStep).toMatch(/MUGGLE_WATCH_SKIP: readiness halt/);
   });
 
   it("reports what was tried and waits for the user, unattended or not", () => {
@@ -103,7 +115,7 @@ describe("an app that cannot be brought up halts the cycle", () => {
     expect(readinessStep).toMatch(/Only the app not answering is this halt/);
     expect(readinessStep).toMatch(/Electron or MCP crash, a Studio abort before the first step/);
     expect(readinessStep).toMatch(/is a failing run, however often it repeats/);
-    expect(readinessStep).toMatch(/opens the PR `\[E2E FAILING\]` for Stage 7\.5 to classify/);
+    expect(readinessStep).toMatch(/retitles the PR `\[E2E FAILING\]` for Stage 7\.5 to classify/);
   });
 
   it("is not listed among the stage's SKIPPED exits", () => {

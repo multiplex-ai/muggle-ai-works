@@ -197,7 +197,7 @@ Check the slot's `watch.pid` lease ([`state-schemas.md`](state-schemas.md#watchp
 - **Dead or missing** — arm per [`arm-watcher.md`](arm-watcher.md) and append a `re-armed` line to `followup.log`. The arm carries the slot's review, comment and thread floors forward, so anything that landed after this tick's read still reaches the session.
 - **Live** — a loop already owns the cadence (this tick was not its wake). Nothing to arm.
 
-When a **recovery cron** delivered the tick (`/loop` fired it), also cancel the cron per [`cancel-cron.md`](cancel-cron.md). Its job was to deliver *this* tick, never to become the poller: every cron fire is a full model turn, while the loop polls token-free at the same `1m` cadence.
+Then, when a **recovery cron** targets this slot — Step 0 recorded one, or `CronList` lists a job whose prompt ends `<slug> <n>` — cancel it per [`cancel-cron.md`](cancel-cron.md), after the arm. That cron is what delivered this tick, and its job ends there, never as the poller: every cron fire is a full model turn, while the loop polls token-free at the same `1m` cadence. The recorded cron is the signal: a cron-delivered tick carries no `--wake` or other flag saying a cron fired it.
 
 Either way exactly one poller remains — the loop — and this tick was the only model turn spent.
 

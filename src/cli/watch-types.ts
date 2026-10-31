@@ -4,6 +4,8 @@ export interface WatchTickFlags {
   autoReload: boolean;
   /** Commander's `--no-recovery` negation: false reports dead watchers without resuming their owners. */
   recovery: boolean;
+  /** Commander's `--no-remote-control` negation: false reports sessions off Remote Control without restarting them. */
+  remoteControl: boolean;
   /** Print the full snapshot as JSON instead of a summary line. */
   json?: boolean;
 }

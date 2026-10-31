@@ -76,14 +76,18 @@ afterEach(() => {
 describe("watchTickCommand", () => {
   it("runs a tick with the flag switches and prints a summary line", () => {
     serviceMock.runWatchTick.mockReturnValue(snapshot);
-    watchTickCommand({ autoReload: false, recovery: true });
-    expect(serviceMock.createDefaultWatchTickDeps).toHaveBeenCalledWith({ isAutoReloadEnabled: false, isRecoveryEnabled: true });
+    watchTickCommand({ autoReload: false, recovery: true, remoteControl: false });
+    expect(serviceMock.createDefaultWatchTickDeps).toHaveBeenCalledWith({
+      isAutoReloadEnabled: false,
+      isRecoveryEnabled: true,
+      isRemoteControlKeptOn: false,
+    });
     expect(stdout).toBe("muggle watch: 0 sessions, 0 PR watches, 2 findings (1 alerts), 1 owner sessions resumed\n");
   });
 
   it("prints the snapshot as JSON on request", () => {
     serviceMock.runWatchTick.mockReturnValue(snapshot);
-    watchTickCommand({ autoReload: true, recovery: true, json: true });
+    watchTickCommand({ autoReload: true, recovery: true, remoteControl: true, json: true });
     expect(JSON.parse(stdout).findings).toHaveLength(2);
   });
 
@@ -91,7 +95,7 @@ describe("watchTickCommand", () => {
     serviceMock.runWatchTick.mockImplementation(() => {
       throw new Error("another muggle watch run holds the lock");
     });
-    watchTickCommand({ autoReload: true, recovery: true });
+    watchTickCommand({ autoReload: true, recovery: true, remoteControl: true });
     expect(stderr).toBe("muggle watch: another muggle watch run holds the lock\n");
     expect(process.exitCode).toBe(1);
   });

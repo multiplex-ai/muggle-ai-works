@@ -7,7 +7,7 @@ import { findClaudeSessionCwd } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
 import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead } from "../../watch/field-parsers.js";
 import { hasLiveProcess, isIdleBackgroundSession } from "../../watch/session-liveness.js";
-import { ClaudeJobState, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "../../watch/types.js";
+import { ClaudeJobState, ClaudeProcessStatus, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "../../watch/types.js";
 import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
 
 describe("readClaudeSessions", () => {
@@ -39,6 +39,19 @@ describe("readClaudeSessions", () => {
       },
       expect.objectContaining({ sessionId: "bbbb2222-0000", kind: ClaudeSessionKind.Interactive, turnStatus: undefined, pid: undefined }),
     ]);
+  });
+
+  it("joins the process's own status and Remote Control link from the registry", () => {
+    const registryDir = makeTempDir("claude-registry");
+    writeFileSync(join(registryDir, "4120.json"), JSON.stringify({ pid: 4120, sessionId: "linked-0000", status: "shell", bridgeSessionId: "session_01ABC" }));
+    writeFileSync(join(registryDir, "4121.json"), JSON.stringify({ pid: 4121, sessionId: "unlinked-0000", status: "napping", bridgeSessionId: null }));
+    const listing = [
+      { id: "linked00", sessionId: "linked-0000", status: "busy" },
+      { id: "unlinked", sessionId: "unlinked-0000", status: "idle" },
+    ];
+    const sessions = readClaudeSessions(scriptedRunner(() => succeeded(JSON.stringify(listing))).runCommand, registryDir);
+    expect(sessions?.[0]).toMatchObject({ turnStatus: ClaudeTurnStatus.Busy, processStatus: ClaudeProcessStatus.Shell, remoteControlSessionId: "session_01ABC" });
+    expect(sessions?.[1]).toMatchObject({ pid: 4121, processStatus: undefined, remoteControlSessionId: undefined });
   });
 
   it("takes the pid the listing reports over the registry's", () => {

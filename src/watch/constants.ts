@@ -189,6 +189,21 @@ export const CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH = ["plugins", "installed_plu
 /** Claude's global config, which caches the account's usage: in the home dir, or in `CLAUDE_CONFIG_DIR` when that is set. */
 export const CLAUDE_GLOBAL_CONFIG_FILE_NAME = ".claude.json";
 
+/** Claude's user settings file, under its config dir; `remoteControlAtStartup` lives here. */
+export const CLAUDE_SETTINGS_FILE_NAME = "settings.json";
+
+/** Where Claude keeps its claude.ai credentials on Windows and Linux, under its config dir; a login rewrites it. */
+export const CLAUDE_CREDENTIALS_FILE_NAME = ".credentials.json";
+
+/** Restarts per session to put it back on Remote Control inside `REMOTE_CONTROL_RESTART_WINDOW_MS`, so a link that never comes back cannot loop. */
+export const REMOTE_CONTROL_MAX_RESTARTS = 2;
+
+/** The window `REMOTE_CONTROL_MAX_RESTARTS` counts over. */
+export const REMOTE_CONTROL_RESTART_WINDOW_MS = 24 * 60 * 60_000;
+
+/** Wait after a Remote Control restart before the same session is tried again; each restart opens a new Remote Control session. */
+export const REMOTE_CONTROL_RESTART_COOLDOWN_MS = 30 * 60_000;
+
 /** The utilization percent at which a cached usage window has run out. */
 export const USAGE_WINDOW_EXHAUSTED_PERCENT = 100;
 

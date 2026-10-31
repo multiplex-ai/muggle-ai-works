@@ -37,6 +37,8 @@ export function makeWatchPaths(root: string): WatchPaths {
     claudeProjectsDir: join(root, "claude", "projects"),
     claudeInstalledPluginsFile: join(root, "claude", "plugins", "installed_plugins.json"),
     claudeGlobalConfigFile: join(root, ".claude.json"),
+    claudeSettingsFile: join(root, "claude", "settings.json"),
+    claudeCredentialsFile: join(root, "claude", ".credentials.json"),
     codexSessionsDir: join(root, "codex", "sessions"),
     muggleInstallLogFile: join(root, "muggle", "postinstall.log"),
   };

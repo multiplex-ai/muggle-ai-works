@@ -1,8 +1,9 @@
 import { resolve } from "path";
+import { isRemoteControlAtStartup, readClaudeLogin } from "./claude-account.js";
 import { readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
-import { WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
+import { MAX_RESPAWNS_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
 import { assessWatchSlots, computeCoverage, deriveWatchFindings, reconcileActiveFindings } from "./findings.js";
 import { shortSessionId } from "./format.js";
 import { readInstallHistory } from "./install-history.js";
@@ -21,6 +22,7 @@ import { fetchPrLiveStatuses, isTerminalPrState } from "./pr-status.js";
 import { readProcessTable } from "./process-table.js";
 import { executeWatcherRecoveries, findRunningOwner, isSlotCloseOutDue, planWatcherRecoveries } from "./recovery.js";
 import { advancePendingReload, executeReloadFanOut, planReloadFanOut } from "./reload-plugins.js";
+import { advanceClaudeLogin, planRemoteControlRestarts, recordRemoteControlRestarts } from "./remote-control.js";
 import { startServiceLoops } from "./service-loop.js";
 import { createServiceLoopLauncher } from "./service-loop-launcher.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
@@ -39,9 +41,11 @@ import { canRestartSessionIn } from "./workspace-trust.js";
 import {
   WatcherRecoveryOutcome,
   WatchEventKind,
+  type ClaudeLoginRecord,
   type InstallRecord,
   type PendingReload,
   type ReloadReport,
+  type RemoteControlReport,
   type ServiceArm,
   type TrackedProcess,
   type WatcherRecovery,
@@ -55,7 +59,11 @@ import {
 } from "./types.js";
 
 /** The real edges: this machine's processes, sessions, `gh`, `claude` and desktop notifications. */
-export function createDefaultWatchTickDeps(options: { isAutoReloadEnabled: boolean; isRecoveryEnabled: boolean }): WatchTickDeps {
+export function createDefaultWatchTickDeps(options: {
+  isAutoReloadEnabled: boolean;
+  isRecoveryEnabled: boolean;
+  isRemoteControlKeptOn: boolean;
+}): WatchTickDeps {
   return {
     nowMs: Date.now(),
     platform: process.platform,
@@ -64,6 +72,7 @@ export function createDefaultWatchTickDeps(options: { isAutoReloadEnabled: boole
     notify: createDesktopNotifier(process.platform, defaultCommandRunner),
     isAutoReloadEnabled: options.isAutoReloadEnabled,
     isRecoveryEnabled: options.isRecoveryEnabled,
+    isRemoteControlKeptOn: options.isRemoteControlKeptOn,
     launchServiceLoop: createServiceLoopLauncher(process.platform, defaultCommandRunner),
   };
 }
@@ -103,12 +112,15 @@ function watchOwnersOf(slots: WatchSlotAssessment[]): Set<string> {
   return new Set(slots.flatMap((slot) => (!isTerminalPrState(slot.live?.state) && slot.ownerSessionId ? [slot.ownerSessionId] : [])));
 }
 
-function reloadEvents(report: ReloadReport, at: string): WatchEvent[] {
+/** @param restartPurpose - Why the pass restarts sessions, logged with each restart; a plugin reload logs none. */
+function reloadEvents(report: ReloadReport, at: string, restartPurpose?: string): WatchEvent[] {
   const decisionById = new Map(report.decisions.map((decision) => [decision.sessionId, decision]));
   const describe = (sessionId: string): string => `session ${decisionById.get(sessionId)?.name ?? shortSessionId(sessionId)}`;
+  const purposeOf = (sessionId: string): { message?: string } =>
+    restartPurpose === undefined ? {} : { message: `${restartPurpose}: ${decisionById.get(sessionId)?.reason ?? ""}` };
   return [
-    ...report.respawnedSessionIds.map((sessionId) => ({ at: at, kind: WatchEventKind.Respawned, subject: describe(sessionId) })),
-    ...report.failedSessionIds.map((sessionId) => ({ at: at, kind: WatchEventKind.RespawnFailed, subject: describe(sessionId) })),
+    ...report.respawnedSessionIds.map((sessionId) => ({ at: at, kind: WatchEventKind.Respawned, subject: describe(sessionId), ...purposeOf(sessionId) })),
+    ...report.failedSessionIds.map((sessionId) => ({ at: at, kind: WatchEventKind.RespawnFailed, subject: describe(sessionId), ...purposeOf(sessionId) })),
     ...report.untrustedSessionIds.map((sessionId) => ({
       at: at,
       kind: WatchEventKind.RestartRefused,
@@ -136,6 +148,23 @@ function runReloadPass(
   const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds);
   const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps));
   return { report: report, pendingReload: advancePendingReload(record, report), events: reloadEvents(report, at) };
+}
+
+function runRemoteControlPass(
+  login: ClaudeLoginRecord,
+  claudeSessions: WorkSession[],
+  restartsBySession: Record<string, string[]>,
+  maxRestarts: number,
+  deps: WatchTickDeps,
+  at: string,
+): { report: RemoteControlReport; restartsBySession: Record<string, string[]>; events: WatchEvent[] } {
+  const plan = planRemoteControlRestarts(claudeSessions, login, restartsBySession, deps.nowMs, maxRestarts);
+  const executed = executeReloadFanOut(plan.decisions, deps.runCommand, canRestartVia(deps));
+  return {
+    report: { ...executed, connectedSessionIds: plan.connectedSessionIds },
+    restartsBySession: recordRemoteControlRestarts(restartsBySession, executed, deps.nowMs),
+    events: reloadEvents(executed, at, "restarted to reconnect Remote Control"),
+  };
 }
 
 function canRestartVia(deps: WatchTickDeps): (cwd: string) => boolean {
@@ -242,16 +271,43 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     events.push(...started.events);
   }
 
+  // An owner just woken loads the installed build and links to Remote Control on
+  // its own; a restart would only cut into the turn it was woken for.
+  const restartedSessionIds = new Set(recoveries.filter(isRestartAttempted).map((recovery) => recovery.ownerSessionId));
   let pendingReload = state.pendingReload;
   let reload: ReloadReport | undefined;
   const targetAtMs = reloadTargetAtMs(deps, installs);
   if (deps.isAutoReloadEnabled && targetAtMs !== undefined && claudeSessions !== null) {
-    // An owner just woken loads the installed build on its own; a restart would only cut into the turn it was woken for.
-    const restartedOwnerIds = new Set(recoveries.filter(isRestartAttempted).map((recovery) => recovery.ownerSessionId));
-    const reloadableSessions = claudeSessions.filter((session) => !restartedOwnerIds.has(session.sessionId));
+    const reloadableSessions = claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId));
     const pass = runReloadPass(reloadRecordFor(state, targetAtMs), reloadableSessions, watchOwnersOf(assessments), deps, at);
     pendingReload = pass.pendingReload;
     reload = pass.report;
+    events.push(...pass.events);
+    for (const sessionId of [...reload.respawnedSessionIds, ...reload.failedSessionIds]) restartedSessionIds.add(sessionId);
+  }
+
+  const observedLogin = readClaudeLogin(deps.paths.claudeGlobalConfigFile, deps.paths.claudeCredentialsFile);
+  const claudeLogin = advanceClaudeLogin(state.claudeLogin, observedLogin, deps.nowMs);
+  let remoteControlRestartsBySession = state.remoteControlRestartsBySession ?? {};
+  let remoteControl: RemoteControlReport | undefined;
+  // Remote Control needs a claude.ai login; without one read this tick there is no account to link under.
+  if (
+    deps.isRemoteControlKeptOn &&
+    claudeSessions !== null &&
+    claudeLogin !== undefined &&
+    observedLogin.accountUuid !== undefined &&
+    isRemoteControlAtStartup(deps.paths.claudeSettingsFile)
+  ) {
+    const pass = runRemoteControlPass(
+      claudeLogin,
+      claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId)),
+      remoteControlRestartsBySession,
+      Math.max(0, MAX_RESPAWNS_PER_TICK - (reload ? reload.respawnedSessionIds.length + reload.failedSessionIds.length : 0)),
+      deps,
+      at,
+    );
+    remoteControl = pass.report;
+    remoteControlRestartsBySession = pass.restartsBySession;
     events.push(...pass.events);
   }
 
@@ -262,6 +318,8 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     recoveryAttemptsByOwner: recoveryAttemptsByOwner,
     terminalPrsByUrl: terminalPrsByUrl,
     pendingReload: pendingReload,
+    claudeLogin: claudeLogin,
+    remoteControlRestartsBySession: remoteControlRestartsBySession,
   });
   const snapshot: WatchSnapshot = {
     takenAt: at,
@@ -275,6 +333,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     recoveries: recoveries,
     serviceArms: serviceArms,
     reload: reload,
+    remoteControl: remoteControl,
   };
   writeWatchSnapshot(deps.paths.watchDir, snapshot);
   return snapshot;
@@ -285,7 +344,8 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
  * record what changed, close out slots nobody else will, restart dead loops of
  * registered slots as programs outside every session, wake an owner session
  * only with its own PR's report, bring sessions behind the installed build up
- * to it, and notify on what is new.
+ * to it, put sessions off Remote Control for the current login back on, and
+ * notify on what is new.
  *
  * @throws When another run holds the watch lock.
  */

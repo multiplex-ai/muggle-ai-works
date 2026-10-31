@@ -15,6 +15,7 @@ import {
   WatchFindingCode,
   ReloadAction,
   type CommandOutcome,
+  type WatchPaths,
   type WatchTickDeps,
 } from "../../watch/types.js";
 import {
@@ -88,9 +89,18 @@ function appendInstall(installLogFile: string, atMs: number, version: string): v
   writeFileSync(installLogFile, `${existsSync(installLogFile) ? readFileSync(installLogFile, "utf-8") : ""}${block}`);
 }
 
-function writeRegistry(registryDir: string, pid: number, sessionId: string): void {
+function writeRegistry(registryDir: string, pid: number, sessionId: string, fields: Record<string, unknown> = {}): void {
   mkdirSync(registryDir, { recursive: true });
-  writeFileSync(join(registryDir, `${pid}.json`), JSON.stringify({ pid: pid, sessionId: sessionId }));
+  writeFileSync(join(registryDir, `${pid}.json`), JSON.stringify({ pid: pid, sessionId: sessionId, ...fields }));
+}
+
+// Remote Control at startup on, under a claude.ai login whose credentials were written at `credentialsWrittenAtMs`.
+function logInWithRemoteControl(paths: WatchPaths, accountUuid: string, credentialsWrittenAtMs: number = NOW_MS - 5 * HOUR_MS): void {
+  mkdirSync(dirname(paths.claudeSettingsFile), { recursive: true });
+  writeFileSync(paths.claudeSettingsFile, JSON.stringify({ remoteControlAtStartup: true }));
+  writeFileSync(paths.claudeGlobalConfigFile, JSON.stringify({ oauthAccount: { accountUuid: accountUuid } }));
+  writeFileSync(paths.claudeCredentialsFile, "{}");
+  utimesSync(paths.claudeCredentialsFile, credentialsWrittenAtMs / 1000, credentialsWrittenAtMs / 1000);
 }
 
 // Three live Claude sessions loaded two hours ago, on the build installed three hours ago.
@@ -150,6 +160,7 @@ function buildMachine() {
     notify: (_, lines) => notifications.push(lines),
     isAutoReloadEnabled: true,
     isRecoveryEnabled: true,
+    isRemoteControlKeptOn: true,
     // Stands in for the detached loop: it shows in the process table and names the watch as its listener.
     launchServiceLoop: (slotDir, pr, baseBranch) => {
       launches.push([basename(slotDir), baseBranch]);
@@ -173,6 +184,11 @@ function sessionCalls(runner: ReturnType<typeof buildMachine>["runner"]): string
   return runner.calls
     .filter((call) => call.executable === "claude" && ["stop", "--resume", "respawn"].includes(call.args[0]))
     .map((call) => call.args);
+}
+
+// What a Remote Control pass may do to a real session: respawn it. The trust probe's own stop is left out.
+function respawnCallsOrResumes(runner: ReturnType<typeof buildMachine>["runner"]): string[][] {
+  return sessionCalls(runner).filter((args) => args[0] === "respawn" || args[0] === "--resume" || (args[0] === "stop" && args[1] !== PROBE_ID));
 }
 
 function readEvents(watchDir: string): Array<{ kind: WatchEventKind; code?: WatchFindingCode; message?: string }> {
@@ -531,6 +547,91 @@ describe("runWatchTick", () => {
   });
 });
 
+describe("runWatchTick Remote Control", () => {
+  it("restarts sessions off Remote Control in place once their turn is over, watch owners included", () => {
+    const { deps, runner, paths, launches } = buildMachine();
+    logInWithRemoteControl(paths, "account-a");
+    writeRegistry(paths.claudeSessionRegistryDir, 70, "owner-live", { status: "shell" });
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle", bridgeSessionId: null });
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.remoteControl?.respawnedSessionIds).toEqual(["owner-live", "idle-bg"]);
+    expect(respawnCallsOrResumes(runner)).toEqual([["respawn", "owner-li"], ["respawn", "idle-bg1"]]);
+    expect(snapshot.remoteControl?.decisions.find((decision) => decision.sessionId === "terminal-1")?.action).toBe(ReloadAction.NotifyManual);
+    expect(launches.map(([slug]) => slug)).not.toContain("watched");
+    expect(readEvents(paths.watchDir).filter((event) => event.kind === WatchEventKind.Respawned).map((event) => event.message)).toEqual([
+      "restarted to reconnect Remote Control: no Remote Control link",
+      "restarted to reconnect Remote Control: no Remote Control link",
+    ]);
+    const state = readState(paths.watchDir);
+    expect(Object.keys(state.remoteControlRestartsBySession)).toEqual(["owner-live", "idle-bg"]);
+    expect(state.claudeLogin).toEqual({ accountUuid: "account-a", observedAtMs: NOW_MS });
+  });
+
+  it("leaves linked sessions alone until the login changes, then relinks them under the new one", () => {
+    const { deps, runner, paths } = buildMachine();
+    logInWithRemoteControl(paths, "account-a");
+    writeRegistry(paths.claudeSessionRegistryDir, 70, "owner-live", { status: "shell", bridgeSessionId: "session_owner" });
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle", bridgeSessionId: "session_idle" });
+    const first = runWatchTick(deps);
+    expect(first.remoteControl?.connectedSessionIds).toEqual(["owner-live", "idle-bg"]);
+    expect(respawnCallsOrResumes(runner)).toEqual([]);
+
+    logInWithRemoteControl(paths, "account-b", NOW_MS + 30_000);
+    const second = runWatchTick({ ...deps, nowMs: NOW_MS + 60_000 });
+    expect(second.remoteControl?.decisions.filter((decision) => decision.action === ReloadAction.Respawn).map((decision) => decision.reason)).toEqual([
+      "linked under an earlier login",
+      "linked under an earlier login",
+    ]);
+    expect(respawnCallsOrResumes(runner)).toEqual([["respawn", "owner-li"], ["respawn", "idle-bg1"]]);
+    expect(readState(paths.watchDir).claudeLogin).toEqual({ accountUuid: "account-b", effectiveAtMs: NOW_MS + 30_000, observedAtMs: NOW_MS + 60_000 });
+  });
+
+  it("leaves a session the reload just restarted to the reload, and shares its restart cap", () => {
+    const { deps, runner, paths } = buildMachine();
+    logInWithRemoteControl(paths, "account-a");
+    writeRegistry(paths.claudeSessionRegistryDir, 70, "owner-live", { status: "shell" });
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.reload?.respawnedSessionIds).toEqual(["idle-bg"]);
+    expect(snapshot.remoteControl?.respawnedSessionIds).toEqual(["owner-live"]);
+    expect(snapshot.remoteControl?.decisions.some((decision) => decision.sessionId === "idle-bg")).toBe(false);
+    expect(respawnCallsOrResumes(runner).filter((args) => args[0] === "respawn")).toHaveLength(2);
+  });
+
+  it("waits for a turn in flight and leaves a workspace that refuses restarts", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    logInWithRemoteControl(paths, "account-a");
+    writeRegistry(paths.claudeSessionRegistryDir, 70, "owner-live", { status: "busy" });
+    writeRegistry(paths.claudeSessionRegistryDir, 71, "idle-bg", { status: "idle" });
+    machine.untrustedCwds.add(projectCwd);
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.remoteControl?.decisions.find((decision) => decision.sessionId === "owner-live")?.action).toBe(ReloadAction.Defer);
+    expect(snapshot.remoteControl?.untrustedSessionIds).toEqual(["idle-bg"]);
+    expect(respawnCallsOrResumes(runner)).toEqual([]);
+    expect(readEvents(paths.watchDir).some((event) => event.kind === WatchEventKind.RestartRefused)).toBe(true);
+  });
+
+  it("runs no pass without Remote Control at startup, a claude.ai login, or with the pass switched off", () => {
+    const off = buildMachine();
+    expect(runWatchTick(off.deps).remoteControl).toBeUndefined();
+
+    const switchedOff = buildMachine();
+    logInWithRemoteControl(switchedOff.paths, "account-a");
+    expect(runWatchTick({ ...switchedOff.deps, isRemoteControlKeptOn: false }).remoteControl).toBeUndefined();
+
+    const noLogin = buildMachine();
+    logInWithRemoteControl(noLogin.paths, "account-a");
+    writeFileSync(noLogin.paths.claudeGlobalConfigFile, JSON.stringify({}));
+    expect(runWatchTick(noLogin.deps).remoteControl).toBeUndefined();
+
+    for (const machine of [off, switchedOff, noLogin]) expect(respawnCallsOrResumes(machine.runner)).toEqual([]);
+  });
+});
+
 describe("runReloadPluginsPass", () => {
   it("previews without restarting or writing state", () => {
     const { deps, runner, paths } = buildMachine();
@@ -578,10 +679,11 @@ describe("slot registration through the service", () => {
 
 describe("createDefaultWatchTickDeps", () => {
   it("wires the real edges with the requested switches", () => {
-    const deps = createDefaultWatchTickDeps({ isAutoReloadEnabled: false, isRecoveryEnabled: true });
+    const deps = createDefaultWatchTickDeps({ isAutoReloadEnabled: false, isRecoveryEnabled: true, isRemoteControlKeptOn: false });
     expect(deps.platform).toBe(process.platform);
     expect(deps.isAutoReloadEnabled).toBe(false);
     expect(deps.isRecoveryEnabled).toBe(true);
+    expect(deps.isRemoteControlKeptOn).toBe(false);
     expect(deps.paths.watchDir).toMatch(/[\\/]\.muggle-ai[\\/]watch$/);
     expect(deps.paths.muggleInstallLogFile).toMatch(/[\\/]\.muggle-ai[\\/]postinstall\.log$/);
   });

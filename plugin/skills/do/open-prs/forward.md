@@ -40,7 +40,8 @@ Per repo:
 2. **Push:** Execute per [`../../_shared/vcs/common/push-to-branch.md`](../../_shared/vcs/common/push-to-branch.md) — the tool-agnostic instruction for pushing commits (handles the signing gate and directs to provider-specific recipes).
 
 3. **Title** (under 70 chars), from the validation strategy:
-   - `unit-only` or `skip` → `[UNIT-ONLY] <goal>` or `[UNVERIFIED] <goal>` to match the strategy
+   - `unit-only` → `[UNIT-ONLY] <goal>`
+   - `skip` → `[UNVERIFIED] <goal>`
    - Otherwise → `<goal>`. Stage 7 adds `[E2E FAILING]` if the run fails.
 
 4. **Body** — assemble in order:

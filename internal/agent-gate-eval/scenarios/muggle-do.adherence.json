@@ -304,6 +304,14 @@
         "response": "0"
       },
       {
+        "commandContains": "rev-parse origin/main",
+        "response": "ee89dc10aa11bb22cc33dd44ee55ff6677889900"
+      },
+      {
+        "commandContains": "rev-parse main",
+        "response": "ee89dc10aa11bb22cc33dd44ee55ff6677889900\n9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+      },
+      {
         "commandContains": "rev-parse HEAD",
         "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
       },
@@ -344,6 +352,10 @@
         "response": "diff --git a/src/greeting.js b/src/greeting.js\nindex 3b1f0c2..8e4d7a9 100644\n--- a/src/greeting.js\n+++ b/src/greeting.js\n@@ -1,5 +1,5 @@\n-/** The greeting the home page renders for a visitor. */\n+/** The greeting the home page renders for a visitor, with a farewell line under it. */\n export function renderGreeting(visitorName) {\n   const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n-  return `<h1>Hello, ${name}!</h1>`;\n+  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n }\ndiff --git a/test/greeting_test.js b/test/greeting_test.js\nindex 5c2e9d1..a17f3b8 100644\n--- a/test/greeting_test.js\n+++ b/test/greeting_test.js\n@@ -3,10 +3,10 @@ import { test } from \"node:test\";\n import { renderGreeting } from \"../src/greeting.js\";\n \n-test(\"greets a named visitor\", () => {\n-  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\");\n+test(\"greets a named visitor and bids them farewell\", () => {\n+  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n });\n \n-test(\"falls back to friend for a blank name\", () => {\n-  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\");\n+test(\"falls back to friend for a blank name in both lines\", () => {\n+  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n });"
       },
       {
+        "commandContains": " show",
+        "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting\n src/greeting.js       | 6 ++++--\n test/greeting_test.js | 6 ++++--\n 2 files changed, 5 insertions(+), 5 deletions(-)"
+      },
+      {
         "commandContains": " log",
         "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting"
       },
@@ -362,6 +374,14 @@
       {
         "commandContains": "ls-files",
         "response": "README.md\npackage.json\nsrc/greeting.js\nsrc/server.js\ntest/greeting_test.js"
+      },
+      {
+        "commandContains": "ls -a",
+        "response": ".\n..\n.git\nREADME.md\npackage.json\nsrc\ntest"
+      },
+      {
+        "commandContains": "ls -la",
+        "response": ".\n..\n.git\nREADME.md\npackage.json\nsrc\ntest"
       },
       {
         "commandContains": "ls ",

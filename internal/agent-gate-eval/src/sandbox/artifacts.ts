@@ -65,7 +65,9 @@ function bashAttemptNamesArtifact(
   const namesPath = spellings.some(
     (spelling) => normalizedCommand.includes(spelling) || reachesPathThroughDirectory(normalizedCommand, spelling),
   );
-  return namesPath && carriesExpectedContent(command, artifact);
+  // `printf` and `echo -e` write `\n` and `\t` as real whitespace, so the file holds the decoded text.
+  const decodedCommand = command.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+  return namesPath && (carriesExpectedContent(command, artifact) || carriesExpectedContent(decodedCommand, artifact));
 }
 
 /**

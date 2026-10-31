@@ -147,13 +147,23 @@ describe("the Codex agent harness", () => {
     expect(
       codexUnsupportedFeatures({
         ...options.scenario,
-        bashResponses: [{ commandContains: "gh", sequence: ["red", "green"] }],
+        bashResponses: [
+          { commandContains: "gh", sequence: ["red", "green"] },
+          { commandContains: "git status", afterCommandContains: "git commit", response: "clean" },
+        ],
         fixtures: { executeResult: { sequence: [{ status: "failed" }, { status: "passed" }] } },
         seed: { repo: "tiny-web-app" },
         toolResponses: {},
         expect: { requireArtifacts: [{ path: "~/x" }] },
       }),
-    ).toEqual(["bashResponses sequence", "fixtures sequence", "seed", "toolResponses", "requireArtifacts"]);
+    ).toEqual([
+      "bashResponses sequence",
+      "bashResponses afterCommandContains",
+      "fixtures sequence",
+      "seed",
+      "toolResponses",
+      "requireArtifacts",
+    ]);
   });
 
   it("gives the agent its definition and the Codex note, and names the mock tools only when the scenario has fixtures", () => {

@@ -50,9 +50,15 @@ function bashResponseMatches(scripted: ScriptedBashResponse, command: string): b
   return command.includes(scripted.commandContains);
 }
 
+function hasPrecedingCommand(scripted: ScriptedBashResponse, answeredCommands: string[]): boolean {
+  const after = scripted.afterCommandContains;
+  return after === undefined || answeredCommands.some((command) => command.includes(after));
+}
+
 /**
  * Resolve the canned stdout for an intercepted Bash command's first call. First
- * match wins; `commandContains: ""` is the catch-all.
+ * match wins; `commandContains: ""` is the catch-all. A first call has no
+ * earlier commands, so an entry with `afterCommandContains` never answers it.
  *
  * A command the scenario never stubs falls through to `UNSCRIPTED_BASH_RESPONSE`,
  * which the agent reads as that command's literal output. A lookup whose real answer
@@ -66,15 +72,32 @@ export function resolveScriptedBashResponse(
   command: string,
   responses: ScriptedBashResponse[] | undefined,
 ): string {
-  const scripted = (responses ?? []).find((candidate) => bashResponseMatches(candidate, command));
+  const scripted = (responses ?? []).find(
+    (candidate) => candidate.afterCommandContains === undefined && bashResponseMatches(candidate, command),
+  );
   return scripted ? scriptedReplyAt(scripted, 0) : UNSCRIPTED_BASH_RESPONSE;
 }
 
-/** A run's Bash answerer: `resolveScriptedBashResponse`, with each entry's sequence advancing per matching call. */
+/**
+ * A run's Bash answerer: `resolveScriptedBashResponse`, with each entry's
+ * sequence advancing per matching call and each `afterCommandContains` entry
+ * eligible once a command before this one carried its substring.
+ */
 export function createBashResponder(
   responses: ScriptedBashResponse[] | undefined,
 ): (command: string) => string {
-  return createSequencedResponder(responses, bashResponseMatches, UNSCRIPTED_BASH_RESPONSE);
+  const answeredCommands: string[] = [];
+  const respond = createSequencedResponder(
+    responses,
+    (scripted: ScriptedBashResponse, command) =>
+      bashResponseMatches(scripted, command) && hasPrecedingCommand(scripted, answeredCommands),
+    UNSCRIPTED_BASH_RESPONSE,
+  );
+  return (command) => {
+    const reply = respond(command);
+    answeredCommands.push(command);
+    return reply;
+  };
 }
 
 /**

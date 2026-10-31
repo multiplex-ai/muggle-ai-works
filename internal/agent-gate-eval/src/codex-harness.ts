@@ -70,6 +70,9 @@ export function codexUnsupportedFeatures(scenario: AgentScenario): string[] {
   if ((scenario.bashResponses ?? []).some((scripted) => (scripted.sequence ?? []).length > 0)) {
     unsupported.push("bashResponses sequence");
   }
+  if ((scenario.bashResponses ?? []).some((scripted) => scripted.afterCommandContains !== undefined)) {
+    unsupported.push("bashResponses afterCommandContains");
+  }
   if (Object.values(scenario.fixtures ?? {}).some(isSequencedFixture)) unsupported.push("fixtures sequence");
   if (scenario.seed) unsupported.push("seed");
   if (scenario.toolResponses) unsupported.push("toolResponses");

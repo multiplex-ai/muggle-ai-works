@@ -162,6 +162,32 @@ describe("requireToolSequence", () => {
   });
 });
 
+describe("requireLastAmong", () => {
+  const read = (file: string): ToolAttempt => ({ tool: "Read", args: { file_path: file } });
+  const respawnLast = {
+    requireLastAmong: [
+      { among: { tool: "Read", argContains: "skills/do/" }, last: { tool: "Read", argContains: "respawn-watcher.md" } },
+    ],
+  };
+
+  it("passes when the latest matching attempt matches last, whatever came after it", () => {
+    const attempts = [read("skills/do/fix-ci.md"), read("skills/do/respawn-watcher.md"), bash("bash pr-watch-arm.sh")];
+    expect(judgeAgentRun(scenario(respawnLast), "", attempts, 0).pass).toBe(true);
+  });
+
+  it("fails when a later matching attempt follows, naming it", () => {
+    const attempts = [read("skills/do/respawn-watcher.md"), read("skills/do/cycle-size.md")];
+    const v = judgeAgentRun(scenario(respawnLast), "", attempts, 0);
+    expect(v.pass).toBe(false);
+    expect(v.reasons[0]).toContain("cycle-size.md");
+  });
+
+  it("fails when nothing matches among", () => {
+    const v = judgeAgentRun(scenario(respawnLast), "", [bash("git push")], 0);
+    expect(v.reasons[0]).toContain("none matched");
+  });
+});
+
 describe("tool-attempt patterns", () => {
   it("requires every substring of an argContains list", () => {
     const failingTitle: ToolAttemptPattern = { tool: "Bash", argContains: ["gh pr create", "[E2E FAILING]"] };

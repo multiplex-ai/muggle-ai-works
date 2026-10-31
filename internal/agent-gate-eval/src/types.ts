@@ -54,6 +54,11 @@ export interface ScriptedReply {
  */
 export interface ScriptedBashResponse extends ScriptedReply {
   commandContains: string;
+  /**
+   * Answers only once an earlier Bash command carried this substring: the
+   * state a commit, push or rebase leaves behind, for the reads that follow it.
+   */
+  afterCommandContains?: string;
 }
 
 /**
@@ -108,6 +113,14 @@ export type ToolAttemptPattern = SingleToolAttemptPattern | AnyOfToolAttemptPatt
 /** In a scenario file, stands for the file's `patterns[pattern]`; replaced when the file loads. */
 export interface ToolAttemptPatternReference {
   pattern: string;
+}
+
+/** Among the attempts one pattern matches, the latest must also match another: a step that has to close out its kind. */
+export interface LastAmongExpectation {
+  /** The attempts considered, e.g. every push, PR reply, skip declaration and watcher arm. */
+  among: ToolAttemptPattern;
+  /** What the latest of those attempts must match. */
+  last: ToolAttemptPattern;
 }
 
 /** A file the run must leave behind: in the sandbox, or named by a recorded Write or Bash attempt. */
@@ -244,6 +257,8 @@ export interface AgentScenarioExpectation {
    * their own predecessor (a stage's file read before that stage's action) without one fixed order across them.
    */
   requireToolSequences?: ToolAttemptPattern[][];
+  /** For each entry, the latest attempt `among` matches must match `last`; no attempt matching `among` fails it. */
+  requireLastAmong?: LastAmongExpectation[];
   /** Files the run must leave in the sandbox or name in a recorded Write or Bash attempt. */
   requireArtifacts?: ArtifactExpectation[];
   /**

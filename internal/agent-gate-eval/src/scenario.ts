@@ -68,6 +68,18 @@ function resolveExpectationPatterns(
       resolvePatternReferences(sequence, namedPatterns, `${label} expect.requireToolSequences[${index}]`),
     );
   }
+  const lastAmong = expectation.requireLastAmong as unknown;
+  if (lastAmong !== undefined) {
+    if (!Array.isArray(lastAmong)) throw new Error(`${label}: expect.requireLastAmong must be a list`);
+    resolved.requireLastAmong = lastAmong.map((entry: unknown, index) => {
+      const entryLabel = `${label} expect.requireLastAmong[${index}]`;
+      if (typeof entry !== "object" || entry === null || !("among" in entry) || !("last" in entry)) {
+        throw new Error(`${entryLabel} needs among and last`);
+      }
+      const [among, last] = resolvePatternReferences([entry.among, entry.last], namedPatterns, entryLabel);
+      return { among: among, last: last };
+    });
+  }
   return resolved;
 }
 
@@ -76,6 +88,9 @@ function validateScenario(scenario: AgentScenario, filePath: string): void {
   for (const scripted of scenario.bashResponses ?? []) {
     if (typeof scripted.commandContains !== "string" || !isScriptedReply(scripted)) {
       throw new Error(`${label}: each bashResponses entry needs commandContains and a response or non-empty sequence`);
+    }
+    if (scripted.afterCommandContains !== undefined && typeof scripted.afterCommandContains !== "string") {
+      throw new Error(`${label}: bashResponses afterCommandContains must be a string`);
     }
   }
   for (const [tool, entries] of Object.entries(scenario.toolResponses ?? {})) {

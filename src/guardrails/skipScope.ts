@@ -1,9 +1,18 @@
 import { isSameChange } from "./changeIdentity.js";
 import type { ChangeIdentity, GuardrailState } from "./types.js";
 
-/** Whether a PR the session opened belongs to the change the latest skip was verified for. */
-function isPrOfSkipChange(state: GuardrailState, prUrl: string): boolean {
+/** Whether a PR the session opened belongs to the change the current skip declaration was verified for. */
+export function isPrOfSkipChange(state: GuardrailState, prUrl: string): boolean {
   return isSameChange(state.prChanges?.[prUrl], state.e2eSkipVerifiedChange);
+}
+
+/**
+ * The handled PRs the current skip declaration's reason belongs on: those of its own change.
+ *
+ * A PR an earlier skip covered for another change keeps that skip's record.
+ */
+export function prsOfSkipChange(state: GuardrailState): string[] {
+  return state.prsHandled.filter((prUrl) => isPrOfSkipChange(state, prUrl));
 }
 
 function withCoveredPrs(state: GuardrailState, prUrls: string[]): GuardrailState {
@@ -42,15 +51,18 @@ export function applyPrOpenedToSkipScope(
 }
 
 /**
- * Record the change an accepted skip was verified for, and cover every PR already opened for it.
+ * Scope a newly accepted skip declaration to the change it was verified for, and cover every PR already opened for it.
  *
- * Same reference when there is no change to scope it to: an unscoped skip covers nothing.
+ * A declaration whose change could not be resolved is scoped to none, so it never pairs with the change of
+ * the declaration before it; an unscoped skip covers nothing. Coverage an earlier skip gave its own PRs stays.
  */
 export function applyE2eSkipScope(state: GuardrailState, verifiedChange: ChangeIdentity | undefined): GuardrailState {
-  if (!verifiedChange || !state.e2eSkipDeclaration) return state;
+  if (!state.e2eSkipDeclaration) return state;
+  if (!verifiedChange) {
+    if (!state.e2eSkipVerifiedChange) return state;
+    const { e2eSkipVerifiedChange: _previousDeclarationChange, ...unscoped } = state;
+    return unscoped;
+  }
   const scoped = { ...state, e2eSkipVerifiedChange: verifiedChange };
-  return withCoveredPrs(
-    scoped,
-    scoped.prsHandled.filter((prUrl) => isPrOfSkipChange(scoped, prUrl)),
-  );
+  return withCoveredPrs(scoped, prsOfSkipChange(scoped));
 }

@@ -96,6 +96,25 @@ describe("applyStateMutation", () => {
     });
   });
 
+  it("drops the previous declaration's change when a new skip's change went unresolved", () => {
+    const prOfTreeChange = { ...emptyState, prsHandled: [PR_URL], prChanges: { [PR_URL]: treeChange } };
+    const earlierSkip = applyStateMutation(prOfTreeChange, declaredSkipOutcome);
+    const unresolvedSkip = applyStateMutation(earlierSkip, { ...declaredSkipOutcome, skipVerifiedChange: undefined });
+    expect(unresolvedSkip.e2eSkipVerifiedChange).toBeUndefined();
+    expect(unresolvedSkip.e2eSkipCoveredPrs).toEqual([PR_URL]);
+  });
+
+  it("keeps the declaration's change through a cycle-scoped skip", () => {
+    const earlierSkip = applyStateMutation(emptyState, declaredSkipOutcome);
+    const cycleSkip = applyStateMutation(earlierSkip, {
+      ...declaredSkipOutcome,
+      run: { ...declaredSkipOutcome.run, e2eSkipCycleScoped: true },
+      acceptedSkip: { code: E2eSkipCode.NoAppLogicChange, detail: "abc..def docs only" },
+      skipVerifiedChange: undefined,
+    });
+    expect(cycleSkip.e2eSkipVerifiedChange).toEqual(treeChange);
+  });
+
   it("records a skill, its mandatory stages and the run its emit stands for", () => {
     expect(applyStateMutation(emptyState, skillInvocation)).toMatchObject({
       lastInvokedSkillName: "muggle-test",

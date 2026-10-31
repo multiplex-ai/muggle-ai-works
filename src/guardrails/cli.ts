@@ -65,7 +65,7 @@ import {
   undebuggedFailedRuns,
 } from "./debugPath.js";
 import { isTestCommand, testsPassed, isE2ERun } from "./testsGreen.js";
-import { e2eGateDecision, E2eGateAction, MAX_E2E_BLOCKS, shouldRunE2E } from "./shouldRunE2E.js";
+import { e2eGateDecision, E2eGateAction, isEnvironmentSkip, MAX_E2E_BLOCKS, shouldRunE2E } from "./shouldRunE2E.js";
 import { buildE2eOwedReason } from "./e2eOwedReason.js";
 import {
   findUnwatchedHandledPrs,
@@ -100,7 +100,7 @@ import {
   walkthroughGateDecision,
 } from "./walkthroughOwed.js";
 import { detectBackgroundAcceptanceDispatch, withoutDelegatedPrs } from "./delegatedE2e.js";
-import { isPrCoveredBySkip } from "./skipScope.js";
+import { isPrCoveredBySkip, isPrOfSkipChange, prsOfSkipChange } from "./skipScope.js";
 import { resolveOpenedPrChange, resolveTreeChange } from "./changeIdentity.js";
 import { detectFinishedRun } from "./finishedRun.js";
 import { parseProgressCase } from "../pr-walkthrough/progress.js";
@@ -351,7 +351,7 @@ function recordTests(): string {
   const walkthroughPosted = detectWalkthroughPost(input);
   // A cycle-scoped skip is never kept as the declaration, so only an
   // environment skip may move the declaration's change to this tree's.
-  const isDeclaredHere = acceptedSkip !== null && !CYCLE_SCOPED_SKIP_CODES.includes(acceptedSkip.code);
+  const isDeclaredHere = isEnvironmentSkip(acceptedSkip);
   // Every input is captured now, the post's time included, so a commit deferred
   // past a contended lock records exactly what this one would have.
   const outcome: ToolOutcomeMutation = {
@@ -399,13 +399,14 @@ function recordTests(): string {
 // tree's change — its repo and checked-out branch: the PRs opened for it, and
 // that branch's PR — in a watcher cycle usually opened by an earlier session,
 // so not among the handled ones. Any other PR the session opened is a different
-// change, often in another repo, with its own run still owed.
+// change, often in another repo, with its own run still owed — or with an
+// earlier skip's record, which this one must not overwrite.
 function recordSkipReasonOnPrs(state: GuardrailState, skip: DeclaredSkip): void {
   if (skip.code === E2eSkipCode.NoAppLogicChange) {
     startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughNoAppLogicChange, [skip.detail], input.cwd);
     return;
   }
-  for (const prUrl of state.prsHandled.filter((handledPrUrl) => isPrCoveredBySkip(state, handledPrUrl))) {
+  for (const prUrl of prsOfSkipChange(state)) {
     startBackgroundJob(GuardrailBackgroundJob.SettleWalkthroughSkipped, [prUrl, skip.code, skip.detail]);
   }
   startBackgroundJob(GuardrailBackgroundJob.SettleBranchWalkthroughSkipped, [skip.code, skip.detail], input.cwd);
@@ -757,9 +758,9 @@ function walkthroughGate(): string {
   if (decision.action === WalkthroughGateAction.Release) return releaseGate("walkthroughReleased");
   if (decision.action !== WalkthroughGateAction.Block) return "{}";
   recordGateBlock("walkthroughBlockCount", decision.blockCount);
-  // A PR the skip was applied to owes the skip's record; every other PR owes the run of its own change.
+  // A PR of the declaration's own change owes its record; every other PR owes the run or skip of its own change.
   const declaredSkip = state.e2eSkipDeclaration;
-  const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrCoveredBySkip(state, prUrl)) : [];
+  const skipOwedPrUrls = declaredSkip ? decision.owed.filter((prUrl) => isPrOfSkipChange(state, prUrl)) : [];
   if (declaredSkip && skipOwedPrUrls.length > 0) {
     return blockOnUnsettledSkip(declaredSkip, skipOwedPrUrls, decision.blockCount);
   }

@@ -177,7 +177,7 @@ export const HOST_STUB_SPECS: HostStubSpec[] = [
   },
   {
     tool: ScriptedTool.TaskStop,
-    description: "Stop a running background task, such as a monitor, by its task id.",
+    description: "Stop a running background task, such as a PR watch loop, by its task id.",
     shape: { task_id: z.string() },
   },
 ];

@@ -8,7 +8,7 @@ How an orchestrating session starts the watch on one PR. Every arming point runs
 bash "<abs>/scripts/pr-watch-arm.sh" --slot "<slot>" --repo "<owner>/<repo>" --pr <n> --base <base-branch>
 ```
 
-That command is the persistent monitor's (Step 3), never a foreground Bash call: the script execs the loop, so a foreground call holds the turn until the monitor window closes and leaves no watch behind it.
+That command runs as a background shell command (Step 3), never a foreground Bash call: the script execs the loop, so a foreground call holds the turn until the loop exits and leaves no watch behind it.
 
 The same argument that forbids authoring a per-slot `watch.sh` applies to arming itself. Performed from prose, the middle step — writing `watch-watermark.env` — is the one that gets dropped, and dropping it is silent: the loop gates every wake condition on that file, so it polls nothing, reports nothing and never reaches its terminal check, while still holding its PID lease and touching its heartbeat. Eleven such watchers once ran for hours across one session, missed nine merges and a red CI run between them, and every health signal said they were fine. Running one command cannot half-happen.
 

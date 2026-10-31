@@ -213,7 +213,27 @@
         "commandContains": "--force-with-lease",
         "response": "To https://github.com/acme/tiny-web-app.git\n + 9f2c1e4...3b7d2a6 users/eval/farewell-line -> users/eval/farewell-line (forced update)"
       },
-      {"commandContains":"git commit","response":"[users/eval/farewell-line 3b7d2a6]"},
+      {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+      {
+        "commandContains": "farewell-line..HEAD",
+        "afterCommandContains": "git commit",
+        "response": "3b7d2a6 address the review"
+      },
+      {"commandContains":"farewell-line..HEAD","response":""},
+      {
+        "commandContains": "git commit",
+        "response": "[users/eval/farewell-line 3b7d2a6] address the review\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "commandContains": " show",
+        "afterCommandContains": "git commit",
+        "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    address the review\n\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "commandContains": " log",
+        "afterCommandContains": "git commit",
+        "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) address the review\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+      },
       {
         "commandContains": " push",
         "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
@@ -257,11 +277,6 @@
         "response": "README.md\nsrc/greeting.js\ntest/greeting_test.js"
       },
       {"commandContains":"ls-files --others","response":""},
-      {
-        "commandContains": " log",
-        "afterCommandContains": "git commit",
-        "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) address the review\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
-      },
       {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
     ],
     "toolResponses": {
@@ -422,6 +437,8 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "gh pr checks",
           "response": "[{\"name\": \"lint\", \"state\": \"FAILURE\", \"bucket\": \"fail\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9001\"}, {\"name\": \"unit\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9002\"}, {\"name\": \"muggle-walkthrough\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/runs/9100\"}]"
@@ -438,7 +455,27 @@
           "commandContains": "MUGGLE_E2E_SKIP",
           "response": "MUGGLE_E2E_SKIP accepted: NO_APP_LOGIC_CHANGE verified for acme/tiny-web-app#142 — the walkthrough comment now reads \"E2E skipped — no app-logic change\" with the stated reason, the last full run collapsed beneath it."
         },
-        {"commandContains":"git commit","response":"[users/eval/farewell-line 3b7d2a6]"},
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 fix(ci): lint — drop the unused mock import"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": "git commit",
+          "response": "[users/eval/farewell-line 3b7d2a6] fix(ci): lint — drop the unused mock import\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " show",
+          "afterCommandContains": "git commit",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    fix(ci): lint — drop the unused mock import\n\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) fix(ci): lint — drop the unused mock import\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
         {
           "commandContains": " push",
           "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
@@ -464,12 +501,11 @@
           },
           {"tool":"Bash","argContains":"lint"},
           {"pattern":"unit-run"},
-          {"tool":"Bash","argContains":["git commit","fix(ci)"]},
           {"pattern":"pushed"},
           {"pattern":"no-app-logic-skip"},
           {"pattern":"watcher-armed"}
         ],
-        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireToolAttempts": [{"tool":"Bash","argContains":["git commit","fix(ci)"]},{"pattern":"respawn-read"}],
         "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"}}],
         "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"pr-reply"},{"pattern":"e2e-executed"}],
         "requireArtifacts": [
@@ -489,6 +525,8 @@
       "prompt": "fix ci deploy-preview on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
       "cadence": "pr",
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
         {
           "commandContains": "gh pr checks",
@@ -573,6 +611,8 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
         {
           "commandContains": "gh pr checks",
@@ -590,7 +630,27 @@
           "commandContains": "MUGGLE_E2E_SKIP",
           "response": "MUGGLE_E2E_SKIP accepted: NO_APP_LOGIC_CHANGE verified for acme/tiny-web-app#142 — the walkthrough comment now reads \"E2E skipped — no app-logic change\" with the stated reason, the last full run collapsed beneath it."
         },
-        {"commandContains":"git commit","response":"[users/eval/farewell-line 3b7d2a6]"},
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 fix(ci): lint — drop the unused mock import"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": "git commit",
+          "response": "[users/eval/farewell-line 3b7d2a6] fix(ci): lint — drop the unused mock import\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " show",
+          "afterCommandContains": "git commit",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    fix(ci): lint — drop the unused mock import\n\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) fix(ci): lint — drop the unused mock import\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
         {
           "commandContains": " push",
           "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
@@ -633,6 +693,8 @@
       "prompt": "rebase on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
       "cadence": "pr",
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "gh pr view",
           "afterCommandContains": "--force-with-lease",
@@ -739,6 +801,18 @@
           "commandContains": " status",
           "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
         },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase origin",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase origin",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
         {
           "commandContains": "origin/main..HEAD",
           "afterCommandContains": "rebase origin",
@@ -792,6 +866,8 @@
       "cadence": "pr",
       "preferences": {"autoResolveConflicts":"never"},
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "gh pr view",
           "afterCommandContains": "--force-with-lease",
@@ -902,6 +978,18 @@
           "commandContains": " status",
           "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
         },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
         {
           "commandContains": "origin/main..HEAD",
           "afterCommandContains": "rebase --continue",
@@ -1007,6 +1095,8 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "gh pr view",
           "afterCommandContains": "--force-with-lease",
@@ -1117,6 +1207,18 @@
           "commandContains": " status",
           "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
         },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
         {
           "commandContains": "origin/main..HEAD",
           "afterCommandContains": "rebase --continue",
@@ -1218,6 +1320,32 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "show 7d3e9a1",
+          "response": "commit 7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\n\n    security: refuse anonymous greetings — a blank visitor name now throws (SEC-142)\n\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n"
+        },
+        {
+          "commandContains": "show origin/main",
+          "response": "/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n"
+        },
+        {
+          "commandContains": "cat src/greeting.js",
+          "response": "<<<<<<< HEAD\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n=======\n/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n>>>>>>> 9f2c1e4 (feat(greeting): add a farewell line under the greeting)\n"
+        },
+        {
+          "commandContains": "guard-run",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "npm test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "node --test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
         {
           "commandContains": "gh pr view",
           "afterCommandContains": "--force-with-lease",
@@ -1328,6 +1456,18 @@
           "commandContains": " status",
           "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
         },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
         {
           "commandContains": "origin/main..HEAD",
           "afterCommandContains": "rebase --continue",
@@ -1346,27 +1486,7 @@
           "afterCommandContains": "rebase --continue",
           "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
         },
-        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"},
-        {
-          "commandContains": "git show",
-          "response": "commit 7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\n\n    security: refuse anonymous greetings — a blank visitor name now throws (SEC-142)\n\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n"
-        },
-        {
-          "commandContains": "cat src/greeting.js",
-          "response": "<<<<<<< HEAD\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n=======\n/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n>>>>>>> 9f2c1e4 (feat(greeting): add a farewell line under the greeting)\n"
-        },
-        {
-          "commandContains": "guard-run",
-          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
-        },
-        {
-          "commandContains": "npm test",
-          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
-        },
-        {
-          "commandContains": "node --test",
-          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
-        }
+        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
       ],
       "expect": {
         "requireToolSequence": [
@@ -1392,6 +1512,8 @@
       "prompt": "address reviews 2101 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
       "cadence": "pr",
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "graphql",
           "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3301\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3301, \"pullRequestReview\": {\"databaseId\": 2101}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
@@ -1448,6 +1570,8 @@
       "cadence": "pr",
       "maxTurns": 90,
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "graphql",
           "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3302\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3302, \"pullRequestReview\": {\"databaseId\": 2102}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Reword this doc comment to name both lines: \\\"The greeting and farewell lines the home page renders for a visitor.\\\"\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
@@ -1499,6 +1623,8 @@
       "cadence": "nightly",
       "maxTurns": 90,
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "graphql",
           "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3303\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3303, \"pullRequestReview\": {\"databaseId\": 2103}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
@@ -1553,6 +1679,8 @@
       "cadence": "nightly",
       "maxTurns": 90,
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {
           "commandContains": "graphql",
           "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3305\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3305, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}, {\"id\": \"PRRT_kwDOeval3306\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3306, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
@@ -1617,6 +1745,8 @@
       "prompt": "address reviews 2104 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
       "cadence": "pr",
       "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
         {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
         {
           "commandContains": "graphql",

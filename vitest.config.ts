@@ -16,6 +16,12 @@ export const WALL_CLOCK_HOOK_TESTS = [
 /** Env every vitest run here sets; why is noted where the config below applies it. */
 export const TEST_RUN_ENV = { MUGGLE_GUARDRAIL_GH_CALLS: "off", MUGGLE_STACK_SERVICE_STOPS: "off", MUGGLE_PR_LOOKUP: "off" };
 
+/** Global setup that creates the run's temp root and removes it when the run ends. */
+export const RUN_TEMP_ROOT_GLOBAL_SETUP = "src/test/vitest-temp-root/globalSetup.ts";
+
+/** Per-worker setup that points the temp-dir env vars at the run's temp root. */
+export const RUN_TEMP_ROOT_SETUP_FILE = "src/test/vitest-temp-root/setupFile.ts";
+
 /** Share of the cores a local run may use. CI keeps vitest's default. */
 export const LOCAL_MAX_WORKERS = "25%";
 
@@ -52,6 +58,11 @@ export default defineConfig({
     // The local E2E queues rank a checkout by its open pull request; no run
     // may be ordered by whatever PR the contributor's own branch has.
     env: TEST_RUN_ENV,
+    // Hundreds of fixtures mkdtemp under os.tmpdir() and never remove it, so
+    // every run left thousands of directories in the real temp dir. One root
+    // per run, removed at teardown, contains all of them.
+    globalSetup: [RUN_TEMP_ROOT_GLOBAL_SETUP],
+    setupFiles: [RUN_TEMP_ROOT_SETUP_FILE],
     // First entry is Vitest's default glob (kept so packages/** and internal/**
     // stay discovered); second makes the top-level test/ tree — tests mirror
     // their src/ path there — explicit.

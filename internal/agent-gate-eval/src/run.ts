@@ -38,6 +38,7 @@ import { PASS_THRESHOLD } from "../../skill-gate-eval/src/constants.js";
 import { EvalHost } from "../../skill-gate-eval/src/types.js";
 import { parseEvalCliArgs } from "./cli-args.js";
 import { codexUnsupportedFeatures, prepareCodexAgentHome, runAgentScenarioOnceInCodex } from "./codex-harness.js";
+import { formatFailedRunTrace } from "./failed-run-trace.js";
 import { runAgentScenarioOnce } from "./harness.js";
 import { loadScenarioSuites, scenariosForCadence } from "./scenario.js";
 import { suiteResultsPath, summarizeScenarioVerdicts } from "./suite-report.js";
@@ -191,6 +192,8 @@ async function main(): Promise<void> {
           );
           if (args.verbose) {
             console.error(JSON.stringify(verdict, null, 2));
+          } else {
+            for (const line of formatFailedRunTrace(verdict)) console.error(line);
           }
           return { suiteIndex: suiteIndex, scenarioIndex: scenarioIndex, verdict: verdict };
         };

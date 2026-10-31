@@ -1,7 +1,7 @@
-import { readFileSync, rmSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync } from 'fs';
+import { spawnSync, execFileSync, spawn } from 'child_process';
+import { readFileSync, rmSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, writeFileSync, renameSync, statSync, writeSync, unlinkSync } from 'fs';
 import { join, isAbsolute, resolve, basename, dirname } from 'path';
 import { homedir, tmpdir, hostname } from 'os';
-import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 
@@ -131,6 +131,12 @@ var REWAKE_ANCHOR_ROLE_BY_EVENT = {
   Stop: "assistant",
   UserPromptSubmit: "user"
 };
+var RECONCILED_HOOK_EVENT = "PostToolUse";
+var RECONCILED_RECORD_SUFFIX = ".reconciled-record";
+var RECONCILE_REPLAY_TIMEOUT_MS = 15e3;
+var GUARDRAIL_SUBCOMMAND_ASSIGNMENT = /^GUARDRAIL_SUBCOMMAND="([\w-]+)"/m;
+var HOOK_COMMAND_SCRIPTS = /^set -- ([^;]+);/;
+var GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -279,6 +285,20 @@ function takeSyncHookOutput(sessionId2, hookEventName, payloadDigest2, dirOverri
   } catch {
     return null;
   }
+}
+function readReconciledRecord(sessionId2, dirOverride) {
+  try {
+    return readFileSync(fileFor(sessionId2, dirOverride, RECONCILED_RECORD_SUFFIX), "utf-8").trim() || void 0;
+  } catch {
+    return void 0;
+  }
+}
+function writeReconciledRecord(sessionId2, recordUuid, dirOverride) {
+  mkdirSync(baseDir(dirOverride), { recursive: true });
+  const target = fileFor(sessionId2, dirOverride, RECONCILED_RECORD_SUFFIX);
+  const staging = `${target}.${process.pid}.tmp`;
+  writeFileSync(staging, recordUuid);
+  renameSync(staging, target);
 }
 var lockFor = (sessionId2, dirOverride) => `${fileFor(sessionId2, dirOverride)}.lock`;
 function commitUnderHeldLock(sessionId2, mutate, dirOverride) {
@@ -2923,6 +2943,75 @@ function rewakeMessage(hookEventName, hookOutput) {
 ${deliveredText}`;
 }
 
+// src/guardrails/reconcile.ts
+function parseTranscriptLines(transcriptTail) {
+  return transcriptTail.split("\n").flatMap((line) => {
+    try {
+      return [JSON.parse(line)];
+    } catch {
+      return [];
+    }
+  });
+}
+function contentBlocks(line) {
+  const content = line.message?.content;
+  return Array.isArray(content) ? content : [];
+}
+function toolResponseFor(line, block) {
+  if (line.toolUseResult && typeof line.toolUseResult === "object") return line.toolUseResult;
+  if (typeof block.content === "string") return { output: block.content };
+  return { content: block.content };
+}
+function isCancelledSyncRecorderRecord(record) {
+  if (record?.type !== TRANSCRIPT_HOOK_CANCELLED_TYPE || record.hookEvent !== RECONCILED_HOOK_EVENT) return false;
+  const command = record.command ?? "";
+  return command.includes(GUARDRAIL_HOOK_COMMAND_MARKER) && !command.includes(REWAKE_HOOK_SCRIPT);
+}
+function findCancelledRecorderEvents(transcriptTail, sessionInput, afterRecordUuid) {
+  const lines = parseTranscriptLines(transcriptTail);
+  const toolCalls = /* @__PURE__ */ new Map();
+  const toolResults = /* @__PURE__ */ new Map();
+  for (const line of lines) {
+    for (const block of contentBlocks(line)) {
+      if (block.type === "tool_use" && block.id) toolCalls.set(block.id, { name: block.name, input: block.input });
+      if (block.type === "tool_result" && block.tool_use_id) toolResults.set(block.tool_use_id, { line, block });
+    }
+  }
+  const watermarkIndex = afterRecordUuid ? lines.findIndex((line) => line.uuid === afterRecordUuid) : -1;
+  return lines.slice(watermarkIndex + 1).flatMap((line) => {
+    const record = line.attachment;
+    if (!line.uuid || !record || !isCancelledSyncRecorderRecord(record) || !record.toolUseID) return [];
+    const toolCall = toolCalls.get(record.toolUseID);
+    const toolResult = toolResults.get(record.toolUseID);
+    if (!toolCall || !toolResult) return [];
+    return [
+      {
+        recordUuid: line.uuid,
+        command: record.command ?? "",
+        replayPayload: {
+          session_id: sessionInput.session_id,
+          transcript_path: sessionInput.transcript_path,
+          cwd: toolResult.line.cwd ?? line.cwd ?? sessionInput.cwd,
+          hook_event_name: RECONCILED_HOOK_EVENT,
+          tool_name: toolCall.name,
+          tool_input: toolCall.input,
+          tool_response: toolResponseFor(toolResult.line, toolResult.block),
+          tool_use_id: record.toolUseID
+        }
+      }
+    ];
+  });
+}
+function recorderSubcommands(command, readScript) {
+  const scriptList = HOOK_COMMAND_SCRIPTS.exec(command)?.[1] ?? "";
+  const scriptNames = scriptList.split(/\s+/).filter((scriptName) => scriptName && scriptName !== GUARDRAIL_DISPATCH_SCRIPT);
+  const subcommands = scriptNames.flatMap((scriptName) => {
+    const subcommand = GUARDRAIL_SUBCOMMAND_ASSIGNMENT.exec(readScript(scriptName) ?? "")?.[1];
+    return subcommand ? [subcommand] : [];
+  });
+  return [...new Set(subcommands)];
+}
+
 // src/guardrails/hookHost.ts
 function resolveHookHost(env = process.env) {
   if (env[HOOK_HOST_ENV_VAR] === "codex") return "codex";
@@ -3540,8 +3629,35 @@ function awaitSyncHookOutcome(hookEventName) {
     waitSync(REWAKE_OUTCOME_POLL_MS);
   }
 }
+function readGuardrailScript(scriptName) {
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT ?? process.env.CURSOR_PLUGIN_ROOT;
+  const scriptsDir = pluginRoot ? join(pluginRoot, "scripts") : dirname(process.argv[1]);
+  try {
+    return readFileSync(join(scriptsDir, scriptName), "utf-8");
+  } catch {
+    return null;
+  }
+}
+function reconcileCancelledRecorders() {
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return;
+  const transcriptTail = readFileTail(transcriptPath, REWAKE_TRANSCRIPT_TAIL_BYTES) ?? "";
+  for (const event of findCancelledRecorderEvents(transcriptTail, input, readReconciledRecord(sessionId))) {
+    const subcommands = recorderSubcommands(event.command, readGuardrailScript);
+    if (subcommands.length > 0) {
+      spawnSync(process.execPath, [...process.execArgv, process.argv[1], "run", ...subcommands], {
+        input: JSON.stringify(event.replayPayload),
+        timeout: RECONCILE_REPLAY_TIMEOUT_MS,
+        windowsHide: true,
+        stdio: ["pipe", "ignore", "ignore"]
+      });
+    }
+    writeReconciledRecord(sessionId, event.recordUuid);
+  }
+}
 function rewake() {
   const hookEventName = input.hook_event_name ?? "";
+  if (hookEventName === "Stop") reconcileCancelledRecorders();
   const outcome = awaitSyncHookOutcome(hookEventName);
   const savedOutput = takeSyncHookOutput(sessionId, hookEventName, payloadDigest(rawPayload));
   if (outcome === "delivered" /* Delivered */) return "";

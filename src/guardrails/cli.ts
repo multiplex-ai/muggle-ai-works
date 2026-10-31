@@ -1,4 +1,6 @@
+import { spawnSync } from "child_process";
 import { readFileSync } from "fs";
+import { dirname, join } from "path";
 import {
   readE2eShellBlockCount,
   readState,
@@ -9,6 +11,8 @@ import {
   writePrStateScan,
   takeSyncHookOutput,
   writeSyncHookOutput,
+  readReconciledRecord,
+  writeReconciledRecord,
 } from "./sessionState.js";
 import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
 import { commitDeferredSessionState, commitStateMutation } from "./stateCommit.js";
@@ -34,6 +38,7 @@ import {
   REWAKE_OUTCOME_WAIT_MS,
   REWAKE_SUBCOMMAND,
   REWAKE_TRANSCRIPT_TAIL_BYTES,
+  RECONCILE_REPLAY_TIMEOUT_MS,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
@@ -131,6 +136,7 @@ import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./emit.js";
 import { normalizeHookInput } from "./hookInput.js";
 import { findSyncHookOutcome, payloadDigest, rewakeMessage, transcriptAnchor } from "./rewake.js";
+import { findCancelledRecorderEvents, recorderSubcommands } from "./reconcile.js";
 import { resolveHookHost, skillInvocation } from "./hookHost.js";
 import { isShellToolCall } from "./shellTool.js";
 import { enforceHookChildProcessDeadline } from "../hook-budget/childProcessBudget.js";
@@ -1126,8 +1132,44 @@ function awaitSyncHookOutcome(hookEventName: string): SyncHookOutcome {
  * its saved output when it got that far, else a fresh run of the gates the companion's pre-filters let through.
  * @returns "" when the synchronous run delivered, or there is nothing to say.
  */
+function readGuardrailScript(scriptName: string): string | null {
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT ?? process.env.CURSOR_PLUGIN_ROOT;
+  const scriptsDir = pluginRoot ? join(pluginRoot, "scripts") : dirname(process.argv[1]);
+  try {
+    return readFileSync(join(scriptsDir, scriptName), "utf-8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Replays the PostToolUse recorder runs the transcript shows Claude Code cancelling since the last reconcile, each
+ * through its own `run` with the payload rebuilt from the tool call, so a dropped skip, stage read, or test result is
+ * in session state before the turn-end gates read it.
+ */
+function reconcileCancelledRecorders(): void {
+  const transcriptPath = input.transcript_path;
+  if (!transcriptPath) return;
+  const transcriptTail = readFileTail(transcriptPath, REWAKE_TRANSCRIPT_TAIL_BYTES) ?? "";
+  for (const event of findCancelledRecorderEvents(transcriptTail, input, readReconciledRecord(sessionId))) {
+    const subcommands = recorderSubcommands(event.command, readGuardrailScript);
+    if (subcommands.length > 0) {
+      // execArgv carries a loader flag along when the CLI runs from source; the recorders' answers are discarded,
+      // since only their state writes are being recovered.
+      spawnSync(process.execPath, [...process.execArgv, process.argv[1], "run", ...subcommands], {
+        input: JSON.stringify(event.replayPayload),
+        timeout: RECONCILE_REPLAY_TIMEOUT_MS,
+        windowsHide: true,
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+    }
+    writeReconciledRecord(sessionId, event.recordUuid);
+  }
+}
+
 function rewake(): string {
   const hookEventName = input.hook_event_name ?? "";
+  if (hookEventName === "Stop") reconcileCancelledRecorders();
   const outcome = awaitSyncHookOutcome(hookEventName);
   const savedOutput = takeSyncHookOutput(sessionId, hookEventName, payloadDigest(rawPayload));
   if (outcome === SyncHookOutcome.Delivered) return "";

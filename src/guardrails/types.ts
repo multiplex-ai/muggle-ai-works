@@ -416,6 +416,7 @@ export interface HookInput {
   last_assistant_message?: string;
   transcript_path?: string;
   hook_event_name?: string;
+  tool_use_id?: string;
 }
 
 /** The subset of tool inputs the guardrails read. Indexed because the Skill tool's skill-name key differs by harness version (see SKILL_NAME_INPUT_KEYS). */
@@ -486,4 +487,40 @@ export interface TranscriptHookRecord {
   hookEvent?: string;
   /** Present on records of a command hook's run; absent on the context and block records that carry its output. */
   command?: string;
+}
+
+/** A guardrail recorder run Claude Code cancelled, rebuilt from the transcript so it can be replayed. */
+export interface CancelledRecorderEvent {
+  /** The uuid of the transcript line recording the cancellation, which the reconcile watermark stores. */
+  recordUuid: string;
+  /** The cancelled hooks.json command, naming the scripts whose recorders replay. */
+  command: string;
+  /** The PostToolUse payload Claude Code sent the cancelled run, rebuilt from the tool call and its result. */
+  replayPayload: HookInput;
+}
+
+/** One block of a transcript message's content: a tool call, a tool result, or text. */
+export interface TranscriptContentBlock {
+  type?: string;
+  id?: string;
+  name?: string;
+  input?: ToolInput;
+  tool_use_id?: string;
+  content?: unknown;
+}
+
+/** One parsed line of the Claude Code JSONL transcript, reduced to the fields the reconcile reads. */
+export interface TranscriptLine {
+  uuid?: string;
+  cwd?: string;
+  message?: { content?: unknown };
+  /** The structured result Claude Code handed the tool's PostToolUse hook, kept beside the result block. */
+  toolUseResult?: unknown;
+  attachment?: TranscriptHookRecord & { toolUseID?: string };
+}
+
+/** A tool call as the transcript records it: the tool's name and the input it was called with. */
+export interface TranscriptToolCall {
+  name?: string;
+  input?: ToolInput;
 }

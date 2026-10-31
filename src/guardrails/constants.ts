@@ -402,3 +402,22 @@ export const REWAKE_ANCHOR_ROLE_BY_EVENT: Record<string, string> = {
   Stop: "assistant",
   UserPromptSubmit: "user",
 };
+
+/** The hook event whose cancelled synchronous runs the Stop companion reconciles from the transcript. */
+export const RECONCILED_HOOK_EVENT = "PostToolUse";
+
+// The transcript hook record a reconcile last replayed, as `<session>.reconciled-record`
+// holding its uuid, so a later turn end replays only records written after it.
+export const RECONCILED_RECORD_SUFFIX = ".reconciled-record";
+
+/** How long one replayed recorder run may take inside the async Stop companion, which nothing waits on. */
+export const RECONCILE_REPLAY_TIMEOUT_MS = 15_000;
+
+/** A guardrail script's subcommand assignment, which names the guardrails.mjs handler the script feeds. */
+export const GUARDRAIL_SUBCOMMAND_ASSIGNMENT = /^GUARDRAIL_SUBCOMMAND="([\w-]+)"/m;
+
+/** The scripts a hooks.json command hands hook-entry.sh: `set -- <script> [gate scripts]; . …`. */
+export const HOOK_COMMAND_SCRIPTS = /^set -- ([^;]+);/;
+
+/** The dispatcher a hook command runs its gate scripts through; it names no subcommand of its own. */
+export const GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";

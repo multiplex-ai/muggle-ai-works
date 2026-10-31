@@ -1,8 +1,9 @@
-import { readFileSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync, rmSync } from 'fs';
+import { readFileSync, rmSync, existsSync, readdirSync, mkdirSync, openSync, fstatSync, readSync, closeSync, statSync, writeFileSync, renameSync, writeSync, unlinkSync } from 'fs';
 import { join, isAbsolute, resolve, basename, dirname } from 'path';
 import { homedir, tmpdir, hostname } from 'os';
 import { execFileSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
+import { createHash } from 'crypto';
 
 // src/guardrails/cli.ts
 
@@ -110,6 +111,26 @@ var E2E_STOP_VERDICT_SUFFIX = ".e2e-stop-verdict";
 var E2E_SHELL_BLOCKS_SUFFIX = ".e2e-shell-blocks";
 var AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
 var POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";
+var REWAKE_HOOK_EVENTS = ["Stop", "UserPromptSubmit"];
+var REWAKE_SUBCOMMAND = "rewake";
+var REWAKE_HOOK_SCRIPT = "guardrail-rewake.sh";
+var GUARDRAIL_HOOK_COMMAND_MARKER = "guardrail-";
+var SYNC_HOOK_OUTPUT_SUFFIX = "-sync-output.json";
+var TRANSCRIPT_HOOK_CANCELLED_TYPE = "hook_cancelled";
+var TRANSCRIPT_HOOK_RECORD_TYPE_PREFIX = "hook_";
+var REWAKE_OUTCOME_WAIT_MS = 2e4;
+var REWAKE_OUTCOME_POLL_MS = 250;
+var REWAKE_TRANSCRIPT_TAIL_BYTES = 512e3;
+var REWAKE_ANCHOR_CHARS = 120;
+var REWAKE_MESSAGE_PREFIX = {
+  Stop: "Muggle Stop check, delivered late because the turn-end hook outlasted its 1 s budget and was cancelled \u2014 act on it now:",
+  UserPromptSubmit: "Muggle prompt check, delivered late because the prompt hook outlasted its 1 s budget and was cancelled:"
+};
+var COMMANDLESS_HOOK_DELIVERY_TYPES = ["hook_additional_context", "hook_blocking_error"];
+var REWAKE_ANCHOR_ROLE_BY_EVENT = {
+  Stop: "assistant",
+  UserPromptSubmit: "user"
+};
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -243,6 +264,21 @@ function readE2eShellBlockCount(sessionId2, dirOverride) {
 }
 function clearE2eShellBlocks(sessionId2, dirOverride) {
   rmSync(fileFor(sessionId2, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), { force: true });
+}
+var syncHookOutputFile = (sessionId2, hookEventName, dirOverride) => fileFor(sessionId2, dirOverride, `.${hookEventName}${SYNC_HOOK_OUTPUT_SUFFIX}`);
+function writeSyncHookOutput(sessionId2, hookEventName, record, dirOverride) {
+  writeAtomically(syncHookOutputFile(sessionId2, hookEventName, dirOverride), record, dirOverride);
+}
+function takeSyncHookOutput(sessionId2, hookEventName, payloadDigest2, dirOverride) {
+  const target = syncHookOutputFile(sessionId2, hookEventName, dirOverride);
+  try {
+    const record = JSON.parse(readFileSync(target, "utf-8"));
+    if (record.payloadDigest !== payloadDigest2) return null;
+    rmSync(target, { force: true });
+    return record;
+  } catch {
+    return null;
+  }
 }
 var lockFor = (sessionId2, dirOverride) => `${fileFor(sessionId2, dirOverride)}.lock`;
 function commitUnderHeldLock(sessionId2, mutate, dirOverride) {
@@ -2829,6 +2865,63 @@ function normalizeHookInput(raw) {
   }
   return payload;
 }
+function payloadDigest(rawPayload2) {
+  return createHash("sha1").update(rawPayload2).digest("hex");
+}
+function transcriptAnchor(input2) {
+  const anchorText = input2.hook_event_name === "Stop" ? input2.last_assistant_message?.trimEnd().slice(-REWAKE_ANCHOR_CHARS) : input2.hook_event_name === "UserPromptSubmit" ? input2.prompt?.trimStart().slice(0, REWAKE_ANCHOR_CHARS) : void 0;
+  if (!anchorText?.trim()) return void 0;
+  return JSON.stringify(anchorText).slice(1, -1);
+}
+var jsonFieldPattern = (field, value) => new RegExp(`"${field}"\\s*:\\s*"${value}"`);
+function parseHookRecord(line, hookEventName) {
+  if (!jsonFieldPattern("hookEvent", hookEventName).test(line)) return void 0;
+  try {
+    const record = JSON.parse(line).attachment;
+    if (!record?.type?.startsWith(TRANSCRIPT_HOOK_RECORD_TYPE_PREFIX) || record.hookEvent !== hookEventName) return void 0;
+    return record;
+  } catch {
+    return void 0;
+  }
+}
+function isSyncGuardrailCommand(command) {
+  return command.includes(GUARDRAIL_HOOK_COMMAND_MARKER) && !command.includes(REWAKE_HOOK_SCRIPT);
+}
+function findSyncHookOutcome(transcriptTail, hookEventName, anchor) {
+  const lines = transcriptTail.split("\n");
+  const anchorRolePattern = jsonFieldPattern("type", REWAKE_ANCHOR_ROLE_BY_EVENT[hookEventName] ?? "");
+  let anchorIndex = -1;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index].includes(anchor) && anchorRolePattern.test(lines[index])) {
+      anchorIndex = index;
+      break;
+    }
+  }
+  if (anchorIndex < 0) return "unrecorded" /* Unrecorded */;
+  for (const line of lines.slice(anchorIndex + 1)) {
+    const record = parseHookRecord(line, hookEventName);
+    if (!record) continue;
+    if (typeof record.command === "string") {
+      if (!isSyncGuardrailCommand(record.command)) continue;
+      return record.type === TRANSCRIPT_HOOK_CANCELLED_TYPE ? "cancelled" /* Cancelled */ : "delivered" /* Delivered */;
+    }
+    if (COMMANDLESS_HOOK_DELIVERY_TYPES.includes(record.type)) return "delivered" /* Delivered */;
+  }
+  return "unrecorded" /* Unrecorded */;
+}
+function rewakeMessage(hookEventName, hookOutput) {
+  let parsedOutput;
+  try {
+    parsedOutput = JSON.parse(hookOutput);
+  } catch {
+    return "";
+  }
+  const deliveredText = hookEventName === "Stop" ? parsedOutput.decision === "block" ? parsedOutput.reason : void 0 : parsedOutput.hookSpecificOutput?.additionalContext ?? parsedOutput.additional_context;
+  if (!deliveredText) return "";
+  return `${REWAKE_MESSAGE_PREFIX[hookEventName] ?? ""}
+
+${deliveredText}`;
+}
 
 // src/guardrails/hookHost.ts
 function resolveHookHost(env = process.env) {
@@ -2842,17 +2935,25 @@ function skillInvocation(slashCommand, host2) {
 }
 
 // src/guardrails/cli.ts
-function readStdin() {
+function readStdinText() {
   try {
-    return normalizeHookInput(JSON.parse(readFileSync(0, "utf-8")));
+    return readFileSync(0, "utf-8");
+  } catch {
+    return "";
+  }
+}
+function parseHookInput(rawHookPayload) {
+  try {
+    return normalizeHookInput(JSON.parse(rawHookPayload));
   } catch {
     return {};
   }
 }
 var host = resolveHookHost();
 var sub = process.argv[2];
-if (!isBackgroundJob(sub)) enforceHookChildProcessDeadline();
-var input = readStdin();
+if (!isBackgroundJob(sub) && sub !== REWAKE_SUBCOMMAND) enforceHookChildProcessDeadline();
+var rawPayload = readStdinText();
+var input = parseHookInput(rawPayload);
 var sessionId = input.session_id ?? "unknown";
 function releaseGate(field) {
   commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { [field]: true } });
@@ -3422,5 +3523,47 @@ var backgroundJobs = {
   ["scan-watch-pr-states" /* ScanWatchPrStates */]: scanWatchPrStatesJob,
   ["commit-deferred-state" /* CommitDeferredState */]: commitDeferredStateJob
 };
-var runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
-process.stdout.write(runSubcommand());
+function waitSync(milliseconds) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+function awaitSyncHookOutcome(hookEventName) {
+  const anchor = transcriptAnchor(
+    hookEventName === "Stop" ? { ...input, last_assistant_message: closingAssistantText() } : input
+  );
+  const transcriptPath = input.transcript_path;
+  if (!anchor || !transcriptPath) return "unrecorded" /* Unrecorded */;
+  const deadline = Date.now() + REWAKE_OUTCOME_WAIT_MS;
+  for (; ; ) {
+    const transcriptTail = readFileTail(transcriptPath, REWAKE_TRANSCRIPT_TAIL_BYTES) ?? "";
+    const outcome = findSyncHookOutcome(transcriptTail, hookEventName, anchor);
+    if (outcome !== "unrecorded" /* Unrecorded */ || Date.now() >= deadline) return outcome;
+    waitSync(REWAKE_OUTCOME_POLL_MS);
+  }
+}
+function rewake() {
+  const hookEventName = input.hook_event_name ?? "";
+  const outcome = awaitSyncHookOutcome(hookEventName);
+  const savedOutput = takeSyncHookOutput(sessionId, hookEventName, payloadDigest(rawPayload));
+  if (outcome === "delivered" /* Delivered */) return "";
+  return rewakeMessage(hookEventName, savedOutput ? savedOutput.hookOutput : runFiringGates());
+}
+function saveSyncHookOutput(hookOutput) {
+  const hookEventName = input.hook_event_name ?? "";
+  if (!REWAKE_HOOK_EVENTS.includes(hookEventName)) return;
+  try {
+    writeSyncHookOutput(sessionId, hookEventName, { payloadDigest: payloadDigest(rawPayload), hookOutput });
+  } catch {
+  }
+}
+if (sub === REWAKE_SUBCOMMAND) {
+  const rewakeText = rewake();
+  if (rewakeText) {
+    process.stderr.write(rewakeText);
+    process.exitCode = 2;
+  }
+} else {
+  const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : handlers[sub] ?? (() => "{}");
+  const hookOutput = runSubcommand();
+  if (!isBackgroundJob(sub)) saveSyncHookOutput(hookOutput);
+  process.stdout.write(hookOutput);
+}

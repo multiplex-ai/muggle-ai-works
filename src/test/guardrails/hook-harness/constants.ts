@@ -26,6 +26,9 @@ export const GUARDRAIL_WRAPPER_SCRIPT = /guardrail-[a-z0-9-]+\.sh/g;
 /** The wrapper that fans one event out to the gate wrappers listed after it; it feeds no subcommand of its own. */
 export const GUARDRAIL_DISPATCH_WRAPPER = "guardrail-dispatch.sh";
 
+/** The asyncRewake companion, which hands an event's gates on like the dispatcher rather than being one. */
+export const GUARDRAIL_REWAKE_WRAPPER = "guardrail-rewake.sh";
+
 /** The line in a gate wrapper naming the CLI subcommand it feeds. */
 export const GUARDRAIL_SUBCOMMAND_ASSIGNMENT = /^GUARDRAIL_SUBCOMMAND="([^"]+)"/m;
 

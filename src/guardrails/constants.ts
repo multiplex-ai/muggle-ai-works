@@ -351,3 +351,54 @@ export const AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
 
 /** The preference that makes posting the run's visual walkthrough to the PR owed. */
 export const POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";
+
+/** Hook events whose synchronous guardrail run has a `guardrail-rewake.sh` companion in plugin/hooks/hooks.json. */
+export const REWAKE_HOOK_EVENTS = ["Stop", "UserPromptSubmit"];
+
+/** The guardrails.mjs subcommand a rewake companion runs. */
+export const REWAKE_SUBCOMMAND = "rewake";
+
+/** The companion's own script; a transcript hook record naming it is never the synchronous run's. */
+export const REWAKE_HOOK_SCRIPT = "guardrail-rewake.sh";
+
+/** Part of every muggle guardrail hook command, telling its transcript records from another plugin's. */
+export const GUARDRAIL_HOOK_COMMAND_MARKER = "guardrail-";
+
+// Sidecar holding the last synchronous run's output for one hook event, as
+// `<session>.<event>-sync-output.json`. The run may commit state and then be
+// killed before printing, after which re-running its gates says nothing, so
+// the companion delivers this saved output rather than a fresh decision.
+export const SYNC_HOOK_OUTPUT_SUFFIX = "-sync-output.json";
+
+/** The transcript attachment type Claude Code writes for a hook it killed at its timeout. */
+export const TRANSCRIPT_HOOK_CANCELLED_TYPE = "hook_cancelled";
+
+/** Prefix of every transcript attachment type that records a hook's run. */
+export const TRANSCRIPT_HOOK_RECORD_TYPE_PREFIX = "hook_";
+
+/** How long the companion waits for the transcript to record how the synchronous run ended, kept under its hooks.json timeout. */
+export const REWAKE_OUTCOME_WAIT_MS = 20_000;
+
+/** Interval between the companion's transcript reads while it waits. */
+export const REWAKE_OUTCOME_POLL_MS = 250;
+
+/** How much of the transcript tail the companion reads to find the event and its hook record. */
+export const REWAKE_TRANSCRIPT_TAIL_BYTES = 512_000;
+
+/** Characters of the closing message or prompt matched to find the event's transcript line. */
+export const REWAKE_ANCHOR_CHARS = 120;
+
+/** Opens the message a companion wakes Claude with, so the model knows which check it comes from. */
+export const REWAKE_MESSAGE_PREFIX: Record<string, string> = {
+  Stop: "Muggle Stop check, delivered late because the turn-end hook outlasted its 1 s budget and was cancelled — act on it now:",
+  UserPromptSubmit: "Muggle prompt check, delivered late because the prompt hook outlasted its 1 s budget and was cancelled:",
+};
+
+/** Transcript hook record types that carry a hook's output to the model even when they name no command. */
+export const COMMANDLESS_HOOK_DELIVERY_TYPES = ["hook_additional_context", "hook_blocking_error"];
+
+/** The transcript line role that closes each event: the reply a Stop judges, the prompt a UserPromptSubmit sees. */
+export const REWAKE_ANCHOR_ROLE_BY_EVENT: Record<string, string> = {
+  Stop: "assistant",
+  UserPromptSubmit: "user",
+};

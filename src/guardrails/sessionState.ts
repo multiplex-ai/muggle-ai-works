@@ -1,7 +1,13 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, readdirSync, rmSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import type { CachedPrStateScan, CachedWalkthroughScan, GuardrailState, StateMutation } from "./types.js";
+import type {
+  CachedPrStateScan,
+  CachedWalkthroughScan,
+  GuardrailState,
+  StateMutation,
+  SyncHookOutputRecord,
+} from "./types.js";
 import { withFileLock } from "./store/fileLock.js";
 import {
   DEFERRED_STATE_LOCK_WAIT_MS,
@@ -9,6 +15,7 @@ import {
   E2E_SHELL_BLOCKS_SUFFIX,
   E2E_STOP_VERDICT_SUFFIX,
   SESSION_STATE_LOCK_WAIT_MS,
+  SYNC_HOOK_OUTPUT_SUFFIX,
 } from "./constants.js";
 
 const baseDir = (override?: string): string =>
@@ -102,6 +109,41 @@ export function readE2eShellBlockCount(sessionId: string, dirOverride?: string):
 /** Forget the shell's e2e Stop blocks, so a later owed run starts with the full budget. */
 export function clearE2eShellBlocks(sessionId: string, dirOverride?: string): void {
   rmSync(fileFor(sessionId, dirOverride, E2E_SHELL_BLOCKS_SUFFIX), { force: true });
+}
+
+const syncHookOutputFile = (sessionId: string, hookEventName: string, dirOverride?: string): string =>
+  fileFor(sessionId, dirOverride, `.${hookEventName}${SYNC_HOOK_OUTPUT_SUFFIX}`);
+
+/** Save what a synchronous guardrail run computed for `hookEventName`, for its rewake companion to deliver. */
+export function writeSyncHookOutput(
+  sessionId: string,
+  hookEventName: string,
+  record: SyncHookOutputRecord,
+  dirOverride?: string,
+): void {
+  writeAtomically(syncHookOutputFile(sessionId, hookEventName, dirOverride), record, dirOverride);
+}
+
+/**
+ * Read and remove the saved synchronous output for `hookEventName` when it belongs to the payload `payloadDigest`
+ * names. A record from another firing stays for that firing's own companion.
+ * @returns null when no saved output belongs to this payload.
+ */
+export function takeSyncHookOutput(
+  sessionId: string,
+  hookEventName: string,
+  payloadDigest: string,
+  dirOverride?: string,
+): SyncHookOutputRecord | null {
+  const target = syncHookOutputFile(sessionId, hookEventName, dirOverride);
+  try {
+    const record = JSON.parse(readFileSync(target, "utf-8")) as SyncHookOutputRecord;
+    if (record.payloadDigest !== payloadDigest) return null;
+    rmSync(target, { force: true });
+    return record;
+  } catch {
+    return null;
+  }
 }
 
 const lockFor = (sessionId: string, dirOverride?: string): string => `${fileFor(sessionId, dirOverride)}.lock`;

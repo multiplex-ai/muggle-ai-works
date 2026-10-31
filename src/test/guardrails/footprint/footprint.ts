@@ -76,13 +76,13 @@ export function commandsForSlot(manifest: HooksManifest, slot: HookSlot, payload
 }
 
 /**
- * Seconds the hooks `slot` launches for `payload` declare between them, each distinct command once at its longest
+ * Seconds the synchronous hooks `slot` launches for `payload` declare between them, each distinct command once at its longest
  * timeout: Claude Code starts a command's matching `if` variants together, and the dispatcher's claim lets one of
  * them do the work while the rest answer in-shell, so the variants overlap rather than add up.
  */
 export function firingTimeoutSeconds(manifest: HooksManifest, slot: HookSlot, payload?: Record<string, unknown>): number {
   const longestTimeoutByCommand = new Map<string, number>();
-  for (const hook of commandsForSlot(manifest, slot, payload)) {
+  for (const hook of commandsForSlot(manifest, slot, payload).filter((command) => !command.async)) {
     longestTimeoutByCommand.set(hook.command, Math.max(longestTimeoutByCommand.get(hook.command) ?? 0, hook.timeout ?? 0));
   }
   return [...longestTimeoutByCommand.values()].reduce((sum, seconds) => sum + seconds, 0);

@@ -29,6 +29,10 @@
  *   place only inside Claude Code's Windows Git Bash. Codex starts every command
  *   through `env` or its Windows launcher, a process either way, so each Codex
  *   command names the script itself: `bash "<script>" <args>`.
+ * - An `asyncRewake` hook is dropped. It is the background companion that
+ *   delivers what Claude Code's one-second synchronous hook was cancelled before
+ *   saying; Codex gives every hook the launcher allowance on top instead, and
+ *   documents no rewake, so there the companion would only run the gates twice.
  *
  * hooks.json stays the one hand-edited manifest. `--check` exits non-zero when
  * the committed file differs from what this script would write.
@@ -156,6 +160,7 @@ export function deriveCodexHooks(claudeHooks) {
             const codexGroup = codexMatcher === undefined ? {} : { matcher: codexMatcher };
             codexGroup.hooks = [];
             for (const hook of group.hooks) {
+                if (hook.asyncRewake) continue;
                 const bashCommand = deriveBashHookCommand(hook.command);
                 const portableHook = { ...hook };
                 delete portableHook.if;

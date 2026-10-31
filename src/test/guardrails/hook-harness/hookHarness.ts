@@ -9,6 +9,7 @@ import { PLUGIN_SCRIPTS_DIR } from "../support/constants.js";
 import {
   GUARDRAIL_CLI_ENTRY,
   GUARDRAIL_DISPATCH_WRAPPER,
+  GUARDRAIL_REWAKE_WRAPPER,
   GUARDRAIL_STATE_PATH_SEGMENTS,
   GUARDRAIL_SUBCOMMAND_ASSIGNMENT,
   GUARDRAIL_WRAPPER_SCRIPT,
@@ -41,7 +42,7 @@ export function runGuardrailCli(invocation: GuardrailCliInvocation): GuardrailCl
       windowsHide: true,
     },
   );
-  return { status: cliProcess.status, stdout: (cliProcess.stdout ?? "").trim() };
+  return { status: cliProcess.status, stdout: (cliProcess.stdout ?? "").trim(), stderr: (cliProcess.stderr ?? "").trim() };
 }
 
 /** Path of a session's guardrail state file under `home`. */
@@ -142,7 +143,7 @@ export function providerFreeEnvironment(ghStubDirectory: string): NodeJS.Process
 export function guardrailSubcommandsForSlot(slot: HookSlot): string[] {
   const wrapperNames = commandsForSlot(loadHooksManifest(), slot)
     .flatMap((hookCommand) => hookCommand.command.match(GUARDRAIL_WRAPPER_SCRIPT) ?? [])
-    .filter((wrapperName) => wrapperName !== GUARDRAIL_DISPATCH_WRAPPER);
+    .filter((wrapperName) => wrapperName !== GUARDRAIL_DISPATCH_WRAPPER && wrapperName !== GUARDRAIL_REWAKE_WRAPPER);
   const subcommands = wrapperNames.map((wrapperName) => {
     const wrapperBody = readFileSync(join(PLUGIN_SCRIPTS_DIR, wrapperName), "utf-8");
     const subcommand = GUARDRAIL_SUBCOMMAND_ASSIGNMENT.exec(wrapperBody)?.[1];

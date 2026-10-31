@@ -1,6 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { EVENT_HOOK_RUNTIME_BUDGET_MS, HOOK_RUNTIME_BUDGET_MS } from "../../../hook-budget/constants.js";
-import { HOOK_RUNTIME_SCENARIOS, HOOK_TIMEOUT_CAPS, RUNTIME_MEASUREMENT_TIMEOUT_MS } from "./constants.js";
+import {
+  ASYNC_REWAKE_TIMEOUT_CAP_SECONDS,
+  HOOK_RUNTIME_SCENARIOS,
+  HOOK_TIMEOUT_CAPS,
+  RUNTIME_MEASUREMENT_TIMEOUT_MS,
+} from "./constants.js";
 import { firingTimeoutSeconds, groupFiresForSlot, loadHooksManifest } from "./footprint.js";
 import { createSlowProgramShimDirectory, timeScenarioRuntime, waitForUpkeepSweeps } from "./runtime.js";
 import { HomeSeed, type HookEvent } from "./types.js";
@@ -12,13 +17,23 @@ const manifest = loadHooksManifest();
 const scenarioRows = HOOK_RUNTIME_SCENARIOS.map((scenario) => [scenario.label, scenario] as const);
 
 describe("hook runtime caps in the manifest", () => {
-  it("every hook declares a timeout within its event's per-hook cap", () => {
+  it("every synchronous hook declares a timeout within its event's per-hook cap", () => {
     for (const [event, groups] of Object.entries(manifest.hooks)) {
       const caps = HOOK_TIMEOUT_CAPS[event as HookEvent];
-      for (const hook of groups.flatMap((group) => group.hooks)) {
+      for (const hook of groups.flatMap((group) => group.hooks).filter((command) => !command.async)) {
         expect(hook.timeout, `"${hook.command}" declares no timeout`).toBeTypeOf("number");
         expect(hook.timeout, `${event} "${hook.command}" timeout`).toBeLessThanOrEqual(caps.perHookSeconds);
       }
+    }
+  });
+
+  // An async hook that cannot wake Claude only delivers on the next turn, which is the fail-open these companions exist
+  // to close, so background work in this manifest is a rewake companion or nothing.
+  it("every async hook is an asyncRewake companion within its own timeout cap", () => {
+    for (const hook of Object.values(manifest.hooks).flatMap((groups) => groups.flatMap((group) => group.hooks))) {
+      if (!hook.async) continue;
+      expect(hook.asyncRewake, `"${hook.command}" asyncRewake`).toBe(true);
+      expect(hook.timeout, `"${hook.command}" timeout`).toBeLessThanOrEqual(ASYNC_REWAKE_TIMEOUT_CAP_SECONDS);
     }
   });
 

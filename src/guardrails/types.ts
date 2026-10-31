@@ -415,6 +415,7 @@ export interface HookInput {
   // told falls back to reading the turn out of the JSONL transcript.
   last_assistant_message?: string;
   transcript_path?: string;
+  hook_event_name?: string;
 }
 
 /** The subset of tool inputs the guardrails read. Indexed because the Skill tool's skill-name key differs by harness version (see SKILL_NAME_INPUT_KEYS). */
@@ -460,4 +461,29 @@ export interface E2eOwedReasonInput {
   muggleTestSkill: string;
   /** The walkthrough skill as the firing host invokes it, e.g. `/muggle:muggle-pr-visual-walkthrough`. */
   walkthroughSkill: string;
+}
+
+/** How the transcript says Claude Code ended a synchronous guardrail hook's run. */
+export enum SyncHookOutcome {
+  /** The run finished inside its timeout, so whatever it printed reached the model. */
+  Delivered = "delivered",
+  /** Claude Code killed the run at its timeout and discarded its output. */
+  Cancelled = "cancelled",
+  /** No outcome was recorded in time, or the event's transcript line could not be found. */
+  Unrecorded = "unrecorded",
+}
+
+/** The hook output a synchronous guardrail run computed, saved beside the session state for its rewake companion. */
+export interface SyncHookOutputRecord {
+  /** Digest of the raw hook payload, which the companion receives byte for byte too. */
+  payloadDigest: string;
+  hookOutput: string;
+}
+
+/** A hook-run record Claude Code writes into the session transcript as an `attachment`. */
+export interface TranscriptHookRecord {
+  type: string;
+  hookEvent?: string;
+  /** Present on records of a command hook's run; absent on the context and block records that carry its output. */
+  command?: string;
 }

@@ -70,11 +70,13 @@ describe.skipIf(process.platform === "win32").each([
 
   const hookCommand = (event: string, matcher?: string): string => {
     const hooks = (JSON.parse(readFileSync(HOOKS, "utf-8")) as {
-      hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ command: string }> }>>;
+      hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ command: string; asyncRewake?: boolean }> }>>;
     }).hooks;
     const group = hooks[event].find((candidate) => candidate.matcher === matcher);
-    // A group's `if` variants all launch the one dispatcher command, each for the calls its rule names.
-    const distinctCommands = new Set(group?.hooks.map((hook) => hook.command));
+    // A group's `if` variants all launch the one dispatcher command, each for the calls its rule names. The
+    // asyncRewake companion is a separate command that wakes the session late, not a variant of the dispatcher.
+    const dispatcherHooks = group?.hooks.filter((hook) => !hook.asyncRewake);
+    const distinctCommands = new Set(dispatcherHooks?.map((hook) => hook.command));
     if (!group || distinctCommands.size !== 1) throw new Error(`${event}[${matcher}] is not a single dispatcher command`);
     return group.hooks[0].command;
   };

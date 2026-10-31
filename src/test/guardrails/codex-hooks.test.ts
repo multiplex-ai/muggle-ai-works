@@ -23,7 +23,7 @@ const CODEX_HOOKS = fileURLToPath(new URL("../../../plugin/hooks/codex-hooks.jso
 const GENERATOR = fileURLToPath(new URL("../../../scripts/build-codex-hooks.mjs", import.meta.url));
 const CODEX_PLUGIN_MANIFEST = fileURLToPath(new URL("../../../plugin/.codex-plugin/plugin.json", import.meta.url));
 
-type HookCommand = { command: string; commandWindows?: string; timeout?: number };
+type HookCommand = { command: string; commandWindows?: string; timeout?: number; asyncRewake?: boolean };
 type HookGroup = { matcher?: string; hooks: HookCommand[] };
 type HooksManifest = { hooks: Record<string, HookGroup[]> };
 
@@ -92,10 +92,13 @@ describe("plugin/hooks/codex-hooks.json", () => {
     }
   });
 
+  // An asyncRewake companion delivers what Claude Code's one-second synchronous hook was cancelled before saying, and
+  // Codex gives every hook a launcher allowance instead, so its script alone ships without a Codex hook.
   it("keeps every shipped script reachable, the Read- and Skill-only recorders through Bash and MCP", () => {
     const scriptsIn = (manifest: HooksManifest): Set<string> =>
       new Set(
         allCommands(manifest)
+          .filter((hook) => !hook.asyncRewake)
           .flatMap((hook) => hook.command.match(/[\w-]+\.sh/g) ?? [])
           .filter((script) => script !== HOOK_ENTRY_SCRIPT),
       );
@@ -186,6 +189,15 @@ describe("deriveCodexHooks", () => {
       `${CODEX_HOOK_HOST_STAMP} ${deriveBashHookCommand(command("other-gate.sh").command)}`,
     ]);
     for (const hook of codexHooks) expect(hook).not.toHaveProperty("if");
+  });
+
+  it("drops an asyncRewake companion and keeps the synchronous hook it backs", () => {
+    const derived = deriveCodexHooks({
+      hooks: { Stop: [{ hooks: [command("gate.sh"), { ...command("guardrail-rewake.sh"), async: true, asyncRewake: true }] }] },
+    });
+    expect(derived.hooks.Stop[0].hooks.map((hook) => hook.command)).toEqual([
+      `${CODEX_HOOK_HOST_STAMP} ${deriveBashHookCommand(command("gate.sh").command)}`,
+    ]);
   });
 
   it("refuses a command that skips hook-entry.sh, which would have no bash form for Codex", () => {

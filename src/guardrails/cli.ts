@@ -7,6 +7,8 @@ import {
   writeWalkthroughScan,
   readPrStateScan,
   writePrStateScan,
+  takeSyncHookOutput,
+  writeSyncHookOutput,
 } from "./sessionState.js";
 import { isBackgroundJob, startBackgroundJob } from "./backgroundJob.js";
 import { commitDeferredSessionState, commitStateMutation } from "./stateCommit.js";
@@ -27,6 +29,11 @@ import {
   WATCH_HEARTBEAT_STALE_MS,
   WATCH_HOLD_PHRASE_PREFIX,
   WATCH_HOLD_TRANSCRIPT_TAIL_BYTES,
+  REWAKE_HOOK_EVENTS,
+  REWAKE_OUTCOME_POLL_MS,
+  REWAKE_OUTCOME_WAIT_MS,
+  REWAKE_SUBCOMMAND,
+  REWAKE_TRANSCRIPT_TAIL_BYTES,
 } from "./constants.js";
 import { detectFalseCapabilityClaim, lastAssistantText } from "./capabilityClaim.js";
 import {
@@ -123,6 +130,7 @@ import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
 import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./emit.js";
 import { normalizeHookInput } from "./hookInput.js";
+import { findSyncHookOutcome, payloadDigest, rewakeMessage, transcriptAnchor } from "./rewake.js";
 import { resolveHookHost, skillInvocation } from "./hookHost.js";
 import { isShellToolCall } from "./shellTool.js";
 import { enforceHookChildProcessDeadline } from "../hook-budget/childProcessBudget.js";
@@ -139,14 +147,23 @@ import {
   BuildFollowthroughAction,
   GuardrailBackgroundJob,
   StateMutationKind,
+  SyncHookOutcome,
   type HookInput,
   type OwedWatchWork,
   type ToolOutcomeMutation,
 } from "./types.js";
 
-function readStdin(): HookInput {
+function readStdinText(): string {
   try {
-    return normalizeHookInput(JSON.parse(readFileSync(0, "utf-8")));
+    return readFileSync(0, "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+function parseHookInput(rawHookPayload: string): HookInput {
+  try {
+    return normalizeHookInput(JSON.parse(rawHookPayload));
   } catch {
     return {};
   }
@@ -154,9 +171,11 @@ function readStdin(): HookInput {
 
 const host: Host = resolveHookHost();
 const sub = process.argv[2];
-// A background job runs detached, so nothing waits on it and its lookups keep their full timeouts.
-if (!isBackgroundJob(sub)) enforceHookChildProcessDeadline();
-const input = readStdin();
+// A background job runs detached and a rewake companion runs async, so nothing waits on either and their lookups keep
+// their full timeouts.
+if (!isBackgroundJob(sub) && sub !== REWAKE_SUBCOMMAND) enforceHookChildProcessDeadline();
+const rawPayload = readStdinText();
+const input = parseHookInput(rawPayload);
 const sessionId = input.session_id ?? "unknown";
 
 /**
@@ -1081,5 +1100,60 @@ const backgroundJobs: Record<GuardrailBackgroundJob, () => string> = {
   [GuardrailBackgroundJob.CommitDeferredState]: commitDeferredStateJob,
 };
 
-const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));
-process.stdout.write(runSubcommand());
+function waitSync(milliseconds: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
+}
+
+/** Polls the transcript until it records how Claude Code ended this event's synchronous guardrail run, or time runs out. */
+function awaitSyncHookOutcome(hookEventName: string): SyncHookOutcome {
+  const anchor = transcriptAnchor(
+    hookEventName === "Stop" ? { ...input, last_assistant_message: closingAssistantText() } : input,
+  );
+  const transcriptPath = input.transcript_path;
+  if (!anchor || !transcriptPath) return SyncHookOutcome.Unrecorded;
+  const deadline = Date.now() + REWAKE_OUTCOME_WAIT_MS;
+  for (;;) {
+    const transcriptTail = readFileTail(transcriptPath, REWAKE_TRANSCRIPT_TAIL_BYTES) ?? "";
+    const outcome = findSyncHookOutcome(transcriptTail, hookEventName, anchor);
+    if (outcome !== SyncHookOutcome.Unrecorded || Date.now() >= deadline) return outcome;
+    waitSync(REWAKE_OUTCOME_POLL_MS);
+  }
+}
+
+/**
+ * `rewake <subcommand...>`: the async companion of a synchronous Stop or UserPromptSubmit run. Once the transcript
+ * shows that run was cancelled at its timeout — or never shows how it ended — returns what it would have delivered:
+ * its saved output when it got that far, else a fresh run of the gates the companion's pre-filters let through.
+ * @returns "" when the synchronous run delivered, or there is nothing to say.
+ */
+function rewake(): string {
+  const hookEventName = input.hook_event_name ?? "";
+  const outcome = awaitSyncHookOutcome(hookEventName);
+  const savedOutput = takeSyncHookOutput(sessionId, hookEventName, payloadDigest(rawPayload));
+  if (outcome === SyncHookOutcome.Delivered) return "";
+  return rewakeMessage(hookEventName, savedOutput ? savedOutput.hookOutput : runFiringGates());
+}
+
+function saveSyncHookOutput(hookOutput: string): void {
+  const hookEventName = input.hook_event_name ?? "";
+  if (!REWAKE_HOOK_EVENTS.includes(hookEventName)) return;
+  try {
+    writeSyncHookOutput(sessionId, hookEventName, { payloadDigest: payloadDigest(rawPayload), hookOutput: hookOutput });
+  } catch {
+    // The companion then re-runs the gates itself, so a failed save costs only the record of a state change.
+  }
+}
+
+if (sub === REWAKE_SUBCOMMAND) {
+  const rewakeText = rewake();
+  // Exit code 2 is what makes Claude Code wake the session with an asyncRewake hook's stderr.
+  if (rewakeText) {
+    process.stderr.write(rewakeText);
+    process.exitCode = 2;
+  }
+} else {
+  const runSubcommand = isBackgroundJob(sub) ? backgroundJobs[sub] : (handlers[sub] ?? (() => "{}"));
+  const hookOutput = runSubcommand();
+  if (!isBackgroundJob(sub)) saveSyncHookOutput(hookOutput);
+  process.stdout.write(hookOutput);
+}

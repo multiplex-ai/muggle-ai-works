@@ -26,6 +26,12 @@ export const HOOK_TIMEOUT_CAPS: Record<HookEvent, HookTimeoutCaps> = {
   [HookEvent.UserPromptSubmit]: PER_EVENT_TIMEOUT_CAPS,
 };
 
+/**
+ * Timeout ceiling for an `asyncRewake` companion, in seconds. Nothing waits on it, so its timeout costs no turn any
+ * time; it only bounds how long it may wait for the transcript to record the synchronous run it backs.
+ */
+export const ASYNC_REWAKE_TIMEOUT_CAP_SECONDS = 30;
+
 /** A hook's `if` rule: the tool it names, and the wildcard pattern over that tool's command; a bare tool name has none and matches every call. */
 export const HOOK_IF_RULE = /^(\w+)(?:\((.*)\))?$/s;
 
@@ -38,8 +44,12 @@ export const REGEXP_SYNTAX_CHARACTERS = /[.*+?^${}()|[\]\\]/g;
 /** Per-slot ceiling for firing every hook in the slot under the spawn-counting shims. */
 export const NOOP_MEASUREMENT_TIMEOUT_MS = 120_000;
 
-/** Ratchet ceiling on distinct hook commands across the whole manifest, every event and matcher. */
-export const MAX_TOTAL_HOOK_COMMANDS = 13;
+/**
+ * Ratchet ceiling on distinct hook commands across the whole manifest, every event and matcher. Two of them are the
+ * Stop and UserPromptSubmit `asyncRewake` companions, which hold no turn but deliver what a cancelled synchronous run
+ * would have said.
+ */
+export const MAX_TOTAL_HOOK_COMMANDS = 15;
 
 /** Programs whose cold start dwarfs a hook's real work; none may run when the event is irrelevant. */
 export const NOOP_FORBIDDEN_PROGRAMS = ["node", "gh", "python", "python3"];
@@ -113,14 +123,17 @@ export const HOT_PATH_SLOT_CAPS: HookSlotCap[] = [
   },
   {
     slot: { event: HookEvent.Stop },
-    maxCommands: 1,
-    // The capability-claim gate tails the transcript until it has nudged once: bash cannot seek.
-    maxNoopSpawns: 1,
+    // The synchronous gates, and their asyncRewake companion, which nothing waits on.
+    maxCommands: 2,
+    // The capability-claim gate tails the transcript until it has nudged once: bash cannot seek. Both the synchronous
+    // run and its companion pre-filter it.
+    maxNoopSpawns: 2,
     noopPayload: { session_id: NOOP_SESSION_ID, stop_hook_active: false, transcript_path: NOOP_TRANSCRIPT_PLACEHOLDER },
   },
   {
     slot: { event: HookEvent.UserPromptSubmit },
-    maxCommands: 1,
+    // The build router and its asyncRewake companion, which nothing waits on.
+    maxCommands: 2,
     maxNoopSpawns: 0,
     noopPayload: { session_id: NOOP_SESSION_ID, prompt: "what is the status of the rollout" },
   },

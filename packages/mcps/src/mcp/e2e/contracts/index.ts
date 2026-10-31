@@ -11,6 +11,7 @@ import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 import { SecretFieldEnum, SecretTypeEnum } from "./secret-group-types.js";
+import { TestCaseTestStateFieldsSchema } from "./test-state-schemas.js";
 
 export { MuggleEntityIdSchema };
 export * from "./fan-out-choice.js";
@@ -19,6 +20,8 @@ export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
 export * from "./run-settings-schemas.js";
 export * from "./secret-group-types.js";
+export * from "./test-state-schemas.js";
+export * from "./test-state-types.js";
 
 /**
  * Pagination input schema shared by list tools.
@@ -411,6 +414,7 @@ export const TestCaseCreateInputSchema = z.object({
   automated: z.boolean().optional().describe("Whether this test case is automated (default: true)"),
   pinnedAccount: PinnedAccountSchema.optional().describe("Project secrets the test case signs in as. Omit to leave it unpinned"),
   alwaysStartsFreshSession: z.boolean().optional().describe(ALWAYS_STARTS_FRESH_SESSION_DESCRIPTION),
+  ...TestCaseTestStateFieldsSchema.shape,
 });
 
 /**
@@ -435,6 +439,7 @@ export const TestCaseUpdateInputSchema = z.object({
   automated: z.boolean().optional().describe("Whether this test case is automated"),
   pinnedAccount: PinnedAccountSchema.nullable().optional().describe("Project secrets the test case signs in as; null clears the pin"),
   alwaysStartsFreshSession: z.boolean().optional().describe(ALWAYS_STARTS_FRESH_SESSION_DESCRIPTION),
+  ...TestCaseTestStateFieldsSchema.shape,
 });
 
 export const TestScriptListInputSchema = z.object({

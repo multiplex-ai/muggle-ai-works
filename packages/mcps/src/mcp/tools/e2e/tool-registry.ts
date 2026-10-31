@@ -42,6 +42,13 @@ import {
 } from "./secret-metadata-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
+import {
+  buildTestRolesPath,
+  buildTestStateCatalogPath,
+  buildTestStatePlanPath,
+  buildTestStatesPath,
+  pickTestCaseTestStateFields,
+} from "./test-state-upstream.js";
 import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
 
 /** Default workflow timeout. */
@@ -444,7 +451,8 @@ const testCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-test-case-create",
-    description: "Create a new test case for a use case.",
+    description:
+      "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-state-catalog-get.",
     inputSchema: schemas.TestCaseCreateInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
@@ -470,17 +478,18 @@ const testCaseTools: IQaToolDefinition[] = [
           ...(toolInput.alwaysStartsFreshSession !== undefined && {
             alwaysStartsFreshSession: toolInput.alwaysStartsFreshSession,
           }),
+          ...pickTestCaseTestStateFields(toolInput),
         },
       };
     },
   },
   {
     name: "muggle-remote-test-case-update",
-    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     inputSchema: schemas.TestCaseUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: toolInput.testCaseId };
+      const body: Record<string, unknown> = { id: toolInput.testCaseId, ...pickTestCaseTestStateFields(toolInput) };
       if (toolInput.title !== undefined) body.title = toolInput.title;
       if (toolInput.description !== undefined) body.description = toolInput.description;
       if (toolInput.goal !== undefined) body.goal = toolInput.goal;
@@ -525,6 +534,155 @@ const testCaseTools: IQaToolDefinition[] = [
       return {
         method: "DELETE",
         path: `${MUGGLE_TEST_PREFIX}/test-cases/${testCaseDeleteInput.testCaseId}`,
+      };
+    },
+  },
+];
+
+const testStateTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-test-state-catalog-get",
+    description:
+      "Get a project's test states and roles. A state is a named set of facts about one team's data that tests start from and leave, each fact team-scoped or account-wide, with a quick read-only check. A role is a kind of account a test acts as, CREATED by Muggle or SUPPLIED by the customer. Also returns freshTeamStateId (the state a newly formed team starts in) and parallelTeamLimit; a project with none saved returns an empty catalog. Response shape: { projectId, states: [{ id, name, facts: [{ statement, scope, roleId }], check }], roles: [{ id, name, source, allowsChanges }], freshTeamStateId, parallelTeamLimit, updatedAt }.",
+    inputSchema: schemas.TestStateCatalogGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateCatalogGetInputSchema>;
+      return {
+        method: "GET",
+        path: buildTestStateCatalogPath(toolInput.projectId),
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-state-settings-update",
+    description:
+      "Set a project's freshTeamStateId (the state a newly formed team starts in, such as 'New patient'; null clears it) and parallelTeamLimit (the most teams a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-state-catalog-get does.",
+    inputSchema: schemas.TestStateSettingsUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateSettingsUpdateInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.freshTeamStateId !== undefined) body.freshTeamStateId = toolInput.freshTeamStateId;
+      if (toolInput.parallelTeamLimit !== undefined) body.parallelTeamLimit = toolInput.parallelTeamLimit;
+      return {
+        method: "PUT",
+        path: `${buildTestStateCatalogPath(toolInput.projectId)}/settings`,
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-state-create",
+    description:
+      "Create a test state: a named set of facts about one team's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each team-scoped (only this team's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that a team is in the state. Reuse a matching state from muggle-remote-test-state-catalog-get before creating one. Returns the created state.",
+    inputSchema: schemas.TestStateCreateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateCreateInputSchema>;
+      const body: Record<string, unknown> = { name: toolInput.name };
+      if (toolInput.facts !== undefined) body.facts = toolInput.facts;
+      if (toolInput.check !== undefined) body.check = toolInput.check;
+      return {
+        method: "POST",
+        path: buildTestStatesPath(toolInput.projectId),
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-state-update",
+    description:
+      "Update a test state's name, facts or check. Omitted fields stay unchanged; facts replaces the state's whole fact list. Returns the updated state.",
+    inputSchema: schemas.TestStateUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateUpdateInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.name !== undefined) body.name = toolInput.name;
+      if (toolInput.facts !== undefined) body.facts = toolInput.facts;
+      if (toolInput.check !== undefined) body.check = toolInput.check;
+      return {
+        method: "PUT",
+        path: `${buildTestStatesPath(toolInput.projectId)}/${toolInput.stateId}`,
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-state-delete",
+    description:
+      "Delete a test state. Rejected while a test case uses it as its prerequisite or result state, or while it is the project's freshTeamStateId.",
+    inputSchema: schemas.TestStateDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${buildTestStatesPath(toolInput.projectId)}/${toolInput.stateId}`,
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStateDeleteInputSchema>;
+      return { stateId: toolInput.stateId, isDeleted: true };
+    },
+  },
+  {
+    name: "muggle-remote-test-role-create",
+    description:
+      "Create a test role: a kind of account a test acts as, such as Patient or Doctor; two accounts of one kind in one test are two roles. CREATED: Muggle signs each team's account up itself, and it is disposable. SUPPLIED: the customer provides the account, which is never used up; allowsChanges lets tests change its account-wide facts when a proven way back restores them. Returns the created role.",
+    inputSchema: schemas.TestRoleCreateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestRoleCreateInputSchema>;
+      const body: Record<string, unknown> = { name: toolInput.name, source: toolInput.source };
+      if (toolInput.allowsChanges !== undefined) body.allowsChanges = toolInput.allowsChanges;
+      return {
+        method: "POST",
+        path: buildTestRolesPath(toolInput.projectId),
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-role-update",
+    description:
+      "Update a test role's name, source or allowsChanges. Omitted fields stay unchanged. Returns the updated role.",
+    inputSchema: schemas.TestRoleUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestRoleUpdateInputSchema>;
+      const body: Record<string, unknown> = {};
+      if (toolInput.name !== undefined) body.name = toolInput.name;
+      if (toolInput.source !== undefined) body.source = toolInput.source;
+      if (toolInput.allowsChanges !== undefined) body.allowsChanges = toolInput.allowsChanges;
+      return {
+        method: "PUT",
+        path: `${buildTestRolesPath(toolInput.projectId)}/${toolInput.roleId}`,
+        body: body,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-test-role-delete",
+    description: "Delete a test role. Rejected while a test case acts as it or a state's account-wide fact names it.",
+    inputSchema: schemas.TestRoleDeleteInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestRoleDeleteInputSchema>;
+      return {
+        method: "DELETE",
+        path: `${buildTestRolesPath(toolInput.projectId)}/${toolInput.roleId}`,
+      };
+    },
+    mapFromUpstream: (_response, input) => {
+      const toolInput = input as z.infer<typeof schemas.TestRoleDeleteInputSchema>;
+      return { roleId: toolInput.roleId, isDeleted: true };
+    },
+  },
+  {
+    name: "muggle-remote-test-state-plan-get",
+    description:
+      "Preview how the project's test cases would run on teams. Read-only: it plans from the saved states, roles and test cases and does not run anything. Returns the floor (fewest teams that can run every placed test), each team's route in order with setup runs (replays that only reach a state, with no verdict) and the one-way test that forced each team beyond the first, the groups of states, Not allowed tests that would change a supplied account, tests whose prerequisite state no test reaches, and test cases with no states yet (they run as today). Response shape: { floor, batchLength, totalRuns, setupRuns, teams: [{ teamNumber, slotNumber, steps: [{ testCaseId, prerequisiteStateId, resultStateId, isSetup, heldSuppliedRoleIds }], endStateId, isUsedUp, forcedByTestCaseId }], groups: [{ groupNumber, stateIds, isTerminal }], notAllowed: [{ testCaseId, reason, suppliedRoleIds }], missingState: [{ testCaseId, prerequisiteStateId }], unplacedTestCaseIds, unrestoredSuppliedRoleIds }.",
+    inputSchema: schemas.TestStatePlanGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestStatePlanGetInputSchema>;
+      return {
+        method: "GET",
+        path: buildTestStatePlanPath(toolInput.projectId),
+        queryParams: { isProduction: toolInput.isProduction },
       };
     },
   },
@@ -1893,6 +2051,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...projectTools,
   ...useCaseTools,
   ...testCaseTools,
+  ...testStateTools,
   ...bulkPreviewTools,
   ...testScriptTools,
   ...actionScriptTools,

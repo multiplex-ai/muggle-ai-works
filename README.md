@@ -273,7 +273,7 @@ so the result carries a viewUrl straight to the dashboard
 
 ## MCP tool reference
 
-108 tools across authentication, projects, use cases, test cases, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
+125 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
 **Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
@@ -300,6 +300,13 @@ so the result carries a viewUrl straight to the dashboard
 | `muggle-remote-fan-out-plan` | A lane's records in start order, and whether the rest wait on the primary |
 | `muggle-remote-test-case-bulk-preview-submit` | Async batch preview (~50% cheaper) |
 | `muggle-remote-test-plan-graph-rebuild` | Rebuild the prerequisite graph |
+
+| Test states | Purpose |
+| :---------- | :------ |
+| `muggle-remote-test-state-catalog-get` / `-settings-update` | Read a project's states and roles; set its fresh-team state and parallel-team limit |
+| `muggle-remote-test-state-create` / `-update` / `-delete` | Manage states: facts about one team's data, plus a check |
+| `muggle-remote-test-role-create` / `-update` / `-delete` | Manage roles: created or supplied accounts a test acts as |
+| `muggle-remote-test-state-plan-get` | Preview the team plan without running anything |
 
 Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-preview-job-get` until terminal, then persist with the matching `-create` tool. `-list` and `-cancel` round out the set.
 

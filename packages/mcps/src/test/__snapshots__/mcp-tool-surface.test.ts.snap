@@ -267,7 +267,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-bulk-preview-submit",
   },
   {
-    "description": "Create a new test case for a use case.",
+    "description": "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-state-catalog-get.",
     "name": "muggle-remote-test-case-create",
   },
   {
@@ -291,12 +291,24 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-list-by-use-case",
   },
   {
-    "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     "name": "muggle-remote-test-case-update",
   },
   {
     "description": "Queue a full rebuild of a project's test-plan dependency graph: every node is dropped and the dependency analysis runs again across the whole project. Needed because the incremental analysis only ever adds nodes for test cases that have none — a case already stored as a root stays a root even once a prerequisite for it exists, so a rebuild is the only way to re-derive those edges. Reach for this when muggle-remote-test-case-ancestors-get reports \`orphan: true\` across a project, which means nothing is ordering prerequisites and bulk replays are running cases that destroy each other's fixtures. Returns { projectId, workflowRuntimeId }: it resolves when the rebuild is QUEUED, not when it has finished, and it returns no graph — re-fetch the graph, or call muggle-remote-test-case-ancestors-get again, to observe the result.",
     "name": "muggle-remote-test-plan-graph-rebuild",
+  },
+  {
+    "description": "Create a test role: a kind of account a test acts as, such as Patient or Doctor; two accounts of one kind in one test are two roles. CREATED: Muggle signs each account set's account up itself, and it is disposable. SUPPLIED: the customer provides the account, which is never used up; allowsChanges lets tests change its account-wide facts when a proven way back restores them. Returns the created role.",
+    "name": "muggle-remote-test-role-create",
+  },
+  {
+    "description": "Delete a test role. Rejected while a test case acts as it or a state's account-wide fact names it.",
+    "name": "muggle-remote-test-role-delete",
+  },
+  {
+    "description": "Update a test role's name, source or allowsChanges. Omitted fields stay unchanged. Returns the updated role.",
+    "name": "muggle-remote-test-role-update",
   },
   {
     "description": "Delete a test script by ID. This is a soft delete; the test case it belongs to is not affected.",
@@ -309,6 +321,30 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "List test scripts for a project, optionally filtered by test case and by environment lane. Returns up to 10 items per page by default (max 100). Response includes pagination metadata (totalCount, totalPages, hasMore) — check \`hasMore\` to decide whether to fetch additional pages.",
     "name": "muggle-remote-test-script-list",
+  },
+  {
+    "description": "Get a project's test states and roles. A state is a named set of facts about one account set's data that tests start from and leave, each fact scoped to the account set or account-wide, with a quick read-only check. A role is a kind of account a test acts as, CREATED by Muggle or SUPPLIED by the customer. Also returns freshAccountSetStateId (the state a newly formed account set starts in) and parallelAccountSetLimit; a project with none saved returns an empty catalog. Response shape: { projectId, states: [{ id, name, facts: [{ statement, scope, roleId }], check }], roles: [{ id, name, source, allowsChanges }], freshAccountSetStateId, parallelAccountSetLimit, updatedAt }.",
+    "name": "muggle-remote-test-state-catalog-get",
+  },
+  {
+    "description": "Create a test state: a named set of facts about one account set's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each scoped to the account set (only this account set's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that an account set is in the state. Reuse a matching state from muggle-remote-test-state-catalog-get before creating one. Returns the created state.",
+    "name": "muggle-remote-test-state-create",
+  },
+  {
+    "description": "Delete a test state. Rejected while a test case uses it as its prerequisite or result state, or while it is the project's freshAccountSetStateId.",
+    "name": "muggle-remote-test-state-delete",
+  },
+  {
+    "description": "Preview how the project's test cases would run on account sets. Read-only: it plans from the saved states, roles and test cases and does not run anything. Returns the floor (fewest account sets that can run every placed test), each account set's route in order with setup runs (replays that only reach a state, with no verdict) and the one-way test that forced each account set beyond the first, the groups of states, Not allowed tests that would change a supplied account, tests whose prerequisite state no test reaches, and test cases with no states yet (they run as today). Response shape: { floor, batchLength, totalRuns, setupRuns, account sets: [{ accountSetNumber, slotNumber, steps: [{ testCaseId, prerequisiteStateId, resultStateId, isSetup, heldSuppliedRoleIds }], endStateId, isUsedUp, forcedByTestCaseId }], groups: [{ groupNumber, stateIds, isTerminal }], notAllowed: [{ testCaseId, reason, suppliedRoleIds }], missingState: [{ testCaseId, prerequisiteStateId }], unplacedTestCaseIds, unrestoredSuppliedRoleIds }.",
+    "name": "muggle-remote-test-state-plan-get",
+  },
+  {
+    "description": "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-state-catalog-get does.",
+    "name": "muggle-remote-test-state-settings-update",
+  },
+  {
+    "description": "Update a test state's name, facts or check. Omitted fields stay unchanged; facts replaces the state's whole fact list. Returns the updated state.",
+    "name": "muggle-remote-test-state-update",
   },
   {
     "description": "Submit an async bulk-preview job that uses the OpenAI Batch API to generate use cases from many prompts at ~50% of normal LLM cost. Returns a job ID immediately; poll with muggle-remote-bulk-preview-job-get until the job reaches a terminal status, then persist each successful result via muggle-remote-use-case-create.",
@@ -545,9 +581,18 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-test-case-list-by-use-case",
   "muggle-remote-test-case-update",
   "muggle-remote-test-plan-graph-rebuild",
+  "muggle-remote-test-role-create",
+  "muggle-remote-test-role-delete",
+  "muggle-remote-test-role-update",
   "muggle-remote-test-script-delete",
   "muggle-remote-test-script-get",
   "muggle-remote-test-script-list",
+  "muggle-remote-test-state-catalog-get",
+  "muggle-remote-test-state-create",
+  "muggle-remote-test-state-delete",
+  "muggle-remote-test-state-plan-get",
+  "muggle-remote-test-state-settings-update",
+  "muggle-remote-test-state-update",
   "muggle-remote-use-case-bulk-preview-submit",
   "muggle-remote-use-case-candidates-approve",
   "muggle-remote-use-case-create",

@@ -253,3 +253,9 @@ export const RESULTS_FILE_SUFFIX = ".results.json";
 
 /** Sits before RESULTS_FILE_SUFFIX in a Codex run's results file, so neither host overwrites the other. */
 export const CODEX_RESULTS_INFIX = ".codex";
+
+/** The most tool attempts a failed run's printed trace lists — its latest ones, where the miss usually is. */
+export const FAILED_RUN_TRACE_MAX_ATTEMPTS = 60;
+
+/** Characters of each attempt's input a failed run's printed trace keeps. */
+export const FAILED_RUN_TRACE_ARGS_CHARS = 400;

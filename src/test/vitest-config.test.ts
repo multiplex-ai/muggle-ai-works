@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "fs";
 import { fileURLToPath } from "url";
-import parallelConfig, { WALL_CLOCK_HOOK_TESTS } from "../../vitest.config";
+import parallelConfig, {
+  WALL_CLOCK_HOOK_TESTS,
+  RUN_TEMP_ROOT_GLOBAL_SETUP,
+  RUN_TEMP_ROOT_SETUP_FILE,
+} from "../../vitest.config";
 import hookRuntimeConfig from "../../vitest.hook-runtime.config";
 
 // The timeout is the only thing standing between this suite and the flake it
@@ -39,5 +43,19 @@ describe("wall-clock hook tests", () => {
       expect(hookRuntimeConfig.test?.include).toContain(testPath);
     }
     expect(hookRuntimeConfig.test?.fileParallelism).toBe(false);
+  });
+});
+
+// Dropping either file from a lane brings back the leak silently: fixtures land
+// in the real temp dir again and nothing fails, the directories just pile up.
+describe("run temp root", () => {
+  it("is set up in both the parallel suite and the hook-runtime lane", () => {
+    for (const vitestConfig of [parallelConfig, hookRuntimeConfig]) {
+      expect(vitestConfig.test?.globalSetup).toContain(RUN_TEMP_ROOT_GLOBAL_SETUP);
+      expect(vitestConfig.test?.setupFiles).toContain(RUN_TEMP_ROOT_SETUP_FILE);
+    }
+    for (const setupPath of [RUN_TEMP_ROOT_GLOBAL_SETUP, RUN_TEMP_ROOT_SETUP_FILE]) {
+      expect(existsSync(fileURLToPath(new URL(`../../${setupPath}`, import.meta.url))), setupPath).toBe(true);
+    }
   });
 });

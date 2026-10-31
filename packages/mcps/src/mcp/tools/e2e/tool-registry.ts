@@ -44,8 +44,9 @@ import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 import {
   buildTestRolesPath,
-  buildTestStateCatalogPath,
-  buildTestStatePlanPath,
+  buildTestChainingCatalogPath,
+  buildTestChainingPlanPath,
+  buildTestChainingSettingsPath,
   buildTestStatesPath,
   pickTestCaseTestStateFields,
 } from "./test-state-upstream.js";
@@ -452,7 +453,7 @@ const testCaseTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-case-create",
     description:
-      "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-state-catalog-get.",
+      "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-chaining-catalog-get.",
     inputSchema: schemas.TestCaseCreateInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
@@ -541,31 +542,31 @@ const testCaseTools: IQaToolDefinition[] = [
 
 const testStateTools: IQaToolDefinition[] = [
   {
-    name: "muggle-remote-test-state-catalog-get",
+    name: "muggle-remote-test-chaining-catalog-get",
     description:
       "Get a project's test states and roles. A state is a named set of facts about one account set's data that tests start from and leave, each fact scoped to the account set or account-wide, with a quick read-only check. A role is a kind of account a test acts as, CREATED by Muggle or SUPPLIED by the customer. Also returns freshAccountSetStateId (the state a newly formed account set starts in) and parallelAccountSetLimit; a project with none saved returns an empty catalog. Response shape: { projectId, states: [{ id, name, facts: [{ statement, scope, roleId }], check }], roles: [{ id, name, source, allowsChanges }], freshAccountSetStateId, parallelAccountSetLimit, updatedAt }.",
-    inputSchema: schemas.TestStateCatalogGetInputSchema,
+    inputSchema: schemas.TestChainingCatalogGetInputSchema,
     mapToUpstream: (input) => {
-      const toolInput = input as z.infer<typeof schemas.TestStateCatalogGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestChainingCatalogGetInputSchema>;
       return {
         method: "GET",
-        path: buildTestStateCatalogPath(toolInput.projectId),
+        path: buildTestChainingCatalogPath(toolInput.projectId),
       };
     },
   },
   {
-    name: "muggle-remote-test-state-settings-update",
+    name: "muggle-remote-test-chaining-settings-update",
     description:
-      "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-state-catalog-get does.",
-    inputSchema: schemas.TestStateSettingsUpdateInputSchema,
+      "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-chaining-catalog-get does.",
+    inputSchema: schemas.TestChainingSettingsUpdateInputSchema,
     mapToUpstream: (input) => {
-      const toolInput = input as z.infer<typeof schemas.TestStateSettingsUpdateInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestChainingSettingsUpdateInputSchema>;
       const body: Record<string, unknown> = {};
       if (toolInput.freshAccountSetStateId !== undefined) body.freshAccountSetStateId = toolInput.freshAccountSetStateId;
       if (toolInput.parallelAccountSetLimit !== undefined) body.parallelAccountSetLimit = toolInput.parallelAccountSetLimit;
       return {
         method: "PUT",
-        path: `${buildTestStateCatalogPath(toolInput.projectId)}/settings`,
+        path: buildTestChainingSettingsPath(toolInput.projectId),
         body: body,
       };
     },
@@ -573,7 +574,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-create",
     description:
-      "Create a test state: a named set of facts about one account set's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each scoped to the account set (only this account set's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that an account set is in the state. Reuse a matching state from muggle-remote-test-state-catalog-get before creating one. Returns the created state.",
+      "Create a test state: a named set of facts about one account set's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each scoped to the account set (only this account set's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that an account set is in the state. Reuse a matching state from muggle-remote-test-chaining-catalog-get before creating one. Returns the created state.",
     inputSchema: schemas.TestStateCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStateCreateInputSchema>;
@@ -673,15 +674,15 @@ const testStateTools: IQaToolDefinition[] = [
     },
   },
   {
-    name: "muggle-remote-test-state-plan-get",
+    name: "muggle-remote-test-chaining-plan-get",
     description:
       "Preview how the project's test cases would run on account sets. Read-only: it plans from the saved states, roles and test cases and does not run anything. Returns the floor (fewest account sets that can run every placed test), each account set's route in order with setup runs (replays that only reach a state, with no verdict) and the one-way test that forced each account set beyond the first, the groups of states, Not allowed tests that would change a supplied account, tests whose prerequisite state no test reaches, and test cases with no states yet (they run as today). Response shape: { floor, batchLength, totalRuns, setupRuns, account sets: [{ accountSetNumber, slotNumber, steps: [{ testCaseId, prerequisiteStateId, resultStateId, isSetup, heldSuppliedRoleIds }], endStateId, isUsedUp, forcedByTestCaseId }], groups: [{ groupNumber, stateIds, isTerminal }], notAllowed: [{ testCaseId, reason, suppliedRoleIds }], missingState: [{ testCaseId, prerequisiteStateId }], unplacedTestCaseIds, unrestoredSuppliedRoleIds }.",
-    inputSchema: schemas.TestStatePlanGetInputSchema,
+    inputSchema: schemas.TestChainingPlanGetInputSchema,
     mapToUpstream: (input) => {
-      const toolInput = input as z.infer<typeof schemas.TestStatePlanGetInputSchema>;
+      const toolInput = input as z.infer<typeof schemas.TestChainingPlanGetInputSchema>;
       return {
         method: "GET",
-        path: buildTestStatePlanPath(toolInput.projectId),
+        path: buildTestChainingPlanPath(toolInput.projectId),
         queryParams: { isProduction: toolInput.isProduction },
       };
     },

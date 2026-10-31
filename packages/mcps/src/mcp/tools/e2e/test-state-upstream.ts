@@ -8,39 +8,48 @@ import type { TestCaseTestStateFieldsSchema } from "../../e2e/contracts/index.js
 import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
 
 /**
- * Builds the path of a project's test state catalog.
+ * Builds the path of a project's test chaining catalog.
  * @param projectId - Project ID.
- * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-state-catalog`.
+ * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-chaining/catalog`.
  */
-export function buildTestStateCatalogPath(projectId: string): string {
-  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-state-catalog`;
+export function buildTestChainingCatalogPath(projectId: string): string {
+  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-chaining/catalog`;
 }
 
 /**
  * Builds the path of a project's test state collection.
  * @param projectId - Project ID.
- * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-states`.
+ * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-chaining/states`.
  */
 export function buildTestStatesPath(projectId: string): string {
-  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-states`;
+  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-chaining/states`;
 }
 
 /**
  * Builds the path of a project's test role collection.
  * @param projectId - Project ID.
- * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-roles`.
+ * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-chaining/roles`.
  */
 export function buildTestRolesPath(projectId: string): string {
-  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-roles`;
+  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-chaining/roles`;
+}
+
+/**
+ * Builds the path of a project's test chaining settings.
+ * @param projectId - Project ID.
+ * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-chaining/settings`.
+ */
+export function buildTestChainingSettingsPath(projectId: string): string {
+  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-chaining/settings`;
 }
 
 /**
  * Builds the path of a project's test chaining plan preview.
  * @param projectId - Project ID.
- * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-state-plan`.
+ * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-chaining/plan`.
  */
-export function buildTestStatePlanPath(projectId: string): string {
-  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-state-plan`;
+export function buildTestChainingPlanPath(projectId: string): string {
+  return `${MUGGLE_TEST_PREFIX}/projects/${projectId}/test-chaining/plan`;
 }
 
 /**

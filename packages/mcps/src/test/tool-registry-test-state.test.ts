@@ -54,7 +54,7 @@ import {
   TestRoleSourceEnum,
   TestStateCreateInputSchema,
   TestStateFactScopeEnum,
-  TestStateSettingsUpdateInputSchema,
+  TestChainingSettingsUpdateInputSchema,
   TestStateUpdateInputSchema,
 } from "../mcp/e2e/contracts/index.js";
 import { McpErrorCode } from "../mcp/e2e/types.js";
@@ -100,30 +100,30 @@ function answerUpstreamWith(statusCode: number, responseBody: unknown): void {
   upstreamClientHolder.promptServiceClient = promptServiceClient;
 }
 
-describe("muggle-remote-test-state-catalog-get", () => {
+describe("muggle-remote-test-chaining-catalog-get", () => {
   it("reads the project's catalog", () => {
-    const upstreamCall = mapToolInput("muggle-remote-test-state-catalog-get", { projectId: PROJECT_ID });
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-catalog-get", { projectId: PROJECT_ID });
 
     expect(upstreamCall.method).toBe("GET");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-state-catalog`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/catalog`);
     expect(upstreamCall.body).toBeUndefined();
   });
 });
 
-describe("muggle-remote-test-state-settings-update", () => {
+describe("muggle-remote-test-chaining-settings-update", () => {
   it("puts only the provided settings, keeping a null that clears the fresh account set state", () => {
-    const upstreamCall = mapToolInput("muggle-remote-test-state-settings-update", {
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-settings-update", {
       projectId: PROJECT_ID,
       freshAccountSetStateId: null,
     });
 
     expect(upstreamCall.method).toBe("PUT");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-state-catalog/settings`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/settings`);
     expect(upstreamCall.body).toEqual({ freshAccountSetStateId: null });
   });
 
   it("sends both settings when given", () => {
-    const upstreamCall = mapToolInput("muggle-remote-test-state-settings-update", {
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-settings-update", {
       projectId: PROJECT_ID,
       freshAccountSetStateId: STATE_ID,
       parallelAccountSetLimit: 3,
@@ -138,7 +138,7 @@ describe("muggle-remote-test-state-settings-update", () => {
     ["a fractional limit", { projectId: PROJECT_ID, parallelAccountSetLimit: 2.5 }],
     ["a freshAccountSetStateId that is not a UUID", { projectId: PROJECT_ID, freshAccountSetStateId: "New patient" }],
   ])("rejects %s", (_caseName, toolInput) => {
-    expect(TestStateSettingsUpdateInputSchema.safeParse(toolInput).success).toBe(false);
+    expect(TestChainingSettingsUpdateInputSchema.safeParse(toolInput).success).toBe(false);
   });
 });
 
@@ -147,7 +147,7 @@ describe("muggle-remote-test-state-create", () => {
     const upstreamCall = mapToolInput("muggle-remote-test-state-create", STATE_CREATE_INPUT);
 
     expect(upstreamCall.method).toBe("POST");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-states`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/states`);
     expect(upstreamCall.body).toEqual({
       name: "Message unread",
       facts: [
@@ -186,7 +186,7 @@ describe("muggle-remote-test-state-update", () => {
     });
 
     expect(upstreamCall.method).toBe("PUT");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-states/${STATE_ID}`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/states/${STATE_ID}`);
     expect(upstreamCall.body).toEqual({ facts: [ACCOUNT_SET_FACT] });
   });
 
@@ -198,8 +198,8 @@ describe("muggle-remote-test-state-update", () => {
 
 describe("test state and role delete", () => {
   it.each([
-    ["muggle-remote-test-state-delete", "stateId", STATE_ID, `${PROJECT_PATH}/test-states/${STATE_ID}`],
-    ["muggle-remote-test-role-delete", "roleId", ROLE_ID, `${PROJECT_PATH}/test-roles/${ROLE_ID}`],
+    ["muggle-remote-test-state-delete", "stateId", STATE_ID, `${PROJECT_PATH}/test-chaining/states/${STATE_ID}`],
+    ["muggle-remote-test-role-delete", "roleId", ROLE_ID, `${PROJECT_PATH}/test-chaining/roles/${ROLE_ID}`],
   ])("%s issues DELETE to the entity's path", (toolName, idField, entityId, expectedPath) => {
     const upstreamCall = mapToolInput(toolName, { projectId: PROJECT_ID, [idField]: entityId });
 
@@ -240,7 +240,7 @@ describe("muggle-remote-test-role-create", () => {
     });
 
     expect(upstreamCall.method).toBe("POST");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-roles`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/roles`);
     expect(upstreamCall.body).toEqual({ name: "Doctor", source: "SUPPLIED", allowsChanges: true });
   });
 
@@ -272,29 +272,29 @@ describe("muggle-remote-test-role-update", () => {
     });
 
     expect(upstreamCall.method).toBe("PUT");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-roles/${ROLE_ID}`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/roles/${ROLE_ID}`);
     expect(upstreamCall.body).toEqual({ allowsChanges: false });
   });
 });
 
-describe("muggle-remote-test-state-plan-get", () => {
+describe("muggle-remote-test-chaining-plan-get", () => {
   it("reads the plan preview for production when asked", () => {
-    const upstreamCall = mapToolInput("muggle-remote-test-state-plan-get", { projectId: PROJECT_ID, isProduction: true });
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-plan-get", { projectId: PROJECT_ID, isProduction: true });
 
     expect(upstreamCall.method).toBe("GET");
-    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-state-plan`);
+    expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-chaining/plan`);
     expect(upstreamCall.queryParams).toEqual({ isProduction: true });
     expect(upstreamCall.body).toBeUndefined();
   });
 
   it("leaves isProduction unset when omitted, so the backend default applies", () => {
-    const upstreamCall = mapToolInput("muggle-remote-test-state-plan-get", { projectId: PROJECT_ID });
+    const upstreamCall = mapToolInput("muggle-remote-test-chaining-plan-get", { projectId: PROJECT_ID });
 
     expect(upstreamCall.queryParams?.isProduction).toBeUndefined();
   });
 
   it("tells the caller it is a read-only preview that runs nothing", () => {
-    const description = getQaToolByName("muggle-remote-test-state-plan-get")!.description;
+    const description = getQaToolByName("muggle-remote-test-chaining-plan-get")!.description;
 
     expect(description).toContain("Read-only");
     expect(description).toContain("does not run anything");

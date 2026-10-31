@@ -36,13 +36,13 @@ const TestRoleAllowsChangesSchema = z
   .boolean()
   .describe("SUPPLIED only: the customer allows tests to change the account's account-wide facts when a proven way back restores them");
 
-/** Input of muggle-remote-test-state-catalog-get. */
-export const TestStateCatalogGetInputSchema = z.object({
+/** Input of muggle-remote-test-chaining-catalog-get. */
+export const TestChainingCatalogGetInputSchema = z.object({
   projectId: TestStateProjectIdSchema,
 });
 
-/** Input of muggle-remote-test-state-settings-update. */
-export const TestStateSettingsUpdateInputSchema = z.object({
+/** Input of muggle-remote-test-chaining-settings-update. */
+export const TestChainingSettingsUpdateInputSchema = z.object({
   projectId: TestStateProjectIdSchema,
   freshAccountSetStateId: MuggleEntityIdSchema.nullable()
     .optional()
@@ -102,8 +102,8 @@ export const TestRoleDeleteInputSchema = z.object({
   roleId: TestRoleIdSchema,
 });
 
-/** Input of muggle-remote-test-state-plan-get. */
-export const TestStatePlanGetInputSchema = z.object({
+/** Input of muggle-remote-test-chaining-plan-get. */
+export const TestChainingPlanGetInputSchema = z.object({
   projectId: TestStateProjectIdSchema,
   isProduction: z
     .boolean()

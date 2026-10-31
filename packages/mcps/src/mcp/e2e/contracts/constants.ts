@@ -5,11 +5,11 @@
 export const WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT =
   "Use the `workflowRuntimeId` returned when the workflow was started — not a run `id` or a test runs summary's `latestWorkflowRunId`, which are run ids and are not found here.";
 
-/** Fewest teams a project's batch may run at once. */
-export const TEST_STATE_PARALLEL_TEAM_LIMIT_MIN = 1;
+/** Fewest account sets a project's batch may run at once. */
+export const TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MIN = 1;
 
-/** Most teams a project's batch may run at once. */
-export const TEST_STATE_PARALLEL_TEAM_LIMIT_MAX = 20;
+/** Most account sets a project's batch may run at once. */
+export const TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MAX = 20;
 
-/** Parallel-team limit of a project that never set one. */
-export const TEST_STATE_PARALLEL_TEAM_LIMIT_DEFAULT = 5;
+/** Parallel account set limit of a project that never set one. */
+export const TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_DEFAULT = 5;

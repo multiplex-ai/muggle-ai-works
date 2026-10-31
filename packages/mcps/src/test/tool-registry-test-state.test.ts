@@ -68,12 +68,12 @@ const RESULT_STATE_ID = "44444444-4444-4444-8444-444444444444";
 const USE_CASE_ID = "55555555-5555-4555-8555-555555555555";
 const TEST_CASE_ID = "66666666-6666-4666-8666-666666666666";
 const PROJECT_PATH = `/v1/protected/muggle-test/projects/${PROJECT_ID}`;
-const TEAM_FACT = { statement: "the patient has one booked appointment", scope: TestStateFactScopeEnum.TEAM, roleId: null };
+const ACCOUNT_SET_FACT = { statement: "the patient has one booked appointment", scope: TestStateFactScopeEnum.ACCOUNT_SET, roleId: null };
 const ACCOUNT_FACT = { statement: "the doctor's unread count is one", scope: TestStateFactScopeEnum.ACCOUNT, roleId: ROLE_ID };
 const STATE_CREATE_INPUT = {
   projectId: PROJECT_ID,
   name: "Message unread",
-  facts: [TEAM_FACT, ACCOUNT_FACT],
+  facts: [ACCOUNT_SET_FACT, ACCOUNT_FACT],
   check: "the thread shows one unread message",
 };
 const TEST_CASE_CREATE_INPUT = {
@@ -111,32 +111,32 @@ describe("muggle-remote-test-state-catalog-get", () => {
 });
 
 describe("muggle-remote-test-state-settings-update", () => {
-  it("puts only the provided settings, keeping a null that clears the fresh team state", () => {
+  it("puts only the provided settings, keeping a null that clears the fresh account set state", () => {
     const upstreamCall = mapToolInput("muggle-remote-test-state-settings-update", {
       projectId: PROJECT_ID,
-      freshTeamStateId: null,
+      freshAccountSetStateId: null,
     });
 
     expect(upstreamCall.method).toBe("PUT");
     expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-state-catalog/settings`);
-    expect(upstreamCall.body).toEqual({ freshTeamStateId: null });
+    expect(upstreamCall.body).toEqual({ freshAccountSetStateId: null });
   });
 
   it("sends both settings when given", () => {
     const upstreamCall = mapToolInput("muggle-remote-test-state-settings-update", {
       projectId: PROJECT_ID,
-      freshTeamStateId: STATE_ID,
-      parallelTeamLimit: 3,
+      freshAccountSetStateId: STATE_ID,
+      parallelAccountSetLimit: 3,
     });
 
-    expect(upstreamCall.body).toEqual({ freshTeamStateId: STATE_ID, parallelTeamLimit: 3 });
+    expect(upstreamCall.body).toEqual({ freshAccountSetStateId: STATE_ID, parallelAccountSetLimit: 3 });
   });
 
   it.each([
-    ["a limit below 1", { projectId: PROJECT_ID, parallelTeamLimit: 0 }],
-    ["a limit above 20", { projectId: PROJECT_ID, parallelTeamLimit: 21 }],
-    ["a fractional limit", { projectId: PROJECT_ID, parallelTeamLimit: 2.5 }],
-    ["a freshTeamStateId that is not a UUID", { projectId: PROJECT_ID, freshTeamStateId: "New patient" }],
+    ["a limit below 1", { projectId: PROJECT_ID, parallelAccountSetLimit: 0 }],
+    ["a limit above 20", { projectId: PROJECT_ID, parallelAccountSetLimit: 21 }],
+    ["a fractional limit", { projectId: PROJECT_ID, parallelAccountSetLimit: 2.5 }],
+    ["a freshAccountSetStateId that is not a UUID", { projectId: PROJECT_ID, freshAccountSetStateId: "New patient" }],
   ])("rejects %s", (_caseName, toolInput) => {
     expect(TestStateSettingsUpdateInputSchema.safeParse(toolInput).success).toBe(false);
   });
@@ -151,7 +151,7 @@ describe("muggle-remote-test-state-create", () => {
     expect(upstreamCall.body).toEqual({
       name: "Message unread",
       facts: [
-        { statement: "the patient has one booked appointment", scope: "TEAM", roleId: null },
+        { statement: "the patient has one booked appointment", scope: "ACCOUNT_SET", roleId: null },
         { statement: "the doctor's unread count is one", scope: "ACCOUNT", roleId: ROLE_ID },
       ],
       check: "the thread shows one unread message",
@@ -167,9 +167,9 @@ describe("muggle-remote-test-state-create", () => {
 
   it.each([
     ["a blank name", { ...STATE_CREATE_INPUT, name: "" }],
-    ["an unknown fact scope", { ...STATE_CREATE_INPUT, facts: [{ ...TEAM_FACT, scope: "GLOBAL" }] }],
-    ["a fact without roleId", { ...STATE_CREATE_INPUT, facts: [{ statement: "inbox empty", scope: "TEAM" }] }],
-    ["a blank fact statement", { ...STATE_CREATE_INPUT, facts: [{ ...TEAM_FACT, statement: "" }] }],
+    ["an unknown fact scope", { ...STATE_CREATE_INPUT, facts: [{ ...ACCOUNT_SET_FACT, scope: "GLOBAL" }] }],
+    ["a fact without roleId", { ...STATE_CREATE_INPUT, facts: [{ statement: "inbox empty", scope: "ACCOUNT_SET" }] }],
+    ["a blank fact statement", { ...STATE_CREATE_INPUT, facts: [{ ...ACCOUNT_SET_FACT, statement: "" }] }],
     ["a fact roleId that is not a UUID", { ...STATE_CREATE_INPUT, facts: [{ ...ACCOUNT_FACT, roleId: "Doctor" }] }],
     ["a projectId that is not a UUID", { ...STATE_CREATE_INPUT, projectId: "PRJ-1" }],
   ])("rejects %s", (_caseName, toolInput) => {
@@ -182,12 +182,12 @@ describe("muggle-remote-test-state-update", () => {
     const upstreamCall = mapToolInput("muggle-remote-test-state-update", {
       projectId: PROJECT_ID,
       stateId: STATE_ID,
-      facts: [TEAM_FACT],
+      facts: [ACCOUNT_SET_FACT],
     });
 
     expect(upstreamCall.method).toBe("PUT");
     expect(upstreamCall.path).toBe(`${PROJECT_PATH}/test-states/${STATE_ID}`);
-    expect(upstreamCall.body).toEqual({ facts: [TEAM_FACT] });
+    expect(upstreamCall.body).toEqual({ facts: [ACCOUNT_SET_FACT] });
   });
 
   it("requires a state UUID", () => {

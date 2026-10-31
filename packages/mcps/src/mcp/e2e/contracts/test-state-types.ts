@@ -1,6 +1,6 @@
 /** Reach of a test state fact; the string values are the prompt-service wire format. */
 export enum TestStateFactScopeEnum {
-  TEAM = "TEAM",
+  ACCOUNT_SET = "ACCOUNT_SET",
   ACCOUNT = "ACCOUNT",
 }
 

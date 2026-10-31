@@ -543,7 +543,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-catalog-get",
     description:
-      "Get a project's test states and roles. A state is a named set of facts about one team's data that tests start from and leave, each fact team-scoped or account-wide, with a quick read-only check. A role is a kind of account a test acts as, CREATED by Muggle or SUPPLIED by the customer. Also returns freshTeamStateId (the state a newly formed team starts in) and parallelTeamLimit; a project with none saved returns an empty catalog. Response shape: { projectId, states: [{ id, name, facts: [{ statement, scope, roleId }], check }], roles: [{ id, name, source, allowsChanges }], freshTeamStateId, parallelTeamLimit, updatedAt }.",
+      "Get a project's test states and roles. A state is a named set of facts about one account set's data that tests start from and leave, each fact scoped to the account set or account-wide, with a quick read-only check. A role is a kind of account a test acts as, CREATED by Muggle or SUPPLIED by the customer. Also returns freshAccountSetStateId (the state a newly formed account set starts in) and parallelAccountSetLimit; a project with none saved returns an empty catalog. Response shape: { projectId, states: [{ id, name, facts: [{ statement, scope, roleId }], check }], roles: [{ id, name, source, allowsChanges }], freshAccountSetStateId, parallelAccountSetLimit, updatedAt }.",
     inputSchema: schemas.TestStateCatalogGetInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStateCatalogGetInputSchema>;
@@ -556,13 +556,13 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-settings-update",
     description:
-      "Set a project's freshTeamStateId (the state a newly formed team starts in, such as 'New patient'; null clears it) and parallelTeamLimit (the most teams a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-state-catalog-get does.",
+      "Set a project's freshAccountSetStateId (the state a newly formed account set starts in, such as 'New patient'; null clears it) and parallelAccountSetLimit (the most account sets a batch runs at once). Omitted fields stay unchanged. Returns the whole catalog, as muggle-remote-test-state-catalog-get does.",
     inputSchema: schemas.TestStateSettingsUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStateSettingsUpdateInputSchema>;
       const body: Record<string, unknown> = {};
-      if (toolInput.freshTeamStateId !== undefined) body.freshTeamStateId = toolInput.freshTeamStateId;
-      if (toolInput.parallelTeamLimit !== undefined) body.parallelTeamLimit = toolInput.parallelTeamLimit;
+      if (toolInput.freshAccountSetStateId !== undefined) body.freshAccountSetStateId = toolInput.freshAccountSetStateId;
+      if (toolInput.parallelAccountSetLimit !== undefined) body.parallelAccountSetLimit = toolInput.parallelAccountSetLimit;
       return {
         method: "PUT",
         path: `${buildTestStateCatalogPath(toolInput.projectId)}/settings`,
@@ -573,7 +573,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-create",
     description:
-      "Create a test state: a named set of facts about one team's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each team-scoped (only this team's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that a team is in the state. Reuse a matching state from muggle-remote-test-state-catalog-get before creating one. Returns the created state.",
+      "Create a test state: a named set of facts about one account set's data, such as 'Booked' or 'Message unread'. List every fact the state's tests rely on, each scoped to the account set (only this account set's data, e.g. the patient's thread with the doctor) or account-wide (one account as a whole, e.g. the doctor's unread count, naming that account's role). check is a quick read-only check that an account set is in the state. Reuse a matching state from muggle-remote-test-state-catalog-get before creating one. Returns the created state.",
     inputSchema: schemas.TestStateCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStateCreateInputSchema>;
@@ -608,7 +608,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-delete",
     description:
-      "Delete a test state. Rejected while a test case uses it as its prerequisite or result state, or while it is the project's freshTeamStateId.",
+      "Delete a test state. Rejected while a test case uses it as its prerequisite or result state, or while it is the project's freshAccountSetStateId.",
     inputSchema: schemas.TestStateDeleteInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStateDeleteInputSchema>;
@@ -625,7 +625,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-role-create",
     description:
-      "Create a test role: a kind of account a test acts as, such as Patient or Doctor; two accounts of one kind in one test are two roles. CREATED: Muggle signs each team's account up itself, and it is disposable. SUPPLIED: the customer provides the account, which is never used up; allowsChanges lets tests change its account-wide facts when a proven way back restores them. Returns the created role.",
+      "Create a test role: a kind of account a test acts as, such as Patient or Doctor; two accounts of one kind in one test are two roles. CREATED: Muggle signs each account set's account up itself, and it is disposable. SUPPLIED: the customer provides the account, which is never used up; allowsChanges lets tests change its account-wide facts when a proven way back restores them. Returns the created role.",
     inputSchema: schemas.TestRoleCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestRoleCreateInputSchema>;
@@ -675,7 +675,7 @@ const testStateTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-state-plan-get",
     description:
-      "Preview how the project's test cases would run on teams. Read-only: it plans from the saved states, roles and test cases and does not run anything. Returns the floor (fewest teams that can run every placed test), each team's route in order with setup runs (replays that only reach a state, with no verdict) and the one-way test that forced each team beyond the first, the groups of states, Not allowed tests that would change a supplied account, tests whose prerequisite state no test reaches, and test cases with no states yet (they run as today). Response shape: { floor, batchLength, totalRuns, setupRuns, teams: [{ teamNumber, slotNumber, steps: [{ testCaseId, prerequisiteStateId, resultStateId, isSetup, heldSuppliedRoleIds }], endStateId, isUsedUp, forcedByTestCaseId }], groups: [{ groupNumber, stateIds, isTerminal }], notAllowed: [{ testCaseId, reason, suppliedRoleIds }], missingState: [{ testCaseId, prerequisiteStateId }], unplacedTestCaseIds, unrestoredSuppliedRoleIds }.",
+      "Preview how the project's test cases would run on account sets. Read-only: it plans from the saved states, roles and test cases and does not run anything. Returns the floor (fewest account sets that can run every placed test), each account set's route in order with setup runs (replays that only reach a state, with no verdict) and the one-way test that forced each account set beyond the first, the groups of states, Not allowed tests that would change a supplied account, tests whose prerequisite state no test reaches, and test cases with no states yet (they run as today). Response shape: { floor, batchLength, totalRuns, setupRuns, account sets: [{ accountSetNumber, slotNumber, steps: [{ testCaseId, prerequisiteStateId, resultStateId, isSetup, heldSuppliedRoleIds }], endStateId, isUsedUp, forcedByTestCaseId }], groups: [{ groupNumber, stateIds, isTerminal }], notAllowed: [{ testCaseId, reason, suppliedRoleIds }], missingState: [{ testCaseId, prerequisiteStateId }], unplacedTestCaseIds, unrestoredSuppliedRoleIds }.",
     inputSchema: schemas.TestStatePlanGetInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestStatePlanGetInputSchema>;

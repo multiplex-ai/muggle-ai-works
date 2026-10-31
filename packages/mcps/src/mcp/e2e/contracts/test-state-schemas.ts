@@ -2,9 +2,9 @@ import { z } from "zod";
 
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import {
-  TEST_STATE_PARALLEL_TEAM_LIMIT_DEFAULT,
-  TEST_STATE_PARALLEL_TEAM_LIMIT_MAX,
-  TEST_STATE_PARALLEL_TEAM_LIMIT_MIN,
+  TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_DEFAULT,
+  TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MAX,
+  TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MIN,
 } from "./constants.js";
 import { TestRoleSourceEnum, TestStateFactScopeEnum } from "./test-state-types.js";
 
@@ -12,15 +12,15 @@ const TestStateProjectIdSchema = MuggleEntityIdSchema.describe("Project ID (UUID
 const TestStateIdSchema = MuggleEntityIdSchema.describe("Test state ID (UUID)");
 const TestRoleIdSchema = MuggleEntityIdSchema.describe("Test role ID (UUID)");
 
-/** One fact a test state holds about a team's data, in the prompt-service wire shape. */
+/** One fact a test state holds about an account set's data, in the prompt-service wire shape. */
 export const TestStateFactSchema = z.object({
   statement: z.string().min(1).describe("What holds, e.g. 'the thread shows one unread message'"),
   scope: z
     .enum(TestStateFactScopeEnum)
     .describe(
-      "TEAM: only this team's data, e.g. the patient's thread with the doctor. ACCOUNT: one account as a whole, e.g. the doctor's unread count",
+      "ACCOUNT_SET: only this account set's data, e.g. the patient's thread with the doctor. ACCOUNT: one account as a whole, e.g. the doctor's unread count",
     ),
-  roleId: MuggleEntityIdSchema.nullable().describe("Test role ID (UUID) whose account an ACCOUNT fact is about; null for a TEAM fact"),
+  roleId: MuggleEntityIdSchema.nullable().describe("Test role ID (UUID) whose account an ACCOUNT fact is about; null for an ACCOUNT_SET fact"),
 });
 
 const TestStateFactsSchema = z
@@ -28,7 +28,7 @@ const TestStateFactsSchema = z
   .describe("Every fact the state's tests rely on");
 const TestStateCheckSchema = z
   .string()
-  .describe("Quick read-only check that a team is in this state, e.g. 'the thread shows one unread message'; may be empty");
+  .describe("Quick read-only check that an account set is in this state, e.g. 'the thread shows one unread message'; may be empty");
 const TestRoleSourceSchema = z
   .enum(TestRoleSourceEnum)
   .describe("CREATED: Muggle signs the account up itself. SUPPLIED: the customer provides the account");
@@ -44,16 +44,16 @@ export const TestStateCatalogGetInputSchema = z.object({
 /** Input of muggle-remote-test-state-settings-update. */
 export const TestStateSettingsUpdateInputSchema = z.object({
   projectId: TestStateProjectIdSchema,
-  freshTeamStateId: MuggleEntityIdSchema.nullable()
+  freshAccountSetStateId: MuggleEntityIdSchema.nullable()
     .optional()
-    .describe("Test state ID (UUID) a newly formed team starts in, e.g. 'New patient'; null clears it"),
-  parallelTeamLimit: z
+    .describe("Test state ID (UUID) a newly formed account set starts in, e.g. 'New patient'; null clears it"),
+  parallelAccountSetLimit: z
     .number()
     .int()
-    .min(TEST_STATE_PARALLEL_TEAM_LIMIT_MIN)
-    .max(TEST_STATE_PARALLEL_TEAM_LIMIT_MAX)
+    .min(TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MIN)
+    .max(TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_MAX)
     .optional()
-    .describe(`Most teams a batch runs at once (default ${TEST_STATE_PARALLEL_TEAM_LIMIT_DEFAULT})`),
+    .describe(`Most account sets a batch runs at once (default ${TEST_STATE_PARALLEL_ACCOUNT_SET_LIMIT_DEFAULT})`),
 });
 
 /** Input of muggle-remote-test-state-create. */
@@ -108,7 +108,7 @@ export const TestStatePlanGetInputSchema = z.object({
   isProduction: z
     .boolean()
     .optional()
-    .describe("True to plan for production, which runs at the floor with no extra teams for speed (default false)"),
+    .describe("True to plan for production, which runs at the floor with no extra account sets for speed (default false)"),
 });
 
 /** Test state fields of muggle-remote-test-case-create and muggle-remote-test-case-update; null clears a field. */

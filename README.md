@@ -303,10 +303,10 @@ so the result carries a viewUrl straight to the dashboard
 
 | Test states | Purpose |
 | :---------- | :------ |
-| `muggle-remote-test-state-catalog-get` / `-settings-update` | Read a project's states and roles; set its fresh-team state and parallel-team limit |
-| `muggle-remote-test-state-create` / `-update` / `-delete` | Manage states: facts about one team's data, plus a check |
+| `muggle-remote-test-state-catalog-get` / `-settings-update` | Read a project's states and roles; set its fresh account set state and parallel account set limit |
+| `muggle-remote-test-state-create` / `-update` / `-delete` | Manage states: facts about one account set's data, plus a check |
 | `muggle-remote-test-role-create` / `-update` / `-delete` | Manage roles: created or supplied accounts a test acts as |
-| `muggle-remote-test-state-plan-get` | Preview the team plan without running anything |
+| `muggle-remote-test-state-plan-get` | Preview the account set plan without running anything |
 
 Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-preview-job-get` until terminal, then persist with the matching `-create` tool. `-list` and `-cancel` round out the set.
 

@@ -9,6 +9,7 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
+import { ProjectDisplayResolutionsInputSchema } from "./project-display-resolution-schemas.js";
 import { RunEnvironmentInputSchema } from "./run-environment.js";
 import { SecretFieldEnum, SecretTypeEnum } from "./secret-group-types.js";
 
@@ -17,6 +18,7 @@ export * from "./fan-out-choice.js";
 export * from "./fan-out-plan-schemas.js";
 export * from "./run-environment.js";
 export * from "./local-run-schemas.js";
+export * from "./project-display-resolution-schemas.js";
 export * from "./run-settings-schemas.js";
 export * from "./secret-group-types.js";
 
@@ -111,6 +113,7 @@ export const ProjectCreateInputSchema = z.object({
   organizationId: IdSchema.optional().describe(
     "Organization (UUID) that owns the project; its runs are billed to that organization. Omit for a personal project. The caller must be an active member: list memberships with muggle-remote-organization-list.",
   ),
+  displayResolutions: ProjectDisplayResolutionsInputSchema.optional(),
 });
 
 export const ProjectGetInputSchema = z.object({
@@ -129,6 +132,7 @@ export const ProjectUpdateInputSchema = z.object({
   organizationId: IdSchema.optional().describe(
     "Move a personal project into this organization (UUID). One-way: an organization's project cannot move to another organization or back to personal. The caller must be an active member.",
   ),
+  displayResolutions: ProjectDisplayResolutionsInputSchema.optional(),
 });
 
 export const ProjectListInputSchema = PaginationInputSchema.extend({});

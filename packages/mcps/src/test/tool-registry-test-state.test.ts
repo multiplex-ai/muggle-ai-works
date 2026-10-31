@@ -1,5 +1,5 @@
 /**
- * Tests for the test state coverage tools on the cloud E2E registry.
+ * Tests for the test chaining tools on the cloud E2E registry.
  *
  * Covers:
  *   - each tool's input schema and the upstream verb, path and body it maps to

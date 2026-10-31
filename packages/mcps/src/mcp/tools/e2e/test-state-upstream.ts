@@ -1,5 +1,5 @@
 /**
- * Upstream paths and request-body fields of the test state coverage tools.
+ * Upstream paths and request-body fields of the test chaining tools.
  */
 
 import type { z } from "zod";
@@ -35,7 +35,7 @@ export function buildTestRolesPath(projectId: string): string {
 }
 
 /**
- * Builds the path of a project's test state coverage plan preview.
+ * Builds the path of a project's test chaining plan preview.
  * @param projectId - Project ID.
  * @returns e.g. `/v1/protected/muggle-test/projects/<projectId>/test-state-plan`.
  */

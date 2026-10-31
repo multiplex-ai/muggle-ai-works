@@ -1,0 +1,1830 @@
+{
+  "target": {"kind":"skill","name":"muggle-do"},
+  "passThreshold": 1,
+  "patterns": {
+    "respawn-read": {"tool":"Read","argContains":"respawn-watcher.md"},
+    "watcher-armed": {
+      "anyOf": [
+        {"tool":"Skill","argContains":"muggle-pr-followup"},
+        {"tool":"Monitor","argContains":"pr-watch-arm.sh"},
+        {"tool":"Bash","argContains":"pr-watch-arm.sh"}
+      ]
+    },
+    "session-note": {"anyOf":[{"tool":"Bash","argContains":["iterations","001.md"]},{"tool":"Bash","argContains":"followup.log"}]},
+    "outward-action": {
+      "anyOf": [
+        {"tool":"Bash","argContains":"git push"},
+        {"tool":"Bash","argContains":"\" push"},
+        {"tool":"Bash","argContains":"--force-with-lease"},
+        {"tool":"Agent","argContains":"visual-walkthrough-builder"},
+        {"tool":"Skill","argContains":"muggle-pr-visual-walkthrough"},
+        {"tool":"Bash","argContains":["gh pr comment","muggle-pr-section"]},
+        {"tool":"Bash","argContains":["PATCH","issues/comments"]},
+        {"tool":"Skill","argContains":"muggle-pr-followup"},
+        {"tool":"Monitor","argContains":"pr-watch-arm.sh"},
+        {"tool":"Bash","argContains":"pr-watch-arm.sh"},
+        {"tool":"Bash","argContains":"/replies"},
+        {"tool":"Bash","argContains":"gh pr comment"},
+        {"tool":"Bash","argContains":"gh pr edit"},
+        {"tool":"Bash","argContains":"gh run rerun"},
+        {"tool":"Bash","argContains":"MUGGLE_E2E_SKIP"},
+        {"tool":"Bash","argContains":"MUGGLE_REPLY_SKIP"}
+      ]
+    },
+    "thread-resolved": {"tool":"Bash","argContains":"resolveReviewThread"},
+    "unit-run": {
+      "anyOf": [
+        {"tool":"Bash","argContains":"guard-run"},
+        {"tool":"Bash","argContains":"npm test"},
+        {"tool":"Bash","argContains":"run test"},
+        {"tool":"Bash","argContains":"pnpm test"},
+        {"tool":"Bash","argContains":"yarn test"},
+        {"tool":"Bash","argContains":"node --test"}
+      ]
+    },
+    "pushed": {
+      "anyOf": [
+        {"tool":"Bash","argContains":"git push"},
+        {"tool":"Bash","argContains":"\" push"},
+        {"tool":"Bash","argContains":"--force-with-lease"}
+      ]
+    },
+    "force-pushed": {"tool":"Bash","argContains":"--force-with-lease"},
+    "committed": {"tool":"Bash","argContains":"git commit"},
+    "no-app-logic-skip": {"tool":"Bash","argContains":"MUGGLE_E2E_SKIP: NO_APP_LOGIC_CHANGE"},
+    "rebase-skip": {"tool":"Bash","argContains":["MUGGLE_E2E_SKIP: NO_APP_LOGIC_CHANGE",".."]},
+    "e2e-executed": {
+      "anyOf": [
+        {"tool":"muggle-local-execute-test-generation","argContains":""},
+        {"tool":"muggle-local-execute-replay","argContains":""}
+      ]
+    },
+    "walkthrough-posted": {
+      "anyOf": [
+        {"tool":"Agent","argContains":"visual-walkthrough-builder"},
+        {"tool":"Skill","argContains":"muggle-pr-visual-walkthrough"},
+        {"tool":"Bash","argContains":["gh pr comment","muggle-pr-section"]},
+        {"tool":"Bash","argContains":["PATCH","issues/comments"]}
+      ]
+    },
+    "pr-reply": {"anyOf":[{"tool":"Bash","argContains":"/replies"},{"tool":"Bash","argContains":"gh pr comment"}]},
+    "rebase-started": {"anyOf":[{"tool":"Bash","argContains":"rebase origin/"},{"tool":"Bash","argContains":"rebase main"}]},
+    "rebase-aborted": {"tool":"Bash","argContains":"rebase --abort"},
+    "rebase-continued": {"tool":"Bash","argContains":"rebase --continue"},
+    "rolled-back": {"anyOf":[{"tool":"Bash","argContains":"reset --hard"},{"tool":"Bash","argContains":"rebase --abort"}]},
+    "lockfile-regenerated": {
+      "anyOf": [
+        {"tool":"Bash","argContains":"npm install"},
+        {"tool":"Bash","argContains":"npm i "},
+        {"tool":"Bash","argContains":"pnpm install"}
+      ]
+    }
+  },
+  "defaults": {
+    "maxTurns": 70,
+    "preferences": {"autoUseWorktree":"never","autoInstallCiWorkflow":"never"},
+    "seed": {
+      "repo": "tiny-web-app",
+      "files": [
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+          "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T21:20:00Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nLoop user: eval-bot\n\n## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone\n"
+        },
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+          "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n"
+        },
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+          "content": "# Iteration 001 — 2026-10-22T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G).\n\n### Stage 4 — Impact analysis (2026-10-22T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed vs main; pathClassification: surface-a; e2eScope: tc-home-greeting.\n\n### Stage 5 — Unit tests (2026-10-22T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T21:15:00Z)\n\nStage 6 done — Overall: PASS; tc-home-greeting run-farewell-1.\n\n### Stage 7 — Create PR (2026-10-22T21:18:00Z)\n\nStage 7 done — https://github.com/acme/tiny-web-app/pull/142 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T21:18:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T21:20:00Z)\n\nStage 8 done — watching PR #142.\n"
+        },
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",
+          "content": "[\n  {\n    \"repo\": \"acme/tiny-web-app\",\n    \"provider\": \"github\",\n    \"number\": 142,\n    \"url\": \"https://github.com/acme/tiny-web-app/pull/142\",\n    \"head_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"state\": \"open\"\n  }\n]\n"
+        },
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+          "content": "{\n  \"acme/tiny-web-app#142\": {\n    \"lastBodyReviewId\": 0,\n    \"last_pushed_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"idle_tick_count\": 0,\n    \"cycles_completed\": 0,\n    \"escalated_review_ids\": [],\n    \"pushed_shas\": [\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\n    ],\n    \"ci_fix_attempts\": {},\n    \"ci_escalated_shas\": [],\n    \"ci_rerun_shas\": [],\n    \"conflict_resolve_attempts\": {},\n    \"conflict_escalated_keys\": [],\n    \"catch_up_rebases\": 0,\n    \"rebase_budget_exhausted\": false\n  }\n}\n"
+        },
+        {
+          "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/followup.log",
+          "content": "2026-10-22T21:20:00Z armed watcher for PR #142\n"
+        },
+        {
+          "path": "src/greeting.js",
+          "content": "/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n"
+        },
+        {
+          "path": "test/greeting_test.js",
+          "content": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n"
+        },
+        {
+          "path": "README.md",
+          "content": "# tiny-web-app\n\nServes a home page that greets the visitor by name and bids them farewell.\n\n## Configuraiton\n\n`PORT` sets the port the server listens on (default 3000).\n"
+        }
+      ]
+    },
+    "bashResponses": [
+      {
+        "commandContains": "pr-watch-arm.sh",
+        "response": "DRAIN pr=142 state=OPEN head=3b7d2a6e\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=3 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=142 watermark seeded at ~/.muggle-ai/muggle-do/sessions/farewell-line/watch-watermark.env"
+      },
+      {
+        "commandContains": "MUGGLE_E2E_SKIP",
+        "response": "MUGGLE_E2E_SKIP accepted: NO_APP_LOGIC_CHANGE verified for acme/tiny-web-app#142 — the walkthrough comment now reads \"E2E skipped — no app-logic change\" with the stated reason, the last full run collapsed beneath it."
+      },
+      {
+        "commandContains": "MUGGLE_REPLY_SKIP",
+        "response": "MUGGLE_REPLY_SKIP recorded: the named comments are deferred to the user."
+      },
+      {
+        "commandContains": "resolveReviewThread",
+        "response": "{\"errors\":[{\"message\":\"denied by guardrail: the loop never resolves review threads\"}]}"
+      },
+      {
+        "commandContains": "graphql",
+        "response": "{\"data\":{\"repository\":{\"pullRequest\":{\"reviewThreads\":{\"nodes\":[]}}}}}"
+      },
+      {
+        "commandContains": "/replies",
+        "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\"}"
+      },
+      {
+        "commandContains": "--mode loop",
+        "response": "(the body read from stdin, unchanged, then:)\n\n<!-- muggle-do:bot -->\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_"
+      },
+      {
+        "commandContains": "sign-body.sh",
+        "response": "(the body read from stdin, unchanged, then:)\n\n<!-- muggle-works:signature -->\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_"
+      },
+      {"commandContains":"/reviews","response":"[]"},
+      {"commandContains":"pulls/142/comments","response":"[]"},
+      {
+        "commandContains": "compare/",
+        "response": "{\"status\": \"ahead\", \"ahead_by\": 1, \"behind_by\": 0, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+      },
+      {"commandContains":"contents/","response":"{\"message\":\"Not Found\",\"status\":\"404\"}"},
+      {"commandContains":"gh api user","response":"eval-bot"},
+      {
+        "commandContains": "gh pr checks",
+        "response": "[{\"name\": \"unit\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9002\"}, {\"name\": \"muggle-walkthrough\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/runs/9100\"}]"
+      },
+      {
+        "commandContains": "gh pr view",
+        "afterCommandContains": " push",
+        "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+      },
+      {
+        "commandContains": "gh pr view",
+        "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+      },
+      {"commandContains":"gh pr edit","response":"https://github.com/acme/tiny-web-app/pull/142"},
+      {
+        "commandContains": "gh pr comment",
+        "response": "https://github.com/acme/tiny-web-app/pull/142#issuecomment-2201"
+      },
+      {"commandContains":"issues/","response":"[]"},
+      {
+        "commandContains": "gh auth status",
+        "response": "github.com\n  ✓ Logged in to github.com account eval-bot (keyring)\n  - Active account: true"
+      },
+      {"commandContains":"gh api","response":"[]"},
+      {
+        "commandContains": "checkout-freshness",
+        "response": "{\"verdict\": \"FRESH\", \"base\": \"main\", \"behindBy\": 0, \"hasFetchFailed\": false}"
+      },
+      {"commandContains":"CLAUDE_CODE_SESSION_ID","response":"eval-session-modes"},
+      {
+        "commandContains": "curl",
+        "response": "<!doctype html>\n<title>tiny-web-app</title>\n<h1>Hello, friend!</h1>\n<p>See you soon, friend!</p>"
+      },
+      {"commandContains":"%G?","response":"G"},
+      {"commandContains":"gpgsign","response":"true"},
+      {
+        "commandContains": "guard-run",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "npm test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "run test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "pnpm test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "yarn test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {
+        "commandContains": "node --test",
+        "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+      },
+      {"commandContains":"node --check","response":""},
+      {
+        "commandContains": "--force-with-lease",
+        "response": "To https://github.com/acme/tiny-web-app.git\n + 9f2c1e4...3b7d2a6 users/eval/farewell-line -> users/eval/farewell-line (forced update)"
+      },
+      {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+      {
+        "commandContains": "farewell-line..HEAD",
+        "afterCommandContains": "git commit",
+        "response": "3b7d2a6 address the review"
+      },
+      {"commandContains":"farewell-line..HEAD","response":""},
+      {
+        "commandContains": "git commit",
+        "response": "[users/eval/farewell-line 3b7d2a6] address the review\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "commandContains": " show",
+        "afterCommandContains": "git commit",
+        "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    address the review\n\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+      },
+      {
+        "commandContains": " log",
+        "afterCommandContains": "git commit",
+        "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) address the review\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+      },
+      {
+        "commandContains": " push",
+        "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
+      },
+      {
+        "commandContains": "ls -",
+        "response": "followup.log\niterations\nlast_seen.json\nprs.json\nrequirements.md\nstate.md"
+      },
+      {
+        "commandContains": "rev-parse HEAD",
+        "afterCommandContains": "git commit",
+        "response": "3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e"
+      },
+      {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+      {"commandContains":"rev-parse --abbrev-ref","response":"users/eval/farewell-line"},
+      {"commandContains":"branch --show-current","response":"users/eval/farewell-line"},
+      {"commandContains":"symbolic-ref","response":"origin/main"},
+      {"commandContains":"remote get-url","response":"https://github.com/acme/tiny-web-app.git"},
+      {"commandContains":"rev-list --count","response":"0"},
+      {
+        "commandContains": "worktree list",
+        "response": "worktree {{repo}}\nHEAD 9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\nbranch refs/heads/users/eval/farewell-line\n"
+      },
+      {"commandContains":" fetch","response":""},
+      {
+        "commandContains": " status",
+        "afterCommandContains": " push",
+        "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'.\n\nnothing to commit, working tree clean"
+      },
+      {
+        "commandContains": " status",
+        "afterCommandContains": "git commit",
+        "response": "On branch users/eval/farewell-line\nYour branch is ahead of 'origin/users/eval/farewell-line' by 1 commit.\n\nnothing to commit, working tree clean"
+      },
+      {
+        "commandContains": " status",
+        "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+      },
+      {
+        "commandContains": "main...HEAD",
+        "response": "README.md\nsrc/greeting.js\ntest/greeting_test.js"
+      },
+      {"commandContains":"ls-files --others","response":""},
+      {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
+    ],
+    "toolResponses": {
+      "Skill": [
+        {
+          "argContains": "muggle-pr-followup",
+          "response": "Watching PR #142 — drained (nothing outstanding), watermark seeded, persistent monitor armed."
+        },
+        {
+          "argContains": "muggle-test-prepare",
+          "response": "READY\n\n```\nService       PID     Port   Source                Smoke Test\ntiny-web-app  41872   3000   {{repo}} (working tree)   ✓\nAll services verified. Ready for E2E.\n```"
+        },
+        {
+          "argContains": "muggle-pr-visual-walkthrough",
+          "response": "Mode A: walkthrough posted to https://github.com/acme/tiny-web-app/pull/142#issuecomment-2001 (filled the designated walkthrough comment in place; no overflow comment).\ncomment: null"
+        }
+      ],
+      "Agent": [
+        {
+          "argContains": "visual-walkthrough-builder",
+          "response": "Posted the walkthrough to https://github.com/acme/tiny-web-app/pull/142#issuecomment-2001 — updated the designated comment in place; no overflow comment."
+        }
+      ],
+      "Monitor": [
+        {
+          "argContains": "pr-watch-arm.sh",
+          "response": "Monitor started (task mon_9a2c, persistent, timeout 1800000 ms). First output:\nDRAIN pr=142 state=OPEN head=3b7d2a6e\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=3 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=142 watermark seeded at ~/.muggle-ai/muggle-do/sessions/farewell-line/watch-watermark.env"
+        }
+      ],
+      "TodoWrite": [{"argContains":"","response":"Todos have been modified successfully."}]
+    },
+    "fixtures": {
+      "projects": {"items":[{"id":"proj-tiny-web-app","name":"tiny-web-app","url":"http://localhost:3000"}]},
+      "lastProject": {"id":"proj-tiny-web-app","url":"http://localhost:3000"},
+      "useCases": {
+        "items": [
+          {
+            "id": "uc-home",
+            "projectId": "proj-tiny-web-app",
+            "title": "Visitor is greeted on the home page",
+            "description": "A visitor opens the home page, optionally with ?name=, and is greeted and bid farewell by name.",
+            "url": "http://localhost:3000/"
+          }
+        ]
+      },
+      "testCases": {
+        "items": [
+          {
+            "id": "tc-home-greeting",
+            "title": "Home page greets the visitor by name and bids them farewell",
+            "useCaseId": "uc-home",
+            "projectId": "proj-tiny-web-app"
+          }
+        ]
+      },
+      "testCase": {
+        "id": "tc-home-greeting",
+        "title": "Home page greets the visitor by name and bids them farewell",
+        "projectId": "proj-tiny-web-app",
+        "goal": "Open the home page as visitor Ada and confirm the greeting and farewell lines name her.",
+        "instructions": "Open http://localhost:3000/?name=Ada and read the heading and the line under it.",
+        "expectedResult": "The heading says `Hello, Ada!` and the line under it names Ada.",
+        "alwaysStartsFreshSession": false
+      },
+      "testCaseAncestors": {"testCaseId":"tc-home-greeting","ancestors":[],"orphan":false},
+      "executeResult": {
+        "runId": "run-review-1",
+        "status": "passed",
+        "testCaseId": "tc-home-greeting",
+        "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-review-1",
+        "cloudTestScriptId": "ts-farewell-1",
+        "cloudActionScriptId": "as-farewell-1",
+        "artifactsDir": "~/.muggle-ai/runs/run-review-1"
+      },
+      "runResult": {
+        "runId": "run-review-1",
+        "status": "passed",
+        "testCaseId": "tc-home-greeting",
+        "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/proj-tiny-web-app/runs/run-review-1",
+        "cloudTestScriptId": "ts-farewell-1",
+        "cloudActionScriptId": "as-farewell-1",
+        "artifactsDir": "~/.muggle-ai/runs/run-review-1"
+      },
+      "testScript": {
+        "id": "ts-farewell-1",
+        "testCaseId": "tc-home-greeting",
+        "steps": [
+          {
+            "stepIndex": 0,
+            "operation": {
+              "action": "navigate",
+              "screenshotUrl": "https://cdn.muggle-ai.com/screenshots/run-review-1/step-0.png"
+            },
+            "briefExplanation": "Open the home page as Ada"
+          },
+          {
+            "stepIndex": 1,
+            "operation": {
+              "action": "assert",
+              "screenshotUrl": "https://cdn.muggle-ai.com/screenshots/run-review-1/step-1.png"
+            },
+            "briefExplanation": "The heading greets Ada and the line under it names her"
+          }
+        ],
+        "summaryStep": {"operation":{"screenshotUrl":"https://cdn.muggle-ai.com/screenshots/run-review-1/step-2.png"}}
+      },
+      "runStepsResult": {"runId":"run-review-1","status":"passed","verdict":"pass","steps":[],"screenshotCount":3}
+    }
+  },
+  "scenarios": [
+    {
+      "name": "fix-ci-lint",
+      "prompt": "fix ci lint on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "seed": {
+        "repo": "tiny-web-app",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+            "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T21:20:00Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nLoop user: eval-bot\n\n## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G).\n\n### Stage 4 — Impact analysis (2026-10-22T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed vs main; pathClassification: surface-a; e2eScope: tc-home-greeting.\n\n### Stage 5 — Unit tests (2026-10-22T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T21:15:00Z)\n\nStage 6 done — Overall: PASS; tc-home-greeting run-farewell-1.\n\n### Stage 7 — Create PR (2026-10-22T21:18:00Z)\n\nStage 7 done — https://github.com/acme/tiny-web-app/pull/142 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T21:18:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T21:20:00Z)\n\nStage 8 done — watching PR #142.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/tiny-web-app\",\n    \"provider\": \"github\",\n    \"number\": 142,\n    \"url\": \"https://github.com/acme/tiny-web-app/pull/142\",\n    \"head_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"state\": \"open\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "content": "{\n  \"acme/tiny-web-app#142\": {\n    \"lastBodyReviewId\": 0,\n    \"last_pushed_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"idle_tick_count\": 0,\n    \"cycles_completed\": 0,\n    \"escalated_review_ids\": [],\n    \"pushed_shas\": [\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\n    ],\n    \"ci_fix_attempts\": {},\n    \"ci_escalated_shas\": [],\n    \"ci_rerun_shas\": [],\n    \"conflict_resolve_attempts\": {},\n    \"conflict_escalated_keys\": [],\n    \"catch_up_rebases\": 0,\n    \"rebase_budget_exhausted\": false\n  }\n}\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/followup.log",
+            "content": "2026-10-22T21:20:00Z armed watcher for PR #142\n"
+          },
+          {
+            "path": "src/greeting.js",
+            "content": "/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n"
+          },
+          {
+            "path": "README.md",
+            "content": "# tiny-web-app\n\nServes a home page that greets the visitor by name and bids them farewell.\n\n## Configuraiton\n\n`PORT` sets the port the server listens on (default 3000).\n"
+          },
+          {
+            "path": "package.json",
+            "content": "{\n  \"name\": \"tiny-web-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"lint\": \"eslint .\",\n    \"test\": \"node --test test/greeting_test.js\"\n  },\n  \"devDependencies\": {\n    \"eslint\": \"^9.14.0\"\n  }\n}\n"
+          },
+          {
+            "path": "test/greeting_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { mock } from \"node:test\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "gh pr checks",
+          "response": "[{\"name\": \"lint\", \"state\": \"FAILURE\", \"bucket\": \"fail\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9001\"}, {\"name\": \"unit\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9002\"}, {\"name\": \"muggle-walkthrough\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/runs/9100\"}]"
+        },
+        {
+          "commandContains": "gh run view",
+          "response": "lint\tRun npm run lint\t> eslint .\nlint\tRun npm run lint\t/home/runner/work/tiny-web-app/tiny-web-app/test/greeting_test.js\nlint\tRun npm run lint\t  2:10  error  'mock' is defined but never used  no-unused-vars\nlint\tRun npm run lint\t✖ 1 problem (1 error, 0 warnings)\nlint\tRun npm run lint\t##[error]Process completed with exit code 1."
+        },
+        {
+          "commandContains": "job/9001",
+          "response": "lint\tRun npm run lint\t> eslint .\nlint\tRun npm run lint\t/home/runner/work/tiny-web-app/tiny-web-app/test/greeting_test.js\nlint\tRun npm run lint\t  2:10  error  'mock' is defined but never used  no-unused-vars\nlint\tRun npm run lint\t✖ 1 problem (1 error, 0 warnings)\nlint\tRun npm run lint\t##[error]Process completed with exit code 1."
+        },
+        {
+          "commandContains": "MUGGLE_E2E_SKIP",
+          "response": "MUGGLE_E2E_SKIP accepted: NO_APP_LOGIC_CHANGE verified for acme/tiny-web-app#142 — the walkthrough comment now reads \"E2E skipped — no app-logic change\" with the stated reason, the last full run collapsed beneath it."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 fix(ci): lint — drop the unused mock import"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": "git commit",
+          "response": "[users/eval/farewell-line 3b7d2a6] fix(ci): lint — drop the unused mock import\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " show",
+          "afterCommandContains": "git commit",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    fix(ci): lint — drop the unused mock import\n\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) fix(ci): lint — drop the unused mock import\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": " push",
+          "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
+        },
+        {
+          "commandContains": "lint",
+          "sequence": [
+            "> tiny-web-app@1.0.0 lint\n> eslint .\n\n{{repo}}/test/greeting_test.js\n  2:10  error  'mock' is defined but never used  no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)\n\nexit code 1",
+            "> tiny-web-app@1.0.0 lint\n> eslint .\n\nexit code 0"
+          ]
+        },
+        {"commandContains":"diff --name-only","response":"test/greeting_test.js"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"fix-ci.md"},
+          {"tool":"Bash","argContains":"lint"},
+          {
+            "anyOf": [
+              {"tool":"Edit","argContains":"greeting_test.js\","},
+              {"tool":"Write","argContains":"greeting_test.js\","}
+            ]
+          },
+          {"tool":"Bash","argContains":"lint"},
+          {"pattern":"unit-run"},
+          {"pattern":"pushed"},
+          {"pattern":"no-app-logic-skip"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"tool":"Bash","argContains":["git commit","fix(ci)"]},{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"pr-reply"},{"pattern":"e2e-executed"}],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"ci_fix_attempts\"\\s*:\\s*\\{\\s*\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\\s*:\\s*1\\b"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"pushed_shas\"\\s*:\\s*\\[[^\\]]*3b7d2a6"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fix-ci-out-of-scope",
+      "prompt": "fix ci deploy-preview on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {
+          "commandContains": "gh pr checks",
+          "response": "[{\"name\": \"deploy-preview\", \"state\": \"FAILURE\", \"bucket\": \"fail\", \"link\": \"https://vercel.com/acme/tiny-web-app/deployments/dpl_8Hq2\"}, {\"name\": \"unit\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9002\"}, {\"name\": \"muggle-walkthrough\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/runs/9100\"}]"
+        },
+        {
+          "commandContains": "check-runs",
+          "response": "{\"conclusion\": \"failure\", \"completed_at\": \"2026-10-23T08:40:00Z\", \"summary\": \"Preview deployment failed: environment variable DATABASE_URL is not set for the Preview environment of project tiny-web-app.\"}"
+        }
+      ],
+      "expect": {
+        "requireToolSequence": [{"tool":"Read","argContains":"fix-ci.md"},{"pattern":"watcher-armed"}],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"pushed"},
+          {"pattern":"committed"},
+          {"pattern":"pr-reply"},
+          {"pattern":"e2e-executed"}
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"ci_escalated_shas\"\\s*:\\s*\\[[^\\]]*\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\""
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"ci_fix_attempts\"\\s*:\\s*\\{\\s*\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\\s*:\\s*1\\b"
+          }
+        ],
+        "outputMatches": ["deploy-preview"]
+      }
+    },
+    {
+      "name": "fix-ci-budget",
+      "prompt": "fix ci lint on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "seed": {
+        "repo": "tiny-web-app",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+            "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T21:20:00Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nLoop user: eval-bot\n\n## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G).\n\n### Stage 4 — Impact analysis (2026-10-22T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed vs main; pathClassification: surface-a; e2eScope: tc-home-greeting.\n\n### Stage 5 — Unit tests (2026-10-22T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T21:15:00Z)\n\nStage 6 done — Overall: PASS; tc-home-greeting run-farewell-1.\n\n### Stage 7 — Create PR (2026-10-22T21:18:00Z)\n\nStage 7 done — https://github.com/acme/tiny-web-app/pull/142 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T21:18:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T21:20:00Z)\n\nStage 8 done — watching PR #142.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/tiny-web-app\",\n    \"provider\": \"github\",\n    \"number\": 142,\n    \"url\": \"https://github.com/acme/tiny-web-app/pull/142\",\n    \"head_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"state\": \"open\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "content": "{\n  \"acme/tiny-web-app#142\": {\n    \"lastBodyReviewId\": 0,\n    \"last_pushed_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"idle_tick_count\": 0,\n    \"cycles_completed\": 0,\n    \"escalated_review_ids\": [],\n    \"pushed_shas\": [\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\n    ],\n    \"ci_fix_attempts\": {\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\": 3\n    },\n    \"ci_escalated_shas\": [],\n    \"ci_rerun_shas\": [],\n    \"conflict_resolve_attempts\": {},\n    \"conflict_escalated_keys\": [],\n    \"catch_up_rebases\": 0,\n    \"rebase_budget_exhausted\": false\n  }\n}\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/followup.log",
+            "content": "2026-10-22T21:20:00Z armed watcher for PR #142\n"
+          },
+          {
+            "path": "src/greeting.js",
+            "content": "/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n"
+          },
+          {
+            "path": "README.md",
+            "content": "# tiny-web-app\n\nServes a home page that greets the visitor by name and bids them farewell.\n\n## Configuraiton\n\n`PORT` sets the port the server listens on (default 3000).\n"
+          },
+          {
+            "path": "package.json",
+            "content": "{\n  \"name\": \"tiny-web-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"lint\": \"eslint .\",\n    \"test\": \"node --test test/greeting_test.js\"\n  },\n  \"devDependencies\": {\n    \"eslint\": \"^9.14.0\"\n  }\n}\n"
+          },
+          {
+            "path": "test/greeting_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { mock } from \"node:test\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {
+          "commandContains": "gh pr checks",
+          "response": "[{\"name\": \"lint\", \"state\": \"FAILURE\", \"bucket\": \"fail\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9001\"}, {\"name\": \"unit\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/actions/runs/7001/job/9002\"}, {\"name\": \"muggle-walkthrough\", \"state\": \"SUCCESS\", \"bucket\": \"pass\", \"link\": \"https://github.com/acme/tiny-web-app/runs/9100\"}]"
+        },
+        {
+          "commandContains": "gh run view",
+          "response": "lint\tRun npm run lint\t> eslint .\nlint\tRun npm run lint\t/home/runner/work/tiny-web-app/tiny-web-app/test/greeting_test.js\nlint\tRun npm run lint\t  2:10  error  'mock' is defined but never used  no-unused-vars\nlint\tRun npm run lint\t✖ 1 problem (1 error, 0 warnings)\nlint\tRun npm run lint\t##[error]Process completed with exit code 1."
+        },
+        {
+          "commandContains": "job/9001",
+          "response": "lint\tRun npm run lint\t> eslint .\nlint\tRun npm run lint\t/home/runner/work/tiny-web-app/tiny-web-app/test/greeting_test.js\nlint\tRun npm run lint\t  2:10  error  'mock' is defined but never used  no-unused-vars\nlint\tRun npm run lint\t✖ 1 problem (1 error, 0 warnings)\nlint\tRun npm run lint\t##[error]Process completed with exit code 1."
+        },
+        {
+          "commandContains": "MUGGLE_E2E_SKIP",
+          "response": "MUGGLE_E2E_SKIP accepted: NO_APP_LOGIC_CHANGE verified for acme/tiny-web-app#142 — the walkthrough comment now reads \"E2E skipped — no app-logic change\" with the stated reason, the last full run collapsed beneath it."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":" push","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 fix(ci): lint — drop the unused mock import"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": "git commit",
+          "response": "[users/eval/farewell-line 3b7d2a6] fix(ci): lint — drop the unused mock import\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " show",
+          "afterCommandContains": "git commit",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    fix(ci): lint — drop the unused mock import\n\n 1 file changed, 1 deletion(-)"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "git commit",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) fix(ci): lint — drop the unused mock import\n9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": " push",
+          "response": "To https://github.com/acme/tiny-web-app.git\n   9f2c1e4..3b7d2a6  users/eval/farewell-line -> users/eval/farewell-line"
+        },
+        {
+          "commandContains": "lint",
+          "sequence": [
+            "> tiny-web-app@1.0.0 lint\n> eslint .\n\n{{repo}}/test/greeting_test.js\n  2:10  error  'mock' is defined but never used  no-unused-vars\n\n✖ 1 problem (1 error, 0 warnings)\n\nexit code 1",
+            "> tiny-web-app@1.0.0 lint\n> eslint .\n\nexit code 0"
+          ]
+        },
+        {"commandContains":"diff --name-only","response":"test/greeting_test.js"}
+      ],
+      "expect": {
+        "requireToolSequence": [{"tool":"Read","argContains":"fix-ci.md"},{"pattern":"watcher-armed"}],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"pushed"},
+          {"pattern":"committed"},
+          {"pattern":"pr-reply"},
+          {"pattern":"e2e-executed"}
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"ci_escalated_shas\"\\s*:\\s*\\[[^\\]]*\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\""
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"ci_fix_attempts\"\\s*:\\s*\\{\\s*\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\\s*:\\s*4\\b"
+          }
+        ],
+        "outputMatches": ["[Ee]scalat|budget|attempts"]
+      }
+    },
+    {
+      "name": "rebase-clean",
+      "prompt": "rebase on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "gh pr view",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BEHIND\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "compare/",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"status\": \"ahead\", \"ahead_by\": 1, \"behind_by\": 0, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "compare/",
+          "response": "{\"status\": \"diverged\", \"ahead_by\": 1, \"behind_by\": 2, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "rebase --continue",
+          "response": "Successfully rebased and updated refs/heads/users/eval/farewell-line."
+        },
+        {"commandContains":"rebase --abort","response":""},
+        {
+          "commandContains": "reset --hard",
+          "response": "HEAD is now at 9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "git rebase",
+          "response": "Successfully rebased and updated refs/heads/users/eval/farewell-line."
+        },
+        {"commandContains":"diff-filter=U","response":""},
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "reset --hard",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --abort",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase origin",
+          "response": "{\"verdict\": \"FRESH\", \"base\": \"main\", \"behindBy\": 0, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "reset --hard",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --abort",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase origin",
+          "response": "3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e"
+        },
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {"commandContains":"count origin/main..HEAD","response":"1"},
+        {"commandContains":"count HEAD..origin/main","afterCommandContains":"rebase origin","response":"0"},
+        {"commandContains":"count HEAD..origin/main","response":"2"},
+        {"commandContains":"HEAD..origin/main","afterCommandContains":"rebase origin","response":""},
+        {
+          "commandContains": "HEAD..origin/main",
+          "response": "7d3e9a1 chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"rev-list --count","afterCommandContains":"rebase origin","response":"0"},
+        {"commandContains":"rev-list --count","response":"2"},
+        {
+          "commandContains": " status",
+          "afterCommandContains": "--force-with-lease",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'.\n\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "reset --hard",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --abort",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase origin",
+          "response": "On branch users/eval/farewell-line\nYour branch and 'origin/users/eval/farewell-line' have diverged,\nand have 3 and 1 different commits each, respectively."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase origin",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase origin",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase origin",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "afterCommandContains": "rebase origin",
+          "response": "3b7d2a6 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "log origin/main",
+          "response": "7d3e9a1 chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "rebase origin",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"resolve-conflicts.md"},
+          {"pattern":"rebase-started"},
+          {"pattern":"unit-run"},
+          {"pattern":"force-pushed"},
+          {"pattern":"rebase-skip"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"},{"pattern":"watcher-armed"}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"rolled-back"},
+          {"pattern":"e2e-executed"},
+          {"pattern":"pr-reply"}
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"conflict_resolve_attempts\"\\s*:\\s*\\{\\s*\"9f2c1e4[0-9a-f]*\\.\\.7d3e9a1[0-9a-f]*\"\\s*:\\s*1\\b"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"catch_up_rebases\"\\s*:\\s*1\\b"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebase-conflict-never",
+      "prompt": "rebase on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "preferences": {"autoResolveConflicts":"never"},
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "gh pr view",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"baseRefName\": \"main\", \"mergeable\": \"CONFLICTING\", \"mergeStateStatus\": \"DIRTY\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "compare/",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"status\": \"ahead\", \"ahead_by\": 1, \"behind_by\": 0, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "compare/",
+          "response": "{\"status\": \"diverged\", \"ahead_by\": 1, \"behind_by\": 2, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "rebase --continue",
+          "response": "Successfully rebased and updated refs/heads/users/eval/farewell-line."
+        },
+        {"commandContains":"rebase --abort","response":""},
+        {
+          "commandContains": "reset --hard",
+          "response": "HEAD is now at 9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "git rebase",
+          "response": "Auto-merging src/greeting.js\nCONFLICT (content): Merge conflict in src/greeting.js\nerror: could not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting\nhint: Resolve all conflicts manually, mark them as resolved with \"git add/rm <conflicted_files>\", then run \"git rebase --continue\".\nCould not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting"
+        },
+        {"commandContains":"diff-filter=U","response":"src/greeting.js"},
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "reset --hard",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --abort",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --continue",
+          "response": "{\"verdict\": \"FRESH\", \"base\": \"main\", \"behindBy\": 0, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "reset --hard",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --abort",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e"
+        },
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {"commandContains":"count origin/main..HEAD","response":"1"},
+        {
+          "commandContains": "count HEAD..origin/main",
+          "afterCommandContains": "rebase --continue",
+          "response": "0"
+        },
+        {"commandContains":"count HEAD..origin/main","response":"2"},
+        {"commandContains":"HEAD..origin/main","afterCommandContains":"rebase --continue","response":""},
+        {
+          "commandContains": "HEAD..origin/main",
+          "response": "7d3e9a1 chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"rev-list --count","afterCommandContains":"rebase --continue","response":"0"},
+        {"commandContains":"rev-list --count","response":"2"},
+        {
+          "commandContains": " status",
+          "afterCommandContains": "--force-with-lease",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'.\n\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "reset --hard",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --abort",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --continue",
+          "response": "On branch users/eval/farewell-line\nYour branch and 'origin/users/eval/farewell-line' have diverged,\nand have 3 and 1 different commits each, respectively."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase origin",
+          "response": "interactive rebase in progress; onto 7d3e9a1\nYou are currently rebasing branch 'users/eval/farewell-line' on '7d3e9a1'.\n\nUnmerged paths:\n  (use \"git add <file>...\" to mark resolution)\n\tboth modified:   src/greeting.js"
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "log origin/main",
+          "response": "7d3e9a1 chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"resolve-conflicts.md"},
+          {"pattern":"rebase-started"},
+          {"pattern":"rebase-aborted"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"pushed"},
+          {"pattern":"rebase-continued"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"greeting.js\","},{"tool":"Write","argContains":"greeting.js\","}]
+          }
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"conflict_escalated_keys\"\\s*:\\s*\\[\\s*\"9f2c1e4[0-9a-f]*\\.\\.7d3e9a1[0-9a-f]*\""
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"conflict_resolve_attempts\"\\s*:\\s*\\{\\s*\"9f2c1e4[0-9a-f]*\\.\\.7d3e9a1[0-9a-f]*\"\\s*:\\s*1\\b"
+          }
+        ],
+        "outputMatches": ["[Cc]onflict"]
+      }
+    },
+    {
+      "name": "rebase-conflict-always",
+      "prompt": "rebase on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "preferences": {"autoResolveConflicts":"always"},
+      "seed": {
+        "repo": "tiny-web-app",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+            "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T21:20:00Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nLoop user: eval-bot\n\n## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G).\n\n### Stage 4 — Impact analysis (2026-10-22T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed vs main; pathClassification: surface-a; e2eScope: tc-home-greeting.\n\n### Stage 5 — Unit tests (2026-10-22T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T21:15:00Z)\n\nStage 6 done — Overall: PASS; tc-home-greeting run-farewell-1.\n\n### Stage 7 — Create PR (2026-10-22T21:18:00Z)\n\nStage 7 done — https://github.com/acme/tiny-web-app/pull/142 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T21:18:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T21:20:00Z)\n\nStage 8 done — watching PR #142.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/tiny-web-app\",\n    \"provider\": \"github\",\n    \"number\": 142,\n    \"url\": \"https://github.com/acme/tiny-web-app/pull/142\",\n    \"head_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"state\": \"open\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "content": "{\n  \"acme/tiny-web-app#142\": {\n    \"lastBodyReviewId\": 0,\n    \"last_pushed_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"idle_tick_count\": 0,\n    \"cycles_completed\": 0,\n    \"escalated_review_ids\": [],\n    \"pushed_shas\": [\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\n    ],\n    \"ci_fix_attempts\": {},\n    \"ci_escalated_shas\": [],\n    \"ci_rerun_shas\": [],\n    \"conflict_resolve_attempts\": {},\n    \"conflict_escalated_keys\": [],\n    \"catch_up_rebases\": 0,\n    \"rebase_budget_exhausted\": false\n  }\n}\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/followup.log",
+            "content": "2026-10-22T21:20:00Z armed watcher for PR #142\n"
+          },
+          {
+            "path": "src/greeting.js",
+            "content": "/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n"
+          },
+          {
+            "path": "test/greeting_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n"
+          },
+          {
+            "path": "README.md",
+            "content": "# tiny-web-app\n\nServes a home page that greets the visitor by name and bids them farewell.\n\n## Configuraiton\n\n`PORT` sets the port the server listens on (default 3000).\n"
+          },
+          {
+            "path": "package.json",
+            "content": "{\n  \"name\": \"tiny-web-app\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"scripts\": {\n    \"start\": \"node src/server.js\",\n    \"test\": \"node --test test/greeting_test.js\"\n  },\n  \"dependencies\": {\n    \"escape-html\": \"^1.0.3\",\n    \"he\": \"^1.2.0\"\n  }\n}\n"
+          },
+          {
+            "path": "package-lock.json",
+            "content": "{\n  \"name\": \"tiny-web-app\",\n  \"version\": \"1.0.0\",\n  \"lockfileVersion\": 3,\n  \"requires\": true,\n  \"packages\": {\n    \"\": {\n      \"name\": \"tiny-web-app\",\n      \"version\": \"1.0.0\",\n      \"dependencies\": { \"escape-html\": \"^1.0.3\", \"he\": \"^1.2.0\" }\n    },\n    \"node_modules/escape-html\": { \"version\": \"1.0.3\", \"resolved\": \"https://registry.npmjs.org/escape-html/-/escape-html-1.0.3.tgz\" },\n    \"node_modules/he\": { \"version\": \"1.2.0\", \"resolved\": \"https://registry.npmjs.org/he/-/he-1.2.0.tgz\" }\n  }\n}\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "gh pr view",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"baseRefName\": \"main\", \"mergeable\": \"CONFLICTING\", \"mergeStateStatus\": \"DIRTY\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "compare/",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"status\": \"ahead\", \"ahead_by\": 1, \"behind_by\": 0, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "compare/",
+          "response": "{\"status\": \"diverged\", \"ahead_by\": 1, \"behind_by\": 2, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "rebase --continue",
+          "response": "Successfully rebased and updated refs/heads/users/eval/farewell-line."
+        },
+        {"commandContains":"rebase --abort","response":""},
+        {
+          "commandContains": "reset --hard",
+          "response": "HEAD is now at 9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "git rebase",
+          "response": "Auto-merging package-lock.json\nCONFLICT (content): Merge conflict in package-lock.json\nerror: could not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting\nhint: Resolve all conflicts manually, mark them as resolved with \"git add/rm <conflicted_files>\", then run \"git rebase --continue\".\nCould not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting"
+        },
+        {"commandContains":"diff-filter=U","response":"package-lock.json"},
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "reset --hard",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --abort",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --continue",
+          "response": "{\"verdict\": \"FRESH\", \"base\": \"main\", \"behindBy\": 0, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "reset --hard",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --abort",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e"
+        },
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {"commandContains":"count origin/main..HEAD","response":"1"},
+        {
+          "commandContains": "count HEAD..origin/main",
+          "afterCommandContains": "rebase --continue",
+          "response": "0"
+        },
+        {"commandContains":"count HEAD..origin/main","response":"2"},
+        {"commandContains":"HEAD..origin/main","afterCommandContains":"rebase --continue","response":""},
+        {
+          "commandContains": "HEAD..origin/main",
+          "response": "7d3e9a1 deps: add he for HTML entity decoding\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"rev-list --count","afterCommandContains":"rebase --continue","response":"0"},
+        {"commandContains":"rev-list --count","response":"2"},
+        {
+          "commandContains": " status",
+          "afterCommandContains": "--force-with-lease",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'.\n\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "reset --hard",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --abort",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --continue",
+          "response": "On branch users/eval/farewell-line\nYour branch and 'origin/users/eval/farewell-line' have diverged,\nand have 3 and 1 different commits each, respectively."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase origin",
+          "response": "interactive rebase in progress; onto 7d3e9a1\nYou are currently rebasing branch 'users/eval/farewell-line' on '7d3e9a1'.\n\nUnmerged paths:\n  (use \"git add <file>...\" to mark resolution)\n\tboth modified:   package-lock.json"
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "log origin/main",
+          "response": "7d3e9a1 deps: add he for HTML entity decoding\n5c0b2d8 docs: describe PORT"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"},
+        {
+          "commandContains": "npm i",
+          "response": "added 2 packages, and audited 3 packages in 1s\n\nfound 0 vulnerabilities"
+        },
+        {"commandContains":"checkout --theirs","response":""},
+        {"commandContains":"checkout --ours","response":""},
+        {"commandContains":"git add","response":""}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"resolve-conflicts.md"},
+          {"pattern":"rebase-started"},
+          {"pattern":"lockfile-regenerated"},
+          {"pattern":"unit-run"},
+          {"pattern":"force-pushed"}
+        ],
+        "requireToolAttempts": [{"pattern":"rebase-continued"},{"pattern":"respawn-read"},{"pattern":"watcher-armed"}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"rolled-back"},
+          {
+            "anyOf": [
+              {"tool":"Edit","argContains":"package-lock.json\","},
+              {"tool":"Write","argContains":"package-lock.json\","}
+            ]
+          }
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"catch_up_rebases\"\\s*:\\s*1\\b"
+          }
+        ]
+      }
+    },
+    {
+      "name": "rebase-conflict-always-unreconcilable",
+      "prompt": "rebase on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "preferences": {"autoResolveConflicts":"always"},
+      "seed": {
+        "repo": "tiny-web-app",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+            "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 8/8 (watching PR)\n**Last update:** 2026-10-22T21:20:00Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nLoop user: eval-bot\n\n## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Wave: N/A (single repo)\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-22T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G).\n\n### Stage 4 — Impact analysis (2026-10-22T21:07:00Z)\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed vs main; pathClassification: surface-a; e2eScope: tc-home-greeting.\n\n### Stage 5 — Unit tests (2026-10-22T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-22T21:15:00Z)\n\nStage 6 done — Overall: PASS; tc-home-greeting run-farewell-1.\n\n### Stage 7 — Create PR (2026-10-22T21:18:00Z)\n\nStage 7 done — https://github.com/acme/tiny-web-app/pull/142 opened; walkthrough posted.\n\n### Stage 7.5 — E2E repair (2026-10-22T21:18:30Z)\n\ne2e-repair: clear (PASS)\n\n### Stage 8 — Hand off to watcher (2026-10-22T21:20:00Z)\n\nStage 8 done — watching PR #142.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json",
+            "content": "[\n  {\n    \"repo\": \"acme/tiny-web-app\",\n    \"provider\": \"github\",\n    \"number\": 142,\n    \"url\": \"https://github.com/acme/tiny-web-app/pull/142\",\n    \"head_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"state\": \"open\"\n  }\n]\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "content": "{\n  \"acme/tiny-web-app#142\": {\n    \"lastBodyReviewId\": 0,\n    \"last_pushed_sha\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\n    \"idle_tick_count\": 0,\n    \"cycles_completed\": 0,\n    \"escalated_review_ids\": [],\n    \"pushed_shas\": [\n      \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"\n    ],\n    \"ci_fix_attempts\": {},\n    \"ci_escalated_shas\": [],\n    \"ci_rerun_shas\": [],\n    \"conflict_resolve_attempts\": {},\n    \"conflict_escalated_keys\": [],\n    \"catch_up_rebases\": 0,\n    \"rebase_budget_exhausted\": false\n  }\n}\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/followup.log",
+            "content": "2026-10-22T21:20:00Z armed watcher for PR #142\n"
+          },
+          {
+            "path": "test/greeting_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n"
+          },
+          {
+            "path": "README.md",
+            "content": "# tiny-web-app\n\nServes a home page that greets the visitor by name and bids them farewell.\n\n## Configuraiton\n\n`PORT` sets the port the server listens on (default 3000).\n"
+          },
+          {
+            "path": "src/greeting.js",
+            "content": "<<<<<<< HEAD\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n=======\n/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n>>>>>>> 9f2c1e4 (feat(greeting): add a farewell line under the greeting)\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "show 7d3e9a1",
+          "response": "commit 7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\n\n    security: refuse anonymous greetings — a blank visitor name now throws (SEC-142)\n\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n"
+        },
+        {
+          "commandContains": "show origin/main",
+          "response": "/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n"
+        },
+        {
+          "commandContains": "cat src/greeting.js",
+          "response": "<<<<<<< HEAD\n/** The greeting the home page renders. A visitor name is required: an anonymous greeting tells a scraper the page is public (SEC-142). */\nexport function renderGreeting(visitorName) {\n  if (!visitorName || !visitorName.trim()) throw new Error(\"visitorName is required\");\n  return `<h1>Hello, ${visitorName.trim()}!</h1>`;\n}\n=======\n/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n>>>>>>> 9f2c1e4 (feat(greeting): add a farewell line under the greeting)\n"
+        },
+        {
+          "commandContains": "guard-run",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "npm test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "run test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "pnpm test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "yarn test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "node --test",
+          "response": "✖ throws on a blank visitor name (SEC-142) (0.6ms)\n  AssertionError [ERR_ASSERTION]: Missing expected exception.\n✖ falls back to friend for a blank name in both lines (0.4ms)\n  Error: visitorName is required\n✔ greets a named visitor and bids them farewell (0.9ms)\nℹ tests 3\nℹ pass 1\nℹ fail 2\n[guard-run] exit 1"
+        },
+        {
+          "commandContains": "gh pr view",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\", \"baseRefName\": \"main\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BLOCKED\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\": 142, \"url\": \"https://github.com/acme/tiny-web-app/pull/142\", \"state\": \"OPEN\", \"headRefName\": \"users/eval/farewell-line\", \"headRefOid\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"baseRefName\": \"main\", \"mergeable\": \"CONFLICTING\", \"mergeStateStatus\": \"DIRTY\", \"mergedAt\": null, \"closedAt\": null, \"title\": \"Render a farewell line under the home-page greeting\", \"author\": {\"login\": \"eval-bot\"}, \"reviewRequests\": [{\"login\": \"dana-reviewer\"}]}"
+        },
+        {
+          "commandContains": "compare/",
+          "afterCommandContains": "--force-with-lease",
+          "response": "{\"status\": \"ahead\", \"ahead_by\": 1, \"behind_by\": 0, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "compare/",
+          "response": "{\"status\": \"diverged\", \"ahead_by\": 1, \"behind_by\": 2, \"base_commit\": {\"sha\": \"7d3e9a1c5b2f4e6a8c0d1e3f5a7b9c1d3e5f7a9b\"}}"
+        },
+        {
+          "commandContains": "rebase --continue",
+          "response": "Successfully rebased and updated refs/heads/users/eval/farewell-line."
+        },
+        {"commandContains":"rebase --abort","response":""},
+        {
+          "commandContains": "reset --hard",
+          "response": "HEAD is now at 9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "git rebase",
+          "response": "Auto-merging src/greeting.js\nCONFLICT (content): Merge conflict in src/greeting.js\nerror: could not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting\nhint: Resolve all conflicts manually, mark them as resolved with \"git add/rm <conflicted_files>\", then run \"git rebase --continue\".\nCould not apply 9f2c1e4... feat(greeting): add a farewell line under the greeting"
+        },
+        {"commandContains":"diff-filter=U","response":"src/greeting.js"},
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "reset --hard",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --abort",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "afterCommandContains": "rebase --continue",
+          "response": "{\"verdict\": \"FRESH\", \"base\": \"main\", \"behindBy\": 0, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "checkout-freshness",
+          "response": "{\"verdict\": \"BEHIND_BASE\", \"base\": \"main\", \"behindBy\": 2, \"hasFetchFailed\": false}"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "reset --hard",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --abort",
+          "response": "9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"
+        },
+        {
+          "commandContains": "rev-parse HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e"
+        },
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {"commandContains":"count origin/main..HEAD","response":"1"},
+        {
+          "commandContains": "count HEAD..origin/main",
+          "afterCommandContains": "rebase --continue",
+          "response": "0"
+        },
+        {"commandContains":"count HEAD..origin/main","response":"2"},
+        {"commandContains":"HEAD..origin/main","afterCommandContains":"rebase --continue","response":""},
+        {
+          "commandContains": "HEAD..origin/main",
+          "response": "7d3e9a1 security: refuse anonymous greetings — a blank visitor name now throws (SEC-142)\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"rev-list --count","afterCommandContains":"rebase --continue","response":"0"},
+        {"commandContains":"rev-list --count","response":"2"},
+        {
+          "commandContains": " status",
+          "afterCommandContains": "--force-with-lease",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'.\n\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "reset --hard",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --abort",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase --continue",
+          "response": "On branch users/eval/farewell-line\nYour branch and 'origin/users/eval/farewell-line' have diverged,\nand have 3 and 1 different commits each, respectively."
+        },
+        {
+          "commandContains": " status",
+          "afterCommandContains": "rebase origin",
+          "response": "interactive rebase in progress; onto 7d3e9a1\nYou are currently rebasing branch 'users/eval/farewell-line' on '7d3e9a1'.\n\nUnmerged paths:\n  (use \"git add <file>...\" to mark resolution)\n\tboth modified:   src/greeting.js"
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/farewell-line\nYour branch is up to date with 'origin/users/eval/farewell-line'."
+        },
+        {"commandContains":"farewell-line..HEAD","afterCommandContains":"--force-with-lease","response":""},
+        {
+          "commandContains": "farewell-line..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":"farewell-line..HEAD","response":""},
+        {
+          "commandContains": " show",
+          "afterCommandContains": "rebase --continue",
+          "response": "commit 3b7d2a6e1f4c8b0a2d4e6f8a0c2e4a6c8e0a2c4e\nAuthor: eval-bot <eval-bot@users.noreply.github.com>\n\n    feat(greeting): add a farewell line under the greeting\n\n src/greeting.js       | 5 +++--\n test/greeting_test.js | 6 +++---\n 2 files changed, 6 insertions(+), 5 deletions(-)"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "origin/main..HEAD",
+          "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting"
+        },
+        {
+          "commandContains": "log origin/main",
+          "response": "7d3e9a1 security: refuse anonymous greetings — a blank visitor name now throws (SEC-142)\n5c0b2d8 docs: describe PORT"
+        },
+        {
+          "commandContains": " log",
+          "afterCommandContains": "rebase --continue",
+          "response": "3b7d2a6 (HEAD -> users/eval/farewell-line) feat(greeting): add a farewell line under the greeting\n7d3e9a1 (origin/main) chore(server): log the listening port\n5c0b2d8 docs: describe PORT"
+        },
+        {"commandContains":" log","response":"9f2c1e4 feat(greeting): add a farewell line under the greeting"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"resolve-conflicts.md"},
+          {"pattern":"rebase-started"},
+          {"pattern":"rolled-back"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"pushed"}],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"conflict_escalated_keys\"\\s*:\\s*\\[\\s*\"9f2c1e4[0-9a-f]*\\.\\.7d3e9a1[0-9a-f]*\""
+          }
+        ],
+        "outputMatches": ["[Cc]onflict"]
+      }
+    },
+    {
+      "name": "reviews-minor",
+      "prompt": "address reviews 2101 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "graphql",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3301\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3301, \"pullRequestReview\": {\"databaseId\": 2101}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "/replies",
+          "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\", \"body\": \"Addressed in 3b7d2a6.\\n\\n<!-- muggle-do:bot -->\"}"
+        },
+        {
+          "commandContains": "reviews/2101/comments",
+          "response": "[{\"id\": 3301, \"pull_request_review_id\": 2101, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "/reviews",
+          "response": "[{\"id\": 2101, \"user\": {\"login\": \"dana-reviewer\"}, \"state\": \"COMMENTED\", \"body\": \"\", \"submitted_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "response": "[{\"id\": 3301, \"pull_request_review_id\": 2101, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {"commandContains":"diff --name-only","response":"README.md"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"address-reviews.md"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"README.md\","},{"tool":"Write","argContains":"README.md\","}]
+          },
+          {"pattern":"unit-run"},
+          {"pattern":"pushed"},
+          {"pattern":"no-app-logic-skip"},
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["/replies","3301","muggle-do:bot"]},
+              {"tool":"Bash","argContains":["/replies","3301","--mode loop"]}
+            ]
+          },
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"e2e-executed"},{"pattern":"walkthrough-posted"}],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"pushed_shas\"\\s*:\\s*\\[[^\\]]*3b7d2a6"
+          }
+        ]
+      }
+    },
+    {
+      "name": "reviews-comment-in-src",
+      "prompt": "address reviews 2102 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "maxTurns": 90,
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "graphql",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3302\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3302, \"pullRequestReview\": {\"databaseId\": 2102}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Reword this doc comment to name both lines: \\\"The greeting and farewell lines the home page renders for a visitor.\\\"\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "/replies",
+          "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\", \"body\": \"Addressed in 3b7d2a6.\\n\\n<!-- muggle-do:bot -->\"}"
+        },
+        {
+          "commandContains": "reviews/2102/comments",
+          "response": "[{\"id\": 3302, \"pull_request_review_id\": 2102, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 1, \"body\": \"Reword this doc comment to name both lines: \\\"The greeting and farewell lines the home page renders for a visitor.\\\"\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "/reviews",
+          "response": "[{\"id\": 2102, \"user\": {\"login\": \"dana-reviewer\"}, \"state\": \"COMMENTED\", \"body\": \"\", \"submitted_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "response": "[{\"id\": 3302, \"pull_request_review_id\": 2102, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 1, \"body\": \"Reword this doc comment to name both lines: \\\"The greeting and farewell lines the home page renders for a visitor.\\\"\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {"commandContains":"diff --name-only","response":"src/greeting.js"}
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"address-reviews.md"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"greeting.js\","},{"tool":"Write","argContains":"greeting.js\","}]
+          },
+          {"pattern":"unit-run"},
+          {"pattern":"e2e-executed"},
+          {"pattern":"pushed"},
+          {"pattern":"walkthrough-posted"},
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["/replies","3302","muggle-do:bot"]},
+              {"tool":"Bash","argContains":["/replies","3302","--mode loop"]}
+            ]
+          },
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"no-app-logic-skip"}]
+      }
+    },
+    {
+      "name": "reviews-full",
+      "prompt": "address reviews 2103 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "nightly",
+      "maxTurns": 90,
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "graphql",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3303\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3303, \"pullRequestReview\": {\"databaseId\": 2103}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "/replies",
+          "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\", \"body\": \"Addressed in 3b7d2a6.\\n\\n<!-- muggle-do:bot -->\"}"
+        },
+        {
+          "commandContains": "reviews/2103/comments",
+          "response": "[{\"id\": 3303, \"pull_request_review_id\": 2103, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "/reviews",
+          "response": "[{\"id\": 2103, \"user\": {\"login\": \"dana-reviewer\"}, \"state\": \"COMMENTED\", \"body\": \"\", \"submitted_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "response": "[{\"id\": 3303, \"pull_request_review_id\": 2103, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "diff --name-only",
+          "response": "src/greeting.js\ntest/greeting_test.js"
+        }
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"address-reviews.md"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"greeting.js\","},{"tool":"Write","argContains":"greeting.js\","}]
+          },
+          {"pattern":"unit-run"},
+          {"pattern":"e2e-executed"},
+          {"pattern":"pushed"},
+          {"pattern":"walkthrough-posted"},
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["/replies","3303","muggle-do:bot"]},
+              {"tool":"Bash","argContains":["/replies","3303","--mode loop"]}
+            ]
+          },
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"no-app-logic-skip"}]
+      }
+    },
+    {
+      "name": "reviews-mixed",
+      "prompt": "address reviews 2105 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "nightly",
+      "maxTurns": 90,
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {
+          "commandContains": "graphql",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3305\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3305, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}, {\"id\": \"PRRT_kwDOeval3306\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3306, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "/replies",
+          "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\", \"body\": \"Addressed in 3b7d2a6.\\n\\n<!-- muggle-do:bot -->\"}"
+        },
+        {
+          "commandContains": "reviews/2105/comments",
+          "response": "[{\"id\": 3305, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3306, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "/reviews",
+          "response": "[{\"id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"state\": \"COMMENTED\", \"body\": \"\", \"submitted_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "response": "[{\"id\": 3305, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3306, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "diff --name-only",
+          "response": "README.md\nsrc/greeting.js\ntest/greeting_test.js"
+        }
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"address-reviews.md"},
+          {"pattern":"unit-run"},
+          {"pattern":"e2e-executed"},
+          {"pattern":"pushed"},
+          {"pattern":"walkthrough-posted"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [
+          {"pattern":"respawn-read"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"README.md\","},{"tool":"Write","argContains":"README.md\","}]
+          },
+          {
+            "anyOf": [{"tool":"Edit","argContains":"greeting.js\","},{"tool":"Write","argContains":"greeting.js\","}]
+          },
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["/replies","3305","muggle-do:bot"]},
+              {"tool":"Bash","argContains":["/replies","3305","--mode loop"]}
+            ]
+          },
+          {
+            "anyOf": [
+              {"tool":"Bash","argContains":["/replies","3306","muggle-do:bot"]},
+              {"tool":"Bash","argContains":["/replies","3306","--mode loop"]}
+            ]
+          }
+        ],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [{"pattern":"thread-resolved"},{"pattern":"no-app-logic-skip"}]
+      }
+    },
+    {
+      "name": "reviews-ambiguous",
+      "prompt": "address reviews 2104 on https://github.com/acme/tiny-web-app/pull/142 slug=farewell-line",
+      "cadence": "pr",
+      "bashResponses": [
+        {"commandContains":"%G?","response":"G"},
+        {"commandContains":"gpgsign","response":"true"},
+        {"commandContains":"rev-parse HEAD","response":"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f"},
+        {
+          "commandContains": "graphql",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3304\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3304, \"pullRequestReview\": {\"databaseId\": 2104}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"hmm \\ud83d\\udc40\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "/replies",
+          "response": "{\"id\": 3401, \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\", \"body\": \"Addressed in 3b7d2a6.\\n\\n<!-- muggle-do:bot -->\"}"
+        },
+        {
+          "commandContains": "reviews/2104/comments",
+          "response": "[{\"id\": 3304, \"pull_request_review_id\": 2104, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"hmm \\ud83d\\udc40\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "/reviews",
+          "response": "[{\"id\": 2104, \"user\": {\"login\": \"dana-reviewer\"}, \"state\": \"COMMENTED\", \"body\": \"\", \"submitted_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "response": "[{\"id\": 3304, \"pull_request_review_id\": 2104, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"hmm \\ud83d\\udc40\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}]"
+        }
+      ],
+      "expect": {
+        "requireToolSequence": [
+          {"tool":"Read","argContains":"address-reviews.md"},
+          {"tool":"Bash","argContains":"MUGGLE_REPLY_SKIP"},
+          {"pattern":"watcher-armed"}
+        ],
+        "requireToolAttempts": [{"pattern":"respawn-read"}],
+        "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],
+        "forbidToolAttempts": [
+          {"pattern":"thread-resolved"},
+          {"pattern":"pushed"},
+          {"pattern":"committed"},
+          {"tool":"Bash","argContains":"/replies"},
+          {
+            "anyOf": [{"tool":"Edit","argContains":"greeting.js\","},{"tool":"Write","argContains":"greeting.js\","}]
+          },
+          {
+            "anyOf": [{"tool":"Edit","argContains":"README.md\","},{"tool":"Write","argContains":"README.md\","}]
+          }
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/last_seen.json",
+            "matches": "\"escalated_review_ids\"\\s*:\\s*\\[[^\\]]*\\b2104\\b"
+          }
+        ],
+        "outputMatches": ["2104"]
+      }
+    }
+  ]
+}

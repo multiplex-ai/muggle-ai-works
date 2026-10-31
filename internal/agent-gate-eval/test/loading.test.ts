@@ -110,6 +110,7 @@ describe("loadAgentScenarioFile", () => {
   it.each([
     ["a bash response with neither response nor sequence", { bashResponses: [{ commandContains: "gh" }] }, /bashResponses/],
     ["an empty bash sequence", { bashResponses: [{ commandContains: "gh", sequence: [] }] }, /bashResponses/],
+    ["a non-string afterCommandContains", { bashResponses: [{ commandContains: "gh", afterCommandContains: 1, response: "x" }] }, /afterCommandContains/],
     ["a toolResponses key that is no scripted tool", { toolResponses: { Bash: [{ argContains: "", response: "x" }] } }, /toolResponses key "Bash"/],
     ["a toolResponses entry without argContains", { toolResponses: { Skill: [{ response: "x" }] } }, /toolResponses\.Skill/],
     ["an unknown cadence", { cadence: "weekly" }, /cadence/],
@@ -126,6 +127,8 @@ describe("loadAgentScenarioFile", () => {
     ["an anyOf with no alternatives", { expect: { forbidToolAttempts: [{ anyOf: [] }] } }, /forbidToolAttempts\[0\]/],
     ["a reference to an undefined pattern", { expect: { requireToolAttempts: [{ pattern: "watcher-armed" }] } }, /names pattern "watcher-armed"/],
     ["an artifact regex that does not compile", { expect: { requireArtifacts: [{ path: "~/x", matches: "(" }] } }, /invalid matches regex/],
+    ["a last-among entry without last", { expect: { requireLastAmong: [{ among: { tool: "Read", argContains: "do/" } }] } }, /requireLastAmong\[0\] needs among and last/],
+    ["a last-among entry naming an undefined pattern", { expect: { requireLastAmong: [{ among: { tool: "Read", argContains: "do/" }, last: { pattern: "respawn" } }] } }, /names pattern "respawn"/],
   ])("rejects %s", (_label, extra, message) => {
     const p = writeScenarios("a", { target: agentTarget, scenarios: [{ ...minimalScenario, ...extra }] });
     expect(() => loadAgentScenarioFile(p)).toThrow(message);
@@ -156,6 +159,44 @@ describe("loadAgentScenarioFile", () => {
     expect(scenario.expect.requireToolSequence).toEqual([{ tool: "Bash", argContains: "gh pr create" }, watcherArmed]);
     expect(scenario.expect.requireToolSequences).toEqual([[{ tool: "Read", argContains: "arm-watcher.md" }, watcherArmed]]);
     expect(scenario.expect.forbidToolAttempts).toEqual([watcherArmed]);
+  });
+
+  it("replaces pattern references inside requireLastAmong", () => {
+    const stageRead = { tool: "Read", argContains: "skills/do/" };
+    const p = writeScenarios("a", {
+      target: agentTarget,
+      patterns: { "stage-read": stageRead },
+      scenarios: [
+        {
+          ...minimalScenario,
+          expect: { requireLastAmong: [{ among: { pattern: "stage-read" }, last: { tool: "Read", argContains: "respawn-watcher.md" } }] },
+        },
+      ],
+    });
+    const [scenario] = loadAgentScenarioFile(p).scenarios;
+    expect(scenario.expect.requireLastAmong).toEqual([
+      { among: stageRead, last: { tool: "Read", argContains: "respawn-watcher.md" } },
+    ]);
+  });
+
+  it("replaces a pattern reference in a last-among entry's unless", () => {
+    const sessionNote = { tool: "Bash", argContains: "/iterations/" };
+    const p = writeScenarios("a", {
+      target: agentTarget,
+      patterns: { "session-note": sessionNote },
+      scenarios: [
+        {
+          ...minimalScenario,
+          expect: {
+            requireLastAmong: [
+              { among: { tool: "Bash", argContains: "git" }, last: { tool: "Bash", argContains: "arm" }, unless: { pattern: "session-note" } },
+            ],
+          },
+        },
+      ],
+    });
+    const [scenario] = loadAgentScenarioFile(p).scenarios;
+    expect(scenario.expect.requireLastAmong?.[0].unless).toEqual(sessionNote);
   });
 
   it("applies the file's defaults: own prompt and seed win, maps merge, own scripted replies go first", () => {

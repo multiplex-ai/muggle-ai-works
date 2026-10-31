@@ -4,6 +4,7 @@
  * block. Kept side-effect-free so it is unit-testable without the SDK harness.
  */
 
+import { LAST_AMONG_ARGS_PREVIEW_CHARS } from "./constants.js";
 import { isArtifactSatisfied } from "./sandbox/artifacts.js";
 import { describeToolAttemptPattern, toolAttemptMatches } from "./tool-patterns.js";
 import type {
@@ -85,6 +86,21 @@ export function judgeAgentRun(
   for (const sequence of [expect.requireToolSequence ?? [], ...(expect.requireToolSequences ?? [])]) {
     const missReason = sequenceMissReason(toolAttempts, sequence);
     if (missReason) reasons.push(missReason);
+  }
+
+  for (const { among, last, unless } of expect.requireLastAmong ?? []) {
+    // An attempt that matches `last` stays a candidate, so an arm logged in the same command still counts.
+    const isCandidate = (attempt: ToolAttempt): boolean =>
+      toolAttemptMatches(attempt, among) &&
+      (!unless || !toolAttemptMatches(attempt, unless) || toolAttemptMatches(attempt, last));
+    const latest = toolAttempts.filter(isCandidate).at(-1);
+    if (!latest) {
+      reasons.push(`expected attempts matching ${describeToolAttemptPattern(among)}, the last matching ${describeToolAttemptPattern(last)}; none matched`);
+    } else if (!toolAttemptMatches(latest, last)) {
+      reasons.push(
+        `expected the last attempt matching ${describeToolAttemptPattern(among)} to match ${describeToolAttemptPattern(last)}; it was ${latest.tool} ${JSON.stringify(latest.args).slice(0, LAST_AMONG_ARGS_PREVIEW_CHARS)}`,
+      );
+    }
   }
 
   for (const artifact of expect.requireArtifacts ?? []) {

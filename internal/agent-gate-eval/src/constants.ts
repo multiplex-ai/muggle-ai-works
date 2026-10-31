@@ -86,6 +86,9 @@ export const TOOL_PATTERN_EXPECTATION_KEYS = [
   "requireToolSequence",
 ] as const satisfies ReadonlyArray<keyof AgentScenarioExpectation>;
 
+/** How much of the offending attempt's serialized input a failed `requireLastAmong` reason quotes. */
+export const LAST_AMONG_ARGS_PREVIEW_CHARS = 160;
+
 /** What the Write tool answers, before the path. */
 export const WRITE_CONFIRMATION_PREFIX = "File created successfully at: ";
 

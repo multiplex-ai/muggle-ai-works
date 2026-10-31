@@ -33,6 +33,8 @@ Then increment `last_seen.ci_fix_attempts[red_sha]` — before any fix, re-run o
 
 The increment opens a cycle this turn carries through Step 5 or Step 6 — it never stands in for one. The single exception is a red `muggle-walkthrough` whose E2E run for **this** PR is already queued or running (its `state.md` shows `E2E dispatch: queued` or `running`): that run is the cycle, and its report settles the comment. Writing the count for a PR with no such run, or because another PR's run is in flight, clears the turn-end gate while the PR stays red; the watch never asks again until the head moves, and the PR can merge red.
 
+If the increment takes the count past 3, this head's budget was spent before the cycle began: make no fix, no re-run and no push — go straight to Step 6. A fixable failure does not reopen a spent budget.
+
 ### Step 2 — Map each failing check to a local command
 
 Per [`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md). Fix the in-scope checks in the working tree; record out-of-scope checks for escalation (Step 6). A red `muggle-walkthrough` check takes Step 2.5; a red non-deterministic check takes Step 2.6.
@@ -84,7 +86,7 @@ Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). CI on the ne
 
 ### Step 6 — Escalate (budget spent or out of scope)
 
-When the failing checks are all out of scope, a non-deterministic check is red again after its re-run on this head (Step 2.6), or this is the head's third cycle (`ci_fix_attempts[red_sha]` reached 3 in Step 1) and it could not push a fix:
+When the failing checks are all out of scope, a non-deterministic check is red again after its re-run on this head (Step 2.6), this is the head's third cycle (`ci_fix_attempts[red_sha]` reached 3 in Step 1) and it could not push a fix, or Step 1 found the budget already spent:
 
 1. Add `red_sha` to `last_seen.ci_escalated_shas` so the SHA is not re-fixed. This cycle's Step 1 attempt is what makes the entry count.
 2. Emit one terminal message naming the unresolved checks.

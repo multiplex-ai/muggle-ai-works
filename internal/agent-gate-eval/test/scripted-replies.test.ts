@@ -54,6 +54,17 @@ describe("createBashResponder", () => {
     expect(answerBash("pnpm lint")).toBe("1 error");
   });
 
+  it("answers an afterCommandContains entry only once an earlier command carried its substring", () => {
+    const afterCommit: ScriptedBashResponse[] = [
+      { commandContains: "git status", afterCommandContains: "git commit", response: "nothing to commit" },
+      { commandContains: "git status", response: "modified: README.md" },
+    ];
+    const answerBash = createBashResponder(afterCommit);
+    expect(answerBash("git commit -m x && git status")).toBe("modified: README.md");
+    expect(answerBash("git status")).toBe("nothing to commit");
+    expect(resolveScriptedBashResponse("git status", afterCommit)).toBe("modified: README.md");
+  });
+
   it("starts fresh per run", () => {
     createBashResponder(responses)("pnpm lint");
     expect(createBashResponder(responses)("pnpm lint")).toBe("1 error");

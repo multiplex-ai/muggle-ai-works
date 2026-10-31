@@ -33,6 +33,7 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
+import { mapProjectDisplayResolutions } from "./project-display-resolutions-transform.js";
 import { mapRunSettingsList } from "./run-settings-list-transform.js";
 import {
   mapSecret,
@@ -50,7 +51,7 @@ const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
 const projectTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-create",
-    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project.",
+    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project. Pass displayResolutions to verify every test case at several viewports (e.g. desktop and phone); omit it for 1920x1080.",
     inputSchema: schemas.ProjectCreateInputSchema,
     dashboardLink: linkToCreatedProject,
     mapToUpstream: (input) => {
@@ -61,6 +62,7 @@ const projectTools: IQaToolDefinition[] = [
         url: toolInput.url,
       };
       if (toolInput.organizationId !== undefined) body.organizationId = toolInput.organizationId;
+      if (toolInput.displayResolutions !== undefined) body.displayOptions = toolInput.displayResolutions;
       return {
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/projects`,
@@ -70,7 +72,7 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-get",
-    description: "Get details of a specific project by ID.",
+    description: "Get details of a specific project by ID. Its displayOptions is the resolution list last saved on the project; read the resolutions in effect with muggle-remote-project-display-resolutions-get.",
     inputSchema: schemas.ProjectGetInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.Project),
     mapToUpstream: (input) => {
@@ -83,7 +85,7 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-update",
-    description: "Update an existing project's details, or move a personal project into an organization the caller belongs to.",
+    description: "Update an existing project's details, or move a personal project into an organization the caller belongs to. Pass displayResolutions to change the resolutions every test case is verified at; it replaces the whole list, so include the ones to keep.",
     inputSchema: schemas.ProjectUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectUpdateInputSchema>;
@@ -92,12 +94,28 @@ const projectTools: IQaToolDefinition[] = [
       if (toolInput.description !== undefined) body.description = toolInput.description;
       if (toolInput.url !== undefined) body.url = toolInput.url;
       if (toolInput.organizationId !== undefined) body.organizationId = toolInput.organizationId;
+      if (toolInput.displayResolutions !== undefined) body.displayOptions = toolInput.displayResolutions;
       return {
         method: "PUT",
         path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}`,
         body: body,
       };
     },
+  },
+  {
+    name: "muggle-remote-project-display-resolutions-get",
+    description:
+      "Get the resolutions a project's test cases are verified at in one lane: one run per resolution for every test case that picks none of its own. Response shape: { projectId, runEnvironmentType, displayResolutions, enabledResolutions, isPlatformDefault }. displayResolutions is in order, first one primary. Change them with displayResolutions on muggle-remote-project-update.",
+    inputSchema: schemas.ProjectDisplayResolutionsGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectDisplayResolutionsGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/project-test-spec`,
+        queryParams: { type: toolInput.runEnvironmentType ?? "remote" },
+      };
+    },
+    mapFromUpstream: mapProjectDisplayResolutions,
   },
   {
     name: "muggle-remote-project-list",

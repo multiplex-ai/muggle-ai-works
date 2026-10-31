@@ -94,7 +94,7 @@ describe("no skill file references the pre-rename path", () => {
 });
 
 describe("forward mode syncs before opening the PR", () => {
-  const perRepo = sectionBody(read(FORWARD_DOC), /^## Per repo$/m);
+  const perRepo = sectionBody(read(FORWARD_DOC), /^## Stage 5\.5 — open the PR$/m);
 
   it("orders the sync step ahead of the push step", () => {
     const syncAt = stepOffset(perRepo, "Sync with the base");
@@ -110,9 +110,9 @@ describe("forward mode syncs before opening the PR", () => {
     expect(perRepo).toMatch(/behind > 0/);
   });
 
-  it("states why stage 6 cannot be trusted for freshness", () => {
+  it("states why Stage 6's sync cannot stand in for it", () => {
     expect(perRepo).toMatch(/unit-only/);
-    expect(perRepo).toMatch(/stages 3–6|stages 3-6/);
+    expect(perRepo).toMatch(/the PR opens before that sync/);
   });
 
   it("stops rather than opening a PR on a tree that failed verification", () => {
@@ -138,6 +138,33 @@ describe("forward mode syncs before opening the PR", () => {
     for (const m of resolvedIn) {
       expect(stepLabel(perRepo, Number(m[1]))).toBe("Create");
     }
+  });
+});
+
+describe("forward mode opens the PR before E2E and reports on the head the run tested", () => {
+  const doc = read(FORWARD_DOC);
+  const reportStage = sectionBody(doc, /^## Stage 7 — report on the PR$/m);
+
+  it("opens the PR in Stage 5.5, ahead of the Stage 7 report", () => {
+    const openAt = doc.search(/^## Stage 5\.5 — open the PR$/m);
+    const reportAt = doc.search(/^## Stage 7 — report on the PR$/m);
+    expect(openAt).toBeGreaterThanOrEqual(0);
+    expect(reportAt).toBeGreaterThan(openAt);
+  });
+
+  it("pushes the tested head before settling the walkthrough", () => {
+    const pushAt = stepOffset(reportStage, "Push the tested head");
+    const settleAt = stepOffset(reportStage, "Settle the designated walkthrough comment");
+    expect(pushAt).toBeGreaterThanOrEqual(0);
+    expect(settleAt).toBeGreaterThan(pushAt);
+  });
+
+  // Stage 6's readiness sync can rebase a branch the PR already carries; the walkthrough must describe the
+  // commit the PR shows, and a second sync after the run would push a tree the run never tested.
+  it("force-pushes only the commit Stage 6 tested, and never syncs again", () => {
+    expect(reportStage).toMatch(/--force-with-lease/);
+    expect(reportStage).toMatch(/rewrote commits the remote already has/);
+    expect(reportStage).toMatch(/Never sync again here/);
   });
 });
 

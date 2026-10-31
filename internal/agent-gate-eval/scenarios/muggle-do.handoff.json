@@ -115,8 +115,9 @@
                     {"content":"Stage 3 — Build","activeForm":"Building the change","status":"pending"},
                     {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
                     {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                     {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                     {
                       "content": "Stage 7.5 — E2E repair loop",
                       "activeForm": "Running the E2E repair loop",
@@ -160,8 +161,9 @@
                     {"content":"Stage 3 — Build","activeForm":"Building the change","status":"in_progress"},
                     {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
                     {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                     {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                     {
                       "content": "Stage 7.5 — E2E repair loop",
                       "activeForm": "Running the E2E repair loop",
@@ -273,8 +275,9 @@
                     {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                     {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"in_progress"},
                     {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                    {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                     {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                     {
                       "content": "Stage 7.5 — E2E repair loop",
                       "activeForm": "Running the E2E repair loop",
@@ -331,8 +334,9 @@
                     {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                     {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
                     {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"in_progress"},
+                    {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                     {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                     {
                       "content": "Stage 7.5 — E2E repair loop",
                       "activeForm": "Running the E2E repair loop",
@@ -378,8 +382,9 @@
                     {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                     {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
                     {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"completed"},
-                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"in_progress"},
-                    {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                    {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"in_progress"},
+                    {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                    {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                     {
                       "content": "Stage 7.5 — E2E repair loop",
                       "activeForm": "Running the E2E repair loop",
@@ -392,7 +397,7 @@
             ]
           },
           {
-            "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000."
+            "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000."
           }
         ],
         "resumePrompt": "continue"
@@ -560,8 +565,8 @@
       "cadence": "pr",
       "expect": {
         "requireToolSequence": [
-          {"pattern":"e2e-executed"},
           {"pattern":"pr-created"},
+          {"pattern":"e2e-executed"},
           {"pattern":"walkthrough-posted"},
           {"pattern":"prs-manifest-written"},
           {"pattern":"watcher-armed"}
@@ -596,19 +601,14 @@
       },
       "expect": {
         "requireToolSequence": [
-          {"pattern":"e2e-executed"},
           {"pattern":"pr-created"},
+          {"pattern":"e2e-executed"},
           {"pattern":"walkthrough-posted"},
           {"pattern":"watcher-armed"}
         ],
         "requireToolAttempts": [
           {"tool":"Read","argContains":"e2e-repair.md"},
-          {
-            "anyOf": [
-              {"tool":"Bash","argContains":["gh pr create","[E2E FAILING]"]},
-              {"tool":"Bash","argContains":["gh pr edit","[E2E FAILING]"]}
-            ]
-          }
+          {"tool":"Bash","argContains":["gh pr edit","[E2E FAILING]"]}
         ],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json","contains":"142"}],
         "forbidToolAttempts": [{"pattern":"thread-resolved"}]
@@ -713,8 +713,9 @@
                       {"content":"Stage 3 — Build","activeForm":"Building the change","status":"pending"},
                       {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
                       {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                       {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                       {
                         "content": "Stage 7.5 — E2E repair loop",
                         "activeForm": "Running the E2E repair loop",
@@ -758,8 +759,9 @@
                       {"content":"Stage 3 — Build","activeForm":"Building the change","status":"in_progress"},
                       {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"pending"},
                       {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                       {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                       {
                         "content": "Stage 7.5 — E2E repair loop",
                         "activeForm": "Running the E2E repair loop",
@@ -855,8 +857,9 @@
                       {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                       {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"in_progress"},
                       {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"pending"},
+                      {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                       {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                       {
                         "content": "Stage 7.5 — E2E repair loop",
                         "activeForm": "Running the E2E repair loop",
@@ -913,8 +916,9 @@
                       {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                       {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
                       {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"in_progress"},
+                      {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"pending"},
                       {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
-                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                       {
                         "content": "Stage 7.5 — E2E repair loop",
                         "activeForm": "Running the E2E repair loop",
@@ -960,12 +964,9 @@
                       {"content":"Stage 3 — Build","activeForm":"Building the change","status":"completed"},
                       {"content":"Stage 4 — Impact analysis","activeForm":"Analyzing impact","status":"completed"},
                       {"content":"Stage 5 — Unit tests","activeForm":"Running unit tests","status":"completed"},
-                      {
-                        "content": "Stage 6 — E2E acceptance",
-                        "activeForm": "Running E2E acceptance",
-                        "status": "in_progress"
-                      },
-                      {"content":"Stage 7 — Create PR","activeForm":"Opening the PR","status":"pending"},
+                      {"content":"Stage 5.5 — Open PR","activeForm":"Opening the PR","status":"in_progress"},
+                      {"content":"Stage 6 — E2E acceptance","activeForm":"Running E2E acceptance","status":"pending"},
+                      {"content":"Stage 7 — Report on the PR","activeForm":"Settling the PR walkthrough","status":"pending"},
                       {
                         "content": "Stage 7.5 — E2E repair loop",
                         "activeForm": "Running the E2E repair loop",
@@ -978,7 +979,7 @@
               ]
             },
             {
-              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance (validation is unit-only)."
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance (validation is unit-only)."
             }
           ],
           "resumePrompt": "continue"
@@ -1063,7 +1064,6 @@
       },
       "expect": {
         "requireToolSequence": [
-          {"pattern":"no-web-surface-skip"},
           {"tool":"Bash","argContains":["gh pr create","[UNIT-ONLY]"]},
           {"pattern":"no-web-surface-skip"},
           {"pattern":"prs-manifest-written"},
@@ -1123,14 +1123,13 @@
         ]
       },
       "expect": {
-        "requireToolAttempts": [{"tool":"Skill","argContains":"muggle-test-prepare"}],
+        "requireToolSequence": [{"pattern":"pr-created"},{"tool":"Skill","argContains":"muggle-test-prepare"}],
         "forbidToolAttempts": [
-          {"pattern":"pr-created"},
           {"pattern":"walkthrough-posted"},
           {"pattern":"watcher-armed"},
           {"pattern":"thread-resolved"}
         ],
-        "outputMatches": ["3000|[Dd]ev server|DEV_SERVER","[Hh]alt|[Ee]scalat|[Bb]lock|[Ss]topp|did not open|didn't open|not opened"]
+        "outputMatches": ["3000|[Dd]ev server|DEV_SERVER","[Hh]alt|[Ee]scalat|[Bb]lock|[Ss]topp|[Uu]nsettled"]
       }
     },
     {

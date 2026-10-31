@@ -65,7 +65,7 @@ describe("the gate file states the explicit-request override", () => {
 });
 
 describe("the rule is stated once", () => {
-  it("Stage 7 points at the gate's rule rather than restating it", () => {
+  it("Stage 5.5 points at the gate's rule rather than restating it", () => {
     const gateStep = read(FORWARD_OPEN_PRS_DOC).match(/^0\.\s+\*\*`autoCreatePR` gate\*\*.*$/m);
     expect(gateStep).not.toBeNull();
     expect(gateStep![0]).toMatch(/preference-gates\/autoCreatePR\.md\)/);

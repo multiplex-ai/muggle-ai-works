@@ -26,7 +26,7 @@ Under `## Pre-flight answers`, alongside `Repos:`:
   - <owner/repo-b> → <worktree path b> (branch <branch>)
 ```
 
-Stage 7 appends each member's PR number to its line once the PRs exist.
+Stage 5.5 appends each member's PR number to its line once the PRs exist.
 
 The worktree path is where that repo's wave branch is checked out — the path its service must start from. Record it per repo; never derive it later from the branch name.
 
@@ -44,21 +44,27 @@ The report carries one extra metadata block:
 
 ```markdown
 **Wave:**
-- <owner/repo-a> @ <head sha> → PR #<n> (filled in at Stage 7)
+- <owner/repo-a> @ <head sha> → PR #<n>
 - <owner/repo-b> @ <head sha> → PR #<n>
 ```
 
 The SHAs are what the run tested. A result is only valid for the PRs at those SHAs.
 
+## Stage 5.5 — open every PR before the run
+
+[`open-prs/forward.md`](open-prs/forward.md) Stage 5.5 runs per repo as usual, with the wave ordering:
+
+1. **Open every PR** before Stage 6 starts. The run's report and each PR's walkthrough name the siblings, so all PR numbers must exist before the wave stack starts.
+2. **Body.** Add a `## Wave` section to each PR's body, after `## Validation`: one line per sibling PR (`owner/repo#n`), and the line `Tested together — merge all PRs in this wave together.`
+3. **Title.** Every PR in the wave takes the same prefix.
+4. **Record the PR numbers** on the `Wave members` lines in `state.md` (`… (branch <branch>) → PR #<n>`), so a later cycle on any one PR can find its siblings. Every slot a wave PR's watcher runs from gets the same `Wave` block.
+
 ## Stage 7 — post the same result to every PR
 
-[`open-prs/forward.md`](open-prs/forward.md) runs per repo as usual, with the wave ordering:
+[`open-prs/forward.md`](open-prs/forward.md) Stage 7 runs per repo as usual, with these changes:
 
-1. **Open every PR first**, before settling any walkthrough. Each PR's walkthrough names its siblings, so all PR numbers must exist before the first one is written.
-2. **Body.** Add a `## Wave` section to each PR's body, after `## Validation`: one line per sibling PR (`owner/repo#n`), and the line `Tested together — merge all PRs in this wave together.`
-3. **Title.** Every PR in the wave takes the same E2E prefix. A wave run with failures retitles every member `[E2E FAILING]`, not only the implicated one — the run tested them as one change.
-4. **Walkthrough.** Settle each PR's designated walkthrough comment with the **same** E2E report through [`muggle-pr-visual-walkthrough`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A, passing that PR's number and repo explicitly — Mode A otherwise looks up the PR from the current branch, which in a multi-repo cycle is the wrong repo. The runs, screenshots, and dashboard links are identical on every PR; only the PR it is posted to differs. A `SKIPPED` wave run is re-declared from each member's worktree in turn: a declaration settles only the PR of the tree it runs in.
-5. **Record the PR numbers** on the `Wave members` lines in `state.md` (`… (branch <branch>) → PR #<n>`), so a later cycle on any one PR can find its siblings. Every slot a wave PR's watcher runs from gets the same `Wave` block.
+1. **Title.** A wave run with failures retitles every member `[E2E FAILING]`, not only the implicated one — the run tested them as one change.
+2. **Walkthrough.** Settle each PR's designated walkthrough comment with the **same** E2E report through [`muggle-pr-visual-walkthrough`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A, passing that PR's number and repo explicitly — Mode A otherwise looks up the PR from the current branch, which in a multi-repo cycle is the wrong repo. The runs, screenshots, and dashboard links are identical on every PR; only the PR it is posted to differs. A `SKIPPED` wave run is re-declared from each member's worktree in turn: a declaration settles only the PR of the tree it runs in.
 
 ## Stage 7.5 — repair across the wave
 

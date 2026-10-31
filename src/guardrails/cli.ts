@@ -29,6 +29,7 @@ import {
   MAX_WALKTHROUGH_BLOCKS,
   MAX_WATCH_BLOCKS,
   MAX_BUILD_BLOCKS,
+  MUGGLE_DO_STAGES_AFTER_BUILD,
   NEXT_OPTIONS_OFFER_TOOL_NAMES,
   WATCH_HEARTBEAT_STALE_MS,
   WATCH_HOLD_PHRASE_PREFIX,
@@ -244,9 +245,9 @@ function prOpened(): string {
   // any other change owes its own run or skip.
   renderE2eStopVerdict(stateAfterOpen);
   const declaredSkip = isPrCoveredBySkip(stateAfterOpen, url) ? stateAfterOpen.e2eSkipDeclaration : undefined;
-  // A skip accepted before the PR existed — the forward cycle's order, Stage 6
-  // before Stage 7 — is written straight into the slot, so the PR never shows
-  // an empty placeholder for a decision already made. Otherwise the slot is
+  // A skip accepted before the PR existed is written straight into the slot,
+  // so the PR never shows an empty placeholder for a decision already made.
+  // Otherwise the slot is
   // reserved at open rather than at post time: a PR whose slot exists from the
   // first minute shows reviewers that evidence is coming, and gives both the
   // Stop gate and the CI check one fixed comment to settle instead of guessing
@@ -617,7 +618,9 @@ function watchGate(): string {
   if (state.watchSkipped !== true && prsAwaitingStateScan(unwatchedPrUrls, state, prStateScan).length > 0) {
     startBackgroundJob(GuardrailBackgroundJob.ScanWatchPrStates, [sessionId]);
   }
-  const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
+  // A PR awaiting its own background run is armed at Stage 8, once that run reports and its repair loop clears.
+  const owedWatchPrUrls = resolveOwedWatchPrs(withoutDelegatedPrs(unwatchedPrUrls, state, Date.now()), state, prStateScan);
+  const decision = watchGateDecision(state, owedWatchPrUrls);
   if (decision.action === WatchGateAction.Release) return releaseGate("watchReleased");
   if (decision.action === WatchGateAction.None) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
@@ -715,7 +718,7 @@ function buildFollowthroughGate(): string {
       ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. ` +
         `A root cause written into the transcript ships nothing — once the session ends it is gone, and the ` +
         `watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ` +
-        `${muggleSkill("/muggle-do")}, which runs requirements → build → impact → unit tests → E2E → PR → watcher. ` +
+        `${muggleSkill("/muggle-do")}, which runs requirements → build → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
         `If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was ` +
         `advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` — ` +
         `that records the skip and keeps this gate quiet for the rest of the session.`
@@ -923,7 +926,7 @@ function buildRouter(): string {
   const ctx =
     `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, ` +
     `route it through ${muggleSkill("/muggle-do")} — which runs requirements → build (delegated to superpowers' ` +
-    `design→plan→review) → impact → unit tests → E2E → PR → watcher. ` +
+    `design→plan→review) → ${MUGGLE_DO_STAGES_AFTER_BUILD}. ` +
     `If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }

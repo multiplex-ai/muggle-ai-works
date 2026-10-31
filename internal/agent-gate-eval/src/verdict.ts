@@ -88,8 +88,12 @@ export function judgeAgentRun(
     if (missReason) reasons.push(missReason);
   }
 
-  for (const { among, last } of expect.requireLastAmong ?? []) {
-    const latest = toolAttempts.filter((attempt) => toolAttemptMatches(attempt, among)).at(-1);
+  for (const { among, last, unless } of expect.requireLastAmong ?? []) {
+    // An attempt that matches `last` stays a candidate, so an arm logged in the same command still counts.
+    const isCandidate = (attempt: ToolAttempt): boolean =>
+      toolAttemptMatches(attempt, among) &&
+      (!unless || !toolAttemptMatches(attempt, unless) || toolAttemptMatches(attempt, last));
+    const latest = toolAttempts.filter(isCandidate).at(-1);
     if (!latest) {
       reasons.push(`expected attempts matching ${describeToolAttemptPattern(among)}, the last matching ${describeToolAttemptPattern(last)}; none matched`);
     } else if (!toolAttemptMatches(latest, last)) {

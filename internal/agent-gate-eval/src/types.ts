@@ -121,6 +121,8 @@ export interface LastAmongExpectation {
   among: ToolAttemptPattern;
   /** What the latest of those attempts must match. */
   last: ToolAttemptPattern;
+  /** Attempts that match `among` only in passing, such as a session note quoting `git push`, and are not candidates. */
+  unless?: ToolAttemptPattern;
 }
 
 /** A file the run must leave behind: in the sandbox, or named by a recorded Write or Bash attempt. */

@@ -77,7 +77,9 @@ function resolveExpectationPatterns(
         throw new Error(`${entryLabel} needs among and last`);
       }
       const [among, last] = resolvePatternReferences([entry.among, entry.last], namedPatterns, entryLabel);
-      return { among: among, last: last };
+      if (!("unless" in entry) || entry.unless === undefined) return { among: among, last: last };
+      const [unless] = resolvePatternReferences([entry.unless], namedPatterns, entryLabel);
+      return { among: among, last: last, unless: unless };
     });
   }
   return resolved;

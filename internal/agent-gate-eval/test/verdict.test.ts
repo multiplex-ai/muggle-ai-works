@@ -186,6 +186,24 @@ describe("requireLastAmong", () => {
     const v = judgeAgentRun(scenario(respawnLast), "", [bash("git push")], 0);
     expect(v.reasons[0]).toContain("none matched");
   });
+
+  // A cycle logs what it did after doing it; a note quoting `git push` is not a push.
+  it("skips attempts matching unless when picking the latest", () => {
+    const armLast = {
+      requireLastAmong: [
+        {
+          among: { anyOf: [{ tool: "Bash", argContains: "git push" }, { tool: "Bash", argContains: "pr-watch-arm.sh" }] },
+          last: { tool: "Bash", argContains: "pr-watch-arm.sh" },
+          unless: { tool: "Bash", argContains: "/iterations/" },
+        },
+      ],
+    };
+    const note = bash("cat >> ~/.muggle-ai/muggle-do/sessions/s/iterations/001.md <<'EOF'\nfixed lint; git push done\nEOF");
+    expect(judgeAgentRun(scenario(armLast), "", [bash("git push"), bash("bash pr-watch-arm.sh"), note], 0).pass).toBe(true);
+    expect(judgeAgentRun(scenario(armLast), "", [bash("bash pr-watch-arm.sh"), bash("git push"), note], 0).pass).toBe(false);
+    const armAndLog = bash("bash pr-watch-arm.sh --slot s && echo re-armed >> ~/.muggle-ai/muggle-do/sessions/s/iterations/001.md");
+    expect(judgeAgentRun(scenario(armLast), "", [bash("git push"), armAndLog], 0).pass).toBe(true);
+  });
 });
 
 describe("tool-attempt patterns", () => {

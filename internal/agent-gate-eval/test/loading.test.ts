@@ -179,6 +179,26 @@ describe("loadAgentScenarioFile", () => {
     ]);
   });
 
+  it("replaces a pattern reference in a last-among entry's unless", () => {
+    const sessionNote = { tool: "Bash", argContains: "/iterations/" };
+    const p = writeScenarios("a", {
+      target: agentTarget,
+      patterns: { "session-note": sessionNote },
+      scenarios: [
+        {
+          ...minimalScenario,
+          expect: {
+            requireLastAmong: [
+              { among: { tool: "Bash", argContains: "git" }, last: { tool: "Bash", argContains: "arm" }, unless: { pattern: "session-note" } },
+            ],
+          },
+        },
+      ],
+    });
+    const [scenario] = loadAgentScenarioFile(p).scenarios;
+    expect(scenario.expect.requireLastAmong?.[0].unless).toEqual(sessionNote);
+  });
+
   it("applies the file's defaults: own prompt and seed win, maps merge, own scripted replies go first", () => {
     const p = writeScenarios("a", {
       target: agentTarget,

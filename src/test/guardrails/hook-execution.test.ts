@@ -179,6 +179,27 @@ describe("guardrail hook execution (cli entry)", () => {
     );
   };
 
+  it("pr-opened -> record-delegation -> watch-gate: a PR awaiting its own background run owes no watch yet", () => {
+    const session = "watch-delegated";
+    const awaitingRunPr = "https://github.com/o/r/pull/81";
+    const otherPr = "https://github.com/o/r/pull/82";
+    openPr(session, awaitingRunPr);
+    openPr(session, otherPr);
+    runHook(
+      "record-delegation",
+      event({
+        session_id: session,
+        tool_name: "Agent",
+        tool_input: { subagent_type: "muggle:acceptance-tester", prompt: `Run Stage 6 for ${awaitingRunPr}` },
+        tool_response: { output: "Async agent launched." },
+      }),
+    );
+    const gate = JSON.parse(runHook("watch-gate", event({ session_id: session })).out);
+    expect(gate.decision).toBe("block");
+    expect(gate.reason).toContain(otherPr);
+    expect(gate.reason).not.toContain(awaitingRunPr);
+  });
+
   it("watch-gate: silent once a running watch loop's fresh heartbeat covers the opened PR", () => {
     const session = "watch-live";
     const url = "https://github.com/o/r/pull/78";

@@ -45,8 +45,9 @@ export function isE2eDelegationInFlight(state: GuardrailState, now: number): boo
 /**
  * The PRs left once those awaiting their own background run are set aside.
  *
- * A PR whose run is still in flight is not owed a walkthrough yet; every other
- * PR is, whatever else is running — one change's run never covers another's PR.
+ * A PR whose run is still in flight is not owed a walkthrough or a watch yet;
+ * every other PR is, whatever else is running — one change's run never covers
+ * another's PR.
  */
 export function withoutDelegatedPrs(prUrls: string[], state: GuardrailState, now: number): string[] {
   const delegatedPrUrls = new Set(liveDelegations(state, now).flatMap((delegation) => delegation.prUrls));

@@ -19,6 +19,18 @@ export enum ClaudeTurnStatus {
   Waiting = "waiting",
 }
 
+/**
+ * What a Claude process is doing, as its `~/.claude/sessions/<pid>.json` entry
+ * reports it. `claude agents --json` folds `shell` into `busy`; only here does a
+ * finished turn with background commands still running read apart from a turn in flight.
+ */
+export enum ClaudeProcessStatus {
+  Idle = "idle",
+  Busy = "busy",
+  Shell = "shell",
+  Waiting = "waiting",
+}
+
 /** A background job's overall state, as `claude agents --json` reports it. */
 export enum ClaudeJobState {
   Working = "working",
@@ -42,6 +54,12 @@ export interface WorkSession {
   lastActivityAtMs?: number;
   /** Claude only: joined from the `~/.claude/sessions/<pid>.json` registry. */
   pid?: number;
+  /** Claude only: the process's own status, from the same registry entry. */
+  processStatus?: ClaudeProcessStatus;
+  /** Claude only: when `processStatus` last changed. */
+  processStatusSinceMs?: number;
+  /** Claude only: the Remote Control session the process serves, from the same registry entry; unset while it serves none. */
+  remoteControlSessionId?: string;
   /** When the session last loaded its plugins: its process start or its newest muggle MCP server start. */
   loadedAtMs?: number;
   /** The muggle works build that was installed at `loadedAtMs`. */
@@ -228,6 +246,12 @@ export interface WatchSlotAssessment {
   ownerSessionId?: string;
   /** Undefined when the owner is unknown or the session listing could not be read. */
   isOwnerSessionActive?: boolean;
+  /**
+   * True when the owner is running but has held no background command since
+   * before the loop started, so the loop it armed is no longer its own — as when
+   * a restarted session does not adopt it.
+   */
+  isLoopDroppedByOwner?: boolean;
   live?: PrLiveStatus;
   /** Undefined when the watcher escalated nothing on the live head. */
   ownerEscalation?: OwnerEscalation;
@@ -416,6 +440,10 @@ export interface WatchLedgerState {
   terminalPrsByUrl: Record<string, TerminalPrRecord>;
   /** Kept per target build, so a session handled once for it is never retried or re-notified. */
   pendingReload?: PendingReload;
+  /** The Claude login last seen, which decides whose Remote Control a session's link belongs to. */
+  claudeLogin?: ClaudeLoginRecord;
+  /** ISO timestamps of restarts made to put a session back on Remote Control, per session id. */
+  remoteControlRestartsBySession?: Record<string, string[]>;
 }
 
 /** The kinds of line `events.jsonl` holds. */
@@ -459,6 +487,8 @@ export interface WatchSnapshot {
   /** Absent from a snapshot an earlier release wrote. */
   serviceArms?: ServiceArm[];
   reload?: ReloadReport;
+  /** Absent when the pass did not run: Remote Control at startup is off, the pass is switched off, or there is no claude.ai login. */
+  remoteControl?: RemoteControlReport;
 }
 
 /** Where the watch reads its sources and keeps its ledger. */
@@ -469,8 +499,36 @@ export interface WatchPaths {
   claudeProjectsDir: string;
   claudeInstalledPluginsFile: string;
   claudeGlobalConfigFile: string;
+  claudeSettingsFile: string;
+  claudeCredentialsFile: string;
   codexSessionsDir: string;
   muggleInstallLogFile: string;
+}
+
+/** The Claude login as read from Claude's own files this tick. */
+export interface ObservedClaudeLogin {
+  /** `oauthAccount.accountUuid` in Claude's global config; unset without a claude.ai login. */
+  accountUuid?: string;
+  /** When Claude's credentials file was last written; unset where it keeps them elsewhere, such as the macOS Keychain. */
+  credentialsWrittenAtMs?: number;
+}
+
+/** The login the watch last saw, and since when it has applied. */
+export interface ClaudeLoginRecord {
+  accountUuid: string;
+  /**
+   * When this login took effect. Unset for the login the watch found on its
+   * first look, since nothing says when that one began.
+   */
+  effectiveAtMs?: number;
+  /** The last tick that read this login. */
+  observedAtMs: number;
+}
+
+/** What one Remote Control pass found and did. */
+export interface RemoteControlReport extends ReloadReport {
+  /** Live sessions linked to Remote Control under the current login. */
+  connectedSessionIds: string[];
 }
 
 /** A finished child process: its exit code and captured stdout. */
@@ -573,6 +631,8 @@ export interface WatchTickDeps {
   notify: DesktopNotifier;
   isAutoReloadEnabled: boolean;
   isRecoveryEnabled: boolean;
+  /** Whether the tick restarts sessions that are off Remote Control under the current login. */
+  isRemoteControlKeptOn: boolean;
   launchServiceLoop: ServiceLoopLauncher;
   /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
   sleep?: (durationMs: number) => void;

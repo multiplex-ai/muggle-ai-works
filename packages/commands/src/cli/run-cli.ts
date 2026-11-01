@@ -247,6 +247,7 @@ function createProgram (): Command {
     .description("Run one watch pass (the scheduled task runs this)")
     .option("--no-auto-reload", "Do not start a plugin reload fan-out when installed plugins change")
     .option("--no-recovery", "Report dead watchers without resuming their owner sessions")
+    .option("--no-remote-control", "Report sessions off Remote Control without restarting them")
     .option("--json", "Print the full snapshot as JSON")
     .action(watchTickCommand);
 

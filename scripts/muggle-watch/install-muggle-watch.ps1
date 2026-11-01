@@ -1,8 +1,9 @@
 # Installs the MuggleWatch scheduled task for the current user (no elevation):
 # every -IntervalMinutes it runs `muggle watch tick`, which snapshots Claude and
 # Codex sessions, their processes and every PR-watch slot, alerts on dead or deaf
-# watchers, red CI and stale branches, resumes the owner session of a registered
-# slot whose watcher died, and fans plugin reloads out across sessions.
+# watchers, red CI and stale branches, restarts the loop of a registered slot
+# whose watcher died, fans plugin reloads out across sessions, and restarts
+# sessions that are off Remote Control under the current login.
 #
 # The task runs the global @muggleai/works install, whose path survives
 # `muggle upgrade`, so the service always runs the current release. Only the
@@ -20,6 +21,7 @@ param(
     [string]$MuggleEntry,
     [switch]$NoAutoReload,
     [switch]$NoRecovery,
+    [switch]$NoRemoteControl,
     # Return once the task is registered; its trigger runs the first tick a minute later.
     [switch]$NoWait,
     [switch]$Uninstall
@@ -61,6 +63,7 @@ Copy-Item (Join-Path $PSScriptRoot "muggle-watch-hidden.vbs") $installedLauncher
 $tickFlags = @()
 if ($NoAutoReload) { $tickFlags += "--no-auto-reload" }
 if ($NoRecovery) { $tickFlags += "--no-recovery" }
+if ($NoRemoteControl) { $tickFlags += "--no-remote-control" }
 $launcherArguments = @("`"$installedLauncher`"", "`"$($nodeCommand.Source)`"", "`"$MuggleEntry`"") + $tickFlags
 
 # wscript.exe rather than node.exe is what keeps every run off the desktop; see

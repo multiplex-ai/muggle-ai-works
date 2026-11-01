@@ -13,6 +13,8 @@ var USER_PREFERENCES_PATH_SEGMENTS = [".muggle-ai", "preferences.json"];
 var PREFERENCE_DEFAULTS_PATH_SEGMENTS = ["config", "preference-defaults.json"];
 var AUTO_REBASE_PREFERENCE_KEY = "autoRebase";
 var MAX_CATCH_UP_REBASES_PREFERENCE_KEY = "maxCatchUpRebases";
+var WATCHER_LIFETIME_PREFERENCE_KEY = "watcherLifetime";
+var WATCHER_LIFETIME_SECONDS = { "1d": 86400, "7d": 604800, never: 0 };
 var UNBOUNDED_PREFERENCE_VALUE = "never";
 var POSITIVE_INTEGER = /^[1-9]\d*$/;
 var LINE_BREAK = /[\r\n]/;
@@ -194,9 +196,11 @@ function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePlugin
   const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
   const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
   const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const lifetimeSecondsOf = (configuredValue) => typeof configuredValue === "string" ? WATCHER_LIFETIME_SECONDS[configuredValue] : void 0;
   return {
     autoRebase,
-    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null
+    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null,
+    watcherLifetimeSeconds: lifetimeSecondsOf(userPreferences[WATCHER_LIFETIME_PREFERENCE_KEY]) ?? lifetimeSecondsOf(shippedDefaults[WATCHER_LIFETIME_PREFERENCE_KEY])
   };
 }
 

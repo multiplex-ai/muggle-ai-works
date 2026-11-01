@@ -116,6 +116,8 @@ describe("resolveWatchPaths", () => {
     expect(paths.claudeProjectsDir).toBe(join("/c", "projects"));
     expect(paths.claudeInstalledPluginsFile).toBe(join("/c", "plugins", "installed_plugins.json"));
     expect(paths.claudeGlobalConfigFile).toBe(join("/c", ".claude.json"));
+    expect(paths.claudeSettingsFile).toBe(join("/c", "settings.json"));
+    expect(paths.claudeCredentialsFile).toBe(join("/c", ".credentials.json"));
     expect(paths.codexSessionsDir).toBe(join("/x", "sessions"));
   });
 
@@ -241,6 +243,34 @@ describe("renderWatchStatus", () => {
     expect(quiet).not.toContain("Closed out");
     expect(quiet).not.toContain("[behind");
     expect(quiet).toContain("Sessions: 3 Claude, 1 Codex");
+  });
+
+  it("renders Remote Control coverage with every session it did not find connected", () => {
+    const text = renderWatchStatus(
+      {
+        ...snapshot,
+        remoteControl: {
+          connectedSessionIds: ["c1", "c2"],
+          decisions: [
+            { sessionId: "c73813af-b961", name: "payment secret refac", action: ReloadAction.Respawn, reason: "no Remote Control link" },
+            { sessionId: "1c714e7e-58b2", name: "watch service", action: ReloadAction.Defer, reason: "no Remote Control link — turn in flight (busy)" },
+            { sessionId: "terminal-1", action: ReloadAction.NotifyManual, reason: "no Remote Control link — terminal session, run /remote-control in it" },
+            { sessionId: "fa1a3b76-4c1e", name: "Continue from your 'To pick up' list now that the usage limit has reset", action: ReloadAction.Respawn, reason: "no Remote Control link" },
+            { sessionId: "f9548732-d9a9", name: "numbering test cases", action: ReloadAction.Respawn, reason: "no Remote Control link" },
+          ],
+          respawnedSessionIds: ["c73813af-b961"],
+          failedSessionIds: ["f9548732-d9a9"],
+          untrustedSessionIds: ["fa1a3b76-4c1e"],
+        },
+      },
+      Date.parse(takenAt),
+    );
+    expect(text).toContain("Remote Control: 2 connected, 1 restarted, 1 failed, 1 refused, 1 waiting, 1 skipped");
+    expect(text).toMatch(/respawn\s+c73813af payment secret refac\s+no Remote Control link\n/);
+    expect(text).toMatch(/fa1a3b76 Continue from your 'To pick up'\s+no Remote Control link — refused: its workspace takes no background restart/);
+    expect(text).toMatch(/f9548732 numbering test cases\s+no Remote Control link — restart failed/);
+    expect(text).toMatch(/defer\s+1c714e7e watch service\s+no Remote Control link — turn in flight \(busy\)/);
+    expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("Remote Control:");
   });
 
   it("renders a snapshot an earlier release wrote", () => {

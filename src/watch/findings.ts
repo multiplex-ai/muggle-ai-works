@@ -34,7 +34,8 @@ import {
  * watch started writes to its slot, where the watch reads it whatever became of
  * the owner. Age alone says nothing: the loop has no read cap and runs for as
  * long as its PR stays quiet. With no process table the heartbeat is the only
- * signal left.
+ * signal left. A running owner hears its loop only while it holds the loop as a
+ * background command; one that dropped it hears it no more than an ended one.
  */
 export function resolveWatcherLiveness(
   loop: TrackedProcess | undefined,
@@ -42,13 +43,15 @@ export function resolveWatcherLiveness(
   isOwnerSessionActive: boolean | undefined,
   isProcessTableKnown: boolean,
   isHeardByService = false,
+  isLoopDroppedByOwner = false,
 ): WatcherLiveness {
   const isHeartbeatWithin = (windowMs: number): boolean => heartbeatAgeMs !== undefined && heartbeatAgeMs <= windowMs;
   if (!isProcessTableKnown) {
     return isHeartbeatWithin(WATCH_HEARTBEAT_STALE_MS) ? WatcherLiveness.Polling : WatcherLiveness.Dead;
   }
   if (loop) {
-    return isOwnerSessionActive === false && !isHeardByService ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
+    const isUnheard = !isHeardByService && (isOwnerSessionActive === false || isLoopDroppedByOwner);
+    return isUnheard ? WatcherLiveness.Deaf : WatcherLiveness.Polling;
   }
   return isHeartbeatWithin(WATCHER_REARM_GRACE_MS) ? WatcherLiveness.Rearming : WatcherLiveness.Dead;
 }
@@ -66,6 +69,7 @@ function oldestLoopFor(slug: string, processes: TrackedProcess[]): TrackedProces
  *
  * @param processes - Tracked processes, or null when the process table could not be read.
  * @param activeSessionIds - Every active Claude and Codex session id, or null when unknown.
+ * @param idleSinceBySessionId - When each running session that holds no turn and no background command went that way.
  */
 export function assessWatchSlots(
   slots: WatchSlotRecord[],
@@ -73,6 +77,7 @@ export function assessWatchSlots(
   activeSessionIds: Set<string> | null,
   liveStatusesByUrl: Map<string, PrLiveStatus>,
   nowMs: number,
+  idleSinceBySessionId: Map<string, number> = new Map(),
 ): WatchSlotAssessment[] {
   const assessments: WatchSlotAssessment[] = [];
   for (const slot of slots) {
@@ -80,7 +85,12 @@ export function assessWatchSlots(
     const heartbeatAgeMs = slot.heartbeatMtimeMs === undefined ? undefined : Math.max(0, nowMs - slot.heartbeatMtimeMs);
     const isOwnerSessionActive =
       slot.ownerSessionId === undefined || activeSessionIds === null ? undefined : activeSessionIds.has(slot.ownerSessionId);
-    const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null, slot.isHeardByService);
+    // Idle since before the loop started, not merely idle now: a session that has
+    // just armed a loop may not have recorded its new status yet.
+    const ownerIdleSinceMs = slot.ownerSessionId === undefined ? undefined : idleSinceBySessionId.get(slot.ownerSessionId);
+    const isLoopDroppedByOwner =
+      ownerIdleSinceMs !== undefined && loop?.ageMs !== undefined && ownerIdleSinceMs >= nowMs - loop.ageMs;
+    const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null, slot.isHeardByService, isLoopDroppedByOwner);
     const reportAgeMs = slot.serviceLoopReport === undefined ? undefined : Math.max(0, nowMs - slot.serviceLoopReport.writtenAtMs);
     for (const pr of slot.openPrs) {
       const live = liveStatusesByUrl.get(pr.url);
@@ -95,6 +105,7 @@ export function assessWatchSlots(
         heartbeatAgeMs: heartbeatAgeMs,
         ownerSessionId: slot.ownerSessionId,
         isOwnerSessionActive: isOwnerSessionActive,
+        isLoopDroppedByOwner: isLoopDroppedByOwner,
         live: live,
         ownerEscalation: resolveOwnerEscalation(slot.lastSeenJson, slot.followupLogLines, pr, live?.headSha),
         isHeardByService: slot.isHeardByService,
@@ -141,8 +152,9 @@ function watcherFinding(assessment: WatchSlotAssessment, subject: string): Watch
       `no watch loop is running (${heartbeat}); ${ownerPhrase(assessment)}`);
   }
   if (assessment.watcher === WatcherLiveness.Deaf) {
+    const ownerState = assessment.isLoopDroppedByOwner ? "is running but no longer holds it" : "has ended";
     return finding(WatchFindingCode.WatcherDeaf, [assessment.pr.url, assessment.loopPid], subject,
-      `watch loop pid ${assessment.loopPid} reports to no session: its owner session ${shortSessionId(assessment.ownerSessionId ?? "")} has ended`);
+      `watch loop pid ${assessment.loopPid} reports to no session: its owner session ${shortSessionId(assessment.ownerSessionId ?? "")} ${ownerState}`);
   }
   return undefined;
 }

@@ -1,9 +1,11 @@
+import { REMOTE_CONTROL_NAME_COLUMN_WIDTH } from "./constants.js";
 import { formatDuration, shortSessionId } from "./format.js";
 import {
   ReloadAction,
   TrackedProcessKind,
   WatchFindingSeverity,
   WorkSessionAgent,
+  type ReloadReport,
   type RepoCoverage,
   type WatchSlotAssessment,
   type WatchSnapshot,
@@ -53,6 +55,10 @@ function processSummary(snapshot: WatchSnapshot): string {
     `${countOf(TrackedProcessKind.MuggleMcpServer)} muggle MCP servers (${orphanedServers} orphaned)`,
     `${countOf(TrackedProcessKind.PrWatchLoop)} PR watch loop processes`,
   ].join(", ");
+}
+
+function countDecisions(report: ReloadReport, action: ReloadAction): number {
+  return report.decisions.filter((decision) => decision.action === action).length;
 }
 
 /** `muggle watch status` text for a snapshot. */
@@ -107,13 +113,32 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
   }
 
   if (snapshot.reload) {
-    const countOf = (action: ReloadAction): number =>
-      snapshot.reload?.decisions.filter((decision) => decision.action === action).length ?? 0;
+    const reload = snapshot.reload;
     lines.push(
       "",
-      `Plugin reload: ${snapshot.reload.respawnedSessionIds.length} restarted, ${snapshot.reload.failedSessionIds.length} failed, ` +
-        `${countOf(ReloadAction.Defer)} deferred, ${countOf(ReloadAction.NotifyManual) + (snapshot.reload.untrustedSessionIds?.length ?? 0)} need /reload-plugins by hand`,
+      `Plugin reload: ${reload.respawnedSessionIds.length} restarted, ${reload.failedSessionIds.length} failed, ` +
+        `${countDecisions(reload, ReloadAction.Defer)} deferred, ${countDecisions(reload, ReloadAction.NotifyManual) + (reload.untrustedSessionIds?.length ?? 0)} need /reload-plugins by hand`,
     );
+  }
+
+  if (snapshot.remoteControl) {
+    const remoteControl = snapshot.remoteControl;
+    lines.push(
+      "",
+      `Remote Control: ${remoteControl.connectedSessionIds.length} connected, ${remoteControl.respawnedSessionIds.length} restarted, ` +
+        `${remoteControl.failedSessionIds.length} failed, ${remoteControl.untrustedSessionIds.length} refused, ` +
+        `${countDecisions(remoteControl, ReloadAction.Defer)} waiting, ` +
+        `${countDecisions(remoteControl, ReloadAction.Skip) + countDecisions(remoteControl, ReloadAction.NotifyManual)} skipped`,
+    );
+    for (const decision of remoteControl.decisions) {
+      const outcome = remoteControl.untrustedSessionIds.includes(decision.sessionId)
+        ? " — refused: its workspace takes no background restart, run /remote-control in it"
+        : remoteControl.failedSessionIds.includes(decision.sessionId)
+          ? " — restart failed"
+          : "";
+      const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
+      lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`);
+    }
   }
   return `${lines.join("\n")}\n`;
 }

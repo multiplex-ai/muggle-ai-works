@@ -39,7 +39,11 @@ function failWith(message: string): void {
 export function watchTickCommand(flags: WatchTickFlags): void {
   try {
     const snapshot = runWatchTick(
-      createDefaultWatchTickDeps({ isAutoReloadEnabled: flags.autoReload, isRecoveryEnabled: flags.recovery }),
+      createDefaultWatchTickDeps({
+        isAutoReloadEnabled: flags.autoReload,
+        isRecoveryEnabled: flags.recovery,
+        isRemoteControlKeptOn: flags.remoteControl,
+      }),
     );
     if (flags.json) {
       process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
@@ -86,7 +90,10 @@ function renderReloadReport(report: ReloadReport, isDryRun: boolean): string {
 export function watchReloadPluginsCommand(flags: WatchReloadPluginsFlags): void {
   try {
     const isDryRun = flags.dryRun === true;
-    const report = runReloadPluginsPass(createDefaultWatchTickDeps({ isAutoReloadEnabled: true, isRecoveryEnabled: false }), isDryRun);
+    const report = runReloadPluginsPass(
+      createDefaultWatchTickDeps({ isAutoReloadEnabled: true, isRecoveryEnabled: false, isRemoteControlKeptOn: false }),
+      isDryRun,
+    );
     if (!report) {
       failWith("could not list Claude sessions (`claude agents --json` failed)");
       return;

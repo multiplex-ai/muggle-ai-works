@@ -6,6 +6,7 @@ import { enumValueOf, optionalString } from "./field-parsers.js";
 import { hasLiveProcess } from "./session-liveness.js";
 import {
   ClaudeJobState,
+  ClaudeProcessStatus,
   ClaudeSessionKind,
   ClaudeTurnStatus,
   WorkSessionAgent,
@@ -25,27 +26,46 @@ interface ClaudeAgentListing {
   pid?: unknown;
 }
 
-// Older `claude agents` releases leave the pid out, so the registry backs it
-// up: one file per running Claude process, named `<pid>.json`.
-function readPidsBySessionId(registryDir: string): Map<string, number> {
-  const pidsBySessionId = new Map<string, number>();
+interface ClaudeRegistryEntry {
+  pid: number;
+  processStatus?: ClaudeProcessStatus;
+  processStatusSinceMs?: number;
+  remoteControlSessionId?: string;
+}
+
+// One file per running Claude process, named `<pid>.json`. It backs up the pid
+// older `claude agents` releases leave out, and is the only record of the
+// process's own status and of the Remote Control session it serves.
+function readRegistryBySessionId(registryDir: string): Map<string, ClaudeRegistryEntry> {
+  const entriesBySessionId = new Map<string, ClaudeRegistryEntry>();
   let fileNames: string[];
   try {
     fileNames = readdirSync(registryDir).filter((fileName) => fileName.endsWith(".json"));
   } catch {
-    return pidsBySessionId;
+    return entriesBySessionId;
   }
   for (const fileName of fileNames) {
     try {
-      const entry = JSON.parse(readFileSync(join(registryDir, fileName), "utf-8")) as { pid?: unknown; sessionId?: unknown };
+      const entry = JSON.parse(readFileSync(join(registryDir, fileName), "utf-8")) as {
+        pid?: unknown;
+        sessionId?: unknown;
+        status?: unknown;
+        statusUpdatedAt?: unknown;
+        bridgeSessionId?: unknown;
+      };
       if (typeof entry.pid === "number" && typeof entry.sessionId === "string") {
-        pidsBySessionId.set(entry.sessionId, entry.pid);
+        entriesBySessionId.set(entry.sessionId, {
+          pid: entry.pid,
+          processStatus: enumValueOf(ClaudeProcessStatus, entry.status),
+          processStatusSinceMs: typeof entry.statusUpdatedAt === "number" ? entry.statusUpdatedAt : undefined,
+          remoteControlSessionId: optionalString(entry.bridgeSessionId),
+        });
       }
     } catch {
       continue;
     }
   }
-  return pidsBySessionId;
+  return entriesBySessionId;
 }
 
 /**
@@ -84,11 +104,12 @@ export function readClaudeSessions(runCommand: CommandRunner, registryDir: strin
   } catch {
     return null;
   }
-  const pidsBySessionId = readPidsBySessionId(registryDir);
+  const registryBySessionId = readRegistryBySessionId(registryDir);
   const sessions: WorkSession[] = [];
   for (const listing of listings) {
     const sessionId = optionalString(listing.sessionId);
     if (!sessionId) continue;
+    const registryEntry = registryBySessionId.get(sessionId);
     sessions.push({
       agent: WorkSessionAgent.Claude,
       sessionId: sessionId,
@@ -99,7 +120,10 @@ export function readClaudeSessions(runCommand: CommandRunner, registryDir: strin
       turnStatus: enumValueOf(ClaudeTurnStatus, listing.status),
       jobState: enumValueOf(ClaudeJobState, listing.state),
       startedAtMs: typeof listing.startedAt === "number" ? listing.startedAt : undefined,
-      pid: typeof listing.pid === "number" ? listing.pid : pidsBySessionId.get(sessionId),
+      pid: typeof listing.pid === "number" ? listing.pid : registryEntry?.pid,
+      processStatus: registryEntry?.processStatus,
+      processStatusSinceMs: registryEntry?.processStatusSinceMs,
+      remoteControlSessionId: registryEntry?.remoteControlSessionId,
     });
   }
   return sessions;

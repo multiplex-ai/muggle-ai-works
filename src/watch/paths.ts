@@ -2,10 +2,12 @@ import { homedir } from "os";
 import { join } from "path";
 import { getDataDir } from "../../packages/mcps/src/shared/data-dir.js";
 import {
+  CLAUDE_CREDENTIALS_FILE_NAME,
   CLAUDE_GLOBAL_CONFIG_FILE_NAME,
   CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH,
   CLAUDE_PROJECTS_DIR_NAME,
   CLAUDE_SESSION_REGISTRY_DIR_NAME,
+  CLAUDE_SETTINGS_FILE_NAME,
   MUGGLE_INSTALL_LOG_FILE,
   PR_WATCH_SLOTS_RELATIVE_PATH,
   WATCH_DIR_NAME,
@@ -27,6 +29,8 @@ export function resolveWatchPaths(env: NodeJS.ProcessEnv = process.env): WatchPa
     claudeProjectsDir: join(claudeConfigDir, CLAUDE_PROJECTS_DIR_NAME),
     claudeInstalledPluginsFile: join(claudeConfigDir, ...CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH),
     claudeGlobalConfigFile: join(env.CLAUDE_CONFIG_DIR || homedir(), CLAUDE_GLOBAL_CONFIG_FILE_NAME),
+    claudeSettingsFile: join(claudeConfigDir, CLAUDE_SETTINGS_FILE_NAME),
+    claudeCredentialsFile: join(claudeConfigDir, CLAUDE_CREDENTIALS_FILE_NAME),
     codexSessionsDir: join(codexHome, "sessions"),
     muggleInstallLogFile: join(muggleDataDir, MUGGLE_INSTALL_LOG_FILE),
   };

@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, resolve } from "path";
 import { describe, it, expect } from "vitest";
 import {
   isSameChange,
@@ -36,9 +36,11 @@ const noGitFiles = (): string | null => null;
 const gitOnly = { readTextFile: noGitFiles, runGit: stubGit };
 
 // A linked worktree of the prompt-service repo laid out on disk as git writes it.
-const MAIN_GIT_DIR = join("C:\\work", "prompt-service", ".git");
+// Resolved, because the reader resolves the tree it is given: a drive-letter
+// path is relative on POSIX, and the keys must match on every platform.
+const MAIN_GIT_DIR = resolve("C:\\work", "prompt-service", ".git");
 const worktreeFiles: Record<string, string> = {
-  [join(PROMPT_TREE, ".git")]: `gitdir: ${join(MAIN_GIT_DIR, "worktrees", "fanout-primary")}\n`,
+  [join(resolve(PROMPT_TREE), ".git")]: `gitdir: ${join(MAIN_GIT_DIR, "worktrees", "fanout-primary")}\n`,
   [join(MAIN_GIT_DIR, "worktrees", "fanout-primary", "HEAD")]: "ref: refs/heads/users/me/fanout-primary\n",
   [join(MAIN_GIT_DIR, "worktrees", "fanout-primary", "commondir")]: "../..\n",
   [join(MAIN_GIT_DIR, "config")]:

@@ -1,5 +1,5 @@
 import { defaultSkipProbes } from "../e2e-skip/probes.js";
-import type { SkipProbes } from "../e2e-skip/types.js";
+import { readCurrentBranch, readRemoteUrl } from "../git-dir/gitDir.js";
 import {
   CHANGE_REPO_REMOTE,
   DIRECTORY_CHANGE_COMMAND,
@@ -8,7 +8,7 @@ import {
   PR_HEAD_BRANCH_FLAG,
   PR_OPEN_COMMAND,
 } from "./constants.js";
-import type { ChangeIdentity } from "./types.js";
+import type { ChangeIdentity, TreeChangeProbes } from "./types.js";
 
 function toRepoKey(host: string, path: string): string | undefined {
   const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
@@ -48,16 +48,20 @@ export function repoKeyOfRemoteUrl(remoteUrl: string): string | undefined {
   }
 }
 
-/** The change a working tree holds: its origin's repo and its checked-out branch; undefined when either is unreadable or HEAD is detached. */
-export function resolveTreeChange(
-  cwd: string | undefined,
-  runGit: SkipProbes["runGit"] = defaultSkipProbes.runGit,
-): ChangeIdentity | undefined {
+/**
+ * The change a working tree holds: its origin's repo and its checked-out branch; undefined when either is unreadable
+ * or HEAD is detached. Both come from the git directory's files when they answer plainly, so a hook spends none of
+ * its child-process allowance on them; git is asked only for what the files leave open.
+ */
+export function resolveTreeChange(cwd: string | undefined, probes: TreeChangeProbes = defaultSkipProbes): ChangeIdentity | undefined {
   if (!cwd) return undefined;
-  const remoteUrl = runGit(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
-  const repo = remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : undefined;
-  const branch = runGit(["branch", "--show-current"], cwd)?.trim();
-  return repo && branch ? { repo: repo, branch: branch } : undefined;
+  const writtenUrl = readRemoteUrl(cwd, CHANGE_REPO_REMOTE, probes.readTextFile);
+  const writtenRepo = writtenUrl ? repoKeyOfRemoteUrl(writtenUrl) : undefined;
+  const remoteUrl = writtenRepo ? null : probes.runGit(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
+  const repo = writtenRepo ?? (remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : undefined);
+  if (!repo) return undefined;
+  const branch = (readCurrentBranch(cwd, probes.readTextFile) ?? probes.runGit(["branch", "--show-current"], cwd))?.trim();
+  return branch ? { repo: repo, branch: branch } : undefined;
 }
 
 /**
@@ -72,7 +76,7 @@ export function resolveOpenedPrChange(
   command: string,
   prUrl: string,
   cwd: string | undefined,
-  runGit: SkipProbes["runGit"] = defaultSkipProbes.runGit,
+  probes: TreeChangeProbes = defaultSkipProbes,
 ): ChangeIdentity | undefined {
   const repo = repoKeyOfPrUrl(prUrl);
   if (!repo) return undefined;
@@ -80,7 +84,7 @@ export function resolveOpenedPrChange(
   const headFlag = openAt < 0 ? null : command.slice(openAt).match(PR_HEAD_BRANCH_FLAG);
   if (headFlag) return { repo: repo, branch: headFlag[1].slice(headFlag[1].lastIndexOf(":") + 1) };
   if (DIRECTORY_CHANGE_COMMAND.test(command)) return undefined;
-  const treeChange = resolveTreeChange(cwd, runGit);
+  const treeChange = resolveTreeChange(cwd, probes);
   return treeChange?.repo === repo ? treeChange : undefined;
 }
 

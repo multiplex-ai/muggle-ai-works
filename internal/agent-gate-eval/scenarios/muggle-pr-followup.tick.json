@@ -91,6 +91,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -220,6 +221,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
         {
@@ -343,6 +345,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
         {
@@ -467,6 +470,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
         {
@@ -584,6 +588,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=block-rebase-budget-exhausted"},
         {
@@ -699,6 +704,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
         {
@@ -830,6 +836,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=block-ci-escalated"},
         {
@@ -941,6 +948,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1059,6 +1067,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1180,6 +1189,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1299,6 +1309,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1420,6 +1431,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1534,6 +1546,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1620,7 +1633,7 @@
       }
     },
     {
-      "name": "cron-delivered-tick-with-dead-monitor-rearms-the-monitor",
+      "name": "cron-delivered-tick-with-dead-loop-rearms-the-loop",
       "prompt": "muggle-ai-works-pr521 521",
       "maxTurns": 45,
       "seed": {
@@ -1652,6 +1665,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1730,7 +1744,7 @@
         ]
       },
       "expect": {
-        "requireToolSequence": [{"tool":"Monitor","argContains":["pr-watch-arm.sh","521"]},{"tool":"CronDelete","argContains":"cron-521"}],
+        "requireToolSequence": [{"tool":"Bash","argContains":["\"run_in_background\":true","pr-watch-arm.sh","521"]},{"tool":"CronDelete","argContains":"cron-521"}],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr521/followup.log","contains":"re-armed"}],
         "forbidToolAttempts": [{"pattern":"cron-created"},{"pattern":"muggle-do-dispatched"},{"pattern":"session-json-edited"}]
       }
@@ -1768,6 +1782,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":"polling.disabled","response":"ls: cannot access '{{home}}/.muggle-ai/muggle-do/polling.disabled': No such file or directory"},
         {
           "commandContains": "agent-pin-conversions.stopped",
@@ -1802,7 +1817,7 @@
       }
     },
     {
-      "name": "reconcile-rearms-a-silent-owned-watcher-with-a-monitor",
+      "name": "reconcile-rearms-a-silent-owned-watcher-with-a-loop",
       "prompt": "reconcile",
       "maxTurns": 50,
       "seed": {
@@ -1825,7 +1840,7 @@
           },
           {
             "path": "~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/followup.log",
-            "content": "2026-10-27T15:00:00Z bootstrap pr=522 lastBodyReviewId=0\n2026-10-27T17:20:00Z tick pr=522 threads=0 idle\n2026-10-27T17:21:00Z re-armed (monitor restored)\n"
+            "content": "2026-10-27T15:00:00Z bootstrap pr=522 lastBodyReviewId=0\n2026-10-27T17:20:00Z tick pr=522 threads=0 idle\n2026-10-27T17:21:00Z re-armed (loop restored)\n"
           },
           {
             "path": "~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/owner.json",
@@ -1834,6 +1849,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
@@ -1863,7 +1879,7 @@
         },
         {
           "commandContains": "muggle-ai-works-pr522/followup.log",
-          "response": "2026-10-27T15:00:00Z bootstrap pr=522 lastBodyReviewId=0\n2026-10-27T17:20:00Z tick pr=522 threads=0 idle\n2026-10-27T17:21:00Z re-armed (monitor restored)"
+          "response": "2026-10-27T15:00:00Z bootstrap pr=522 lastBodyReviewId=0\n2026-10-27T17:20:00Z tick pr=522 threads=0 idle\n2026-10-27T17:21:00Z re-armed (loop restored)"
         },
         {"commandContains":"muggle-ai-works-pr522/owner.json","response":"{\n  \"session_id\": \"session-AAA\",\n  \"claimed_at\": \"2026-10-27T15:00:00Z\"\n}"},
         {"commandContains":"polling.disabled","response":"ls: cannot access '{{home}}/.muggle-ai/muggle-do/polling.disabled': No such file or directory"},
@@ -1910,7 +1926,7 @@
         ]
       },
       "expect": {
-        "requireToolAttempts": [{"tool":"Monitor","argContains":["pr-watch-arm.sh","522"]}],
+        "requireToolAttempts": [{"tool":"Bash","argContains":["\"run_in_background\":true","pr-watch-arm.sh","522"]}],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/followup.log","contains":"re-armed (silent watcher)"}],
         "forbidToolAttempts": [{"pattern":"cron-created"},{"pattern":"muggle-do-dispatched"}]
       }
@@ -2016,6 +2032,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {
           "commandContains": "pull/603",
           "response": "{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/603\",\"number\":603,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr603\",\"baseRefName\":\"master\",\"state\":\"MERGED\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":\"2026-10-27T17:40:00Z\",\"mergeCommit\":{\"oid\":\"7d1c0b9a8f7e6d5c4b3a29180716f5e4d3c2b1a0\"},\"closedAt\":\"2026-10-27T17:40:00Z\",\"title\":\"Eval PR 603\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
@@ -2191,7 +2208,7 @@
         ]
       },
       "expect": {
-        "requireToolAttempts": [{"tool":"Monitor","argContains":["pr-watch-arm.sh","muggle-ai-works-pr600"]}],
+        "requireToolAttempts": [{"tool":"Bash","argContains":["\"run_in_background\":true","pr-watch-arm.sh","muggle-ai-works-pr600"]}],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr603/result.md","contains":"merged"}],
         "forbidToolAttempts": [
           {"tool":"Monitor","argContains":"muggle-ai-ui-pr601"},
@@ -2299,6 +2316,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {
           "commandContains": "pull/610",
           "response": "{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/610\",\"number\":610,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr610\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 610\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
@@ -2528,6 +2546,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {
           "commandContains": "pull/601",
           "response": "{\"url\":\"https://github.com/multiplex-ai/muggle-ai-ui/pull/601\",\"number\":601,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr601\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 601\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
@@ -2635,11 +2654,12 @@
               {"tool":"Bash","argContains":["muggle-ai-ui-pr601","Out-File","owner.json"]}
             ]
           },
-          {"tool":"Monitor","argContains":["pr-watch-arm.sh","muggle-ai-ui-pr601"]}
+          {"tool":"Bash","argContains":["\"run_in_background\":true","pr-watch-arm.sh","muggle-ai-ui-pr601"]}
         ],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-ui-pr601/owner.json","contains":"session-AAA"}],
         "forbidToolAttempts": [
           {"tool":"Monitor","argContains":"muggle-ai-brain-pr602"},
+          {"tool":"Bash","argContains":["pr-watch-arm.sh","muggle-ai-brain-pr602"]},
           {
             "anyOf": [
               {"tool":"Write","argContains":["muggle-ai-brain-pr602","owner.json"]},
@@ -2686,6 +2706,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":"kill ","response":""},
         {"commandContains":"Stop-Process","response":""},
         {"commandContains":"taskkill","response":"SUCCESS: The process with PID 4242 has been terminated."},
@@ -2843,6 +2864,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":"kill ","response":""},
         {"commandContains":"Stop-Process","response":""},
         {"commandContains":"ps ","response":"  PID COMMAND\n 5150 node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"},
@@ -2971,6 +2993,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":"rm ","response":""},
         {"commandContains":"Remove-Item","response":""},
         {"commandContains":"show-toplevel","response":"{{repo}}\nhttps://github.com/multiplex-ai/muggle-ai-works.git\nusers/eval/pr524"},
@@ -3040,7 +3063,7 @@
               {"tool":"Bash","argContains":["unlink","polling.disabled"]}
             ]
           },
-          {"tool":"Monitor","argContains":["pr-watch-arm.sh","524"]}
+          {"tool":"Bash","argContains":["\"run_in_background\":true","pr-watch-arm.sh","524"]}
         ],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr524/prs.json","contains":"524"}]
       }
@@ -3059,6 +3082,7 @@
         ]
       },
       "bashResponses": [
+        {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":"rm ","response":""},
         {"commandContains":"Remove-Item","response":""},
         {"commandContains":"show-toplevel","response":"{{repo}}\nhttps://github.com/multiplex-ai/muggle-ai-works.git\nusers/eval/pr650"},
@@ -3120,7 +3144,7 @@
         ]
       },
       "expect": {
-        "requireToolAttempts": [{"tool":"Monitor","argContains":["scripts/pr-watch-arm.sh","--slot","muggle-ai-works-pr650","--repo","multiplex-ai/muggle-ai-works","--pr","650"]}],
+        "requireToolAttempts": [{"tool":"Bash","argContains":["\"run_in_background\":true","scripts/pr-watch-arm.sh","--slot","muggle-ai-works-pr650","--repo","multiplex-ai/muggle-ai-works","--pr","650"]}],
         "requireArtifacts": [
           {"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr650/prs.json","contains":"650"},
           {"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr650/last_seen.json","contains":"multiplex-ai/muggle-ai-works#650"}

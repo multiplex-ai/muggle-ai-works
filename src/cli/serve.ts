@@ -2,7 +2,13 @@
  * Serve command - starts the MCP server.
  */
 
-import { getConfig, getLocalQaTools, getLogger, getQaTools } from "../../packages/mcps/src/index.js";
+import {
+  getActiveRuntimeTarget,
+  getConfig,
+  getLocalQaTools,
+  getLogger,
+  getQaTools,
+} from "../../packages/mcps/src/index.js";
 import {
   EventName,
   hasShownDisclosure,
@@ -14,6 +20,7 @@ import {
 } from "@muggleai/telemetry";
 import { createUnifiedMcpServer, registerTools, startStdioServer } from "../server/index.js";
 import { resolveDisclosureCopy } from "./disclosure/disclosure-copy.js";
+import { TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET } from "./telemetry-environment-constants.js";
 
 // Connection string is inlined at publish time via tsup `define` from the
 // APPLICATIONINSIGHTS_CONNECTION_STRING env var (set from a GitHub secret in
@@ -74,6 +81,7 @@ export async function serveCommand (options: IServeOptions): Promise<void> {
       serviceName: ServiceName.MuggleMcp,
       surface: Surface.McpLocal,
       connectionString: APPLICATIONINSIGHTS_CONNECTION_STRING,
+      environment: TELEMETRY_ENVIRONMENT_BY_RUNTIME_TARGET[getActiveRuntimeTarget()],
     });
     track({ name: EventName.SystemStartup, props: { serviceName: ServiceName.MuggleMcp } });
   } catch (err) {

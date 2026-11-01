@@ -273,11 +273,11 @@ so the result carries a viewUrl straight to the dashboard
 
 ## MCP tool reference
 
-125 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
+126 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
 **Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
-**Projects** — `muggle-remote-project-create`, `-list`, `-get`, `-update`, `-delete`, plus per-project rollups: `-test-results-summary-get`, `-test-runs-summary-get`, `-test-scripts-summary-get`.
+**Projects** — `muggle-remote-project-create`, `-list`, `-get`, `-update`, `-delete`, plus per-project rollups: `-test-results-summary-get`, `-test-runs-summary-get`, `-test-scripts-summary-get`. Pass `primaryResolution`, `compatibleResolutions` and `runStrategy` (`primaryOnly`, the default, `primaryFirst` or `allAtOnce`) to `-create` or `-update` to verify every test case at more than one viewport; `muggle-remote-project-display-resolutions-get` reads a lane's primary, compatible and enabled resolutions and its run strategy.
 
 | Use cases | Purpose |
 | :-------- | :------ |

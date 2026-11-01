@@ -33,6 +33,10 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
+import {
+  mapProjectDisplayResolutions,
+  toProjectResolutionUpstreamFields,
+} from "./project-display-resolutions-transform.js";
 import { mapRunSettingsList } from "./run-settings-list-transform.js";
 import {
   mapSecret,
@@ -58,7 +62,7 @@ const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
 const projectTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-project-create",
-    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project.",
+    description: "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project. Pass primaryResolution, compatibleResolutions and runStrategy to verify every test case at more than one viewport (e.g. desktop and phone); omit them for R_1920x1080 alone under primaryOnly.",
     inputSchema: schemas.ProjectCreateInputSchema,
     dashboardLink: linkToCreatedProject,
     mapToUpstream: (input) => {
@@ -67,6 +71,7 @@ const projectTools: IQaToolDefinition[] = [
         name: toolInput.projectName,
         description: toolInput.description,
         url: toolInput.url,
+        ...toProjectResolutionUpstreamFields(toolInput),
       };
       if (toolInput.organizationId !== undefined) body.organizationId = toolInput.organizationId;
       return {
@@ -78,7 +83,7 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-get",
-    description: "Get details of a specific project by ID.",
+    description: "Get details of a specific project by ID. Its displayOptions is the resolution list last saved on the project, primary first; read the primary and compatible resolutions in effect, and the run strategy, with muggle-remote-project-display-resolutions-get.",
     inputSchema: schemas.ProjectGetInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.Project),
     mapToUpstream: (input) => {
@@ -91,11 +96,14 @@ const projectTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-project-update",
-    description: "Update an existing project's details, or move a personal project into an organization the caller belongs to.",
+    description: "Update an existing project's details, or move a personal project into an organization the caller belongs to. primaryResolution, compatibleResolutions and runStrategy change, on both lanes, the resolutions every test case is verified at and how its runs across them start. The resolutions save as one list: compatibleResolutions requires primaryResolution and replaces the whole compatible list, and primaryResolution alone clears it, so read the current ones with muggle-remote-project-display-resolutions-get and pass back those to keep. runStrategy alone leaves the resolutions unchanged.",
     inputSchema: schemas.ProjectUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ProjectUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: toolInput.projectId };
+      const body: Record<string, unknown> = {
+        id: toolInput.projectId,
+        ...toProjectResolutionUpstreamFields(toolInput),
+      };
       if (toolInput.projectName !== undefined) body.name = toolInput.projectName;
       if (toolInput.description !== undefined) body.description = toolInput.description;
       if (toolInput.url !== undefined) body.url = toolInput.url;
@@ -106,6 +114,21 @@ const projectTools: IQaToolDefinition[] = [
         body: body,
       };
     },
+  },
+  {
+    name: "muggle-remote-project-display-resolutions-get",
+    description:
+      "Get a project lane's resolutions and run strategy: the resolutions every test case that picks none of its own is verified at, one run each, and how those runs start. Response shape: { projectId, runEnvironmentType, primaryResolution, compatibleResolutions, enabledResolutions, runStrategy }. runStrategy is primaryOnly (the primary runs alone; compatible resolutions are reported as not run), primaryFirst (compatible resolutions run once the primary passes) or allAtOnce (every resolution runs at once); a lane that never set one reports primaryOnly. enabledResolutions are those a test case on the lane may pick. Change them with primaryResolution, compatibleResolutions and runStrategy on muggle-remote-project-update.",
+    inputSchema: schemas.ProjectDisplayResolutionsGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.ProjectDisplayResolutionsGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${MUGGLE_TEST_PREFIX}/projects/${toolInput.projectId}/project-test-spec`,
+        queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
+      };
+    },
+    mapFromUpstream: mapProjectDisplayResolutions,
   },
   {
     name: "muggle-remote-project-list",
@@ -399,7 +422,7 @@ const testCaseTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-fan-out-plan",
     description:
-      "Plan a test case's fan-out across its runSettings records in one lane, for a caller that runs the records itself, such as a local run; it starts nothing and writes nothing. Response shape: { testCaseId, laneType, fanOutPolicy, fanOutChoice, isPrimaryKnownGood, isSecondaryGatedOnPrimary, records: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary, testScriptId }], notRunRunSettingsIds }. `records` is in start order, primary first: run records[0] first. When isSecondaryGatedOnPrimary is true, run the rest only if that run passed, and otherwise report each as skipped because the primary failed; when false, run them all. A record's testScriptId is its script on the lane, absent when it has none: replay that script, or generate with the record's runSettingsId and displayResolution. Empty records means the lane has no records for the test case. notRunRunSettingsIds lists the records primaryOnly leaves unrun. Omit fanOutChoice to follow the lane's policy.",
+      "Plan a test case's fan-out across its runSettings records in one lane, for a caller that runs the records itself, such as a local run; it starts nothing and writes nothing. Response shape: { testCaseId, laneType, fanOutPolicy, fanOutChoice, isPrimaryKnownGood, isSecondaryGatedOnPrimary, records: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary, testScriptId }], notRunRunSettingsIds }. `records` is in start order, primary first: run records[0] first. When isSecondaryGatedOnPrimary is true, run the rest only if that run passed, and otherwise report each as skipped because the primary failed; when false, run them all. A record's testScriptId is its script on the lane, absent when it has none: replay that script, or generate with the record's runSettingsId and displayResolution. Empty records means the lane has no records for the test case. notRunRunSettingsIds lists the records left unrun because fanOutChoice or the lane's fanOutPolicy is primaryOnly. Omit fanOutChoice to follow the lane's policy.",
     inputSchema: schemas.FanOutPlanInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.FanOutPlanInputSchema>;

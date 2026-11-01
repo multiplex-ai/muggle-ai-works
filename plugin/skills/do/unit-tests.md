@@ -19,7 +19,7 @@ You receive:
 
 For each repo:
 
-1. **Run the test command** using Bash in the repo's directory. Use the provided test command (default: `pnpm test`). Suites must run in one-shot mode (`CI=true`, `--watchAll=false`, `vitest run`) — never watch mode: an orphaned watcher fork-bombs on Windows. Launch through the shipped cap so the process tree is kernel-bounded and reaped if this run is killed: `node "${CLAUDE_PLUGIN_ROOT}/scripts/guard-run.mjs" -- <test command>`.
+1. **Run the test command** using Bash in the repo's directory. Use the provided test command (default: `pnpm test`). Suites must run in one-shot mode (`vitest run`, jest `--watchAll=false`) — never watch mode: an orphaned watcher fork-bombs on Windows. Never set `CI=true` for a local run: repos key their local worker cap and changed-files scoping on `CI` being unset, so it runs the full suite at one worker per core. Launch through the shipped cap so the process tree is kernel-bounded and reaped if this run is killed: `node "${CLAUDE_PLUGIN_ROOT}/scripts/guard-run.mjs" -- <test command>`.
 2. **Capture the full output** — both stdout and stderr.
 3. **Determine pass/fail** — exit code 0 means pass, anything else means fail.
 4. **If tests fail**, extract the specific failing test names/descriptions from the output.

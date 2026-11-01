@@ -43,6 +43,7 @@ import { runAgentScenarioOnce } from "./harness.js";
 import { loadScenarioSuites, scenariosForCadence } from "./scenario.js";
 import { suiteResultsPath, summarizeScenarioVerdicts } from "./suite-report.js";
 import { loadTargetDefinition } from "./target-definition.js";
+import { isUsageLimitError } from "./usage-limit.js";
 import {
   EvalTargetKind,
   type AgentRunVerdict,
@@ -176,14 +177,16 @@ async function main(): Promise<void> {
               },
             );
           } catch (error) {
+            const isUsageLimited = isUsageLimitError(error);
             console.error(
-              `[agent-gate-eval] ${repLabel}: run aborted by SDK error — counted as a failed rep: ${oneLine(String(error))}`,
+              `[agent-gate-eval] ${repLabel}: run aborted by SDK error — counted as ${isUsageLimited ? "no result (usage limit)" : "a failed rep"}: ${oneLine(String(error))}`,
             );
             verdict = {
               scenario: scenario.name,
               pass: false,
               reasons: [`run aborted by SDK error: ${String(error).slice(0, 300)}`],
               trace: { finalOutput: "", toolAttempts: [], askQuestionCount: 0 },
+              isInconclusive: isUsageLimited,
             };
           }
           const usage = verdict.usage;
@@ -236,8 +239,9 @@ async function main(): Promise<void> {
         report.meanCostUsd === null || report.meanDurationMs === null
           ? ""
           : `, mean $${report.meanCostUsd.toFixed(2)} / ${Math.round(report.meanDurationMs / 1000)}s per run`;
+      const noResult = report.inconclusiveRuns > 0 ? `, ${report.inconclusiveRuns} no result (usage limit)` : "";
       console.log(
-        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%${meanSpend})`,
+        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%${noResult}${meanSpend})`,
       );
       for (const reason of report.failureReasons) {
         console.log(`    - ${reason}`);

@@ -95,10 +95,13 @@ describe("executeReloadFanOut", () => {
       ],
       runner.runCommand,
       () => true,
+      (sessionId, shortId) => runner.calls.push({ executable: "pin", args: [sessionId, shortId] }),
     );
-    expect(runner.calls.map((call) => call.args)).toEqual([
-      ["respawn", "good"],
-      ["respawn", "bad"],
+    expect(runner.calls.map((call) => [call.executable, ...call.args])).toEqual([
+      ["pin", "s-good", "good"],
+      ["claude", "respawn", "good"],
+      ["pin", "s-bad", "bad"],
+      ["claude", "respawn", "bad"],
     ]);
     expect(report.respawnedSessionIds).toEqual(["s-good"]);
     expect(report.failedSessionIds).toEqual(["s-bad"]);
@@ -108,6 +111,7 @@ describe("executeReloadFanOut", () => {
   it("never touches a session whose workspace refuses a background restart, probing each workspace once", () => {
     const runner = scriptedRunner(() => succeeded(""));
     const probedCwds: string[] = [];
+    const pinnedSessionIds: string[] = [];
     const report = executeReloadFanOut(
       [
         decision("a", ReloadAction.Respawn, "/locked"),
@@ -119,7 +123,9 @@ describe("executeReloadFanOut", () => {
         probedCwds.push(cwd);
         return false;
       },
+      (sessionId) => pinnedSessionIds.push(sessionId),
     );
+    expect(pinnedSessionIds).toEqual([]);
     expect(runner.calls).toEqual([]);
     expect(probedCwds).toEqual(["/locked"]);
     expect(report.untrustedSessionIds).toEqual(["s-a", "s-b", "s-c"]);

@@ -183,6 +183,21 @@ export const CLAUDE_SESSION_REGISTRY_DIR_NAME = "sessions";
 /** Claude's per-project transcript dirs, under the Claude config dir. */
 export const CLAUDE_PROJECTS_DIR_NAME = "projects";
 
+/** Claude's background job records, one `<short id>/state.json` each, under the Claude config dir. */
+export const CLAUDE_JOBS_DIR_NAME = "jobs";
+
+/** A background job's record file, whose `respawnFlags` a restart or resume rebuilds the session from. */
+export const CLAUDE_JOB_STATE_FILE_NAME = "state.json";
+
+/** The flag that names a Claude session; kept in a job's `respawnFlags`, the name survives restarts. */
+export const SESSION_NAME_FLAG = "--name";
+
+/** Characters of its opening prompt Claude names a session after when it was given no name. */
+export const CLAUDE_PROMPT_NAME_MAX_LENGTH = 200;
+
+/** The transcript entry type Claude writes when the user renames a session with `/rename`. */
+export const CUSTOM_TITLE_ENTRY_TYPE = "custom-title";
+
 /** Claude's record of installed plugins, relative to the Claude config dir. */
 export const CLAUDE_INSTALLED_PLUGINS_RELATIVE_PATH = ["plugins", "installed_plugins.json"] as const;
 

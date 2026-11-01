@@ -178,6 +178,7 @@ export function executeWatcherRecoveries(
       deps.runCommand,
       deps.waitForExit,
       deps.isSessionRunning,
+      deps.pinSessionName,
     );
     if (resumed.outcome === SessionResumeOutcome.Continued) {
       markServiceLoopReportDelivered(recovery.slotDir);

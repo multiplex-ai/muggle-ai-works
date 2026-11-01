@@ -450,10 +450,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      # A PR runs the PR-cadence scenarios when it touches the skill, its stage
-      # files, the watcher, their shared helpers, or the harness. Nightly,
-      # dispatch, and the run-full-eval label run every scenario. A scoped-out
-      # run says how many runs it skipped, so it never reads as a clean pass.
+      # A PR runs a skill suite's PR-cadence scenarios when it touches that
+      # suite's paths, its scenario file, or the harness. The watcher's tick
+      # suite has its own paths; every other suite runs on any muggle-do or
+      # watcher path. Nightly, dispatch, and the run-full-eval label run every
+      # scenario. Suites scoped out say how many runs they skipped, so a
+      # partial run never reads as a clean pass.
       - name: Determine scope
         id: scope
         env:
@@ -463,34 +465,51 @@ jobs:
           if [ "$RUN_FULL_EVAL" = "true" ] || [ "${{ github.event_name }}" != "pull_request" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
             echo "cadence=" >> "$GITHUB_OUTPUT"
+            echo "suites=" >> "$GITHUB_OUTPUT"
             echo "Full muggle-do eval (every scenario)"
             exit 0
           fi
           git fetch --no-tags origin "${{ github.base_ref }}"
-          base="origin/${{ github.base_ref }}"
-          if git diff --name-only "$base...HEAD" -- \
-               plugin/skills/muggle-do/ plugin/skills/do/ plugin/skills/muggle-pr-followup/ \
-               plugin/skills/_shared/pr-followup-helpers/ plugin/skills/_shared/vcs/ \
-               internal/agent-gate-eval/ \
-             | grep -q .; then
+          export CHANGED_PATHS="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          selection="$(node -e '
+            const fs = require("fs");
+            const dir = "internal/agent-gate-eval/scenarios";
+            const changed = process.env.CHANGED_PATHS.split("\n").filter(Boolean);
+            const touches = (prefixes) => changed.some((path) => prefixes.some((prefix) => path.startsWith(prefix)));
+            const isHarnessChanged = changed.some(
+              (path) => path.startsWith("internal/agent-gate-eval/") && !path.startsWith(`${dir}/`),
+            );
+            const watcherPaths = [
+              "plugin/skills/muggle-pr-followup/",
+              "plugin/skills/_shared/pr-followup-helpers/",
+              "plugin/skills/_shared/vcs/",
+            ];
+            const suitePaths = { "muggle-pr-followup.tick": [...watcherPaths, "plugin/scripts/pr-watch-"] };
+            const defaultPaths = ["plugin/skills/muggle-do/", "plugin/skills/do/", ...watcherPaths];
+            const suites = [];
+            let skippedScenarios = 0;
+            for (const name of fs.readdirSync(dir).sort()) {
+              if (!name.endsWith(".json") || name.endsWith(".results.json")) continue;
+              const file = JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"));
+              if (file.target.kind !== "skill") continue;
+              const stem = name.slice(0, -".json".length);
+              if (isHarnessChanged || touches([...(suitePaths[stem] ?? defaultPaths), `${dir}/${name}`])) suites.push(stem);
+              else skippedScenarios += file.scenarios.filter((scenario) => (scenario.cadence ?? "pr") === "pr").length;
+            }
+            process.stdout.write(`${suites.join(",")} ${skippedScenarios}`);
+          ')"
+          suites="${selection% *}"
+          skipped="${selection##* }"
+          echo "suites=$suites" >> "$GITHUB_OUTPUT"
+          echo "cadence=pr" >> "$GITHUB_OUTPUT"
+          if [ -n "$suites" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "cadence=pr" >> "$GITHUB_OUTPUT"
-            echo "muggle-do-relevant changes detected — running the PR-cadence scenarios."
+            echo "muggle-do-relevant changes detected — running the PR-cadence scenarios of: $suites"
           else
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            scenarios="$(node -e '
-              const fs = require("fs");
-              const dir = "internal/agent-gate-eval/scenarios";
-              let count = 0;
-              for (const name of fs.readdirSync(dir)) {
-                if (!name.endsWith(".json") || name.endsWith(".results.json")) continue;
-                const file = JSON.parse(fs.readFileSync(`${dir}/${name}`, "utf8"));
-                if (file.target.kind !== "skill") continue;
-                count += file.scenarios.filter((scenario) => (scenario.cadence ?? "pr") === "pr").length;
-              }
-              process.stdout.write(String(count));
-            ')"
-            line="MUGGLE_DO_RUNS_SCOPED: $((scenarios * MUGGLE_DO_EVAL_RUNS)) — skipped $scenarios scenarios × $MUGGLE_DO_EVAL_RUNS runs; nothing ran (no change under the muggle-do eval's paths)"
+          fi
+          if [ "$skipped" -gt 0 ]; then
+            line="MUGGLE_DO_RUNS_SCOPED: $((skipped * MUGGLE_DO_EVAL_RUNS)) — skipped $skipped scenarios × $MUGGLE_DO_EVAL_RUNS runs in suites outside this change's paths"
             echo "$line"
             echo "$line" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -535,6 +554,7 @@ jobs:
         if: steps.scope.outputs.should_run == 'true'
         env:
           CADENCE: ${{ steps.scope.outputs.cadence }}
+          SUITES: ${{ steps.scope.outputs.suites }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -547,8 +567,12 @@ jobs:
             case "$scenarios" in *.results.json) continue ;; esac
             kind="$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).target.kind)' "$scenarios")"
             [ "$kind" = "skill" ] || continue
-            total=$((total + 1))
             suite="$(basename "$scenarios" .json)"
+            # Empty SUITES is a full run; otherwise only the suites this change's paths select.
+            if [ -n "$SUITES" ]; then
+              case ",$SUITES," in *",$suite,"*) ;; *) continue ;; esac
+            fi
+            total=$((total + 1))
             echo "::group::suite=$suite runs=$MUGGLE_DO_EVAL_RUNS cadence=${CADENCE:-all}"
             if pnpm exec tsx internal/agent-gate-eval/src/run.ts \
                  --suite "$suite" --runs "$MUGGLE_DO_EVAL_RUNS" \

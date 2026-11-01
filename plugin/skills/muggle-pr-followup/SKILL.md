@@ -1,6 +1,6 @@
 ---
 name: muggle-pr-followup
-model: haiku
+model: sonnet
 description: "Use when the user wants a pull request's incoming review feedback handled for them — it watches a PR's review threads and, each time a reviewer submits new comments, dispatches the work to address them. Covers one PR or several: with no PR named it auto-tracks every PR opened in this session, one watcher each. Engage on PR-review-follow-up intent: \"watch my PR and address review comments as they come in\", \"keep polling the PR I just pushed and deal with reviews\", \"track all the PRs I opened this session and follow up on their reviews\", \"follow up on review threads for the branch I just pushed\", \"I'm stepping away — handle my PR's reviews while I'm gone\". Invoke it before looking the PRs up — finding them is its own first step. This is PR-review-specific automation — prefer it over the generic loop skill. It only watches and dispatches; the actual edits and replies are muggle-do. Not for posting test results to a PR (use muggle-pr-visual-walkthrough)."
 ---
 

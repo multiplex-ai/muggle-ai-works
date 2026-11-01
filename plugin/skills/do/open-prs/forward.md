@@ -44,6 +44,8 @@ Per repo:
    - `skip` → `[UNVERIFIED] <goal>`
    - Otherwise → `<goal>`. Stage 7 adds `[E2E FAILING]` if the run fails.
 
+   The prefix goes on at creation: no later stage adds `[UNIT-ONLY]` or `[UNVERIFIED]`.
+
 4. **Body** — assemble in order:
    - `## Goal` — from requirements.
    - `## Acceptance Criteria` — bulleted; omit if empty.
@@ -53,8 +55,8 @@ Per repo:
    - **Signature** — write the assembled body to a file and sign it with `--command /muggle-do --mode editable` per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). `editable` is the mode a description carries so later refreshes replace it instead of stacking.
 
 5. **Create:** resolve the provider per [`../../_shared/vcs/detect-vcs.md`](../../_shared/vcs/detect-vcs.md).
-   - `github` → `gh pr create --title "..." --body-file <signed-file> --head <branch>`, passing the file signed in Step 4. Capture the PR URL and number.
-   - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "..." --description "..."`. Capture the MR URL and iid.
+   - `github` → `gh pr create --title "<Step 3 title>" --body-file <signed-file> --head <branch>`, passing Step 3's title, prefix included, and the file signed in Step 4. Capture the PR URL and number.
+   - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "<Step 3 title>" --description "..."`. Capture the MR URL and iid.
 
    A create that fails ends the cycle for that repo: report it under **Errors** and run no E2E for it, since the run would have no PR to settle.
 

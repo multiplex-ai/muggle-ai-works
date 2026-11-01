@@ -1,5 +1,6 @@
 import { join } from "path";
 import {
+  BASE_REMOTE,
   BROWSER_FRAMEWORK_PACKAGES,
   MAX_NAMED_APP_LOGIC_PATHS,
   MIN_NOT_APPLICABLE_REASON_WORDS,
@@ -10,6 +11,7 @@ import {
   WEB_SERVER_COMMAND,
   WEB_SURFACE_CONFIG_FILES,
 } from "./constants.js";
+import { readRemoteHeadBranch } from "../git-dir/gitDir.js";
 import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
 import { ALWAYS_PREFERENCE_VALUE } from "../pr-watch/constants.js";
 import { isNonAppPath, parseNoAppLogicChangeDetail, pathsWithChangedPatch } from "./noAppLogicChange.js";
@@ -70,8 +72,10 @@ const verifyDevServerUnreachable: SkipVerifier = (context, detail) => {
 
 const verifyEmptyDiff: SkipVerifier = (context) => {
   if (!context.cwd) return refuted("no working directory was available to inspect");
-  const head = context.probe.runGit(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], context.cwd);
-  const base = head?.trim();
+  const base = (
+    readRemoteHeadBranch(context.cwd, BASE_REMOTE, context.probe.readTextFile) ??
+    context.probe.runGit(["symbolic-ref", `refs/remotes/${BASE_REMOTE}/HEAD`, "--short"], context.cwd)
+  )?.trim();
   if (!base) return refuted("the repo's base branch could not be resolved");
   const diff = context.probe.runGit(["diff", `${base}...HEAD`, "--stat"], context.cwd);
   if (diff === null) return refuted("the diff against the base branch could not be read");

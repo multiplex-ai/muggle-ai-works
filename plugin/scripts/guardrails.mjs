@@ -446,6 +446,7 @@ var USER_WAIVE_PHRASE = "SKIP E2E";
 var MIN_NOT_APPLICABLE_REASON_WORDS = 4;
 var DEV_SERVER_PROBE_TIMEOUT_MS = 2e3;
 var GIT_PROBE_TIMEOUT_MS = 5e3;
+var BASE_REMOTE = "origin";
 var WEB_SERVER_COMMAND = /\b(vite|next\s+(dev|start)|react-scripts|ng\s+serve|nuxt|astro\s+dev|remix\s+dev|webpack(-dev)?-server|http-server|serve\s+-s|gatsby\s+develop|vue-cli-service\s+serve)\b/;
 var BROWSER_FRAMEWORK_PACKAGES = [
   "react-dom",
@@ -635,6 +636,68 @@ var defaultSkipProbes = {
   isReachable
 };
 
+// src/git-dir/constants.ts
+var DOT_GIT = ".git";
+var GITDIR_POINTER = /^gitdir:\s*(.+?)\s*$/m;
+var HEAD_BRANCH_REF = /^ref:\s*refs\/heads\/(.+?)\s*$/;
+var REMOTE_HEAD_REF = /^ref:\s*refs\/remotes\/(.+?)\s*$/;
+var CONFIG_SECTION_HEADER = /^\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\]/;
+var CONFIG_KEY_VALUE = /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*(.*)$/;
+var CONFIG_INDIRECTION = /^\s*(?:\[\s*include(?:If)?\b|[^#;]*\binsteadOf\s*=)/im;
+
+// src/git-dir/gitDir.ts
+function locateGitDir(cwd, readTextFile2) {
+  let dir = resolve(cwd);
+  for (; ; ) {
+    const dotGit = join(dir, DOT_GIT);
+    const pointer = readTextFile2(dotGit)?.match(GITDIR_POINTER);
+    const gitDir = pointer ? resolve(dir, pointer[1]) : readTextFile2(join(dotGit, "HEAD")) !== null ? dotGit : null;
+    if (gitDir) {
+      const commonDirPointer = readTextFile2(join(gitDir, "commondir"))?.trim();
+      return { gitDir, commonDir: commonDirPointer ? resolve(gitDir, commonDirPointer) : gitDir };
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+function readCurrentBranch(cwd, readTextFile2) {
+  const location = locateGitDir(cwd, readTextFile2);
+  const head = location ? readTextFile2(join(location.gitDir, "HEAD")) : null;
+  if (head === null) return null;
+  return head.match(HEAD_BRANCH_REF)?.[1] ?? "";
+}
+function parseConfigValue(rawValue) {
+  const value = rawValue.trim();
+  if (value.startsWith('"')) {
+    const closingQuote = value.slice(1).search(/(?<!\\)"/);
+    const quoted = closingQuote < 0 ? value.slice(1) : value.slice(1, closingQuote + 1);
+    return quoted.replace(/\\(["\\])/g, "$1");
+  }
+  return value.replace(/\s*[#;].*$/, "");
+}
+function readRemoteUrl(cwd, remote, readTextFile2) {
+  const location = locateGitDir(cwd, readTextFile2);
+  const config = location ? readTextFile2(join(location.commonDir, "config")) : null;
+  if (config === null || CONFIG_INDIRECTION.test(config)) return null;
+  let isInRemoteSection = false;
+  for (const line of config.split(/\r?\n/)) {
+    const header = line.match(CONFIG_SECTION_HEADER);
+    if (header) {
+      isInRemoteSection = header[1].toLowerCase() === "remote" && header[2] === remote;
+      continue;
+    }
+    const entry = isInRemoteSection ? line.match(CONFIG_KEY_VALUE) : null;
+    if (entry && entry[1].toLowerCase() === "url") return parseConfigValue(entry[2]) || null;
+  }
+  return null;
+}
+function readRemoteHeadBranch(cwd, remote, readTextFile2) {
+  const location = locateGitDir(cwd, readTextFile2);
+  const ref = location ? readTextFile2(join(location.commonDir, "refs", "remotes", remote, "HEAD")) : null;
+  return ref?.match(REMOTE_HEAD_REF)?.[1] ?? null;
+}
+
 // src/guardrails/changeIdentity.ts
 function toRepoKey(host2, path) {
   const repoPath = path.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
@@ -661,21 +724,24 @@ function repoKeyOfRemoteUrl(remoteUrl) {
     return void 0;
   }
 }
-function resolveTreeChange(cwd, runGit2 = defaultSkipProbes.runGit) {
+function resolveTreeChange(cwd, probes = defaultSkipProbes) {
   if (!cwd) return void 0;
-  const remoteUrl = runGit2(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
-  const repo = remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : void 0;
-  const branch = runGit2(["branch", "--show-current"], cwd)?.trim();
-  return repo && branch ? { repo, branch } : void 0;
+  const writtenUrl = readRemoteUrl(cwd, CHANGE_REPO_REMOTE, probes.readTextFile);
+  const writtenRepo = writtenUrl ? repoKeyOfRemoteUrl(writtenUrl) : void 0;
+  const remoteUrl = writtenRepo ? null : probes.runGit(["remote", "get-url", CHANGE_REPO_REMOTE], cwd);
+  const repo = writtenRepo ?? (remoteUrl ? repoKeyOfRemoteUrl(remoteUrl) : void 0);
+  if (!repo) return void 0;
+  const branch = (readCurrentBranch(cwd, probes.readTextFile) ?? probes.runGit(["branch", "--show-current"], cwd))?.trim();
+  return branch ? { repo, branch } : void 0;
 }
-function resolveOpenedPrChange(command, prUrl, cwd, runGit2 = defaultSkipProbes.runGit) {
+function resolveOpenedPrChange(command, prUrl, cwd, probes = defaultSkipProbes) {
   const repo = repoKeyOfPrUrl(prUrl);
   if (!repo) return void 0;
   const openAt = command.search(PR_OPEN_COMMAND);
   const headFlag = openAt < 0 ? null : command.slice(openAt).match(PR_HEAD_BRANCH_FLAG);
   if (headFlag) return { repo, branch: headFlag[1].slice(headFlag[1].lastIndexOf(":") + 1) };
   if (DIRECTORY_CHANGE_COMMAND.test(command)) return void 0;
-  const treeChange = resolveTreeChange(cwd, runGit2);
+  const treeChange = resolveTreeChange(cwd, probes);
   return treeChange?.repo === repo ? treeChange : void 0;
 }
 function isSameChange(left, right) {
@@ -2378,8 +2444,7 @@ var verifyDevServerUnreachable = (context, detail) => {
 };
 var verifyEmptyDiff = (context) => {
   if (!context.cwd) return refuted("no working directory was available to inspect");
-  const head = context.probe.runGit(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"], context.cwd);
-  const base = head?.trim();
+  const base = (readRemoteHeadBranch(context.cwd, BASE_REMOTE, context.probe.readTextFile) ?? context.probe.runGit(["symbolic-ref", `refs/remotes/${BASE_REMOTE}/HEAD`, "--short"], context.cwd))?.trim();
   if (!base) return refuted("the repo's base branch could not be resolved");
   const diff = context.probe.runGit(["diff", `${base}...HEAD`, "--stat"], context.cwd);
   if (diff === null) return refuted("the diff against the base branch could not be read");

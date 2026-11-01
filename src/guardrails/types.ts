@@ -1,4 +1,4 @@
-import type { DeclaredSkip } from "../e2e-skip/types.js";
+import type { DeclaredSkip, SkipProbes } from "../e2e-skip/types.js";
 
 /**
  * One change a PR or a skip belongs to: a repo, keyed provider-neutrally, and a branch in it.
@@ -9,6 +9,9 @@ export interface ChangeIdentity {
   repo: string;
   branch: string;
 }
+
+/** The lookups resolving a working tree's change needs: its git files first, git itself for what they leave open. */
+export type TreeChangeProbes = Pick<SkipProbes, "readTextFile" | "runGit">;
 
 export interface GuardrailState {
   sessionId: string;

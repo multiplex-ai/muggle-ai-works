@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { execFileSync } from "child_process";
 import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { join, resolve } from "path";
 import { defaultSkipProbes } from "../../e2e-skip/probes";
 import { resolveSkipDeclaration } from "../../e2e-skip/resolveSkip";
 import { E2eSkipCode, SkipRejection, type SkipProbes, type SkipVerificationContext } from "../../e2e-skip/types";
@@ -146,6 +146,20 @@ describe("EMPTY_DIFF", () => {
       contextFor({ git: { ...base, "diff origin/master...HEAD --stat": " src/app.ts | 2 +-\n" } }),
     );
     expect(judged?.accepted).toBe(false);
+  });
+
+  it("reads the base branch from origin's HEAD ref on disk, so the diff is the only git call", () => {
+    const gitDir = join(resolve("/repo"), ".git").replace(/\\/g, "/");
+    const gitCalls: string[] = [];
+    const context = contextFor({
+      files: { [`${gitDir}/HEAD`]: "ref: refs/heads/feature\n", [`${gitDir}/refs/remotes/origin/HEAD`]: "ref: refs/remotes/origin/main\n" },
+    });
+    context.probe.runGit = (args) => {
+      gitCalls.push(args.join(" "));
+      return args.join(" ") === "diff origin/main...HEAD --stat" ? "\n" : null;
+    };
+    expect(resolveSkipDeclaration(declare(E2eSkipCode.EmptyDiff), context)?.accepted).toBe(true);
+    expect(gitCalls).toEqual(["diff origin/main...HEAD --stat"]);
   });
 });
 

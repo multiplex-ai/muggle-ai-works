@@ -104,6 +104,9 @@ export const DEV_SERVER_PROBE_TIMEOUT_MS = 2_000;
 /** Ceiling on each `git` lookup a verifier runs, for the same reason: a repo locked by another git process must not hold the session. */
 export const GIT_PROBE_TIMEOUT_MS = 5_000;
 
+/** The remote whose `HEAD` names the base branch an empty-diff skip is measured against. */
+export const BASE_REMOTE = "origin";
+
 // What means a repo has something a browser can drive.
 //
 // The signal is deliberately not "declares a dev script": a CLI or an MCP

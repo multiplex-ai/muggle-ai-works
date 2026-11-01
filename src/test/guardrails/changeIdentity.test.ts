@@ -1,3 +1,4 @@
+import { join } from "path";
 import { describe, it, expect } from "vitest";
 import {
   isSameChange,
@@ -29,6 +30,31 @@ function stubGit(args: string[], cwd: string): string | null {
   return null;
 }
 
+const noGitFiles = (): string | null => null;
+
+// Trees with no readable git files, so every lookup falls through to git.
+const gitOnly = { readTextFile: noGitFiles, runGit: stubGit };
+
+// A linked worktree of the prompt-service repo laid out on disk as git writes it.
+const MAIN_GIT_DIR = join("C:\\work", "prompt-service", ".git");
+const worktreeFiles: Record<string, string> = {
+  [join(PROMPT_TREE, ".git")]: `gitdir: ${join(MAIN_GIT_DIR, "worktrees", "fanout-primary")}\n`,
+  [join(MAIN_GIT_DIR, "worktrees", "fanout-primary", "HEAD")]: "ref: refs/heads/users/me/fanout-primary\n",
+  [join(MAIN_GIT_DIR, "worktrees", "fanout-primary", "commondir")]: "../..\n",
+  [join(MAIN_GIT_DIR, "config")]:
+    '[core]\n\tbare = false\n[remote "origin"]\n\turl = https://github.com/acme/prompt-service.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n',
+};
+
+function filesWith(overrides: Record<string, string>): (path: string) => string | null {
+  const files = { ...worktreeFiles, ...overrides };
+  return (path) => files[path] ?? null;
+}
+
+function countingGit(): { runGit: typeof stubGit; spawned: string[][] } {
+  const spawned: string[][] = [];
+  return { runGit: (args, cwd) => (spawned.push(args), stubGit(args, cwd)), spawned: spawned };
+}
+
 describe("repo keys", () => {
   it("keys a PR URL and every remote spelling of its repo the same", () => {
     const expected = "github.com/acme/ui";
@@ -52,41 +78,70 @@ describe("repo keys", () => {
 
 describe("resolveTreeChange", () => {
   it("reads the tree's origin repo and checked-out branch", () => {
-    expect(resolveTreeChange(PROMPT_TREE, stubGit)).toEqual({ repo: "github.com/acme/prompt-service", branch: "users/me/fanout-primary" });
+    expect(resolveTreeChange(PROMPT_TREE, gitOnly)).toEqual({ repo: "github.com/acme/prompt-service", branch: "users/me/fanout-primary" });
   });
 
   it("is unknown on a detached HEAD or outside a repo", () => {
-    expect(resolveTreeChange(PROMPT_TREE, (args) => (args[0] === "branch" ? "\n" : "https://github.com/acme/x\n"))).toBeUndefined();
-    expect(resolveTreeChange("C:\\nowhere", stubGit)).toBeUndefined();
-    expect(resolveTreeChange(undefined, stubGit)).toBeUndefined();
+    expect(resolveTreeChange(PROMPT_TREE, { readTextFile: noGitFiles, runGit: (args) => (args[0] === "branch" ? "\n" : "https://github.com/acme/x\n") })).toBeUndefined();
+    expect(resolveTreeChange("C:\\nowhere", gitOnly)).toBeUndefined();
+    expect(resolveTreeChange(undefined, gitOnly)).toBeUndefined();
+  });
+
+  it("answers a linked worktree from its git files without spawning git, from the root or a subdirectory", () => {
+    const git = countingGit();
+    const probes = { readTextFile: filesWith({}), runGit: git.runGit };
+    const expected = { repo: "github.com/acme/prompt-service", branch: "users/me/fanout-primary" };
+    expect(resolveTreeChange(PROMPT_TREE, probes)).toEqual(expected);
+    expect(resolveTreeChange(join(PROMPT_TREE, "src", "server"), probes)).toEqual(expected);
+    expect(git.spawned).toEqual([]);
+  });
+
+  it("is unknown on a detached HEAD read from disk, without asking git", () => {
+    const git = countingGit();
+    const detachedHead = { [join(MAIN_GIT_DIR, "worktrees", "fanout-primary", "HEAD")]: "0123456789abcdef0123456789abcdef01234567\n" };
+    expect(resolveTreeChange(PROMPT_TREE, { readTextFile: filesWith(detachedHead), runGit: git.runGit })).toBeUndefined();
+    expect(git.spawned).toEqual([]);
+  });
+
+  it("asks git for the remote when the config rewrites or includes URLs, or names none", () => {
+    for (const config of [
+      '[url "https://github.com/"]\n\tinsteadOf = gh:\n[remote "origin"]\n\turl = gh:acme/prompt-service\n',
+      '[include]\n\tpath = ../shared.gitconfig\n[remote "origin"]\n\turl = https://github.com/acme/other.git\n',
+      '[remote "upstream"]\n\turl = https://github.com/acme/upstream.git\n',
+    ]) {
+      const git = countingGit();
+      const readTextFile = filesWith({ [join(MAIN_GIT_DIR, "config")]: config });
+      expect(resolveTreeChange(PROMPT_TREE, { readTextFile: readTextFile, runGit: git.runGit })?.repo).toBe("github.com/acme/prompt-service");
+      expect(git.spawned).toEqual([["remote", "get-url", "origin"]]);
+    }
   });
 });
 
 describe("resolveOpenedPrChange", () => {
   it("takes the repo from the PR URL and the branch from --head, wherever the command ran", () => {
     const command = `Push-Location "${UI_TREE}"; gh pr create -R acme/ui --base master --head users/me/multispec-name --title "x"`;
-    expect(resolveOpenedPrChange(command, UI_PR, PROMPT_TREE, stubGit)).toEqual({ repo: "github.com/acme/ui", branch: "users/me/multispec-name" });
+    expect(resolveOpenedPrChange(command, UI_PR, PROMPT_TREE, gitOnly)).toEqual({ repo: "github.com/acme/ui", branch: "users/me/multispec-name" });
   });
 
   it("drops a fork owner prefix and reads the = and short spellings", () => {
-    expect(resolveOpenedPrChange("gh pr create --head=me:fix", UI_PR, undefined, stubGit)?.branch).toBe("fix");
-    expect(resolveOpenedPrChange("gh pr create -H 'fix'", UI_PR, undefined, stubGit)?.branch).toBe("fix");
-    expect(resolveOpenedPrChange("glab mr create --source-branch fix", UI_PR, undefined, stubGit)?.branch).toBe("fix");
+    expect(resolveOpenedPrChange("gh pr create --head=me:fix", UI_PR, undefined, gitOnly)?.branch).toBe("fix");
+    expect(resolveOpenedPrChange("gh pr create -H 'fix'", UI_PR, undefined, gitOnly)?.branch).toBe("fix");
+    expect(resolveOpenedPrChange("glab mr create --source-branch fix", UI_PR, undefined, gitOnly)?.branch).toBe("fix");
   });
 
   it("falls back to the hook tree's branch only when the command stayed there and the tree is in the PR's repo", () => {
-    expect(resolveOpenedPrChange("gh pr create --fill", PROMPT_PR, PROMPT_TREE, stubGit)).toEqual({
+    expect(resolveOpenedPrChange("gh pr create --fill", PROMPT_PR, PROMPT_TREE, gitOnly)).toEqual({
       repo: "github.com/acme/prompt-service",
       branch: "users/me/fanout-primary",
     });
-    expect(resolveOpenedPrChange("gh pr create -R acme/ui --fill", UI_PR, PROMPT_TREE, stubGit)).toBeUndefined();
-    expect(resolveOpenedPrChange(`cd "${UI_TREE}" && gh pr create --fill`, UI_PR, PROMPT_TREE, stubGit)).toBeUndefined();
-    expect(resolveOpenedPrChange(`Push-Location "${UI_TREE}"; gh pr create --fill`, PROMPT_PR, PROMPT_TREE, stubGit)).toBeUndefined();
+    expect(resolveOpenedPrChange("gh pr create -R acme/ui --fill", UI_PR, PROMPT_TREE, gitOnly)).toBeUndefined();
+    expect(resolveOpenedPrChange(`cd "${UI_TREE}" && gh pr create --fill`, UI_PR, PROMPT_TREE, gitOnly)).toBeUndefined();
+    expect(resolveOpenedPrChange(`Push-Location "${UI_TREE}"; gh pr create --fill`, PROMPT_PR, PROMPT_TREE, gitOnly)).toBeUndefined();
   });
 
   it("ignores a head-like flag that comes before the PR command", () => {
     const command = `curl -H "Accept: x" https://example.com; gh pr create --fill`;
-    expect(resolveOpenedPrChange(command, PROMPT_PR, PROMPT_TREE, stubGit)?.branch).toBe("users/me/fanout-primary");
+    expect(resolveOpenedPrChange(command, PROMPT_PR, PROMPT_TREE, gitOnly)?.branch).toBe("users/me/fanout-primary");
   });
 });
 
@@ -102,11 +157,11 @@ describe("isSameChange", () => {
 describe("a skip verified in one repo's tree, then a PR opened in another repo through Push-Location", () => {
   it("leaves the other repo's PR uncovered, so its slot is reserved rather than stamped with the skip", () => {
     const skip = { code: E2eSkipCode.NoWebSurface, detail: "prompt-service is a backend API" };
-    const promptChange = resolveTreeChange(PROMPT_TREE, stubGit);
+    const promptChange = resolveTreeChange(PROMPT_TREE, gitOnly);
     const promptOpened = applyPrOpenedToSkipScope(
       { sessionId: "s", prsHandled: [PROMPT_PR] } satisfies GuardrailState,
       PROMPT_PR,
-      resolveOpenedPrChange("gh pr create --fill", PROMPT_PR, PROMPT_TREE, stubGit),
+      resolveOpenedPrChange("gh pr create --fill", PROMPT_PR, PROMPT_TREE, gitOnly),
     );
     const skipped = applyE2eSkipScope({ ...promptOpened, e2eSkipDeclaration: skip }, promptChange);
     const uiCommand =
@@ -115,7 +170,7 @@ describe("a skip verified in one repo's tree, then a PR opened in another repo t
     const uiOpened = applyPrOpenedToSkipScope(
       { ...skipped, prsHandled: [...skipped.prsHandled, UI_PR] },
       UI_PR,
-      resolveOpenedPrChange(uiCommand, UI_PR, PROMPT_TREE, stubGit),
+      resolveOpenedPrChange(uiCommand, UI_PR, PROMPT_TREE, gitOnly),
     );
     expect(isPrCoveredBySkip(uiOpened, PROMPT_PR)).toBe(true);
     expect(isPrCoveredBySkip(uiOpened, UI_PR)).toBe(false);

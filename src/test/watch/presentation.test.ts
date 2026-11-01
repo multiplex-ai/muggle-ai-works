@@ -13,6 +13,7 @@ import {
   ClaudeTurnStatus,
   CiRollupState,
   PrMergeStateStatus,
+  LimitResumeAction,
   ReloadAction,
   TrackedProcessKind,
   WatcherLiveness,
@@ -271,6 +272,28 @@ describe("renderWatchStatus", () => {
     expect(text).toMatch(/f9548732 numbering test cases\s+no Remote Control link — restart failed/);
     expect(text).toMatch(/defer\s+1c714e7e watch service\s+no Remote Control link — turn in flight \(busy\)/);
     expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("Remote Control:");
+  });
+
+  it("renders each session a usage limit stopped with what became of it", () => {
+    const text = renderWatchStatus(
+      {
+        ...snapshot,
+        limitResumes: {
+          decisions: [
+            { sessionId: "b6c05c96-1111", name: "feishu export", action: LimitResumeAction.Continue, reason: "limit reset at 2026-10-29T21:20:00.000Z", noticeUuid: "n1", outcome: WatcherRecoveryOutcome.Resumed },
+            { sessionId: "c0dda07c-2222", action: LimitResumeAction.Continue, reason: "limit reset at 2026-10-29T21:20:00.000Z", noticeUuid: "n2", outcome: WatcherRecoveryOutcome.ResumeForked },
+            { sessionId: "f02d9168-3333", action: LimitResumeAction.Wait, reason: "limit resets at 2026-11-03T00:00:00.000Z", noticeUuid: "n3" },
+            { sessionId: "terminal-1", action: LimitResumeAction.Skip, reason: "terminal session, continue it there", noticeUuid: "n4" },
+          ],
+        },
+      },
+      Date.parse(takenAt),
+    );
+    expect(text).toContain("Stopped at a usage limit: 1 continued, 1 failed, 1 waiting, 1 skipped");
+    expect(text).toMatch(/continue\s+b6c05c96 feishu export\s+limit reset at 2026-10-29T21:20:00.000Z\n/);
+    expect(text).toMatch(/continue\s+c0dda07c\s+limit reset at 2026-10-29T21:20:00.000Z — resume-forked/);
+    expect(text).toMatch(/wait\s+f02d9168\s+limit resets at 2026-11-03/);
+    expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("usage limit:");
   });
 
   it("renders a snapshot an earlier release wrote", () => {

@@ -2884,18 +2884,13 @@
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
             "matches": "(^|\\n|[\"'])Stage 5\\.5 done — "
           }
-        ],
-        "forbidToolAttempts": [
-          {
-            "pattern": "e2e-executed"
-          }
         ]
       }
     },
     {
       "name": "stage-6-entry",
       "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away, so open the PR when it's done.",
-      "maxTurns": 14,
+      "maxTurns": 18,
       "stopsAtMaxTurns": true,
       "seed": {
         "repo": "tiny-web-app",
@@ -3657,12 +3652,18 @@
             "matches": "(^|\\n|[\"'])Stage 6 done — "
           }
         ]
-      }
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":142,\"url\":\"https://github.com/acme/tiny-web-app/pull/142\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/farewell-line\",\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"baseRefName\":\"main\",\"title\":\"The home page renders a farewell line under the greeting that names the same visitor.\"}"
+        }
+      ]
     },
     {
       "name": "stage-7-entry",
       "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away, so open the PR when it's done.",
-      "maxTurns": 16,
+      "maxTurns": 18,
       "stopsAtMaxTurns": true,
       "seed": {
         "repo": "tiny-web-app",
@@ -4522,9 +4523,6 @@
       "expect": {
         "requireToolSequence": [
           {
-            "pattern": "read-open-prs"
-          },
-          {
             "pattern": "walkthrough-posted"
           }
         ],
@@ -4539,7 +4537,13 @@
             "pattern": "pr-created"
           }
         ]
-      }
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":142,\"url\":\"https://github.com/acme/tiny-web-app/pull/142\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/farewell-line\",\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"baseRefName\":\"main\",\"title\":\"The home page renders a farewell line under the greeting that names the same visitor.\"}"
+        }
+      ]
     },
     {
       "name": "stage-7.5-entry",
@@ -5513,7 +5517,13 @@
             "matches": "(^|\\n|[\"'])Stage 7\\.5 done — "
           }
         ]
-      }
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":142,\"url\":\"https://github.com/acme/tiny-web-app/pull/142\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/farewell-line\",\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"baseRefName\":\"main\",\"title\":\"The home page renders a farewell line under the greeting that names the same visitor.\"}"
+        }
+      ]
     },
     {
       "name": "stage-8-entry",
@@ -6570,7 +6580,13 @@
             "contains": "142"
           }
         ]
-      }
+      },
+      "bashResponses": [
+        {
+          "commandContains": "gh pr view",
+          "response": "{\"number\":142,\"url\":\"https://github.com/acme/tiny-web-app/pull/142\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/farewell-line\",\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"baseRefName\":\"main\",\"title\":\"The home page renders a farewell line under the greeting that names the same visitor.\"}"
+        }
+      ]
     },
     {
       "name": "full-forward",

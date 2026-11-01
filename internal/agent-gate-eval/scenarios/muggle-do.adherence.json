@@ -946,13 +946,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1128,13 +1133,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1210,13 +1220,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1392,13 +1407,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1474,13 +1494,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1634,13 +1659,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1816,13 +1846,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -1898,13 +1933,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2058,13 +2098,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2156,13 +2201,18 @@
                         "status": "in_progress"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2202,6 +2252,642 @@
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
             "matches": "(^|\\n|[\"'])Stage 5 done — "
+          }
+        ]
+      }
+    },
+    {
+      "name": "stage-5.5-entry",
+      "prompt": "Add a farewell line under the home-page greeting: after the `<h1>`, render `<p>See you soon, <name>!</p>` with the same name fallback. Run it unattended — I'm stepping away, so open the PR when it's done.",
+      "maxTurns": 14,
+      "stopsAtMaxTurns": true,
+      "seed": {
+        "repo": "tiny-web-app",
+        "transcript": {
+          "turns": [
+            {
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/_shared/telemetry-emit.md"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/input-routing.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "A feature request with no PR URL or directive — input routing mode 7, the forward pipeline at Stage 1. The run is unattended, so the pre-flight questionnaire is best-efforted, not asked.",
+              "toolCalls": [
+                {
+                  "tool": "muggle-local-telemetry-skill-emit",
+                  "input": {
+                    "skillName": "muggle-do",
+                    "trigger": "user-slash"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/pre-flight.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 1 — Pre-flight** — consolidating everything the cycle needs before going silent.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" symbolic-ref refs/remotes/origin/HEAD --short && git -C \"{{repo}}\" branch --show-current && git -C \"{{repo}}\" remote get-url origin",
+                    "description": "Read the default branch, current branch and remote"
+                  },
+                  "result": "origin/main\nmain\nhttps://github.com/acme/tiny-web-app.git"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Count commits behind origin/main"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Skill",
+                  "input": {
+                    "skill": "muggle-test-prepare",
+                    "args": "Check the local services tiny-web-app needs before an unattended muggle-do run."
+                  },
+                  "result": "READY\n\n```\nService       PID     Port   Source      Commit    Smoke Test\n──────────────────────────────────────────────────────────────\ntiny-web-app  41872   3000   {{repo}}    4c8e2a1   ✓\n──────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
+                },
+                {
+                  "tool": "muggle-remote-auth-status",
+                  "input": {}
+                },
+                {
+                  "tool": "muggle-remote-project-list",
+                  "input": {},
+                  "result": "{\"items\":[{\"id\":\"proj-tiny-web-app\",\"name\":\"tiny-web-app\",\"url\":\"http://localhost:3000\"}]}"
+                }
+              ]
+            },
+            {
+              "text": "Nobody to ask, so the answers come from detection:\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip",
+              "toolCalls": [
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+                    "content": "# Session state\n\n**Slug:** farewell-line\n**Current stage:** 1/7 (pre-flight complete)\n**Last update:** 2026-10-21T21:02:10Z\n\n## Pre-flight answers\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Blockers\nnone\n"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "content": "# Iteration 001 — 2026-10-21T21:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-21T21:02:10Z)\n\n- Task: Render a farewell line under the home-page greeting\n- Repos: tiny-web-app\n- Branch: users/eval/farewell-line\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: tiny-web-app (proj-tiny-web-app)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "pre-flight complete, proceeding silently through stages 2–7",
+              "toolCalls": [
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/requirements.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 2 — Requirements** — extracting structured goals from the pre-flight-clarified task.\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n**Acceptance Criteria:**\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app",
+              "toolCalls": [
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/requirements.md",
+                    "content": "# Requirements\n\n**Goal:** The home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n**Affected Repos:** tiny-web-app\n\n**Notes:** The farewell renders from `renderGreeting`, the one function the home page uses; no new file needed.\n"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).",
+                    "new_string": "Stage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-21T21:03:00Z)\n\nStage 2 done — requirements.md written: goal plus 3 acceptance criteria."
+                  }
+                }
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/build.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 3 — Build** — implementing the change per the frozen requirements.",
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{repo}}/src/greeting.js"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{repo}}/test/greeting_test.js"
+                  }
+                }
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" checkout -b users/eval/farewell-line",
+                    "description": "Create the feature branch"
+                  },
+                  "result": "Switched to a new branch 'users/eval/farewell-line'"
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/src/greeting.js",
+                    "old_string": "/** The greeting the home page renders for a visitor. */",
+                    "new_string": "/** The greeting the home page renders for a visitor, with a farewell line under it. */"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/src/greeting.js",
+                    "old_string": "  return `<h1>Hello, ${name}!</h1>`;",
+                    "new_string": "  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/test/greeting_test.js",
+                    "old_string": "test(\"greets a named visitor\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\");",
+                    "new_string": "test(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{repo}}/test/greeting_test.js",
+                    "old_string": "test(\"falls back to friend for a blank name\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\");",
+                    "new_string": "test(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");"
+                  }
+                }
+              ]
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && node --check src/greeting.js && git config --get commit.gpgsign && git add src/greeting.js test/greeting_test.js && git commit -m \"feat(greeting): add a farewell line under the greeting\"",
+                    "description": "Syntax-check, then commit through the signing gate"
+                  },
+                  "result": "true\n[users/eval/farewell-line 9f2c1e4] feat(greeting): add a farewell line under the greeting\n 2 files changed, 5 insertions(+), 5 deletions(-)"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" log --format='%G?' origin/main..HEAD",
+                    "description": "Confirm the commit is signed"
+                  },
+                  "result": "G"
+                }
+              ]
+            },
+            {
+              "text": "**Repo:** tiny-web-app\n- Files edited: src/greeting.js, test/greeting_test.js\n- Commit subject: `feat(greeting): add a farewell line under the greeting`\n- Notable choices: kept the farewell inside `renderGreeting` so the home page needs no change; updated the two existing tests, which pin the exact markup.\n\n**Overall:** READY for impact analysis\n\nThe repo ships no typecheck or lint script, so the build-clean line of the Definition of Done is waived in state.md with the `node --check` result.",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/state.md",
+                    "old_string": "## Blockers\nnone",
+                    "new_string": "## Waivers\n\n- Build clean (typecheck + lint): tiny-web-app has no typecheck or lint script; `node --check src/greeting.js` passed.\n\n## Blockers\nnone"
+                  }
+                },
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.",
+                    "new_string": "Stage 2 done — requirements.md written: goal plus 3 acceptance criteria.\n\n### Stage 3 — Build (2026-10-21T21:06:00Z)\n\nStage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/impact-analysis.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 4 — Impact analysis** — diffing each affected repo against its default branch.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && git worktree list --porcelain && git branch --show-current && git symbolic-ref refs/remotes/origin/HEAD --short",
+                    "description": "Resolve checkout type, branch and default branch"
+                  },
+                  "result": "worktree {{repo}}\nHEAD 9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\nbranch refs/heads/users/eval/farewell-line\n\nusers/eval/farewell-line\norigin/main"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" diff --name-only main...HEAD",
+                    "description": "List files changed against main"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" diff main...HEAD",
+                    "description": "Show the diff against main"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Repo: tiny-web-app**\n- Analysis path: {{repo}}\n- Checkout type: primary\n- Branch: users/eval/farewell-line\n- Default branch: main\n- Changed files: src/greeting.js, test/greeting_test.js\n- Diff summary: `renderGreeting` now appends a `<p>` farewell line; tests updated for the new markup.\n- Status: OK\n\npathClassification: surface-a\n\n**Summary:** tiny-web-app has changes; no errors.\n\ne2eScope:\n  - projectId: proj-tiny-web-app\n    impactedUseCases:\n      - useCaseId: uc-home\n        title: Home page\n        reason: src/greeting.js renders the home-page heading\n    impactedTestCases:\n      - testCaseId: tc-home-greeting\n        useCaseId: uc-home\n        title: Home page greets the visitor by name\n        reason: renderGreeting now renders the farewell line under the heading\n    retiredUseCases: []\n    retiredTestCases: []\n    newUseCases: []\n    newTestCases: []\n    criteria:\n      - criterion: Under the <h1> greeting, the page renders <p>See you soon, <name>!</p>.\n        coveredBy: [tc-home-greeting]\n      - criterion: The farewell line uses the same name fallback as the greeting (friend for a blank name).\n        coveredBy: [tc-home-greeting]\n      - criterion: Unit tests cover the named and blank-name cases.\n        unobservable: a unit-test requirement, not page behavior",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed.",
+                    "new_string": "Stage 3 done — feat(greeting): add a farewell line under the greeting (9f2c1e4); signed (%G? = G). Build clean waived in state.md: no typecheck or lint script; `node --check src/greeting.js` passed.\n\n### Stage 4 — Impact analysis (2026-10-21T21:07:00Z)\n\ne2eScope:\n  - projectId: proj-tiny-web-app\n    impactedUseCases:\n      - useCaseId: uc-home\n        title: Home page\n        reason: src/greeting.js renders the home-page heading\n    impactedTestCases:\n      - testCaseId: tc-home-greeting\n        useCaseId: uc-home\n        title: Home page greets the visitor by name\n        reason: renderGreeting now renders the farewell line under the heading\n    retiredUseCases: []\n    retiredTestCases: []\n    newUseCases: []\n    newTestCases: []\n    criteria:\n      - criterion: Under the <h1> greeting, the page renders <p>See you soon, <name>!</p>.\n        coveredBy: [tc-home-greeting]\n      - criterion: The farewell line uses the same name fallback as the greeting (friend for a blank name).\n        coveredBy: [tc-home-greeting]\n      - criterion: Unit tests cover the named and blank-name cases.\n        unobservable: a unit-test requirement, not page behavior\n\nStage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a; e2eScope above: 1 impacted test case, none new or retired."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/unit-tests.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 5 — Unit tests** — running each repo's test suite.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && CI=true node \"{{pluginRoot}}/scripts/guard-run.mjs\" -- npm test",
+                    "description": "Run the unit suite one-shot under the guard-run cap"
+                  },
+                  "result": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 61.2\n[guard-run] exit 0"
+                }
+              ]
+            },
+            {
+              "text": "**Repo: tiny-web-app**\n- Test command: `npm test`\n- Result: PASS\n- Failed tests: none\n- Output: 2/2 passing, exit 0\n\n**Overall:** ALL PASSED",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a; e2eScope above: 1 impacted test case, none new or retired.",
+                    "new_string": "Stage 4 done — src/greeting.js, test/greeting_test.js changed on users/eval/farewell-line vs main; pathClassification: surface-a; e2eScope above: 1 impacted test case, none new or retired.\n\n### Stage 5 — Unit tests (2026-10-21T21:08:00Z)\n\nStage 5 done — `npm test` via guard-run exit 0, 2/2 passing."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000.",
+              "toolCalls": []
+            }
+          ],
+          "resumePrompt": "continue"
+        }
+      },
+      "expect": {
+        "requireToolSequence": [
+          {
+            "pattern": "read-open-prs"
+          },
+          {
+            "pattern": "pr-created"
+          }
+        ],
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+            "matches": "(^|\\n|[\"'])Stage 5\\.5 done — "
+          }
+        ],
+        "forbidToolAttempts": [
+          {
+            "pattern": "e2e-executed"
           }
         ]
       }
@@ -2339,13 +3025,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2421,13 +3112,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2581,13 +3277,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2679,13 +3380,18 @@
                         "status": "in_progress"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2763,13 +3469,18 @@
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 6 — E2E acceptance",
-                        "activeForm": "Running E2E acceptance",
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
                         "status": "in_progress"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -2788,7 +3499,139 @@
               ]
             },
             {
-              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000.",
+              "toolCalls": []
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 5.5 — Open PR** — pushing the branch and opening the PR before E2E.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Check the branch against its base before the push"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
+                    "description": "Push the branch"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
+                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nlocal-e2e — results in the walkthrough comment\n"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Sign the PR body"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Open the PR"
+                  },
+                  "result": "https://github.com/acme/tiny-web-app/pull/142"
+                }
+              ]
+            },
+            {
+              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
+                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 5.5 — Open PR (2026-10-21T21:09:00Z)\n\nStage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5.5 done — PR #142 is open, its walkthrough comment reserved. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
               "toolCalls": []
             }
           ],
@@ -2949,13 +3792,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3031,13 +3879,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3191,13 +4044,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3289,13 +4147,18 @@
                         "status": "in_progress"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3373,13 +4236,18 @@
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 6 — E2E acceptance",
-                        "activeForm": "Running E2E acceptance",
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
                         "status": "in_progress"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3398,7 +4266,139 @@
               ]
             },
             {
-              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000.",
+              "toolCalls": []
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 5.5 — Open PR** — pushing the branch and opening the PR before E2E.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Check the branch against its base before the push"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
+                    "description": "Push the branch"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
+                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nlocal-e2e — results in the walkthrough comment\n"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Sign the PR body"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Open the PR"
+                  },
+                  "result": "https://github.com/acme/tiny-web-app/pull/142"
+                }
+              ]
+            },
+            {
+              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
+                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 5.5 — Open PR (2026-10-21T21:09:00Z)\n\nStage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5.5 done — PR #142 is open, its walkthrough comment reserved. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
               "toolCalls": []
             },
             {
@@ -3452,8 +4452,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
-                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
+                    "old_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.",
+                    "new_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
                   }
                 },
                 {
@@ -3486,13 +4486,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "in_progress"
                       },
                       {
@@ -3520,13 +4525,18 @@
             "pattern": "read-open-prs"
           },
           {
-            "pattern": "pr-created"
+            "pattern": "walkthrough-posted"
           }
         ],
         "requireArtifacts": [
           {
             "path": "~/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
             "matches": "(^|\\n|[\"'])Stage 7 done — "
+          }
+        ],
+        "forbidToolAttempts": [
+          {
+            "pattern": "pr-created"
           }
         ]
       }
@@ -3664,13 +4674,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3746,13 +4761,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -3906,13 +4926,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4004,13 +5029,18 @@
                         "status": "in_progress"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4088,13 +5118,18 @@
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 6 — E2E acceptance",
-                        "activeForm": "Running E2E acceptance",
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
                         "status": "in_progress"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4113,7 +5148,139 @@
               ]
             },
             {
-              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000.",
+              "toolCalls": []
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 5.5 — Open PR** — pushing the branch and opening the PR before E2E.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Check the branch against its base before the push"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
+                    "description": "Push the branch"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
+                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nlocal-e2e — results in the walkthrough comment\n"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Sign the PR body"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Open the PR"
+                  },
+                  "result": "https://github.com/acme/tiny-web-app/pull/142"
+                }
+              ]
+            },
+            {
+              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
+                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 5.5 — Open PR (2026-10-21T21:09:00Z)\n\nStage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5.5 done — PR #142 is open, its walkthrough comment reserved. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
               "toolCalls": []
             },
             {
@@ -4167,8 +5334,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
-                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
+                    "old_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.",
+                    "new_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
                   }
                 },
                 {
@@ -4201,13 +5368,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "in_progress"
                       },
                       {
@@ -4230,54 +5402,7 @@
                 {
                   "tool": "Read",
                   "input": {
-                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
-                  }
-                },
-                {
-                  "tool": "Read",
-                  "input": {
                     "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
-                  }
-                }
-              ]
-            },
-            {
-              "text": "**Stage 7 — Create PR** — pushing the branch and opening the PR.",
-              "toolCalls": [
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
-                    "description": "Check the branch against its base before the push"
-                  },
-                  "result": "0"
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
-                    "description": "Push the branch"
-                  }
-                },
-                {
-                  "tool": "Write",
-                  "input": {
-                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
-                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nLocal E2E: tc-home-greeting passed (run-farewell-1).\n"
-                  }
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
-                    "description": "Sign the PR body"
-                  }
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
-                    "description": "Open the PR"
                   }
                 }
               ]
@@ -4292,17 +5417,18 @@
                     "prompt": "Mode A for https://github.com/acme/tiny-web-app/pull/142 (acme/tiny-web-app, PR 142): fill the reserved walkthrough comment from run run-farewell-1 (tc-home-greeting, passed)."
                   }
                 }
-              ]
+              ],
+              "text": "**Stage 7 — Report on the PR** — settling the walkthrough with the E2E result."
             },
             {
-              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "text": "**Tested head:** tiny-web-app → already the PR head\n**Walkthrough:** settled via Mode A with run-farewell-1",
               "toolCalls": [
                 {
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.",
-                    "new_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.\n\n### Stage 7 — Create PR (2026-10-21T21:12:00Z)\n\nStage 7 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142); walkthrough comment settled via Mode A with run-farewell-1."
+                    "new_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.\n\n### Stage 7 — Report on the PR (2026-10-21T21:12:00Z)\n\nStage 7 done — PR #142 head is the head run-farewell-1 tested; walkthrough comment settled via Mode A with that run."
                   }
                 },
                 {
@@ -4335,13 +5461,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "completed"
                       },
                       {
@@ -4517,13 +5648,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4599,13 +5735,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4759,13 +5900,18 @@
                         "status": "pending"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4857,13 +6003,18 @@
                         "status": "in_progress"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "pending"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "pending"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4941,13 +6092,18 @@
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 6 — E2E acceptance",
-                        "activeForm": "Running E2E acceptance",
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
                         "status": "in_progress"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "pending"
                       },
                       {
@@ -4966,7 +6122,139 @@
               ]
             },
             {
-              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
+              "text": "Stage 5 done — unit suite PASS, recorded in iterations/001.md. Next: Stage 5.5 — open the PR, then Stage 6 — E2E acceptance against http://localhost:3000.",
+              "toolCalls": []
+            },
+            {
+              "toolCalls": [
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
+                  }
+                },
+                {
+                  "tool": "Read",
+                  "input": {
+                    "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
+                  }
+                }
+              ]
+            },
+            {
+              "text": "**Stage 5.5 — Open PR** — pushing the branch and opening the PR before E2E.",
+              "toolCalls": [
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
+                    "description": "Check the branch against its base before the push"
+                  },
+                  "result": "0"
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
+                    "description": "Push the branch"
+                  }
+                },
+                {
+                  "tool": "Write",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
+                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nlocal-e2e — results in the walkthrough comment\n"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Sign the PR body"
+                  }
+                },
+                {
+                  "tool": "Bash",
+                  "input": {
+                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
+                    "description": "Open the PR"
+                  },
+                  "result": "https://github.com/acme/tiny-web-app/pull/142"
+                }
+              ]
+            },
+            {
+              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "toolCalls": [
+                {
+                  "tool": "Edit",
+                  "input": {
+                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
+                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
+                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 5.5 — Open PR (2026-10-21T21:09:00Z)\n\nStage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved."
+                  }
+                },
+                {
+                  "tool": "TodoWrite",
+                  "input": {
+                    "todos": [
+                      {
+                        "content": "Stage 1 — Pre-flight",
+                        "activeForm": "Running pre-flight",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 2 — Requirements",
+                        "activeForm": "Extracting requirements",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 3 — Build",
+                        "activeForm": "Building the change",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 4 — Impact analysis",
+                        "activeForm": "Analyzing impact",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5 — Unit tests",
+                        "activeForm": "Running unit tests",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
+                        "content": "Stage 6 — E2E acceptance",
+                        "activeForm": "Running E2E acceptance",
+                        "status": "in_progress"
+                      },
+                      {
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 7.5 — E2E repair loop",
+                        "activeForm": "Running the E2E repair loop",
+                        "status": "pending"
+                      },
+                      {
+                        "content": "Stage 8 — Hand off to watcher",
+                        "activeForm": "Arming the watcher",
+                        "status": "pending"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "text": "Stage 5.5 done — PR #142 is open, its walkthrough comment reserved. Next: Stage 6 — E2E acceptance against http://localhost:3000.",
               "toolCalls": []
             },
             {
@@ -5020,8 +6308,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.",
-                    "new_string": "Stage 5 done — `npm test` via guard-run exit 0, 2/2 passing.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
+                    "old_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.",
+                    "new_string": "Stage 5.5 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142) before E2E; walkthrough comment reserved.\n\n### Stage 6 — E2E acceptance (2026-10-21T21:10:00Z)\n\nStage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000."
                   }
                 },
                 {
@@ -5054,13 +6342,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "in_progress"
                       },
                       {
@@ -5083,54 +6376,7 @@
                 {
                   "tool": "Read",
                   "input": {
-                    "file_path": "{{pluginRoot}}/skills/do/open-prs.md"
-                  }
-                },
-                {
-                  "tool": "Read",
-                  "input": {
                     "file_path": "{{pluginRoot}}/skills/do/open-prs/forward.md"
-                  }
-                }
-              ]
-            },
-            {
-              "text": "**Stage 7 — Create PR** — pushing the branch and opening the PR.",
-              "toolCalls": [
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "git -C \"{{repo}}\" fetch origin && git -C \"{{repo}}\" rev-list --count \"HEAD..origin/main\"",
-                    "description": "Check the branch against its base before the push"
-                  },
-                  "result": "0"
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "git -C \"{{repo}}\" push -u origin users/eval/farewell-line",
-                    "description": "Push the branch"
-                  }
-                },
-                {
-                  "tool": "Write",
-                  "input": {
-                    "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md",
-                    "content": "## Goal\n\nThe home page renders a farewell line under the greeting that names the same visitor.\n\n## Acceptance Criteria\n\n- Under the `<h1>` greeting, the page renders `<p>See you soon, <name>!</p>`.\n- The farewell line uses the same name fallback as the greeting (`friend` for a blank name).\n- Unit tests cover the named and blank-name cases.\n\n## Changes\n\n`renderGreeting` appends the farewell line; tests cover both names.\n\n## Validation\n\nLocal E2E: tc-home-greeting passed (run-farewell-1).\n"
-                  }
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "bash \"{{pluginRoot}}/scripts/sign-body.sh\" --command /muggle-do --mode editable < \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.md\" > \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
-                    "description": "Sign the PR body"
-                  }
-                },
-                {
-                  "tool": "Bash",
-                  "input": {
-                    "command": "cd \"{{repo}}\" && gh pr create --base main --head users/eval/farewell-line --title \"Add a farewell line under the home-page greeting\" --body-file \"{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/pr-body.signed.md\"",
-                    "description": "Open the PR"
                   }
                 }
               ]
@@ -5145,17 +6391,18 @@
                     "prompt": "Mode A for https://github.com/acme/tiny-web-app/pull/142 (acme/tiny-web-app, PR 142): fill the reserved walkthrough comment from run run-farewell-1 (tc-home-greeting, passed)."
                   }
                 }
-              ]
+              ],
+              "text": "**Stage 7 — Report on the PR** — settling the walkthrough with the E2E result."
             },
             {
-              "text": "**Synced with base:** tiny-web-app → already up to date\n**PRs Created:** tiny-web-app → https://github.com/acme/tiny-web-app/pull/142",
+              "text": "**Tested head:** tiny-web-app → already the PR head\n**Walkthrough:** settled via Mode A with run-farewell-1",
               "toolCalls": [
                 {
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
                     "old_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.",
-                    "new_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.\n\n### Stage 7 — Create PR (2026-10-21T21:12:00Z)\n\nStage 7 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142); walkthrough comment settled via Mode A with run-farewell-1."
+                    "new_string": "Stage 6 done — PASS: tc-home-greeting run run-farewell-1, 1/1 passed against http://localhost:3000.\n\n### Stage 7 — Report on the PR (2026-10-21T21:12:00Z)\n\nStage 7 done — PR #142 head is the head run-farewell-1 tested; walkthrough comment settled via Mode A with that run."
                   }
                 },
                 {
@@ -5188,13 +6435,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "completed"
                       },
                       {
@@ -5229,8 +6481,8 @@
                   "tool": "Edit",
                   "input": {
                     "file_path": "{{home}}/.muggle-ai/muggle-do/sessions/farewell-line/iterations/001.md",
-                    "old_string": "Stage 7 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142); walkthrough comment settled via Mode A with run-farewell-1.",
-                    "new_string": "Stage 7 done — PR #142 opened (https://github.com/acme/tiny-web-app/pull/142); walkthrough comment settled via Mode A with run-farewell-1.\n\n### Stage 7.5 — E2E repair (2026-10-21T21:13:00Z)\n\ne2e-repair: clear (PASS)\n\nStage 7.5 done — clear: Stage 6 verdict PASS, nothing to repair."
+                    "old_string": "Stage 7 done — PR #142 head is the head run-farewell-1 tested; walkthrough comment settled via Mode A with that run.",
+                    "new_string": "Stage 7 done — PR #142 head is the head run-farewell-1 tested; walkthrough comment settled via Mode A with that run.\n\n### Stage 7.5 — E2E repair (2026-10-21T21:13:00Z)\n\ne2e-repair: clear (PASS)\n\nStage 7.5 done — clear: Stage 6 verdict PASS, nothing to repair."
                   }
                 },
                 {
@@ -5263,13 +6515,18 @@
                         "status": "completed"
                       },
                       {
+                        "content": "Stage 5.5 — Open PR",
+                        "activeForm": "Opening the PR",
+                        "status": "completed"
+                      },
+                      {
                         "content": "Stage 6 — E2E acceptance",
                         "activeForm": "Running E2E acceptance",
                         "status": "completed"
                       },
                       {
-                        "content": "Stage 7 — Create PR",
-                        "activeForm": "Opening the PR",
+                        "content": "Stage 7 — Report on the PR",
+                        "activeForm": "Settling the PR walkthrough",
                         "status": "completed"
                       },
                       {
@@ -5354,10 +6611,10 @@
             "argContains": "guard-run"
           },
           {
-            "pattern": "e2e-executed"
+            "pattern": "pr-created"
           },
           {
-            "pattern": "pr-created"
+            "pattern": "e2e-executed"
           },
           {
             "pattern": "prs-manifest-written"
@@ -5462,6 +6719,7 @@
             "tool": "TodoWrite",
             "argContains": [
               "Stage 1",
+              "Stage 5.5",
               "Stage 7.5",
               "Stage 8"
             ]

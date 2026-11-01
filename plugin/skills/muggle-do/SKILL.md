@@ -47,7 +47,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
 3. `TodoWrite` one item per stage 1–8, Stages 5.5 and 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
 
-**Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
+**Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). The marker is the stage's last line, written after its notes, and carries the evidence itself: nothing between `done` and `—`, never a pointer such as `Stage 4 done (see below) —`. A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
 Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision collapses, into an automatic waive. Run the whole pipeline silently — never a shortcut.

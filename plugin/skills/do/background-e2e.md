@@ -34,7 +34,7 @@ The agent knows only its brief. Pass every value itself, never a pointer to the 
 
 - The change's slug and absolute session directory.
 - Repo, worktree path, branch, base branch, and the head SHA under test — for a wave, one entry per member, from its `Wave members` block.
-- The PR URL when the PR already exists (a repair re-run, or a PR opened outside `muggle-do`) — for a wave, every member's. Muggle reads PR URLs from the brief to know which PR's walkthrough is waiting on this run, so leave none out and add none that belong to another change.
+- The change's PR URL — for a wave, every member's. Stage 5.5 opened it before this run; only an `autoCreatePR` skip leaves none. Muggle reads PR URLs from the brief to know which PR's walkthrough is waiting on this run, so leave none out and add none that belong to another change.
 - `Validation`, `localUrl`, `projectId`, and test-credential status from `state.md`.
 - The `e2eScope` from impact analysis, verbatim; a Stage 7.5 re-run passes only its affected test cases.
 - The acceptance criteria from `requirements.md`.
@@ -63,7 +63,7 @@ On the agent's completion notification, the main session:
 
 1. **Checks freshness.** Every `Tested:` line must name its branch's current head. A branch that moved since dispatch — any member's, for a wave — makes the report stale: queue the change again and post nothing.
 2. **Records it** — `E2E dispatch: reported — …` in `state.md`.
-3. **Continues that change from Stage 7**, in its worktree. [`open-prs/forward.md`](open-prs/forward.md) opens its PR with this report — every member's PR for a wave, in the wave order of [`wave-e2e.md`](wave-e2e.md) Stage 7; when a PR already exists, the report settles that PR's walkthrough through Mode A with its number and repo passed explicitly — never from the current branch, since the session's cwd may be another change's worktree.
+3. **Continues that change from Stage 7**, in its worktree. [`open-prs/forward.md`](open-prs/forward.md) settles the walkthrough of the PR Stage 5.5 opened with this report — every member's PR for a wave, per [`wave-e2e.md`](wave-e2e.md) Stage 7 — through Mode A with its number and repo passed explicitly, never from the current branch, since the session's cwd may be another change's worktree.
 4. **Runs Stage 7.5** inline. A repair pass's re-run returns to this lane, behind any local run in flight.
 5. **Arms the change's watcher** once 7.5 clears (Stage 8).
 6. **Dispatches the next queued change.**
@@ -76,7 +76,7 @@ A session that fixed bugs by hand and opened each PR itself follows the same lan
 
 ## Enforcement
 
-- Dispatching a background acceptance-tester holds the E2E and debug-path Stop gates off for a bounded window, and for that window the walkthrough gate sets aside the PRs its brief names — the session is never steered into a second browser run alongside the agent's.
+- Dispatching a background acceptance-tester holds the E2E and debug-path Stop gates off for a bounded window, and for that window the walkthrough and watch gates set aside the PRs its brief names — the session is never steered into a second browser run alongside the agent's, nor into arming a watch on a PR whose run has not come back.
 - A walkthrough posted to one PR settles that PR only; every other PR the session opened is still checked for its own.
 - A skip declaration settles only the PRs of the change it is declared in — the working tree's repo and branch: the PRs opened for that branch and its branch's PR, never another change's, wherever the session's directory sat when a PR was opened.
 - Every PR's walkthrough check stays red until its slot is settled, so a change whose run never came back cannot pass as tested.

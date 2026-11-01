@@ -101,7 +101,7 @@ export const NO_WEB_SURFACE_MANIFEST = {
   devDependencies: { vitest: "^3.2.0" },
 };
 
-/** Stage 7's PR creation, with a plain description that carries no report. */
+/** Stage 5.5's PR creation, with a plain description that carries no report. */
 export const PR_CREATE_COMMAND =
   `gh pr create --title "${HANDOFF_PR_TITLE}" --body "Adds a CSV export to the reports page." --base ${HANDOFF_BASE_BRANCH}`;
 
@@ -152,8 +152,8 @@ export const FULL_HANDOFF_SEQUENCE: readonly HandoffStep[] = [
   HandoffStep.SkillInvocation,
   HandoffStep.StageReads,
   HandoffStep.UnitTests,
-  HandoffStep.E2eExecution,
   HandoffStep.PrCreation,
+  HandoffStep.E2eExecution,
   HandoffStep.WalkthroughPost,
   HandoffStep.WatcherHandoff,
 ];

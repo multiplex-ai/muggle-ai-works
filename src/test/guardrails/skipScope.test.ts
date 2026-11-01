@@ -36,7 +36,7 @@ describe("skip scope", () => {
     expect(isPrCoveredBySkip(skipped, PR_B)).toBe(false);
   });
 
-  it("reaches a PR opened after the skip for the same change — Stage 6 before Stage 7 — and only that PR", () => {
+  it("reaches a PR opened after the skip for the same change, and only that PR", () => {
     const skipped = applyE2eSkipScope(sessionWith({ e2eSkipDeclaration: NO_WEB_SURFACE }), CHANGE_A);
     const opened = openPr(openPr(skipped, PR_A, CHANGE_A), PR_B, CHANGE_B);
     expect(isPrCoveredBySkip(opened, PR_A)).toBe(true);

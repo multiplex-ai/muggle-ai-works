@@ -22,10 +22,13 @@ Runs an autonomous dev cycle from requirements to PR. **Fire and review:** user 
 | 3 | Build | [`../do/build.md`](../do/build.md) |
 | 4 | Impact analysis | [`../do/impact-analysis.md`](../do/impact-analysis.md) |
 | 5 | Unit tests | [`../do/unit-tests.md`](../do/unit-tests.md) |
+| 5.5 | Open PR | [`../do/open-prs.md`](../do/open-prs.md) |
 | 6 | E2E acceptance | [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) |
-| 7 | Create or update PR | [`../do/open-prs.md`](../do/open-prs.md) |
+| 7 | Report on the PR | [`../do/open-prs.md`](../do/open-prs.md) |
 | 7.5 | E2E repair loop | [`../do/e2e-repair.md`](../do/e2e-repair.md) |
 | 8 | Hand off to watcher | [`../muggle-pr-followup/SKILL.md`](../muggle-pr-followup/SKILL.md) |
+
+**The PR opens before E2E.** Stage 5.5 opens it as soon as unit tests pass; Stage 6 then runs against the PR's head, its progress showing on the PR, and Stage 7 settles the walkthrough with the result. The walkthrough check stays red until then.
 
 **Waves and streams.** A session's PRs are either a **wave** — one change split across repos — or a **stream** of independent changes, or both; [`../do/wave-or-stream.md`](../do/wave-or-stream.md) defines which is which, and pre-flight decides it once.
 
@@ -42,25 +45,29 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Bootstrap before any code, in order:**
 1. Emit telemetry — [`../_shared/telemetry-emit.md`](../_shared/telemetry-emit.md), `skillName: "muggle-do"`.
 2. Create `~/.muggle-ai/muggle-do/sessions/<slug>/` with `state.md` + `iterations/001.md` (pre-flight owns this; do it even when running unattended).
-3. `TodoWrite` one item per stage 1–8, Stage 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
+3. `TodoWrite` one item per stage 1–8, Stages 5.5 and 7.5 included — these stages are the checklist; never swap in your own decomposition. Several changes → one set of stage items per change.
 
 **Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
 Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision collapses, into an automatic waive. Run the whole pipeline silently — never a shortcut.
 
-### Definition of Done — gate before Stage 7
-Do not create or update a PR until each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver):
+### Definition of Done — gates before Stages 5.5 and 7
+Each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver).
+
+Before Stage 5.5 opens the PR:
 - `requirements.md` written (forward runs)
 - Build clean — typecheck + lint on changed files
 - New/changed logic carries unit tests (authored in Stage 3; Stage 5 only runs the suite)
 - Unit suite run, PASS recorded
 - Stage 4's `e2eScope` recorded, mapping every acceptance criterion to a test case, a deliverable check, or `unobservable` — or `not-scoped` with the condition that failed
+
+Before Stage 7 settles the PR's walkthrough:
 - A verdict recorded for every deliverable check in that scope
 - E2E verdict recorded with `runId` for every case in that scope, per `autoE2ETest` — or `[E2E FAILING]`, or `SKIPPED` citing a verified skip code from [`../do/e2e-acceptance.md`](../do/e2e-acceptance.md), where each code's verification rule lives. Free-text reasons are rejected by the gate
 - UI changes verified in a real browser with evidence (screenshot path or muggle `runId`); `curl` + `grep` is not verification
 
-Opening a PR with an unchecked, unwaived line is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.
+Opening a PR, or settling its walkthrough, with an unchecked, unwaived line of its gate is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.
 
 ## Address-reviews flow
 
@@ -91,7 +98,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 | `iterations/<NNN>.md` | Every stage |
 | `requirements.md` | Stage 2 (forward only) |
 | `prs.json`, `last_seen.json`, `followup.log` | Stage 7 / watcher / `/muggle-do` |
-| `result.md` | Stage 7 (seeded), terminal tick (finalized) |
+| `result.md` | Stage 5.5 (seeded), terminal tick (finalized) |
 
 ## Guardrails
 

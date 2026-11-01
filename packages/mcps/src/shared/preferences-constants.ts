@@ -181,7 +181,7 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
     description: "When a prior session left an E2E validation context for this working tree, reuse it instead of re-asking the validation questions",
   },
   [PreferenceKey.AutoRouteBuildToMuggleDo]: {
-    description: "When a prompt looks like a build/implement/fix request, route it through the /muggle-do pipeline (requirements → build → impact → tests → E2E → PR → watcher)",
+    description: "When a prompt looks like a build/implement/fix request, route it through the /muggle-do pipeline (requirements → build → impact → tests → PR → E2E → watcher)",
   },
   [PreferenceKey.AutoWatchPR]: {
     description: "After a test run opens a PR, start a muggle-pr-followup watcher that polls for new reviews and hands them to /muggle-do",

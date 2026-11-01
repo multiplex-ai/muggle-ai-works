@@ -137,6 +137,7 @@ var RECONCILE_REPLAY_TIMEOUT_MS = 15e3;
 var GUARDRAIL_SUBCOMMAND_ASSIGNMENT = /^GUARDRAIL_SUBCOMMAND="([\w-]+)"/m;
 var HOOK_COMMAND_SCRIPTS = /^set -- ([^;]+);/;
 var GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";
+var MUGGLE_DO_STAGES_AFTER_BUILD = "impact \u2192 unit tests \u2192 PR \u2192 E2E \u2192 watcher";
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -3305,7 +3306,8 @@ function watchGate() {
   if (state.watchSkipped !== true && prsAwaitingStateScan(unwatchedPrUrls, state, prStateScan).length > 0) {
     startBackgroundJob("scan-watch-pr-states" /* ScanWatchPrStates */, [sessionId]);
   }
-  const decision = watchGateDecision(state, resolveOwedWatchPrs(unwatchedPrUrls, state, prStateScan));
+  const owedWatchPrUrls = resolveOwedWatchPrs(withoutDelegatedPrs(unwatchedPrUrls, state, Date.now()), state, prStateScan);
+  const decision = watchGateDecision(state, owedWatchPrUrls);
   if (decision.action === "release" /* Release */) return releaseGate("watchReleased");
   if (decision.action === "none" /* None */) return "{}";
   recordGateBlock("watchBlockCount", decision.blockCount);
@@ -3359,7 +3361,7 @@ function buildFollowthroughGate() {
   if (decision.action === "release" /* Release */) return releaseGate("buildSkipped");
   if (decision.action === "none" /* None */) return "{}";
   recordGateBlock("buildBlockCount", decision.blockCount);
-  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ${muggleSkill("/muggle-do")}, which runs requirements \u2192 build \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via ${muggleSkill("/muggle-do")}, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
+  const reason = decision.blockCount === 1 ? `Do not end the turn yet. This session took a build/implement/fix request but no PR was opened. A root cause written into the transcript ships nothing \u2014 once the session ends it is gone, and the watcher gate never fires because it only looks at PRs that exist. Carry the work to a PR via ${muggleSkill("/muggle-do")}, which runs requirements \u2192 build \u2192 ${MUGGLE_DO_STAGES_AFTER_BUILD}. If no PR is owed here (the user changed their mind, the fix landed in another repo, the answer was advice rather than a change), tell the user why and run \`echo "MUGGLE_BUILD_SKIP: <reason>"\` \u2014 that records the skip and keeps this gate quiet for the rest of the session.` : `Build request still unanswered \u2014 no PR opened (reminder ${decision.blockCount}/${MAX_BUILD_BLOCKS}): carry it to a PR via ${muggleSkill("/muggle-do")}, or record a legitimate skip via \`echo "MUGGLE_BUILD_SKIP: <reason>"\`.`;
   return blockStop(reason, host);
 }
 function walkthroughGate() {
@@ -3482,7 +3484,7 @@ function buildRouter() {
   if (readState(sessionId).buildIntentRouted) return "{}";
   commitStateMutation(sessionId, { kind: "fields" /* Fields */, fields: { buildIntentRouted: true } });
   if (isMuggleDoInvoked) return "{}";
-  const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 impact \u2192 unit tests \u2192 E2E \u2192 PR \u2192 watcher. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
+  const ctx = `This looks like a build/implement/fix request. Per the autoRouteBuildToMuggleDo preference, route it through ${muggleSkill("/muggle-do")} \u2014 which runs requirements \u2192 build (delegated to superpowers' design\u2192plan\u2192review) \u2192 ${MUGGLE_DO_STAGES_AFTER_BUILD}. If autoRouteBuildToMuggleDo=always, enter that flow; if =ask, offer it; if =never, proceed normally.`;
   return envelope("UserPromptSubmit", ctx, host);
 }
 function closingAssistantText() {

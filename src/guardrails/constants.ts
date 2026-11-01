@@ -421,3 +421,6 @@ export const HOOK_COMMAND_SCRIPTS = /^set -- ([^;]+);/;
 
 /** The dispatcher a hook command runs its gate scripts through; it names no subcommand of its own. */
 export const GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";
+
+/** The `/muggle-do` forward stages that follow the build, in order, as the build-intent messages name them. */
+export const MUGGLE_DO_STAGES_AFTER_BUILD = "impact → unit tests → PR → E2E → watcher";

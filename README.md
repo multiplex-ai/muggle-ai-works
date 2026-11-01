@@ -40,12 +40,13 @@ Works in Claude Code, Cursor, Codex, Windsurf, and any MCP client. Powered by [M
 | 3 | Build | Delegates real design surface to a design → plan → subagent build, then commits (signed) | Conventional commits |
 | 4 | Impact analysis | Maps the diff to the user flows it can break | Affected-flow list |
 | 5 | Unit tests | Runs the suite authored in stage 3 | Exit code |
-| 6 | Acceptance | Drives a real browser through the affected flows | Verdict + `runId` + per-step screenshots |
-| 7 | Pull request | Opens the PR/MR with the evidence block in the body | PR URL |
+| 5.5 | Pull request | Opens the PR/MR before the browser run, its walkthrough check red until stage 7 | PR URL |
+| 6 | Acceptance | Drives a real browser through the affected flows, its progress showing on the PR | Verdict + `runId` + per-step screenshots |
+| 7 | Walkthrough | Settles the PR's walkthrough comment with the run's evidence | Walkthrough comment |
 | 7.5 | Repair | Investigates and fixes acceptance failures, up to 3 iterations | Repair log |
 | 8 | Watcher | Polls reviews, CI, and base-branch drift; re-enters the cycle on each | `followup.log` |
 
-Stage 7 refuses to run until the Definition of Done holds. Stage 8 is dispatched only once stage 7.5 clears — a cycle with unrepaired failures never reaches a watcher.
+Stage 5.5 refuses to open the PR until build and unit tests meet the Definition of Done, and stage 7 refuses to settle its walkthrough without an E2E verdict. Stage 8 is dispatched only once stage 7.5 clears — a cycle with unrepaired failures never reaches a watcher.
 
 ---
 

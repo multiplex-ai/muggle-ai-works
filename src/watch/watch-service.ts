@@ -3,10 +3,12 @@ import { isRemoteControlAtStartup, readClaudeLogin } from "./claude-account.js";
 import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
-import { MAX_RESPAWNS_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
+import { readLimitStop } from "./claude-transcripts.js";
+import { MAX_RESPAWNS_PER_TICK, MAX_RESUMES_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
 import { assessWatchSlots, computeCoverage, deriveWatchFindings, reconcileActiveFindings } from "./findings.js";
 import { shortSessionId } from "./format.js";
 import { readInstallHistory } from "./install-history.js";
+import { executeLimitResumes, planLimitResumes } from "./limit-resume.js";
 import {
   appendWatchEvents,
   readWatchLedgerState,
@@ -44,7 +46,11 @@ import {
   WatchEventKind,
   type ClaudeLoginRecord,
   type InstallRecord,
+  type LimitResumeAttempt,
+  type LimitResumeReport,
+  type LimitStop,
   type PendingReload,
+  type RecoveryExecutionDeps,
   type ReloadReport,
   type RemoteControlReport,
   type ServiceArm,
@@ -64,6 +70,7 @@ export function createDefaultWatchTickDeps(options: {
   isAutoReloadEnabled: boolean;
   isRecoveryEnabled: boolean;
   isRemoteControlKeptOn: boolean;
+  isLimitResumeEnabled: boolean;
 }): WatchTickDeps {
   return {
     nowMs: Date.now(),
@@ -74,6 +81,7 @@ export function createDefaultWatchTickDeps(options: {
     isAutoReloadEnabled: options.isAutoReloadEnabled,
     isRecoveryEnabled: options.isRecoveryEnabled,
     isRemoteControlKeptOn: options.isRemoteControlKeptOn,
+    isLimitResumeEnabled: options.isLimitResumeEnabled,
     launchServiceLoop: createServiceLoopLauncher(process.platform, defaultCommandRunner),
   };
 }
@@ -196,6 +204,40 @@ function isSessionRunningVia(deps: WatchTickDeps): (sessionId: string) => boolea
   return (sessionId) => isSessionRunning(deps.runCommand, deps.paths.claudeSessionRegistryDir, sessionId) !== false;
 }
 
+function resumeDepsOf(deps: WatchTickDeps): RecoveryExecutionDeps {
+  return {
+    runCommand: deps.runCommand,
+    claudeProjectsDir: deps.paths.claudeProjectsDir,
+    nowMs: deps.nowMs,
+    canRestartIn: canRestartVia(deps),
+    waitForExit: waitForExitVia(deps),
+    isSessionRunning: isSessionRunningVia(deps),
+  };
+}
+
+function runLimitResumePass(
+  claudeSessions: WorkSession[],
+  attemptsBySession: Record<string, LimitResumeAttempt[]>,
+  maxContinues: number,
+  deps: WatchTickDeps,
+): { report: LimitResumeReport; attemptsBySession: Record<string, LimitResumeAttempt[]>; events: WatchEvent[] } {
+  const limitStopsBySessionId = new Map<string, LimitStop>();
+  for (const session of claudeSessions) {
+    const stop = readLimitStop(deps.paths.claudeProjectsDir, session.sessionId);
+    if (stop !== undefined) limitStopsBySessionId.set(session.sessionId, stop);
+  }
+  const planned = planLimitResumes(
+    claudeSessions,
+    limitStopsBySessionId,
+    attemptsBySession,
+    deps.nowMs,
+    isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
+    maxContinues,
+  );
+  const executed = executeLimitResumes(planned, attemptsBySession, resumeDepsOf(deps));
+  return { report: { decisions: executed.decisions }, attemptsBySession: executed.attemptsBySession, events: executed.events };
+}
+
 /** When every live session's plugins should date from, per the install log and Claude's plugin record. */
 function reloadTargetAtMs(deps: WatchTickDeps, installs: InstallRecord[]): number | undefined {
   return resolveReloadTargetAtMs(installs, readMugglePluginUpdatedAtMs(deps.paths.claudeInstalledPluginsFile));
@@ -271,14 +313,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       sessionsById,
       isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
     );
-    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, {
-      runCommand: deps.runCommand,
-      claudeProjectsDir: deps.paths.claudeProjectsDir,
-      nowMs: deps.nowMs,
-      canRestartIn: canRestartVia(deps),
-      waitForExit: waitForExitVia(deps),
-      isSessionRunning: isSessionRunningVia(deps),
-    });
+    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, resumeDepsOf(deps));
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);
@@ -296,6 +331,24 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   // An owner just woken loads the installed build and links to Remote Control on
   // its own; a restart would only cut into the turn it was woken for.
   const restartedSessionIds = new Set(recoveries.filter(isRestartAttempted).map((recovery) => recovery.ownerSessionId));
+
+  let limitResumeAttemptsBySession = state.limitResumeAttemptsBySession ?? {};
+  let limitResumes: LimitResumeReport | undefined;
+  if (deps.isLimitResumeEnabled && claudeSessions !== null) {
+    const pass = runLimitResumePass(
+      claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId)),
+      limitResumeAttemptsBySession,
+      Math.max(0, MAX_RESUMES_PER_TICK - restartedSessionIds.size),
+      deps,
+    );
+    limitResumes = pass.report;
+    limitResumeAttemptsBySession = pass.attemptsBySession;
+    events.push(...pass.events);
+    for (const decision of pass.report.decisions) {
+      if (decision.outcome !== undefined) restartedSessionIds.add(decision.sessionId);
+    }
+  }
+
   let pendingReload = state.pendingReload;
   let reload: ReloadReport | undefined;
   const targetAtMs = reloadTargetAtMs(deps, installs);
@@ -342,6 +395,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     pendingReload: pendingReload,
     claudeLogin: claudeLogin,
     remoteControlRestartsBySession: remoteControlRestartsBySession,
+    limitResumeAttemptsBySession: limitResumeAttemptsBySession,
   });
   const snapshot: WatchSnapshot = {
     takenAt: at,
@@ -356,6 +410,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     serviceArms: serviceArms,
     reload: reload,
     remoteControl: remoteControl,
+    limitResumes: limitResumes,
   };
   writeWatchSnapshot(deps.paths.watchDir, snapshot);
   return snapshot;
@@ -366,8 +421,9 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
  * record what changed, close out slots nobody else will, restart dead loops of
  * registered slots as programs outside every session, wake an owner session
  * only with its own PR's report, bring sessions behind the installed build up
- * to it, put sessions off Remote Control for the current login back on, and
- * notify on what is new.
+ * to it, continue background sessions a usage limit cut off once it resets,
+ * put sessions off Remote Control for the current login back on, and notify on
+ * what is new.
  *
  * @throws When another run holds the watch lock.
  */

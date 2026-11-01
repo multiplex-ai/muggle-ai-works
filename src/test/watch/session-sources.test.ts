@@ -2,10 +2,10 @@ import { mkdirSync, utimesSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
-import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "../../watch/constants.js";
-import { findClaudeSessionCwd } from "../../watch/claude-transcripts.js";
+import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS, TRANSCRIPT_TAIL_BYTES } from "../../watch/constants.js";
+import { findClaudeSessionCwd, readLimitStop } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
-import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead } from "../../watch/field-parsers.js";
+import { cwdFromSessionHead, enumValueOf, optionalString, readFileHead, readFileTailLines } from "../../watch/field-parsers.js";
 import { hasLiveProcess, isIdleBackgroundSession } from "../../watch/session-liveness.js";
 import { ClaudeJobState, ClaudeProcessStatus, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "../../watch/types.js";
 import { makeTempDir, scriptedRunner, succeeded } from "./fixtures.js";
@@ -115,6 +115,40 @@ describe("findClaudeSessionCwd", () => {
   });
 });
 
+describe("readLimitStop", () => {
+  const notice = {
+    type: "assistant",
+    uuid: "notice-1",
+    timestamp: "2026-10-29T17:52:37.120Z",
+    message: { model: "<synthetic>", content: [{ type: "text", text: "You've hit your session limit · resets 2:20pm" }] },
+    apiError: "usage_limit_reached",
+    apiErrorParams: { rate_limit_info: { resetsAt: 1793308800, rateLimitType: "five_hour" } },
+  };
+
+  function transcriptOf(entries: unknown[], padding = ""): string {
+    const projectsDir = makeTempDir("claude-projects");
+    mkdirSync(join(projectsDir, "C--repo"));
+    writeFileSync(join(projectsDir, "C--repo", "sess-1.jsonl"), `${padding}${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`);
+    return projectsDir;
+  }
+
+  it("finds the limit notice a session's last turn ended on, past the rows written after it", () => {
+    const projectsDir = transcriptOf([{ type: "user", cwd: "C:\\repo", message: { content: "go" } }, notice, { type: "system" }, { type: "last-prompt" }, { type: "user", isMeta: true }, { type: "assistant", isSidechain: true }]);
+    expect(readLimitStop(projectsDir, "sess-1")).toEqual({ noticeUuid: "notice-1", noticedAtMs: Date.parse("2026-10-29T17:52:37.120Z"), resetsAtMs: 1793308800000 });
+    expect(readLimitStop(projectsDir, "sess-2")).toBeUndefined();
+  });
+
+  it("finds none once the session moved on, or when its last turn ended another way", () => {
+    expect(readLimitStop(transcriptOf([notice, { type: "user", message: { content: "continue" } }]), "sess-1")).toBeUndefined();
+    expect(readLimitStop(transcriptOf([{ type: "user", message: { content: "go" } }, { type: "assistant", uuid: "a1", message: { content: [] } }]), "sess-1")).toBeUndefined();
+  });
+
+  it("reads only the transcript's tail, however large the file", () => {
+    const projectsDir = transcriptOf([notice, { type: "system" }], `${JSON.stringify({ type: "user", message: { content: "x".repeat(TRANSCRIPT_TAIL_BYTES) } })}\n`);
+    expect(readLimitStop(projectsDir, "sess-1")?.noticeUuid).toBe("notice-1");
+  });
+});
+
 describe("waitForSessionExit", () => {
   const registryDir = (): string => join(makeTempDir("claude-registry"), "absent");
 
@@ -196,6 +230,14 @@ describe("session liveness", () => {
 });
 
 describe("field parsers", () => {
+  it("reads the complete lines at a file's end, dropping one the window cuts", () => {
+    const filePath = join(makeTempDir("tail"), "lines.jsonl");
+    writeFileSync(filePath, "first line\nsecond\nthird\n");
+    expect(readFileTailLines(filePath, 1024)).toEqual(["first line", "second", "third"]);
+    expect(readFileTailLines(filePath, 12)).toEqual(["third"]);
+    expect(readFileTailLines(join(makeTempDir("tail"), "absent"), 12)).toBeUndefined();
+  });
+
   it("matches enum members exactly and rejects everything else", () => {
     expect(enumValueOf(ClaudeTurnStatus, "busy")).toBe(ClaudeTurnStatus.Busy);
     expect(enumValueOf(ClaudeTurnStatus, "BUSY")).toBeUndefined();

@@ -1,8 +1,10 @@
 import { REMOTE_CONTROL_NAME_COLUMN_WIDTH } from "./constants.js";
 import { formatDuration, shortSessionId } from "./format.js";
 import {
+  LimitResumeAction,
   ReloadAction,
   TrackedProcessKind,
+  WatcherRecoveryOutcome,
   WatchFindingSeverity,
   WorkSessionAgent,
   type ReloadReport,
@@ -136,6 +138,24 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
         : remoteControl.failedSessionIds.includes(decision.sessionId)
           ? " — restart failed"
           : "";
+      const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
+      lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`);
+    }
+  }
+
+  const limitDecisions = snapshot.limitResumes?.decisions ?? [];
+  if (limitDecisions.length > 0) {
+    const countOutcome = (outcome: WatcherRecoveryOutcome): number => limitDecisions.filter((decision) => decision.outcome === outcome).length;
+    const countAction = (action: LimitResumeAction): number => limitDecisions.filter((decision) => decision.action === action).length;
+    const continueCount = countAction(LimitResumeAction.Continue);
+    const continuedCount = countOutcome(WatcherRecoveryOutcome.Resumed);
+    lines.push(
+      "",
+      `Stopped at a usage limit: ${continuedCount} continued, ${continueCount - continuedCount} failed, ` +
+        `${countAction(LimitResumeAction.Wait)} waiting, ${countAction(LimitResumeAction.Skip)} skipped`,
+    );
+    for (const decision of limitDecisions) {
+      const outcome = decision.outcome === undefined || decision.outcome === WatcherRecoveryOutcome.Resumed ? "" : ` — ${decision.outcome}`;
       const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
       lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`);
     }

@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync } from "fs";
+import { closeSync, fstatSync, openSync, readSync } from "fs";
 import { SESSION_FILE_HEAD_BYTES } from "./constants.js";
 
 /** The enum member equal to `candidate`, or undefined for anything else — external JSON is never trusted to match. */
@@ -22,6 +22,27 @@ export function readFileHead(filePath: string): string | undefined {
     const buffer = Buffer.alloc(SESSION_FILE_HEAD_BYTES);
     const bytesRead = readSync(fileDescriptor, buffer, 0, SESSION_FILE_HEAD_BYTES, 0);
     return buffer.subarray(0, bytesRead).toString("utf-8");
+  } catch {
+    return undefined;
+  } finally {
+    if (fileDescriptor !== undefined) closeSync(fileDescriptor);
+  }
+}
+
+/**
+ * The complete lines in the last `byteCount` bytes of a file, oldest first, or
+ * undefined when it cannot be read. A line cut by the window's start is dropped.
+ */
+export function readFileTailLines(filePath: string, byteCount: number): string[] | undefined {
+  let fileDescriptor: number | undefined;
+  try {
+    fileDescriptor = openSync(filePath, "r");
+    const fileSize = fstatSync(fileDescriptor).size;
+    const start = Math.max(0, fileSize - byteCount);
+    const buffer = Buffer.alloc(fileSize - start);
+    const bytesRead = readSync(fileDescriptor, buffer, 0, buffer.length, start);
+    const lines = buffer.subarray(0, bytesRead).toString("utf-8").split(/\r?\n/);
+    return (start > 0 ? lines.slice(1) : lines).filter((line) => line.length > 0);
   } catch {
     return undefined;
   } finally {

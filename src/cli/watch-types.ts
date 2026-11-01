@@ -6,6 +6,8 @@ export interface WatchTickFlags {
   recovery: boolean;
   /** Commander's `--no-remote-control` negation: false reports sessions off Remote Control without restarting them. */
   remoteControl: boolean;
+  /** Commander's `--no-limit-resume` negation: false reports sessions a usage limit cut off without continuing them. */
+  limitResume: boolean;
   /** Print the full snapshot as JSON instead of a summary line. */
   json?: boolean;
 }

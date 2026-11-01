@@ -468,6 +468,52 @@ export interface WatchLedgerState {
   claudeLogin?: ClaudeLoginRecord;
   /** ISO timestamps of restarts made to put a session back on Remote Control, per session id. */
   remoteControlRestartsBySession?: Record<string, string[]>;
+  /** Continues of sessions a usage limit cut off, per session id. */
+  limitResumeAttemptsBySession?: Record<string, LimitResumeAttempt[]>;
+}
+
+/** The turn a usage limit ended: the synthetic notice Claude wrote in its place. */
+export interface LimitStop {
+  /** The notice entry's `uuid`, which a continue is recorded against. */
+  noticeUuid: string;
+  noticedAtMs: number;
+  /** When the limit that stopped the turn resets, from the notice; unknown on an older notice shape. */
+  resetsAtMs?: number;
+}
+
+/** One continue of a limit-stopped session. */
+export interface LimitResumeAttempt {
+  noticeUuid: string;
+  at: string;
+  /** Whether Claude continued the session; a failed continue counts toward the cap but leaves the notice open. */
+  isContinued: boolean;
+}
+
+/** What the usage-limit pass does with one limit-stopped session this tick. */
+export enum LimitResumeAction {
+  Continue = "continue",
+  /** The limit has not reset, or the tick's cap is spent: tried again on a later tick. */
+  Wait = "wait",
+  Skip = "skip",
+}
+
+/** The usage-limit pass's decision for one limit-stopped session, with the reason shown to the user. */
+export interface LimitResumeDecision {
+  sessionId: string;
+  shortId?: string;
+  name?: string;
+  action: LimitResumeAction;
+  reason: string;
+  noticeUuid: string;
+  /** Set when the session runs between turns: the id `claude stop` takes before the continue. */
+  runningShortId?: string;
+  /** What the continue came to; set only on a `continue` decision once it ran. */
+  outcome?: WatcherRecoveryOutcome;
+}
+
+/** The usage-limit pass's decisions for this tick. */
+export interface LimitResumeReport {
+  decisions: LimitResumeDecision[];
 }
 
 /** The kinds of line `events.jsonl` holds. */
@@ -514,6 +560,7 @@ export interface WatchSnapshot {
   reload?: ReloadReport;
   /** Absent when the pass did not run: Remote Control at startup is off, the pass is switched off, or there is no claude.ai login. */
   remoteControl?: RemoteControlReport;
+  limitResumes?: LimitResumeReport;
 }
 
 /** Where the watch reads its sources and keeps its ledger. */
@@ -658,6 +705,8 @@ export interface WatchTickDeps {
   isRecoveryEnabled: boolean;
   /** Whether the tick restarts sessions that are off Remote Control under the current login. */
   isRemoteControlKeptOn: boolean;
+  /** Whether a background session a usage limit cut off is continued once the limit resets. */
+  isLimitResumeEnabled: boolean;
   launchServiceLoop: ServiceLoopLauncher;
   /** Pause between listings while a restart waits for a stopped session to exit; blocks the thread when unset. */
   sleep?: (durationMs: number) => void;

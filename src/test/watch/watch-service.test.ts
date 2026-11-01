@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, w
 import { basename, dirname, join } from "path";
 import { describe, expect, it } from "vitest";
 import {
+  LIMIT_RESUME_PROMPT,
   MUGGLE_PLUGIN_ID,
   SERVICE_LOOP_DELIVERED_FILE,
   SERVICE_LOOP_OUTPUT_FILE,
@@ -9,6 +10,7 @@ import {
   TRUST_PROBE_SESSION_NAME,
 } from "../../watch/constants.js";
 import {
+  LimitResumeAction,
   ServiceArmOutcome,
   WatcherRecoveryOutcome,
   WatchEventKind,
@@ -689,13 +691,91 @@ describe("slot registration through the service", () => {
   });
 });
 
+// A transcript whose last turn is the notice Claude writes when a usage limit ends it, then the rows it writes after.
+function writeLimitStoppedTranscript(paths: WatchPaths, sessionId: string, cwd: string, resetsAtMs: number): void {
+  const notice = {
+    type: "assistant",
+    uuid: `notice-${sessionId}`,
+    timestamp: new Date(NOW_MS - 2 * HOUR_MS).toISOString(),
+    isSidechain: false,
+    message: { model: "<synthetic>", content: [{ type: "text", text: "You've hit your session limit · resets 11am" }] },
+    apiError: "usage_limit_reached",
+    apiErrorParams: { rate_limit_info: { resetsAt: resetsAtMs / 1000, rateLimitType: "five_hour" } },
+  };
+  const lines = [{ cwd: cwd, type: "user", message: { content: "build it" } }, notice, { type: "system" }, { type: "last-prompt" }, { type: "cost-state" }];
+  writeFileSync(join(paths.claudeProjectsDir, "repo", `${sessionId}.jsonl`), `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`);
+}
+
+function writeUsageCache(paths: WatchPaths, fiveHourUtilization: number, resetsAtMs: number): void {
+  const fiveHour = { utilization: fiveHourUtilization, resets_at: new Date(resetsAtMs).toISOString() };
+  writeFileSync(paths.claudeGlobalConfigFile, JSON.stringify({ cachedUsageUtilization: { utilization: { five_hour: fiveHour } } }));
+}
+
+describe("runWatchTick usage-limit continues", () => {
+  it("continues a background session a usage limit stopped, in place and once, after the limit resets", () => {
+    const { deps, runner, paths, projectCwd } = buildMachine();
+    writeLimitStoppedTranscript(paths, "idle-bg", projectCwd, NOW_MS - HOUR_MS);
+    writeUsageCache(paths, 12, NOW_MS + 4 * HOUR_MS);
+    const snapshot = runWatchTick({ ...deps, isLimitResumeEnabled: true });
+
+    expect(respawnCallsOrResumes(runner)).toEqual([
+      ["stop", "idle-bg1"],
+      ["--resume", "idle-bg", "--bg", LIMIT_RESUME_PROMPT],
+    ]);
+    expect(snapshot.limitResumes?.decisions).toEqual([
+      expect.objectContaining({ sessionId: "idle-bg", action: LimitResumeAction.Continue, outcome: WatcherRecoveryOutcome.Resumed }),
+    ]);
+    expect(readEvents(paths.watchDir).find((event) => event.kind === WatchEventKind.Resumed)?.message).toMatch(/^continued it after its usage limit reset/);
+    expect(readState(paths.watchDir).limitResumeAttemptsBySession).toEqual({
+      "idle-bg": [{ noticeUuid: "notice-idle-bg", at: new Date(NOW_MS).toISOString(), isContinued: true }],
+    });
+
+    const again = runWatchTick({ ...deps, nowMs: NOW_MS + 60_000, isLimitResumeEnabled: true });
+    expect(again.limitResumes?.decisions).toEqual([]);
+    expect(respawnCallsOrResumes(runner)).toHaveLength(2);
+  });
+
+  it("waits while the notice's own limit or the account's usage window has not reset", () => {
+    const notReset = buildMachine();
+    writeLimitStoppedTranscript(notReset.paths, "idle-bg", notReset.projectCwd, NOW_MS + HOUR_MS);
+    const waiting = runWatchTick({ ...notReset.deps, isLimitResumeEnabled: true });
+    expect(waiting.limitResumes?.decisions[0]).toMatchObject({ action: LimitResumeAction.Wait, reason: `limit resets at ${new Date(NOW_MS + HOUR_MS).toISOString()}` });
+
+    const accountLimited = buildMachine();
+    writeLimitStoppedTranscript(accountLimited.paths, "idle-bg", accountLimited.projectCwd, NOW_MS - HOUR_MS);
+    writeUsageCache(accountLimited.paths, 100, NOW_MS + HOUR_MS);
+    const held = runWatchTick({ ...accountLimited.deps, isLimitResumeEnabled: true });
+    expect(held.limitResumes?.decisions[0]).toMatchObject({ action: LimitResumeAction.Wait, reason: "the account is still at a usage limit" });
+
+    for (const machine of [notReset, accountLimited]) expect(respawnCallsOrResumes(machine.runner)).toEqual([]);
+  });
+
+  it("leaves terminal sessions and turns in flight alone, and does nothing with the pass switched off", () => {
+    const { deps, runner, paths, projectCwd } = buildMachine();
+    writeLimitStoppedTranscript(paths, "owner-live", projectCwd, NOW_MS - HOUR_MS);
+    writeLimitStoppedTranscript(paths, "terminal-1", projectCwd, NOW_MS - HOUR_MS);
+    const snapshot = runWatchTick({ ...deps, isLimitResumeEnabled: true });
+    expect(snapshot.limitResumes?.decisions.map((decision) => [decision.sessionId, decision.action, decision.reason])).toEqual([
+      ["owner-live", LimitResumeAction.Skip, "turn in flight (busy)"],
+      ["terminal-1", LimitResumeAction.Skip, "terminal session, continue it there"],
+    ]);
+    expect(respawnCallsOrResumes(runner)).toEqual([]);
+
+    const switchedOff = buildMachine();
+    writeLimitStoppedTranscript(switchedOff.paths, "idle-bg", switchedOff.projectCwd, NOW_MS - HOUR_MS);
+    expect(runWatchTick({ ...switchedOff.deps, isLimitResumeEnabled: false }).limitResumes).toBeUndefined();
+    expect(respawnCallsOrResumes(switchedOff.runner)).toEqual([]);
+  });
+});
+
 describe("createDefaultWatchTickDeps", () => {
   it("wires the real edges with the requested switches", () => {
-    const deps = createDefaultWatchTickDeps({ isAutoReloadEnabled: false, isRecoveryEnabled: true, isRemoteControlKeptOn: false });
+    const deps = createDefaultWatchTickDeps({ isAutoReloadEnabled: false, isRecoveryEnabled: true, isRemoteControlKeptOn: false, isLimitResumeEnabled: true });
     expect(deps.platform).toBe(process.platform);
     expect(deps.isAutoReloadEnabled).toBe(false);
     expect(deps.isRecoveryEnabled).toBe(true);
     expect(deps.isRemoteControlKeptOn).toBe(false);
+    expect(deps.isLimitResumeEnabled).toBe(true);
     expect(deps.paths.watchDir).toMatch(/[\\/]\.muggle-ai[\\/]watch$/);
     expect(deps.paths.muggleInstallLogFile).toMatch(/[\\/]\.muggle-ai[\\/]postinstall\.log$/);
   });

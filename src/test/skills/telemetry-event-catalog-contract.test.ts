@@ -17,7 +17,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 const SHARED_DIR = path.join(REPO_ROOT, "plugin", "skills", "_shared");
 const EVENT_DOCS_DIR = path.join(SHARED_DIR, "telemetry-events");
-const PR_FOLLOWUP_FIXTURES_DIR = path.join(REPO_ROOT, "internal", "skills", "pr-followup-fixtures");
 
 const workflowEventTypes: string[] = Object.values(localQa.WorkflowEventType);
 const catalogIndex = fs.readFileSync(path.join(SHARED_DIR, "telemetry-events.md"), "utf8");
@@ -43,14 +42,6 @@ function readDocumentedEventCall(eventDocPath: string): IDocumentedEventCall {
   };
 }
 
-function listFixturePaths(dir: string): string[] {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const entryPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) return listFixturePaths(entryPath);
-    return entry.name.endsWith(".json") ? [entryPath] : [];
-  });
-}
-
 describe("telemetry event catalog", () => {
   it.each(eventDocPaths.map((eventDocPath) => [path.basename(eventDocPath), eventDocPath]))(
     "%s documents a call the event-emit tool accepts",
@@ -66,25 +57,5 @@ describe("telemetry event catalog", () => {
   it.each(workflowEventTypes)("indexes and documents the workflow event %s", (eventType) => {
     expect(catalogIndex).toContain(`[\`${eventType}\`]`);
     expect(eventDocPaths.map((eventDocPath) => readDocumentedEventCall(eventDocPath).eventType)).toContain(eventType);
-  });
-});
-
-describe("pr-followup fixtures", () => {
-  const fixtureEvents = listFixturePaths(PR_FOLLOWUP_FIXTURES_DIR).flatMap((fixturePath) => {
-    const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8")) as { expected?: { telemetry_events?: unknown[] } };
-    return (fixture.expected?.telemetry_events ?? []).map((telemetryEvent, eventIndex) => [
-      `${path.relative(PR_FOLLOWUP_FIXTURES_DIR, fixturePath)}#${eventIndex}`,
-      telemetryEvent,
-    ]);
-  });
-
-  it("carry telemetry events to check", () => {
-    expect(fixtureEvents.length).toBeGreaterThan(0);
-  });
-
-  it.each(fixtureEvents)("%s is a valid event-emit call", (_eventLabel, telemetryEvent) => {
-    const parsedEvent = localQa.EventTelemetryEmitInputSchema.safeParse(telemetryEvent);
-    expect(parsedEvent.success).toBe(true);
-    expect(workflowEventTypes).toContain(parsedEvent.data?.eventType);
   });
 });

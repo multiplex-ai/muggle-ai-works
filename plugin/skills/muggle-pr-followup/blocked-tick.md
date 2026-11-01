@@ -22,7 +22,7 @@ When an idle tick is a durable human-block and `last_seen.blocked` is not alread
 
 1. Increment `last_seen.idle_tick_count`.
 2. Write `last_seen.blocked = { reason, since: <now>, fingerprint }` (reuse the `latest_review_id` / `ci_digest` already fetched this tick). Mirror the fingerprint's `ci_digest` into the watch-watermark's `BLOCKED_CIDIGEST` ([`state-schemas.md`](state-schemas.md#watch-watermarkenv)) — a whole-file rewrite of `watch-watermark.env` that leaves the other floors untouched. That non-empty value is what arms the loop's blocked-resume probe, so a block resumes on any CI move ([`arm-watcher.md`](arm-watcher.md)), not just red — without it the probe stays dormant.
-3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context. This is the block's **only** reminder.
+3. **Remind the owner** — emit the one-line reminder per [`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md): the pending act plus a reference back to the decision context. This is the block's **only** reminder. Print it as the first line of the tick's final message, after [`contract.md`](contract.md) Step 7.5 has armed the loop and cancelled any cron — printed earlier, it scrolls away under the steps that follow, and the final message is what the owner reads.
 4. Append a `blocked reason=<reason>` line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md); emit a `tick` event with `idle: true`, `blocked: true`, and the same other fields as a transient idle. Exit.
 
 ## Remind or resume (the Step 2.5 gate)

@@ -35,8 +35,10 @@ export enum ScriptedTool {
   Agent = "Agent",
   TodoWrite = "TodoWrite",
   CronCreate = "CronCreate",
+  CronList = "CronList",
   CronDelete = "CronDelete",
   Monitor = "Monitor",
+  TaskStop = "TaskStop",
   AskUserQuestion = "AskUserQuestion",
 }
 

@@ -114,13 +114,15 @@ export const LEGACY_AGENT_TOOL = "Task";
  * Host tools the SDK runs without consulting canUseTool, each replaced by a
  * same-named stub. Skill, Agent and CronDelete validate their input before any
  * hook fires (an unknown skill, subagent type, or job id never reaches one);
- * TodoWrite, CronCreate and Monitor would really run. Each shape mirrors the
- * built-in tool's fields, since zod strips undeclared keys from what the stub sees.
+ * TodoWrite, CronCreate, CronList, Monitor and TaskStop would really run, against
+ * the eval host's own session. Each shape mirrors the built-in tool's fields,
+ * since zod strips undeclared keys from what the stub sees.
  */
 export const HOST_STUB_SPECS: HostStubSpec[] = [
   {
     tool: ScriptedTool.Skill,
-    description: "Invoke a skill by name, with optional arguments.",
+    description:
+      "Invoke a skill by name, with optional arguments. If a <command-name> block is already present this turn, that skill is loaded — follow it directly rather than calling it again.",
     shape: { skill: z.string(), args: z.string().optional() },
   },
   {
@@ -154,6 +156,11 @@ export const HOST_STUB_SPECS: HostStubSpec[] = [
     },
   },
   {
+    tool: ScriptedTool.CronList,
+    description: "List the session's scheduled jobs with their ids and prompts.",
+    shape: {},
+  },
+  {
     tool: ScriptedTool.CronDelete,
     description: "Cancel a scheduled job by id.",
     shape: { id: z.string() },
@@ -167,6 +174,11 @@ export const HOST_STUB_SPECS: HostStubSpec[] = [
       timeout_ms: z.number().optional(),
       persistent: z.boolean().optional(),
     },
+  },
+  {
+    tool: ScriptedTool.TaskStop,
+    description: "Stop a running background task, such as a PR watch loop, by its task id.",
+    shape: { task_id: z.string() },
   },
 ];
 

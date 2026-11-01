@@ -71,8 +71,11 @@ describe("contract Step 7.5 — every idle tick leaves one loop polling", () => 
     expect(step75).toMatch(/cancel-cron\.md/);
   });
 
-  it("cancels a delivering cron whether or not a loop is alive", () => {
-    expect(step75).toMatch(/recovery cron[\s\S]*also cancel the cron/);
+  // A cron-delivered tick carries no flag, so the cron recorded for the slot is
+  // the only observable trigger; keyed on how the tick arrived, the cancel never fired.
+  it("cancels the slot's recorded cron after the arm, whether or not a loop is alive", () => {
+    expect(step75).toMatch(/recovery cron[\s\S]*Step 0 recorded one[\s\S]*cancel it per/);
+    expect(step75).toMatch(/after the arm/);
   });
 
   it("names the cost that makes this load-bearing: cron fires are model turns, the loop is token-free", () => {

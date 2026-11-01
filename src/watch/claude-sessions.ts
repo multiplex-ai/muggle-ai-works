@@ -68,8 +68,35 @@ function readRegistryBySessionId(registryDir: string): Map<string, ClaudeRegistr
   return entriesBySessionId;
 }
 
+// Signal 0 probes for the process without touching it; EPERM means it exists
+// under another user.
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
 /**
- * Wait until the session has no process behind it, polling the listing.
+ * Whether Claude still runs a process for the session, by its listing or by its
+ * own registry: the listing can leave out a session whose process still runs,
+ * and resuming that session starts a copy of it under a new id.
+ *
+ * @returns null when the listing cannot be read and the registry shows no live process.
+ */
+export function isSessionRunning(runCommand: CommandRunner, registryDir: string, sessionId: string): boolean | null {
+  const registryEntry = readRegistryBySessionId(registryDir).get(sessionId);
+  if (registryEntry !== undefined && isPidAlive(registryEntry.pid)) return true;
+  const sessions = readClaudeSessions(runCommand, registryDir);
+  if (sessions === null) return null;
+  const session = sessions.find((listed) => listed.sessionId === sessionId);
+  return session !== undefined && hasLiveProcess(session);
+}
+
+/**
+ * Wait until the session has no process behind it, polling the listing and the registry.
  *
  * @returns Whether it exited within `SESSION_EXIT_WAIT_MS`; false also when the listing cannot be read.
  */
@@ -80,9 +107,7 @@ export function waitForSessionExit(
   sleep: (durationMs: number) => void = blockFor,
 ): boolean {
   for (let waitedMs = 0; ; waitedMs += SESSION_EXIT_POLL_MS) {
-    const sessions = readClaudeSessions(runCommand, registryDir);
-    const session = sessions?.find((listed) => listed.sessionId === sessionId);
-    if (sessions !== null && (session === undefined || !hasLiveProcess(session))) return true;
+    if (isSessionRunning(runCommand, registryDir, sessionId) === false) return true;
     if (waitedMs >= SESSION_EXIT_WAIT_MS) return false;
     sleep(SESSION_EXIT_POLL_MS);
   }

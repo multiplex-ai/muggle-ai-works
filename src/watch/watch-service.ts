@@ -1,6 +1,6 @@
 import { resolve } from "path";
 import { isRemoteControlAtStartup, readClaudeLogin } from "./claude-account.js";
-import { readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
+import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
 import { MAX_RESPAWNS_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
@@ -115,7 +115,11 @@ function idleSinceBySessionId(runningSessions: WorkSession[]): Map<string, numbe
 }
 
 function isRestartAttempted(recovery: WatcherRecovery): boolean {
-  return recovery.outcome === WatcherRecoveryOutcome.Resumed || recovery.outcome === WatcherRecoveryOutcome.ResumeFailed;
+  return (
+    recovery.outcome === WatcherRecoveryOutcome.Resumed ||
+    recovery.outcome === WatcherRecoveryOutcome.ResumeFailed ||
+    recovery.outcome === WatcherRecoveryOutcome.ResumeForked
+  );
 }
 
 // A PR whose status this tick could not fetch still counts as open: respawning
@@ -185,6 +189,11 @@ function canRestartVia(deps: WatchTickDeps): (cwd: string) => boolean {
 
 function waitForExitVia(deps: WatchTickDeps): (sessionId: string) => boolean {
   return (sessionId) => waitForSessionExit(deps.runCommand, deps.paths.claudeSessionRegistryDir, sessionId, deps.sleep);
+}
+
+// An unreadable listing counts as running: a resume on a guess may start a copy.
+function isSessionRunningVia(deps: WatchTickDeps): (sessionId: string) => boolean {
+  return (sessionId) => isSessionRunning(deps.runCommand, deps.paths.claudeSessionRegistryDir, sessionId) !== false;
 }
 
 /** When every live session's plugins should date from, per the install log and Claude's plugin record. */
@@ -268,6 +277,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       nowMs: deps.nowMs,
       canRestartIn: canRestartVia(deps),
       waitForExit: waitForExitVia(deps),
+      isSessionRunning: isSessionRunningVia(deps),
     });
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;

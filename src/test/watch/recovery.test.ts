@@ -84,6 +84,7 @@ function executionDeps(
     canRestartIn: () => true,
     waitForExit: () => true,
     isSessionRunning: () => false,
+    pinSessionName: () => undefined,
     ...overrides,
   };
 }

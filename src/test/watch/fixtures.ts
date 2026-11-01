@@ -35,6 +35,7 @@ export function makeWatchPaths(root: string): WatchPaths {
     slotsDir: join(root, "muggle", "muggle-do", "sessions"),
     claudeSessionRegistryDir: join(root, "claude", "sessions"),
     claudeProjectsDir: join(root, "claude", "projects"),
+    claudeJobsDir: join(root, "claude", "jobs"),
     claudeInstalledPluginsFile: join(root, "claude", "plugins", "installed_plugins.json"),
     claudeGlobalConfigFile: join(root, ".claude.json"),
     claudeSettingsFile: join(root, "claude", "settings.json"),

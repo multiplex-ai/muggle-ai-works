@@ -96,6 +96,15 @@ function writeRegistry(registryDir: string, pid: number, sessionId: string, fiel
   writeFileSync(join(registryDir, `${pid}.json`), JSON.stringify({ pid: pid, sessionId: sessionId, ...fields }));
 }
 
+function writeClaudeJob(paths: WatchPaths, shortId: string, state: Record<string, unknown>): void {
+  mkdirSync(join(paths.claudeJobsDir, shortId), { recursive: true });
+  writeFileSync(join(paths.claudeJobsDir, shortId, "state.json"), JSON.stringify(state));
+}
+
+function readClaudeJobState(paths: WatchPaths, shortId: string): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(paths.claudeJobsDir, shortId, "state.json"), "utf-8"));
+}
+
 // Remote Control at startup on, under a claude.ai login whose credentials were written at `credentialsWrittenAtMs`.
 function logInWithRemoteControl(paths: WatchPaths, accountUuid: string, credentialsWrittenAtMs: number = NOW_MS - 5 * HOUR_MS): void {
   mkdirSync(dirname(paths.claudeSettingsFile), { recursive: true });
@@ -251,6 +260,7 @@ describe("runWatchTick", () => {
   it("wakes the owner with its own PR's report once the loop exits, and only once", () => {
     const { deps, machine, runner, notifications, paths, launches, projectCwd } = buildMachine();
     const slotDir = join(paths.slotsDir, "red-pr");
+    writeClaudeJob(paths, "owner-go", { respawnFlags: ["--name", "red pr owner"], intent: "Fix the red PR" });
     runWatchTick(deps);
     exitServiceLoop(machine, slotDir, NEW_REVIEW_LINE);
     const second = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
@@ -259,6 +269,7 @@ describe("runWatchTick", () => {
       ["owner-gone", "red-pr", WatcherRecoveryOutcome.Resumed, projectCwd],
     ]);
     expect(sessionCalls(runner)).toEqual([["--resume", "owner-gone", "--bg", "/muggle:muggle-pr-followup red-pr 1 --wake=event"]]);
+    expect(readClaudeJobState(paths, "owner-go").respawnFlags).toEqual(["--name", "red pr owner"]);
     expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(false);
     expect(readFileSync(join(slotDir, SERVICE_LOOP_DELIVERED_FILE), "utf-8")).toContain(NEW_REVIEW_LINE);
     expect(launches).toHaveLength(1);
@@ -366,6 +377,25 @@ describe("runWatchTick", () => {
     runWatchTick({ ...deps, nowMs: NOW_MS + 240_000 });
     expect(runner.calls.filter((call) => call.args[0] === "respawn")).toHaveLength(1);
     expect(notifications).toHaveLength(notificationCount);
+  });
+
+  it("restarts a session under the name the user gave it, not its short id", () => {
+    const { deps, runner, paths } = buildMachine();
+    writeClaudeJob(paths, "idle-bg1", { respawnFlags: ["--agent", "claude"], intent: "Ship the billing export", tempo: "idle" });
+    writeFileSync(
+      join(paths.claudeProjectsDir, "repo", "idle-bg.jsonl"),
+      [{ type: "custom-title", customTitle: "billing export", sessionId: "idle-bg" }].map((entry) => JSON.stringify(entry)).join("\n") + "\n",
+    );
+    runWatchTick(deps);
+    appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
+    runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(runner.calls.filter((call) => call.args[0] === "respawn").map((call) => call.args[1])).toEqual(["idle-bg1"]);
+    expect(readClaudeJobState(paths, "idle-bg1")).toEqual({
+      respawnFlags: ["--agent", "claude", "--name", "billing export"],
+      intent: "Ship the billing export",
+      tempo: "idle",
+    });
   });
 
   it("restarts nothing when only another plugin updates", () => {

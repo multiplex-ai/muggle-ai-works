@@ -145,6 +145,7 @@ export function executeLimitResumes(
         deps.runCommand,
         deps.waitForExit,
         deps.isSessionRunning,
+        deps.pinSessionName,
       );
       outcome = continuedOutcomeOf(resumed.outcome);
       message = continueMessageOf(resumed, decision.reason);

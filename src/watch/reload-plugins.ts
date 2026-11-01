@@ -9,6 +9,7 @@ import {
   type PendingReload,
   type ReloadDecision,
   type ReloadReport,
+  type SessionNamePinner,
   type WorkSession,
 } from "./types.js";
 
@@ -82,12 +83,14 @@ export function planReloadFanOut(
 /**
  * Respawn every session the plan marked, but only where `canRestartIn` confirms
  * Claude will bring it back: a session it then refuses to resume is stranded,
- * so an unconfirmed workspace's session is left running.
+ * so an unconfirmed workspace's session is left running. Each keeps its own
+ * name: a respawn without one on record names the session after its short id.
  */
 export function executeReloadFanOut(
   decisions: ReloadDecision[],
   runCommand: CommandRunner,
   canRestartIn: (cwd: string) => boolean,
+  pinSessionName: SessionNamePinner,
 ): ReloadReport {
   const restartableByCwd = new Map<string, boolean>();
   const isRestartable = (cwd: string): boolean => {
@@ -101,6 +104,7 @@ export function executeReloadFanOut(
       report.untrustedSessionIds.push(decision.sessionId);
       continue;
     }
+    pinSessionName(decision.sessionId, decision.shortId);
     const isRestarted = runCommand("claude", ["respawn", decision.shortId])?.exitCode === 0;
     (isRestarted ? report.respawnedSessionIds : report.failedSessionIds).push(decision.sessionId);
   }

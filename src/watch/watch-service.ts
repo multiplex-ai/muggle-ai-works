@@ -3,7 +3,8 @@ import { isRemoteControlAtStartup, readClaudeLogin } from "./claude-account.js";
 import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "./claude-sessions.js";
 import { readCodexSessions } from "./codex-sessions.js";
 import { defaultCommandRunner } from "./command-runner.js";
-import { readLimitStop } from "./claude-transcripts.js";
+import { pinClaudeJobName, readClaudeJob } from "./claude-jobs.js";
+import { readCustomTitle, readLimitStop } from "./claude-transcripts.js";
 import { MAX_RESPAWNS_PER_TICK, MAX_RESUMES_PER_TICK, WATCH_NOTIFICATION_TITLE, WATCH_REGISTRATION_SOURCE_CLI } from "./constants.js";
 import { assessWatchSlots, computeCoverage, deriveWatchFindings, reconcileActiveFindings } from "./findings.js";
 import { shortSessionId } from "./format.js";
@@ -28,6 +29,7 @@ import { advanceClaudeLogin, planRemoteControlRestarts, recordRemoteControlResta
 import { startServiceLoops } from "./service-loop.js";
 import { createServiceLoopLauncher } from "./service-loop-launcher.js";
 import { resolveReloadTargetAtMs, stampSessionLoads } from "./session-drift.js";
+import { resolveSessionName } from "./session-names.js";
 import { hasLiveProcess } from "./session-liveness.js";
 import { partitionByTerminalCache, updateTerminalCache } from "./terminal-pr-cache.js";
 import { classifyTrackedProcesses } from "./tracked-processes.js";
@@ -54,6 +56,7 @@ import {
   type ReloadReport,
   type RemoteControlReport,
   type ServiceArm,
+  type SessionNamePinner,
   type TrackedProcess,
   type WatcherRecovery,
   type WatchEvent,
@@ -170,7 +173,7 @@ function runReloadPass(
   at: string,
 ): { report: ReloadReport; pendingReload: PendingReload; events: WatchEvent[] } {
   const decisions = planReloadFanOut(claudeSessions, record, watchOwnerSessionIds);
-  const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps));
+  const report = executeReloadFanOut(decisions, deps.runCommand, canRestartVia(deps), pinSessionNameVia(deps, claudeSessions));
   return { report: report, pendingReload: advancePendingReload(record, report), events: reloadEvents(report, at) };
 }
 
@@ -183,7 +186,7 @@ function runRemoteControlPass(
   at: string,
 ): { report: RemoteControlReport; restartsBySession: Record<string, string[]>; events: WatchEvent[] } {
   const plan = planRemoteControlRestarts(claudeSessions, login, restartsBySession, deps.nowMs, maxRestarts);
-  const executed = executeReloadFanOut(plan.decisions, deps.runCommand, canRestartVia(deps));
+  const executed = executeReloadFanOut(plan.decisions, deps.runCommand, canRestartVia(deps), pinSessionNameVia(deps, claudeSessions));
   return {
     report: { ...executed, connectedSessionIds: plan.connectedSessionIds },
     restartsBySession: recordRemoteControlRestarts(restartsBySession, executed, deps.nowMs),
@@ -204,7 +207,19 @@ function isSessionRunningVia(deps: WatchTickDeps): (sessionId: string) => boolea
   return (sessionId) => isSessionRunning(deps.runCommand, deps.paths.claudeSessionRegistryDir, sessionId) !== false;
 }
 
-function resumeDepsOf(deps: WatchTickDeps): RecoveryExecutionDeps {
+function pinSessionNameVia(deps: WatchTickDeps, claudeSessions: WorkSession[] | null): SessionNamePinner {
+  return (sessionId, shortId) => {
+    const name = resolveSessionName({
+      shortId: shortId,
+      customTitle: readCustomTitle(deps.paths.claudeProjectsDir, sessionId),
+      job: readClaudeJob(deps.paths.claudeJobsDir, shortId),
+      registeredName: claudeSessions?.find((session) => session.sessionId === sessionId)?.name,
+    });
+    if (name !== undefined) pinClaudeJobName(deps.paths.claudeJobsDir, shortId, name);
+  };
+}
+
+function resumeDepsOf(deps: WatchTickDeps, claudeSessions: WorkSession[] | null): RecoveryExecutionDeps {
   return {
     runCommand: deps.runCommand,
     claudeProjectsDir: deps.paths.claudeProjectsDir,
@@ -212,6 +227,7 @@ function resumeDepsOf(deps: WatchTickDeps): RecoveryExecutionDeps {
     canRestartIn: canRestartVia(deps),
     waitForExit: waitForExitVia(deps),
     isSessionRunning: isSessionRunningVia(deps),
+    pinSessionName: pinSessionNameVia(deps, claudeSessions),
   };
 }
 
@@ -234,7 +250,7 @@ function runLimitResumePass(
     isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
     maxContinues,
   );
-  const executed = executeLimitResumes(planned, attemptsBySession, resumeDepsOf(deps));
+  const executed = executeLimitResumes(planned, attemptsBySession, resumeDepsOf(deps, claudeSessions));
   return { report: { decisions: executed.decisions }, attemptsBySession: executed.attemptsBySession, events: executed.events };
 }
 
@@ -313,7 +329,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
       sessionsById,
       isClaudeUsageLimitInForce(deps.paths.claudeGlobalConfigFile, deps.nowMs),
     );
-    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, resumeDepsOf(deps));
+    const executed = executeWatcherRecoveries(planned, recoveryAttemptsByOwner, resumeDepsOf(deps, claudeSessions));
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);

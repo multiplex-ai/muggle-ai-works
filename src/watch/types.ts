@@ -326,6 +326,27 @@ export interface WatcherRecovery {
 }
 
 /** A session to resume in the background, from the project dir its transcript names. */
+/** The parts of Claude's record of a background job that decide its name. */
+export interface ClaudeJobRecord {
+  /** The flags a restart or resume rebuilds the session with. */
+  respawnFlags: string[];
+  /** The prompt the session was started on. */
+  intent?: string;
+}
+
+/** Writes a session's own name into the job `shortId` runs as, right before `claude respawn` or `claude --resume` rebuilds it. */
+export type SessionNamePinner = (sessionId: string, shortId: string) => void;
+
+/** Everything a session's own name is recovered from; none of it is made up. */
+export interface SessionNameSources {
+  shortId: string;
+  /** The latest name the user gave it with `/rename`, from its transcript. */
+  customTitle?: string;
+  job?: ClaudeJobRecord;
+  /** The name the running session shows now. */
+  registeredName?: string;
+}
+
 export interface SessionResumeTarget {
   sessionId: string;
   cwd: string;
@@ -388,6 +409,8 @@ export interface RecoveryExecutionDeps {
   waitForExit: (sessionId: string) => boolean;
   /** Whether Claude still runs a process for the session, by its listing or its own registry. */
   isSessionRunning: (sessionId: string) => boolean;
+  /** Pins the session's own name into its job record, so the restart about to happen keeps it. */
+  pinSessionName: SessionNamePinner;
 }
 
 /** Recoveries carried out, the resume attempts to record, and the events to log. */
@@ -569,6 +592,7 @@ export interface WatchPaths {
   slotsDir: string;
   claudeSessionRegistryDir: string;
   claudeProjectsDir: string;
+  claudeJobsDir: string;
   claudeInstalledPluginsFile: string;
   claudeGlobalConfigFile: string;
   claudeSettingsFile: string;

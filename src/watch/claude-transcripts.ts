@@ -1,7 +1,7 @@
-import { existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { TRANSCRIPT_TAIL_BYTES, USAGE_LIMIT_API_ERROR } from "./constants.js";
-import { cwdFromSessionHead, readFileHead, readFileTailLines } from "./field-parsers.js";
+import { CUSTOM_TITLE_ENTRY_TYPE, TRANSCRIPT_TAIL_BYTES, USAGE_LIMIT_API_ERROR } from "./constants.js";
+import { cwdFromSessionHead, optionalString, readFileHead, readFileTailLines } from "./field-parsers.js";
 import type { LimitStop } from "./types.js";
 
 function findTranscriptPath(projectsDir: string, sessionId: string): string | undefined {
@@ -27,6 +27,7 @@ interface TranscriptEntry {
   isMeta?: unknown;
   apiError?: unknown;
   apiErrorParams?: { rate_limit_info?: { resetsAt?: unknown } };
+  customTitle?: unknown;
 }
 
 function parseTranscriptLine(line: string): TranscriptEntry | undefined {
@@ -69,6 +70,29 @@ export function readLimitStop(projectsDir: string, sessionId: string): LimitStop
     };
   }
   return undefined;
+}
+
+/**
+ * The latest name the user gave a Claude session with `/rename`, or undefined
+ * when it has none or its transcript is gone. Claude records the rename once,
+ * wherever in the conversation it happened, so the whole transcript is read.
+ */
+export function readCustomTitle(projectsDir: string, sessionId: string): string | undefined {
+  const transcriptPath = findTranscriptPath(projectsDir, sessionId);
+  if (transcriptPath === undefined) return undefined;
+  let transcript: string;
+  try {
+    transcript = readFileSync(transcriptPath, "utf-8");
+  } catch {
+    return undefined;
+  }
+  let customTitle: string | undefined;
+  for (const line of transcript.split("\n")) {
+    if (!line.includes(CUSTOM_TITLE_ENTRY_TYPE)) continue;
+    const entry = parseTranscriptLine(line);
+    if (entry?.type === CUSTOM_TITLE_ENTRY_TYPE) customTitle = optionalString(entry.customTitle) ?? customTitle;
+  }
+  return customTitle;
 }
 
 /**

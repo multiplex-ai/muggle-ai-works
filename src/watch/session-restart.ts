@@ -3,6 +3,7 @@ import { shortSessionId } from "./format.js";
 import {
   SessionResumeOutcome,
   type CommandRunner,
+  type SessionNamePinner,
   type SessionResumeResult,
   type SessionResumeTarget,
 } from "./types.js";
@@ -14,7 +15,9 @@ import {
  * is still running, or with options of its own, starts a copy under a new id
  * that the agent view lists beside the original, named after the prompt.
  * Claude exits 0 either way and names the session it backgrounded, so a copy
- * is told apart by that id, then stopped and removed.
+ * is told apart by that id, then stopped and removed. A session Claude has no
+ * name on record for is named after the prompt, so its own name is pinned into
+ * its job record first.
  *
  * @param waitForExit - Whether the session's process exited after the stop.
  * @param isSessionRunning - Whether Claude still runs a process for the session.
@@ -26,6 +29,7 @@ export function resumeSession(
   runCommand: CommandRunner,
   waitForExit: (sessionId: string) => boolean,
   isSessionRunning: (sessionId: string) => boolean,
+  pinSessionName: SessionNamePinner,
 ): SessionResumeResult {
   const runningSessionId = target.runningSessionId ?? target.sessionId;
   if (target.runningShortId !== undefined) {
@@ -34,6 +38,7 @@ export function resumeSession(
   } else if (isSessionRunning(runningSessionId)) {
     return { outcome: SessionResumeOutcome.StillRunning };
   }
+  pinSessionName(target.sessionId, target.runningShortId ?? shortSessionId(target.sessionId));
   const resumed = runCommand("claude", ["--resume", target.sessionId, "--bg", target.prompt], { cwd: target.cwd, isStderrCaptured: true });
   if (resumed?.exitCode !== 0) return { outcome: SessionResumeOutcome.Failed };
   const backgroundedShortId = resumed.stdout.match(BACKGROUNDED_SESSION_ID_PATTERN)?.[1];

@@ -1,3 +1,4 @@
+import { REMOTE_CONTROL_NAME_COLUMN_WIDTH } from "./constants.js";
 import { formatDuration, shortSessionId } from "./format.js";
 import {
   ReloadAction,
@@ -130,7 +131,13 @@ export function renderWatchStatus(snapshot: WatchSnapshot, nowMs: number): strin
         `${countDecisions(remoteControl, ReloadAction.Skip) + countDecisions(remoteControl, ReloadAction.NotifyManual)} skipped`,
     );
     for (const decision of remoteControl.decisions) {
-      lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${(decision.name ?? "").padEnd(32)} ${decision.reason}`);
+      const outcome = remoteControl.untrustedSessionIds.includes(decision.sessionId)
+        ? " — refused: its workspace takes no background restart, run /remote-control in it"
+        : remoteControl.failedSessionIds.includes(decision.sessionId)
+          ? " — restart failed"
+          : "";
+      const label = (decision.name ?? "").slice(0, REMOTE_CONTROL_NAME_COLUMN_WIDTH).padEnd(REMOTE_CONTROL_NAME_COLUMN_WIDTH);
+      lines.push(`  ${decision.action.padEnd(14)} ${shortSessionId(decision.sessionId)} ${label} ${decision.reason}${outcome}`);
     }
   }
   return `${lines.join("\n")}\n`;

@@ -255,16 +255,20 @@ describe("renderWatchStatus", () => {
             { sessionId: "c73813af-b961", name: "payment secret refac", action: ReloadAction.Respawn, reason: "no Remote Control link" },
             { sessionId: "1c714e7e-58b2", name: "watch service", action: ReloadAction.Defer, reason: "no Remote Control link — turn in flight (busy)" },
             { sessionId: "terminal-1", action: ReloadAction.NotifyManual, reason: "no Remote Control link — terminal session, run /remote-control in it" },
+            { sessionId: "fa1a3b76-4c1e", name: "Continue from your 'To pick up' list now that the usage limit has reset", action: ReloadAction.Respawn, reason: "no Remote Control link" },
+            { sessionId: "f9548732-d9a9", name: "numbering test cases", action: ReloadAction.Respawn, reason: "no Remote Control link" },
           ],
           respawnedSessionIds: ["c73813af-b961"],
-          failedSessionIds: [],
-          untrustedSessionIds: [],
+          failedSessionIds: ["f9548732-d9a9"],
+          untrustedSessionIds: ["fa1a3b76-4c1e"],
         },
       },
       Date.parse(takenAt),
     );
-    expect(text).toContain("Remote Control: 2 connected, 1 restarted, 0 failed, 0 refused, 1 waiting, 1 skipped");
-    expect(text).toMatch(/respawn\s+c73813af payment secret refac\s+no Remote Control link/);
+    expect(text).toContain("Remote Control: 2 connected, 1 restarted, 1 failed, 1 refused, 1 waiting, 1 skipped");
+    expect(text).toMatch(/respawn\s+c73813af payment secret refac\s+no Remote Control link\n/);
+    expect(text).toMatch(/fa1a3b76 Continue from your 'To pick up'\s+no Remote Control link — refused: its workspace takes no background restart/);
+    expect(text).toMatch(/f9548732 numbering test cases\s+no Remote Control link — restart failed/);
     expect(text).toMatch(/defer\s+1c714e7e watch service\s+no Remote Control link — turn in flight \(busy\)/);
     expect(renderWatchStatus(snapshot, Date.parse(takenAt))).not.toContain("Remote Control:");
   });

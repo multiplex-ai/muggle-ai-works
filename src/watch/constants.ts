@@ -204,6 +204,9 @@ export const REMOTE_CONTROL_RESTART_WINDOW_MS = 24 * 60 * 60_000;
 /** Wait after a Remote Control restart before the same session is tried again; each restart opens a new Remote Control session. */
 export const REMOTE_CONTROL_RESTART_COOLDOWN_MS = 30 * 60_000;
 
+/** Characters of a session's name `muggle watch status` shows in its Remote Control rows. */
+export const REMOTE_CONTROL_NAME_COLUMN_WIDTH = 32;
+
 /** The utilization percent at which a cached usage window has run out. */
 export const USAGE_WINDOW_EXHAUSTED_PERCENT = 100;
 

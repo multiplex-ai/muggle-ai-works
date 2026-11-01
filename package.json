@@ -100,7 +100,7 @@
     "@anthropic-ai/sdk": "^0.121.0",
     "@eslint/js": "^10.0.1",
     "@muggleai/mcp": "file:packages/mcps",
-    "@muggleai/telemetry": "0.3.2",
+    "@muggleai/telemetry": "0.4.0",
     "@muggleai/workflows": "file:packages/workflows",
     "@types/node": "^25.5.2",
     "@types/uuid": "^11.0.0",

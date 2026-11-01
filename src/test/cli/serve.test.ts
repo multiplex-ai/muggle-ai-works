@@ -10,7 +10,9 @@ const {
   markDisclosureShown,
   initTelemetry,
   track,
+  getActiveRuntimeTarget,
 } = vi.hoisted(() => ({
+  getActiveRuntimeTarget: vi.fn(() => "staging"),
   getQaTools: vi.fn(() => [{ name: "qa1" }]),
   getLocalQaTools: vi.fn(() => [{ name: "local1" }]),
   registerTools: vi.fn(),
@@ -23,6 +25,8 @@ const {
 }));
 
 vi.mock("../../../packages/mcps/src/index.js", () => ({
+  RuntimeTarget: { Production: "production", Staging: "staging", Dev: "dev" },
+  getActiveRuntimeTarget,
   getConfig: vi.fn(() => ({ serverVersion: "9.9.9" })),
   getQaTools,
   getLocalQaTools,
@@ -33,6 +37,7 @@ vi.mock("@muggleai/telemetry", () => ({
   EventName: { SystemStartup: "SystemStartup" },
   ServiceName: { MuggleMcp: "MuggleMcp" },
   Surface: { McpLocal: "McpLocal" },
+  TelemetryEnvironment: { Production: "production", Staging: "staging", Development: "development" },
   getDisclosureCopy: vi.fn(() => "disclosure copy"),
   hasShownDisclosure,
   markDisclosureShown,
@@ -80,6 +85,12 @@ describe("serveCommand", () => {
     expect(markDisclosureShown).toHaveBeenCalledOnce();
     expect(initTelemetry).toHaveBeenCalledOnce();
     expect(track).toHaveBeenCalledOnce();
+  });
+
+  it("stamps telemetry with the environment of the active prompt-service target", async () => {
+    await serveCommand({});
+
+    expect(initTelemetry).toHaveBeenCalledWith(expect.objectContaining({ environment: "staging" }));
   });
 
   it("registers only cloud tools when --e2e is set", async () => {

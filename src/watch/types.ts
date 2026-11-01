@@ -304,6 +304,8 @@ export enum WatcherRecoveryOutcome {
   TranscriptMissing = "transcript-missing",
   /** The owner is still running and Claude would not resume it in its workspace, so it was left running. */
   RestartRefused = "restart-refused",
+  /** Claude still ran the owner and started a copy of it instead of continuing it; the copy was stopped and removed. */
+  ResumeForked = "resume-forked",
   /** The account is at a usage limit that has not reset yet, so a resume would only land on it; held without counting an attempt. */
   AwaitingUsageLimitReset = "awaiting-usage-limit-reset",
 }
@@ -335,6 +337,26 @@ export interface SessionResumeTarget {
   runningSessionId?: string;
 }
 
+/** What became of one resume. */
+export enum SessionResumeOutcome {
+  /** Claude continued the session under its own id. */
+  Continued = "continued",
+  /** Claude still ran the session and started a copy under a new id. */
+  Copied = "copied",
+  /** The session still runs, so nothing was resumed. */
+  StillRunning = "still-running",
+  Failed = "failed",
+}
+
+/** One resume's outcome, with the copy it left when Claude started one. */
+export interface SessionResumeResult {
+  outcome: SessionResumeOutcome;
+  /** The id `claude --bg` printed for the copy. */
+  copyShortId?: string;
+  /** Whether the copy was stopped and removed from the agent view. */
+  isCopyRemoved?: boolean;
+}
+
 /** Where starting a loop for one slot stands this tick. */
 export enum ServiceArmOutcome {
   Armed = "armed",
@@ -364,6 +386,8 @@ export interface RecoveryExecutionDeps {
   canRestartIn: (cwd: string) => boolean;
   /** Whether a stopped session's process has exited. */
   waitForExit: (sessionId: string) => boolean;
+  /** Whether Claude still runs a process for the session, by its listing or its own registry. */
+  isSessionRunning: (sessionId: string) => boolean;
 }
 
 /** Recoveries carried out, the resume attempts to record, and the events to log. */
@@ -452,6 +476,7 @@ export enum WatchEventKind {
   Cleared = "cleared",
   Resumed = "resumed",
   ResumeFailed = "resume-failed",
+  ResumeForked = "resume-forked",
   ReloadRequested = "reload-requested",
   Respawned = "respawned",
   RespawnFailed = "respawn-failed",

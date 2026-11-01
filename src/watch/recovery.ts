@@ -14,6 +14,7 @@ import { isOwnerWakeReport, markServiceLoopReportDelivered } from "./service-loo
 import { isIdleBackgroundSession } from "./session-liveness.js";
 import { resumeSession } from "./session-restart.js";
 import {
+  SessionResumeOutcome,
   WatcherLiveness,
   WatcherRecoveryOutcome,
   WatchEventKind,
@@ -172,20 +173,31 @@ export function executeWatcherRecoveries(
       });
       return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.RestartRefused };
     }
-    const isResumed = resumeSession(
+    const resumed = resumeSession(
       { sessionId: recovery.ownerSessionId, cwd: cwd, prompt: prompt, runningShortId: recovery.ownerShortId, runningSessionId: recovery.ownerRunningSessionId },
       deps.runCommand,
       deps.waitForExit,
+      deps.isSessionRunning,
     );
-    if (isResumed) markServiceLoopReportDelivered(recovery.slotDir);
-    else countAttempt(recovery.ownerSessionId);
-    events.push({
-      at: nowIso,
-      kind: isResumed ? WatchEventKind.Resumed : WatchEventKind.ResumeFailed,
-      subject: subject,
-      message: `${isResumed ? "woke it" : "could not wake it"} with ${prompt}`,
-    });
-    return { ...recovery, cwd: cwd, outcome: isResumed ? WatcherRecoveryOutcome.Resumed : WatcherRecoveryOutcome.ResumeFailed };
+    if (resumed.outcome === SessionResumeOutcome.Continued) {
+      markServiceLoopReportDelivered(recovery.slotDir);
+      events.push({ at: nowIso, kind: WatchEventKind.Resumed, subject: subject, message: `woke it with ${prompt}` });
+      return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.Resumed };
+    }
+    countAttempt(recovery.ownerSessionId);
+    if (resumed.outcome === SessionResumeOutcome.Copied) {
+      const copyNote = resumed.isCopyRemoved ? "stopped and removed the copy" : `could not remove the copy, run claude rm ${resumed.copyShortId}`;
+      events.push({
+        at: nowIso,
+        kind: WatchEventKind.ResumeForked,
+        subject: subject,
+        message: `could not wake it: Claude still ran it and started copy ${resumed.copyShortId} instead; ${copyNote}`,
+      });
+      return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.ResumeForked };
+    }
+    const reason = resumed.outcome === SessionResumeOutcome.StillRunning ? "it is still running, so a resume would start a copy" : `${prompt} did not start`;
+    events.push({ at: nowIso, kind: WatchEventKind.ResumeFailed, subject: subject, message: `could not wake it: ${reason}` });
+    return { ...recovery, cwd: cwd, outcome: WatcherRecoveryOutcome.ResumeFailed };
   });
   return { recoveries: recoveries, attemptsByOwner: nextAttemptsByOwner, events: events };
 }

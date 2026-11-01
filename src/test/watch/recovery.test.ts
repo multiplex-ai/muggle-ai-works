@@ -83,6 +83,7 @@ function executionDeps(
     nowMs: NOW_MS,
     canRestartIn: () => true,
     waitForExit: () => true,
+    isSessionRunning: () => false,
     ...overrides,
   };
 }
@@ -215,7 +216,7 @@ describe("executeWatcherRecoveries", () => {
       executionDeps(runner.runCommand, projectsWithTranscript("o1", projectCwd)),
     );
     expect(runner.calls).toEqual([
-      { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup csv 7 --wake=event"], options: { cwd: projectCwd } },
+      { executable: "claude", args: ["--resume", "o1", "--bg", "/muggle:muggle-pr-followup csv 7 --wake=event"], options: { cwd: projectCwd, isStderrCaptured: true } },
     ]);
     expect(runner.calls.some((call) => call.args.join(" ").includes("reconcile"))).toBe(false);
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
@@ -292,6 +293,88 @@ describe("executeWatcherRecoveries", () => {
     expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
     expect(executed.attemptsByOwner.o1).toHaveLength(1);
     expect(executed.events[0].kind).toBe(WatchEventKind.ResumeFailed);
+  });
+
+  it("counts a resume Claude answered with the owner's own id as a wake", () => {
+    const owner = "a0944a7f-a085-43dd-9408-fa76d72fad4a";
+    const runner = scriptedRunner((executable, args) =>
+      args[0] === "--resume" ? succeeded("note: woke session a0944a7f with its saved options (--name).\nbackgrounded · a0944a7f\n") : succeeded("ok"),
+    );
+    const executed = executeWatcherRecoveries(
+      [plannedWake(owner, slotWithReport(), { ownerShortId: "a0944a7f" })],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript(owner, makeTempDir("project"))),
+    );
+    expect(runner.calls.map((call) => call.args[0])).toEqual(["stop", "--resume"]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.Resumed);
+  });
+
+  it("removes the copy Claude starts when it still runs the owner, and keeps the report for a later wake", () => {
+    const owner = "a0944a7f-a085-43dd-9408-fa76d72fad4a";
+    const slotDir = slotWithReport();
+    const runner = scriptedRunner((executable, args) =>
+      args[0] === "--resume"
+        ? succeeded("backgrounded · 9abf32dd\nnote: session a0944a7f is already running in the background, so this started a copy as 9abf32dd.\n")
+        : succeeded("ok"),
+    );
+    const executed = executeWatcherRecoveries(
+      [plannedWake(owner, slotDir, { ownerShortId: "a0944a7f" })],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript(owner, makeTempDir("project"))),
+    );
+    expect(runner.calls.map((call) => call.args.slice(0, 2))).toEqual([
+      ["stop", "a0944a7f"],
+      ["--resume", owner],
+      ["stop", "9abf32dd"],
+      ["rm", "9abf32dd"],
+    ]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeForked);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(true);
+    expect(executed.attemptsByOwner[owner]).toHaveLength(1);
+    expect(executed.events).toEqual([
+      {
+        at: new Date(NOW_MS).toISOString(),
+        kind: WatchEventKind.ResumeForked,
+        subject: "session a0944a7f",
+        message: "could not wake it: Claude still ran it and started copy 9abf32dd instead; stopped and removed the copy",
+      },
+    ]);
+  });
+
+  it("names the copy to remove by hand when Claude would not remove it", () => {
+    const runner = scriptedRunner((executable, args) => {
+      if (args[0] === "--resume") return succeeded("backgrounded · c0ffee12\n");
+      return args[0] === "rm" ? { exitCode: 1, stdout: "" } : succeeded("ok");
+    });
+    const executed = executeWatcherRecoveries(
+      [plannedWake("o1", slotWithReport())],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project"))),
+    );
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeForked);
+    expect(executed.events[0].message).toContain("could not remove the copy, run claude rm c0ffee12");
+  });
+
+  it("does not resume an owner the listing left out while Claude's registry still runs it", () => {
+    const slotDir = slotWithReport();
+    const runner = scriptedRunner(() => succeeded("ok"));
+    const checkedSessionIds: string[] = [];
+    const executed = executeWatcherRecoveries(
+      [plannedWake("o1", slotDir)],
+      {},
+      executionDeps(runner.runCommand, projectsWithTranscript("o1", makeTempDir("project")), {
+        isSessionRunning: (sessionId) => {
+          checkedSessionIds.push(sessionId);
+          return true;
+        },
+      }),
+    );
+    expect(checkedSessionIds).toEqual(["o1"]);
+    expect(runner.calls).toEqual([]);
+    expect(executed.recoveries[0].outcome).toBe(WatcherRecoveryOutcome.ResumeFailed);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE))).toBe(true);
+    expect(executed.attemptsByOwner.o1).toHaveLength(1);
+    expect(executed.events[0].message).toBe("could not wake it: it is still running, so a resume would start a copy");
   });
 
   it("does not run anything when the transcript or its project dir is gone", () => {

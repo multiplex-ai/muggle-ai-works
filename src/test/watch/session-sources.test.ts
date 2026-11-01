@@ -1,7 +1,7 @@
 import { mkdirSync, utimesSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
+import { isSessionRunning, readClaudeSessions, waitForSessionExit } from "../../watch/claude-sessions.js";
 import { SESSION_EXIT_POLL_MS, SESSION_EXIT_WAIT_MS } from "../../watch/constants.js";
 import { findClaudeSessionCwd } from "../../watch/claude-transcripts.js";
 import { readCodexSessions } from "../../watch/codex-sessions.js";
@@ -138,6 +138,33 @@ describe("waitForSessionExit", () => {
     expect(naps.reduce((total, durationMs) => total + durationMs, 0)).toBe(SESSION_EXIT_WAIT_MS);
     expect(waitForSessionExit(scriptedRunner(() => null).runCommand, registryDir(), "s1-full", () => undefined)).toBe(false);
     expect(waitForSessionExit(scriptedRunner(() => succeeded("[]")).runCommand, registryDir(), "s1-full", () => undefined)).toBe(true);
+  });
+
+  it("keeps waiting while Claude's registry still runs the session the listing has dropped", () => {
+    const liveRegistryDir = makeTempDir("claude-registry");
+    writeFileSync(join(liveRegistryDir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: "s1-full" }));
+    expect(waitForSessionExit(scriptedRunner(() => succeeded("[]")).runCommand, liveRegistryDir, "s1-full", () => undefined)).toBe(false);
+  });
+});
+
+describe("isSessionRunning", () => {
+  const DEAD_PID = 2 ** 30;
+
+  it("counts a live registry process even when the listing leaves the session out", () => {
+    const registryDir = makeTempDir("claude-registry");
+    writeFileSync(join(registryDir, `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: "s1-full" }));
+    const runner = scriptedRunner(() => succeeded("[]"));
+    expect(isSessionRunning(runner.runCommand, registryDir, "s1-full")).toBe(true);
+    expect(runner.calls).toEqual([]);
+  });
+
+  it("falls back to the listing when the registry's process is gone, and is unknown when the listing cannot be read", () => {
+    const registryDir = makeTempDir("claude-registry");
+    writeFileSync(join(registryDir, `${DEAD_PID}.json`), JSON.stringify({ pid: DEAD_PID, sessionId: "s1-full" }));
+    expect(isSessionRunning(scriptedRunner(() => succeeded("[]")).runCommand, registryDir, "s1-full")).toBe(false);
+    const listedIdle = JSON.stringify([{ id: "s1", sessionId: "s1-full", status: "idle" }]);
+    expect(isSessionRunning(scriptedRunner(() => succeeded(listedIdle)).runCommand, registryDir, "s1-full")).toBe(true);
+    expect(isSessionRunning(scriptedRunner(() => null).runCommand, registryDir, "s1-full")).toBeNull();
   });
 });
 

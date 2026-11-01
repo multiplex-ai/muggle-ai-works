@@ -39,6 +39,7 @@ import {
 } from "./watch-slots.js";
 import { canRestartSessionIn } from "./workspace-trust.js";
 import {
+  ClaudeProcessStatus,
   WatcherRecoveryOutcome,
   WatchEventKind,
   type ClaudeLoginRecord,
@@ -100,6 +101,17 @@ function observeSessions(deps: WatchTickDeps, installs: InstallRecord[]): {
     listedSessions && table && processes ? stampSessionLoads(listedSessions, table, processes, installs, deps.nowMs) : listedSessions;
   const sessions = [...(claudeSessions ?? []), ...readCodexSessions(deps.paths.codexSessionsDir, deps.nowMs)];
   return { processes: processes, claudeSessions: claudeSessions, sessions: sessions };
+}
+
+// A running Claude session with no turn and no background command holds no watch loop.
+function idleSinceBySessionId(runningSessions: WorkSession[]): Map<string, number> {
+  return new Map(
+    runningSessions.flatMap((session) =>
+      session.processStatus === ClaudeProcessStatus.Idle && session.processStatusSinceMs !== undefined
+        ? [[session.sessionId, session.processStatusSinceMs] as [string, number]]
+        : [],
+    ),
+  );
 }
 
 function isRestartAttempted(recovery: WatcherRecovery): boolean {
@@ -225,7 +237,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
   );
   for (const cachedStatus of cachedStatuses) liveStatusesByUrl.set(cachedStatus.url, cachedStatus);
 
-  const allAssessments = assessWatchSlots(slots, processes, activeSessionIds, liveStatusesByUrl, deps.nowMs);
+  const allAssessments = assessWatchSlots(slots, processes, activeSessionIds, liveStatusesByUrl, deps.nowMs, idleSinceBySessionId(runningSessions));
   const closeOut = closeOutTerminalSlots(allAssessments, deps, at);
   const assessments = allAssessments.filter((assessment) => !closeOut.closedOutSlugs.includes(assessment.slug));
   const findings = deriveWatchFindings(assessments, processes ?? [], isPollingDisabled);

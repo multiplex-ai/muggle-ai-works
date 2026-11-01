@@ -56,6 +56,8 @@ export interface WorkSession {
   pid?: number;
   /** Claude only: the process's own status, from the same registry entry. */
   processStatus?: ClaudeProcessStatus;
+  /** Claude only: when `processStatus` last changed. */
+  processStatusSinceMs?: number;
   /** Claude only: the Remote Control session the process serves, from the same registry entry; unset while it serves none. */
   remoteControlSessionId?: string;
   /** When the session last loaded its plugins: its process start or its newest muggle MCP server start. */
@@ -244,6 +246,12 @@ export interface WatchSlotAssessment {
   ownerSessionId?: string;
   /** Undefined when the owner is unknown or the session listing could not be read. */
   isOwnerSessionActive?: boolean;
+  /**
+   * True when the owner is running but has held no background command since
+   * before the loop started, so the loop it armed is no longer its own — as when
+   * a restarted session does not adopt it.
+   */
+  isLoopDroppedByOwner?: boolean;
   live?: PrLiveStatus;
   /** Undefined when the watcher escalated nothing on the live head. */
   ownerEscalation?: OwnerEscalation;

@@ -615,6 +615,18 @@ describe("runWatchTick Remote Control", () => {
     expect(readEvents(paths.watchDir).some((event) => event.kind === WatchEventKind.RestartRefused)).toBe(true);
   });
 
+  it("takes over a watch loop its restarted owner did not adopt, without touching the session", () => {
+    const { deps, runner, paths, machine, launches } = buildMachine();
+    (machine.claudeListing as Array<{ id: string; status?: string }>)[0].status = "idle";
+    writeRegistry(paths.claudeSessionRegistryDir, 70, "owner-live", { status: "idle", statusUpdatedAt: NOW_MS - 30_000 });
+    const snapshot = runWatchTick(deps);
+
+    expect(snapshot.slots.find((slot) => slot.slug === "watched")).toMatchObject({ watcher: "deaf", isLoopDroppedByOwner: true });
+    expect(launches).toContainEqual(["watched", "main"]);
+    expect(snapshot.findings.find((current) => current.code === WatchFindingCode.WatcherDeaf)?.message).toContain("is running but no longer holds it");
+    expect(respawnCallsOrResumes(runner)).toEqual([]);
+  });
+
   it("runs no pass without Remote Control at startup, a claude.ai login, or with the pass switched off", () => {
     const off = buildMachine();
     expect(runWatchTick(off.deps).remoteControl).toBeUndefined();

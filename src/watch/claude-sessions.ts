@@ -29,6 +29,7 @@ interface ClaudeAgentListing {
 interface ClaudeRegistryEntry {
   pid: number;
   processStatus?: ClaudeProcessStatus;
+  processStatusSinceMs?: number;
   remoteControlSessionId?: string;
 }
 
@@ -49,12 +50,14 @@ function readRegistryBySessionId(registryDir: string): Map<string, ClaudeRegistr
         pid?: unknown;
         sessionId?: unknown;
         status?: unknown;
+        statusUpdatedAt?: unknown;
         bridgeSessionId?: unknown;
       };
       if (typeof entry.pid === "number" && typeof entry.sessionId === "string") {
         entriesBySessionId.set(entry.sessionId, {
           pid: entry.pid,
           processStatus: enumValueOf(ClaudeProcessStatus, entry.status),
+          processStatusSinceMs: typeof entry.statusUpdatedAt === "number" ? entry.statusUpdatedAt : undefined,
           remoteControlSessionId: optionalString(entry.bridgeSessionId),
         });
       }
@@ -119,6 +122,7 @@ export function readClaudeSessions(runCommand: CommandRunner, registryDir: strin
       startedAtMs: typeof listing.startedAt === "number" ? listing.startedAt : undefined,
       pid: typeof listing.pid === "number" ? listing.pid : registryEntry?.pid,
       processStatus: registryEntry?.processStatus,
+      processStatusSinceMs: registryEntry?.processStatusSinceMs,
       remoteControlSessionId: registryEntry?.remoteControlSessionId,
     });
   }

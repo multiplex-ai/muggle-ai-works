@@ -38,6 +38,11 @@ describe("resolveWatcherLiveness", () => {
     expect(resolveWatcherLiveness({ ...loop("s", 0), ageMs: undefined }, 30_000, true, true)).toBe(WatcherLiveness.Polling);
   });
 
+  it("calls a loop deaf when its running owner dropped it, unless the watch hears it", () => {
+    expect(resolveWatcherLiveness(loop("s", 5 * MINUTE_MS), 30_000, true, true, false, true)).toBe(WatcherLiveness.Deaf);
+    expect(resolveWatcherLiveness(loop("s", 5 * MINUTE_MS), 30_000, true, true, true, true)).toBe(WatcherLiveness.Polling);
+  });
+
   // A background shell has no read cap, so a quiet PR's loop runs for days.
   it("hears a loop of any age under a live owner", () => {
     expect(resolveWatcherLiveness(loop("s", 3 * 24 * 60 * MINUTE_MS), 30_000, true, true)).toBe(WatcherLiveness.Polling);
@@ -106,6 +111,15 @@ describe("assessWatchSlots", () => {
       note: "fix-ci pr=1 head=head1 escalated: awaiting owner decision",
     });
     expect(assessments[1].ownerEscalation).toBeUndefined();
+  });
+
+  it("finds a loop its running owner dropped only when the owner went idle after the loop started", () => {
+    const loops = [loop("csv", 10 * MINUTE_MS, 10)];
+    const assessOwnerIdleSince = (idleSinceMs: number) =>
+      assessWatchSlots([slot], loops, new Set(["owner-1"]), new Map(), NOW_MS, new Map([["owner-1", idleSinceMs]]))[0];
+    expect(assessOwnerIdleSince(NOW_MS - MINUTE_MS)).toMatchObject({ isLoopDroppedByOwner: true, watcher: WatcherLiveness.Deaf });
+    expect(assessOwnerIdleSince(NOW_MS - 20 * MINUTE_MS)).toMatchObject({ isLoopDroppedByOwner: false, watcher: WatcherLiveness.Polling });
+    expect(assessWatchSlots([slot], loops, new Set(["owner-1"]), new Map(), NOW_MS)[0].isLoopDroppedByOwner).toBe(false);
   });
 
   it("leaves owner liveness unknown without a session listing or an owner", () => {

@@ -9,7 +9,8 @@
  *   - the create and delete calls that plan, create, and retire cases;
  *   - per-case runs: executing a case other than the fixture run's own answers
  *     with that run retargeted to the case, under a run id the run-result and
- *     run-steps reads then answer for, so each case a run plans has evidence of its own.
+ *     run-steps reads then answer for, so each case a run plans has evidence of its own;
+ *   - the event-emit call's real fields, so a workflow event can name its type.
  * A tool named like a shared one refines it (see sequenced-mock-mcp.ts).
  */
 
@@ -251,6 +252,16 @@ export function supplementalMockToolSpecs(fixtures: Fixtures): InputAwareMockToo
       description: "A run's steps beside the frames they produced (mock).",
       shape: { runId: optionalId },
       reply: (input) => runRead(fixtures.runStepsResult, input),
+    },
+    {
+      name: "muggle-local-telemetry-event-emit",
+      description: "Emit one workflow or failure-mode telemetry event from the catalog (mock).",
+      shape: {
+        eventType: z.string().optional(),
+        skillName: z.string().optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      },
+      reply: () => ({ ok: true }),
     },
   ];
 }

@@ -114,7 +114,7 @@ describe("decideToolUse — scripted and stubbed tools", () => {
     const context = skillContext();
     expect(decideToolUse("mcp__eval_mock__muggle-local-execute-replay", { showUi: false }, context).behavior).toBe("allow");
     expect(decideToolUse("mcp__eval_host__Skill", { skill: "muggle-test-prepare" }, context).behavior).toBe("allow");
-    for (const builtin of ["Skill", "Agent", "Task", "TodoWrite", "CronCreate", "CronDelete", "Monitor"]) {
+    for (const builtin of ["Skill", "Agent", "Task", "TodoWrite", "CronCreate", "CronList", "CronDelete", "Monitor", "TaskStop"]) {
       const decision = decideToolUse(builtin, {}, context);
       expect(decision.behavior === "deny" && decision.message, builtin).toContain("mcp__eval_host__");
     }

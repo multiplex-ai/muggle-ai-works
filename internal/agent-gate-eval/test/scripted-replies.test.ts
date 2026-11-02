@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ACTION_SCRIPT,
   DEFAULT_TEST_CASE_ANCESTORS,
+  HOST_STUB_SPECS,
   NO_USER_RESPONSE,
   UNSCRIPTED_BASH_RESPONSE,
   UNSCRIPTED_TOOL_RESPONSE,
@@ -92,6 +93,24 @@ describe("createToolResponder", () => {
     expect(answerTool(ScriptedTool.Skill, prepare)).toBe("READY");
     expect(answerTool(ScriptedTool.Agent, JSON.stringify({ subagent_type: "muggle:visual-walkthrough-builder" }))).toBe(
       "posted",
+    );
+  });
+
+  it("answers the cron and task tools a watcher drives", () => {
+    const answerTool = createToolResponder({
+      [ScriptedTool.CronList]: [{ argContains: "", response: "No scheduled jobs." }],
+      [ScriptedTool.TaskStop]: [{ argContains: "mon_7c1e", response: "Stopped task mon_7c1e." }],
+    });
+    expect(answerTool(ScriptedTool.CronList, "{}")).toBe("No scheduled jobs.");
+    expect(answerTool(ScriptedTool.TaskStop, JSON.stringify({ task_id: "mon_7c1e" }))).toBe("Stopped task mon_7c1e.");
+    expect(answerTool(ScriptedTool.TaskStop, JSON.stringify({ task_id: "other" }))).toBe(UNSCRIPTED_TOOL_RESPONSE);
+  });
+
+  it("serves every scripted tool but AskUserQuestion as a host stub", () => {
+    expect(HOST_STUB_SPECS.map((spec) => spec.tool).sort()).toEqual(
+      Object.values(ScriptedTool)
+        .filter((tool) => tool !== ScriptedTool.AskUserQuestion)
+        .sort(),
     );
   });
 

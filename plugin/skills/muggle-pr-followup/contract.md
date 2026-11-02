@@ -27,7 +27,13 @@ If either file is missing or the PR is not in `prs.json`, the tick is a no-op. L
 
 Every `increment`/`reset` this procedure applies to `last_seen.json`, and the `prs.json` refresh in Step 1, is a **whole-file rewrite** (Read → change field → Write) per [`../_shared/session-state-writes.md`](../_shared/session-state-writes.md). **Never** patch session JSON with the Edit tool — an exact-string match against these files silently fails ("malformed edit") and drops the update, so the counter never advances.
 
+## Dispatching
+
+Every hand-off below — address-reviews, rebase, fix-ci, post-merge cleanup — fires `/muggle-do` through the Skill tool: skill `muggle-do`, with the directive after the command as its arguments (e.g. `address reviews <ids> on <pr-url> slug=<slug>`). A directive printed in the reply dispatches nothing: no cycle runs, and the PR sits with its work due.
+
 ## Procedure
+
+Every tick event this procedure emits is one call to `muggle-local-telemetry-event-emit` with `eventType: "muggle-pr-followup:tick"` and `skillName: "muggle-pr-followup"`, its fields as metadata ([`../_shared/telemetry-events/pr-followup-tick.md`](../_shared/telemetry-events/pr-followup-tick.md)). The bare word `tick` in a step below names that event, never the `eventType` value.
 
 ### Step 0 — Stopped-slot absorb, stale-fire guard, then record this cron's id
 
@@ -197,4 +203,4 @@ Either way exactly one poller remains — the loop — and this tick was the onl
 
 ## Output
 
-The watcher stays invisible to the **GitHub reviewer** — it never posts to the PR from a tick. To the **loop owner** in the session it emits: the turn preamble, the one-line blocked reminder while awaiting the owner (Steps 2.5 / 7), and (when a dispatch fires) the `/muggle-do` directive. Nothing else.
+The watcher stays invisible to the **GitHub reviewer** — it never posts to the PR from a tick. To the **loop owner** in the session it emits: the turn preamble, the one-line blocked reminder while awaiting the owner (Steps 2.5 / 7), and (when a dispatch fires) the `/muggle-do` invocation it made through the Skill tool. Nothing else.

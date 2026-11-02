@@ -50,7 +50,7 @@ Append `adopted (from <previous-owner | unowned>)` to the slot's `followup.log`.
 
 ### Step 5 — Report
 
-One line: `adopted <slug> → <owner>/<repo>#<n> — armed`.
+The Step 3 warning, then one line: `adopted <slug> → <owner>/<repo>#<n> — armed`.
 
 ## Invariants
 

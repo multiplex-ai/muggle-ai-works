@@ -22,7 +22,7 @@
  *     for agent scenarios that declare `fixtures`, so a run completes without
  *     auth, cloud, or Electron.
  *   - Skill targets get same-named stand-ins for Skill, Agent, TodoWrite,
- *     CronCreate, CronDelete and Monitor (tools/host-stubs.ts), answered from
+ *     CronCreate, CronList, CronDelete, Monitor and TaskStop (tools/host-stubs.ts), answered from
  *     the scenario's `toolResponses`; nothing they name runs.
  *   - Tool attempts are recorded from the model's own tool_use blocks
  *     (tools/trace.ts), in call order.

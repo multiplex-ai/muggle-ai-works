@@ -100,6 +100,12 @@ describe("case lifecycle mocks", () => {
     expect(Object.keys(executeShape)).toEqual(expect.arrayContaining(["testCase", "showUi", "freshSession"]));
   });
 
+  it("offers the event-emit call the real tool's fields, so an event can name its type", () => {
+    const emitShape = mergedMockToolSpecs({}).find((spec) => spec.name === "muggle-local-telemetry-event-emit")!.shape;
+    expect(Object.keys(emitShape)).toEqual(expect.arrayContaining(["eventType", "skillName", "metadata"]));
+    expect(answererFor({})("muggle-local-telemetry-event-emit", { eventType: "muggle-pr-followup:tick" })).toEqual({ ok: true });
+  });
+
   it("names the requested case in a default prerequisite chain", () => {
     expect(answererFor({})("muggle-remote-test-case-ancestors-get", { testCaseId: "tc-9" })).toMatchObject({
       testCaseId: "tc-9",

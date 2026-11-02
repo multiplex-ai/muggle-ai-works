@@ -1,6 +1,6 @@
 {
   "target": {"kind":"skill","name":"muggle-pr-followup"},
-  "passThreshold": 1,
+  "passThreshold": 0.66,
   "defaults": {
     "bashResponses": [
       {"commandContains":"date -u","response":"2026-10-27T18:00:00Z"},

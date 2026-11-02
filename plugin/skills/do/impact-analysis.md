@@ -154,7 +154,7 @@ e2eScope:
         instruction: <one atomic behavior to verify>
     deliverableChecks:
       - key: DC1
-        category: <video | image | audio | data | research>
+        category: <video | image | audio | data | research | email>
         artifact: <repo-relative path | build: <command> → <output>>
         probes:
           - probe: <property>

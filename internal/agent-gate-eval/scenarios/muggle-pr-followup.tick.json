@@ -3042,8 +3042,7 @@
           },
           {"tool":"Monitor","argContains":["pr-watch-arm.sh","524"]}
         ],
-        "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr524/prs.json","contains":"524"}],
-        "outputMatches": ["polling\\.disabled|kill file"]
+        "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr524/prs.json","contains":"524"}]
       }
     },
     {

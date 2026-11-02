@@ -3,7 +3,9 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { NO_CONCLUSIVE_RUNS_REASON } from "../src/constants.js";
 import { summarizeScenarioVerdicts } from "../src/suite-report.js";
+import { isUsageLimitError } from "../src/usage-limit.js";
 import { countOrderedMatches, judgeAgentRun } from "../src/verdict.js";
 import type { AgentScenario, ArtifactSnapshot, ToolAttempt, ToolAttemptPattern } from "../src/types.js";
 
@@ -293,4 +295,43 @@ describe("summarizeScenarioVerdicts", () => {
     });
     expect(summarizeScenarioVerdicts("s", [verdict(true)], 1)).toMatchObject({ meanCostUsd: null, meanDurationMs: null });
   });
+
+  const usageLimited = () => ({ ...verdict(false, "no result — usage limit"), isInconclusive: true });
+
+  it("leaves reps stopped by a usage limit out of the pass rate", () => {
+    expect(summarizeScenarioVerdicts("s", [verdict(true), verdict(true), usageLimited()], 1)).toMatchObject({
+      runs: 2,
+      passes: 2,
+      passRate: 1,
+      passed: true,
+      inconclusiveRuns: 1,
+      failureReasons: [],
+    });
+  });
+
+  it("fails a scenario whose every rep stopped on a usage limit, saying so", () => {
+    expect(summarizeScenarioVerdicts("s", [usageLimited(), usageLimited()], 0.8)).toMatchObject({
+      runs: 0,
+      passed: false,
+      inconclusiveRuns: 2,
+      failureReasons: [NO_CONCLUSIVE_RUNS_REASON],
+    });
+  });
+});
+
+describe("isUsageLimitError", () => {
+  it.each([
+    "Error: Claude Code returned an error result: You've hit your session limit · resets 10am (UTC)",
+    "Error: Claude Code returned an error result: You've hit your weekly limit · resets Nov 6, 6am (UTC)",
+    "Claude AI usage limit reached|1762000000",
+  ])("recognizes %s", (message) => {
+    expect(isUsageLimitError(new Error(message))).toBe(true);
+  });
+
+  it.each(["Error: context window exceeded", "Error: 529 overloaded_error", "socket hang up"])(
+    "leaves %s a failed rep",
+    (message) => {
+      expect(isUsageLimitError(new Error(message))).toBe(false);
+    },
+  );
 });

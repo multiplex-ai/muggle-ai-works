@@ -37,6 +37,12 @@ export const NO_USER_RESPONSE =
 /** Reps per scenario when `--runs` is unset. */
 export const DEFAULT_AGENT_RUNS = 5;
 
+/** An SDK error saying the account ran out of its session, weekly, or other usage allowance. */
+export const USAGE_LIMIT_SIGNATURE = /\bhit your (?:\w+ )?limit\b|\busage limit reached\b/i;
+
+/** Why a scenario fails when no rep produced a result to judge. */
+export const NO_CONCLUSIVE_RUNS_REASON = "no conclusive runs — every rep stopped on a usage limit";
+
 /** Turn cap when neither the caller nor the scenario sets one. */
 export const DEFAULT_MAX_TURNS = 60;
 

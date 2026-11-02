@@ -96,7 +96,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_500, persistent, timeout 1800000 ms). First output:\nDRAIN pr=500 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=500 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr500/watch-watermark.env"
+          "response": "DRAIN pr=500 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=2 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=500 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr500/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -226,7 +226,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_501, persistent, timeout 1800000 ms). First output:\nDRAIN pr=501 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=501 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr501/watch-watermark.env"
+          "response": "DRAIN pr=501 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=2 behind-base=0 mergeable=MERGEABLE\nARMED pr=501 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr501/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -350,7 +350,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_502, persistent, timeout 1800000 ms). First output:\nDRAIN pr=502 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=502 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr502/watch-watermark.env"
+          "response": "DRAIN pr=502 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=4 mergeable=MERGEABLE\nARMED pr=502 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr502/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -475,7 +475,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_540, persistent, timeout 1800000 ms). First output:\nDRAIN pr=540 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=540 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr540/watch-watermark.env"
+          "response": "DRAIN pr=540 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=CONFLICTING\nARMED pr=540 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr540/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -593,7 +593,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=block-rebase-budget-exhausted"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_541, persistent, timeout 1800000 ms). First output:\nDRAIN pr=541 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=541 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr541/watch-watermark.env"
+          "response": "DRAIN pr=541 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=3 mergeable=MERGEABLE\nARMED pr=541 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr541/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -709,7 +709,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_503, persistent, timeout 1800000 ms). First output:\nDRAIN pr=503 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=503 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr503/watch-watermark.env"
+          "response": "DRAIN pr=503 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=2 behind-base=0 mergeable=MERGEABLE\nARMED pr=503 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr503/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -841,7 +841,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=block-ci-escalated"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_504, persistent, timeout 1800000 ms). First output:\nDRAIN pr=504 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=504 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr504/watch-watermark.env"
+          "response": "DRAIN pr=504 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=3 behind-base=0 mergeable=MERGEABLE\nARMED pr=504 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr504/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -953,7 +953,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_505, persistent, timeout 1800000 ms). First output:\nDRAIN pr=505 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=505 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr505/watch-watermark.env"
+          "response": "DRAIN pr=505 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=505 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr505/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1072,7 +1072,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_506, persistent, timeout 1800000 ms). First output:\nDRAIN pr=506 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=506 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr506/watch-watermark.env"
+          "response": "DRAIN pr=506 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=506 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr506/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1194,7 +1194,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_507, persistent, timeout 1800000 ms). First output:\nDRAIN pr=507 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=507 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr507/watch-watermark.env"
+          "response": "DRAIN pr=507 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=507 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr507/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1314,7 +1314,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_509, persistent, timeout 1800000 ms). First output:\nDRAIN pr=509 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=509 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr509/watch-watermark.env"
+          "response": "DRAIN pr=509 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=509 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr509/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1436,7 +1436,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_510, persistent, timeout 1800000 ms). First output:\nDRAIN pr=510 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=510 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr510/watch-watermark.env"
+          "response": "DRAIN pr=510 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=510 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr510/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1551,7 +1551,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_520, persistent, timeout 1800000 ms). First output:\nDRAIN pr=520 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=520 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr520/watch-watermark.env"
+          "response": "DRAIN pr=520 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=520 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr520/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -1670,7 +1670,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_521, persistent, timeout 1800000 ms). First output:\nDRAIN pr=521 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=521 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr521/watch-watermark.env"
+          "response": "DRAIN pr=521 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=521 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr521/watch-watermark.env"
         },
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
@@ -1854,7 +1854,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_522, persistent, timeout 1800000 ms). First output:\nDRAIN pr=522 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=522 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/watch-watermark.env"
+          "response": "DRAIN pr=522 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=522 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -2073,7 +2073,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_600, persistent, timeout 1800000 ms). First output:\nDRAIN pr=600 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=600 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr600/watch-watermark.env"
+          "response": "DRAIN pr=600 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=600 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr600/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -2349,7 +2349,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_610, persistent, timeout 1800000 ms). First output:\nDRAIN pr=610 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=610 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr610/watch-watermark.env"
+          "response": "DRAIN pr=610 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=610 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr610/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -2563,7 +2563,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_601, persistent, timeout 1800000 ms). First output:\nDRAIN pr=601 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=601 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-ui-pr601/watch-watermark.env"
+          "response": "DRAIN pr=601 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=601 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-ui-pr601/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -2728,7 +2728,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_523, persistent, timeout 1800000 ms). First output:\nDRAIN pr=523 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=523 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr523/watch-watermark.env"
+          "response": "DRAIN pr=523 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=523 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr523/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",
@@ -2876,7 +2876,7 @@
         {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
-          "response": "Monitor started (task mon_530, persistent, timeout 1800000 ms). First output:\nDRAIN pr=530 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=530 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr530/watch-watermark.env"
+          "response": "DRAIN pr=530 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=530 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr530/watch-watermark.env"
         },
         {
           "commandContains": "watch-heartbeat",

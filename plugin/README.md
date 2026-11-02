@@ -83,4 +83,4 @@ codex plugin remove muggle@muggle-works   # Codex
 - [GitHub](https://github.com/multiplex-ai/muggle-ai-works)
 ## License
 
-MIT
+Apache 2.0

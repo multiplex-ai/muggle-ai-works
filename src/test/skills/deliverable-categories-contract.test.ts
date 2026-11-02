@@ -2,7 +2,7 @@
  * Layer 1 of the skill-gate eval: static contract lint.
  *
  * Pins the deliverable categories muggle-do verifies. A criterion about a
- * video, image, audio file, dataset, or research brief used to be scoped
+ * video, image, audio file, dataset, research brief, or email used to be scoped
  * `unobservable` or skipped as NOT_APPLICABLE, so those changes reached review
  * with no acceptance evidence. Every category, web included, now has a flow file
  * declaring how its criteria are verified, and every stage that scopes, runs,
@@ -36,6 +36,7 @@ const VERIFICATION_BY_CATEGORY: Record<string, string> = {
   audio: DELIVERABLE_CHECK_VERIFICATION,
   data: DELIVERABLE_CHECK_VERIFICATION,
   research: DELIVERABLE_CHECK_VERIFICATION,
+  email: DELIVERABLE_CHECK_VERIFICATION,
 };
 
 const FLOW_HEADINGS_BY_VERIFICATION: Record<string, string[]> = {
@@ -67,7 +68,7 @@ describe("parser sanity: refuse to pass vacuously", () => {
 
 describe("the categories file is the one list", () => {
   it("names every category", () => {
-    expect(CATEGORIES_DOC).toMatch(/one of `web`, `video`, `image`, `audio`, `data`, `research`/);
+    expect(CATEGORIES_DOC).toMatch(/one of `web`, `video`, `image`, `audio`, `data`, `research`, `email`/);
   });
 
   it("special-cases no category: each is routed by its flow's declaration", () => {

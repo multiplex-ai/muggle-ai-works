@@ -1,6 +1,6 @@
 # Deliverable categories
 
-A **deliverable** is the artifact an acceptance criterion is about. Its **deliverable category** is one of `web`, `video`, `image`, `audio`, `data`, `research` — the one list of categories, which other files reference rather than restate. No category is special-cased: each criterion is verified the way its category's flow file declares under **Verified by** — **test cases** (Muggle browser test cases, run against the app) or a **deliverable check** (obtain the artifact, probe it, review it, return a verdict). Scoping and the acceptance stage read that declaration from the criterion's category and never branch on a category's name.
+A **deliverable** is the artifact an acceptance criterion is about. Its **deliverable category** is one of `web`, `video`, `image`, `audio`, `data`, `research`, `email` — the one list of categories, which other files reference rather than restate. No category is special-cased: each criterion is verified the way its category's flow file declares under **Verified by** — **test cases** (Muggle browser test cases, run against the app) or a **deliverable check** (obtain the artifact, probe it, review it, return a verdict). Scoping and the acceptance stage read that declaration from the criterion's category and never branch on a category's name.
 
 ## Tagging a criterion
 
@@ -31,6 +31,7 @@ Every category's flow lives in its own file, so it can be customized without tou
 | audio | deliverable check | [`deliverable-categories/audio.md`](deliverable-categories/audio.md) |
 | data | deliverable check | [`deliverable-categories/data.md`](deliverable-categories/data.md) |
 | research | deliverable check | [`deliverable-categories/research.md`](deliverable-categories/research.md) |
+| email | deliverable check | [`deliverable-categories/email.md`](deliverable-categories/email.md) |
 
 Scoping and the acceptance stage open the flow file of every category the cycle's criteria carry before planning or running anything.
 
@@ -45,7 +46,7 @@ Scoping and the acceptance stage open the flow file of every category the cycle'
 ```
 - (deliverable name):
   - key: <DC key from the scope>
-  - category: <video | image | audio | data | research>
+  - category: <video | image | audio | data | research | email>
   - artifact: <repo-relative path, or the build command and its scratch output>
   - criteria: <the criteria it verifies>
   - checks: [{ check, kind: probe | review, expected, observed, passed }, ...]

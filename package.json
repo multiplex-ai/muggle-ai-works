@@ -21,7 +21,8 @@
     "scripts/running-studio-installs.mjs",
     "scripts/release-integrity",
     "scripts/muggle-watch",
-    "config/runtime-targets.json"
+    "config/runtime-targets.json",
+    "NOTICE"
   ],
   "scripts": {
     "clean": "rimraf dist",
@@ -134,7 +135,7 @@
     "vibe-coding"
   ],
   "author": "Muggle AI",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.0.0",
   "repository": {
     "type": "git",

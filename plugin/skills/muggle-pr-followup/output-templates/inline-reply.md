@@ -15,3 +15,15 @@ When an actionable review has a non-empty body but zero line comments, GitHub ha
 ```
 Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
 ```
+
+## Conversation-comment reply
+
+A top-level PR comment (Conversation tab) has no reply endpoint. Answer it with its own top-level comment, exactly one per addressed conversation comment, quoting its first line and linking it so a reader can tell which comment it answers:
+
+```
+> <first line of the comment, trimmed>
+
+Re: [comment](<comment html_url>) by @<author> — addressed in <short-sha>: <one-line summary>.
+```
+
+A question the round answered without a change drops `addressed in <short-sha>:` for the answer itself. Posted per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md) with `--mode loop`, so the watch reads it as the loop's own and never wakes on it.

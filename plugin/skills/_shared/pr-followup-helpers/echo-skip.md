@@ -6,5 +6,6 @@ Under the thread-state dispatch trigger this is **intrinsic** — there is no "a
 
 - **Line-comment threads.** A thread is actionable only when its newest comment lacks the loop marker `<!-- muggle-do:bot -->` (see [`loop-signature.md`](loop-signature.md)). After the loop replies, the newest comment is the loop's own and carries the marker, so the thread drops out of the actionable set on its own.
 - **Body-only reviews.** A loop reply always carries a line comment, so it is never body-only; the body-only check (no line comments, `id > lastBodyReviewId` — see [`../vcs/github/submitted-reviews.md`](../vcs/github/submitted-reviews.md)) excludes echoes structurally.
+- **Conversation comments.** The loop answers a top-level PR comment with a top-level comment of its own, signed `--mode loop`. The watch's projection ([`../../../scripts/pr-watch-state.jq`](../../../scripts/pr-watch-state.jq)) drops every comment muggle posted — the loop marker, any other `<!-- muggle-` marker, or the visible signature outside a quote — and every bot author before taking the newest id, so the reply never lifts the conversation floor.
 
 Classify by the marker, never by `author.login` — under a shared account the loop posts as the PR author, so the login cannot tell echo from human.

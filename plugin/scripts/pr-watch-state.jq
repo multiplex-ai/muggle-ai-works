@@ -6,7 +6,7 @@
 # Field order is the contract pr-watch-loop.sh reads positionally:
 #   state, headRefOid, base-tip, mergeable, latest-review, latest-comment,
 #   unresolved-thread-ids, pending-checks, failed-checks, check-digest,
-#   red-check-runs
+#   red-check-runs, latest-conversation-comment
 #
 # red-check-runs names each failed check with its run id (`name#id`, sorted).
 # A settle, a rerun or a comment-triggered re-check publishes a new run on the
@@ -19,8 +19,31 @@
 # from it stays equal to an escalated or floored key however far the base
 # advances, and the branch never wakes again. A deleted base branch projects as
 # an empty field rather than a missing one, so no later field shifts.
+#
+# latest-conversation-comment is the newest top-level PR comment (the
+# Conversation tab) a human wrote. Last, so every earlier reader keeps its index.
 
 def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
+
+# A body without its `>` quote lines. GitHub's quote-reply copies the quoted
+# text's markdown, so a human answering one of muggle's posts carries muggle's
+# visible signature inside the quote.
+def unquoted_body: (.body // "") | split("\n") | map(select(test("^ *>") | not)) | join("\n");
+
+# Anything muggle posts on the Conversation tab: loop replies and reminders,
+# walkthrough and PR sections (each opens with a `<!-- muggle-` marker), and
+# plain-signed notices, which carry only the visible signature link.
+def muggle_posted:
+    loop_marked
+    or (unquoted_body | contains("<!-- muggle-"))
+    or (unquoted_body | contains("[Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)"));
+
+# GraphQL names a GitHub App by its bare login (`github-actions`) and types it
+# Bot; the `[bot]` suffix is the REST spelling, kept for any author that has it.
+def bot_authored:
+    (.author.__typename // "") == "Bot"
+    or ((.author.login // "") | endswith("[bot]"))
+    or (.author.login // "") == "github-actions";
 
 .data.repository.pullRequest as $pr
 | (($pr.commits.nodes[0].commit.statusCheckRollup.contexts.nodes) // []) as $contexts
@@ -64,5 +87,6 @@ def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
   ($checks | map(select(.verdict == "PENDING")) | length),
   ($failedChecks | length),
   ($checks | sort_by(.name) | map(.name + ":" + .verdict) | join(",")),
-  ($failedChecks | map(.name + "#" + (.runId | tostring)) | sort | join(","))
+  ($failedChecks | map(.name + "#" + (.runId | tostring)) | sort | join(",")),
+  ((($pr.comments.nodes // []) | map(select((muggle_posted | not) and (bot_authored | not)) | .databaseId) | max) // 0)
 ] | @tsv

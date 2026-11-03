@@ -42,6 +42,7 @@ query($owner: String!, $name: String!, $number: Int!) {
           comments(last: 1) { nodes { databaseId body pullRequestReview { databaseId state } } }
         }
       }
+      comments(last: 50) { nodes { databaseId body createdAt author { __typename login } } }
     }
   }
 }' --jq "$state_projection" 2>>"${slot}/watch-fetch.log"

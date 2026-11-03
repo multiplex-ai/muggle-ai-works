@@ -95,6 +95,7 @@ read_reported() {
 }
 reported_review=$(read_reported REV)
 reported_comment=$(read_reported COM)
+reported_conversation=$(read_reported CONV)
 reported_threads=$(read_reported THREADS)
 floor_ci_red=$(read_reported CIRED)
 floor_rebase=$(read_reported REBASED)
@@ -154,6 +155,7 @@ while :; do
 
     watermark_review=$(read_watermark REV)
     watermark_comment=$(read_watermark COM)
+    watermark_conversation=$(read_watermark CONV)
     watermark_threads=$(read_watermark THREADS)
     watermark_ci_red=$(read_watermark CIRED)
     watermark_rebase=$(read_watermark REBASED)
@@ -188,6 +190,7 @@ while :; do
     failed_checks="${STATE_FIELDS[8]-}"
     ci_digest="${STATE_FIELDS[9]-}"
     ci_red_key="$(watch_ci_red_key "$head_sha" "${STATE_FIELDS[10]-}")"
+    latest_conversation="${STATE_FIELDS[11]-}"
 
     if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
         echo "TERMINAL pr=$pr_number state=$pr_state"
@@ -208,6 +211,17 @@ while :; do
 
     watch_wake_review "$pr_number" "$latest_review" "$(higher_id "$watermark_review" "$reported_review")" && has_reported=1
     watch_wake_comment "$pr_number" "$latest_comment" "$(higher_id "$watermark_comment" "$reported_comment")" && has_reported=1
+
+    # A watermark armed before conversation comments were watched has no CONV
+    # floor, and reading that as zero would report every human comment the PR
+    # ever had. Such a slot floors at this loop's first read until a re-arm
+    # seeds the key from its drain.
+    if ! watch_slot_has_key "$slot" watch-watermark.env CONV; then
+        legacy_conversation_floor="${legacy_conversation_floor:-${latest_conversation:-0}}"
+        watermark_conversation="$legacy_conversation_floor"
+    fi
+    watch_wake_conversation_comment "$pr_number" "$latest_conversation" \
+        "$(higher_id "$watermark_conversation" "$reported_conversation")" && has_reported=1
 
     if [ -n "$unresolved_threads" ]; then
         IFS=';' read -ra thread_ids <<< "$unresolved_threads"
@@ -265,7 +279,8 @@ while :; do
 
     if [ -n "$has_reported" ]; then
         watch_record_reported "$slot" "$(higher_id "$latest_review" "$reported_review")" \
-            "$(higher_id "$latest_comment" "$reported_comment")" "$unresolved_threads" \
+            "$(higher_id "$latest_comment" "$reported_comment")" \
+            "$(higher_id "$latest_conversation" "$reported_conversation")" "$unresolved_threads" \
             "$floor_ci_red" "$floor_rebase" "$floor_blocked_digest" "$floor_blocked_for"
         exit 0
     fi

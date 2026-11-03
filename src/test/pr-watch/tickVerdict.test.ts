@@ -122,6 +122,10 @@ describe("resolveWatchTickVerdict: idle blocks", () => {
     expect(verdictFor({ escalated_review_ids: [7] })).toBe(WatchTickVerdict.BlockReviewsEscalated);
   });
 
+  it("blocks on an escalated conversation comment when nothing else applies", () => {
+    expect(verdictFor({ escalated_conversation_comment_ids: [9] })).toBe(WatchTickVerdict.BlockReviewsEscalated);
+  });
+
   it("idles with nothing recorded", () => {
     expect(verdictFor({})).toBe(WatchTickVerdict.Idle);
   });

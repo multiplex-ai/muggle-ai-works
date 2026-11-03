@@ -46,6 +46,16 @@ enum Field {
   FailedChecks = 8,
   CheckDigest = 9,
   RedCheckRuns = 10,
+  LatestConversationComment = 11,
+}
+
+const STATE_FIELD_COUNT = 12;
+
+interface ConversationCommentFixture {
+  databaseId: number;
+  body: string;
+  authorLogin?: string;
+  authorType?: string;
 }
 
 interface ThreadFixture {
@@ -65,6 +75,7 @@ function snapshot(
   threads: ThreadFixture[],
   contexts: unknown[] = [],
   baseRef: { target: { oid: string } } | null = { target: { oid: "ccc" } },
+  conversationComments: ConversationCommentFixture[] = [],
 ): string {
   return JSON.stringify({
     data: {
@@ -94,6 +105,14 @@ function snapshot(
                   },
                 ],
               },
+            })),
+          },
+          comments: {
+            nodes: conversationComments.map((comment) => ({
+              databaseId: comment.databaseId,
+              body: comment.body,
+              createdAt: "2026-11-03T00:00:00Z",
+              author: { __typename: comment.authorType ?? "User", login: comment.authorLogin ?? "reviewer" },
             })),
           },
         },
@@ -238,14 +257,14 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
 
   // The loop reads these positionally, so a field added anywhere but the end
   // silently shifts every reader after it.
-  it("emits exactly the eleven fields the loop reads positionally", () => {
+  it("emits exactly the fields the loop reads positionally", () => {
     const fields = project(
       snapshot(
         [{ databaseId: 300, body: "" }],
         [{ id: "T1", commentId: 13, body: humanComment, reviewId: 300 }],
       ),
     );
-    expect(fields).toHaveLength(11);
+    expect(fields).toHaveLength(STATE_FIELD_COUNT);
   });
 
   // baseRefOid ("bbb") only moves when the head is pushed, so a rebase key built
@@ -256,9 +275,58 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
 
   it("keeps the base tip's slot when the base branch is gone", () => {
     const fields = project(snapshot([], [], [], null));
-    expect(fields).toHaveLength(11);
+    expect(fields).toHaveLength(STATE_FIELD_COUNT);
     expect(fields[Field.BaseTip]).toBe("");
     expect(fields[Field.Mergeable]).toBe("MERGEABLE");
+  });
+
+  describe("latest conversation comment", () => {
+    const latestConversation = (comments: ConversationCommentFixture[]): string =>
+      project(snapshot([], [], [], { target: { oid: "ccc" } }, comments))[Field.LatestConversationComment];
+
+    it("is the newest top-level comment a human wrote", () => {
+      expect(
+        latestConversation([
+          { databaseId: 70, body: "can you rename this?" },
+          { databaseId: 71, body: "also the docs" },
+        ]),
+      ).toBe("71");
+    });
+
+    it("is zero on a PR with no conversation comments", () => {
+      expect(latestConversation([])).toBe("0");
+    });
+
+    it.each([
+      ["a loop reply", `${LOOP_MARKER}\nRe: comment #70 — addressed in abc1234.`],
+      ["a PR section", "<!-- muggle-pr-section:v1 -->\n## E2E"],
+      ["a walkthrough", "<!-- muggle-pr-walkthrough:v1 -->\nresults"],
+      ["a skipped-walkthrough settle", "<!-- muggle-pr-walkthrough-status:skipped -->\nskipped"],
+      ["a description-style signature", "<!-- muggle-works:signature -->\nbody"],
+      [
+        "a plain-signed notice",
+        "done\n\n🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_",
+      ],
+    ])("ignores %s", (_label, body) => {
+      expect(latestConversation([{ databaseId: 70, body: "please fix" }, { databaseId: 80, body: body }])).toBe("70");
+    });
+
+    it.each([
+      ["a GraphQL Bot", { authorType: "Bot", authorLogin: "github-actions" }],
+      ["a [bot] login", { authorLogin: "dependabot[bot]" }],
+      ["github-actions", { authorLogin: "github-actions" }],
+    ])("ignores %s author", (_label, author) => {
+      expect(
+        latestConversation([{ databaseId: 70, body: "please fix" }, { databaseId: 80, body: "deploy ok", ...author }]),
+      ).toBe("70");
+    });
+
+    // Quote-reply copies the quoted markdown, signature link included.
+    it("keeps a human reply quoting one of muggle's posts", () => {
+      const quotedReply =
+        "> done\n> 🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_\n\nthat broke the build";
+      expect(latestConversation([{ databaseId: 90, body: quotedReply }])).toBe("90");
+    });
   });
 
   // The read moved into pr-watch-fetch.sh so the arm step and the loop see the

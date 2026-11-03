@@ -11,6 +11,7 @@ export interface LastSeenPrEntry {
   catch_up_rebases?: number;
   rebase_budget_exhausted?: boolean;
   escalated_review_ids?: number[];
+  escalated_conversation_comment_ids?: number[];
   blocked?: { fingerprint?: { ci_digest?: unknown } };
 }
 

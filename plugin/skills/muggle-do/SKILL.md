@@ -50,7 +50,7 @@ The pipeline table lists **pointers, not summaries**. Open each stage's file and
 **Per stage:** read the file → execute it → append one marker line to `iterations/<NNN>.md`, always in the form `Stage <N> done — <evidence>`, citing the evidence that file requires (jest exit code, E2E verdict + `runId`, screenshot path). A stage is done only when its evidence is written, never on recollection.
 
 ### "Autonomous" / "without my intervention" collapses exactly one thing
-Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision collapses, into an automatic waive. Run the whole pipeline silently — never a shortcut.
+Best-effort the Stage-1 questionnaire and don't ask. It does **not** license skipping telemetry, session artifacts, requirements, unit tests, E2E (`autoE2ETest` defaults to `always`), browser verification, the gate below, the Stage-7.5 repair loop, or the watcher hand-off. Stage 7.5 investigates and repairs unattended too; only its user decision is deferred — left open for the user and carried by the watcher, never waived on their behalf. Run the whole pipeline silently — never a shortcut.
 
 ### Definition of Done — gates before Stages 5.5 and 7
 Each line holds, or is waived by a one-line reason written into `state.md` (silence is not a waiver).
@@ -105,5 +105,5 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 - Stage 1 and Stage 7.5's user decision are the only user-facing forward stages. Stages 2–7 don't ask mid-cycle; blocker → pre-flight bug.
 - Same stage failing 3× → escalate.
 - Each route's entry file declares the stage files every run of that route opens, and a Stop gate holds the turn until they are read. A turn that ends before its route's last stage — a readiness halt, an escalation, a pause for a background run — records why with `echo "MUGGLE_STAGE_SKIP: <reason>"`.
-- 3 repair iterations reach E2E with failures → waive, ship with `[E2E FAILING]`, and hand to the watcher.
+- 3 repair iterations reach E2E with failures → put the surviving failures to the user (an open decision when unattended), ship with `[E2E FAILING]`, and hand to the watcher.
 - Address-reviews escalation (ambiguous or design-adjustment) does not block the watcher; user resolves on GitHub.

@@ -172,6 +172,7 @@ Act on the verdict:
      ```
      /muggle-do fix ci <check-1> <check-2> ... on <pr-url> slug=<slug>
      ```
+     A red `muggle-walkthrough` is named like any other red check — the executor reads its summary and decides between repairing failed E2E cases and posting a walkthrough still owed. The watcher never tells them apart, and never skips the dispatch because the only red check is the walkthrough.
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
 - `block-conflict-escalated`, `block-ci-escalated`, `block-reviews-escalated` → blocked pending a human (Step 7).
@@ -182,7 +183,7 @@ Act on the verdict:
 Any tick that did not dispatch. The Step 6 verdict says **why** it idled. It is **blocked pending a human** on a `block-*` verdict, a durable block only the user can clear:
 
 - `block-conflict-escalated` — a rebase `/muggle-do` attempted and gave up on (a semantic conflict, or `autoResolveConflicts=never`), reason `conflict_escalated`. This block clears on its own when the base moves: the new `base_tip_sha` yields a key the set does not contain, and the branch re-arms for a fresh rebase attempt;
-- `block-ci-escalated` — CI the fix-ci stage gave up on, or a red head that spent all 3 fix-ci attempts, reason `ci_escalated`;
+- `block-ci-escalated` — CI the fix-ci stage gave up on, or a red head that spent all 3 fix-ci attempts, reason `ci_escalated`. When `last_seen.e2e_decision` names this head, the block is an E2E decision the user owes, and the reminder carries its cases and options ([`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md));
 - `block-reviews-escalated` — an ambiguous review in `last_seen.escalated_review_ids` awaiting the user's direction, with the actionable set empty, reason `reviews_escalated`;
 - `block-rebase-budget-exhausted` — reason `rebase_budget_exhausted` (Step 6).
 

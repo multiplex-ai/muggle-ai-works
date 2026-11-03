@@ -78,7 +78,7 @@ Runs once Stage 6 has recorded this change's verdict; a Stage 6 readiness halt n
 
 ## Stage 7.5 gate
 
-The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once Stage 7 has settled the walkthrough, and before the handoff below. Proceed only on its `green`, `waived`, or `iteration-cap` clearance — handing a red run to a watcher puts it in front of reviewers with nobody looking at the failures. When Stage 6 recorded `PASS` or `SKIPPED` the loop clears in its own Step 0 at no cost, so there is never a reason to skip it.
+The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once Stage 7 has settled the walkthrough, and before the handoff below. Proceed only on its `green`, `waived`, or `decision-pending` clearance — handing a red run to a watcher with no decision asked puts it in front of reviewers with nobody looking at the failures. When Stage 6 recorded `PASS` or `SKIPPED` the loop clears in its own Step 0 at no cost, so there is never a reason to skip it.
 
 ## Stage 8 handoff
 
@@ -109,7 +109,7 @@ If `prs.json` is empty, **do not arm** — record the reason in `result.md` and 
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Tested head:** repo → `already the PR head` | `force-pushed <short-sha> (Stage 6 synced onto a moved base)`
 **Overflow comments posted:** repo → PR #
-**Stage 7.5:** `green` | `waived — <reason>` | `iteration-cap`
+**Stage 7.5:** `green` | `waived — <reason>` | `decision-pending`
 **Stage 8:** `Watching <N> PR(s) — one watch loop per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
 **Errors:** repo → message
 

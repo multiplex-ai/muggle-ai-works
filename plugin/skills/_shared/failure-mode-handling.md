@@ -45,6 +45,7 @@ When the subagent aggregates per-script results from sections B and C into one v
 | `product-uxux` (regen) | C | **FAIL** |
 | `agent-course` (regen) | C | **INCONCLUSIVE** (agent couldn't complete, not a PR defect) |
 | `transient` (regen) | C | retry once; if still transient → **INCONCLUSIVE** |
+| `test-precondition` (replay or regen) | B / C | **INCONCLUSIVE** (the test's starting state was never met, not a PR defect) |
 
 A deliverable check ([`deliverable-categories.md`](deliverable-categories.md)) carries no bucket; its own `FAIL` or `INCONCLUSIVE` verdict counts as a test case's **FAIL** or **INCONCLUSIVE** here.
 
@@ -111,6 +112,7 @@ Triggered when `muggle-local-execute-replay` returns `status: "failed"` (or non-
 | **infra** | Something is wrong inside Muggle Test itself (e.g., click didn't register on a clearly-clickable element, Electron crash, browser engine quirk). Not the user's fault and not a stale script. |
 | **stale-script** | The test script no longer matches the live UI (selectors moved, label paths changed, page renamed). The product still works; the script is out of date. |
 | **product-defect** | The script and infra are fine; the user's app actually misbehaved (assertion failure on previously-passing step, unexpected error, wrong page after action). This is the failure mode acceptance testing exists to catch. |
+| **test-precondition** | The product behaves correctly for the data it has; the test asserts on state the test account never held. The asserted record, row, or value is missing because nothing in the test created it — stale or missing test data, a prerequisite the test case assumes but never sets up. Example: a test asserting a billing debit row shows token counts, on an account whose every debit predates the code that records counts. The test is wrong, not the product. |
 
 ### Where to read signals
 
@@ -126,6 +128,7 @@ Call `muggle-local-run-result-get` (local) or the remote equivalent and read **s
 - **infra** signals: `electron-crash`, `chromium-error`, `click-no-effect-on-clickable-element`, `timeout-on-trivial-wait`, `internal-error-in-mcp-output`.
 - **stale-script** signals: `element-not-found`, `selector-timeout`, `label-path-mismatch`, `nav-target-404`, `aria-label-changed`.
 - **product-defect** signals: `assertion-failed-on-passing-step`, `unexpected-error-toast`, `wrong-page-after-action`, `network-500-from-app`, `form-validation-rejected-valid-input`.
+- **test-precondition** signals: `asserted-record-absent`, `empty-state-where-rows-expected`, `fixture-predates-change`, `prerequisite-state-never-created`. The frames show the page rendering correctly for the data present — the list loads, the row that exists is right — and the asserted state is simply not in the account. Before settling on it, confirm the product produces that state when exercised: a page that cannot show token counts on a fresh debit is a **product-defect**.
 - Studio verdict `bug_detected` (`**Studio Verdict:** Bug Detected (bug_detected)` on `muggle-local-run-result-get`) settles the bucket as **product-defect**, status `failed`: it is a product bug the run proved. Surface it to the user as a bug in their app; do not retry, regenerate, or debug the test.
 
 If signals span multiple buckets, pick the most specific one and list all signals in telemetry — the user can override.
@@ -139,6 +142,7 @@ Present via `AskUserQuestion`. The first option is the AI's recommendation (labe
 | **infra** | Report bug to Muggle AI → invoke `muggle-feedback` skill with `category: "muggle-infra"` (and run id / signals). | Retry; muggle-feedback (different category); Skip. |
 | **stale-script** | Regenerate the script → call `muggle-local-execute-test-generation` (or remote equivalent) for this test case, then re-replay. | Retry as-is; muggle-feedback; Skip. |
 | **product-defect** | Surface as a real defect — show the failing step + screenshot + one-line summary; offer to share via email/SMS/file ticket (see "Sharing real defects" below). | muggle-feedback (if the script's *expectation* was wrong); Retry; Skip. |
+| **test-precondition** | Repair the test, not the product → update the test case (`muggle-remote-test-case-update`) so it creates the state it asserts on: a setup step that produces the record, a seeded precondition, or a prerequisite test case it chains after. Then regenerate the script and re-run. Never weaken the assertion to fit the data. | Retry; muggle-feedback; Skip. |
 
 ### Sharing real defects
 
@@ -160,8 +164,8 @@ Emit **two events per failure**: one when the AI classifies (before asking the u
 {
   "eventType": "replay-failure-classified",
   "skillName": "<this skill>",
-  "aiClassification": "infra" | "stale-script" | "product-defect",
-  "aiSuggestion": "report-bug" | "regenerate" | "share-defect",
+  "aiClassification": "infra" | "stale-script" | "product-defect" | "test-precondition",
+  "aiSuggestion": "report-bug" | "regenerate" | "share-defect" | "repair-test",
   "runId": "<local run id>",
   "testCaseId": "<id>",
   "projectId": "<id>",
@@ -176,7 +180,7 @@ Emit **two events per failure**: one when the AI classifies (before asking the u
   "skillName": "<this skill>",
   "aiClassification": "<same as above>",
   "aiSuggestion": "<same as above>",
-  "userAction": "regenerate" | "report-bug" | "share-email" | "retry" | "muggle-feedback" | "skip",
+  "userAction": "regenerate" | "report-bug" | "share-email" | "repair-test" | "retry" | "muggle-feedback" | "skip",
   "runId": "<local run id>",
   "testCaseId": "<id>",
   "projectId": "<id>"
@@ -199,6 +203,7 @@ Triggered when `muggle-local-execute-test-generation` (or the remote equivalent)
 | **infra** | A Muggle Test bug stopped generation from progressing (handler crash, schema validation in our code, deterministic LLM-pipeline failure). |
 | **agent-course** | The generation agent went down a wrong path (chose the wrong button, misread the goal, looped on a blocking modal). The product is fine and the test case is fine — the agent's *course* needs steering. |
 | **product-uxux** | The product itself blocks the test (broken page, missing element, server error). Agent can't proceed because the feature doesn't actually work. |
+| **test-precondition** | As in section B: the agent reached the assertion and the state it checks was never created in the test account. Same signals, same suggestion. |
 
 ### Where to read signals
 
@@ -229,17 +234,18 @@ Present via `AskUserQuestion`. **Always show the run summary first** so the user
 | **infra** | Report bug to Muggle AI → `muggle-feedback` with `category: "muggle-infra"` (run id, signals, summary excerpt). | Retry; Skip. |
 | **agent-course** | Steer the agent → invoke `muggle-feedback` skill so the user describes what should have happened; the workflow re-runs with the corrected course. | Retry; Edit test case; Skip. |
 | **product-uxux** | Wait for fix — share the run summary + screenshot to the dev. Offer email / SMS / file ticket (see "Sharing real defects" in section B). | Retry once the fix lands; muggle-feedback; Skip. |
+| **test-precondition** | Repair the test, per section B. | Retry; muggle-feedback; Skip. |
 
 ### Telemetry
 
-Same two-event pattern as section B, with `eventType` values `regen-failure-classified` and `regen-failure-resolved`. `aiClassification` is one of the four bucket strings; `userAction` is the user's pick.
+Same two-event pattern as section B, with `eventType` values `regen-failure-classified` and `regen-failure-resolved`. `aiClassification` is one of the five bucket strings; `userAction` is the user's pick.
 
 ```json
 {
   "eventType": "regen-failure-classified",
   "skillName": "<this skill>",
-  "aiClassification": "transient" | "infra" | "agent-course" | "product-uxux",
-  "aiSuggestion": "retry" | "report-bug" | "muggle-feedback" | "wait-and-share",
+  "aiClassification": "transient" | "infra" | "agent-course" | "product-uxux" | "test-precondition",
+  "aiSuggestion": "retry" | "report-bug" | "muggle-feedback" | "wait-and-share" | "repair-test",
   "runId": "<local run id>",
   "testCaseId": "<id>",
   "projectId": "<id>",

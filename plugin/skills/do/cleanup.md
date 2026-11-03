@@ -13,9 +13,9 @@ The facts [`next-step.md`](next-step.md) reports a finished PR from. Teardown de
 - `pr` — `<owner>/<repo>#<n>` and URL, from `prs.json`.
 - `state` — `merged` or `closed`, from `prs.json`.
 - `title` — from the PR-metadata recipe of `prs.json`'s `provider` ([`github.md`](../_shared/vcs/github.md), [`gitlab.md`](../_shared/vcs/gitlab.md)); the slot does not store it.
-- `e2eFailing` — the title carries `[E2E FAILING]`: the PR shipped on a waived E2E verdict.
+- `e2eFailing` — the title carries `[E2E FAILING]`: the PR shipped on a waived or still-undecided E2E verdict.
 - `escalatedReviewIds` — `result.md`'s `Escalated review ids`; empty on `none` or when `result.md` is absent.
-- `waivers` — `state.md`'s waiver and Blocker lines, verbatim.
+- `waivers` — `state.md`'s waiver and Blocker lines and any open `## E2E decision` block, verbatim.
 - `teardown` — the note next-step prints, from this turn's teardown report: `cleaned up` when no row is `❌`, the first `❌` row's reason otherwise, `branch kept` when teardown did not run.
 - `finishedAt` — ISO-8601, when step 6 ran.
 

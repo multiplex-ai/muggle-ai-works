@@ -112,6 +112,10 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "conflict_escalated_keys": ["<head-sha>..<base-tip-sha>", ...],
     "catch_up_rebases": <int>,
     "rebase_budget_exhausted": <bool>,
+    "e2e_decision": {
+      "head_sha": "<sha>",
+      "cases": [{ "name": "<test case>", "testCaseId": "<id>", "bucket": "<bucket>", "failedStep": <int>, "waived": <bool> }]
+    },
     "blocked": {
       "reason": "conflict_escalated" | "ci_escalated" | "reviews_escalated",
       "since": "<ISO-8601>",
@@ -140,6 +144,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). Suppresses rebase dispatch **only while `conflict_resolve_attempts[key] >= 1`**; an entry with no attempt behind it is ignored and the rebase dispatches anyway.
 - `catch_up_rebases`: how many rebases this PR has been dispatched for across its whole life. A plain counter, deliberately unkeyed: the two fields above key on `rebase_key`, which changes on every base advance and so hands an active base an unlimited supply of fresh budgets. Nothing resets this one, which makes it the only cap that binds. Capped by [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) — 20 by default, `never` for unbounded. Incremented by the rebase cycle on every push, whatever the outcome.
 - `rebase_budget_exhausted`: set by the tick once `catch_up_rebases` reaches the cap, recording why the watch blocks with reason `rebase_budget_exhausted`. The verdict judges exhaustion from the counter and the cap, never from this flag, so raising the preference resumes rebases at once.
+- `e2e_decision`: the walkthrough cases a fix-ci cycle could not repair on `head_sha`, each with its failure bucket and failing step — written alongside the `ci_escalated_shas` entry when `muggle-walkthrough` is among the escalated checks. `waived: true` marks a case the user already waived. The blocked reminder reads it for a `ci_escalated` block whose `head_sha` matches ([`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md)); one naming another head is stale and ignored. The verdict script never reads it.
 
 The escalation sets and attempt counters are written by the `/muggle-do` cycles that ran, and only by them. The dispatch decision that reads them lives in [`../../scripts/pr-watch-verdict.mjs`](../../scripts/pr-watch-verdict.mjs) ([`contract.md`](contract.md) Step 6), not in prose.
 

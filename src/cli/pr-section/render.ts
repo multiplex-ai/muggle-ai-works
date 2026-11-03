@@ -6,7 +6,7 @@
  *   1. Summary: verdict headline + the failed/inconclusive cases with why + per-test name list (numbered;
  *      grouped by useCaseName when present).
  *   2. Test details: per test case, in report order, a result table, one collapsible holding one
- *      collapsible per step with its screenshot, then the ending screen.
+ *      collapsible per step with its screenshot closed by the run's summary row, then the ending screen.
  *
  * A test case that ran more than once at one runSettings record collapses to a
  * single entry carrying its latest run; see resolveLatestRuns.
@@ -14,6 +14,9 @@
 
 import {
   DETAIL_IMAGE_WIDTH,
+  MISSING_RUN_SUMMARY_TEXT,
+  RUN_SUMMARY_MARKER,
+  RUN_SUMMARY_VERDICT_STATUS_LABELS,
   SHORT_ID_LABEL_SEPARATOR,
   STEP_ELEMENT_ID_SUFFIX,
   STEP_IMAGE_WIDTH,
@@ -34,7 +37,14 @@ import {
 import { renderE2eResultMarker } from "../../e2e-result/marker.js";
 import type { IE2eResultRecord } from "../../e2e-result/types.js";
 import { buildE2eResultRecord, failureOrdinal } from "./result-record.js";
-import { StepScreenshotDetailEnum, type E2eReport, type Step, type TestResult } from "./types.js";
+import {
+  StepScreenshotDetailEnum,
+  type E2eReport,
+  type RecordedRunSummary,
+  type RunSummary,
+  type Step,
+  type TestResult,
+} from "./types.js";
 
 /** A test case at one runSettings record reduced to its latest run, plus how many runs it had. */
 export interface ILatestRun {
@@ -186,14 +196,15 @@ function defaultEndingCaption (test: TestResult): string {
 /**
  * Resolve the single screenshot + caption rendered inside a test's details block.
  *
- * Precedence: an explicit `endingScreenshotUrl` on the test wins (this is how
- * a caller surfaces the action script's dedicated summary step), otherwise
- * we fall back to the failure / last step from `steps[]`.
+ * Precedence: an explicit `endingScreenshotUrl` on the test wins, then the
+ * screenshot of the run's recorded summary step, otherwise the failure / last
+ * step from `steps[]`.
  */
 function endingFrame (test: TestResult): IEndingFrame | null {
-  if (test.endingScreenshotUrl) {
+  const explicitUrl = test.endingScreenshotUrl ?? recordedRunSummary(test.runSummary)?.screenshotUrl;
+  if (explicitUrl) {
     return {
-      url: test.endingScreenshotUrl,
+      url: explicitUrl,
       caption: test.endingScreenshotCaption ?? defaultEndingCaption(test),
     };
   }
@@ -207,6 +218,11 @@ function endingFrame (test: TestResult): IEndingFrame | null {
   };
 }
 
+/** The run's summary step when it recorded one; null when it recorded none or the report predates the field. */
+function recordedRunSummary (runSummary: RunSummary | undefined): RecordedRunSummary | null {
+  return runSummary?.isRecorded ? runSummary : null;
+}
+
 /**
  * A screenshot at its original resolution, shrunk only by `width` and left bare: GitHub wraps it in a link to
  * itself that opens the full-size image in a new tab, while a link of our own would open in the same tab because
@@ -217,9 +233,14 @@ function screenshotImage (url: string, displayWidth: number, alt: string): strin
   return `<img src="${url}" width="${displayWidth}" alt="${escapeHtmlAttribute(alt)}">`;
 }
 
+/** Fold free text onto one line, so it stays inside the row, list item or emphasis it is placed in. */
+function singleLine (text: string): string {
+  return text.replace(/\s*\n\s*/g, " ");
+}
+
 /** Fit free text into one table cell: a line break or a bare pipe would end the row. */
 function tableCell (s: string): string {
-  return s.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
+  return singleLine(s).replace(/\|/g, "\\|");
 }
 
 /** What a step did, in the agent's words when it gave them, else the operation verb. */
@@ -399,7 +420,7 @@ export function renderTestDetails (
   const { test } = entry;
   const lines: string[] = [`<a name="${testAnchor(test)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel(test)}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
-    lines.push(`_${test.description.replace(/\s*\n\s*/g, " ")}_`, "");
+    lines.push(`_${singleLine(test.description)}_`, "");
   }
   lines.push(...renderResultTable(entry));
   const steps = renderSteps(test, screenshotDetail);
@@ -436,6 +457,9 @@ function testAnchor (identity: WalkthroughEntryIdentity): string {
  */
 function stepsToggleLabel (test: TestResult, screenshotDetail: StepScreenshotDetailEnum): string {
   const count = test.steps.length;
+  if (count === 0) {
+    return "<kbd>Show the run summary</kbd>";
+  }
   const stepCount = `${count} ${count === 1 ? "step" : "steps"}`;
   return screenshotDetail === StepScreenshotDetailEnum.None
     ? `<kbd>Show ${stepCount}</kbd>`
@@ -483,18 +507,71 @@ function renderStepScreenshots (step: Step, position: number, screenshotDetail: 
 }
 
 /**
+ * The summary row's label: verdict status, then the headline.
+ *
+ * Output shape: `🏁 Summary · ✅ Success — Checkout completed and the order page shows the total`
+ */
+function runSummaryLabel (runSummary: RecordedRunSummary): string {
+  const statusLabel = runSummary.status ? `${RUN_SUMMARY_VERDICT_STATUS_LABELS[runSummary.status]} — ` : "";
+  return `${RUN_SUMMARY_MARKER} Summary · ${statusLabel}${escapeHtml(singleLine(runSummary.headline))}`;
+}
+
+/** The verdict text the summary step's comment carries, one labelled line each. */
+function runSummaryVerdictLines (runSummary: RecordedRunSummary): string[] {
+  const labelledTexts: Array<[string, string | undefined]> = [
+    ["Verdict", runSummary.verdict],
+    ["Blocking issues", runSummary.blockingIssues],
+  ];
+  return labelledTexts
+    .filter((labelled): labelled is [string, string] => Boolean(labelled[1]))
+    .map(([label, text]) => `**${label}:** ${escapeHtml(singleLine(text))}`);
+}
+
+/**
+ * The row closing a run's step list: the halt step the run summarized itself with — headline, verdict status,
+ * verdict text and the screen it ended on — or a line saying the run ended without one. Kept apart from the
+ * numbered steps so it never reads as an action. Null for a report that carries no `runSummary`.
+ */
+function renderRunSummaryRow (runSummary: RunSummary | undefined, screenshotDetail: StepScreenshotDetailEnum): string | null {
+  if (!runSummary) {
+    return null;
+  }
+  const isTextOnly = screenshotDetail === StepScreenshotDetailEnum.None;
+  // A plain line straight after a step's </details> would join that HTML block and lose its markdown.
+  if (!runSummary.isRecorded) {
+    return isTextOnly ? `- ${MISSING_RUN_SUMMARY_TEXT}` : `\n${MISSING_RUN_SUMMARY_TEXT}`;
+  }
+  const verdictLines = runSummaryVerdictLines(runSummary);
+  if (isTextOnly) {
+    return [`- ${runSummaryLabel(runSummary)}`, ...verdictLines.map((line) => `  - ${line}`)].join("\n");
+  }
+  const blocks = runSummary.screenshotUrl
+    ? [...verdictLines, screenshotImage(runSummary.screenshotUrl, STEP_IMAGE_WIDTH, "Run summary")]
+    : verdictLines;
+  if (blocks.length === 0) {
+    return `\n${runSummaryLabel(runSummary)}`;
+  }
+  // Blank lines keep each verdict line its own paragraph inside the collapsible.
+  const body = blocks.flatMap((block, i) => (i === 0 ? [block] : ["", block]));
+  return [`<details><summary>${runSummaryLabel(runSummary)}</summary>`, ...indented(body), "</details>"].join("\n");
+}
+
+/**
  * Render the run's steps, one collapsible each that opens onto that step's
  * screenshot — a comment runs no script, so a native <details> is the only
- * interaction available. Past the threshold the middle is elided with a pointer
- * to the full run. Ordinals come from array position, so the tail reads as the
- * run's real step numbers. Returns null when the run recorded no steps.
+ * interaction available — closed by the run's summary row. Past the threshold
+ * the middle is elided with a pointer to the full run. Ordinals come from array
+ * position, so the tail reads as the run's real step numbers. Returns null when
+ * the run recorded neither steps nor a summary.
  */
 function renderSteps (
   test: TestResult,
   screenshotDetail: StepScreenshotDetailEnum,
 ): string[] | null {
   const { steps } = test;
-  if (steps.length === 0) {
+  const summaryRow = renderRunSummaryRow(test.runSummary, screenshotDetail);
+  const summaryRows = summaryRow ? [summaryRow] : [];
+  if (steps.length === 0 && summaryRows.length === 0) {
     return null;
   }
   const isTextOnly = screenshotDetail === StepScreenshotDetailEnum.None;
@@ -508,7 +585,7 @@ function renderSteps (
         ].join("\n");
   const heading = isTextOnly ? ["**Steps**", ""] : ["**Steps** — click a step to see its screenshots", ""];
   if (steps.length <= STEP_LIST_ELISION_THRESHOLD) {
-    return [...heading, ...steps.map((step, i) => collapsible(step, i + 1))];
+    return [...heading, ...steps.map((step, i) => collapsible(step, i + 1)), ...summaryRows];
   }
   const tailStart = steps.length - STEP_LIST_TAIL_COUNT;
   const hidden = tailStart - STEP_LIST_HEAD_COUNT;
@@ -519,6 +596,7 @@ function renderSteps (
     `_… ${hidden} more ${hidden === 1 ? "step" : "steps"} — ${dashboardLink(test)}_`,
     "",
     ...steps.slice(tailStart).map((step, i) => collapsible(step, tailStart + i + 1)),
+    ...summaryRows,
   ];
 }
 

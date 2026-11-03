@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
+import { STEP_LIST_ELISION_THRESHOLD, TEST_DETAILS_ANCHOR_PREFIX } from "../../../cli/pr-section/constants.js";
 import { parseE2eResultMarker } from "../../../e2e-result/marker.js";
 import {
   computeVerdict,
@@ -14,7 +14,7 @@ import {
   resolveLatestRuns,
   type ILatestRun,
 } from "../../../cli/pr-section/render.js";
-import { E2eReportSchema, type E2eReport, type FailedTest, type InconclusiveTest, type PassedTest, type Step, type TestResult } from "../../../cli/pr-section/types.js";
+import { E2eReportSchema, StepScreenshotDetailEnum, type E2eReport, type FailedTest, type InconclusiveTest, type PassedTest, type Step, type TestResult } from "../../../cli/pr-section/types.js";
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const PROJECT_ID = "p1";
@@ -923,5 +923,66 @@ describe("runSettings records", () => {
       ["rs-1920", "1920×1080"],
       [undefined, undefined],
     ]);
+  });
+});
+
+describe("run summary row", () => {
+  const summaryReport = E2eReportSchema.parse(JSON.parse(readFileSync(join(FIXTURES_DIR, "run-summary.json"), "utf-8")));
+  const [passedWithSummary, failedWithSummary, inconclusiveWithoutSummary] = summaryReport.tests;
+
+  it("renders the summary fixture byte-identical to its reviewed body", () => {
+    const expectedBody = readFileSync(join(FIXTURES_DIR, "run-summary.expected-body.md"), "utf-8").replace(/\r\n/g, "\n");
+    expect(renderBody(summaryReport, { inlineDetails: true })).toBe(expectedBody);
+  });
+
+  it("closes a passed run's steps with its headline, verdict status, verdict text and ending screenshot", () => {
+    const md = renderTestDetails(latest(passedWithSummary), 1);
+    const summaryAt = md.indexOf("<summary>🏁 Summary · ✅ Success — Order placed and the confirmation page shows the order total</summary>");
+    expect(summaryAt).toBeGreaterThan(md.indexOf("📷 2 · Click 'Pay now'"));
+    expect(md).toContain("**Verdict:** PASS - the order confirmation rendered with the charged total.");
+    expect(md).toContain("**Blocking issues:** None");
+    expect(md).toContain('<img src="https://cdn.example/checkout-summary.png" width="640" alt="Run summary">');
+  });
+
+  it("shows a failed run's bug verdict and blocking issues in the summary row", () => {
+    const md = renderTestDetails(latest(failedWithSummary), 2);
+    expect(md).toContain("<summary>🏁 Summary · ❌ Bug detected — Expired card was charged instead of rejected</summary>");
+    expect(md).toContain("**Blocking issues:** Payment form submits an expired card; no validation error is shown.");
+    expect(md).toContain("| **Why** | The order was accepted although the card is expired. |");
+  });
+
+  it("says so when the run recorded no summary step, on a line of its own", () => {
+    const md = renderTestDetails(latest(inconclusiveWithoutSummary), 3);
+    expect(md).toContain("</details>\n\n⚠️ **No summary step** — the run ended before it summarized its result");
+  });
+
+  it("keeps the summary row after the elided tail of a long run", () => {
+    const stepCount = STEP_LIST_ELISION_THRESHOLD + 5;
+    const md = renderTestDetails(latest({ ...passedWithSummary, steps: buildSteps(stepCount) }), 1);
+    expect(md.indexOf("🏁 Summary")).toBeGreaterThan(md.indexOf(`📷 ${stepCount} · `));
+  });
+
+  it("renders the summary row for a run that recorded no browser steps", () => {
+    const md = renderTestDetails(latest({ ...failedWithSummary, steps: [] }), 1);
+    expect(md).toContain("<kbd>Show the run summary</kbd>");
+    expect(md).toContain("🏁 Summary · ❌ Bug detected");
+  });
+
+  it("lists the summary as text with its verdict lines when screenshots are trimmed away", () => {
+    const md = renderTestDetails(latest(failedWithSummary), 1, StepScreenshotDetailEnum.None);
+    expect(md).toContain("- 🏁 Summary · ❌ Bug detected — Expired card was charged instead of rejected\n  - **Verdict:** FAIL - the app accepted an expired card.");
+    expect(md).not.toContain('alt="Run summary"');
+  });
+
+  it("uses the summary screenshot as the ending screen when no explicit one is given", () => {
+    const md = renderTestDetails(latest(failedWithSummary), 1);
+    expect(md).toContain('<img src="https://cdn.example/expired-summary.png" width="720"');
+  });
+
+  it("adds no summary row to a report that predates the field", () => {
+    const legacyTest: TestResult = { ...passedWithSummary, runSummary: undefined };
+    const md = renderTestDetails(latest(legacyTest), 1);
+    expect(md).not.toContain("🏁");
+    expect(md).not.toContain("No summary step");
   });
 });

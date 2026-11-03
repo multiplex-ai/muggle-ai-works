@@ -22,6 +22,8 @@ vi.mock("../../../../packages/mcps/src/index.js", () => ({
 
 import axios from "axios";
 
+import { DETAIL_IMAGE_WIDTH, STEP_IMAGE_WIDTH } from "../../../cli/pr-section/constants.js";
+import { renderBody } from "../../../cli/pr-section/render.js";
 import { resolveGsScreenshotUrls } from "../../../cli/pr-section/resolve-urls.js";
 import type { E2eReport } from "../../../cli/pr-section/types.js";
 import {
@@ -171,6 +173,52 @@ describe("resolveGsScreenshotUrls", () => {
     expect(result.tests[0]!.steps[0]!.screenshotUrl).toBe("https://cdn.example.com/step0.png");
     // Caption passes through unchanged.
     expect(result.tests[0]!.endingScreenshotCaption).toBe("Goal achieved");
+  });
+
+  it("resolves a recorded runSummary.screenshotUrl, so the summary row and ending screen render https", async () => {
+    mockedGetCredentials.mockResolvedValue({ bearerToken: "tkn" });
+    const firebaseUrl = "https://firebasestorage.googleapis.com/v0/b/bucket/o/run-summary.jpg?alt=media&token=r";
+    mockedAxiosPost.mockResolvedValue({ status: 200, data: { resourceUrl: firebaseUrl } });
+
+    const report: E2eReport = {
+      projectId: "p1",
+      tests: [
+        {
+          name: "A",
+          testCaseId: "tc-a",
+          runId: "r-a",
+          viewUrl: "https://example.com/a",
+          status: "passed",
+          steps: [
+            { stepIndex: 0, action: "navigate", screenshotUrl: "https://cdn.example.com/step0.png" },
+          ],
+          runSummary: {
+            isRecorded: true,
+            headline: "Goal achieved",
+            screenshotUrl: "gs://bucket/run-summary.jpg",
+          },
+        },
+      ],
+    };
+    const stderr = makeStderr();
+
+    const result = await resolveGsScreenshotUrls(report, { stderrWrite: stderr.write });
+
+    expect(mockedAxiosPost).toHaveBeenCalledTimes(1);
+    expect(mockedAxiosPost).toHaveBeenCalledWith(
+      PUBLIC_URL_ENDPOINT,
+      { resourceUrl: "gs://bucket/run-summary.jpg" },
+      expect.anything(),
+    );
+    const resolvedRunSummary = result.tests[0]!.runSummary;
+    expect(resolvedRunSummary?.isRecorded && resolvedRunSummary.screenshotUrl).toBe(firebaseUrl);
+    expect(resolvedRunSummary?.isRecorded && resolvedRunSummary.headline).toBe("Goal achieved");
+
+    const body = renderBody(result, { inlineDetails: true });
+    expect(body).toContain(`<img src="${firebaseUrl}" width="${STEP_IMAGE_WIDTH}" alt="Run summary">`);
+    expect(body).toContain("**Ending screen**");
+    expect(body).toContain(`<img src="${firebaseUrl}" width="${DETAIL_IMAGE_WIDTH}" alt="A">`);
+    expect(body).not.toContain("gs://");
   });
 
   it("resolves a step's after screenshot as well as its before", async () => {

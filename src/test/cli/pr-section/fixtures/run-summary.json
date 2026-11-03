@@ -1,0 +1,57 @@
+{
+  "projectId": "p-summary",
+  "tests": [
+    {
+      "name": "Shopper completes checkout with a saved card",
+      "testCaseId": "tc-checkout",
+      "runId": "run-checkout",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p-summary/runs/run-checkout",
+      "status": "passed",
+      "steps": [
+        { "stepIndex": 0, "action": "click", "description": "Click 'Checkout' to open the payment page.", "screenshotUrl": "https://cdn.example/checkout-0.png", "afterScreenshotUrl": "https://cdn.example/checkout-1.png" },
+        { "stepIndex": 1, "action": "click", "description": "Click 'Pay now' to submit the order.", "screenshotUrl": "https://cdn.example/checkout-1.png", "afterScreenshotUrl": "https://cdn.example/checkout-summary.png" }
+      ],
+      "runSummary": {
+        "isRecorded": true,
+        "headline": "Order placed and the confirmation page shows the order total",
+        "status": "success",
+        "verdict": "PASS - the order confirmation rendered with the charged total.",
+        "blockingIssues": "None",
+        "screenshotUrl": "https://cdn.example/checkout-summary.png"
+      }
+    },
+    {
+      "name": "Shopper sees an error for an expired card",
+      "testCaseId": "tc-expired",
+      "runId": "run-expired",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p-summary/runs/run-expired",
+      "status": "failed",
+      "failureStepIndex": 1,
+      "error": "The order was accepted although the card is expired.",
+      "steps": [
+        { "stepIndex": 0, "action": "input", "description": "Input the expired card number in the 'Card number' field.", "screenshotUrl": "https://cdn.example/expired-0.png", "afterScreenshotUrl": "https://cdn.example/expired-1.png" },
+        { "stepIndex": 1, "action": "click", "description": "Click 'Pay now' to submit the order.", "screenshotUrl": "https://cdn.example/expired-1.png", "afterScreenshotUrl": "https://cdn.example/expired-summary.png" }
+      ],
+      "runSummary": {
+        "isRecorded": true,
+        "headline": "Expired card was charged instead of rejected",
+        "status": "bug_detected",
+        "verdict": "FAIL - the app accepted an expired card.",
+        "blockingIssues": "Payment form submits an expired card; no validation error is shown.",
+        "screenshotUrl": "https://cdn.example/expired-summary.png"
+      }
+    },
+    {
+      "name": "Shopper applies a discount code",
+      "testCaseId": "tc-discount",
+      "runId": "run-discount",
+      "viewUrl": "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p-summary/runs/run-discount",
+      "status": "inconclusive",
+      "reason": "The run stopped on a login wall before reaching the cart.",
+      "steps": [
+        { "stepIndex": 0, "action": "navigate", "description": "Workflow started at the app's URL.", "screenshotUrl": "https://cdn.example/discount-0.png" }
+      ],
+      "runSummary": { "isRecorded": false }
+    }
+  ]
+}

@@ -56,10 +56,10 @@ function buildAuthHeaders (credentials: ICallerCredentials): Record<string, stri
 /**
  * Collect every unique `gs://` screenshot URL in the report, in insertion order.
  *
- * Walks both `steps[].screenshotUrl` and the optional per-test
- * `endingScreenshotUrl` override — the latter is how a caller surfaces the
- * action script's dedicated summary-step screenshot without stuffing it into
- * `steps[]`.
+ * Walks `steps[].screenshotUrl`, the optional per-test `endingScreenshotUrl`
+ * override, and a recorded `runSummary.screenshotUrl` — the last two are how a
+ * caller surfaces the action script's summary-step screenshot without
+ * stuffing it into `steps[]`.
  */
 function collectGsUrls (report: E2eReport): string[] {
   const seen = new Set<string>();
@@ -74,6 +74,10 @@ function collectGsUrls (report: E2eReport): string[] {
     }
     if (test.endingScreenshotUrl && isGsUrl(test.endingScreenshotUrl)) {
       seen.add(test.endingScreenshotUrl);
+    }
+    const runSummaryScreenshotUrl = test.runSummary?.isRecorded ? test.runSummary.screenshotUrl : undefined;
+    if (runSummaryScreenshotUrl && isGsUrl(runSummaryScreenshotUrl)) {
+      seen.add(runSummaryScreenshotUrl);
     }
   }
   return Array.from(seen);
@@ -136,7 +140,7 @@ function remapStep (step: Step, urlMap: Map<string, string>): Step {
 
 /**
  * Return a new `TestResult` with freshly remapped `steps` and, if present,
- * a freshly remapped `endingScreenshotUrl`. Preserves every other field
+ * a freshly remapped `endingScreenshotUrl` and `runSummary.screenshotUrl`. Preserves every other field
  * (and the discriminated `status` so the zod union stays valid) via a
  * shallow spread.
  */
@@ -149,6 +153,12 @@ function remapTest (test: TestResult, urlMap: Map<string, string>): TestResult {
     const resolved = urlMap.get(test.endingScreenshotUrl);
     if (resolved) {
       remapped.endingScreenshotUrl = resolved;
+    }
+  }
+  if (test.runSummary?.isRecorded && test.runSummary.screenshotUrl) {
+    const resolved = urlMap.get(test.runSummary.screenshotUrl);
+    if (resolved) {
+      remapped.runSummary = { ...test.runSummary, screenshotUrl: resolved };
     }
   }
   return remapped;

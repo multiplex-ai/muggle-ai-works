@@ -140,7 +140,8 @@ export enum HealthStatus {
 
 /**
  * Verdict the Studio stamps on a run's returned result: a `StudioResult` status or the recorded
- * action script's status. Every value except `Success` and `Active` is a failed run.
+ * action script's status. Every value except `Success`, `Active` and `InsufficientBalance` is a
+ * failed run; `InsufficientBalance` is a billing stop that judged nothing.
  */
 export enum StudioVerdict {
   /** The run reached its goal. */
@@ -157,6 +158,8 @@ export enum StudioVerdict {
   Failed = "failed",
   /** The run exceeded its time budget. */
   Timeout = "timeout",
+  /** The run stopped because the paying wallet had no balance left for its LLM calls. */
+  InsufficientBalance = "insufficient_balance",
 }
 
 /**

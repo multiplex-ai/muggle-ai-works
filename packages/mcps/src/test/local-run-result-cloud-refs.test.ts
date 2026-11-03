@@ -159,6 +159,23 @@ describe("local tool registry — studio publishes", () => {
     expect(result.content).toContain("**Studio Verdict:** Bug Detected (bug_detected)");
   });
 
+  it("labels an insufficient_balance verdict as a billing stop, not a failed test", async () => {
+    mockGetRunResult.mockReturnValue({
+      id: RUN_ID,
+      runType: "replay",
+      status: "failed",
+      cloudTestCaseId: "tc-1",
+      studioReturnedResult: { status: "insufficient_balance" },
+    });
+
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+
+    expect(result.content).toContain("**Studio Verdict:** Insufficient Balance (insufficient_balance)");
+  });
+
   it("shows an unrecognized verdict verbatim and omits the line without one", async () => {
     mockGetRunResult.mockReturnValueOnce({
       id: RUN_ID,

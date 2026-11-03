@@ -5,6 +5,7 @@
  */
 
 import { RunEnvironment } from "../../e2e/contracts/run-environment.js";
+import { LlmTierEnum } from "../../../shared/llm-tier-types.js";
 import type { PinnedAccount, TestCaseDetails, TestScriptDetails } from "../contracts/project-schemas.js";
 import { resolveDisplayParams, resolveReplayDisplayParams } from "./display-resolution.js";
 import { rewriteActionScriptUrls } from "./replay-url-rewrite.js";
@@ -29,12 +30,21 @@ function getRequiredStringField(params: {
 }
 
 /**
+ * Build the workflowParams spread for an action script; Light mode is the only tier written,
+ * so an unset tier lets Studio fall back to its own default.
+ */
+function buildLightModeWorkflowParams(isLightMode: boolean | undefined): Record<string, unknown> {
+  return isLightMode === true ? { workflowParams: { llm: { tier: LlmTierEnum.Light } } } : {};
+}
+
+/**
  * Build a local action script for test generation (explore mode).
  *
  * @param params.displayResolution - Resolution for this run; overrides the test
  * case's stored `displayOptions`. Neither given sizes the run at 1920x1080.
  * @param params.freshSession - The run's effective fresh-session value; recorded only when true.
  * @param params.runSettingsId - The local runSettings record the run is recorded against; written only when given.
+ * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier; written only when true.
  */
 export function buildGenerationActionScript(params: {
   testCase: TestCaseDetails;
@@ -45,6 +55,7 @@ export function buildGenerationActionScript(params: {
   displayResolution?: DisplayResolution;
   freshSession?: boolean;
   runSettingsId?: string;
+  isLightMode?: boolean;
 }): Record<string, unknown> {
   const testCaseRecord = params.testCase as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -99,6 +110,7 @@ export function buildGenerationActionScript(params: {
       // The studio loads this record's managed profile and secrets, and the cloud files the run
       // under it; without it the cloud picks the local record at displayParams.
       ...(params.runSettingsId ? { runSettingsId: params.runSettingsId } : {}),
+      ...buildLightModeWorkflowParams(params.isLightMode),
     },
     goal: params.testCase.goal,
     url: params.localUrl,
@@ -126,6 +138,7 @@ export function buildGenerationActionScript(params: {
  * it must match the recorded size.
  * @param params.pinnedAccount - The account the script was recorded as; when set, the run uses that account's browser session.
  * @param params.freshSession - Whether the script was recorded from an empty session; written only when true.
+ * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier; written only when true.
  * @throws Error when `displayResolution` differs from the script's recorded size.
  */
 export function buildReplayActionScript(params: {
@@ -137,6 +150,7 @@ export function buildReplayActionScript(params: {
   displayResolution?: DisplayResolution;
   pinnedAccount?: PinnedAccount | null;
   freshSession?: boolean;
+  isLightMode?: boolean;
 }): Record<string, unknown> {
   const testScriptRecord = params.testScript as unknown as Record<string, unknown>;
   const projectId = getRequiredStringField({
@@ -196,6 +210,7 @@ export function buildReplayActionScript(params: {
       ...(params.testScript.type === RunEnvironment.Local && params.testScript.runSettingsId
         ? { runSettingsId: params.testScript.runSettingsId }
         : {}),
+      ...buildLightModeWorkflowParams(params.isLightMode),
     },
     goal: params.testScript.name,
     url: params.localUrl,

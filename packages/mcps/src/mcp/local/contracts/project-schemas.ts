@@ -18,6 +18,7 @@ import { DisplayParamsSchema } from "../../contracts/display-params-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentSchema } from "../../e2e/contracts/run-environment.js";
+import { LIGHT_MODE_INPUT_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
 import { DisplayResolution } from "../types/enums.js";
 
 /** Resolution a run executes at, accepted wherever a caller may name one. */
@@ -124,6 +125,8 @@ export const ExecuteTestGenerationInputSchema = z.object({
   runSettingsId: z.string().optional().describe(
     "Local runSettings record to record this run against, e.g. a local script's runSettingsId. Pass its resolution as displayResolution.",
   ),
+  /** Run Studio's prediction agent on the Light mode model tier. */
+  lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
 });
 
 export type ExecuteTestGenerationInput = z.infer<typeof ExecuteTestGenerationInputSchema>;
@@ -157,6 +160,8 @@ export const ExecuteReplayInputSchema = z.object({
   displayResolution: DisplayResolutionSchema.optional().describe(
     "Browser resolution, e.g. R_0390x0844. Defaults to the script's recorded size.",
   ),
+  /** Run Studio's prediction agent on the Light mode model tier. */
+  lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
 });
 
 export type ExecuteReplayInput = z.infer<typeof ExecuteReplayInputSchema>;

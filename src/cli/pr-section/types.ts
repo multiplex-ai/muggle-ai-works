@@ -21,6 +21,35 @@ const StepSchema = z.object({
   afterScreenshotUrl: z.string().url().optional(),
 });
 
+/** The verdict a run's summarizer stamps on its closing halt step (`summaryStep.structuredSummary.status`). */
+export enum RunSummaryVerdictStatusEnum {
+  /** The run reached its goal. */
+  Success = "success",
+  /** The run's evidence shows the app behaving contrary to the expected result. */
+  BugDetected = "bug_detected",
+  /** The goal was not reached and the evidence does not settle whether the app or the run is at fault. */
+  GoalUnachievable = "goal_unachievable",
+}
+
+// The run's closing halt step, which the action script stores as `summaryStep` apart from `steps[]`. `headline`
+// is `structuredSummary.summaryHeadline`, else the step's briefExplanation; `verdict` and `blockingIssues` are the
+// `Verdict:` and `Blocking Issues:` lines of its comment; `screenshotUrl` is the page the run ended on.
+const RecordedRunSummarySchema = z.object({
+  isRecorded: z.literal(true),
+  headline: z.string().min(1),
+  status: z.nativeEnum(RunSummaryVerdictStatusEnum).optional(),
+  verdict: z.string().min(1).optional(),
+  blockingIssues: z.string().min(1).optional(),
+  screenshotUrl: z.string().url().optional(),
+});
+
+// A run whose action script holds no summaryStep: it died before summarizing, and the walkthrough says so.
+const MissingRunSummarySchema = z.object({
+  isRecorded: z.literal(false),
+});
+
+const RunSummarySchema = z.discriminatedUnion("isRecorded", [RecordedRunSummarySchema, MissingRunSummarySchema]);
+
 // The project short IDs of the test case (TC-42) and of the run (R-2051); optional because entities created
 // before short IDs existed carry none.
 const TEST_SHORT_ID_FIELDS = {
@@ -49,6 +78,7 @@ const PassedTestSchema = z.object({
   description: z.string().min(1).optional(),
   endingScreenshotUrl: z.string().url().optional(),
   endingScreenshotCaption: z.string().min(1).optional(),
+  runSummary: RunSummarySchema.optional(),
 });
 
 const FailedTestSchema = z.object({
@@ -71,6 +101,7 @@ const FailedTestSchema = z.object({
   description: z.string().min(1).optional(),
   endingScreenshotUrl: z.string().url().optional(),
   endingScreenshotCaption: z.string().min(1).optional(),
+  runSummary: RunSummarySchema.optional(),
 });
 
 // A test whose outcome cannot be classified as pass/fail: the test couldn't
@@ -95,6 +126,7 @@ const InconclusiveTestSchema = z.object({
   description: z.string().min(1).optional(),
   endingScreenshotUrl: z.string().url().optional(),
   endingScreenshotCaption: z.string().min(1).optional(),
+  runSummary: RunSummarySchema.optional(),
 });
 
 const TestResultSchema = z.discriminatedUnion("status", [
@@ -118,6 +150,10 @@ export type InconclusiveTest = z.infer<typeof InconclusiveTestSchema>;
 export type TestResult = PassedTest | FailedTest | InconclusiveTest;
 export type E2eReport = Omit<z.infer<typeof E2eReportSchema>, "tests"> & { tests: TestResult[] };
 export type Step = z.infer<typeof StepSchema>;
+/** The run's closing halt step, or the record that the run never summarized. */
+export type RunSummary = z.infer<typeof RunSummarySchema>;
+/** A halt step the run recorded. */
+export type RecordedRunSummary = z.infer<typeof RecordedRunSummarySchema>;
 
 /** The fields of a local run result that baseline verification reads. */
 export interface IBaselineRunRecord {

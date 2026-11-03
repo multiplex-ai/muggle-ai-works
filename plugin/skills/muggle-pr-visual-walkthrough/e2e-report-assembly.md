@@ -32,7 +32,11 @@ For each result:
 2. `viewUrl` — from the run result (deep-links to the specific run).
 3. `status` — from `muggle-local-run-result-get`.
 4. If failed: also capture `failureStepIndex`, `error`, `artifactsDir` from the run result.
-5. If the caller hands over a `baselineRunId` for a failed entry — a run of the same test case against the base that failed too — set it on the entry. `build-pr-section` credits it only after checking the run itself: same test case, failed, same runSettings record, and a stack that served a base commit between the PR's fork point and the base tip. A credited failure reads "also fails on base" and stops holding the walkthrough check red; a refused one is named on stderr and stays a plain failure. Pass `--base <branch>` when the PR does not target the remote's default branch.
+5. `runSummary` — the run's closing halt step, which the script stores as `summaryStep` apart from `steps[]` (replays drop the recorded halt from `steps[]` too). Set it on every entry whose action script you fetched, passed, failed and inconclusive alike; the walkthrough renders it as the row closing the step list.
+   - `summaryStep` present → `{ isRecorded: true, headline, status, verdict, blockingIssues, screenshotUrl }`: `headline` is `structuredSummary.summaryHeadline`, else `briefExplanation`; `status` is `structuredSummary.status` (`success` · `bug_detected` · `goal_unachievable`); `verdict` and `blockingIssues` are the text after `Verdict:` and `Blocking Issues:` in `comment`; `screenshotUrl` is `operation.screenshotUrl`. Omit any of the last four the step does not carry.
+   - `summaryStep` absent → `{ isRecorded: false }`: the run died before summarizing, and the walkthrough says so on that test.
+   - Omit `runSummary` only when no action script exists to read — a run that never started or the last-resort stub below.
+6. If the caller hands over a `baselineRunId` for a failed entry — a run of the same test case against the base that failed too — set it on the entry. `build-pr-section` credits it only after checking the run itself: same test case, failed, same runSettings record, and a stack that served a base commit between the PR's fork point and the base tip. A credited failure reads "also fails on base" and stops holding the walkthrough check red; a refused one is named on stderr and stays a plain failure. Pass `--base <branch>` when the PR does not target the remote's default branch.
 
 ## Last-resort: no cloud refs on the run result
 
@@ -70,7 +74,8 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape, eac
       "replayShortId": "<run shortId, when it has one>",
       "viewUrl": "<viewUrl from run result>",
       "status": "passed",
-      "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Accept all' to dismiss the cookie consent dialog.", "screenshotUrl": "..." }]
+      "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Accept all' to dismiss the cookie consent dialog.", "screenshotUrl": "..." }],
+      "runSummary": { "isRecorded": true, "headline": "<summaryHeadline>", "status": "success", "verdict": "<Verdict: text>", "blockingIssues": "<Blocking Issues: text>", "screenshotUrl": "<summaryStep.operation.screenshotUrl>" }
     },
     {
       "name": "<failed test case title>",
@@ -82,7 +87,8 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape, eac
       "status": "failed",
       "steps": [{ "stepIndex": 0, "action": "click", "description": "Click 'Sign in' to open the login form.", "screenshotUrl": "..." }],
       "failureStepIndex": 0,
-      "error": "<error message from run result>"
+      "error": "<error message from run result>",
+      "runSummary": { "isRecorded": true, "headline": "<summaryHeadline>", "status": "bug_detected", "verdict": "<Verdict: text>", "blockingIssues": "<Blocking Issues: text>", "screenshotUrl": "..." }
     },
     {
       "name": "<inconclusive test case title>",
@@ -93,7 +99,8 @@ If called from `muggle-do`: `e2e-acceptance.md` already produces this shape, eac
       "viewUrl": "<viewUrl from run result, or project-level fallback URL>",
       "status": "inconclusive",
       "steps": [{ "stepIndex": 0, "action": "navigate", "description": "Workflow started at the app's URL.", "screenshotUrl": "..." }],
-      "reason": "<one short sentence: why neither pass nor fail applies>"
+      "reason": "<one short sentence: why neither pass nor fail applies>",
+      "runSummary": { "isRecorded": false }
     }
   ]
 }

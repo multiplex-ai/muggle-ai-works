@@ -3,6 +3,8 @@
  * emitters hold only layout logic.
  */
 
+import { RunSummaryVerdictStatusEnum } from "./types.js";
+
 /** Width of the per-test ending screenshot, shown below the steps collapsible. */
 export const DETAIL_IMAGE_WIDTH = 720;
 
@@ -35,6 +37,20 @@ export const STEP_ELEMENT_ID_SUFFIX = /\s*with element id (?:\[\d+\]|#\d+)/g;
  * says a row opens, so the camera tells a reader at a glance that each row holds a screenshot.
  */
 export const STEP_SCREENSHOT_MARKER = "📷";
+
+/** Leads the run's closing summary row, so it reads as the run's finish line rather than one more action. */
+export const RUN_SUMMARY_MARKER = "🏁";
+
+/** How the summary row names each verdict the run's summarizer can stamp. */
+export const RUN_SUMMARY_VERDICT_STATUS_LABELS: Readonly<Record<RunSummaryVerdictStatusEnum, string>> = {
+  [RunSummaryVerdictStatusEnum.Success]: "✅ Success",
+  [RunSummaryVerdictStatusEnum.BugDetected]: "❌ Bug detected",
+  [RunSummaryVerdictStatusEnum.GoalUnachievable]: "⚠️ Goal unachievable",
+};
+
+/** Ends the step list of a run whose action script holds no summary step. */
+export const MISSING_RUN_SUMMARY_TEXT =
+  "⚠️ **No summary step** — the run ended before it summarized its result; open the run on Muggle AI for its last state.";
 
 /** Separates one test's details from the next; GitHub renders it as a full-width rule. */
 export const TEST_DETAILS_DIVIDER = "---";

@@ -1314,12 +1314,13 @@ describe("hooks.json fan-out (Lazy-core tripwire)", () => {
     expect(cmds.some((c) => c.includes("guardrail-record-comment-replies.sh"))).toBe(true);
   });
 
-  it("stands both shell PreToolUse denials in front of every command (report-format + resolve-gate)", () => {
+  it("stands every shell PreToolUse denial in front of every command (report-format + resolve-gate + draft-pr-gate)", () => {
     const bash = shellGroup(hooks.PreToolUse);
     expect(bash).toBeDefined();
     const cmds = bash!.hooks.map((h) => h.command);
     expect(cmds.some((c) => c.includes("guardrail-report-format.sh"))).toBe(true);
     expect(cmds.some((c) => c.includes("guardrail-resolve-gate.sh"))).toBe(true);
+    expect(cmds.some((c) => c.includes("guardrail-draft-pr-gate.sh"))).toBe(true);
   });
 
   // A Monitor call returns as its script starts; every line it prints arrives later as a notification, so the

@@ -26,28 +26,28 @@
           {
             "type": "command",
             "if": "Bash(*gh *)",
-            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "Bash(*glab *)",
-            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "PowerShell(*gh *)",
-            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           },
           {
             "type": "command",
             "if": "PowerShell(*glab *)",
-            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
+            "command": "set -- guardrail-dispatch.sh guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh; . \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-entry.sh\"",
             "async": false,
             "timeout": 1
           }

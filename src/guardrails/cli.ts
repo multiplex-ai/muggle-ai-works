@@ -134,6 +134,7 @@ import { detectBuildIntent, isMuggleDoForwardInvocation } from "./detectBuildInt
 import { callFailed } from "./callOutcome.js";
 import { evaluateReportPost } from "./reportGate.js";
 import { evaluateReviewThreadResolve } from "./reviewThreadResolve.js";
+import { evaluateDraftPr } from "./draftPr.js";
 import { envelope, blockStop, denyTool, mergeHookOutputs, type Host } from "./emit.js";
 import { normalizeHookInput } from "./hookInput.js";
 import { findSyncHookOutcome, payloadDigest, rewakeMessage, transcriptAnchor } from "./rewake.js";
@@ -915,6 +916,12 @@ function resolveGate(): string {
   return denyTool(resolveVerdict.reason, host);
 }
 
+function draftPrGate(): string {
+  const draftVerdict = evaluateDraftPr(input);
+  if (!draftVerdict.deny || !draftVerdict.reason) return "{}";
+  return denyTool(draftVerdict.reason, host);
+}
+
 function buildRouter(): string {
   const prompt = input.prompt ?? "";
   const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
@@ -999,6 +1006,7 @@ const handlers: Record<string, () => string> = {
   "report-gate": reportGate,
   "walkthrough-heading-gate": walkthroughHeadingGate,
   "resolve-gate": resolveGate,
+  "draft-pr-gate": draftPrGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,
   "record-stage-read": recordStageRead,

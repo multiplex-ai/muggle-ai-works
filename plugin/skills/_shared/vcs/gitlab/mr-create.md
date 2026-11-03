@@ -9,6 +9,8 @@ glab mr create -R <group>/<project> \
   --title "<title>" --description "$(cat <signed-file>)"
 ```
 
+Never open it as a draft — no `--draft`/`--wip` and no `Draft:`/`WIP:`/`[Draft]`/`(Draft)` title prefix. Muggle opens every MR ready for review, and a PreToolUse gate denies the draft forms.
+
 Sign with `--mode editable` per [`../post-signature.md`](../post-signature.md) — the description this opens the MR with is the same body `mr-edit.md` refreshes later, so it carries the dedup marker from the start.
 
 `glab` prints the created MR's URL on success — capture stdout and store the URL for handoff (the watcher seeds from it, the user gets the link).

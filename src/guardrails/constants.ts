@@ -424,3 +424,23 @@ export const GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";
 
 /** The `/muggle-do` forward stages that follow the build, in order, as the build-intent messages name them. */
 export const MUGGLE_DO_STAGES_AFTER_BUILD = "impact → unit tests → PR → E2E → watcher";
+
+// Draft-PR gate. Muggle opens every PR/MR ready for review — a draft hides the
+// change from reviewers and from CI that skips drafts, so the gate denies every
+// shell route to one. Flag checks run on the command with its quoted strings
+// blanked, so a title or body that merely says "--draft" never trips them.
+export const GITHUB_PR_CREATE_CMD = /\bgh\s+pr\s+create\b/;
+export const GITHUB_PR_READY_CMD = /\bgh\s+pr\s+ready\b/;
+export const GITLAB_MR_CREATE_OR_UPDATE_CMD = /\bglab\s+mr\s+(?:create|update)\b/;
+// `--draft`, `--draft=true` and gh's `-d` short form; `--draft=false` stays allowed.
+export const DRAFT_FLAG = /(?:^|\s)(?:--draft(?:=true)?|-d)(?=\s|$)/i;
+// glab's `--wip` is its older alias for `--draft`.
+export const GITLAB_WIP_FLAG = /(?:^|\s)--wip(?=\s|$)/i;
+export const UNDO_FLAG = /(?:^|\s)--undo(?=\s|$)/;
+// GitLab marks an MR draft from its title alone: `Draft:`, `[Draft]`, `(Draft)` or `WIP:`.
+export const GITLAB_DRAFT_TITLE =
+  /\bglab\s+mr\s+(?:create|update)\b[^;&|\n]*?(?:--title|-t)(?:=|\s+)["']?\s*(?:draft\s*:|\[draft\]|\(draft\)|wip\s*:)/i;
+// GraphQL mutation that turns an open PR back into a draft.
+export const GITHUB_CONVERT_TO_DRAFT_MUTATION = /\bconvertPullRequestToDraft\b/;
+// REST create/update of a pull with a draft field set: `gh api repos/o/r/pulls -F draft=true`.
+export const GITHUB_REST_DRAFT_FIELD = /\bgh\s+api\b[^;&|\n]*\bpulls\b[^;&|\n]*\bdraft=true\b/i;

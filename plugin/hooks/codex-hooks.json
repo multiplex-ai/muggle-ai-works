@@ -28,10 +28,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh",
+            "command": "env MUGGLE_HOOK_HOST=codex bash \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh",
             "async": false,
             "timeout": 10,
-            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-walkthrough-heading.sh"
+            "commandWindows": "node \"${CLAUDE_PLUGIN_ROOT}\\scripts\\codex-hook-windows.mjs\" \"${CLAUDE_PLUGIN_ROOT}/scripts/guardrail-dispatch.sh\" guardrail-report-format.sh guardrail-resolve-gate.sh guardrail-draft-pr-gate.sh guardrail-walkthrough-heading.sh"
           }
         ]
       },

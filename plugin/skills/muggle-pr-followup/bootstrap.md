@@ -57,6 +57,8 @@ Line-comment threads need no seeding — the watcher derives them from live thre
 - **Default (no `--forward-only`):** `lastBodyReviewId = 0`. The watcher picks up every existing body-only review on its first tick. Matches the common case — the user opened the PR, left feedback they want addressed, and is now bootstrapping.
 - **With `--forward-only`:** fetch reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md), then take `max(id)`. Body-only reviews at or below that id are treated as already-handled. This no longer hides existing line-comment threads — those are always picked up from thread state.
 
+`lastConversationCommentId`, the watermark for top-level PR comments (GitHub only), follows the same rule: `0` by default, and under `--forward-only` the highest comment id from [`../_shared/vcs/github/conversation-comments.md`](../_shared/vcs/github/conversation-comments.md).
+
 ### Step 6.5 — Resolve the validation context (skip when there's nothing to E2E)
 
 The only step that may prompt the user, and only when the PR has a testable surface. Run silent detection from [`../_shared/resolve-e2e-validation-context.md`](../_shared/resolve-e2e-validation-context.md) first. If it finds **no dev server / no testable surface** — a docs, config, skill, or library change, or a non-web repo — seed the watcher **poll-only**: no prompt, no `## Pre-flight answers` block, continue to Step 7 (same as [`auto-track`](auto-track.md)).
@@ -75,7 +77,7 @@ Write under `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 **`prs.json`** — see [`state-schemas.md`](state-schemas.md#prsjson). One entry, `state` = `"open"`, `head_sha` from Step 2's `headRefOid`.
 
-**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `pushed_shas: []`. Omit `blocked` — the watcher starts unblocked.
+**`last_seen.json`** — see [`state-schemas.md`](state-schemas.md#last_seenjson). One key (`"<owner>/<repo>#<n>"`), `lastBodyReviewId` and `lastConversationCommentId` from Step 6, `last_pushed_sha: null`, `idle_tick_count: 0`, `cycles_completed: 0`, `escalated_review_ids: []`, `escalated_conversation_comment_ids: []`, `pushed_shas: []`. Omit `blocked` — the watcher starts unblocked.
 
 **`cron.json`** — see [`state-schemas.md`](state-schemas.md#cronjson). `cron_id: null` (bootstrap arms no cron; a tick running under one recorded by [`reconcile.md`](reconcile.md) self-records its id per [`record-cron-id.md`](record-cron-id.md)), `command: "/muggle:muggle-pr-followup <slug> <n>"`, `interval: "1m"`, `recorded_at: <now>`.
 

@@ -55,7 +55,7 @@ Bootstrap accepts three optional trailing flags:
 
 - `--slug=<name>` — override the default `<repo>-pr<n>` slug
 - `--resume` — opt in to reusing an existing session slot (default is refuse on conflict)
-- `--forward-only` — pin `lastBodyReviewId` past existing **body-only** reviews (skip history on those). Line-comment threads are always picked up from live thread state, regardless of this flag.
+- `--forward-only` — pin `lastBodyReviewId` past existing **body-only** reviews and `lastConversationCommentId` past existing conversation comments (skip history on those). Line-comment threads are always picked up from live thread state, regardless of this flag.
 
 ## Preferences
 

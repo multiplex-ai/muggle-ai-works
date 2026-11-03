@@ -7,6 +7,7 @@ This is **not** a top-level "summary reply on the review." Each comment thread g
 ## Inputs
 
 - `actionable_reviews` — the list of reviews classified actionable in `address-reviews.md` Step 2. On `gitlab`, these are the actionable **discussions** (no review envelope) — read each as a thread of notes.
+- `actionable_conversation_comments` (GitHub only) — the conversation comments classified actionable in `address-reviews.md` Step 2, each with its id, author, body and `html_url`.
 - `new_sha` — the SHA `open-prs/update.md` just pushed.
 - The PR's owner, repo, number. On `gitlab`, the project ref and MR iid.
 
@@ -52,6 +53,12 @@ Re: review #<review_id> — addressed in <short-sha>: <one-line summary>.
 
 Posted per [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/top-level-comment.md). Fires at most once per actionable review-with-no-line-comments. Does not fire if the review has line comments — Step 2 covers those.
 
+### Step 4 — Answer conversation comments (GitHub only)
+
+A top-level PR comment ([`../_shared/vcs/github/conversation-comments.md`](../_shared/vcs/github/conversation-comments.md)) has no thread and no reply endpoint. Post **one** top-level comment per actionable conversation comment — never one comment answering several — using the conversation template in [`../muggle-pr-followup/output-templates/inline-reply.md`](../muggle-pr-followup/output-templates/inline-reply.md), which quotes and links the comment it answers. Sign with `--mode loop` through [`../_shared/vcs/github/top-level-comment.md`](../_shared/vcs/github/top-level-comment.md): the marker is what keeps the watch from waking on the reply. A comment that asked a question the round answered without a change is answered the same way, with no SHA.
+
+Record each reply's outcome: a conversation comment whose reply failed is still unanswered, and [`address-reviews.md`](address-reviews.md) Step 5 keeps the watermark below it.
+
 ## Failure modes
 
 - `gh api` returns an error for an individual reply → log to `followup.log`, continue with the remaining comments. Do not abort the whole step over one failure; the push has already happened and other replies still need posting.
@@ -70,6 +77,6 @@ A thread the round deferred to the user instead of answering (the ambiguous esca
 
 ## Invariants
 
-- One reply per line comment (`gitlab`: per discussion). No per-review summary reply anywhere.
+- One reply per line comment (`gitlab`: per discussion), and one top-level reply per actionable conversation comment. No per-review summary reply anywhere.
 - The loop never resolves a review thread, on either provider. A `PreToolUse` guardrail denies both calls.
 - Every reply body contains the new SHA's 7-char prefix (which push addressed it) and ends with the loop signature block — the `<!-- muggle-do:bot -->` marker, not the author login, is what identifies loop-authored comments.

@@ -78,7 +78,7 @@ Run the resume gate per [`blocked-tick.md`](blocked-tick.md): recompute the fing
 
 ### Step 3 — Compute the actionable set from live thread state
 
-The watcher's dispatch trigger is **derived from current provider state**, not a stored review-id cursor — see the [thread-state baseline design](../../../../muggle-ai-brain/architecture/2026-06-06-pr-followup-thread-state-baseline-design.md). Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-vcs.md), then:
+The watcher's dispatch trigger is **derived from current provider state**, not a stored review-id cursor (body-only reviews and conversation comments, which have no thread state, are the two narrow exceptions below) — see the [thread-state baseline design](../../../../muggle-ai-brain/architecture/2026-06-06-pr-followup-thread-state-baseline-design.md). Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-vcs.md), then:
 
 - **`github`** — two sources, unioned:
 
@@ -86,7 +86,9 @@ The watcher's dispatch trigger is **derived from current provider state**, not a
 
   **(b) Actionable body-only reviews — GitHub only.** A body-only review — a submitted `CHANGES_REQUESTED`/`COMMENTED` review with no line comments — has no thread to derive state from, so it keeps a narrow watermark. GitLab has no review envelope (feedback is always a discussion note), so this sub-branch is GitHub-only and has no GitLab analogue. Fetch submitted reviews per [`../_shared/vcs/github/submitted-reviews.md`](../_shared/vcs/github/submitted-reviews.md); a body-only review is actionable when `id > last_seen.lastBodyReviewId` **and** `id ∉ last_seen.escalated_review_ids`.
 
-  Collect the **owning review ids** for dispatch: for each actionable thread, the owning review of its newest comment (`pullRequestReview.databaseId` from the query); plus every actionable body-only review id. The dedup'd union is the dispatch list.
+  **(c) Actionable conversation comments — GitHub only.** A top-level PR comment on the Conversation tab belongs to no review and no thread, so it keeps its own narrow watermark, like a body-only review. Fetch them per [`../_shared/vcs/github/conversation-comments.md`](../_shared/vcs/github/conversation-comments.md); one is actionable when `id > last_seen.lastConversationCommentId`, `id ∉ last_seen.escalated_conversation_comment_ids`, and muggle did not post it and no bot wrote it — the same exclusions the watch loop's projection applies. An entry with no `lastConversationCommentId` key predates this source: write the highest actionable id as its value (whole-file rewrite) and dispatch none of them ([`state-schemas.md`](state-schemas.md#last_seenjson)).
+
+  Collect the **owning review ids** for dispatch: for each actionable thread, the owning review of its newest comment (`pullRequestReview.databaseId` from the query); plus every actionable body-only review id. The dedup'd union is the dispatch list. Actionable conversation comment ids travel beside it as a second list: they are issue-comment ids, a different sequence, and never mix with review ids.
 
 - **`gitlab`** — single source. Fetch unresolved discussions per [`../_shared/vcs/gitlab/unresolved-discussions.md`](../_shared/vcs/gitlab/unresolved-discussions.md) (drop to [`../_shared/vcs/gitlab/mr-discussions.md`](../_shared/vcs/gitlab/mr-discussions.md) for the raw notes if a thread's classification needs them). A discussion is **actionable** when it is unresolved **and** its newest note lacks the loop marker `<!-- muggle-do:bot -->` — same marker classification, never `author.username`. There is no body-only watermark: discussion state is the sole authority. The dispatch list is the **discussion ids** of the actionable discussions.
 
@@ -100,13 +102,15 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    - PR URL (from `prs.json[0].url`)
    - Session slug (from the invocation arguments)
    - The dispatch ids from Step 3 (GitHub owning review ids / GitLab discussion ids), as a space-separated list
+   - GitHub: the actionable conversation comment ids from Step 3(c), after the keyword `conversation`; omitted when there are none
 
    Exact phrasing belongs to `/muggle-do`'s intent-routing. A reasonable shape is:
    ```
-   /muggle-do address reviews <id1> <id2> ... on <pr-url> slug=<slug>
+   /muggle-do address reviews <id1> <id2> ... [conversation <cid1> <cid2> ...] on <pr-url> slug=<slug>
    ```
+   A wave of conversation comments alone dispatches with an empty review list: `address reviews conversation <cid1> on <pr-url> slug=<slug>`.
 4. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
-5. Emit a `tick` event with `actionable_threads: <count>`, `dispatched_review_ids: [<id>, ...]`.
+5. Emit a `tick` event with `actionable_threads: <count>` (conversation comments included), `dispatched_review_ids: [<id>, ...]`.
 6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
 ### Step 5 — No actionable feedback → read the branch's standing against its base

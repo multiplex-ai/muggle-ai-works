@@ -230,6 +230,32 @@ describe.skipIf(!hasBash)("watch_wake_review / watch_wake_comment", () => {
   });
 });
 
+describe.skipIf(!hasBash)("watch_wake_conversation_comment", () => {
+  it("wakes on a human conversation comment above the floor", () => {
+    expect(wake("watch_wake_conversation_comment 383 900 800")).toBe(
+      "EVENT pr=383 new conversation comment id=900",
+    );
+  });
+
+  // The loop's own reply is dropped by the projection, so the newest human id is
+  // still the one the cycle floored, and the poll after the reply stays quiet.
+  it("stays quiet at the floor", () => {
+    expect(wake("watch_wake_conversation_comment 383 900 900")).toBe("");
+  });
+
+  it("stays quiet on a PR with no human conversation comment", () => {
+    expect(wake('watch_wake_conversation_comment 383 "" 0')).toBe("");
+  });
+});
+
+describe.skipIf(!hasBash)("watch_split_state carriage return", () => {
+  // jq on Windows ends the line with CRLF; a CR left on the numeric last field
+  // would fail every comparison and silence the conversation wake.
+  it("drops a trailing CR from the last field", () => {
+    expect(splitState("OPEN\t5\r")).toEqual(["OPEN", "5"]);
+  });
+});
+
 describe.skipIf(!hasBash)("watch_wake_thread", () => {
   it("wakes on a thread not in the known set", () => {
     expect(wake('watch_wake_thread 383 "PRRT_new" "PRRT_a;PRRT_b"')).toContain(

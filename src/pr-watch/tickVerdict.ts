@@ -1,5 +1,6 @@
 import {
   ciFixAttemptsFor,
+  hasEscalatedReviewFeedback,
   isCiHeadBudgetSpent,
   isCiHeadEscalated,
   isRebaseBudgetExhausted,
@@ -45,6 +46,6 @@ export function resolveWatchTickVerdict(
   const isRedHeadOutOfAttempts =
     observation.ciBucket === CiRollupBucket.Red && isCiHeadBudgetSpent(lastSeenEntry, headSha);
   if (isCiHeadEscalated(lastSeenEntry, headSha) || isRedHeadOutOfAttempts) return WatchTickVerdict.BlockCiEscalated;
-  if ((lastSeenEntry.escalated_review_ids ?? []).length > 0) return WatchTickVerdict.BlockReviewsEscalated;
+  if (hasEscalatedReviewFeedback(lastSeenEntry)) return WatchTickVerdict.BlockReviewsEscalated;
   return WatchTickVerdict.Idle;
 }

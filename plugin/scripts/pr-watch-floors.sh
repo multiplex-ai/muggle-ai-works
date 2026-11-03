@@ -33,15 +33,28 @@ watch_read_slot_value() {
     printf '%s' "$value"
 }
 
-# Writes <slot>/watch-reported.env: the newest review and comment ids and the
-# unresolved threads a loop's last poll saw — every one of them either reported
-# or already floored — and the red head, rebase key and blocked digest it
-# reported, with the block (`blocked_for`, that block's watermark digest) the
-# digest was reported under.
+# True when the slot file carries `key` at all, empty or not. Tells a floor
+# written as zero from one a watch armed before that floor existed never wrote.
+watch_slot_has_key() {
+    local slot="$1" file_name="$2" key="$3" line
+    [ -f "${slot}/${file_name}" ] || return 1
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            "${key}="*) return 0 ;;
+        esac
+    done < "${slot}/${file_name}"
+    return 1
+}
+
+# Writes <slot>/watch-reported.env: the newest review, thread-comment and
+# conversation-comment ids and the unresolved threads a loop's last poll saw —
+# every one of them either reported or already floored — and the red head,
+# rebase key and blocked digest it reported, with the block (`blocked_for`, that
+# block's watermark digest) the digest was reported under.
 watch_record_reported() {
-    local slot="$1" review="$2" comment="$3" threads="$4" ci_red="$5" rebase="$6" blocked_digest="$7" blocked_for="$8"
-    printf 'REV=%s\nCOM=%s\nTHREADS="%s"\nCIRED="%s"\nREBASED="%s"\nBLOCKED_CIDIGEST="%s"\nBLOCKED_FOR="%s"\n' \
-        "$review" "$comment" "$threads" "$ci_red" "$rebase" "$blocked_digest" "$blocked_for" \
+    local slot="$1" review="$2" comment="$3" conversation="$4" threads="$5" ci_red="$6" rebase="$7" blocked_digest="$8" blocked_for="$9"
+    printf 'REV=%s\nCOM=%s\nCONV=%s\nTHREADS="%s"\nCIRED="%s"\nREBASED="%s"\nBLOCKED_CIDIGEST="%s"\nBLOCKED_FOR="%s"\n' \
+        "$review" "$comment" "$conversation" "$threads" "$ci_red" "$rebase" "$blocked_digest" "$blocked_for" \
         > "${slot}/${MUGGLE_PR_WATCH_REPORTED_FILE}"
 }
 

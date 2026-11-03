@@ -80,6 +80,7 @@ unresolved_threads="${STATE_FIELDS[6]-}"
 pending_checks="${STATE_FIELDS[7]-}"
 failed_checks="${STATE_FIELDS[8]-}"
 ci_red_key="$(watch_ci_red_key "$head_sha" "${STATE_FIELDS[10]-}")"
+latest_conversation="${STATE_FIELDS[11]-}"
 
 if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
     echo "TERMINAL pr=$pr_number state=$pr_state — nothing to arm"
@@ -145,7 +146,7 @@ thread_count=0
 # Unattempted work is left unfloored, so the loop's first poll reports it and
 # exits — that report is the wake.
 echo "DRAIN pr=$pr_number state=$pr_state head=${head_sha:0:8}"
-echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} latest-comment=${latest_comment:-0}"
+echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} latest-comment=${latest_comment:-0} latest-conversation-comment=${latest_conversation:-0}"
 echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behind-base=${behind_count:-unknown} mergeable=${mergeable:-UNKNOWN}"
 if [ -n "$ci_red_head" ]; then
     if [ -n "$ci_red_floor" ]; then
@@ -164,17 +165,23 @@ if [ -n "$rebase_due_key" ]; then
     fi
 fi
 
-# A re-arm carries the review, comment and thread floors forward. The session
+# A re-arm carries the review, comment, conversation and thread floors forward. The session
 # advanced them past what it handled, so anything newer — a review landing
 # between its last tick's read and this one — is above them, and the loop's
 # first poll reports it. Seeding them from this read would floor that review
 # unseen. Only a first arm, with nothing handled yet, takes them from its read.
 review_floor="${latest_review:-0}"
 comment_floor="${latest_comment:-0}"
+conversation_floor="${latest_conversation:-0}"
 threads_floor="$unresolved_threads"
 if [ -f "${slot}/watch-watermark.env" ]; then
     review_floor="$(watch_read_slot_value "$slot" watch-watermark.env REV)"
     comment_floor="$(watch_read_slot_value "$slot" watch-watermark.env COM)"
+    # A watermark from before conversation comments were watched has no floor
+    # to carry, so this drain's read is the first one it gets.
+    if watch_slot_has_key "$slot" watch-watermark.env CONV; then
+        conversation_floor="$(watch_read_slot_value "$slot" watch-watermark.env CONV)"
+    fi
     threads_floor="$(watch_threads_still_unresolved \
         "$(watch_read_slot_value "$slot" watch-watermark.env THREADS)" "$unresolved_threads")"
 fi
@@ -182,6 +189,7 @@ fi
 {
     printf 'REV=%s\n' "${review_floor:-0}"
     printf 'COM=%s\n' "${comment_floor:-0}"
+    printf 'CONV=%s\n' "${conversation_floor:-0}"
     printf 'THREADS="%s"\n' "$threads_floor"
     printf 'CIRED="%s"\n' "$ci_red_floor"
     printf 'REBASED="%s"\n' "$rebase_floor"

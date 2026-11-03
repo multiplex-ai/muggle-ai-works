@@ -9,4 +9,5 @@ export const STUDIO_VERDICT_LABELS: Record<StudioVerdict, string> = {
   [StudioVerdict.Failure]: "Failed",
   [StudioVerdict.Failed]: "Failed",
   [StudioVerdict.Timeout]: "Timed Out",
+  [StudioVerdict.InsufficientBalance]: "Insufficient Balance",
 };

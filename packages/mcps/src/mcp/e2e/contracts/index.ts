@@ -7,6 +7,8 @@ import { z } from "zod";
 import { EntityReferenceProjectIdSchema, EntityReferenceSchema } from "../../contracts/entity-reference-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
+import { WORKFLOW_LLM_PARAMS_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
+import { LlmTierEnum } from "../../../shared/llm-tier-types.js";
 import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { ProjectResolutionSettingsInputSchema } from "./project-display-resolution-schemas.js";
@@ -95,9 +97,15 @@ export const WorkflowMemoryParamsSchema = z.object({
   enableEverMemOS: z.boolean().optional().describe("Override to enable/disable EverMemOS for this workflow run"),
 });
 
+/** Optional model tier override in workflow params. */
+export const WorkflowLlmParamsSchema = z.object({
+  tier: z.enum(LlmTierEnum).optional(),
+});
+
 /** Optional workflow parameters. */
 export const WorkflowParamsSchema = z.object({
   memory: WorkflowMemoryParamsSchema.optional().describe("Per-run memory override settings"),
+  llm: WorkflowLlmParamsSchema.optional().describe(WORKFLOW_LLM_PARAMS_DESCRIPTION),
 }).passthrough().optional().describe("Optional workflow parameters for workflow-level overrides");
 
 /**

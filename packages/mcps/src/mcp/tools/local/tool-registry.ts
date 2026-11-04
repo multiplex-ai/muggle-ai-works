@@ -75,6 +75,7 @@ import {
 } from "../../local/services/run-stack-gate.js";
 import { resolveElectronBrowserVisibilityFromPreferences } from "../../local/services/electron-browser-visibility.js";
 import { formatElectronBrowserVisibilityLine } from "./electron-browser-visibility-line.js";
+import { formatLlmTierLine } from "./llm-tier-line.js";
 import { formatStudioVerdictLine } from "./studio-verdict-line.js";
 import { formatRunCheckoutRefusal } from "./run-checkout-refusal.js";
 import { formatRunStackRefusal, formatStackChangedDuringRun } from "./run-stack-refusal.js";
@@ -440,6 +441,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
             freshSession: input.freshSession,
             displayResolution: input.displayResolution,
             runSettingsId: input.runSettingsId,
+            isLightMode: input.lightMode,
           }),
       });
 
@@ -450,6 +452,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
         `**Test Script ID:** ${generationRun.testScriptId}`,
         `**Status:** ${generationRun.status}`,
         `**Duration:** ${generationRun.executionTimeMs}ms`,
+        formatLlmTierLine(input.lightMode),
         formatRunViewUrlLine(generationRun.id),
         formatElectronBrowserVisibilityLine(browserVisibility),
         generationRun.errorMessage ? `**Error:** ${generationRun.errorMessage}` : "",
@@ -520,6 +523,7 @@ const executeReplayTool: ILocalMcpTool = {
             freshSession: input.freshSession,
             pinnedAccount: input.pinnedAccount,
             displayResolution: input.displayResolution,
+            isLightMode: input.lightMode,
           }),
       });
 
@@ -530,6 +534,7 @@ const executeReplayTool: ILocalMcpTool = {
         `**Test Script ID:** ${replayRun.testScriptId}`,
         `**Status:** ${replayRun.status}`,
         `**Duration:** ${replayRun.executionTimeMs}ms`,
+        formatLlmTierLine(input.lightMode),
         formatRunViewUrlLine(replayRun.id),
         formatElectronBrowserVisibilityLine(browserVisibility),
         replayRun.errorMessage ? `**Error:** ${replayRun.errorMessage}` : "",

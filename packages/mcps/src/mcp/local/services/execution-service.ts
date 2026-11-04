@@ -728,6 +728,7 @@ async function executeElectronAppAsync(params: {
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @param params.runSettingsId - Local runSettings record the cloud records the generation against.
+ * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier.
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
@@ -740,6 +741,7 @@ export async function executeTestGeneration(params: {
   freshSession?: boolean;
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
+  isLightMode?: boolean;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({
     cwd: params.cwd,
@@ -761,6 +763,7 @@ async function runTestGenerationLocked(params: {
   freshSession?: boolean;
   displayResolution?: DisplayResolution;
   runSettingsId?: string;
+  isLightMode?: boolean;
 }): Promise<ILocalRunResult> {
   const { testCase, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS;
@@ -818,6 +821,7 @@ async function runTestGenerationLocked(params: {
       displayResolution: params.displayResolution,
       freshSession: effectiveFreshSession,
       runSettingsId: params.runSettingsId,
+      isLightMode: params.isLightMode,
     });
 
     // Write temp files
@@ -1001,6 +1005,7 @@ async function runTestGenerationLocked(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
+ * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier.
  * @returns Run result.
  */
 export async function executeReplay(params: {
@@ -1014,6 +1019,7 @@ export async function executeReplay(params: {
   freshSession?: boolean;
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
+  isLightMode?: boolean;
 }): Promise<ILocalRunResult> {
   const lockHandle = await acquireLocalExecutionLock({
     cwd: params.cwd,
@@ -1036,6 +1042,7 @@ async function runReplayLocked(params: {
   freshSession?: boolean;
   pinnedAccount?: PinnedAccount | null;
   displayResolution?: DisplayResolution;
+  isLightMode?: boolean;
 }): Promise<ILocalRunResult> {
   const { testScript, actionScript, localUrl } = params;
   const timeoutMs = params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS;
@@ -1078,6 +1085,7 @@ async function runReplayLocked(params: {
       displayResolution: params.displayResolution,
       pinnedAccount: params.pinnedAccount,
       freshSession: params.freshSession,
+      isLightMode: params.isLightMode,
     });
 
     // Write temp files

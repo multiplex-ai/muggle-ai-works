@@ -62,8 +62,10 @@ runs:
         # on its own, so it is reported apart from one that needs regenerating:
         # telling someone to regenerate a throttled token sends them to fix
         # nothing while the real remedy is waiting or adding quota.
+        # No match is the common case, a rejected token; under the job's `-e` and
+        # pipefail, grep's exit 1 would end the step before it reports anything.
         limit_reset() {
-          printf '%s\n' "$1" | grep -oE "hit your ([a-z']+ ){0,3}limit.*" | head -n 1
+          printf '%s\n' "$1" | grep -oE "hit your ([a-z']+ ){0,3}limit.*" | head -n 1 || true
         }
 
         if [ -z "$PRIMARY_TOKEN" ]; then

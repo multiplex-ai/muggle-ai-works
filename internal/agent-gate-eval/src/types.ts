@@ -447,6 +447,13 @@ export interface CodexAgentRunOptions extends Omit<AgentRunOptions, "definition"
   configOverrides?: string[];
 }
 
+/** One command of a chained shell command, as tools/shell-command.mjs splits it. */
+export interface ChainedCommand {
+  command: string;
+  /** It follows `&&` or `||`, so whether it ran turns on an exit status the harness never has. */
+  isConditional: boolean;
+}
+
 /** What the Codex hook answers a shell call with, unless it only reads the plugin tree. */
 export interface CodexScriptedBash {
   responses: ScriptedBashResponse[];

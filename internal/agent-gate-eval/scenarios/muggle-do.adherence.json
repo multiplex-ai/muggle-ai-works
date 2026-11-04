@@ -368,8 +368,20 @@
         "response": "true"
       },
       {
+        "commandContains": "user.signingkey",
+        "response": "{{home}}/.ssh/id_ed25519.pub"
+      },
+      {
+        "commandContains": "gpg.format",
+        "response": "ssh"
+      },
+      {
         "commandContains": "checkout -b",
         "response": "Switched to a new branch 'users/eval/farewell-line'"
+      },
+      {
+        "commandContains": "ls-files --others",
+        "response": ""
       },
       {
         "commandContains": "ls-files",

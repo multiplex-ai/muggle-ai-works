@@ -14,13 +14,15 @@
 //
 // Plain JavaScript rather than TypeScript under tsx, which would add half a
 // second to every tool call. Its one rule shared with tools/scripted-replies.ts
-// — the first scripted response whose `commandContains` the command includes —
-// is held equal by test/codex-harness.test.ts. Each call is answered alone, so
-// a response's `sequence` has no meaning here; codex-harness.ts refuses
-// scenarios that use one.
+// — the first scripted response whose `commandContains` the command includes,
+// chained command by chained command — is held equal by
+// test/codex-harness.test.ts. Each call is answered alone, so a response's
+// `sequence` has no meaning here; codex-harness.ts refuses scenarios that use one.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import * as path from "node:path";
+
+import { builtinOutput, chainedCommands, shellWords } from "./tools/shell-command.mjs";
 
 const MOCK_MUGGLE_TOOL_PREFIX = "mcp__muggle__";
 const ASK_QUESTION_TOOL = "request_user_input";
@@ -36,33 +38,6 @@ function readJson(source) {
     } catch {
         return null;
     }
-}
-
-/** A command stage's words, quotes removed; null when its quoting does not close. */
-function shellWords(text) {
-    const words = [];
-    let current = "";
-    let quote = null;
-    let inWord = false;
-    for (const character of text) {
-        if (quote) {
-            if (character === quote) quote = null;
-            else current += character;
-        } else if (character === "'" || character === '"') {
-            quote = character;
-            inWord = true;
-        } else if (/\s/.test(character)) {
-            if (inWord) words.push(current);
-            current = "";
-            inWord = false;
-        } else {
-            current += character;
-            inWord = true;
-        }
-    }
-    if (quote) return null;
-    if (inWord) words.push(current);
-    return words;
 }
 
 function isInside(root, candidate) {
@@ -94,10 +69,29 @@ function readsOnlyThePluginTree(command, readRoot, cwd) {
     return namedAPath;
 }
 
-/** scripted-replies.ts `resolveScriptedBashResponse`: the first scripted response the command contains, else the unscripted one. */
+function firstScriptedResponse(command, responses) {
+    return responses.find((entry) => command.includes(entry.commandContains));
+}
+
+/**
+ * scripted-replies.ts `resolveScriptedBashResponse`: the first scripted response the command contains, else the
+ * unscripted one; a chain is answered command by command when any of its commands has a specific response.
+ */
 function scriptedOutput(command, scripted) {
-    const match = (scripted.responses ?? []).find((entry) => command.includes(entry.commandContains));
-    return match ? match.response : scripted.unscripted;
+    const responses = scripted.responses ?? [];
+    const chain = chainedCommands(command);
+    const replies = chain.map((chained) => {
+        const builtin = builtinOutput(chained);
+        if (builtin !== undefined) return { output: builtin, isStubbed: false };
+        const entry = firstScriptedResponse(chained.command, responses);
+        const isStubbed = entry !== undefined && entry.commandContains !== "";
+        return { output: isStubbed ? (entry.response ?? "") : "", isStubbed: isStubbed };
+    });
+    if (chain.length > 1 && replies.some((reply) => reply.isStubbed)) {
+        return replies.map((reply) => reply.output).filter((output) => output !== "").join("\n");
+    }
+    const match = firstScriptedResponse(command, responses);
+    return match ? (match.response ?? "") : scripted.unscripted;
 }
 
 function deny(reason) {

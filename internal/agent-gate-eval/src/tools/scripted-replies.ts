@@ -11,6 +11,7 @@ import {
   type ScriptedReply,
   type ScriptedToolResponses,
 } from "../types.js";
+import { builtinOutput, chainedCommands } from "./shell-command.mjs";
 
 /** The nth (0-based) entry of a non-empty sequence, or its last entry once `callIndex` runs past the end. */
 export function sequenceEntryAt<Entry>(sequence: Entry[], callIndex: number): Entry {
@@ -55,10 +56,31 @@ function hasPrecedingCommand(scripted: ScriptedBashResponse, answeredCommands: s
   return after === undefined || answeredCommands.some((command) => command.includes(after));
 }
 
+function isSpecificEntry(scripted: ScriptedBashResponse | undefined): boolean {
+  return scripted !== undefined && scripted.commandContains !== "";
+}
+
+/** Each command's first eligible entry, judged after the commands before it in the list ran. */
+function firstEligibleEntries(
+  commands: string[],
+  responses: ScriptedBashResponse[] | undefined,
+  answeredCommands: string[],
+): (ScriptedBashResponse | undefined)[] {
+  const precedingCommands = [...answeredCommands];
+  return commands.map((command) => {
+    const scripted = (responses ?? []).find(
+      (candidate) => bashResponseMatches(candidate, command) && hasPrecedingCommand(candidate, precedingCommands),
+    );
+    precedingCommands.push(command);
+    return scripted;
+  });
+}
+
 /**
- * Resolve the canned stdout for an intercepted Bash command's first call. First
- * match wins; `commandContains: ""` is the catch-all. A first call has no
- * earlier commands, so an entry with `afterCommandContains` never answers it.
+ * Resolve the canned stdout for an intercepted Bash command's first call:
+ * `createBashResponder`'s answer to a run's opening command. A first call has
+ * no earlier commands, so an entry with `afterCommandContains` answers only a
+ * later command in its own chain.
  *
  * A command the scenario never stubs falls through to `UNSCRIPTED_BASH_RESPONSE`,
  * which the agent reads as that command's literal output. A lookup whose real answer
@@ -72,16 +94,20 @@ export function resolveScriptedBashResponse(
   command: string,
   responses: ScriptedBashResponse[] | undefined,
 ): string {
-  const scripted = (responses ?? []).find(
-    (candidate) => candidate.afterCommandContains === undefined && bashResponseMatches(candidate, command),
-  );
-  return scripted ? scriptedReplyAt(scripted, 0) : UNSCRIPTED_BASH_RESPONSE;
+  return createBashResponder(responses)(command);
 }
 
 /**
- * A run's Bash answerer: `resolveScriptedBashResponse`, with each entry's
- * sequence advancing per matching call and each `afterCommandContains` entry
- * eligible once a command before this one carried its substring.
+ * A run's Bash answerer. First match wins; `commandContains: ""` is the
+ * catch-all. Each entry's sequence advances per matching call, and each
+ * `afterCommandContains` entry is eligible once an earlier command carried its
+ * substring.
+ *
+ * A chained command (`a && b; c`) is answered command by command, the replies
+ * joined by newlines as a shell prints them. A `cd`, an assignment or an `echo`
+ * of literals prints what the shell would; a command only the catch-all
+ * matches prints nothing. When no command in the chain matches a specific
+ * entry, the chain is answered whole.
  */
 export function createBashResponder(
   responses: ScriptedBashResponse[] | undefined,
@@ -93,10 +119,24 @@ export function createBashResponder(
       bashResponseMatches(scripted, command) && hasPrecedingCommand(scripted, answeredCommands),
     UNSCRIPTED_BASH_RESPONSE,
   );
-  return (command) => {
+  const answer = (command: string): string => {
     const reply = respond(command);
     answeredCommands.push(command);
     return reply;
+  };
+  return (command) => {
+    const chain = chainedCommands(command);
+    const commandsInChain = chain.map((chained) => chained.command);
+    const builtinOutputs = chain.map((chained) => builtinOutput(chained));
+    const entries = firstEligibleEntries(commandsInChain, responses, answeredCommands);
+    const isStubbed = chain.map((_, index) => builtinOutputs[index] === undefined && isSpecificEntry(entries[index]));
+    if (chain.length < 2 || !isStubbed.includes(true)) return answer(command);
+    const replies = commandsInChain.map((chainedCommand, index) => {
+      if (isStubbed[index]) return answer(chainedCommand);
+      answeredCommands.push(chainedCommand);
+      return builtinOutputs[index] ?? "";
+    });
+    return replies.filter((reply) => reply !== "").join("\n");
   };
 }
 

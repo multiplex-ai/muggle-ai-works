@@ -61,9 +61,11 @@ describe("createBashResponder", () => {
       { commandContains: "git status", response: "modified: README.md" },
     ];
     const answerBash = createBashResponder(afterCommit);
-    expect(answerBash("git commit -m x && git status")).toBe("modified: README.md");
+    expect(answerBash("git status")).toBe("modified: README.md");
+    expect(answerBash("git commit -m x")).toBe(UNSCRIPTED_BASH_RESPONSE);
     expect(answerBash("git status")).toBe("nothing to commit");
     expect(resolveScriptedBashResponse("git status", afterCommit)).toBe("modified: README.md");
+    expect(resolveScriptedBashResponse("git commit -m x && git status", afterCommit)).toBe("nothing to commit");
   });
 
   it("starts fresh per run", () => {
@@ -72,9 +74,70 @@ describe("createBashResponder", () => {
   });
 
   it("agrees with the stateless first-call resolver the Codex hook mirrors", () => {
-    for (const command of ["pnpm lint", "gh pr checks 7", "curl localhost"]) {
+    for (const command of ["pnpm lint", "gh pr checks 7", "curl localhost", "cd repo && pnpm lint"]) {
       expect(createBashResponder(responses)(command)).toBe(resolveScriptedBashResponse(command, responses));
     }
+  });
+});
+
+describe("createBashResponder on a chained command", () => {
+  const responses: ScriptedBashResponse[] = [
+    { commandContains: "rev-parse HEAD", response: "9f2c1e4" },
+    { commandContains: "gh pr view", response: '{"title":"[UNIT-ONLY] fix"}' },
+    { commandContains: "git fetch", response: "" },
+    { commandContains: "pnpm lint", sequence: ["1 error", "0 errors"] },
+    { commandContains: "", response: "catch-all" },
+  ];
+
+  it("answers each chained command and joins the replies in order", () => {
+    expect(resolveScriptedBashResponse("git rev-parse HEAD && gh pr view 57 --json title", responses)).toBe(
+      '9f2c1e4\n{"title":"[UNIT-ONLY] fix"}',
+    );
+    expect(resolveScriptedBashResponse("gh pr view 57; git rev-parse HEAD", responses)).toBe(
+      '{"title":"[UNIT-ONLY] fix"}\n9f2c1e4',
+    );
+  });
+
+  it("prints nothing for a command only the catch-all matches, or whose reply is empty", () => {
+    expect(resolveScriptedBashResponse("make build && git fetch origin && git rev-parse HEAD", responses)).toBe(
+      "9f2c1e4",
+    );
+  });
+
+  it("prints what the shell would for a cd, an assignment or an echo of literals", () => {
+    const sessionStubs: ScriptedBashResponse[] = [
+      { commandContains: "pr-watch-verdict", response: "VERDICT=block-ci-escalated" },
+      { commandContains: "sessions", response: "muggle-ai-works-pr504" },
+    ];
+    expect(
+      resolveScriptedBashResponse(
+        'cd /tmp/sessions && SLOT_DIR="/tmp/sessions/pr504"\nnode pr-watch-verdict.mjs tick',
+        sessionStubs,
+      ),
+    ).toBe("VERDICT=block-ci-escalated");
+    expect(resolveScriptedBashResponse('git rev-parse HEAD; echo "--- view"; gh pr view 57', responses)).toBe(
+      '9f2c1e4\n--- view\n{"title":"[UNIT-ONLY] fix"}',
+    );
+    expect(resolveScriptedBashResponse("git rev-parse HEAD && echo FOUND || echo MISSING", responses)).toBe("9f2c1e4");
+  });
+
+  it("answers the chain whole when no chained command matches a specific entry", () => {
+    expect(resolveScriptedBashResponse("cd /repo && make build", responses)).toBe("catch-all");
+    expect(resolveScriptedBashResponse("cd /repo && make build", responses.slice(0, -1))).toBe(
+      UNSCRIPTED_BASH_RESPONSE,
+    );
+  });
+
+  it("advances a sequence once per chained command it answers", () => {
+    const answerBash = createBashResponder(responses);
+    expect(answerBash("pnpm lint; pnpm lint --fix")).toBe("1 error\n0 errors");
+    expect(answerBash("pnpm lint")).toBe("0 errors");
+  });
+
+  it("answers a command with a heredoc whole", () => {
+    expect(
+      resolveScriptedBashResponse("gh pr view 57 --body-file - <<'EOF'\nfixed; pnpm lint passes\nEOF", responses),
+    ).toBe('{"title":"[UNIT-ONLY] fix"}');
   });
 });
 

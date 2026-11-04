@@ -1,6 +1,6 @@
 # E2E Repair Loop (Stage 7.5)
 
-Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch. A failing acceptance run means the change is not ready for a reviewer, so this stage root-causes every failure and either repairs it in-pipeline or puts one decision in front of the user. The watcher is armed only once this stage clears.
+Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch, and again whenever the watcher finds the PR's `muggle-walkthrough` check red on failed cases ([`fix-ci.md`](fix-ci.md) Step 2.5). A failing acceptance run means the change is not ready for a reviewer, so this stage root-causes every failure and either repairs it in-pipeline or puts one decision in front of the user. The watcher is armed only once this stage clears.
 
 ## Turn preamble
 
@@ -14,6 +14,8 @@ Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch. A fail
 - `state.md` — validation strategy, per-repo worktree path, project id.
 - The PR opened by [`open-prs/forward.md`](open-prs/forward.md) — repo and number, for the escalation event and the refresh path.
 - `repairIteration` — how many times this stage has already run in this session, read from `iterations/<NNN>.md`.
+
+Entered from fix-ci, the failing cases come from the red check instead of a Stage 6 report: the check run's summary (each failed or inconclusive case, its failing step, its run link) and the walkthrough comment's hidden `muggle-e2e-result` record (the same cases with their test case ids). The run-level verdict is `FAIL` when any case failed, else `INCONCLUSIVE`. A walkthrough settled by a `NO_APP_LOGIC_CHANGE` skip keeps the last full run beneath it, record included; those failures are this head's and enter the loop like any other.
 
 ## Wave cycles
 
@@ -48,11 +50,12 @@ Map each bucket to exactly one disposition. Buckets are defined in [`../_shared/
 | `product-uxux` (regen) | `repair` | The product blocks the agent because the feature does not work. |
 | `stale-script` (replay) | `regenerate` | Selectors moved; the product is fine. Regenerating is self-healing, not a code change. |
 | `transient` (regen) | `retry` | Once, then re-bucket the second result. A twice-transient failure is `infra`. |
+| `test-precondition` (either) | `repair-test` | The product is right for the data it has; the test asserts on state it never created. Repair the test case, never the product. |
 | `infra` (either) | `ask` | A Muggle Test bug. Nothing in this repo fixes it. |
 | `agent-course` (regen) | `ask` | The agent needs steering, which is the user's `muggle-feedback` call to make. |
 | `unclassified` | `ask` | No bucket, no automatic action. |
 
-A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. Without one it is `ask`, whatever the bucket said.
+A `repair` disposition requires a named defect: the failing step, expected-versus-actual, and the code path it implicates. A `repair-test` disposition requires one too: the asserted state, the evidence the account lacks it (the frame, the record list), and the test-case change that would create it. Without one either is `ask`, whatever the bucket said.
 
 **A failure the diff cannot explain may predate it.** When a `product-defect` or `product-uxux` failure names no code path the diff touched, replay the same test case against a checkout of the base before repairing anything: a worktree at the base tip's full SHA, with its own stack claim and services, under the same runSettings record. If that run fails the same way, its disposition is `baseline` — the defect is on the base, not this change's to fix — and the entry carries that run's id as `baselineRunId` into the walkthrough report ([`../muggle-pr-visual-walkthrough/e2e-report-assembly.md`](../muggle-pr-visual-walkthrough/e2e-report-assembly.md)). If it passes, the change caused the failure and the original disposition stands. A `baseline` entry is never re-run or waived; when every remaining failure is `baseline`, the loop clears.
 
@@ -64,50 +67,73 @@ An Inconclusive entry Stage 6 recorded as `primary failed` never executed either
 
 ## Step 3: Act
 
-Process dispositions in order — `retry`, then `regenerate`, then `repair` — so cheap self-healing runs before any code change.
+Process dispositions in order — `retry`, then `regenerate`, then `repair-test`, then `repair` — so cheap self-healing runs before any code change.
 
 - **`retry`** — re-execute the case unchanged through the Stage 6 loop. Re-bucket the result and fold it back into Step 2.
 - **`regenerate`** — regenerate the script for that test case, then re-replay. One regeneration per test case per iteration, matching Stage 6's own cap.
+- **`repair-test`** — update the test case with `muggle-remote-test-case-update` so it produces the state it asserts on: a setup step that creates the record, a seeded precondition, or a prerequisite test case it chains after. Keep the assertion as written — an edit that stops checking the behavior is not a repair. Then regenerate its script and re-run. No product code changes, so nothing is pushed.
 - **`repair`** — re-enter [`build.md`](build.md) with the named defects as this iteration's requirements amendment, then run [`unit-tests.md`](unit-tests.md) and refresh the PR through [`open-prs/update.md`](open-prs/update.md). Impact analysis does not re-run; the change is scoped to a known defect.
 - **`ask`** — collect every `ask` failure and present **one** `AskUserQuestion` (Step 4). Never one picker per failure.
 
 ## Step 4: The user decision
 
-One question, listing each unrepairable failure with its bucket, failing step, and dashboard link. Options:
+One question, listing each unrepairable failure with its bucket, failing step, and dashboard link. Options — the same four in every form the decision takes:
 
 1. **Repair anyway** — the user names what the fix should be; the loop treats it as a `repair` disposition and re-enters Step 3.
 2. **Give feedback and rerun** — invoke `muggle-feedback` for the run, then re-execute in regen mode. The right answer for `agent-course`.
-3. **Waive and ship** — record the waiver in `state.md`, retitle the PR `[E2E FAILING]`, and clear to Stage 8.
+3. **Waive and ship** — record `E2E waived: <test case ids> — <the user's words>` in `state.md`, retitle the PR `[E2E FAILING]`, and clear to Stage 8. Only the user's own pick or words waive. The walkthrough check stays red on the posted run; merging past it is the user's call.
 4. **Stop here** — leave the PR open and unwatched; the user takes it from there.
 
-**Unattended runs.** When the cycle was started autonomously there is nobody to ask. Do not skip the loop — run Steps 1–3 in full, then treat a surviving `ask` as an automatic waive: emit the escalation event, retitle `[E2E FAILING]`, and clear to Stage 8. A readiness halt (Step 0) is not an `ask` and is never auto-waived. Silently arming the watcher on a red run is the failure this stage exists to prevent.
+A case `state.md` already records as waived never reaches the question again.
+
+**Unattended runs.** When the cycle was started autonomously there is nobody to ask, and nobody's waiver to record. Do not skip the loop — run Steps 1–3 in full, then leave a surviving `ask` as an **open decision**, never a waiver:
+
+1. Write the decision into `state.md`, replacing any earlier one:
+   ```
+   ## E2E decision
+   - Head: <head sha>
+   - <test case name> (<test case id>) — <bucket> — step <n>: <what failed> — <run link>
+   - Options: repair with direction | feedback and rerun | waive | stop
+   ```
+2. Retitle the PR `[E2E FAILING]` and emit the escalation event.
+3. End the turn's final message with the decision request — one line per case naming its bucket, then the four options.
+4. Clear to Stage 8 as `decision-pending`. The armed watcher sees the walkthrough check red, fix-ci finds this decision for the head and escalates without repeating the repair, and the watcher's blocked reminder carries the cases and options until the user answers.
+
+A readiness halt (Step 0) is not an `ask` and never becomes a decision. Silently arming the watcher on a red run, or waiving one nobody looked at, is the failure this stage exists to prevent.
+
+Entered from fix-ci, Step 4 always takes the unattended form, and fix-ci's escalation ([`fix-ci.md`](fix-ci.md) Step 6) stands in for the Stage 8 clearance.
+
+The user's answer — to the question, or to the decision request after it was printed — runs that option over the listed cases and removes the `## E2E decision` block.
 
 ## Step 5: Close the loop
 
-After a `repair`, `regenerate`, or `retry` pass, re-run [`e2e-acceptance.md`](e2e-acceptance.md) over the affected test cases only, increment `repairIteration`, and return to Step 0. A change whose `state.md` records `E2E lane: background` re-runs through that lane ([`background-e2e.md`](background-e2e.md)), queued behind any local run in flight, with this PR's URL in the brief.
+After a `repair`, `repair-test`, `regenerate`, or `retry` pass, re-run [`e2e-acceptance.md`](e2e-acceptance.md) over the affected test cases only, increment `repairIteration`, and return to Step 0. A change whose `state.md` records `E2E lane: background` re-runs through that lane ([`background-e2e.md`](background-e2e.md)), queued behind any local run in flight, with this PR's URL in the brief.
 
-The loop is bounded at **3** repair iterations, the same bound the cycle guardrail already applies to E2E failures. On the third exhausted iteration, waive automatically: retitle `[E2E FAILING]`, record the surviving failures in `result.md`, and clear to Stage 8. A PR a reviewer can see is worth more than a loop that never terminates.
+The loop is bounded at **3** repair iterations, the same bound the cycle guardrail already applies to E2E failures. On the third exhausted iteration, the surviving failures go to Step 4 as `ask`, each with its last bucket — the question when attended, the open decision when not.
 
 ## Telemetry
 
-Steps 1–3 emit the `*-classified` / `*-resolved` pair per [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section D, with `userAction` set to the disposition this stage took (`repair`, `regenerate`, `retry`) rather than a human pick. A failure that reaches Step 4 records the user's actual choice.
+Steps 1–3 emit the `*-classified` / `*-resolved` pair per [`../_shared/failure-mode-handling.md`](../_shared/failure-mode-handling.md) section D, with `userAction` set to the disposition this stage took (`repair`, `repair-test`, `regenerate`, `retry`) rather than a human pick. A failure that reaches Step 4 records the user's actual choice.
 
-Every waive — user-picked, unattended, or iteration-capped — also emits `muggle-do:escalation` with `kind: "e2e-unrepairable"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
+Every waive the user picked, and every open decision left for them, also emits `muggle-do:escalation` with `kind: "e2e-unrepairable"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
 
 ## Output
 
 **Verdict in:** `<Stage 6 verdict>`
 **Repair iterations:** `<n>` of 3
 **Repaired:** test case → root cause → commit subject
+**Test repaired:** test case → missing precondition → test-case change
 **Regenerated:** test case → new script id
-**Waived:** test case → bucket → reason
+**Waived:** test case → bucket → the user's words
+**Decision pending:** test case → bucket → failing step
 **Verdict out:** `<verdict after the final re-run>`
-**Clearance:** `green` | `waived — <reason>` | `iteration-cap`
+**Clearance:** `green` | `waived — <reason>` | `decision-pending`
 
 ## Invariants
 
-- Stage 8 is unreachable while clearance is unresolved — the only exits are green, waived, or iteration-capped.
-- No bucket auto-repairs without a named defect.
+- Stage 8 is unreachable while clearance is unresolved — the only exits are green, waived by the user, or decision-pending.
+- No waiver without the user's own pick or words; an unattended run or a spent iteration budget leaves a decision, never a waiver.
+- No bucket auto-repairs without a named defect; `repair-test` changes the test case, never product code.
 - One `AskUserQuestion` per stage run, never one per failure.
 - An unattended run still executes Steps 1–3; only Step 4 collapses.
-- Re-runs are scoped to the affected test cases, never the whole suite.
+- Re-runs are scoped to the affected test cases, except when entered from fix-ci: the walkthrough is replaced wholesale, so that re-run covers the whole suite.

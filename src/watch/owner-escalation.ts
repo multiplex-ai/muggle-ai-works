@@ -1,4 +1,4 @@
-import { isCiHeadEscalated, isRebaseKeyEscalated } from "../pr-watch/attempts.js";
+import { hasEscalatedReviewFeedback, isCiHeadEscalated, isRebaseKeyEscalated } from "../pr-watch/attempts.js";
 import { REBASE_KEY_SEPARATOR } from "../pr-watch/constants.js";
 import { lastSeenEntryFor } from "../pr-watch/slotFiles.js";
 import { FOLLOWUP_LOG_ESCALATED_WORD, OWNER_ESCALATION_NOTE_MAX_CHARS } from "./constants.js";
@@ -47,9 +47,7 @@ export function resolveOwnerEscalation(
     );
     if (isConflictEscalated) kinds.push(OwnerEscalationKind.Conflict);
   }
-  if (Array.isArray(lastSeenEntry.escalated_review_ids) && lastSeenEntry.escalated_review_ids.length > 0) {
-    kinds.push(OwnerEscalationKind.Reviews);
-  }
+  if (hasEscalatedReviewFeedback(lastSeenEntry)) kinds.push(OwnerEscalationKind.Reviews);
   if (kinds.length === 0) return undefined;
   const note = latestEscalationNote(followupLogLines, pr.number);
   return note === undefined ? { kinds: kinds } : { kinds: kinds, note: note };

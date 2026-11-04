@@ -159,10 +159,11 @@ describe("Stage 7.5 never auto-waives a readiness failure", () => {
     expect(clearanceCheck).toMatch(/is not this: it is an `infra` failure and takes the loop below/);
   });
 
-  it("excludes it from the unattended automatic waive", () => {
-    const unattended = userDecision.split(/\n\s*\n/).find((p) => p.startsWith("**Unattended runs.**"));
-    expect(unattended).toBeDefined();
-    expect(unattended!).toMatch(/automatic waive/);
-    expect(unattended!).toMatch(/readiness halt \(Step 0\) is not an `ask` and is never auto-waived/);
+  it("excludes it from the unattended open decision", () => {
+    const paragraphs = userDecision.split(/\n\s*\n/);
+    expect(paragraphs.find((p) => p.startsWith("**Unattended runs.**"))).toMatch(/open decision/);
+    expect(paragraphs.find((p) => p.startsWith("A readiness halt (Step 0)"))).toMatch(
+      /readiness halt \(Step 0\) is not an `ask` and never becomes a decision/,
+    );
   });
 });

@@ -27,8 +27,11 @@
 # unresolved_threads and fires a thread wake for a PR with no threads, while the
 # check digest lands in failed_checks and leaves red-CI detection reading a
 # string where it expects a count. awk with an explicit FS does not collapse.
+#
+# A CRLF-terminated projection (jq on Windows) would leave a carriage return on
+# the last field, which is numeric and would then fail every comparison.
 watch_split_state() {
-    printf '%s\n' "$1" | awk -F'\t' '{for (i = 1; i <= NF; i++) print $i}'
+    printf '%s\n' "$1" | awk -F'\t' '{sub(/\r$/, ""); for (i = 1; i <= NF; i++) print $i}'
 }
 
 # Loads a state line's fields into the array STATE_FIELDS, empty fields kept.
@@ -57,6 +60,16 @@ watch_wake_comment() {
     local pr="$1" latest="$2" floor="$3"
     [ "${latest:-0}" -gt "${floor:-0}" ] 2>/dev/null || return 1
     echo "EVENT pr=$pr new thread comment id=$latest"
+}
+
+# A top-level PR comment (the Conversation tab) newer than the floor. The
+# projection already dropped muggle's own posts and bot authors, so whatever is
+# left is a human's. Issue-comment ids are monotonic like the two above, but a
+# sequence of their own, hence a floor of their own.
+watch_wake_conversation_comment() {
+    local pr="$1" latest="$2" floor="$3"
+    [ "${latest:-0}" -gt "${floor:-0}" ] 2>/dev/null || return 1
+    echo "EVENT pr=$pr new conversation comment id=$latest"
 }
 
 # A thread that is unresolved and not already known to be. `known` is the

@@ -60,6 +60,11 @@ function isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases) {
   const catchUpRebases = lastSeenEntry.catch_up_rebases;
   return maxCatchUpRebases !== null && typeof catchUpRebases === "number" && catchUpRebases >= maxCatchUpRebases;
 }
+function hasEscalatedReviewFeedback(lastSeenEntry) {
+  return [lastSeenEntry.escalated_review_ids, lastSeenEntry.escalated_conversation_comment_ids].some(
+    (escalatedIds) => Array.isArray(escalatedIds) && escalatedIds.length > 0
+  );
+}
 
 // src/pr-watch/armFloors.ts
 function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases) {
@@ -114,7 +119,7 @@ function resolveWatchTickVerdict(lastSeenEntry, observation, preferences) {
   if (isRebaseKeyEscalated(lastSeenEntry, rebaseKey)) return "block-conflict-escalated" /* BlockConflictEscalated */;
   const isRedHeadOutOfAttempts = observation.ciBucket === "red" /* Red */ && isCiHeadBudgetSpent(lastSeenEntry, headSha);
   if (isCiHeadEscalated(lastSeenEntry, headSha) || isRedHeadOutOfAttempts) return "block-ci-escalated" /* BlockCiEscalated */;
-  if ((lastSeenEntry.escalated_review_ids ?? []).length > 0) return "block-reviews-escalated" /* BlockReviewsEscalated */;
+  if (hasEscalatedReviewFeedback(lastSeenEntry)) return "block-reviews-escalated" /* BlockReviewsEscalated */;
   return "idle" /* Idle */;
 }
 

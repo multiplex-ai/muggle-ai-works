@@ -168,7 +168,8 @@ For each test case:
   - testScriptId: `<id>`
   - runId: `<id>`
   - viewUrl: `<url>`
-  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]`
+  - steps: `[{ stepIndex, action, description, screenshotUrl, afterScreenshotUrl }, ...]`
+  - runSummary: the run's closing halt step, `{ isRecorded: true, headline, status, verdict, blockingIssues, screenshotUrl }` or `{ isRecorded: false }` when the run has no `summaryStep` (mapping in `../muggle-pr-visual-walkthrough/e2e-report-assembly.md`)
 
 **Failed:** (count)
 - (test case name):
@@ -180,7 +181,8 @@ For each test case:
   - viewUrl: `<url>`
   - failureStepIndex: `<index>`
   - error: `<message>`
-  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]`
+  - steps: `[{ stepIndex, action, description, screenshotUrl, afterScreenshotUrl }, ...]`
+  - runSummary: as for Passed
   - artifactsDir: `<path>` (for local debugging)
 
 **Inconclusive:** (count) — use for runs that couldn't yield a pass/fail signal: no replayable script, environment precondition unmet, prerequisites unmet (Step 3.5), infra error, agent stalled on auth/cookie banner before reaching the assertion, missing secrets. The product is **not** implicated — that's `failed`, not `inconclusive`.
@@ -191,7 +193,8 @@ For each test case:
   - runId: `<id>` (synthesize a UUID if no run started)
   - viewUrl: `<url>` (project-level run-results fallback when no specific run URL exists)
   - reason: `<one short sentence>`
-  - steps: `[{ stepIndex, action, description, screenshotUrl }, ...]` (empty only when the run produced no steps)
+  - steps: `[{ stepIndex, action, description, screenshotUrl, afterScreenshotUrl }, ...]` (empty only when the run produced no steps)
+  - runSummary: as for Passed
 
 **Deliverables:** (count) — one entry per deliverable check from Step 5, in the report-entry shape of [`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md#report-entry). Omitted when the scope planned none.
 

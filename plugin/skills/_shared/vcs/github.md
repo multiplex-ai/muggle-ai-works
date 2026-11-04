@@ -15,6 +15,7 @@ Skills assume a working `gh auth status`. Auth errors surface verbatim from `gh`
 | [`branch-standing`](common/branch-standing.md) | Tool-agnostic conflict + out-of-date detection — dispatches to `pr-metadata` / `mr-metadata`. |
 | [`line-comments-for-review`](github/line-comments-for-review.md) | Pull a review's line comments — `/muggle-do` per-comment routing. |
 | [`unresolved-threads`](github/unresolved-threads.md) | GraphQL unresolved-thread state — watcher's dispatch trigger + resolve-reminder. |
+| [`conversation-comments`](github/conversation-comments.md) | Top-level PR comments (Conversation tab) — watcher's dispatch trigger + address-reviews work set. |
 | [`reply-line-comment`](github/reply-line-comment.md) | POST a threaded reply on a line comment. |
 | [`top-level-comment`](github/top-level-comment.md) | POST a top-level PR comment — resolve-reminder + overflow. |
 | [`push-to-branch`](common/push-to-branch.md) | Signing-gated push + capture new SHA after address-reviews work. |

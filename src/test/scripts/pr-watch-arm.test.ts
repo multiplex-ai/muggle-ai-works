@@ -66,7 +66,7 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh contract", () => {
   // separately, because performing them separately is how the watermark got
   // dropped and the watch became a silent no-op.
   it("seeds every watermark key the loop reads", () => {
-    ["REV=", "COM=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST=", "REBASE_HELD="].forEach((key) => {
+    ["REV=", "COM=", "CONV=", "THREADS=", "CIRED=", "REBASED=", "BLOCKED_CIDIGEST=", "REBASE_HELD="].forEach((key) => {
       expect(body).toContain(key);
     });
   });
@@ -896,5 +896,93 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh blocked-resume floor", () => {
     expect(watermarkLines).toContain(`BLOCKED_CIDIGEST="${hostileDigest}"`);
     expect(eventLines(stdout)).toEqual([]);
     expect(existsSync(marker)).toBe(false);
+  }, 60_000);
+});
+
+// A state line whose only news is `latestConversation` as the newest human
+// comment on the PR's Conversation tab.
+const conversationStateLine = (latestConversation: number): string =>
+  `OPEN\tHEAD1\tBASE1\tMERGEABLE\t0\t0\t\t0\t0\t\t\t${latestConversation}\n`;
+
+const conversationWatermark = (conversationFloor: number): string =>
+  `REV=0\nCOM=0\nCONV=${conversationFloor}\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\nREBASE_HELD=""\n`;
+
+// Arms o/n#1 over a slot holding `previousWatermark` (a first arm when
+// undefined) while the PR reads `stateLine`, then lets the loop poll until the
+// stub supersedes it.
+function armOverConversation(
+  previousWatermark: string | undefined,
+  stateLine: string,
+): { slot: string; stdout: string } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  if (previousWatermark !== undefined) writeFileSync(join(slot, "watch-watermark.env"), previousWatermark);
+  const stubDir = stubGhDir("OPEN", "", 0, slot);
+  writeFileSync(join(stubDir, "state.tsv"), stateLine);
+  const stdout = execFileSync(
+    "bash",
+    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    {
+      env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  return { slot: slot, stdout: stdout };
+}
+
+// Runs the loop over `slot`'s existing watermark while the PR reads `stateLine`.
+function loopOverConversation(slot: string, stateLine: string): string {
+  const stubDir = stubGhDir("OPEN", "", 0, slot);
+  writeFileSync(join(stubDir, "state.tsv"), stateLine);
+  return runLoopOverSlot(slot, stubDir);
+}
+
+describe.skipIf(!hasBash)("PR conversation comments", () => {
+  // Seeded from the drain's own read: the comment the drain printed is floored,
+  // so the loop never reports it a second time.
+  it("seeds the conversation floor from the drain read on a first arm", () => {
+    const { slot, stdout } = armOverConversation(undefined, conversationStateLine(42));
+    expect(stdout).toContain("latest-conversation-comment=42");
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("CONV=42\n");
+    expect(eventLines(stdout)).toEqual([]);
+  }, 60_000);
+
+  it("wakes on a newer human comment, once however many loops follow", () => {
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+    writeFileSync(join(slot, "watch-watermark.env"), conversationWatermark(42));
+    expect(eventLines(loopOverConversation(slot, conversationStateLine(43)))).toEqual([
+      "EVENT pr=1 new conversation comment id=43",
+    ]);
+    expect(readSlotFile(slot, "watch-reported.env")).toContain("CONV=43\n");
+    expect(eventLines(loopOverConversation(slot, conversationStateLine(43)))).toEqual([]);
+  }, 60_000);
+
+  // After the cycle advances CONV to the comment it answered, the loop's own
+  // signed reply is invisible to the projection, so the newest human id stays at
+  // the floor.
+  it("stays quiet after the reply once the cycle advanced the floor", () => {
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+    writeFileSync(join(slot, "watch-watermark.env"), conversationWatermark(43));
+    expect(eventLines(loopOverConversation(slot, conversationStateLine(43)))).toEqual([]);
+  }, 60_000);
+
+  it("keeps the floor the session held on a re-arm, so the newer comment still wakes it", () => {
+    const { slot, stdout } = armOverConversation(conversationWatermark(40), conversationStateLine(42));
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("CONV=40\n");
+    expect(eventLines(stdout)).toEqual(["EVENT pr=1 new conversation comment id=42"]);
+  }, 60_000);
+
+  // A slot armed before this floor existed has nothing to carry; reading its
+  // absence as zero would report the PR's whole comment history.
+  it("seeds a watermark that predates the floor from the drain read", () => {
+    const { slot, stdout } = armOverConversation(ZERO_FLOOR_WATERMARK, conversationStateLine(42));
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("CONV=42\n");
+    expect(eventLines(stdout)).toEqual([]);
+  }, 60_000);
+
+  it("keeps a loop over a watermark that predates the floor quiet on old comments", () => {
+    const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+    writeFileSync(join(slot, "watch-watermark.env"), ZERO_FLOOR_WATERMARK);
+    expect(eventLines(loopOverConversation(slot, conversationStateLine(42)))).toEqual([]);
   }, 60_000);
 });

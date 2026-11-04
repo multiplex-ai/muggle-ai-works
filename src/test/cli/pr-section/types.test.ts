@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
-import { E2eReportSchema } from "../../../cli/pr-section/types.js";
+import { E2eReportSchema, RunSummaryVerdictStatusEnum } from "../../../cli/pr-section/types.js";
 
 const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 
@@ -247,5 +247,53 @@ describe("step description", () => {
     expect(() =>
       E2eReportSchema.parse(reportWithStep({ stepIndex: 0, action: "click", description: "", screenshotUrl: "https://s/1" })),
     ).toThrow();
+  });
+});
+
+describe("E2eReportSchema runSummary", () => {
+  /** A one-test passed report carrying the given runSummary. */
+  function reportWithRunSummary (runSummary: unknown): unknown {
+    return {
+      projectId: "p1",
+      tests: [
+        {
+          name: "x",
+          testCaseId: "tc1",
+          runId: "r1",
+          viewUrl: "https://example.com/x",
+          status: "passed",
+          steps: [],
+          runSummary: runSummary,
+        },
+      ],
+    };
+  }
+
+  it("parses every test of the summary fixture, recorded or missing", () => {
+    const parsed = E2eReportSchema.parse(loadFixture("run-summary.json"));
+    expect(parsed.tests.map((t) => t.runSummary?.isRecorded)).toEqual([true, true, false]);
+    const failedSummary = parsed.tests[1].runSummary;
+    expect(failedSummary?.isRecorded && failedSummary.status).toBe(RunSummaryVerdictStatusEnum.BugDetected);
+  });
+
+  it("accepts a recorded summary carrying only its headline", () => {
+    expect(() => E2eReportSchema.parse(reportWithRunSummary({ isRecorded: true, headline: "Done" }))).not.toThrow();
+  });
+
+  it("rejects a recorded summary without a headline", () => {
+    expect(() => E2eReportSchema.parse(reportWithRunSummary({ isRecorded: true, status: "success" }))).toThrow();
+  });
+
+  it("rejects a verdict status the summarizer never stamps", () => {
+    expect(() => E2eReportSchema.parse(reportWithRunSummary({ isRecorded: true, headline: "Done", status: "passed" }))).toThrow();
+  });
+
+  it("rejects a summary screenshot that is not a URL", () => {
+    expect(() => E2eReportSchema.parse(reportWithRunSummary({ isRecorded: true, headline: "Done", screenshotUrl: "frame.png" }))).toThrow();
+  });
+
+  it("parses a report whose tests carry no runSummary", () => {
+    const parsed = E2eReportSchema.parse(loadFixture("all-passed.json"));
+    expect(parsed.tests.every((t) => t.runSummary === undefined)).toBe(true);
   });
 });

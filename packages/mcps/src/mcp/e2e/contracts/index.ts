@@ -7,6 +7,8 @@ import { z } from "zod";
 import { EntityReferenceProjectIdSchema, EntityReferenceSchema } from "../../contracts/entity-reference-schema.js";
 import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js";
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
+import { WORKFLOW_LLM_PARAMS_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
+import { LlmTierEnum } from "../../../shared/llm-tier-types.js";
 import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { ProjectResolutionSettingsInputSchema } from "./project-display-resolution-schemas.js";
@@ -95,9 +97,15 @@ export const WorkflowMemoryParamsSchema = z.object({
   enableEverMemOS: z.boolean().optional().describe("Override to enable/disable EverMemOS for this workflow run"),
 });
 
+/** Optional model tier override in workflow params. */
+export const WorkflowLlmParamsSchema = z.object({
+  tier: z.enum(LlmTierEnum).optional(),
+});
+
 /** Optional workflow parameters. */
 export const WorkflowParamsSchema = z.object({
   memory: WorkflowMemoryParamsSchema.optional().describe("Per-run memory override settings"),
+  llm: WorkflowLlmParamsSchema.optional().describe(WORKFLOW_LLM_PARAMS_DESCRIPTION),
 }).passthrough().optional().describe("Optional workflow parameters for workflow-level overrides");
 
 /**
@@ -615,12 +623,26 @@ export const ReportStatsSummaryInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID) to get report stats for"),
 });
 
+/** A UTC calendar day in the backend's token-usage date-key format. */
+export const UtcDateKeySchema = z
+  .string()
+  .regex(/^\d{2}-\d{2}-\d{4}$/, "Date key must be MM-DD-YYYY");
+
 export const ReportCostQueryInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID)"),
-  startDateKey: z.string().optional().describe("Start date key (YYYYMMDD)"),
-  endDateKey: z.string().optional().describe("End date key (YYYYMMDD)"),
-  filterType: TokenUsageFilterTypeSchema.optional().describe("Aggregation dimension for cost breakdown"),
-  filterIds: z.array(IdSchema).optional().describe("Entity UUIDs matching filterType (project / use case / test case / test script / action script)"),
+  startDateKey: UtcDateKeySchema.optional().describe(
+    "Inclusive start day, UTC, MM-DD-YYYY. Provide with endDateKey, or omit both for all time.",
+  ),
+  endDateKey: UtcDateKeySchema.optional().describe(
+    "Inclusive end day, UTC, MM-DD-YYYY. Provide with startDateKey, or omit both for all time.",
+  ),
+  filterType: TokenUsageFilterTypeSchema.describe("Aggregation dimension for cost breakdown"),
+  filterIds: z
+    .array(IdSchema)
+    .min(1)
+    .describe(
+      "Entity UUIDs matching filterType (project / use case / test case / test script / action script). For the whole project, pass filterType 'project' and the project ID.",
+    ),
 });
 
 export const ReportPreferencesUpsertInputSchema = z.object({

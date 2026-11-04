@@ -6,7 +6,7 @@ mandatoryStages:
 
 # Address-Reviews Orchestrator
 
-The entry procedure for `/muggle-do`'s **address-reviews** mode — invoked by the watcher loop ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)) when new submitted reviews land on a PR. Orchestrates the cycle: read reviews → classify → execute work on actionables → escalate ambiguous → push and refresh PR → reply per comment → resolve-reminder → respawn watcher.
+The entry procedure for `/muggle-do`'s **address-reviews** mode — invoked by the watcher loop ([`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)) when new submitted reviews or PR conversation comments land on a PR. Orchestrates the cycle: read reviews → classify → execute work on actionables → escalate ambiguous → push and refresh PR → reply per comment → resolve-reminder → respawn watcher.
 
 ## Turn preamble
 
@@ -19,16 +19,17 @@ The entry procedure for `/muggle-do`'s **address-reviews** mode — invoked by t
 `$ARGUMENTS` carries:
 - PR URL: `<owner>/<repo>#<n>` derivable from the URL.
 - Session slug: `<slug>`.
-- Owning review ids: one or more integers (the reviews whose actionable threads or body-only feedback the watcher flagged).
+- Owning review ids: zero or more integers (the reviews whose actionable threads or body-only feedback the watcher flagged).
+- Conversation comment ids (GitHub only): zero or more integers after the keyword `conversation` — top-level PR comments the watcher flagged. At least one of the two lists is non-empty.
 
-Exact phrasing comes from the watcher's dispatch (see [`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)). Parse all three out of the directive text.
+Exact phrasing comes from the watcher's dispatch (see [`../muggle-pr-followup/contract.md`](../muggle-pr-followup/contract.md)). Parse all four out of the directive text.
 
 ## Inputs from disk
 
 Read from `~/.muggle-ai/muggle-do/sessions/<slug>/`:
 
 - `prs.json` — to locate the PR's local checkout path (the `repo` field maps to a configured local repo) and capture `head_sha_before`.
-- `last_seen.json` — for `pushed_shas[]` (used by the resolve-reminder stage) and to update `lastBodyReviewId`.
+- `last_seen.json` — for `pushed_shas[]` (used by the resolve-reminder stage) and to update `lastBodyReviewId` and `lastConversationCommentId`.
 - `state.md` — for the cached `loop_user` login (used by resolve-reminder thread classification).
 
 ## Procedure
@@ -41,7 +42,7 @@ Before assembling work, rebase onto the latest default branch so the cycle addre
 
 Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-vcs.md), then assemble.
 
-**`github`** — two sources, combined into one batch (dedupe by comment id):
+**`github`** — three sources, combined into one batch (dedupe by comment id within each id space):
 
 **(a) The dispatched reviews.** For each review id in the input:
 
@@ -50,7 +51,9 @@ Resolve the provider per [`../_shared/vcs/detect-vcs.md`](../_shared/vcs/detect-
 
 **(b) Unaddressed comments on every unresolved thread.** Fetch unresolved threads per [`../_shared/vcs/github/unresolved-threads.md`](../_shared/vcs/github/unresolved-threads.md). For each thread classified **unaddressed human comment** — newest comment lacks the loop marker `<!-- muggle-do:bot -->` ([`loop-signature.md`](../_shared/pr-followup-helpers/loop-signature.md)) and post-dates the loop's last marked reply — add it to the batch — unresolved thread state, not any review-id watermark, is the authority here. This is how a human thread follow-up (a marker-less reply) gets addressed. **Exclude** comments whose review id is in `last_seen.escalated_review_ids` — paused awaiting the user, not re-work.
 
-Group (a) and (b) into one combined batch.
+**(c) Conversation comments.** Fetch top-level PR comments per [`../_shared/vcs/github/conversation-comments.md`](../_shared/vcs/github/conversation-comments.md) and add every actionable one — past `last_seen.lastConversationCommentId`, not escalated, not muggle's own or a bot's, author in the allow-list. The dispatched conversation ids are a subset; a comment landing after the watcher's read is swept in the same way. Record the highest id this read returned as `conversation_snapshot_id` — the wave's snapshot for Step 5 and the watermark advance, captured before any reply is posted.
+
+Group (a), (b) and (c) into one combined batch.
 
 **Claim each thread in the batch.** Claiming is what records that this round took the thread as work; the reply gate settles from claims, not from whether a push happened. Release the claims when the round ends. A claim whose holder died is not a claim — the entry reads unprocessed again and the next round re-claims it — so a crashed round leaves nothing to clean up.
 
@@ -65,6 +68,8 @@ Apply the classify rule in [`../_shared/pr-followup-helpers/classify.md`](../_sh
 
 Build two sets: `actionable_review_ids` and `ambiguous_review_ids`. Their union is the input list.
 
+Classify each **conversation comment** on its own, as a body-only review, with one more outcome from [`classify.md`](../_shared/pr-followup-helpers/classify.md#conversation-comments): **informational** — nothing asked of the PR (thanks, approval, a status note, an exchange between other people). Build `actionable_conversation_ids`, `ambiguous_conversation_ids` and `informational_conversation_ids`. An informational comment gets no reply and no escalation; Step 5 folds it into the watermark.
+
 ### Step 3 — Handle ambiguous (if any)
 
 For each id in `ambiguous_review_ids`:
@@ -72,19 +77,21 @@ For each id in `ambiguous_review_ids`:
 1. Append it to `last_seen.escalated_review_ids` so the watcher won't re-dispatch it.
 2. Run `echo "MUGGLE_REPLY_SKIP: <comment-id> deferred to the user"` naming its comment ids (`gitlab`: discussion ids). An escalated thread is deferred, not answered, so the reply gate in [`per-comment-replies.md`](per-comment-replies.md) would otherwise hold the turn open waiting on a reply that is not coming. The deferral is recorded against those comments durably, so it still holds after this session ends; a marker naming no tracked comment falls back to a session-wide skip.
 
-Emit **one** terminal escalation message (not one per ambiguous review) per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (ambiguous template). The message lists every ambiguous review and its comments inline. Emit an event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
+For each id in `ambiguous_conversation_ids`, append it to `last_seen.escalated_conversation_comment_ids`. No reply-skip marker is needed: the reply gate tracks review threads, not conversation comments.
 
-The user clarifies on GitHub by submitting a new review. The next watcher tick picks it up.
+Emit **one** terminal escalation message (not one per ambiguous review or comment) per [`../muggle-pr-followup/output-templates/escalation.md`](../muggle-pr-followup/output-templates/escalation.md) (ambiguous template). The message lists every ambiguous review and its comments inline. Emit an event with `kind: "ambiguous-review"` per [`../_shared/telemetry-events/muggle-do-escalation.md`](../_shared/telemetry-events/muggle-do-escalation.md).
+
+The user clarifies on GitHub by submitting a new review or a new conversation comment. The next watcher tick picks it up.
 
 ### Step 4 — Handle actionables (if any)
 
-If `actionable_review_ids` is empty, skip the rest of Step 4 and Step 5; proceed to Step 5.5 (resolve-reminder) then Step 6. Otherwise:
+If `actionable_review_ids` and `actionable_conversation_ids` are both empty, skip the rest of Step 4, apply Step 5's watermark writes, then proceed to Step 5.5 (resolve-reminder) and Step 6. Otherwise:
 
 Before any edits, ensure the PR's branch workspace is the working directory. If `state.md` carries a `worktreePath` (forward-mode session), use it. Otherwise materialize the PR branch per [`../_shared/pr-branch-worktree.md`](../_shared/pr-branch-worktree.md) — the single owner of checking out a PR branch in isolation — so a bootstrap or auto-track watcher never edits the user's live checkout. If the resolved tree is dirty with unrelated work, escalate per Step 7 rather than editing it.
 
 #### 4a. Flatten the work
 
-The actionable reviews together carry a flat list of change items, one per line comment plus any directive in the review body. Each item is design, code logic, or test in nature; the cycle does **not** treat each item as a separate cycle iteration — it plans them together and runs the work **once** for the whole batch.
+The actionable reviews and conversation comments together carry a flat list of change items, one per line comment plus any directive in a review body or conversation comment. Each item is design, code logic, or test in nature; the cycle does **not** treat each item as a separate cycle iteration — it plans them together and runs the work **once** for the whole batch.
 
 #### 4b. Apply design + code-logic changes
 
@@ -110,8 +117,7 @@ Invoke [`open-prs/update.md`](open-prs/update.md) (pass the PR URL + slug + exis
 
 #### 4g. Post per-comment inline replies
 
-Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions) and the new SHA. One reply per comment, in its own thread, describing what was done for it. The reply is the whole of it — neither provider's threads get resolved by the loop.
-
+Invoke [`per-comment-replies.md`](per-comment-replies.md) with the actionable reviews (`gitlab`: discussions), the actionable conversation comments, and the new SHA. One reply per comment, in its own thread, describing what was done for it; a conversation comment, which has no thread, gets one signed top-level comment that names it. The reply is the whole of it — neither provider's threads get resolved by the loop.
 (The resolve-reminder runs once per round in Step 5.5 below — not only after a push — so a round that pushed nothing still nudges addressed-but-unresolved threads.)
 
 ### Step 5 — Update session state
@@ -121,6 +127,7 @@ Apply each field write below as a whole-file rewrite (Read → change field → 
 - `last_seen.cycles_completed` += 1
 - `last_seen.last_pushed_sha` = the new head SHA (update.md already wrote this; verify)
 - `last_seen.lastBodyReviewId` = max(body-only input review ids ∪ last_seen.lastBodyReviewId) — line-comment threads need no watermark; they fall out of the actionable set once the per-comment reply carries the loop marker.
+- `last_seen.lastConversationCommentId` = max(`conversation_snapshot_id`, last_seen.lastConversationCommentId) — but never past an actionable conversation comment whose reply failed: stop just below the lowest such id, so the next tick re-dispatches it. Replied, informational and escalated comments are all handled. The slot's `CONV` floor in `watch-watermark.env` advances to the same value ([`../muggle-pr-followup/arm-watcher.md`](../muggle-pr-followup/arm-watcher.md)).
 
 ### Step 5.5 — Resolve-reminder (runs every round)
 
@@ -156,4 +163,5 @@ Do **not** push, do **not** post replies, do **not** run resolve-reminder. The c
 
 - One `/muggle-do` invocation = at most one push and one resolve-reminder, regardless of how many reviews are in the batch.
 - Every input review id ends up either handled (its thread answered with a loop-marked reply, or — for a body-only review — folded into `lastBodyReviewId`) or in `escalated_review_ids` (skipped) — never both, never neither.
+- Every conversation comment in the batch ends up answered by exactly one loop-marked top-level comment, informational, or in `escalated_conversation_comment_ids` — and below `lastConversationCommentId` only once one of those holds.
 - The watcher is respawned exactly when the PR is still open at the end of the cycle.

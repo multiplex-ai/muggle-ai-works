@@ -1221,7 +1221,8 @@ const reportTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-report-stats-summary-get",
-    description: "Get report statistics summary for a project.",
+    description:
+      "Get report statistics summary for a project: key metrics, completeness, complexity, and costAnalysis — all-time token spend in USD with a breakdown by testing stage, by model (input/output/cache tokens), and by highest-cost test case. costAnalysis is absent when the project has no token spend.",
     inputSchema: schemas.ReportStatsSummaryInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ReportStatsSummaryInputSchema>;
@@ -1234,7 +1235,8 @@ const reportTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-report-cost-query",
-    description: "Query cost/usage data for a project over a date range.",
+    description:
+      "Query token cost for entities of a project, optionally over a UTC date range. Returns totalsById (tokens and USD per filter ID) and breakdownById (per filter ID: spend by testing stage, by model with input/output/cache tokens, and by test case).",
     inputSchema: schemas.ReportCostQueryInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.ReportCostQueryInputSchema>;

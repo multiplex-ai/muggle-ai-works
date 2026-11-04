@@ -203,7 +203,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-recommend-schedule",
   },
   {
-    "description": "Query cost/usage data for a project over a date range.",
+    "description": "Query token cost for entities of a project, optionally over a UTC date range. Returns totalsById (tokens and USD per filter ID) and breakdownById (per filter ID: spend by testing stage, by model with input/output/cache tokens, and by test case).",
     "name": "muggle-remote-report-cost-query",
   },
   {
@@ -215,7 +215,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-report-preferences-upsert",
   },
   {
-    "description": "Get report statistics summary for a project.",
+    "description": "Get report statistics summary for a project: key metrics, completeness, complexity, and costAnalysis — all-time token spend in USD with a breakdown by testing stage, by model (input/output/cache tokens), and by highest-cost test case. costAnalysis is absent when the project has no token spend.",
     "name": "muggle-remote-report-stats-summary-get",
   },
   {

@@ -98,10 +98,12 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 {
   "<owner>/<repo>#<n>": {
     "lastBodyReviewId": <int>,
+    "lastConversationCommentId": <int>,
     "last_pushed_sha": "<sha-or-null>",
     "idle_tick_count": <int>,
     "cycles_completed": <int>,
     "escalated_review_ids": [<int>, ...],
+    "escalated_conversation_comment_ids": [<int>, ...],
     "pushed_shas": ["<sha>", ...],
     "ci_fix_attempts": { "<sha>": <int> },
     "ci_escalated_shas": ["<sha>", ...],
@@ -110,6 +112,10 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
     "conflict_escalated_keys": ["<head-sha>..<base-tip-sha>", ...],
     "catch_up_rebases": <int>,
     "rebase_budget_exhausted": <bool>,
+    "e2e_decision": {
+      "head_sha": "<sha>",
+      "cases": [{ "name": "<test case>", "testCaseId": "<id>", "bucket": "<bucket>", "failedStep": <int>, "waived": <bool> }]
+    },
     "blocked": {
       "reason": "conflict_escalated" | "ci_escalated" | "reviews_escalated",
       "since": "<ISO-8601>",
@@ -124,10 +130,12 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 ```
 
 - `lastBodyReviewId`: narrow watermark for **body-only** reviews (a submitted review carrying no line comments). The watcher dispatches a body-only review only when `id > lastBodyReviewId`. Line-comment threads do **not** use it — they are dispatched from live thread state (unresolved + not outdated + newest comment unmarked by the loop), so there is no cursor that can pin past them. Bootstrap sets it to the highest existing submitted review id with `--forward-only`, else `0`. The cursor keeps its name under GitLab, where it holds the highest note / discussion id.
+- `lastConversationCommentId` (GitHub only): narrow watermark for **conversation comments** — top-level PR comments on the Conversation tab, which belong to no review and no thread. The watcher dispatches one only when `id > lastConversationCommentId` ([`../_shared/vcs/github/conversation-comments.md`](../_shared/vcs/github/conversation-comments.md)). Issue-comment ids are their own sequence, so this never shares `lastBodyReviewId`. Bootstrap, auto-track and forward mode write it beside `lastBodyReviewId` — `0`, or the highest existing conversation comment id under `--forward-only`. An entry **without** the key predates conversation comments being watched: the tick seeds it to the highest actionable id it reads and dispatches none of them, so an upgrade never re-answers a PR's comment history.
 - `last_pushed_sha`: most recent SHA `/muggle-do` pushed in this PR's life; `null` until the first push.
 - `idle_tick_count`: incremented each tick whose actionable set is empty. Reset to 0 on any tick that dispatches `/muggle-do`. Diagnostic only — does not gate behavior.
 - `cycles_completed`: incremented each time `/muggle-do` completes an address-reviews invocation (regardless of actionable/ambiguous/mixed).
 - `escalated_review_ids`: review ids classified as ambiguous by `/muggle-do`. The watcher excludes these from the actionable set (both body-only reviews and the threads they own) so the same ambiguous review is never re-dispatched.
+- `escalated_conversation_comment_ids`: conversation comment ids `/muggle-do` classified ambiguous. Excluded from the actionable set like `escalated_review_ids`, and either list non-empty blocks the watch with reason `reviews_escalated`.
 - `pushed_shas`: every SHA `/muggle-do` has pushed for this PR. Append-only. Used by the resolve-reminder stage to recognize threads addressed by the loop.
 - `ci_fix_attempts`: per-SHA count of fix-ci cycles `/muggle-do` has run, incremented when a cycle starts — so a cycle that only re-runs a noisy check, or escalates without a push, still counts. The watcher stops dispatching fix-ci for a SHA once its count reaches 3. Keyed by head SHA. A count of 1 or more is the only evidence that floors a red head at arm time or releases the turn-end gate.
 - `ci_escalated_shas`: head SHAs whose CI the fix-ci stage gave up on (attempts exhausted, only out-of-scope checks, or a noisy check red again after its re-run). Suppresses CI dispatch **only while `ci_fix_attempts[sha] >= 1`**; an entry with no attempt behind it is ignored and fix-ci dispatches anyway.
@@ -136,6 +144,7 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
 - `conflict_escalated_keys`: `rebase_key`s whose rebase `/muggle-do` gave up on (attempts exhausted, or a conflict under `autoResolveConflicts=never`). Suppresses rebase dispatch **only while `conflict_resolve_attempts[key] >= 1`**; an entry with no attempt behind it is ignored and the rebase dispatches anyway.
 - `catch_up_rebases`: how many rebases this PR has been dispatched for across its whole life. A plain counter, deliberately unkeyed: the two fields above key on `rebase_key`, which changes on every base advance and so hands an active base an unlimited supply of fresh budgets. Nothing resets this one, which makes it the only cap that binds. Capped by [`../muggle-preferences/preference-gates/maxCatchUpRebases.md`](../muggle-preferences/preference-gates/maxCatchUpRebases.md) — 20 by default, `never` for unbounded. Incremented by the rebase cycle on every push, whatever the outcome.
 - `rebase_budget_exhausted`: set by the tick once `catch_up_rebases` reaches the cap, recording why the watch blocks with reason `rebase_budget_exhausted`. The verdict judges exhaustion from the counter and the cap, never from this flag, so raising the preference resumes rebases at once.
+- `e2e_decision`: the walkthrough cases a fix-ci cycle could not repair on `head_sha`, each with its failure bucket and failing step — written alongside the `ci_escalated_shas` entry when `muggle-walkthrough` is among the escalated checks. `waived: true` marks a case the user already waived. The blocked reminder reads it for a `ci_escalated` block whose `head_sha` matches ([`output-templates/blocked-reminder.md`](output-templates/blocked-reminder.md)); one naming another head is stale and ignored. The verdict script never reads it.
 
 The escalation sets and attempt counters are written by the `/muggle-do` cycles that ran, and only by them. The dispatch decision that reads them lives in [`../../scripts/pr-watch-verdict.mjs`](../../scripts/pr-watch-verdict.mjs) ([`contract.md`](contract.md) Step 6), not in prose.
 
@@ -226,13 +235,14 @@ The watch loop's comparison floor — plain `KEY=VALUE` lines, one file per slot
 
 - `REV` — highest submitted-review id already handled
 - `COM` — highest thread-comment id already handled
+- `CONV` — highest human conversation-comment id (top-level PR comment, Conversation tab) already handled. The loop's projection drops muggle's own posts and bot authors before taking the max, so the loop's signed reply never lifts it. A watermark without the key predates the floor: arming seeds it from the drain's read, and a loop running over such a watermark floors at its own first read until then.
 - `THREADS` — semicolon-joined ids of threads already known unresolved
 - `CIRED` — the red key `<head_sha>@<red-check-runs>` (each failed check's `name#run-id`, sorted — the last field of [`../../scripts/pr-watch-state.jq`](../../scripts/pr-watch-state.jq)) of a red verdict fix-ci is finished with: `head_sha` ∈ `ci_escalated_shas` with an attempt behind it, or `ci_fix_attempts[sha] >= 3`. Empty when the checks are green, still pending, unseen, or red with fix-ci not finished — the last so the loop reports it. A lone attempt never floors: the count is written before the fix runs, so it proves a cycle started, not that anything on the PR changed. The floor is a red key rather than a monotonic id because the rollup flips green↔red and resets on each push, and it carries run ids because a settled walkthrough comment or a rerun publishes a new run on the **same** head — a red verdict from that run is what fix-ci waits on, so it wakes the loop again ([`arm-watcher.md`](arm-watcher.md)).
 - `REBASED` — the `rebase_key` (`<head_sha>..<base_tip_sha>`) whose behind/conflicting state a rebase cycle already attempted (`conflict_resolve_attempts[key] >= 1`); empty when the branch is current with its base, unseen, or stale with no attempt. Keyed on the pair, not a monotonic id, because staleness depends on both sides — the loop fires once per newly-due pair and re-arms when the head or the base moves. Same key [`contract.md`](contract.md) Steps 5–6 dedup rebase dispatch on; the loop only signals a due rebase, the tick's verdict applies the budgets.
 - `BLOCKED_CIDIGEST` — the head's `ci_digest` at the moment a block was flagged (the same signature `blocked.fingerprint.ci_digest` carries); empty whenever the watch is not blocked. Non-empty arms the loop's blocked-resume probe: while set, the loop wakes on any move of the live digest away from this value, so a block resumes on a green pass, a rerun, or an external deploy check — not only on red. Written by [`blocked-tick.md`](blocked-tick.md) when a block is flagged and cleared to empty when it resumes.
 - `REBASE_HELD` — `1` when the PR has spent its catch-up rebase budget (`catch_up_rebases` has reached [`maxCatchUpRebases`](../muggle-preferences/preference-gates/maxCatchUpRebases.md)), empty otherwise. While set, the loop raises no rebase wake and records no rebase as due however far the base moves: the tick's verdict refuses every rebase until the owner raises the cap, so a wake would only ask for work it turns down. Every arm recomputes it, so a raised cap lifts the hold at the next re-arm.
 
-Written whole-file by the orchestrating session — the review/comment/CI/rebase floors seeded at arm time (`REV`/`COM`/`THREADS` to the **drain's own observed max** on a first arm, and carried forward from this file on a re-arm, dropping threads since resolved, so a review that landed after the session's last read stays above them; `CIRED`/`REBASED` to the red head and stale key a cycle already attempted, `REBASE_HELD` from the rebase budget) and advanced after every cycle to the **handled wave's snapshot** (the max review-id and comment-id the cycle read at the start of handling, captured before replies were posted); `BLOCKED_CIDIGEST` is set and cleared by the blocked-tick flag/resume path, and every arm re-seeds it from `last_seen.blocked.fingerprint.ci_digest` so a re-arm keeps the resume probe live. **Never** derived from a fresh fetch taken after the drain or after replies land: a later fetch includes ids that arrived in the handling window and were never read, and marking them seen swallows them ([`arm-watcher.md`](arm-watcher.md)). The advance also never moves any floor past an unresolved thread the cycle left unaddressed. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply.
+Written whole-file by the orchestrating session — the review/comment/CI/rebase floors seeded at arm time (`REV`/`COM`/`CONV`/`THREADS` to the **drain's own observed max** on a first arm, and carried forward from this file on a re-arm, dropping threads since resolved, so a review that landed after the session's last read stays above them; `CIRED`/`REBASED` to the red head and stale key a cycle already attempted, `REBASE_HELD` from the rebase budget) and advanced after every cycle to the **handled wave's snapshot** (the max review-id, comment-id and conversation-comment id the cycle read at the start of handling, captured before replies were posted); `BLOCKED_CIDIGEST` is set and cleared by the blocked-tick flag/resume path, and every arm re-seeds it from `last_seen.blocked.fingerprint.ci_digest` so a re-arm keeps the resume probe live. **Never** derived from a fresh fetch taken after the drain or after replies land: a later fetch includes ids that arrived in the handling window and were never read, and marking them seen swallows them ([`arm-watcher.md`](arm-watcher.md)). The advance also never moves any floor past an unresolved thread the cycle left unaddressed. Read by the watch loop each iteration; the loop never writes it. A stale watermark makes the next reported event the loop's own reply.
 
 **Never `source` this file, and quote or extract values.** `THREADS` holds bare semicolons: sourced unquoted, the shell splits the line at the first `;` and silently drops every id after it — the loop then re-reports known threads as new. The watch loop must extract values verbatim (e.g. `grep '^THREADS=' | cut -d= -f2- | tr -d '"\r'`), tolerating quotes and CRLF; writers should quote the value anyway.
 
@@ -250,7 +260,7 @@ The file is **empty** when nothing is due. Written by [`../../scripts/pr-watch-a
 
 What the slot's loops already reported to the session — `KEY="value"` lines like the watermark's, written only by the loop, and only on the poll that ends it with a report:
 
-- `REV` / `COM` — the newest review and comment ids that poll saw; each one at or below them was reported or already floored.
+- `REV` / `COM` / `CONV` — the newest review, thread-comment and human conversation-comment ids that poll saw; each one at or below them was reported or already floored.
 - `THREADS` — the threads unresolved at that poll.
 - `CIRED` / `REBASED` — the red key and the rebase key a loop reported.
 - `BLOCKED_CIDIGEST` / `BLOCKED_FOR` — the CI digest a blocked-resume wake reported, and the watermark's `BLOCKED_CIDIGEST` it was reported under. It quiets only that block, so the same digest can resume a later one.

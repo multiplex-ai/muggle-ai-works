@@ -24,7 +24,7 @@ One per watcher iteration (idle or not).
 }
 ```
 
-- `actionable_threads`: count of actionable items this tick — unresolved, non-outdated threads whose newest comment is unmarked, plus body-only reviews past `lastBodyReviewId` — **after** filtering by the escalated set.
+- `actionable_threads`: count of actionable items this tick — unresolved, non-outdated threads whose newest comment is unmarked, plus body-only reviews past `lastBodyReviewId`, plus conversation comments past `lastConversationCommentId` — **after** filtering by the escalated sets.
 - `dispatched_review_ids`: owning review ids handed to `/muggle-do`. Empty when idle.
 - `rebase_needed`: true when the branch is behind its base (`behind_by > 0`) or conflicting (`mergeable == CONFLICTING`). `false` when reviews were dispatched (reviews preempt the mergeability check).
 - `dispatched_rebase`: true when this tick dispatched `/muggle-do` with a rebase directive.

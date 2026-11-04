@@ -66,3 +66,13 @@ export function isRebaseBudgetExhausted(lastSeenEntry: LastSeenPrEntry, maxCatch
   const catchUpRebases = lastSeenEntry.catch_up_rebases;
   return maxCatchUpRebases !== null && typeof catchUpRebases === "number" && catchUpRebases >= maxCatchUpRebases;
 }
+
+/**
+ * Whether review feedback waits on the owner: a review or a PR conversation comment that address-reviews classified
+ * ambiguous and escalated instead of answering. A value that is not an array reads as nothing escalated.
+ */
+export function hasEscalatedReviewFeedback(lastSeenEntry: LastSeenPrEntry): boolean {
+  return [lastSeenEntry.escalated_review_ids, lastSeenEntry.escalated_conversation_comment_ids].some(
+    (escalatedIds) => Array.isArray(escalatedIds) && escalatedIds.length > 0,
+  );
+}

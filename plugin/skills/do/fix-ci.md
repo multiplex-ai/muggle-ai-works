@@ -43,14 +43,17 @@ How long a check takes to run — a 45-minute eval included — is never a reaso
 
 ### Step 2.5 — Red E2E walkthrough check
 
-1. **Read why.** Fetch the check run's summary per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md) and record its `completed_at`. It names every failed or inconclusive case, its failing step, and its run. Take the test case ids from the walkthrough comment's hidden `<!-- muggle-e2e-result:v1 {…} -->` record — the newest comment carrying one.
-2. **Repair each case** per [`e2e-repair.md`](e2e-repair.md) Steps 1–3: root-cause to a bucket, then retry, regenerate, or repair the code. This stage is unattended, so a case whose disposition is `ask` is out of scope — record it for Step 6 and never open a picker.
+The check run's summary says which red this is ([`../_shared/ci-check-to-command.md`](../_shared/ci-check-to-command.md)): **did not pass** — the walkthrough reports failed or inconclusive cases — takes items 1–5; **still empty** — no walkthrough posted — takes the empty-comment branch below. A walkthrough whose E2E run is in progress keeps the check pending, never red.
+
+1. **Read why.** Fetch the check run's summary per [`../_shared/vcs/github/pr-checks.md`](../_shared/vcs/github/pr-checks.md) and record its `completed_at`. It names every failed or inconclusive case, its failing step, and its run. Take the test case ids from the walkthrough comment's hidden `<!-- muggle-e2e-result:v1 {…} -->` record — the newest comment carrying one. A comment settled by a `NO_APP_LOGIC_CHANGE` skip — a rebase or a minor cycle on this head — carries the last full run beneath it, and its failures stand: the skip clears nothing, so they take this same path. Drop every case `state.md` records as `E2E waived:`; if none remain, go to Step 6. If `state.md`'s `## E2E decision` names this head, the repair already ran on it and the user owes the answer: go to Step 6.
+2. **Repair each case** per [`e2e-repair.md`](e2e-repair.md) Steps 1–3: root-cause to a bucket, then retry, regenerate, repair the test (`test-precondition`), or repair the code. This stage is unattended, so a case whose disposition is `ask` is recorded for Step 6 with its bucket and failing step — never a picker, never a waiver.
 3. **Re-run the whole suite** through [`e2e-acceptance.md`](e2e-acceptance.md) — every test case the walkthrough listed, passing ones included. The walkthrough is replaced wholesale and the check judges all of it, so a re-run scoped to the failures would post a walkthrough that drops the cases that passed.
 4. **Order the settle after the push.** If Step 2 changed code, run Steps 3–4 below first, so the new head carries the fix. Then settle the walkthrough comment with the re-run's report via [`../muggle-pr-visual-walkthrough/SKILL.md`](../muggle-pr-visual-walkthrough/SKILL.md) Mode A; editing the comment re-runs the check against the head. With no code change (only retries and regenerations) there is nothing to push — the comment edit alone re-runs the check.
 5. **Wait for the fresh verdict** before Step 5's respawn: poll the check run until one completes later than the `completed_at` recorded in item 1, for up to 5 minutes. A watcher respawned sooner reads the stale red verdict and spends a fix attempt on a run already repaired. On timeout, respawn anyway — the per-SHA budget still bounds it.
 
 An empty-comment failure (no run ever posted) skips items 1–2. Pick the branch from `state.md`:
 
+- **This PR's E2E run queued or running** (`E2E dispatch: queued` or `running`) → wait: that run posts the walkthrough, and the Step 1 exception covers this cycle. Never run a second suite or write into the comment the walkthrough builder is about to fill.
 - **`local-e2e` or `staging-replay`** → run the suite and settle the comment with its report.
 - **`unit-only`, `skip`, or no `## Pre-flight answers` block at all** (a poll-only session — auto-track, or bootstrap on a PR it found no testable surface for) → settle it with the skip code that holds per [`e2e-acceptance.md`](e2e-acceptance.md): `NO_WEB_SURFACE` when the repo serves nothing to drive, `NO_APP_LOGIC_CHANGE` (detail opening with the PR's merge-base commit) when every path the PR changed is docs, tests, lint or CI config, else `NOT_APPLICABLE` with the reason no browser run can reach the change. Run `echo "MUGGLE_E2E_SKIP: <CODE>: <detail>"` from the PR's working tree. The write runs detached, so confirm it landed: run the foreground command the walkthrough gate's block names until it prints `{"settled":true}`, never a hand-written PATCH. Never `NO_PR`: the guardrail refutes it whenever the session handled a PR.
 - **A poll-only PR whose change a browser run *can* reach** → no code holds, so do not cite one. Escalate per Step 6, naming the missing E2E decision; the owner chooses run, project or waive.
@@ -86,10 +89,10 @@ Respawn the watcher per [`respawn-watcher.md`](respawn-watcher.md). CI on the ne
 
 ### Step 6 — Escalate (budget spent or out of scope)
 
-When the failing checks are all out of scope, a non-deterministic check is red again after its re-run on this head (Step 2.6), this is the head's third cycle (`ci_fix_attempts[red_sha]` reached 3 in Step 1) and it could not push a fix, or Step 1 found the budget already spent:
+When the failing checks are all out of scope, a non-deterministic check is red again after its re-run on this head (Step 2.6), Step 2.5 left a walkthrough case it could not repair (an `ask`, an open decision on this head, or only waived cases), this is the head's third cycle (`ci_fix_attempts[red_sha]` reached 3 in Step 1) and it could not push a fix, or Step 1 found the budget already spent:
 
 1. Add `red_sha` to `last_seen.ci_escalated_shas` so the SHA is not re-fixed. This cycle's Step 1 attempt is what makes the entry count.
-2. Emit one terminal message naming the unresolved checks.
+2. Emit one terminal message naming the unresolved checks. When `muggle-walkthrough` is among them with cases not waived, the message is the E2E decision request instead — per [`e2e-repair.md`](e2e-repair.md) Step 4's unattended form: each case with its bucket and failing step, then the four options (repair with direction, feedback and rerun, waive, stop). Write that decision to `state.md`'s `## E2E decision` block, and the same cases to `last_seen.e2e_decision` (`head_sha` plus one `{name, testCaseId, bucket, failedStep}` per case, whole-file rewrite) — the watcher's blocked reminder reads it to put the decision in front of the owner. Only waived cases left → `last_seen.e2e_decision` lists them with `waived: true`, and no question is asked again.
 3. Emit the cycle event with `outcome: "ci-escalated"` (Step 7).
 4. **Respawn the watcher** per [`respawn-watcher.md`](respawn-watcher.md). Escalation stops fix-ci from re-dispatching this SHA — but the poller must keep running: it reminds on the `ci_escalated` block and catches a new push, a new review, or the user's own fix. Skipping respawn here is the silent-stop bug the helper exists to prevent.
 
@@ -100,5 +103,6 @@ Emit one `muggle-do:cycle` event ([`../_shared/telemetry-events/muggle-do-cycle.
 ## Guardrails
 
 - Max 3 fix attempts per SHA; out-of-scope checks escalate immediately rather than churn. A walkthrough repair or a re-run that pushes nothing keeps the head SHA, so the same budget bounds it.
+- A red walkthrough never ends silent or self-waived: it is repaired, or it escalates with a decision request the watcher keeps in front of the owner. Only the user's own words waive a case.
 - A non-deterministic check is re-run once per head before it escalates — never escalated on its first red, never re-run twice on one head.
 - No PR replies; the fix commit is the response.

@@ -55,6 +55,18 @@ Reply shape (all replies for one review reference the same SHA):
 
 Escalate per the caller's procedure (add the review id to `escalated_review_ids`, emit one terminal message, pause the PR).
 
+## Conversation comments
+
+A top-level PR comment (Conversation tab) is classified on its own, as a body-only review is, with one extra class. The Conversation tab carries talk that asks nothing of the PR, and escalating it would pause the PR over a "thanks".
+
+| Class | Signal | Action |
+| :---- | :----- | :----- |
+| **actionable** | Same as a review: a concrete change or an answerable question about the PR. | Address in the round; reply with one top-level comment that quotes and links it. |
+| **informational** | Asks nothing: thanks, LGTM, a status or merge-timing note, an exchange between other people. | No reply, no escalation; folded into `lastConversationCommentId`. |
+| **ambiguous** | Addresses the PR but carries no actionable signal (the ambiguous table above). | Escalate: add the id to `escalated_conversation_comment_ids`. |
+
+The self-loop pre-check does not apply: the watcher already drops every comment muggle posted, so none reaches classification.
+
 ## Borderline rule
 
 If you can paraphrase the review's intent as **"do X"** (X concrete) → actionable. Pick the best interpretation; dispatch.

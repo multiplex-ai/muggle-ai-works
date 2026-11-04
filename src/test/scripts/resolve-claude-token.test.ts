@@ -15,6 +15,7 @@ case "$CLAUDE_CODE_OAUTH_TOKEN" in
   working) echo "OK" ;;
   weekly) echo "You've hit your weekly limit · resets Oct 27, 12am (UTC)"; exit 1 ;;
   session) echo "You've hit your session limit · resets 9:10pm (UTC)"; exit 1 ;;
+  spend) echo "You've hit your org's monthly spend limit · ask your admin to raise it at claude.ai/admin-settings/usage"; exit 1 ;;
   *) echo "Invalid API key · Please run /login"; exit 1 ;;
 esac
 `;
@@ -48,14 +49,21 @@ interface ProbeRun {
   exportedEnv: string;
 }
 
-function runProbe(tokens: { primary: string; fallback?: string; third?: string; fourth?: string }): ProbeRun {
+function runProbe(tokens: {
+  primary: string;
+  fallback?: string;
+  third?: string;
+  fourth?: string;
+  fifth?: string;
+}): ProbeRun {
   const workDir = mkdtempSync(join(tmpdir(), "resolve-claude-token-"));
   const stubPath = join(workDir, "claude");
   writeFileSync(stubPath, STUB_CLAUDE);
   chmodSync(stubPath, 0o755);
   const githubEnvPath = join(workDir, "github-env");
   writeFileSync(githubEnvPath, "");
-  const probe = spawnSync("bash", ["-c", probeScript()], {
+  // The shell flags a composite `shell: bash` step runs with, so an early exit under -e shows here as it does in CI.
+  const probe = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", probeScript()], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -67,6 +75,7 @@ function runProbe(tokens: { primary: string; fallback?: string; third?: string; 
       FALLBACK_TOKEN: tokens.fallback ?? "",
       THIRD_TOKEN: tokens.third ?? "",
       FOURTH_TOKEN: tokens.fourth ?? "",
+      FIFTH_TOKEN: tokens.fifth ?? "",
     },
   });
   return {
@@ -112,6 +121,15 @@ describe.runIf(hasBash)("resolve-claude-token probe", () => {
     const probe = runProbe({ primary: "weekly", fallback: "weekly", third: "session", fourth: "working" });
     expect(probe.exitCode).toBe(0);
     expect(probe.stdout).toContain("auth ok on CLAUDE_CODE_OAUTH_TOKEN_4");
+    expect(probe.exportedEnv).toContain("CLAUDE_CODE_OAUTH_TOKEN=working");
+  });
+
+  it("reaches the fifth token past a rejected one, an org spend limit and spent limits", () => {
+    const probe = runProbe({ primary: "invalid", fallback: "spend", third: "weekly", fourth: "session", fifth: "working" });
+    expect(probe.exitCode).toBe(0);
+    expect(probe.stdout).toContain("auth ok on CLAUDE_CODE_OAUTH_TOKEN_5");
+    expect(probe.stdout).toContain("CLAUDE_CODE_OAUTH_TOKEN_2 (hit your org's monthly spend limit");
+    expect(probe.stdout).toContain("CLAUDE_CODE_OAUTH_TOKEN rejected; fell back to CLAUDE_CODE_OAUTH_TOKEN_5");
     expect(probe.exportedEnv).toContain("CLAUDE_CODE_OAUTH_TOKEN=working");
   });
 });

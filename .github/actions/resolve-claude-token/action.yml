@@ -1,6 +1,6 @@
 name: Resolve Claude subscription token
 description: >-
-  Probe the subscription tokens in order — primary, fallback, third, fourth — and
+  Probe the subscription tokens in order — primary, fallback, third, fourth, fifth — and
   export the first one that authenticates as CLAUDE_CODE_OAUTH_TOKEN for every
   later step in the job.
 
@@ -27,10 +27,16 @@ inputs:
       CLAUDE_CODE_OAUTH_TOKEN_4 secret. Optional; unset tokens are skipped.
     required: false
     default: ""
+  fifth-token:
+    description: >-
+      Token tried when the first four are all rejected, from the
+      CLAUDE_CODE_OAUTH_TOKEN_5 secret. Optional; unset tokens are skipped.
+    required: false
+    default: ""
 
 outputs:
   slot:
-    description: "Which token authenticated: `primary`, `fallback`, `third` or `fourth`."
+    description: "Which token authenticated: `primary`, `fallback`, `third`, `fourth` or `fifth`."
     value: ${{ steps.probe.outputs.slot }}
 
 runs:
@@ -43,6 +49,7 @@ runs:
         FALLBACK_TOKEN: ${{ inputs.fallback-token }}
         THIRD_TOKEN: ${{ inputs.third-token }}
         FOURTH_TOKEN: ${{ inputs.fourth-token }}
+        FIFTH_TOKEN: ${{ inputs.fifth-token }}
       run: |
         set -uo pipefail
         : "${CLAUDE_CONFIG_DIR:?the calling job must set CLAUDE_CONFIG_DIR to a writable path}"
@@ -73,9 +80,9 @@ runs:
           exit 1
         fi
 
-        slots=(primary fallback third fourth)
-        secret_names=(CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_2 CLAUDE_CODE_OAUTH_TOKEN_3 CLAUDE_CODE_OAUTH_TOKEN_4)
-        tokens=("$PRIMARY_TOKEN" "$FALLBACK_TOKEN" "$THIRD_TOKEN" "$FOURTH_TOKEN")
+        slots=(primary fallback third fourth fifth)
+        secret_names=(CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN_2 CLAUDE_CODE_OAUTH_TOKEN_3 CLAUDE_CODE_OAUTH_TOKEN_4 CLAUDE_CODE_OAUTH_TOKEN_5)
+        tokens=("$PRIMARY_TOKEN" "$FALLBACK_TOKEN" "$THIRD_TOKEN" "$FOURTH_TOKEN" "$FIFTH_TOKEN")
         rejected=()
         exhausted=""
         probe_report=""
@@ -106,7 +113,7 @@ runs:
         done
 
         if [ "${#rejected[@]}" -eq 0 ]; then
-          echo "::error::Every configured Claude token is out of usage quota: ${exhausted}. Nothing needs regenerating — re-run this job after the earliest reset, or add a CLAUDE_CODE_OAUTH_TOKEN_2 / _3 / _4 from an account with quota." >&2
+          echo "::error::Every configured Claude token is out of usage quota: ${exhausted}. Nothing needs regenerating — re-run this job after the earliest reset, or add a CLAUDE_CODE_OAUTH_TOKEN_2 / _3 / _4 / _5 from an account with quota." >&2
         else
           quota_note=""
           [ -z "$exhausted" ] || quota_note=" Out of quota, back at their reset: ${exhausted}."

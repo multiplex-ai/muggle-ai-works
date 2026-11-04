@@ -73,3 +73,22 @@ describe("visual-walkthrough-builder Mode A scenario", () => {
     ).toContain("pull/123");
   });
 });
+
+describe("muggle-pr-followup tick verdict stubs", () => {
+  const scenario = loadAgentScenarioFile(
+    path.join(scenariosDir, "muggle-pr-followup.tick.json"),
+  ).scenarios.find((candidate) => candidate.name === "conflicting-branch-dispatches-rebase");
+
+  it("answers a lookup of the verdict script with its path, not a verdict", () => {
+    // A verdict answer to `find` lets the agent dispatch without ever running the verdict call the scenario asserts on.
+    expect(
+      resolveScriptedBashResponse('find /plugin -name "pr-watch-verdict.mjs"', scenario?.bashResponses),
+    ).toBe("{{pluginRoot}}/scripts/pr-watch-verdict.mjs");
+  });
+
+  it("answers the verdict call itself with the verdict", () => {
+    const verdictCall =
+      'node "/plugin/scripts/pr-watch-verdict.mjs" tick --pr-key "multiplex-ai/muggle-ai-works#540" --head 9f2c1e4 --rebase-due yes --ci green';
+    expect(resolveScriptedBashResponse(verdictCall, scenario?.bashResponses)).toBe("VERDICT=dispatch-rebase");
+  });
+});

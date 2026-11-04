@@ -60,6 +60,7 @@ import { decideToolUse, toPreToolUseOutput } from "./tools/policy.js";
 import { createBashResponder, createToolResponder } from "./tools/scripted-replies.js";
 import { buildSequencedMockMcpServer, createMockToolAnswerer } from "./tools/sequenced-mock-mcp.js";
 import { toolAttemptsInMessage } from "./tools/trace.js";
+import { fillTranscriptPaths, transcriptPathsByToken } from "./transcript/materialize.js";
 import { resumeFromSeedTranscript } from "./transcript/resume.js";
 import {
   EvalTargetKind,
@@ -163,13 +164,15 @@ export async function runAgentScenarioOnce(
     const answerTool = (tool: ScriptedTool, serializedInput: string): string =>
       fillSandboxPathTokens(answerScriptedTool(tool, serializedInput), sandbox);
     const answerScriptedBash = createBashResponder(scenario.bashResponses);
+    // Bash output can name a shipped script, so it fills `{{pluginRoot}}` as well as the sandbox paths.
+    const runPathsByToken = transcriptPathsByToken(paths, pluginRoot);
     const builtinTools = isSkillTarget ? SKILL_BUILTIN_TOOLS : AGENT_BUILTIN_TOOLS;
     const policyContext: ToolPolicyContext = {
       paths: paths,
       pluginRoot: pluginRoot,
       builtinTools: builtinTools,
       hasHostStubs: isSkillTarget,
-      answerBash: (command) => fillSandboxPathTokens(answerScriptedBash(command), sandbox),
+      answerBash: (command) => fillTranscriptPaths(answerScriptedBash(command), runPathsByToken),
       answerQuestion: (serializedInput) => answerTool(ScriptedTool.AskUserQuestion, serializedInput),
     };
 

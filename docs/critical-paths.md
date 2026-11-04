@@ -1,6 +1,6 @@
 # Critical Paths and Skill Coverage
 
-Maps each task a user performs with Muggle Works to what serves it, and ranks what is missing. Checked against `origin/master` at `e7d213c`. The customer version, without gaps, is `getting-started/critical-tasks.md` in `muggle-ai-docs`.
+Maps each task a user performs with Muggle Works to what serves it, and ranks what is missing. Checked against `origin/master` at `e7d213c`. The customer version, without gaps, is `getting-started/what-you-can-do.md` in `muggle-ai-docs`.
 
 ## Coverage Levels
 

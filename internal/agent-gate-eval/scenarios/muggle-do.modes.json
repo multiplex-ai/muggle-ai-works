@@ -200,6 +200,8 @@
       },
       {"commandContains":"%G?","response":"G"},
       {"commandContains":"gpgsign","response":"true"},
+      {"commandContains":"user.signingkey","response":"{{home}}/.ssh/id_ed25519.pub"},
+      {"commandContains":"gpg.format","response":"ssh"},
       {
         "commandContains": "guard-run",
         "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0\nℹ duration_ms 61.2\n[guard-run] exit 0"

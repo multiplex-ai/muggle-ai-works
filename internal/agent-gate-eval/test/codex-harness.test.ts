@@ -112,8 +112,19 @@ describe("the Codex agent hook", () => {
       { commandContains: "build-pr-section", response: "rendered" },
       { commandContains: "issues/1/comments", response: "" },
       { commandContains: "gh", response: "gh output" },
+      { commandContains: "", response: "catch-all" },
     ];
-    for (const command of ["echo x | muggle build-pr-section", "gh api repos/o/r/issues/1/comments", "gh pr view 7", "curl -s localhost"]) {
+    for (const command of [
+      "echo x | muggle build-pr-section",
+      "gh api repos/o/r/issues/1/comments",
+      "gh pr view 7",
+      "curl -s localhost",
+      "cd repo && muggle build-pr-section; gh pr view 7",
+      "gh api repos/o/r/issues/1/comments || gh pr view 7",
+      "cd repo && curl -s localhost",
+      'cd repo && body="$(gh pr view 7)"; echo "--- comments"; gh api repos/o/r/issues/1/comments',
+      "gh pr comment 7 --body-file - <<'EOF'\nbuild-pr-section; done\nEOF",
+    ]) {
       expect(hookAnswer(command, responses), command).toBe(resolveScriptedBashResponse(command, responses));
     }
   });

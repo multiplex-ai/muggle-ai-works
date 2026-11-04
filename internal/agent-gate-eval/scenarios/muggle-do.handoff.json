@@ -993,7 +993,7 @@
         {"commandContains":"gh pr create","response":"https://github.com/acme/tiny-slug-lib/pull/57"},
         {
           "commandContains": "gh pr view 57",
-          "response": "{\"number\":57,\"url\":\"https://github.com/acme/tiny-slug-lib/pull/57\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/slug-max-length\",\"headRefOid\":\"4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b\",\"baseRefName\":\"main\",\"title\":\"`slugify` accepts a `maxLength` option and trims the slug at the last word boundary that fits.\"}"
+          "response": "{\"number\":57,\"url\":\"https://github.com/acme/tiny-slug-lib/pull/57\",\"state\":\"OPEN\",\"headRefName\":\"users/eval/slug-max-length\",\"headRefOid\":\"4b8d2a7c9e1f3a5b7d9c2e4f6a8b0c1d3e5f7a9b\",\"baseRefName\":\"main\",\"title\":\"[UNIT-ONLY] slugify trims to maxLength at a word boundary\"}"
         },
         {"commandContains":"gh pr view","response":"no pull requests found for branch \"users/eval/slug-max-length\""},
         {"commandContains":"gh pr edit","response":"https://github.com/acme/tiny-slug-lib/pull/57"},

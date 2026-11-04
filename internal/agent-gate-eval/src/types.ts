@@ -90,7 +90,8 @@ export interface InputAwareMockToolSpec extends Omit<MockToolSpec, "reply"> {
 
 /**
  * Run-specific paths a scenario names by placeholder in seed file content and
- * scripted Bash output; each is filled in for the run's sandbox.
+ * scripted tool output; each is filled in for the run's sandbox. Scripted Bash
+ * output also takes `TranscriptPathToken.PluginRoot`.
  */
 export enum SandboxPathToken {
   Home = "{{home}}",

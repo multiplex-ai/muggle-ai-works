@@ -3,6 +3,7 @@
   "passThreshold": 0.66,
   "defaults": {
     "bashResponses": [
+      {"commandContains":"pr-watch-verdict.mjs","response":"{{pluginRoot}}/scripts/pr-watch-verdict.mjs"},
       {"commandContains":"date -u","response":"2026-10-27T18:00:00Z"},
       {"commandContains":"date +","response":"1793124000"},
       {"commandContains":"gh api user","response":"eval-bot"},
@@ -93,7 +94,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=500 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=2 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=500 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr500/watch-watermark.env"
@@ -223,7 +224,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
+        {"commandContains":"--pr-key","response":"VERDICT=dispatch-fix-ci"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=501 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=2 behind-base=0 mergeable=MERGEABLE\nARMED pr=501 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr501/watch-watermark.env"
@@ -347,7 +348,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
+        {"commandContains":"--pr-key","response":"VERDICT=dispatch-rebase"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=502 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=4 mergeable=MERGEABLE\nARMED pr=502 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr502/watch-watermark.env"
@@ -472,7 +473,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-rebase"},
+        {"commandContains":"--pr-key","response":"VERDICT=dispatch-rebase"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=540 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=CONFLICTING\nARMED pr=540 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr540/watch-watermark.env"
@@ -590,7 +591,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=block-rebase-budget-exhausted"},
+        {"commandContains":"--pr-key","response":"VERDICT=block-rebase-budget-exhausted"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=541 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=3 mergeable=MERGEABLE\nARMED pr=541 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr541/watch-watermark.env"
@@ -706,7 +707,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=dispatch-fix-ci"},
+        {"commandContains":"--pr-key","response":"VERDICT=dispatch-fix-ci"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=503 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=2 behind-base=0 mergeable=MERGEABLE\nARMED pr=503 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr503/watch-watermark.env"
@@ -838,7 +839,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=block-ci-escalated"},
+        {"commandContains":"--pr-key","response":"VERDICT=block-ci-escalated"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=504 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=3 behind-base=0 mergeable=MERGEABLE\nARMED pr=504 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr504/watch-watermark.env"
@@ -950,7 +951,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=505 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=505 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr505/watch-watermark.env"
@@ -1069,7 +1070,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=506 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=506 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr506/watch-watermark.env"
@@ -1191,7 +1192,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=507 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=507 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr507/watch-watermark.env"
@@ -1311,7 +1312,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=509 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=509 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr509/watch-watermark.env"
@@ -1433,7 +1434,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=510 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=1 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=510 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr510/watch-watermark.env"
@@ -1548,7 +1549,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=520 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=520 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr520/watch-watermark.env"
@@ -1667,7 +1668,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=521 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=521 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr521/watch-watermark.env"
@@ -1851,7 +1852,7 @@
       "bashResponses": [
         {"commandContains":"pr-watch-arm.sh","response":"Command running in background with ID: bash_watch. Output is being written to: /tmp/claude/tasks/bash_watch.output. You will be notified when it completes — do not poll that file."},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=522 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=522 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr522/watch-watermark.env"
@@ -2070,7 +2071,7 @@
           "response": "== 603\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/603\",\"number\":603,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr603\",\"baseRefName\":\"master\",\"state\":\"MERGED\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":\"2026-10-27T17:40:00Z\",\"mergeCommit\":{\"oid\":\"7d1c0b9a8f7e6d5c4b3a29180716f5e4d3c2b1a0\"},\"closedAt\":\"2026-10-27T17:40:00Z\",\"title\":\"Eval PR 603\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}\n== 602\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-brain/pull/602\",\"number\":602,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr602\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 602\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}\n== 601\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-ui/pull/601\",\"number\":601,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr601\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 601\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}\n== 600\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/600\",\"number\":600,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr600\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 600\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
         },
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=600 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=600 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr600/watch-watermark.env"
@@ -2346,7 +2347,7 @@
           "response": "== 610\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/610\",\"number\":610,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr610\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 610\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}\n== 611\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/611\",\"number\":611,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr611\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 611\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}\n== 612\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-works/pull/612\",\"number\":612,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr612\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 612\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
         },
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=610 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=610 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr610/watch-watermark.env"
@@ -2560,7 +2561,7 @@
           "response": "== 601\n{\"url\":\"https://github.com/multiplex-ai/muggle-ai-ui/pull/601\",\"number\":601,\"headRefOid\":\"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\",\"headRefName\":\"users/eval/pr601\",\"baseRefName\":\"master\",\"state\":\"OPEN\",\"mergeable\":\"MERGEABLE\",\"mergeStateStatus\":\"CLEAN\",\"mergedAt\":null,\"mergeCommit\":null,\"closedAt\":null,\"title\":\"Eval PR 601\",\"body\":\"\",\"author\":{\"login\":\"eval-bot\"}}"
         },
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=601 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=601 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-ui-pr601/watch-watermark.env"
@@ -2725,7 +2726,7 @@
         },
         {"commandContains":"mv ","response":""},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=523 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=523 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr523/watch-watermark.env"
@@ -2873,7 +2874,7 @@
         {"commandContains":"mv ","response":""},
         {"commandContains":"touch","response":""},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {
           "commandContains": "--slot",
           "response": "DRAIN pr=530 state=OPEN head=9f2c1e4b\nDRAIN unresolved-threads=0 latest-review=0 latest-comment=0\nDRAIN checks pending=0 failed=0 behind-base=0 mergeable=MERGEABLE\nARMED pr=530 watermark seeded at {{home}}/.muggle-ai/muggle-do/sessions/muggle-ai-works-pr530/watch-watermark.env"
@@ -3004,7 +3005,7 @@
         {"commandContains":"AUTH0","response":""},
         {"commandContains":"mkdir","response":""},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
         {"commandContains":"Get-Process","response":"Get-Process: Cannot find a process with the process identifier 4242."},
@@ -3093,7 +3094,7 @@
         {"commandContains":"AUTH0","response":""},
         {"commandContains":"mkdir","response":""},
         {"commandContains":">>","response":""},
-        {"commandContains":"pr-watch-verdict","response":"VERDICT=idle"},
+        {"commandContains":"--pr-key","response":"VERDICT=idle"},
         {"commandContains":"watch-heartbeat","response":"stat: cannot statx 'watch-heartbeat': No such file or directory"},
         {"commandContains":"kill -0","response":"kill: (4242) - No such process"},
         {"commandContains":"Get-Process","response":"Get-Process: Cannot find a process with the process identifier 4242."},

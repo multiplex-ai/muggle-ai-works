@@ -58,6 +58,8 @@ Per repo:
    - `github` → `gh pr create --title "<Step 3 title>" --body-file <signed-file> --head <branch>`, passing Step 3's title, prefix included, and the file signed in Step 4. Capture the PR URL and number.
    - `gitlab` → open the change via [`../../_shared/vcs/gitlab/mr-create.md`](../../_shared/vcs/gitlab/mr-create.md): `glab mr create --source-branch <branch> --target-branch <base> --title "<Step 3 title>" --description "..."`. Capture the MR URL and iid.
 
+   Never open it as a draft: no `--draft`/`-d` on `gh`, no `--draft`/`--wip` or `Draft:`/`WIP:` title prefix on `glab`, and never convert it to one afterwards. The PR goes up ready for review — that is what lets reviewers and CI start while E2E runs. A PreToolUse gate denies every draft route.
+
    A create that fails ends the cycle for that repo: report it under **Errors** and run no E2E for it, since the run would have no PR to settle.
 
 ## Stage 7 — report on the PR
@@ -100,7 +102,7 @@ If `prs.json` is empty, **do not arm** — record the reason in `result.md` and 
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; PR opened per non-skipped repo before Stage 6 starts; the tested head is the PR's head before its walkthrough settles; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before arming; arming per `arm-watcher.md` is the last action.
+- Branch synced with its base before the push, never after; PR opened per non-skipped repo before Stage 6 starts, ready for review — never a draft; the tested head is the PR's head before its walkthrough settles; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before arming; arming per `arm-watcher.md` is the last action.
 
 ## Output
 

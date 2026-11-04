@@ -138,6 +138,15 @@ var GUARDRAIL_SUBCOMMAND_ASSIGNMENT = /^GUARDRAIL_SUBCOMMAND="([\w-]+)"/m;
 var HOOK_COMMAND_SCRIPTS = /^set -- ([^;]+);/;
 var GUARDRAIL_DISPATCH_SCRIPT = "guardrail-dispatch.sh";
 var MUGGLE_DO_STAGES_AFTER_BUILD = "impact \u2192 unit tests \u2192 PR \u2192 E2E \u2192 watcher";
+var GITHUB_PR_CREATE_CMD = /\bgh\s+pr\s+create\b/;
+var GITHUB_PR_READY_CMD = /\bgh\s+pr\s+ready\b/;
+var GITLAB_MR_CREATE_OR_UPDATE_CMD = /\bglab\s+mr\s+(?:create|update)\b/;
+var DRAFT_FLAG = /(?:^|\s)(?:--draft(?:=true)?|-d)(?=\s|$)/i;
+var GITLAB_WIP_FLAG = /(?:^|\s)--wip(?=\s|$)/i;
+var UNDO_FLAG = /(?:^|\s)--undo(?=\s|$)/;
+var GITLAB_DRAFT_TITLE = /\bglab\s+mr\s+(?:create|update)\b[^;&|\n]*?(?:--title|-t)(?:=|\s+)["']?\s*(?:draft\s*:|\[draft\]|\(draft\)|wip\s*:)/i;
+var GITHUB_CONVERT_TO_DRAFT_MUTATION = /\bconvertPullRequestToDraft\b/;
+var GITHUB_REST_DRAFT_FIELD = /\bgh\s+api\b[^;&|\n]*\bpulls\b[^;&|\n]*\bdraft=true\b/i;
 
 // src/guardrails/store/fileLock.ts
 function isProcessAlive(pid) {
@@ -2908,6 +2917,31 @@ function evaluateReviewThreadResolve(input2) {
   return { deny: true, reason: RESOLVE_DENIAL };
 }
 
+// src/guardrails/draftPr.ts
+var QUOTED_STRING = /"(?:[^"\\]|\\.)*"|'[^']*'/g;
+var COMMAND_SEPARATOR = /&&|\|\||[;|\n]/;
+function unquotedSegments(command) {
+  return command.replace(QUOTED_STRING, '""').split(COMMAND_SEPARATOR);
+}
+function detectDraftPrCommand(command) {
+  for (const segment of unquotedSegments(command)) {
+    if (GITHUB_PR_CREATE_CMD.test(segment) && DRAFT_FLAG.test(segment)) return true;
+    if (GITHUB_PR_READY_CMD.test(segment) && UNDO_FLAG.test(segment)) return true;
+    if (GITLAB_MR_CREATE_OR_UPDATE_CMD.test(segment) && (DRAFT_FLAG.test(segment) || GITLAB_WIP_FLAG.test(segment))) {
+      return true;
+    }
+  }
+  if (GITLAB_DRAFT_TITLE.test(command)) return true;
+  if (PROVIDER_API_INVOCATION.test(command) && GITHUB_CONVERT_TO_DRAFT_MUTATION.test(command)) return true;
+  return GITHUB_REST_DRAFT_FIELD.test(command);
+}
+var DRAFT_DENIAL = "Blocked: Muggle never opens draft PRs/MRs. Every PR goes up ready for review, so reviewers and CI start on it as soon as it opens. Re-run the command without `--draft`/`-d`/`--wip` (and without a `Draft:`/`WIP:` title prefix on GitLab). If the change is not ready for review, don't open the PR yet; if a draft already exists, mark it ready with `gh pr ready <n>` (GitLab: `glab mr update <n> --ready`).";
+function evaluateDraftPr(input2) {
+  if (!isShellToolCall(input2)) return { deny: false };
+  if (!detectDraftPrCommand(input2.tool_input?.command ?? "")) return { deny: false };
+  return { deny: true, reason: DRAFT_DENIAL };
+}
+
 // src/guardrails/emit.ts
 function envelope(eventName, context, host2) {
   if (!context) return "{}";
@@ -3542,6 +3576,11 @@ function resolveGate() {
   if (!resolveVerdict.deny || !resolveVerdict.reason) return "{}";
   return denyTool(resolveVerdict.reason, host);
 }
+function draftPrGate() {
+  const draftVerdict = evaluateDraftPr(input);
+  if (!draftVerdict.deny || !draftVerdict.reason) return "{}";
+  return denyTool(draftVerdict.reason, host);
+}
 function buildRouter() {
   const prompt = input.prompt ?? "";
   const isMuggleDoInvoked = isMuggleDoForwardInvocation(prompt);
@@ -3600,6 +3639,7 @@ var handlers = {
   "report-gate": reportGate,
   "walkthrough-heading-gate": walkthroughHeadingGate,
   "resolve-gate": resolveGate,
+  "draft-pr-gate": draftPrGate,
   "build-router": buildRouter,
   "skill-stages": skillStages,
   "record-stage-read": recordStageRead,

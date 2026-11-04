@@ -165,6 +165,33 @@ describe("resolve-gate pre-filter reaches every command the gate can deny", () =
   });
 });
 
+describe("draft-pr-gate pre-filter reaches every command the gate can deny", () => {
+  const prefilter = wrapperPayloadPrefilter("guardrail-draft-pr-gate.sh");
+  const reaching: Array<[string, string]> = [
+    ["gh pr create --draft", commandPayload("gh pr create --draft --fill")],
+    ["gh pr create -d", commandPayload("gh pr create -d --title x")],
+    ["gh pr create ending in -d", commandPayload("gh pr create --fill -d")],
+    ["gh pr ready --undo", commandPayload("gh pr ready 12 --undo")],
+    ["glab mr create --draft", commandPayload("glab mr create --draft --fill")],
+    ["glab mr create --wip", commandPayload("glab mr create --wip --fill")],
+    ["a GitLab draft title", commandPayload('glab mr create --title "Draft: x" --fill')],
+    [
+      "the convert-to-draft mutation",
+      commandPayload(`gh api graphql -f query='mutation{convertPullRequestToDraft(input:{pullRequestId:"P"}){clientMutationId}}'`),
+    ],
+    ["a REST draft field", commandPayload("gh api repos/o/r/pulls -F draft=true -f head=b")],
+  ];
+
+  it.each(reaching)("spawns Node for %s", (_label, payload) => {
+    expect(prefilter.test(payload)).toBe(true);
+  });
+
+  it("short-circuits an unrelated command", () => {
+    expect(prefilter.test(commandPayload("git status"))).toBe(false);
+    expect(prefilter.test(commandPayload("gh pr create --fill"))).toBe(false);
+  });
+});
+
 describe("pr-opened pre-filter reaches every command the detector acts on", () => {
   const prefilter = wrapperPayloadPrefilter("guardrail-pr-opened.sh");
   const reaching: Array<[string, string]> = [
@@ -253,7 +280,12 @@ describe("build-router pre-filter reaches every prompt detectBuildIntent accepts
 // pre-filters retires them on exactly the commands they exist for, with nothing failing.
 describe("PreToolUse deny-gate if rules launch the gates for every command they act on", () => {
   const manifest = loadHooksManifest();
-  const DENY_GATE_SCRIPTS = ["guardrail-report-format.sh", "guardrail-resolve-gate.sh", "guardrail-walkthrough-heading.sh"];
+  const DENY_GATE_SCRIPTS = [
+    "guardrail-report-format.sh",
+    "guardrail-resolve-gate.sh",
+    "guardrail-draft-pr-gate.sh",
+    "guardrail-walkthrough-heading.sh",
+  ];
   const launchedGateCommands = (toolName: string, command: string): string[] =>
     commandsForSlot(manifest, { event: HookEvent.PreToolUse, toolName: toolName }, { tool_input: { command: command } })
       .map((hook) => hook.command)
@@ -266,6 +298,9 @@ describe("PreToolUse deny-gate if rules launch the gates for every command they 
     "gh api --method PATCH repos/o/r/issues/comments/12345 -f body=@report.md",
     `gh api graphql -f query='mutation{resolveReviewThread(input:{threadId:"T"}){thread{id}}}'`,
     "glab api --method PUT 'projects/1/merge_requests/2/discussions/a?resolved=true'",
+    "gh pr create --draft --fill",
+    "gh pr ready 12 --undo",
+    "glab mr create --draft --fill",
     "cd /repo && gh pr create --fill",
     "GH_TOKEN=x gh pr edit 1 --body y",
     'bash -c "gh pr comment 1 --body-file report.md"',

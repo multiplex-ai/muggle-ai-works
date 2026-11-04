@@ -323,6 +323,7 @@ describe("isUsageLimitError", () => {
   it.each([
     "Error: Claude Code returned an error result: You've hit your session limit · resets 10am (UTC)",
     "Error: Claude Code returned an error result: You've hit your weekly limit · resets Nov 6, 6am (UTC)",
+    "Error: Claude Code returned an error result: You've hit your org's monthly spend limit · ask your admin to raise it at claude.ai/admin-settings/usage · your weekly limit resets Nov 6, 6am (UTC)",
     "Claude AI usage limit reached|1762000000",
   ])("recognizes %s", (message) => {
     expect(isUsageLimitError(new Error(message))).toBe(true);

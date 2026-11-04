@@ -65,6 +65,20 @@ Ranked by how early the gap stops a user. Names are proposals.
 | 9 | `muggle-chaining` skill | 8 | Skills read the test plan graph but never configure it |
 | 10 | `muggle uninstall`, `muggle env` commands | 29, 30 | Removal from a repository and environment switching are manual |
 
+## CLI Commands Without a Slash Command
+
+Slash commands autocomplete in the agent; `muggle x` does not, so a user has to already know the command exists. All 15 files in `plugin/commands/` alias a skill, and none exposes a CLI command.
+
+| CLI command | Proposal | Tasks |
+| :---------- | :------- | :---- |
+| `muggle init` | `/minit` | 2 |
+| `muggle login`, `muggle logout` | `/mlogin`, `/mlogout` | 3 |
+| `muggle ci-install` | `/mci` | 16 |
+| `muggle run-view` | `/mrun` | 23 |
+| `muggle cleanup` | `/mcleanup` | None |
+
+`muggle status` and `muggle doctor` overlap `/mstatus`, `muggle setup` overlaps `/mrepair`, and `muggle upgrade` overlaps `/mupgrade`, so none needs its own command. The rest are run by agents or services, not typed by users: `serve`, `llm-source`, `build-pr-section`, `pr-walkthrough-check`, `e2e-plan`, `checkout-freshness`, `stack`, `watch`, `reload-plugins`.
+
 ## Unreferenced Tools
 
 64 of 126 MCP tools are referenced by no file under `plugin/`, counting exact names only. Most are the tools behind tasks 5, 7, 8, 12, 17, 22, 23, and 24.

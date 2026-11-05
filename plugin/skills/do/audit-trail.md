@@ -4,11 +4,11 @@ What a cycle shows the user before it ends: the tests the change involved, their
 
 ## Where it prints
 
-- **Forward cycle** — before the Stage 8 arms ([`open-prs/forward.md`](open-prs/forward.md#stage-8-handoff)), whatever Stage 7.5 cleared.
-- **Watcher cycle** — before the watch re-arms ([`respawn-watcher.md`](respawn-watcher.md)). A cycle that changed nothing prints nothing.
+- **Forward cycle** — its closing message ([`open-prs/forward.md`](open-prs/forward.md#output)), whatever Stage 7.5 cleared.
+- **Watcher cycle** — its closing message ([`respawn-watcher.md`](respawn-watcher.md)). A cycle that changed nothing prints nothing.
 - **Terminal turn** — before the ending selector ([`next-step.md`](next-step.md)), from the record [`cleanup.md`](cleanup.md#terminal-record) captured before teardown.
 
-One block per PR, in the terminal only. The PR keeps its own walkthrough.
+The block goes in that message in full, ahead of everything else, because the closing message is what the user reads: a block printed earlier in the turn, or summarized, does not count. One block per PR, or one for the change when no PR opened. Terminal only: the PR keeps its own walkthrough.
 
 ## Sources
 
@@ -42,6 +42,7 @@ Missing: nothing
 
 ## Rules
 
+- Print it as a fenced block with exactly these headings: `Audit trail — <pr>`, `Unit tests`, `E2E tests`, `Evidence`, `Missing:`. A prose recap in the closing message's own style is a summary, and does not count.
 - Links, not ids. An id appears only beside its link.
 - Every section prints. An empty one says why: `none — <reason>`. A section with nothing to show still names the gap on the `Missing` line, such as no test changed, no PR opened, or a run with no link.
 - `Regression` prints for bug fixes only. A bug fix with no regression test or case says so under `Missing`.

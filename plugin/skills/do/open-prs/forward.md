@@ -86,7 +86,7 @@ The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once Stage 7 h
 
 ## Stage 8 handoff
 
-After every repo is processed and Stage 7.5 has cleared, print the [audit trail](../audit-trail.md), then build the watcher manifest and arm one watch per opened PR. The arms are the LAST action this stage takes.
+After every repo is processed and Stage 7.5 has cleared, build the watcher manifest and arm one watch per opened PR. The arms are the LAST action this stage takes.
 
 Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
 
@@ -107,6 +107,8 @@ If `prs.json` is empty, **do not arm** — record the reason in `result.md` and 
 - Branch synced with its base before the push, never after; PR opened per non-skipped repo before Stage 6 starts, ready for review — never a draft; the tested head is the PR's head before its walkthrough settles; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before arming; arming per `arm-watcher.md` is the last action.
 
 ## Output
+
+The cycle's closing message opens with the [audit trail](../audit-trail.md), on every exit, a cycle that opened no PR included. These lines follow it:
 
 **Synced with base:** repo → `rebased onto <base> (<n> behind)` | `already up to date` | `skipped (autoRebase)`
 **PRs Created:** repo → URL

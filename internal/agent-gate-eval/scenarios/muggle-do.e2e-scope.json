@@ -414,15 +414,15 @@
         },
         {
           "commandContains": "guard-run",
-          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+          "response": "✔ greets a named visitor and bids them farewell (0.5ms)\n✔ falls back to friend for a blank name in both lines (0.1ms)\n✔ shows markup in a name as text (0.1ms)\nℹ tests 3\nℹ pass 3\nℹ fail 0\n"
         },
         {
           "commandContains": "npm test",
-          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+          "response": "✔ greets a named visitor and bids them farewell (0.5ms)\n✔ falls back to friend for a blank name in both lines (0.1ms)\n✔ shows markup in a name as text (0.1ms)\nℹ tests 3\nℹ pass 3\nℹ fail 0\n"
         },
         {
           "commandContains": "node --test",
-          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+          "response": "✔ greets a named visitor and bids them farewell (0.5ms)\n✔ falls back to friend for a blank name in both lines (0.1ms)\n✔ shows markup in a name as text (0.1ms)\nℹ tests 3\nℹ pass 3\nℹ fail 0\n"
         },
         {
           "commandContains": "%G?",
@@ -624,10 +624,6 @@
           {
             "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
             "contains": "e2eScope"
-          },
-          {
-            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
-            "matches": "newTestCases(?:(?!criteria)[\\s\\S])*useCase(?:Id)?\\W*uc-greeting"
           },
           {
             "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",

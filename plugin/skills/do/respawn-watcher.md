@@ -8,9 +8,11 @@ Respawn is the **last action on every exit path that leaves the PR open** — th
 
 ## Procedure
 
-Print the [audit trail](audit-trail.md) for the cycle first. Then, as the final action of the turn, settle the watch per [`../muggle-pr-followup/arm-watcher.md`](../muggle-pr-followup/arm-watcher.md): its drain tick finalizes a terminal PR (merged or closed — the monitor exits on its own at terminal), dispatches a follow-on cycle if feedback arrived while this one ran, or advances the watermark — arming a fresh monitor only if none is alive.
+As the final action of the turn, settle the watch per [`../muggle-pr-followup/arm-watcher.md`](../muggle-pr-followup/arm-watcher.md): its drain tick finalizes a terminal PR (merged or closed — the monitor exits on its own at terminal), dispatches a follow-on cycle if feedback arrived while this one ran, or advances the watermark — arming a fresh monitor only if none is alive.
 
 A cycle is not finished while its per-comment replies are unposted. A blocked reply — e.g. GitHub refuses with 422 while the reviewer's own pending review is open — escalates to the owner and holds this arming until the replies land. Never resume the watch over unposted replies.
+
+The cycle's closing message opens with the [audit trail](audit-trail.md).
 
 ## Recovery net
 

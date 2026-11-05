@@ -38,7 +38,7 @@ const MUGGLE_DO = read(SKILLS_DIR, "muggle-do", "SKILL.md");
 const definitionOfDone = sectionBody(MUGGLE_DO, /^### Definition of Done.*$/m);
 const planNewCases = IMPACT_ANALYSIS.slice(IMPACT_ANALYSIS.indexOf("6. **Plan the new cases.**"), IMPACT_ANALYSIS.indexOf("7. **Plan the deliverable checks.**"));
 const stageReport = sectionBody(FORWARD, /^## Stage 7 — report on the PR$/m);
-const stageHandoff = sectionBody(FORWARD, /^## Stage 8 handoff$/m);
+const forwardOutput = sectionBody(FORWARD, /^## Output$/m);
 const nextStepProcedure = sectionBody(NEXT_STEP, /^## Procedure$/m);
 const auditSources = sectionBody(AUDIT_TRAIL, /^## Sources$/m);
 const auditShape = sectionBody(AUDIT_TRAIL, /^## Shape$/m);
@@ -51,7 +51,7 @@ describe("parser sanity: refuse to pass vacuously", () => {
       definitionOfDone: definitionOfDone,
       planNewCases: planNewCases,
       stageReport: stageReport,
-      stageHandoff: stageHandoff,
+      forwardOutput: forwardOutput,
       nextStepProcedure: nextStepProcedure,
       auditSources: auditSources,
       auditShape: auditShape,
@@ -114,8 +114,23 @@ describe("audit trail", () => {
   });
 
   it("prints at the normal end of a cycle, not only after merge", () => {
-    expect(stageHandoff).toMatch(/print the \[audit trail\]\(\.\.\/audit-trail\.md\), then build the watcher manifest/);
-    expect(RESPAWN_WATCHER).toMatch(/Print the \[audit trail\]\(audit-trail\.md\) for the cycle first/);
+    expect(forwardOutput).toMatch(/closing message opens with the \[audit trail\]\(\.\.\/audit-trail\.md\), on every exit, a cycle that opened no PR included/);
+    expect(RESPAWN_WATCHER).toMatch(/closing message opens with the \[audit trail\]\(audit-trail\.md\)/);
+  });
+
+  it("goes in the closing message in full, never earlier in the turn or summarized", () => {
+    expect(AUDIT_TRAIL).toMatch(/block printed earlier in the turn, or summarized, does not count/);
+  });
+
+  it("prints as a fenced block with fixed headings, never a prose recap", () => {
+    expect(auditRules).toMatch(/fenced block with exactly these headings: `Audit trail — <pr>`, `Unit tests`, `E2E tests`, `Evidence`, `Missing:`/);
+    expect(auditRules).toMatch(/prose recap .* does not count/);
+  });
+
+  it("stays in the skill the agent keeps in context, outside the gate", () => {
+    const skillSection = sectionBody(MUGGLE_DO, /^### Audit trail$/m);
+    expect(skillSection).toMatch(/closing message opens with the fenced block/);
+    expect(skillSection).toMatch(/reports and gates nothing/);
   });
 
   it("prints before the ending selector", () => {

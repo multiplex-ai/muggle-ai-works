@@ -2,8 +2,9 @@
 
 import * as path from "node:path";
 
+import { summarizeJudgedReps } from "../../skill-gate-eval/src/scenario-report.js";
 import { EvalHost } from "../../skill-gate-eval/src/types.js";
-import { CODEX_RESULTS_INFIX, NO_CONCLUSIVE_RUNS_REASON, RESULTS_FILE_SUFFIX } from "./constants.js";
+import { CODEX_RESULTS_INFIX, RESULTS_FILE_SUFFIX } from "./constants.js";
 import type { AgentRunVerdict, AgentScenarioReport, ScenarioSuite } from "./types.js";
 
 function meanOf(values: number[]): number | null {
@@ -19,21 +20,9 @@ export function summarizeScenarioVerdicts(
   verdicts: AgentRunVerdict[],
   passThreshold: number,
 ): AgentScenarioReport {
-  const conclusiveVerdicts = verdicts.filter((verdict) => !verdict.isInconclusive);
-  const inconclusiveRuns = verdicts.length - conclusiveVerdicts.length;
-  const passes = conclusiveVerdicts.filter((verdict) => verdict.pass).length;
-  const passRate = conclusiveVerdicts.length === 0 ? 0 : passes / conclusiveVerdicts.length;
   const usages = verdicts.flatMap((verdict) => (verdict.usage ? [verdict.usage] : []));
-  const failureReasons = Array.from(new Set(conclusiveVerdicts.flatMap((verdict) => verdict.reasons)));
-  if (conclusiveVerdicts.length === 0 && inconclusiveRuns > 0) failureReasons.push(NO_CONCLUSIVE_RUNS_REASON);
   return {
-    name: scenarioName,
-    runs: conclusiveVerdicts.length,
-    passes: passes,
-    passRate: passRate,
-    passed: conclusiveVerdicts.length > 0 && passRate >= passThreshold,
-    inconclusiveRuns: inconclusiveRuns,
-    failureReasons: failureReasons,
+    ...summarizeJudgedReps(scenarioName, verdicts, passThreshold),
     meanCostUsd: meanOf(usages.map((usage) => usage.costUsd)),
     meanDurationMs: meanOf(usages.map((usage) => usage.durationMs)),
   };

@@ -31,6 +31,7 @@ import type {
   RunOptions,
   RunVerdict,
 } from "./types.js";
+import { usageLimitErrorFromResult } from "./usage-limit.js";
 import {
   extractFirstQuestionText,
   isGateQuestion,
@@ -204,13 +205,15 @@ export async function runScenarioOnce(
         `[skill-gate-eval] final SDK message before failure: ${JSON.stringify(lastResult)}\n`,
       );
     }
-    throw err;
+    throw usageLimitErrorFromResult(lastResult) ?? err;
   }
 
   if ((lastResult as { is_error?: unknown } | null)?.is_error) {
     process.stderr.write(
       `[skill-gate-eval] SDK returned an error result: ${JSON.stringify(lastResult)}\n`,
     );
+    const usageLimitError = usageLimitErrorFromResult(lastResult);
+    if (usageLimitError) throw usageLimitError;
   }
 
   return verdict(opts.scenario, mcpCalls, askQuestions, gateQuestionFired);

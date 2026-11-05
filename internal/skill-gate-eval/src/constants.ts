@@ -30,6 +30,12 @@ export const DEFAULT_MODEL = "claude-sonnet-4-6";
  */
 export const DEFAULT_GATE_EVAL_CONCURRENCY = 8;
 
+/** An SDK error saying the account ran out of its session, weekly, org spend, or other usage allowance. */
+export const USAGE_LIMIT_SIGNATURE = /\bhit your (?:[\w']+ ){0,3}limit\b|\busage limit reached\b/i;
+
+/** Why a scenario fails when no rep produced a result to judge. */
+export const NO_CONCLUSIVE_RUNS_REASON = "no conclusive runs — every rep stopped on a usage limit";
+
 export const THROTTLE_MAX_RETRIES = 3;
 export const THROTTLE_BACKOFF_BASE_MS = 15_000;
 export const THROTTLE_BACKOFF_CAP_MS = 120_000;

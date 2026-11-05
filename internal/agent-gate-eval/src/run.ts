@@ -35,7 +35,9 @@ import {
   withThrottleRetry,
 } from "../../skill-gate-eval/src/concurrency.js";
 import { PASS_THRESHOLD } from "../../skill-gate-eval/src/constants.js";
+import { formatNoResultNote } from "../../skill-gate-eval/src/scenario-report.js";
 import { EvalHost } from "../../skill-gate-eval/src/types.js";
+import { isUsageLimitError } from "../../skill-gate-eval/src/usage-limit.js";
 import { parseEvalCliArgs } from "./cli-args.js";
 import { codexUnsupportedFeatures, prepareCodexAgentHome, runAgentScenarioOnceInCodex } from "./codex-harness.js";
 import { formatFailedRunTrace } from "./failed-run-trace.js";
@@ -43,7 +45,6 @@ import { runAgentScenarioOnce } from "./harness.js";
 import { loadScenarioSuites, scenariosForCadence } from "./scenario.js";
 import { suiteResultsPath, summarizeScenarioVerdicts } from "./suite-report.js";
 import { loadTargetDefinition } from "./target-definition.js";
-import { isUsageLimitError } from "./usage-limit.js";
 import {
   EvalTargetKind,
   type AgentRunVerdict,
@@ -239,9 +240,8 @@ async function main(): Promise<void> {
         report.meanCostUsd === null || report.meanDurationMs === null
           ? ""
           : `, mean $${report.meanCostUsd.toFixed(2)} / ${Math.round(report.meanDurationMs / 1000)}s per run`;
-      const noResult = report.inconclusiveRuns > 0 ? `, ${report.inconclusiveRuns} no result (usage limit)` : "";
       console.log(
-        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%${noResult}${meanSpend})`,
+        `  ${report.passed ? "PASS" : "FAIL"}  ${report.name}  (${report.passes}/${report.runs} = ${(report.passRate * 100).toFixed(1)}%${formatNoResultNote(report)}${meanSpend})`,
       );
       for (const reason of report.failureReasons) {
         console.log(`    - ${reason}`);

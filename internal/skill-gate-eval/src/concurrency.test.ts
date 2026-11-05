@@ -91,6 +91,20 @@ describe("withThrottleRetry", () => {
     expect(calls).toBe(2);
   });
 
+  it("does not retry a usage limit, which resets hours later", async () => {
+    let calls = 0;
+    await expect(
+      withThrottleRetry(
+        () => {
+          calls++;
+          return Promise.reject(new Error("Claude AI usage limit reached"));
+        },
+        { gate: instantGate(), computeBackoffMs: () => 1 },
+      ),
+    ).rejects.toThrow("usage limit reached");
+    expect(calls).toBe(1);
+  });
+
   it("propagates non-throttle errors without retrying", async () => {
     let calls = 0;
     await expect(

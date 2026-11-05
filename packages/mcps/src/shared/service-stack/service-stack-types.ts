@@ -68,6 +68,8 @@ export enum StackLeaseEndReason {
   NeverServed = "NEVER_SERVED",
   /** Its ports served the claimed code, but no run started within the first-run window. */
   NoRunAfterServed = "NO_RUN_AFTER_SERVED",
+  /** A peer waited for its ports and it started no service within the contested start window. */
+  NothingStarted = "NOTHING_STARTED",
   /** No run started within the idle window after the last one ended. */
   Idle = "IDLE",
   /** Every MCP server that ran under it has exited. */

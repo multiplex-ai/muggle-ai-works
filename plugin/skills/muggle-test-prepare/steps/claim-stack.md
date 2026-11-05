@@ -30,6 +30,7 @@ A granted claim is a lease, and it is held only while this session is testing. E
 - **Two minutes pass with no run in flight** after the last run ended. That covers the turn between consecutive runs of one batch. Debugging a failure, rebasing or fixing code takes longer: the lease ends, and prepare re-claims before the next run.
 - **Eight minutes pass after the grant before every claimed port serves the claimed code.** That is the time prepare has to install and start its services. A port counts as served once a service tracked at the claimed directory and commit is alive on it.
 - **Four minutes pass after the services come up with no run started.** That covers the dev server's compile, the smoke test and the first execute call — not a question to the user.
+- **Five minutes pass after the grant with a peer waiting and none of the lease's own services up.** The peer must want different code on these ports, and the lease must not have run. Once one of its services comes up, the eight minutes above stand. A service already up before the grant is a peer's, shared, and does not count.
 - **The session died.** Each run records the session's MCP server as a holder. Once every holder has exited and a minute has passed, the lease ends. The minute rides out an MCP server restart.
 - **It is released** in [Cleanup](../SKILL.md#cleanup).
 

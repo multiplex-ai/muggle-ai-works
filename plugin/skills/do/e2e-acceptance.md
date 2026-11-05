@@ -122,7 +122,7 @@ Create what the scope planned, before any run:
 
 1. **New use cases** — one `muggle-remote-use-case-create-from-prompts` call with every `newUseCases` instruction in its `instructions` array. Map each created use case back to its key.
 2. **New test cases** — one `muggle-remote-test-case-generate-from-prompt` per `newTestCases` entry, all in one message, with `projectId`, the resolved `useCaseId`, and the entry's `instruction`.
-3. **Create every generated case** — `muggle-remote-test-case-create` for each, in parallel. Accept the generator's decomposition as-is ([`../_shared/test-case-design.md`](../_shared/test-case-design.md)): N micro-tests from one instruction are N test cases. Record each `testCaseId` against its key; the report and a Stage 7.5 re-run name new cases by id.
+3. **Create every generated case** — `muggle-remote-test-case-create` for each, in parallel. Accept the generator's decomposition as-is ([`../_shared/test-case-design.md`](../_shared/test-case-design.md)): N micro-tests from one instruction are N test cases. Anything the request says a case must or must not touch goes in that case's `description` ([limits](../_shared/test-case-design.md#limits)); add it if the generator's draft dropped it. Record each `testCaseId` against its key; the report and a Stage 7.5 re-run name new cases by id.
 
 A failed create leaves its entry `INCONCLUSIVE` with reason `case creation failed: <error>`; it stays in the report.
 

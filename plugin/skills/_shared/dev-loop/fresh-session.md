@@ -15,7 +15,7 @@ For an older test case with no stored flag, pass `freshSession: true` when it ne
 
 ## Replay
 
-Replay runs as the script was recorded, never as the test case is now. Copy `pinnedAccount` and `freshSession` from the `actionParams` of the `muggle-remote-action-script-get` result onto `muggle-local-execute-replay` when present. A recording that carries neither may predate run identities, so decide its `freshSession` by the list above, as before.
+A replay's account and session are the ones the script was recorded with, never the test case's current ones. Copy `pinnedAccount` and `freshSession` from the `actionParams` of the `muggle-remote-action-script-get` result onto `muggle-local-execute-replay` when present. A recording that carries neither may predate run identities, so decide its `freshSession` by the list above, as before.
 
 ## Changing the stored value
 

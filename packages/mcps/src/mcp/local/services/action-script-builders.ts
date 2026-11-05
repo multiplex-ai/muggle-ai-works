@@ -38,6 +38,14 @@ function buildLightModeWorkflowParams(isLightMode: boolean | undefined): Record<
 }
 
 /**
+ * Resolve the description a local run carries: the test case's stored text, which holds the run's
+ * limits, or the run's name when nothing is stored.
+ */
+function resolveRunDescription(params: { storedDescription: string; runName: string }): string {
+  return params.storedDescription.trim() || params.runName;
+}
+
+/**
  * Build a local action script for test generation (explore mode).
  *
  * @param params.displayResolution - Resolution for this run; overrides the test
@@ -114,7 +122,7 @@ export function buildGenerationActionScript(params: {
     },
     goal: params.testCase.goal,
     url: params.localUrl,
-    description: params.testCase.title,
+    description: resolveRunDescription({ storedDescription: params.testCase.description, runName: params.testCase.title }),
     precondition: params.testCase.precondition ?? "",
     instructions: params.testCase.instructions ?? "",
     expectedResult: params.testCase.expectedResult,
@@ -130,6 +138,7 @@ export function buildGenerationActionScript(params: {
  * Build a local action script for test replay (engine mode).
  * @param params.testScript - Test script metadata (from muggle-remote-test-script-get).
  * @param params.actionScript - Action script steps (from muggle-remote-action-script-get).
+ * @param params.testCaseDescription - The test case's current stored description (from muggle-remote-test-case-get).
  * @param params.localUrl - Local URL to test against.
  * @param params.runId - Run ID for this execution.
  * @param params.ownerUserId - Owner user ID.
@@ -144,6 +153,7 @@ export function buildGenerationActionScript(params: {
 export function buildReplayActionScript(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
+  testCaseDescription: string;
   localUrl: string;
   runId: string;
   ownerUserId: string;
@@ -214,7 +224,7 @@ export function buildReplayActionScript(params: {
     },
     goal: params.testScript.name,
     url: params.localUrl,
-    description: params.testScript.name,
+    description: resolveRunDescription({ storedDescription: params.testCaseDescription, runName: params.testScript.name }),
     precondition: "",
     expectedResult: "Replay completes without critical failures.",
     steps: rewrittenActionScript,

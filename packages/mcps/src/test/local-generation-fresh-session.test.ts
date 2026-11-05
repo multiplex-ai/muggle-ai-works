@@ -95,6 +95,7 @@ const runGenerationAsync = async ({
       projectId: "proj-1",
       useCaseId: "uc-1",
       title: "Register a new account",
+      description: "Register with a new address",
       goal: "Account is created",
       expectedResult: "Welcome page",
       url: "https://app.example.com",

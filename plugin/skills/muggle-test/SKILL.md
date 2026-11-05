@@ -42,7 +42,7 @@ Reach for these when the user is weighing Muggle Test against hand-written specs
 
 ## Test Case Design: One Atomic Behavior Per Test Case
 
-Every test case verifies exactly **one** user-observable behavior, carries no signup, login, navigation, or seed-data steps, and the generator's decomposition is kept as-is. The full rule, with examples: [`_shared/test-case-design.md`](../_shared/test-case-design.md).
+Every test case verifies exactly **one** user-observable behavior, carries no signup, login, navigation, or seed-data steps, and the generator's decomposition is kept as-is. The full rule, with examples: [`_shared/test-case-design.md`](../_shared/test-case-design.md). Anything the user said a test must or must not touch, including which target and which path, goes in its stored `description` before the run ([limits](../_shared/test-case-design.md#limits)); stated only in this chat, it does not reach the run.
 
 **Never skip the generate→review cycle.** Even when you are 100% confident about the right shape, always present the generated test cases to the user before calling `muggle-remote-test-case-create`. "I'll skip the generate→review cycle and create directly" is a sign you're about to get it wrong.
 

@@ -66,6 +66,7 @@ const GENERATION_INPUT = {
     projectId: PROJECT_ID,
     useCaseId: USE_CASE_ID,
     title: "Sign in",
+    description: "Sign in with the seeded account only",
     goal: "Dashboard loads",
     expectedResult: "Dashboard",
     url: "https://app.example.com",
@@ -84,6 +85,7 @@ const REPLAY_INPUT = {
     useCaseId: USE_CASE_ID,
   },
   actionScript: [],
+  testCaseDescription: "Sign in with the seeded account only",
   localUrl: "http://localhost:3999",
   cwd: "/work/repo",
 };

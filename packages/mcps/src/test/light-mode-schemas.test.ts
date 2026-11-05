@@ -11,11 +11,12 @@ const TEST_CASE_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_SCRIPT_ID = "22222222-2222-4222-8222-222222222222";
 const ACTION_SCRIPT_ID = "33333333-3333-4333-8333-333333333333";
 const PARENT_IDS = { projectId: "44444444-4444-4444-8444-444444444444", useCaseId: "55555555-5555-4555-8555-555555555555" };
-const LOCAL_RUN_BASE = { localUrl: "http://localhost:3000", cwd: "C:/repo" };
+const LOCAL_RUN_BASE = { localUrl: "http://localhost:3000", cwd: "C:/repo", testCaseDescription: "Log in with the seeded account" };
 const TEST_CASE = {
   ...PARENT_IDS,
   id: TEST_CASE_ID,
   title: "Login",
+  description: "Log in with the seeded account",
   goal: "User can log in",
   expectedResult: "Dashboard shown",
   url: "https://staging.example.com",

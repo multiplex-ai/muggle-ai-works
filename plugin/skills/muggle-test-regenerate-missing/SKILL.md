@@ -146,7 +146,7 @@ Send a single bulk request instead of dispatching one workflow per test case:
    - `projectId` — from Step 2
    - `name` — `"muggle-test-regenerate-missing: bulk ({count} test cases)"` where `{count}` is the number of selected test cases
    - `testCaseIds` — array of all selected test case IDs from Step 5
-2. The backend handles looking up full test case details (goal, precondition, instructions, expectedResult, url), so there is no need to call `muggle-remote-test-case-get` per test case.
+2. The backend handles looking up full test case details (goal, precondition, description, expectedResult, url), so there is no need to call `muggle-remote-test-case-get` per test case.
 3. Parse the response to get the `items` array with per-test-case status. Each item contains the test case ID, dispatch status, and (when successful) the workflow runtime ID.
 
 **Failure handling:** the bulk API returns per-item status in the response `items` array. Individual test cases may fail (validation error, missing field, etc.) while others succeed. Surface failures in the Step 7 report — partial progress beats no progress.

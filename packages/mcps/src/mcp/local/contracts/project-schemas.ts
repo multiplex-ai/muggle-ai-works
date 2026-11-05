@@ -19,6 +19,7 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { RunEnvironmentSchema } from "../../e2e/contracts/run-environment.js";
 import { LIGHT_MODE_INPUT_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
+import { TEST_CASE_LIMIT_GUIDANCE } from "../../../shared/test-case-limit-constants.js";
 import { DisplayResolution } from "../types/enums.js";
 
 /** Resolution a run executes at, accepted wherever a caller may name one. */
@@ -33,14 +34,16 @@ export const TestCaseDetailsSchema = z.object({
   id: MuggleEntityIdSchema.describe("Cloud test case ID (UUID)"),
   /** Test case title. */
   title: z.string().min(1).describe("Test case title"),
+  /** Stored description; the one home for what the test must and must not touch. */
+  description: z.string().describe(`Stored description from muggle-remote-test-case-get; the run reads it. ${TEST_CASE_LIMIT_GUIDANCE}`),
   /** Test goal. */
   goal: z.string().min(1).describe("Test goal - what the test should verify"),
   /** Expected result. */
   expectedResult: z.string().min(1).describe("Expected outcome after test execution"),
   /** Preconditions (optional). */
   precondition: z.string().optional().describe("Initial state/setup required before test execution"),
-  /** Step-by-step instructions (optional). */
-  instructions: z.string().optional().describe("Step-by-step instructions for the test"),
+  /** Extra text for this run only (optional). */
+  instructions: z.string().optional().describe("Extra text for this run only. It adds to the stored description and never replaces it."),
   /** Original cloud URL (for reference, replaced by localUrl). */
   url: z.string().url().optional().describe("Original cloud URL (replaced by localUrl during execution)"),
   /** Cloud project ID (required for electron workflow context). */
@@ -140,6 +143,8 @@ export const ExecuteReplayInputSchema = z.object({
   testScript: TestScriptDetailsSchema.describe("Test script metadata from muggle-remote-test-script-get"),
   /** Action script content from muggle-remote-action-script-get (using testScript.actionScriptId). */
   actionScript: z.array(z.unknown()).describe("Action script steps from muggle-remote-action-script-get"),
+  /** Current stored description of the test case the script belongs to. */
+  testCaseDescription: z.string().describe(`Copy description from muggle-remote-test-case-get for testScript.testCaseId: the replay reads the current text, not the text from when the script was recorded. ${TEST_CASE_LIMIT_GUIDANCE}`),
   /** Local URL to test against. */
   localUrl: z.string().url().describe("Local URL to test against (e.g., http://localhost:3000)"),
   /** Absolute path identifying the caller's worktree. Drives the cross-worktree single-flight lock — same path = parallel allowed (intra-change), different path = waits its turn. Required: ambiguity here causes the lock to mis-key, splitting one logical change into two competing holders. */

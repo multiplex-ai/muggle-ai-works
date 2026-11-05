@@ -12,6 +12,7 @@ import type { TestCaseDetails, TestScriptDetails } from "../mcp/local/contracts/
 import { DisplayResolution } from "../mcp/local/types/enums.js";
 
 const PROJECT_ID = "proj-123";
+const STORED_DESCRIPTION = "Log in through the seeded account only. Leave every other account alone.";
 
 const DESKTOP_PARAMS = { browserWindowWidth: 1920, browserWindowHeight: 1080 };
 const PHONE_PARAMS = { browserWindowWidth: 390, browserWindowHeight: 844 };
@@ -23,6 +24,7 @@ function makeTestCase(storedDisplayOptions?: DisplayResolution[]): TestCaseDetai
     projectId: PROJECT_ID,
     useCaseId: "uc-1",
     title: "Login with valid creds",
+    description: STORED_DESCRIPTION,
     goal: "User can log in",
     precondition: "",
     instructions: "",
@@ -78,9 +80,62 @@ describe("buildGenerationActionScript", () => {
   });
 });
 
+describe("stored description", () => {
+  const generationParams = {
+    localUrl: "http://localhost:3999",
+    runId: "run-1",
+    localTestScriptId: "lts-1",
+    ownerUserId: "user-1",
+  };
+  const replayParams = {
+    testScript: makeTestScript(),
+    actionScript: [],
+    localUrl: "http://localhost:3999",
+    runId: "run-1",
+    ownerUserId: "user-1",
+  };
+
+  it("carries the stored description into a generation with no text for the run", () => {
+    const script = buildGenerationActionScript({ ...generationParams, testCase: makeTestCase() });
+
+    expect(script.description).toBe(STORED_DESCRIPTION);
+    expect(script.instructions).toBe("");
+  });
+
+  it("keeps text given for this run beside the stored description, never in its place", () => {
+    const testCase = { ...makeTestCase(), instructions: "Use the staging account." };
+
+    const script = buildGenerationActionScript({ ...generationParams, testCase: testCase });
+
+    expect(script.description).toBe(STORED_DESCRIPTION);
+    expect(script.instructions).toBe("Use the staging account.");
+  });
+
+  it("falls back to the title when a generation's test case stores no description", () => {
+    const testCase = { ...makeTestCase(), description: " " };
+
+    const script = buildGenerationActionScript({ ...generationParams, testCase: testCase });
+
+    expect(script.description).toBe("Login with valid creds");
+  });
+
+  it("carries the current stored description into a replay", () => {
+    const script = buildReplayActionScript({ ...replayParams, testCaseDescription: STORED_DESCRIPTION });
+
+    expect(script.description).toBe(STORED_DESCRIPTION);
+  });
+
+  it("falls back to the script's name when a replay's test case stores no description", () => {
+    const script = buildReplayActionScript({ ...replayParams, testCaseDescription: "" });
+
+    expect(script.description).toBe("Login replay");
+  });
+});
+
 describe("buildReplayActionScript", () => {
   const script = buildReplayActionScript({
     testScript: makeTestScript(),
+    testCaseDescription: STORED_DESCRIPTION,
     actionScript: [],
     localUrl: "http://localhost:3999",
     runId: "run-2",
@@ -127,6 +182,7 @@ describe("displayParams sizing", () => {
   function replayWith(displayResolution?: DisplayResolution): unknown {
     const script = buildReplayActionScript({
       testScript: makeTestScript(),
+      testCaseDescription: STORED_DESCRIPTION,
       actionScript: [],
       localUrl: "http://localhost:3999",
       runId: "run-2",
@@ -234,6 +290,7 @@ describe("runSettings record naming", () => {
     return actionParams(
       buildReplayActionScript({
         testScript: { ...makeTestScript(), ...params.testScriptExtra } as TestScriptDetails,
+        testCaseDescription: STORED_DESCRIPTION,
         actionScript: [],
         localUrl: "http://localhost:3999",
         runId: "run-2",
@@ -291,6 +348,7 @@ describe("buildReplayActionScript run identity", () => {
     actionParams(
       buildReplayActionScript({
         testScript: makeTestScript(),
+        testCaseDescription: STORED_DESCRIPTION,
         actionScript: [],
         localUrl: "http://localhost:3999",
         runId: "run-1",
@@ -325,6 +383,7 @@ describe("Light mode workflowParams", () => {
   };
   const replayBase = {
     testScript: makeTestScript(),
+    testCaseDescription: STORED_DESCRIPTION,
     actionScript: [],
     localUrl: "http://localhost:3999",
     runId: "run-1",

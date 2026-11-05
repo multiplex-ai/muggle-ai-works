@@ -45,6 +45,18 @@ describe("the publish workflow syncs manifests to the version it publishes", () 
     expect(indexOfStep("pnpm run build:plugin")).toBeGreaterThan(syncAt());
   });
 
+  // dist/release-manifest.json comes from the same pre-bump Build step, and its
+  // release feeds logs, MCP serverInfo and the X-Client-* headers. A rewrite
+  // ahead of any bump would stamp the version that bump replaces.
+  it("rewrites the release manifest after every step that sets the version, before packing", () => {
+    const rewriteAt = indexOfStep("run: node scripts/write-release-manifest.mjs");
+    const bumps = [...workflow.matchAll(/npm version "\$[A-Z_]+"/g)].map((m) => m.index ?? -1);
+    for (const bump of bumps) {
+      expect(bump, "a version bump runs after the manifest rewrite").toBeLessThan(rewriteAt);
+    }
+    expect(rewriteAt).toBeLessThan(indexOfStep("Pack npm package"));
+  });
+
   // The invariant always had a checker; it had never run where it could fail.
   it("verifies the manifests agree before packing", () => {
     const verifyAt = indexOfStep("pnpm run verify:plugin");

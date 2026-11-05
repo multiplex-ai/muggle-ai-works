@@ -51,7 +51,12 @@ const MANIFEST_PATH = (() => {
 
 let cachedManifest: IReleaseManifest | undefined;
 
-function isValidManifest(value: unknown): value is IReleaseManifest {
+/**
+ * Whether a parsed JSON value has the shape every Muggle build's release manifest shares.
+ * @param value - The parsed manifest.
+ * @returns True when each manifest field is a string.
+ */
+export function isValidManifest(value: unknown): value is IReleaseManifest {
     if (typeof value !== "object" || value === null) return false;
     const m = value as Record<string, unknown>;
     return (

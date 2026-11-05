@@ -1,5 +1,11 @@
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import { describe, it, expect } from "vitest";
 
+import { runGitCommand } from "../../../../packages/mcps/src/shared/git-command-runner";
 import { verifyBaselineFailures } from "../../../cli/pr-section/baseline";
 import type { E2eReport, FailedTest, IBaselineRunRecord, IBaselineVerificationDeps, TestResult } from "../../../cli/pr-section/types";
 
@@ -99,7 +105,7 @@ describe("verifyBaselineFailures", () => {
       const run = { ...baselineRun, localExecutionContext: { servedStack: [{ headSha: servedSha }] } };
       const { tests, stderr } = await verify([failed], [run]);
       expect(failsOnBaseOf(tests[0])).toBeUndefined();
-      expect(stderr[0]).toContain(`none of the commits it served is on the base between 1111111..3333333`);
+      expect(stderr[0]).toContain(`none of the commits it served is on the base from 1111111 through 3333333`);
     }
   });
 
@@ -115,13 +121,105 @@ describe("verifyBaselineFailures", () => {
       [failed, [{ ...baselineRun, cloudTestCaseId: "tc-9" }], "it ran test case tc-9"],
       [failed, [{ ...baselineRun, status: "passed" }], "its status is passed"],
       [{ ...failed, runSettingsId: "rs-390" }, [{ ...baselineRun, cloudRunSettingsId: "rs-1280" }], "it ran under a different runSettings record"],
-      [failed, [{ ...baselineRun, localExecutionContext: {} }], "it recorded no stack it served"],
-      [failed, [{ ...baselineRun, localExecutionContext: { servedStack: [{ headSha: "--upload-pack=x" }] } }], "it recorded no stack it served"],
+      [failed, [{ ...baselineRun, localExecutionContext: {} }], "it recorded no stack it served and no Studio build commit"],
+      [failed, [{ ...baselineRun, localExecutionContext: { servedStack: [{ headSha: "--upload-pack=x" }] } }], "it recorded no stack it served and no Studio build commit"],
     ];
     for (const [test, runs, reason] of cases) {
       const { tests, stderr } = await verify([test], runs);
       expect(failsOnBaseOf(tests[0])).toBeUndefined();
       expect(stderr).toEqual([`build-pr-section: baseline base-run for "Checkout" not credited: ${reason}\n`]);
+    }
+  });
+
+  describe("a Studio build the baseline run recorded", () => {
+    const studioRun = (commitSha: string, servedStack: Array<{ headSha: string }> = []): IBaselineRunRecord => ({
+      ...baselineRun,
+      localExecutionContext: { servedStack: servedStack, studioBuild: { commitSha: commitSha } },
+    });
+    const foreignStack = [{ headSha: "a".repeat(40) }, { headSha: "b".repeat(40) }];
+
+    it("credits a commit on the base, past stack commits from other repos and with no stack at all", async () => {
+      for (const run of [studioRun(BASE_SERVED, foreignStack), studioRun(BASE_SERVED)]) {
+        const { tests, stderr } = await verify([failed], [run]);
+        expect(failsOnBaseOf(tests[0])).toEqual({
+          baselineRunId: "base-run",
+          baselineSha: BASE_SERVED,
+          viewUrl: "https://www.muggle-ai.com/run/base",
+        });
+        expect(stderr).toEqual([]);
+      }
+    });
+
+    it("credits a Studio built at the fork point itself and at the base tip", async () => {
+      for (const studioSha of [MERGE_BASE, BASE_TIP]) {
+        const { tests } = await verify([failed], [studioRun(studioSha, foreignStack)]);
+        expect(failsOnBaseOf(tests[0])?.baselineSha).toBe(studioSha);
+      }
+    });
+
+    it("refuses a commit before the fork, on the PR branch, or unknown to this repo", async () => {
+      for (const studioSha of [BEFORE_FORK, PR_HEAD, "f".repeat(40)]) {
+        const { tests, stderr } = await verify([failed], [studioRun(studioSha, foreignStack)]);
+        expect(failsOnBaseOf(tests[0])).toBeUndefined();
+        expect(stderr).toEqual([
+          `build-pr-section: baseline base-run for "Checkout" not credited: none of the commits it served is on the base from 1111111 through 3333333\n`,
+        ]);
+      }
+    });
+
+    it("refuses a build that embeds no commit, and says that is what is missing", async () => {
+      for (const unprovenSha of ["local", "dev", "cda91cd", "--upload-pack=x"]) {
+        const { tests, stderr } = await verify([failed], [studioRun(unprovenSha, foreignStack)]);
+        expect(failsOnBaseOf(tests[0])).toBeUndefined();
+        expect(stderr[0]).toContain("from 1111111 through 3333333, and it recorded no Studio build commit");
+      }
+    });
+
+    it("leaves a port service's credit unchanged when the Studio commit is off the base", async () => {
+      const { tests } = await verify([failed], [studioRun("f".repeat(40), [{ headSha: BASE_SERVED }])]);
+      expect(failsOnBaseOf(tests[0])?.baselineSha).toBe(BASE_SERVED);
+    });
+  });
+
+  it("holds the range's ends under real git: the fork point and the tip in, the commit before and the PR's own out", async () => {
+    const repoDir = await fs.mkdtemp(path.join(os.tmpdir(), "muggle-baseline-range-"));
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: repoDir, encoding: "utf-8" }).trim();
+    const commit = (message: string) => {
+      git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", message);
+      return git("rev-parse", "HEAD");
+    };
+    git("init", "-q", "-b", "master");
+    const beforeFork = commit("before fork");
+    const forkPoint = commit("fork point");
+    git("checkout", "-q", "-b", "pr-branch");
+    const prCommit = commit("pr change");
+    git("checkout", "-q", "master");
+    const baseTip = commit("base moves on");
+    git("update-ref", "refs/remotes/origin/master", baseTip);
+    git("checkout", "-q", "pr-branch");
+
+    const creditedShaFor = async (studioSha: string) => {
+      const run = { ...baselineRun, localExecutionContext: { studioBuild: { commitSha: studioSha } } };
+      const verified = await verifyBaselineFailures(
+        { projectId: "p-1", tests: [failed] },
+        {
+          cwd: repoDir,
+          baseBranch: "master",
+          runGit: runGitCommand,
+          readRunResult: () => run,
+          stderrWrite: () => true,
+        },
+      );
+      return failsOnBaseOf(verified.tests[0])?.baselineSha;
+    };
+
+    try {
+      expect(await creditedShaFor(forkPoint)).toBe(forkPoint);
+      expect(await creditedShaFor(baseTip)).toBe(baseTip);
+      expect(await creditedShaFor(beforeFork)).toBeUndefined();
+      expect(await creditedShaFor(prCommit)).toBeUndefined();
+    } finally {
+      await fs.rm(repoDir, { recursive: true, force: true });
     }
   });
 

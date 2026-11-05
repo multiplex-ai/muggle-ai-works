@@ -176,6 +176,73 @@ describe("local tool registry — studio publishes", () => {
     expect(result.content).toContain("**Studio Verdict:** Insufficient Balance (insufficient_balance)");
   });
 
+  const _readResultContent = async (storedRunResult: Record<string, unknown>): Promise<string> => {
+    mockGetRunResult.mockReturnValue({ id: RUN_ID, cloudTestCaseId: "tc-1", executionTimeMs: 1234, ...storedRunResult });
+    const result = await getTool("muggle-local-run-result-get")!.execute({
+      input: { runId: RUN_ID },
+      correlationId: "test-corr",
+    } as never);
+    return result.content;
+  };
+
+  it("reads a failed generation's verdict from its summary, never from the script's lifecycle status", async () => {
+    const content = await _readResultContent({
+      runType: "generation",
+      status: "failed",
+      studioReturnedResult: {
+        status: "active",
+        steps: [],
+        summaryStep: { structuredSummary: { status: "goal_unachievable" } },
+      },
+    });
+
+    expect(content).toContain("**Studio Verdict:** Goal Not Achievable (goal_unachievable)");
+    expect(content).not.toContain("Passed");
+  });
+
+  it("prefers the verdict the studio reported over the run summary", async () => {
+    const content = await _readResultContent({
+      runType: "generation",
+      status: "failed",
+      studioReturnedResult: {
+        status: "goal_not_achievable",
+        summaryStep: { structuredSummary: { status: "bug_detected" } },
+      },
+    });
+
+    expect(content).toContain("**Studio Verdict:** Goal Not Achievable (goal_not_achievable)");
+  });
+
+  it("prints no verdict for a recorded script with only its lifecycle status", async () => {
+    const content = await _readResultContent({
+      runType: "generation",
+      status: "failed",
+      studioReturnedResult: { status: "active", steps: [] },
+    });
+
+    expect(content).not.toContain("**Studio Verdict:**");
+  });
+
+  it("never prints a passing verdict on a run that did not pass", async () => {
+    const content = await _readResultContent({
+      runType: "generation",
+      status: "failed",
+      studioReturnedResult: { status: "active", summaryStep: { structuredSummary: { status: "success" } } },
+    });
+
+    expect(content).not.toContain("**Studio Verdict:**");
+  });
+
+  it("labels a passed run's success verdict as Passed", async () => {
+    const content = await _readResultContent({
+      runType: "generation",
+      status: "passed",
+      studioReturnedResult: { status: "success", summaryStep: { structuredSummary: { status: "success" } } },
+    });
+
+    expect(content).toContain("**Studio Verdict:** Passed (success)");
+  });
+
   it("shows an unrecognized verdict verbatim and omits the line without one", async () => {
     mockGetRunResult.mockReturnValueOnce({
       id: RUN_ID,

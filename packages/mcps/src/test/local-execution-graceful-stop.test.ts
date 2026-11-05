@@ -56,6 +56,7 @@ vi.mock("../mcp/local/services/index.js", () => ({
   }),
   getRunResultStorageService: () => ({
     createRunResult: () => ({ id: RUN_ID }),
+    createTestScript: () => ({ id: "local-script-1" }),
     updateRunResult: updateRunResult,
     updateTestScript: vi.fn(),
   }),
@@ -87,7 +88,7 @@ vi.mock("child_process", () => ({
   },
 }));
 
-import { cancelExecution, executeReplay } from "../mcp/local/services/execution-service.js";
+import { cancelExecution, executeReplay, executeTestGeneration } from "../mcp/local/services/execution-service.js";
 import { STOP_REQUEST_GRACE_MS } from "../mcp/local/services/execution-stop-constants.js";
 
 const TIMEOUT_MS = 1_000;
@@ -110,6 +111,26 @@ const _startReplay = () =>
     cwd: "/repo",
     timeoutMs: TIMEOUT_MS,
   });
+
+const _startGeneration = () =>
+  executeTestGeneration({
+    testCase: {
+      id: "tc-1",
+      title: "Checkout",
+      goal: "Check out",
+      expectedResult: "Order placed",
+      projectId: "proj-1",
+      useCaseId: "uc-1",
+      url: "https://app.example.com",
+    } as never,
+    localUrl: "http://localhost:3000",
+    cwd: "/repo",
+    timeoutMs: TIMEOUT_MS,
+  });
+
+const _writeStudioFile = async (prefix: string, content: Record<string, unknown>): Promise<void> => {
+  await fs.writeFile(path.join(harness.dataDir, "temp", `${prefix}${RUN_ID}_input.json`), JSON.stringify(content));
+};
 
 const _spawnedStudio = async (): Promise<FakeStudioProcess> => {
   await vi.waitFor(() => expect(harness.spawnedChildren).toHaveLength(1));
@@ -248,6 +269,59 @@ describe("a replay that fails on its own", () => {
       status: "failed",
       viewUrl: "https://www.muggle-ai.com/run/failed",
       studioReturnedResult: { status: "bug_detected" },
+    });
+  });
+
+  it("keeps a failed generation's verdict over its recorded script's lifecycle status", async () => {
+    const runPromise = _startGeneration();
+    const studio = await _spawnedStudio();
+
+    await _writeStudioFile("gen_", { status: "active", steps: [] });
+    await _writeStudioFile("cloudrefs_", { status: "goal_not_achievable", viewUrl: "https://www.muggle-ai.com/run/failed" });
+    studio.exit(26, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({
+      status: "failed",
+      viewUrl: "https://www.muggle-ai.com/run/failed",
+      studioReturnedResult: { status: "goal_not_achievable", steps: [] },
+    });
+  });
+
+  it("keeps a passed generation's verdict over its recorded script's lifecycle status", async () => {
+    const runPromise = _startGeneration();
+    const studio = await _spawnedStudio();
+
+    await _writeStudioFile("gen_", { status: "active", steps: [] });
+    await _writeStudioFile("cloudrefs_", { status: "success", viewUrl: "https://www.muggle-ai.com/run/passed" });
+    studio.exit(0, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({ status: "passed", studioReturnedResult: { status: "success" } });
+  });
+
+  it("leaves a failed generation's recorded script as it is when the studio published nothing", async () => {
+    const runPromise = _startGeneration();
+    const studio = await _spawnedStudio();
+
+    await _writeStudioFile("gen_", { status: "active", steps: [] });
+    studio.exit(26, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({ status: "failed", studioReturnedResult: { status: "active" } });
+  });
+
+  it("stores the sidecar alone for a failed generation that recorded no script", async () => {
+    const runPromise = _startGeneration();
+    const studio = await _spawnedStudio();
+
+    await _writeStudioFile("cloudrefs_", { status: "insufficient_balance" });
+    studio.exit(26, null);
+
+    await runPromise;
+    expect(_finalRunResultUpdate()).toMatchObject({
+      status: "failed",
+      studioReturnedResult: { status: "insufficient_balance" },
     });
   });
 

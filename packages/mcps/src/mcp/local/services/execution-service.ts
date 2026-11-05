@@ -148,9 +148,29 @@ function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs
 }
 
 /**
+ * Build a generation run's stored studio result: the recorded script under the verdict the studio
+ * reported for the run. The script's own `status` is its lifecycle state, not that verdict.
+ *
+ * @param params.recordedScript - The parsed `gen_*.json`, absent when the run recorded none.
+ * @param params.studioCloudRefs - The parsed cloud refs sidecar, absent when the run published nothing.
+ * @returns The result to store, or undefined when the run left neither file.
+ */
+function buildGenerationStudioResult(params: { recordedScript: unknown; studioCloudRefs: unknown }): unknown {
+  const { recordedScript, studioCloudRefs } = params;
+  if (typeof recordedScript !== "object" || recordedScript === null) {
+    return studioCloudRefs;
+  }
+  const reportedVerdict = (studioCloudRefs as { status?: unknown } | undefined)?.status;
+  return typeof reportedVerdict === "string" && reportedVerdict.length > 0
+    ? { ...recordedScript, status: reportedVerdict }
+    : recordedScript;
+}
+
+/**
  * Read the studio's `cloudrefs_<input>.json` sidecar written next to the input
- * script after it publishes the run. A replay stores it whole as its `studioReturnedResult`, so its
- * optional `status` (the studio verdict, absent from older studio builds) reaches the run report.
+ * script after it publishes the run. Its optional `status` (the studio verdict, absent from older
+ * studio builds) reaches the run report through the stored `studioReturnedResult`: a replay stores
+ * the sidecar whole, a generation lays that status over its recorded script.
  * Returns undefined when absent (e.g. an older studio build that doesn't publish) — callers narrow
  * defensively.
  */
@@ -903,15 +923,18 @@ async function runTestGenerationLocked(params: {
           // No gen file produced before failure.
         }
 
-        const failedStudioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
+        const failedCloudRefsContent = await readCloudRefsFile(inputFilePath);
         storage.updateRunResult(runId, {
           status: resolveFailedRunStatus(executionResult),
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
           artifactsDir: artifactsDir,
-          studioReturnedResult: failedStudioResult,
-          ...failedStudioCloudRefs,
+          studioReturnedResult: buildGenerationStudioResult({
+            recordedScript: failedStudioResult,
+            studioCloudRefs: failedCloudRefsContent,
+          }),
+          ...extractStudioCloudRefs(failedCloudRefsContent),
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,
@@ -953,14 +976,17 @@ async function runTestGenerationLocked(params: {
         runId: runId,
         generatedScriptPath: generatedScriptPath,
       });
-      const studioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
+      const cloudRefsContent = await readCloudRefsFile(inputFilePath);
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
-        studioReturnedResult: generatedScript,
-        ...studioCloudRefs,
+        studioReturnedResult: buildGenerationStudioResult({
+          recordedScript: generatedScript,
+          studioCloudRefs: cloudRefsContent,
+        }),
+        ...extractStudioCloudRefs(cloudRefsContent),
         localExecutionContext: {
           ...localExecutionContextBase,
           localExecutionCompletedAt: completedAt,

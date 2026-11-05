@@ -139,19 +139,19 @@ export enum HealthStatus {
 }
 
 /**
- * Verdict the Studio stamps on a run's returned result: a `StudioResult` status or the recorded
- * action script's status. Every value except `Success`, `Active` and `InsufficientBalance` is a
- * failed run; `InsufficientBalance` is a billing stop that judged nothing.
+ * Verdict a run ended with: a `StudioResult` status, or the status of the run's summary. Every
+ * value except `Success` and `InsufficientBalance` is a failed run; `InsufficientBalance` is a
+ * billing stop that judged nothing.
  */
 export enum StudioVerdict {
   /** The run reached its goal. */
   Success = "success",
-  /** The recorded action script is a passing recording. */
-  Active = "active",
   /** The run's evidence shows the app under test behaving contrary to the expected result. */
   BugDetected = "bug_detected",
   /** The goal was not reached and the evidence does not settle whether the app or the run is at fault. */
   GoalNotAchievable = "goal_not_achievable",
+  /** The run summary's spelling of `GoalNotAchievable`. */
+  GoalUnachievable = "goal_unachievable",
   /** The run crashed or hit an infrastructure error. */
   Failure = "failure",
   /** The recorded action script failed. */

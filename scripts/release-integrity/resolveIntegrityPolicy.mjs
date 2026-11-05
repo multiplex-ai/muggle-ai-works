@@ -1,6 +1,16 @@
 import { compareVersions } from "./compareVersions.mjs";
 
 /**
+ * Tell whether a checksum was actually configured.
+ *
+ * @param {string} expectedChecksum - Configured SHA256, empty when none.
+ * @returns {boolean} False for an empty or whitespace-only value.
+ */
+export function hasExpectedChecksum(expectedChecksum) {
+    return Boolean(expectedChecksum && expectedChecksum.trim());
+}
+
+/**
  * Decide which integrity evidence a download must produce before it is trusted.
  *
  * Releases cut before signing existed carry only a checksum, so the signature
@@ -16,9 +26,8 @@ import { compareVersions } from "./compareVersions.mjs";
  */
 export function resolveIntegrityPolicy({ version, signedFromVersion, expectedChecksum }) {
     const requiresSignature = Boolean(signedFromVersion) && compareVersions(version, signedFromVersion) >= 0;
-    const hasChecksum = Boolean(expectedChecksum && expectedChecksum.trim());
 
-    if (!requiresSignature && !hasChecksum) {
+    if (!requiresSignature && !hasExpectedChecksum(expectedChecksum)) {
         return {
             requiresSignature: false,
             requiresChecksum: false,

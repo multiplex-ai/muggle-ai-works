@@ -36,8 +36,8 @@ import { clearUpgradeNoticeCache } from "./upgrade-notice-cache.mjs";
 import { listRunningInstallDirectoryNames, normalizeInstallDirectoryName } from "./running-studio-installs.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
+    enforceReleaseSignature,
     resolveIntegrityPolicy,
-    verifyReleaseSignature,
 } from "./release-integrity/index.mjs";
 import { buildPostInstallGuide, showPostInstallGuide } from "./post-install-guide/index.mjs";
 
@@ -814,20 +814,19 @@ async function downloadElectronApp() {
         }
 
         if (integrityPolicy.requiresSignature) {
-            const signatureResult = await verifyReleaseSignature({
-                artifactPath: tempFile,
-                bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
-                signerIdentityUri: config.signerIdentityUri || "",
-            });
-
-            if (!signatureResult.valid) {
+            try {
+                await enforceReleaseSignature({
+                    artifactPath: tempFile,
+                    bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
+                    signerIdentityUri: config.signerIdentityUri || "",
+                    expectedChecksum: expectedChecksum,
+                    logInfo: log,
+                    logWarning: log,
+                });
+            } catch (error) {
                 rmSync(versionDir, { recursive: true, force: true });
-                throw new Error(
-                    "Signature verification failed, refusing to install: " + signatureResult.reason,
-                );
+                throw error;
             }
-
-            log("Signature verified successfully.");
         }
 
         // Verify checksum

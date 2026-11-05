@@ -33,9 +33,15 @@ import {
 } from "../../packages/mcps/src/index.js";
 import {
   SIGNATURE_BUNDLE_SUFFIX,
+  enforceReleaseSignature,
   resolveIntegrityPolicy,
-  verifyReleaseSignature,
 } from "../../scripts/release-integrity/index.mjs";
+import {
+  discardStudioStagingDir,
+  getStudioStagingDir,
+  prepareStudioStagingDir,
+  replaceStudioInstall,
+} from "./studio-install-staging.js";
 
 const logger = getLogger();
 
@@ -225,20 +231,6 @@ function writeInstallMetadata(params: {
 }
 
 /**
- * Clean up failed installation artifacts.
- * @param versionDir - Version directory to clean up.
- */
-function cleanupFailedInstall(versionDir: string): void {
-  if (existsSync(versionDir)) {
-    try {
-      rmSync(versionDir, { recursive: true, force: true });
-    } catch {
-      // Best effort cleanup
-    }
-  }
-}
-
-/**
  * Upsert the muggle MCP server entry into ~/.cursor/mcp.json.
  * Reads the existing config, merges in the muggle server, and writes back.
  * Preserves any other MCP servers the user has configured.
@@ -326,14 +318,14 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
   console.log(`Downloading Muggle Test Electron app v${version}...`);
   console.log(`URL: ${downloadUrl}`);
 
-  try {
-    // Clean up any existing partial installation
-    if (existsSync(versionDir)) {
-      rmSync(versionDir, { recursive: true, force: true });
-    }
-    mkdirSync(versionDir, { recursive: true });
+  // The install is only touched once the download has been accepted, so a refused
+  // --force leaves a working Studio exactly as it was.
+  const stagingDir = getStudioStagingDir(versionDir);
 
-    const tempFile = path.join(versionDir, binaryName);
+  try {
+    prepareStudioStagingDir({ stagingDir: stagingDir, versionDir: versionDir });
+
+    const tempFile = path.join(stagingDir, binaryName);
 
     // Download with retry
     await downloadWithRetry(downloadUrl, tempFile);
@@ -349,33 +341,30 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     });
 
     if (integrityPolicy.unverifiableReason) {
-      cleanupFailedInstall(versionDir);
       throw new Error("Refusing to install an unverifiable download: " + integrityPolicy.unverifiableReason);
     }
 
+    let isSignatureVerified = false;
     if (integrityPolicy.requiresSignature) {
-      const signatureResult = await verifyReleaseSignature({
+      const signatureEnforcement = await enforceReleaseSignature({
         artifactPath: tempFile,
         bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
         signerIdentityUri: getReleaseSignerIdentityUri(),
+        expectedChecksum: expectedChecksum ?? "",
+        logInfo: console.log,
+        logWarning: console.warn,
       });
-
-      if (!signatureResult.valid) {
-        cleanupFailedInstall(versionDir);
-        throw new Error("Signature verification failed, refusing to install: " + signatureResult.reason);
-      }
-
-      console.log("Signature verified successfully.");
+      isSignatureVerified = signatureEnforcement.isSignatureVerified;
     }
 
     const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum);
 
     if (!checksumResult.valid && expectedChecksum) {
-      // A verified signature is the stronger control, and the policy already declares
-      // the checksum non-required once it applies. Failing here anyway would let a pin
-      // left behind by an earlier electron-app version block an artifact whose
-      // provenance was just proven — while accusing it of being tampered with.
-      if (!integrityPolicy.requiresChecksum) {
+      // A verified signature is the stronger control. Failing here anyway would let a
+      // pin left behind by an earlier electron-app version block an artifact whose
+      // provenance was just proven — while accusing it of being tampered with. With
+      // the signature unproven the checksum is all there is, so a mismatch is fatal.
+      if (isSignatureVerified) {
         console.warn(
           `Pinned checksum does not match this download, but its signature verified.\n` +
           `Expected: ${checksumResult.expected}\n` +
@@ -383,7 +372,6 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
           `The pin in package.json muggleConfig.checksumsByStream is stale for this release; continuing on the signature.`,
         );
       } else {
-        cleanupFailedInstall(versionDir);
         throw new Error(
           `Checksum verification failed!\n` +
           `Expected: ${checksumResult.expected}\n` +
@@ -401,15 +389,14 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
 
     // Extract based on file type
     if (binaryName.endsWith(".zip")) {
-      await extractZip(tempFile, versionDir);
+      await extractZip(tempFile, stagingDir);
     } else if (binaryName.endsWith(".tar.gz")) {
-      await extractTarGz(tempFile, versionDir);
+      await extractTarGz(tempFile, stagingDir);
     }
 
     // Verify extraction succeeded
-    const executablePath = resolveElectronAppExecutablePath({ installDir: versionDir, platformName: platform() });
+    const executablePath = resolveElectronAppExecutablePath({ installDir: stagingDir, platformName: platform() });
     if (!existsSync(executablePath)) {
-      cleanupFailedInstall(versionDir);
       throw new Error(
         `Extraction failed: executable not found at expected path.\n` +
         `Expected: ${executablePath}\n` +
@@ -421,7 +408,7 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     const executableChecksum = await calculateFileChecksum(executablePath);
 
     // Write install metadata
-    const metadataPath = path.join(versionDir, INSTALL_METADATA_FILE_NAME);
+    const metadataPath = path.join(stagingDir, INSTALL_METADATA_FILE_NAME);
     writeInstallMetadata({
       metadataPath: metadataPath,
       version: version,
@@ -434,9 +421,12 @@ export async function setupCommand(options: ISetupOptions): Promise<void> {
     // Clean up archive file
     rmSync(tempFile, { force: true });
 
+    await replaceStudioInstall({ stagingDir: stagingDir, versionDir: versionDir });
+
     console.log(`Electron app installed to ${versionDir}`);
     logger.info("Setup complete", { version: version, path: versionDir });
   } catch (error) {
+    discardStudioStagingDir(stagingDir);
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`Failed to download Electron app: ${errorMessage}`);
     logger.error("Setup failed", { error: errorMessage });

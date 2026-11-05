@@ -1,0 +1,39 @@
+{
+  "signerIdentityUri": "https://github.com/multiplex-ai/fixture/.github/workflows/release.yml@refs/heads/master",
+  "archiveBase64": "UEsDBBQAAAAAAAAAIVxNdegAGgAAABoAAAAMAAAATXVnZ2xlQUkuZXhlZml4dHVyZSBzdHVkaW8gZXhlY3V0YWJsZQpQSwMEFAAAAAAAAAAhXE116AAaAAAAGgAAABAAAABtdWdnbGUtYWktc3R1ZGlvZml4dHVyZSBzdHVkaW8gZXhlY3V0YWJsZQpQSwMEFAAAAAAAAAAhXE116AAaAAAAGgAAACQAAABNdWdnbGVBSS5hcHAvQ29udGVudHMvTWFjT1MvTXVnZ2xlQUlmaXh0dXJlIHN0dWRpbyBleGVjdXRhYmxlClBLAQIUABQAAAAAAAAAIVxNdegAGgAAABoAAAAMAAAAAAAAAAAAAACAAQAAAABNdWdnbGVBSS5leGVQSwECFAAUAAAAAAAAACFcTXXoABoAAAAaAAAAEAAAAAAAAAAAAAAAgAFEAAAAbXVnZ2xlLWFpLXN0dWRpb1BLAQIUABQAAAAAAAAAIVxNdegAGgAAABoAAAAkAAAAAAAAAAAAAACAAYwAAABNdWdnbGVBSS5hcHAvQ29udGVudHMvTWFjT1MvTXVnZ2xlQUlQSwUGAAAAAAMAAwDKAAAA6AAAAAAA",
+  "archiveSha256": "832747905a3c0c9e4240fbc56b2511f5c02087bb19e757f30d599b0e599d7b99",
+  "bundle": {
+    "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+    "verificationMaterial": {
+      "certificate": {
+        "rawBytes": "MIICBTCCAaugAwIBAgIUe7IqznuTBWn1Ed7XSgJ0S54PnV8wCgYIKoZIzj0EAwIwJDEQMA4GA1UECgwHZml4dHVyZTEQMA4GA1UEAwwHZml4dHVyZTAgFw0yNjExMDUxOTM2NTdaGA8yMTI2MTAxMjE5MzY1N1owJDEQMA4GA1UECgwHZml4dHVyZTEQMA4GA1UEAwwHZml4dHVyZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABBEbIBYVdZVMtemCDAZTIR7QYpPMLAVXmJ2UZOTAk+WOsMbaoIimQGv2Pm4g+p4rH6kQwHdbT/BAPkrnAOJhKf+jgbgwgbUwHQYDVR0OBBYEFGkxPwBCp4CjRV2WnzkQxILZ477HMB8GA1UdIwQYMBaAFGkxPwBCp4CjRV2WnzkQxILZ477HMA8GA1UdEwEB/wQFMAMBAf8wYgYDVR0RBFswWYZXaHR0cHM6Ly9naXRodWIuY29tL211bHRpcGxleC1haS9maXh0dXJlLy5naXRodWIvd29ya2Zsb3dzL3JlbGVhc2UueW1sQHJlZnMvaGVhZHMvbWFzdGVyMAoGCCqGSM49BAMCA0gAMEUCIGsRx46FeS8BsSOixNxJJph8hLbZIFuIrft1U4XVxmwBAiEA9KdDGeok9LpvElfFy4fDgdUZ7nYOURUrGfgiNXeikCE="
+      },
+      "tlogEntries": [],
+      "timestampVerificationData": {}
+    },
+    "messageSignature": {
+      "messageDigest": {
+        "algorithm": "SHA2_256",
+        "digest": "gydHkFo8DJ5CQPvFayUR9cAgh7sZ51fzDVmbDlmde5k="
+      },
+      "signature": "MEYCIQCmFLjSusEdfeRpkjUx0REw1qoaiWFltkAx+n/evMOk0QIhALhs3KDmqqn3ahL/kyEQ4CvF0VDeXdEiX4utZtiGULxW"
+    }
+  },
+  "wrongIdentityBundle": {
+    "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+    "verificationMaterial": {
+      "certificate": {
+        "rawBytes": "MIICBjCCAaugAwIBAgIULw6QzBJ+Hxjv4aIlNSBXdPeR7pUwCgYIKoZIzj0EAwIwJDEQMA4GA1UECgwHZml4dHVyZTEQMA4GA1UEAwwHZml4dHVyZTAgFw0yNjExMDUxOTM2NTdaGA8yMTI2MTAxMjE5MzY1N1owJDEQMA4GA1UECgwHZml4dHVyZTEQMA4GA1UEAwwHZml4dHVyZTBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABG2eMjLJoVYDdJb4o8t1DXQGsydvKWIx9nLkkjFoj157o3ECE4qJpzGWNshddvZsaxovHiD7Ovi1qds7vXGtmRejgbgwgbUwHQYDVR0OBBYEFO98sMzF3n8piOM/2O94hDs9FqB8MB8GA1UdIwQYMBaAFO98sMzF3n8piOM/2O94hDs9FqB8MA8GA1UdEwEB/wQFMAMBAf8wYgYDVR0RBFswWYZXaHR0cHM6Ly9naXRodWIuY29tL3NvbWVvbmUtZWxzZS9maXh0dXJlLy5naXRodWIvd29ya2Zsb3dzL3JlbGVhc2UueW1sQHJlZnMvaGVhZHMvbWFzdGVyMAoGCCqGSM49BAMCA0kAMEYCIQCoW1wHycdpD+rl+7Tz9vrMogtHtZvsTZvrlIW8vfGzAAIhAIRe3A9eqEG6POAaDVvns2B58hIsE6tEwP5sCyKWABAW"
+      },
+      "tlogEntries": [],
+      "timestampVerificationData": {}
+    },
+    "messageSignature": {
+      "messageDigest": {
+        "algorithm": "SHA2_256",
+        "digest": "gydHkFo8DJ5CQPvFayUR9cAgh7sZ51fzDVmbDlmde5k="
+      },
+      "signature": "MEUCIQDxPuOPsmQQz0iutSYxACRqHgUguWm1YPeCcVqhLKpIEQIgHYE1aknDnyuZY/BI6qQF3RM//u9VmlTlf4p5dnlhIgI="
+    }
+  }
+}

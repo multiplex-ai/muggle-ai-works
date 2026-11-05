@@ -27,10 +27,16 @@ import {
 import {
   SIGNATURE_BUNDLE_SUFFIX,
   compareVersions,
+  enforceReleaseSignature,
   resolveIntegrityPolicy,
-  verifyReleaseSignature,
 } from "../../scripts/release-integrity/index.mjs";
 import { cleanupOldVersions, formatBytes } from "./cleanup.js";
+import {
+  discardStudioStagingDir,
+  getStudioStagingDir,
+  prepareStudioStagingDir,
+  replaceStudioInstall,
+} from "./studio-install-staging.js";
 
 const logger = getLogger();
 
@@ -371,28 +377,23 @@ async function fetchChecksumFromRelease (version: string): Promise<string> {
 }
 
 /**
- * Download and install a specific version.
- * @param version - Version to download.
- * @param downloadUrl - URL to download from.
- * @param checksum - Optional checksum to verify (if not provided, will fetch from release).
+ * Download a version into its staging directory, verify it, and extract it there.
+ * @param params - Staging inputs.
+ * @param params.version - Version to download.
+ * @param params.downloadUrl - URL to download from.
+ * @param params.checksum - Optional checksum to verify (if not provided, will fetch from release).
+ * @param params.stagingDir - Empty directory to stage the version in.
+ * @throws Error when the download must not be installed.
  */
-async function downloadAndInstall(
-  version: string,
-  downloadUrl: string,
-  checksum?: string,
-): Promise<void> {
-  const versionDir = getElectronAppDir(version);
+async function stageVerifiedDownload(params: {
+  version: string;
+  downloadUrl: string;
+  checksum?: string;
+  stagingDir: string;
+}): Promise<void> {
+  const { version, downloadUrl, checksum, stagingDir } = params;
   const binaryName = getBinaryName();
   const platformKey = getPlatformKey();
-
-  console.log(`Downloading Muggle Test Electron app v${version}...`);
-  console.log(`URL: ${downloadUrl}`);
-
-  // Create directory
-  if (existsSync(versionDir)) {
-    rmSync(versionDir, { recursive: true, force: true });
-  }
-  mkdirSync(versionDir, { recursive: true });
 
   // Download
   const response = await fetch(downloadUrl);
@@ -400,7 +401,7 @@ async function downloadAndInstall(
     throw new Error(`Download failed: ${response.status} ${response.statusText}`);
   }
 
-  const tempFile = path.join(versionDir, binaryName);
+  const tempFile = path.join(stagingDir, binaryName);
   const fileStream = createWriteStream(tempFile);
 
   if (!response.body) {
@@ -424,30 +425,24 @@ async function downloadAndInstall(
   });
 
   if (integrityPolicy.unverifiableReason) {
-    rmSync(versionDir, { recursive: true, force: true });
     throw new Error("Refusing to install an unverifiable download: " + integrityPolicy.unverifiableReason);
   }
 
   if (integrityPolicy.requiresSignature) {
-    const signatureResult = await verifyReleaseSignature({
+    await enforceReleaseSignature({
       artifactPath: tempFile,
       bundleUrl: downloadUrl + SIGNATURE_BUNDLE_SUFFIX,
       signerIdentityUri: getReleaseSignerIdentityUri(),
+      expectedChecksum: expectedChecksum ?? "",
+      logInfo: console.log,
+      logWarning: console.warn,
     });
-
-    if (!signatureResult.valid) {
-      rmSync(versionDir, { recursive: true, force: true });
-      throw new Error("Signature verification failed, refusing to install: " + signatureResult.reason);
-    }
-
-    console.log("Signature verified successfully.");
   }
 
   // Verify checksum
   const checksumResult = await verifyFileChecksum(tempFile, expectedChecksum || "");
 
   if (!checksumResult.valid && expectedChecksum) {
-    rmSync(versionDir, { recursive: true, force: true });
     throw new Error(
       `Checksum verification failed!\n` +
       `Expected: ${checksumResult.expected}\n` +
@@ -464,15 +459,14 @@ async function downloadAndInstall(
 
   // Extract based on file type
   if (binaryName.endsWith(".zip")) {
-    await extractZip(tempFile, versionDir);
+    await extractZip(tempFile, stagingDir);
   } else if (binaryName.endsWith(".tar.gz")) {
-    await extractTarGz(tempFile, versionDir);
+    await extractTarGz(tempFile, stagingDir);
   }
 
   // Verify extraction succeeded
-  const executablePath = resolveElectronAppExecutablePath({ installDir: versionDir, platformName: platform() });
+  const executablePath = resolveElectronAppExecutablePath({ installDir: stagingDir, platformName: platform() });
   if (!existsSync(executablePath)) {
-    rmSync(versionDir, { recursive: true, force: true });
     throw new Error(
       `Extraction failed: executable not found at expected path.\n` +
       `Expected: ${executablePath}\n` +
@@ -484,7 +478,7 @@ async function downloadAndInstall(
   const executableChecksum = await calculateFileChecksum(executablePath);
 
   // Write install metadata
-  const metadataPath = path.join(versionDir, INSTALL_METADATA_FILE_NAME);
+  const metadataPath = path.join(stagingDir, INSTALL_METADATA_FILE_NAME);
   writeInstallMetadata({
     metadataPath: metadataPath,
     version: version,
@@ -496,6 +490,39 @@ async function downloadAndInstall(
 
   // Clean up archive file
   rmSync(tempFile, { force: true });
+}
+
+/**
+ * Download and install a specific version. The install is only touched once the
+ * download has been accepted, so a refused one leaves it exactly as it was.
+ * @param version - Version to download.
+ * @param downloadUrl - URL to download from.
+ * @param checksum - Optional checksum to verify (if not provided, will fetch from release).
+ */
+async function downloadAndInstall(
+  version: string,
+  downloadUrl: string,
+  checksum?: string,
+): Promise<void> {
+  const versionDir = getElectronAppDir(version);
+  const stagingDir = getStudioStagingDir(versionDir);
+
+  console.log(`Downloading Muggle Test Electron app v${version}...`);
+  console.log(`URL: ${downloadUrl}`);
+
+  try {
+    prepareStudioStagingDir({ stagingDir: stagingDir, versionDir: versionDir });
+    await stageVerifiedDownload({
+      version: version,
+      downloadUrl: downloadUrl,
+      checksum: checksum,
+      stagingDir: stagingDir,
+    });
+    await replaceStudioInstall({ stagingDir: stagingDir, versionDir: versionDir });
+  } catch (error) {
+    discardStudioStagingDir(stagingDir);
+    throw error;
+  }
 
   // Save version override
   saveVersionOverride(version);

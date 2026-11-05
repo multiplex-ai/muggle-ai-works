@@ -37,13 +37,7 @@ const releaseIntegrityMocks = vi.hoisted(() => ({
   verifyReleaseSignature: vi.fn(async () => ({ valid: false, reason: "no signature bundle" })),
 }));
 
-vi.mock("../../../scripts/release-integrity/index.mjs", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    verifyReleaseSignature: releaseIntegrityMocks.verifyReleaseSignature,
-  };
-});
+vi.mock("../../../scripts/release-integrity/verifyReleaseSignature.mjs", () => releaseIntegrityMocks);
 
 const childProcessMock = vi.hoisted(() => ({
   execFile: vi.fn((_cmd: string, _args: string[], cb: (e: Error | null) => void) => cb(null)),
@@ -67,6 +61,14 @@ vi.mock("fs", () => ({
   existsSync: vi.fn((p: string) => fsState.existing.has(p)),
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
+  renameSync: vi.fn((from: string, to: string) => {
+    // The mocked directories are written with forward slashes on every platform.
+    const separator = process.platform === "win32" ? "\\" : "/";
+    for (const [writtenPath, content] of [...fsState.written].filter(([p]) => p.startsWith(from))) {
+      fsState.written.delete(writtenPath);
+      fsState.written.set((to + writtenPath.slice(from.length)).split(/[\\/]/).join(separator), content);
+    }
+  }),
   readFileSync: vi.fn(() => "{}"),
   writeFileSync: vi.fn((p: string, c: string) => {
     fsState.written.set(p, c);
@@ -93,8 +95,14 @@ vi.mock("../../../packages/mcps/src/index.js", async () => ({
 import { setupCommand } from "../../cli/setup.js";
 
 const VERSION_DIR = "/data/electron-app/1.0.5";
-const EXE_PATH = join(VERSION_DIR, "MuggleAI.exe");
 const META_PATH = join(VERSION_DIR, ".install-metadata.json");
+
+/** Path of a file a version extracts, which lands in staging until the install is replaced. */
+function stagedPath(version: string, ...segments: string[]): string {
+  return join("/data", "studio-stage", version, ...segments);
+}
+
+const EXE_PATH = stagedPath("1.0.5", "MuggleAI.exe");
 
 function fetchOk(): void {
   vi.stubGlobal(
@@ -227,7 +235,7 @@ describe("setupCommand", () => {
       expected: "stale-pin-from-an-older-release",
       actual: "hash-of-what-was-actually-published",
     });
-    fsState.existing.add(join(`/data/electron-app/${signedVersion}`, "MuggleAI.exe"));
+    fsState.existing.add(stagedPath(signedVersion, "MuggleAI.exe"));
 
     await setupCommand({ force: true });
 
@@ -305,7 +313,7 @@ describe("setupCommand", () => {
   it("uses the unzip extractor and darwin paths on macOS", async () => {
     osState.platform = "darwin";
     osState.arch = "arm64";
-    const darwinExe = join("/data/electron-app/1.0.5", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    const darwinExe = stagedPath("1.0.5", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
     fsState.existing.add(darwinExe);
     await setupCommand({ force: true });
     expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalled();
@@ -315,7 +323,7 @@ describe("setupCommand", () => {
 
   it("finds the Linux executable under its electron-builder name", async () => {
     osState.platform = "linux";
-    fsState.existing.add(join(VERSION_DIR, "muggle-ai-studio"));
+    fsState.existing.add(stagedPath("1.0.5", "muggle-ai-studio"));
     await setupCommand({ force: true });
     expect(exitSpy).not.toHaveBeenCalledWith(1);
     expect(fsState.written.has(META_PATH)).toBe(true);

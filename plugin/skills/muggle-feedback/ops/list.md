@@ -53,7 +53,7 @@ Markdown table sorted by `createdAt` (newest first):
 `AskUserQuestion`:
 
 > "What next?"
-> - **View detail** — pick an entry, print full `feedbackText`, full ids, target, dashboard link if available.
+> - **View detail** — pick an entry, print full `feedbackText`, full ids, target, `outcome.state` with the test cases it names (`regeneratedTestCaseIds` in the cloud, `localRegenerationTestCaseIds` waiting for a local run), dashboard link if available.
 > - **Delete one** — hand off to [`delete.md`](delete.md).
 > - **Submit new feedback** — hand off to [`submit.md`](submit.md).
 > - **Done**

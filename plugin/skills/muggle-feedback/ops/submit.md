@@ -1,6 +1,6 @@
 # Submit feedback
 
-Resolve the action script being commented on, render it for review, collect feedback against one or more steps and/or the whole script, then submit each piece as its own server-side row.
+Resolve the action script being commented on, render it for review, collect feedback against one or more steps and/or the whole script, submit each piece as its own server-side row, then regenerate on this machine whatever only it can regenerate.
 
 ## 1. Resolve the action script (the "anchor")
 
@@ -107,11 +107,51 @@ For each piece, call `muggle-remote-user-feedback-create` once. Map fields:
 | Step `n` (1-based) | `"step"` | `` `${actionScriptId}:${n - 1}` `` (convert to 0-based) |
 | Whole script | `"actionScript"` | `actionScriptId` |
 
-Always pass `projectId` and `feedbackText`. Capture each response — note `feedback.id` and `feedbackAnalysisWorkflowRuntimeId` (may be undefined).
+Always pass `projectId` and `feedbackText`. Capture each response — note `feedback.id`, `feedbackAnalysisWorkflowRuntimeId` (may be undefined) and `localRegenerationTestCaseIds` (test cases only this machine can regenerate; absent means none).
 
 If a single create call fails, log the error, continue with the rest, and report the failure at the end. Do not abort the batch.
 
-## 5. Report
+## 5. Wait for the analysis
+
+The create response names only the feedback target. When the analysis ends, the entry's `outcome` also names similar test cases and what regenerated in the cloud.
+
+Skip this step when no response carries a `feedbackAnalysisWorkflowRuntimeId`. Otherwise:
+
+1. `muggle-remote-user-feedback-list` with `projectId` and `actionScriptId`. Find each submitted `feedback.id` in the response.
+2. While any of them has `outcome.state` `analyzing`, wait 15 seconds (`node -e "setTimeout(() => {}, 15000)"`) and list again, at most 12 times.
+
+Build two lists of unique test case ids:
+
+- **Cloud** — every `outcome.regeneratedTestCaseIds`. Already started; this skill does nothing more for them.
+- **Local** — every create response's `localRegenerationTestCaseIds` and every `outcome.localRegenerationTestCaseIds`, the feedback target first.
+
+An entry still `analyzing` after the last check keeps only what its create response named. `outcome.state` `failed` means the analysis stopped, so similar test cases were not checked; what the create response named still stands.
+
+## 6. Regenerate locally
+
+Skip when **Local** is empty. Never start a cloud generation for a test case on this list: the cloud may not reach its site.
+
+When this skill was invoked from a failed run's **Give feedback & rerun** option, the caller regenerates that run's test case as soon as this skill returns. Drop it from **Local**, so it is not regenerated twice, and run the rest.
+
+Resolve once:
+
+- `cwd` — the PR-branch worktree if one exists, else the repo root, else the current directory.
+- `showUi` — gate `showElectronBrowser` (per `preference-gates/README.md`): `always` → omit `showUi`; `never` → pass `showUi: false`; `ask` → ask via `AskUserQuestion`, then map the answer the same way.
+
+Then, one test case at a time, in **Local** order:
+
+1. **`localUrl`** — the first of these that yields a URL:
+   1. `muggle-remote-test-script-list` with `projectId`, `testCaseId` and `runEnvironmentType: "local"` → the newest script's `url`.
+   2. For the feedback target, the `url` of the action script rendered in §2.
+   3. `muggle-local-last-host-get`.
+   4. `AskUserQuestion`, offering the test case's `url`, with **Skip this test case** as the last option.
+2. **Reachability** — probe `localUrl` once, as [`dev-server-readiness.md`](../../_shared/dev-server-readiness.md) Stage 1 does but with a single attempt. No response means this test case cannot run.
+3. **Run** — the `regen` mode of [`run.md`](../../_shared/dev-loop/run.md), Records included, with `timeoutMs: 900000`. Leave the test case as it is and pass no `mutations`: every generation loads the project's saved feedback itself, which is how this feedback reaches the run.
+4. **Result** — read it per [`failures.md`](../../_shared/dev-loop/failures.md). A passing run: keep its `runId` and `viewUrl`. A non-passing run goes through [`debug-failed-run.md`](../../_shared/debug-failed-run.md) before the next test case. A `Run refused` result launched nothing: follow `run.md`'s rule for it once; a second refusal means this test case cannot run.
+
+A test case that cannot run goes on a **Not run** list with its reason; move on to the next one.
+
+## 7. Report
 
 Print one line per submitted feedback in this shape:
 
@@ -119,9 +159,16 @@ Print one line per submitted feedback in this shape:
 ✓ feedback <id> — <target description> [analysis runtime: <id>]
 ```
 
-End with a one-line note:
+Read the titles with `muggle-remote-test-case-get`, then print each line below that applies, and only those:
 
-> "Regeneration runs in the background. Re-run this test case later to use the updated script."
+- **Cloud** not empty → "Regenerating in the cloud: <titles>. Re-run them later to use the updated scripts."
+- A passing local run → "Regenerated locally: <title> — <viewUrl>"
+- A non-passing local run → "Local regeneration failed: <title> — run <runId>: <one-line diagnosis>"
+- A test case dropped for the caller's rerun → "Left for the rerun: <title>"
+- **Not run** → "Not regenerated: <title> — <reason>. Your feedback is saved and reaches the next generation. To regenerate it now, <start the site at `localUrl`, or connect to the network that reaches it>, then run `/muggle-test-feature-local`, pick this test case and choose **Generate new script**."
+- An entry still `analyzing` → "Still analyzing, so similar test cases may follow. Check later with `/muggle-feedback`."
+- An entry `failed` → "The analysis failed, so similar test cases were not checked."
+- **Cloud** and **Local** both empty, and no entry `analyzing` or `failed` → "No test case needed regenerating. Your feedback is kept as guidance for future generations."
 
 If any pieces failed, list them under a `Failed:` header with the error.
 
@@ -131,3 +178,6 @@ If any pieces failed, list them under a `Failed:` header with the error.
 - One create call per feedback piece — never concatenate paragraphs across targets.
 - Convert step numbers from 1-based (UI) to 0-based (wire) at submit time.
 - If a legacy local run carries no `cloudActionScriptId`, do the upload silently before submit; do not ask for permission for the upload itself.
+- Never start a cloud generation for a test case on the **Local** list.
+- Run local regenerations one at a time.
+- Never report a regeneration that did not start.

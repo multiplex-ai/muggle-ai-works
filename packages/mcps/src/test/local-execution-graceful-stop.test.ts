@@ -118,6 +118,7 @@ const _startGeneration = () =>
     testCase: {
       id: "tc-1",
       title: "Checkout",
+      description: "Check out as the seeded buyer",
       goal: "Check out",
       expectedResult: "Order placed",
       projectId: "proj-1",

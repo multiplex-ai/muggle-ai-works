@@ -23,6 +23,8 @@ async function resolveBaseRange(deps: IBaselineVerificationDeps): Promise<IBaseR
   return mergeBaseSha ? { mergeBaseSha: mergeBaseSha, baseTipSha: baseTipSha } : null;
 }
 
+// Git counts a commit as its own ancestor, so both ends of the range qualify: the
+// fork point is the code the PR's diff applies to, the most exact base there is.
 // A commit from another repo, a later PR branch, or a base from before this PR
 // forked fails one of the two ancestry checks.
 async function isOnBaseSinceFork(sha: string, range: IBaseRange, deps: IBaselineVerificationDeps): Promise<boolean> {
@@ -31,12 +33,20 @@ async function isOnBaseSinceFork(sha: string, range: IBaseRange, deps: IBaseline
   return (await isAncestor(range.mergeBaseSha, sha)) && (await isAncestor(sha, range.baseTipSha));
 }
 
+const isFullCommitSha = (sha: unknown): sha is string => typeof sha === "string" && FULL_COMMIT_SHA_PATTERN.test(sha);
+
+function studioCommitOf(baselineRun: IBaselineRunRecord): string | null {
+  const commitSha = baselineRun.localExecutionContext?.studioBuild?.commitSha;
+  return isFullCommitSha(commitSha) ? commitSha : null;
+}
+
 function servedCommitsOf(baselineRun: IBaselineRunRecord): string[] {
   const servedStack = baselineRun.localExecutionContext?.servedStack;
-  if (!Array.isArray(servedStack)) return [];
-  return servedStack
-    .map((servedNeed) => servedNeed?.headSha)
-    .filter((sha): sha is string => typeof sha === "string" && FULL_COMMIT_SHA_PATTERN.test(sha));
+  const stackCommits = Array.isArray(servedStack)
+    ? servedStack.map((servedNeed) => servedNeed?.headSha).filter(isFullCommitSha)
+    : [];
+  const studioCommit = studioCommitOf(baselineRun);
+  return studioCommit ? [...stackCommits, studioCommit] : stackCommits;
 }
 
 async function judgeBaseline(
@@ -55,7 +65,7 @@ async function judgeBaseline(
     return refused("it ran under a different runSettings record");
   }
   const servedCommits = servedCommitsOf(baselineRun);
-  if (servedCommits.length === 0) return refused("it recorded no stack it served");
+  if (servedCommits.length === 0) return refused("it recorded no stack it served and no Studio build commit");
   for (const servedSha of servedCommits) {
     if (!(await isOnBaseSinceFork(servedSha, range, deps))) continue;
     return {
@@ -67,8 +77,9 @@ async function judgeBaseline(
       },
     };
   }
-  const span = `${range.mergeBaseSha.slice(0, SHORT_SHA_LENGTH)}..${range.baseTipSha.slice(0, SHORT_SHA_LENGTH)}`;
-  return refused(`none of the commits it served is on the base between ${span}`);
+  const span = `${range.mergeBaseSha.slice(0, SHORT_SHA_LENGTH)} through ${range.baseTipSha.slice(0, SHORT_SHA_LENGTH)}`;
+  const studioGap = studioCommitOf(baselineRun) ? "" : ", and it recorded no Studio build commit";
+  return refused(`none of the commits it served is on the base from ${span}${studioGap}`);
 }
 
 function withoutFailsOnBase(test: FailedTest): FailedTest {
@@ -79,11 +90,11 @@ function withoutFailsOnBase(test: FailedTest): FailedTest {
 
 /**
  * The report with `failsOnBase` set on exactly the failures whose cited
- * `baselineRunId` verifies: a run of the same test case that failed while the
- * stack served a commit on the base, between the PR's fork point and the base
- * tip. Every other failure is left uncredited, whatever the input carried, and
- * each refused citation is named on stderr. Git runs only when a failure cites
- * a baseline.
+ * `baselineRunId` verifies: a run of the same test case that failed while its
+ * stack or Studio build served a commit on the base, from the PR's fork point
+ * through the base tip. Every other failure is left uncredited, whatever the
+ * input carried, and each refused citation is named on stderr. Git runs only
+ * when a failure cites a baseline.
  */
 export async function verifyBaselineFailures(report: E2eReport, deps: IBaselineVerificationDeps): Promise<E2eReport> {
   let range: IBaseRange | null | undefined;

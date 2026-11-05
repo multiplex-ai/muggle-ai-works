@@ -541,6 +541,88 @@ describe("decideStackClaim", () => {
     expect(decision.next.endedLeases?.[0].reason).toBe(StackLeaseEndReason.NoRunAfterServed);
   });
 
+  describe("while a peer waits for the lease's ports", () => {
+    const waiter = (needs = [need(3000, "/b", SHA_B)], cwd = "/b") => ({ cwd: cwd, needs: needs, enqueuedAt: now - 1_000, lastSeenAt: now - 1_000 });
+    const leasedAgo = (ms: number, queue: ReturnType<typeof waiter>[], needs = [need(3000, "/a", SHA_A)]) => ({
+      leases: [{ cwd: "/a", label: "agent-a", needs: needs, grantedAt: now - ms, lastSeenAt: now - ms }],
+      queue: queue,
+      portFreedAt: {},
+    });
+    const sweep = async (record: ReturnType<typeof leasedAgo>, servedSince?: (claimed: { headSha: string; port: number }) => number | null) => {
+      const { sweepStackRecord } = await import("../shared/service-stack/service-stack-decisions.js");
+      return sweepStackRecord({ record: record, now: now, isAlive: alive, servedSince: servedSince });
+    };
+
+    it("ends a grant that started nothing once the contested start window passes", async () => {
+      const { StackLeaseEndReason } = await loadStack();
+      const { CONTESTED_START_WINDOW_MS } = await loadConstants();
+
+      expect((await sweep(leasedAgo(CONTESTED_START_WINDOW_MS - 1, [waiter()]))).leases).toHaveLength(1);
+      const swept = await sweep(leasedAgo(CONTESTED_START_WINDOW_MS + 1, [waiter()]));
+      expect(swept.leases).toEqual([]);
+      expect(swept.endedLeases?.[0].reason).toBe(StackLeaseEndReason.NothingStarted);
+    });
+
+    it("keeps the full serve window for a grant with one service up and another still starting", async () => {
+      const { SERVE_WINDOW_MS } = await loadConstants();
+      const needs = [need(3000, "/a", SHA_A), need(5050, "/a", SHA_A)];
+      const grantedAgoMs = SERVE_WINDOW_MS - 1;
+      const oneUp = (claimed: { port: number }) => (claimed.port === 5050 ? now - 60_000 : null);
+
+      expect((await sweep(leasedAgo(grantedAgoMs, [waiter()], needs), oneUp)).leases).toHaveLength(1);
+    });
+
+    it("does not count a peer's service from before the grant as this lease starting anything", async () => {
+      const { StackLeaseEndReason } = await loadStack();
+      const { CONTESTED_START_WINDOW_MS } = await loadConstants();
+      const needs = [need(3000, "/a", SHA_A), need(5050, "/base", SHA_BASE)];
+      const sharedOnly = (claimed: { port: number }) => (claimed.port === 5050 ? now - 60 * 60_000 : null);
+
+      const swept = await sweep(leasedAgo(CONTESTED_START_WINDOW_MS + 1, [waiter()], needs), sharedOnly);
+
+      expect(swept.endedLeases?.[0].reason).toBe(StackLeaseEndReason.NothingStarted);
+    });
+
+    it("keeps the full first-run window for a grant whose services came up", async () => {
+      const { StackLeaseEndReason } = await loadStack();
+      const { FIRST_RUN_WINDOW_MS } = await loadConstants();
+      const record = leasedAgo(FIRST_RUN_WINDOW_MS + 120_000, [waiter()]);
+      const servedAgo = (ms: number) => () => now - ms;
+
+      expect((await sweep(record, servedAgo(FIRST_RUN_WINDOW_MS - 1))).leases).toHaveLength(1);
+      const swept = await sweep(record, servedAgo(FIRST_RUN_WINDOW_MS + 1));
+      expect(swept.endedLeases?.[0].reason).toBe(StackLeaseEndReason.NoRunAfterServed);
+    });
+
+    it("keeps the uncontested windows when the only tickets want the same code, are the holder's own, or were abandoned", async () => {
+      const { CONTESTED_START_WINDOW_MS, TICKET_ABANDON_MS } = await loadConstants();
+      const pastContestedWindow = CONTESTED_START_WINDOW_MS + 1;
+      const abandoned = { ...waiter(), lastSeenAt: now - TICKET_ABANDON_MS - 1 };
+
+      for (const queue of [[], [waiter([need(3000, "/a", SHA_A)])], [waiter(undefined, "/a")], [abandoned]]) {
+        expect((await sweep(leasedAgo(pastContestedWindow, queue))).leases).toHaveLength(1);
+      }
+    });
+
+    it("leaves a lease with a run in flight alone", async () => {
+      const { CONTESTED_START_WINDOW_MS } = await loadConstants();
+      const record = leasedAgo(CONTESTED_START_WINDOW_MS + 1, [waiter()]);
+      const running = {
+        ...record,
+        leases: record.leases.map((lease) => ({ ...lease, activeRuns: [{ runId: "run-1", holderPid: 4242, startedAt: now - 1_000 }] })),
+      };
+
+      expect((await sweep(running)).leases).toHaveLength(1);
+    });
+
+    it("states why the lease ended", async () => {
+      const { StackLeaseEndReason } = await loadStack();
+      const { LEASE_END_REASON_TEXT } = await loadConstants();
+
+      expect(LEASE_END_REASON_TEXT[StackLeaseEndReason.NothingStarted]).toContain("a peer was waiting");
+    });
+  });
+
   it("counts a port a peer's shared service already served from the grant, not from that service's start", async () => {
     const { decideStackClaim } = await loadStack();
     const { FIRST_RUN_WINDOW_MS } = await loadConstants();

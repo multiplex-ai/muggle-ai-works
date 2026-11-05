@@ -13,6 +13,23 @@ export interface ChangeIdentity {
 /** The lookups resolving a working tree's change needs: its git files first, git itself for what they leave open. */
 export type TreeChangeProbes = Pick<SkipProbes, "readTextFile" | "runGit">;
 
+/**
+ * The upgrade the session upkeep found, both versions on the installed build's release lane.
+ *
+ * Output shape: `{ installedVersion: "5.32.0", latestVersion: "5.33.0" }`
+ */
+export interface AvailableUpgrade {
+  installedVersion: string;
+  latestVersion: string;
+}
+
+/** One hook firing for a skill: the skill, the tool that announced it, and the skill the session last recorded. */
+export interface SkillAnnouncement {
+  skillName: string;
+  toolName: string | undefined;
+  previousSkillName: string | undefined;
+}
+
 export interface GuardrailState {
   sessionId: string;
   generation?: number;

@@ -9,6 +9,7 @@
         "mstatus",
         "mrepair",
         "mupgrade",
+        "mregister",
         "mfeedback",
         "mimport",
         "mtestlocal",

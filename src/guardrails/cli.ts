@@ -58,6 +58,7 @@ import {
   detectClassifiedTestCaseId,
   isClassificationSkipMarker,
 } from "./preExecutionClassification.js";
+import { resolveUpgradeReminder } from "./upgradeReminder.js";
 import {
   debugGateDecision,
   detectDebugEvidenceRunIds,
@@ -440,16 +441,24 @@ function skillStages(): string {
   });
   startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
-  if (unread.length === 0) return "{}";
   // Injected at the moment of use, which is the only moment the requirement is
   // actionable: by the time the skill's steps are running, the step that needed
   // the stage file has already been improvised.
-  const ctx =
-    `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. ` +
-    `Read those files now, before working through the skill's steps — they carry mandatory steps ` +
-    `SKILL.md only links to, and treating them as optional elaboration is how those steps get ` +
-    `silently dropped. A Stop gate holds the turn open until they are opened.`;
-  return envelope("PostToolUse", ctx, host);
+  const stageContext =
+    unread.length === 0
+      ? undefined
+      : `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. ` +
+        `Read those files now, before working through the skill's steps — they carry mandatory steps ` +
+        `SKILL.md only links to, and treating them as optional elaboration is how those steps get ` +
+        `silently dropped. A Stop gate holds the turn open until they are opened.`;
+  const upgradeReminder = resolveUpgradeReminder({
+    skillName: skillName,
+    toolName: input.tool_name,
+    previousSkillName: stateBefore.lastInvokedSkillName,
+  });
+  const contextParts = [stageContext, upgradeReminder].filter((contextPart) => contextPart !== undefined);
+  if (contextParts.length === 0) return "{}";
+  return envelope("PostToolUse", contextParts.join("\n\n"), host);
 }
 
 function recordStageRead(): string {

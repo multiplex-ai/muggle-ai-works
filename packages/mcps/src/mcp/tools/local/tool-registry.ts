@@ -250,7 +250,10 @@ const runResultGetTool: ILocalMcpTool = {
       `**ID:** ${storedRunResult.id}`,
       `**Type:** ${storedRunResult.runType}`,
       `**Status:** ${storedRunResult.status}`,
-      formatStudioVerdictLine(storedRunResult.studioReturnedResult),
+      formatStudioVerdictLine({
+        studioReturnedResult: storedRunResult.studioReturnedResult,
+        runStatus: storedRunResult.status,
+      }),
       `**Cloud Test Case:** ${storedRunResult.cloudTestCaseId}`,
       `**Duration:** ${storedRunResult.executionTimeMs ?? 0}ms`,
       storedRunResult.errorMessage ? `**Error:** ${storedRunResult.errorMessage}` : "",

@@ -180,6 +180,59 @@ describe("findRunStackRefusal", () => {
     expect(storage.getRunResult(unproven.id)?.localExecutionContext.servedStack).toBeUndefined();
   });
 
+  it("keeps a run's studio build unless the stack moved under the run", async () => {
+    const { recordServedStack } = await import("../mcp/local/services/run-stack-gate.js");
+    const { getRunResultStorageService } = await import("../mcp/local/services/run-result-storage-service.js");
+    const { StackCheckVerdict } = await import("../shared/service-stack/index.js");
+    const storage = getRunResultStorageService();
+    const studioBuild = {
+      commitSha: "c".repeat(40),
+      buildId: "20261103234154",
+      buildTime: "2026-11-03T23:41:54Z",
+      executablePath: "/studio/MuggleAI.exe",
+    };
+    const newRun = () =>
+      storage.createRunResult({
+        runType: "replay",
+        cloudTestCaseId: "tc-1",
+        projectId: "p-1",
+        useCaseId: "uc-1",
+        localUrl: "http://localhost:3999",
+        productionUrl: "https://example.com",
+        localExecutionContext: {
+          originalUrl: "http://localhost:3999",
+          productionUrl: "https://example.com",
+          runByUserId: "u-1",
+          studioBuild: studioBuild,
+        },
+      });
+    const servedStack = [{ port: 3999, runDir: "/wt/a/web", headSha: "a".repeat(40) }];
+    const held = newRun();
+    const noLease = newRun();
+    const moved = newRun();
+
+    recordServedStack({ runId: held.id, servedStack: servedStack, stackChange: null });
+    recordServedStack({ runId: noLease.id, servedStack: [], stackChange: null });
+    recordServedStack({
+      runId: moved.id,
+      servedStack: servedStack,
+      stackChange: {
+        verdict: StackCheckVerdict.Stale,
+        cwd: "/wt/a",
+        reason: "moved",
+        generation: 2,
+        mismatches: [],
+        peerLease: null,
+        servedNeeds: [],
+      },
+    });
+
+    expect(storage.getRunResult(held.id)?.localExecutionContext).toMatchObject({ servedStack: servedStack, studioBuild: studioBuild });
+    expect(storage.getRunResult(noLease.id)?.localExecutionContext.studioBuild).toEqual(studioBuild);
+    expect(storage.getRunResult(moved.id)?.localExecutionContext).toMatchObject({ runByUserId: "u-1" });
+    expect(storage.getRunResult(moved.id)?.localExecutionContext).not.toHaveProperty("studioBuild");
+  });
+
   it("never gates a remote target", async () => {
     const { findRunStackRefusal } = await import("../mcp/local/services/run-stack-gate.js");
     const { claimServiceStack } = await import("../shared/service-stack/index.js");

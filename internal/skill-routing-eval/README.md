@@ -1,6 +1,6 @@
 # Skill routing eval
 
-Measures whether each muggle skill's `description` (its "entrance") routes the right user queries to it — and only those — when all 14 auto-trigger skills compete in one session.
+Measures whether each muggle skill's `description` (its "entrance") routes the right user queries to it — and only those — when all 21 auto-trigger skills compete in one session.
 
 ## Files
 
@@ -65,7 +65,7 @@ python internal/skill-routing-eval/analyze.py report --in <report.json> --out <r
 `.github/workflows/skill-eval.yml` runs this on every PR to `master`, scoped to
 the skills the PR changed; the full set runs nightly and on `workflow_dispatch`.
 A PR that changed no skill description is skipped; label it `run-full-eval` to
-force the full 391-query sweep anyway (the lever for de-risking a runtime
+force the full 488-query sweep anyway (the lever for de-risking a runtime
 refactor that touches no `SKILL.md`).
 
 - `--skills a,b` — run a subset (CI derives it from the PR's changed `plugin/skills/*/SKILL.md`).

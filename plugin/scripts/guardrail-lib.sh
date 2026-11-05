@@ -79,6 +79,37 @@ guardrail_resolve_home() {
   fi
 }
 
+# Whether the user turned the update check off. Only their own file can: the shipped default is `always`.
+guardrail_updates_disabled() {
+  guardrail_resolve_home
+  local preferences_file="$GUARDRAIL_HOME/.muggle-ai/preferences.json"
+  [[ -f $preferences_file ]] || return 1
+  local preferences=""
+  read -r -d '' preferences <"$preferences_file" || true
+  local disabled_pattern='"checkForUpdates"[[:space:]]*:[[:space:]]*"never"'
+  [[ $preferences =~ $disabled_pattern ]]
+}
+
+# Starts session-maintenance.sh, found beside the calling hook in $1, once its stamp comes due. The upkeep stamps the
+# epoch second it next comes due, so a call inside that window launches nothing. Without EPOCHSECONDS (bash before 5)
+# it always launches and the upkeep's own markers decide. Every stream is redirected so the harness sees the hook
+# finish without waiting on it, and it runs at the lowest priority so its npm and install work never starves the hooks
+# of the turn it overlaps.
+guardrail_start_due_upkeep() {
+  local hook_dir="$1"
+  local upkeep_priority=""
+  command -v nice >/dev/null 2>&1 && upkeep_priority="nice -n 19"
+  local maintenance_due_at=0
+  local maintenance_stamp="${HOME}/.cache/muggle/session-maintenance-due"
+  if [[ -f $maintenance_stamp ]]; then
+    read -r maintenance_due_at <"$maintenance_stamp" || true
+  fi
+  case "$maintenance_due_at" in '' | *[!0-9]*) maintenance_due_at=0 ;; esac
+  if [[ -z ${EPOCHSECONDS:-} ]] || ((EPOCHSECONDS >= maintenance_due_at)); then
+    ${upkeep_priority} bash "${hook_dir}/session-maintenance.sh" <<<"$GUARDRAIL_PAYLOAD" >/dev/null 2>&1 &
+  fi
+}
+
 # Sets GUARDRAIL_STATE_FILE to this session's guardrail state file, named as sessionState.ts names it.
 guardrail_resolve_state_file() {
   local session_id_pattern='"session_id"[[:space:]]*:[[:space:]]*"([^"]*)"'

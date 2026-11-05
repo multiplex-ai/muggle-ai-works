@@ -24,6 +24,14 @@ export const SERVE_WINDOW_MS = 8 * 60_000;
 export const FIRST_RUN_WINDOW_MS = 4 * 60_000;
 
 /**
+ * While a peer waits for different code on its ports, a lease that has not run
+ * yet ends this long after the grant unless a service of its own has come up:
+ * a session starting its stack shows one inside this, and the rest of
+ * {@link SERVE_WINDOW_MS} stays open to it once it has.
+ */
+export const CONTESTED_START_WINDOW_MS = 5 * 60_000;
+
+/**
  * How long the ledger remembers a lease it ended without a release, so that
  * checkout's next run is refused instead of sent at services that were stopped.
  */
@@ -89,6 +97,7 @@ export const LISTENER_COMMAND_MAX_CHARS = 120;
 export const LEASE_END_REASON_TEXT: Readonly<Record<StackLeaseEndReason, string>> = {
   [StackLeaseEndReason.NeverServed]: `its ports did not serve the claimed code within ${SERVE_WINDOW_MS / 60_000} minutes of the grant`,
   [StackLeaseEndReason.NoRunAfterServed]: `no run started within ${FIRST_RUN_WINDOW_MS / 60_000} minutes of its services coming up`,
+  [StackLeaseEndReason.NothingStarted]: `a peer was waiting and none of its services came up within ${CONTESTED_START_WINDOW_MS / 60_000} minutes of the grant`,
   [StackLeaseEndReason.Idle]: `no run started within ${IDLE_RELEASE_MS / 60_000} minutes of the last one`,
   [StackLeaseEndReason.HolderExited]: "every MCP server that ran under it exited",
 };

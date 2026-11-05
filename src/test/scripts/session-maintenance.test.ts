@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, writeFileSync, statSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
@@ -86,5 +86,104 @@ describe.skipIf(!hasBash)("session-maintenance.sh file_mtime", () => {
       encoding: "utf-8",
     }).trim();
     expect(Number(stdout)).toBe(expected);
+  });
+});
+
+describe.skipIf(!hasBash)("session-maintenance.sh release_lane_tag", () => {
+  it.each([
+    ["5.33.0", "latest"],
+    ["5.33.0-staging.301", "staging"],
+  ])("reads the lane of %s as %s", (version, expectedTag) => {
+    expect(runBash(`${load} release_lane_tag "${version}"`).stdout).toBe(expectedTag);
+  });
+});
+
+describe.skipIf(!hasBash)("session-maintenance.sh version lookup", () => {
+  interface LookupRun {
+    upgradeAvailable: string | undefined;
+    npmArguments: string;
+  }
+
+  // Stands in for the three programs the lookup reaches, so the run needs no network, no install and no two-second wait.
+  function createLookupStubs(installedVersion: string, distTags: Record<string, string>): string {
+    const stubDirectory = mkdtempSync(join(tmpdir(), "session-maintenance-stubs-"));
+    const tagCases = Object.entries(distTags)
+      .map(([tag, version]) => `  dist-tags.${tag}) echo "${version}" ;;`)
+      .join("\n");
+    const stubs: Record<string, string> = {
+      muggle: `echo "${installedVersion}"`,
+      npm: `echo "$*" >> "$HOME/npm-arguments"\ncase "$3" in\n${tagCases}\nesac`,
+      sleep: "exit 0",
+    };
+    for (const [program, body] of Object.entries(stubs)) {
+      const stubPath = join(stubDirectory, program);
+      writeFileSync(stubPath, `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(stubPath, 0o755);
+    }
+    return stubDirectory;
+  }
+
+  function runLookup(
+    installedVersion: string,
+    distTags: Record<string, string>,
+    seedHome?: (cacheDirectory: string, home: string) => void,
+  ): LookupRun {
+    const home = mkdtempSync(join(tmpdir(), "session-maintenance-home-"));
+    const cacheDirectory = join(home, ".cache", "muggle");
+    mkdirSync(cacheDirectory, { recursive: true });
+    writeFileSync(join(cacheDirectory, "electron-app-checked"), "");
+    seedHome?.(cacheDirectory, home);
+    execFileSync("bash", [scriptPath], {
+      input: "{}",
+      env: {
+        ...process.env,
+        PATH: `${createLookupStubs(installedVersion, distTags)}${delimiter}${process.env.PATH ?? ""}`,
+        HOME: home,
+        USERPROFILE: home,
+      },
+    });
+    const upgradeFile = join(cacheDirectory, "upgrade-available");
+    const npmArgumentsFile = join(home, "npm-arguments");
+    return {
+      upgradeAvailable: existsSync(upgradeFile) ? readFileSync(upgradeFile, "utf-8") : undefined,
+      npmArguments: existsSync(npmArgumentsFile) ? readFileSync(npmArgumentsFile, "utf-8") : "",
+    };
+  }
+
+  it("records a newer stable release for a stable install", () => {
+    const run = runLookup("5.32.0", { latest: "5.33.0", staging: "5.34.0-staging.1" });
+    expect(run.upgradeAvailable).toBe("5.32.0|5.33.0");
+    expect(run.npmArguments).toContain("dist-tags.latest");
+  });
+
+  it("records a newer staging build for a staging install", () => {
+    const run = runLookup("5.33.0-staging.301", { latest: "5.32.0", staging: "5.33.0-staging.310" });
+    expect(run.upgradeAvailable).toBe("5.33.0-staging.301|5.33.0-staging.310");
+    expect(run.npmArguments).toContain("dist-tags.staging");
+  });
+
+  it("never measures a staging install against stable", () => {
+    const run = runLookup("5.33.0-staging.301", { latest: "5.34.0", staging: "5.33.0-staging.301" });
+    expect(run.upgradeAvailable).toBeUndefined();
+  });
+
+  it("clears a recorded upgrade once the install is current", () => {
+    const run = runLookup("5.33.0", { latest: "5.33.0" }, (cacheDirectory) => {
+      writeFileSync(join(cacheDirectory, "upgrade-available"), "5.32.0|5.33.0");
+    });
+    expect(run.upgradeAvailable).toBeUndefined();
+  });
+
+  it("makes no lookup and clears the notice under checkForUpdates=never", () => {
+    const run = runLookup("5.32.0", { latest: "5.33.0" }, (cacheDirectory, home) => {
+      writeFileSync(join(cacheDirectory, "upgrade-available"), "5.32.0|5.33.0");
+      mkdirSync(join(home, ".muggle-ai"), { recursive: true });
+      writeFileSync(
+        join(home, ".muggle-ai", "preferences.json"),
+        JSON.stringify({ preferences: { checkForUpdates: "never" } }, null, 2),
+      );
+    });
+    expect(run.npmArguments).toBe("");
+    expect(run.upgradeAvailable).toBeUndefined();
   });
 });

@@ -2,10 +2,11 @@
 
 set -uo pipefail
 
-# The slow session-start upkeep, launched detached by ensure-electron-app.sh at most
-# once a day so no hook waits on it: state GC and the Electron runner install daily,
-# and the npm version lookup every three days. The due stamp and the install's marker
-# are claimed before the work starts, so sessions opening together run it once rather
+# The slow upkeep, launched detached at most once a day so no hook waits on it: state
+# GC, the Electron runner install and the npm version lookup. ensure-electron-app.sh
+# launches it at session start and guardrail-skill-stages.sh on a skill call, so a
+# session open for days still gets it. The due stamp and the install's marker are
+# claimed before the work starts, so sessions opening together run it once rather
 # than once each. The hook payload arrives on stdin and is handed on to gc-state.sh.
 
 # Epoch mtime of a file, or 0 if unreadable. GNU coreutils (Linux/WSL/Git Bash)
@@ -22,7 +23,17 @@ file_mtime() {
     printf '0\n'
 }
 
-# Sourcing with MUGGLE_SESSION_MAINTENANCE_LIB_ONLY=1 exposes the helper above
+# The dist-tag of the release lane a version sits on: a prerelease is staging, a plain
+# release stable. Semver orders 5.15.0-staging.106 below 5.15.0, so a staging build
+# measured against `latest` reads as out of date and a newer staging build goes unseen.
+release_lane_tag() {
+    case "$1" in
+        *-*) printf 'staging\n' ;;
+        *) printf 'latest\n' ;;
+    esac
+}
+
+# Sourcing with MUGGLE_SESSION_MAINTENANCE_LIB_ONLY=1 exposes the helpers above
 # without running the upkeep — used by the unit test.
 if [ -n "${MUGGLE_SESSION_MAINTENANCE_LIB_ONLY:-}" ]; then
     return 0 2>/dev/null || exit 0
@@ -30,11 +41,12 @@ fi
 
 maintenance_dir="${BASH_SOURCE[0]%/*}"
 [ "$maintenance_dir" = "${BASH_SOURCE[0]}" ] && maintenance_dir=.
+. "${maintenance_dir}/guardrail-lib.sh"
 cache_dir="${HOME}/.cache/muggle"
 electron_marker="${cache_dir}/electron-app-checked"
 electron_ttl=$((24 * 60 * 60))
 version_cache="${cache_dir}/version-check"
-version_ttl=$((3 * 24 * 60 * 60))
+version_ttl=$((24 * 60 * 60))
 upgrade_available="${cache_dir}/upgrade-available"
 
 maintenance_stamp="${cache_dir}/session-maintenance-due"
@@ -70,18 +82,27 @@ if is_due "$electron_marker" "$electron_ttl"; then
     fi
 fi
 
-# The cache holds "installed|latest". It is not claimed up front: a failed lookup
-# leaves it due, so the next start retries rather than waiting out the TTL.
+if guardrail_updates_disabled; then
+    rm -f "$upgrade_available" 2>/dev/null || true
+    exit 0
+fi
+
+# The cache holds "installed|latest", latest being the head of the installed build's
+# own lane. It is not claimed up front: a failed lookup leaves it due, so the next
+# start retries rather than waiting out the TTL.
 if is_due "$version_cache" "$version_ttl"; then
     installed=$(muggle --version 2>/dev/null | tr -d '[:space:]' || true)
-    latest=$(npm view @muggleai/works version 2>/dev/null | tr -d '[:space:]' || true)
+    latest=""
+    if [ -n "$installed" ]; then
+        latest=$(npm view @muggleai/works "dist-tags.$(release_lane_tag "$installed")" 2>/dev/null | tr -d '[:space:]' || true)
+    fi
     if [ -n "$installed" ] && [ -n "$latest" ]; then
         printf '%s|%s' "$installed" "$latest" > "$version_cache" 2>/dev/null || true
     fi
 fi
 
-# ensure-electron-app.sh announces an upgrade only while this file exists, so the
-# version comparison (sort -V) never runs on the hook's own path.
+# The hooks announce an upgrade only while this file exists, so the version comparison
+# (sort -V) never runs on a hook's own path.
 cached_versions=$(cat "$version_cache" 2>/dev/null || true)
 installed="${cached_versions%%|*}"
 latest="${cached_versions##*|}"

@@ -28,7 +28,7 @@ export enum PreferenceKey {
   PostPRVisualWalkthrough = "postPRVisualWalkthrough",
   /** Push the branch and open a PR at the end of the dev cycle. */
   AutoCreatePR = "autoCreatePR",
-  /** Check for newer Muggle Test versions at session start. */
+  /** Check daily for newer Muggle Test versions and remind on every skill call. */
   CheckForUpdates = "checkForUpdates",
   /** Show detailed progress logs during execution. */
   VerboseOutput = "verboseOutput",

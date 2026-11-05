@@ -191,6 +191,20 @@ function exitServiceLoop(machine: MachineState, slotDir: string, lastLine: strin
   writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), `DRAIN pr=1 state=OPEN\n${lastLine}\n`);
 }
 
+// Further idle background sessions in `cwd`, loaded with the machine's others.
+function addIdleSessions(paths: WatchPaths, machine: MachineState, cwd: string, sessionIds: string[]): void {
+  sessionIds.forEach((sessionId, index) => {
+    const pid = 100 + (machine.claudeListing ?? []).length + index;
+    writeRegistry(paths.claudeSessionRegistryDir, pid, sessionId);
+    machine.psOutput += `\n  ${pid}     1   02:00:00 claude`;
+    machine.claudeListing?.push({ id: sessionId, sessionId: sessionId, cwd: cwd, kind: "background", status: "idle", state: "blocked", startedAt: NOW_MS - 2 * HOUR_MS });
+  });
+}
+
+function respawnedShortIds(runner: ReturnType<typeof buildMachine>["runner"]): string[] {
+  return runner.calls.filter((call) => call.args[0] === "respawn").map((call) => call.args[1]);
+}
+
 function sessionCalls(runner: ReturnType<typeof buildMachine>["runner"]): string[][] {
   return runner.calls
     .filter((call) => call.executable === "claude" && ["stop", "--resume", "respawn"].includes(call.args[0]))
@@ -708,6 +722,62 @@ describe("runReloadPluginsPass", () => {
     const { deps, machine } = buildMachine();
     machine.claudeListing = null;
     expect(runReloadPluginsPass(deps, false)).toBeNull();
+  });
+
+  it("continues an install's sweep, so refused workspaces stop filling the restart cap", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    appendInstall(paths.muggleInstallLogFile, NOW_MS - 60_000, "2.0.0");
+    machine.untrustedCwds.add(projectCwd);
+    addIdleSessions(paths, machine, projectCwd, ["refused-1", "refused-2"]);
+    addIdleSessions(paths, machine, `${projectCwd}-trusted`, ["reachable"]);
+
+    expect(runReloadPluginsPass(deps, false)?.untrustedSessionIds).toEqual(["idle-bg", "refused-1", "refused-2"]);
+    const preview = runReloadPluginsPass({ ...deps, nowMs: NOW_MS + 30_000 }, true);
+    expect(preview?.decisions.find((decision) => decision.sessionId === "reachable")?.action).toBe(ReloadAction.Respawn);
+
+    expect(runReloadPluginsPass({ ...deps, nowMs: NOW_MS + 60_000 }, false)?.respawnedSessionIds).toEqual(["reachable"]);
+    expect(runner.calls.filter((call) => call.args[0] === "--bg" && call.options?.cwd === projectCwd)).toHaveLength(1);
+    expect(readState(paths.watchDir).pendingReload.changedAtMs).toBe(NOW_MS - 60_000);
+  });
+
+  it("reaches the next sessions on a repeat run instead of restarting the first ones again", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    addIdleSessions(paths, machine, projectCwd, ["idle-2", "idle-3", "idle-4"]);
+
+    runReloadPluginsPass(deps, false);
+    runReloadPluginsPass({ ...deps, nowMs: NOW_MS + 60_000 }, false);
+
+    expect(respawnedShortIds(runner)).toEqual(["idle-bg1", "idle-2", "idle-3", "idle-4"]);
+    expect(readState(paths.watchDir).pendingReload.changedAtMs).toBe(NOW_MS);
+  });
+
+  it("opens a new sweep once the last one owes nothing", () => {
+    const { deps, runner, paths } = buildMachine();
+    runReloadPluginsPass(deps, false);
+    runReloadPluginsPass({ ...deps, nowMs: NOW_MS + 60_000 }, false);
+
+    expect(respawnedShortIds(runner)).toEqual(["idle-bg1", "idle-bg1"]);
+    expect(readState(paths.watchDir).pendingReload.changedAtMs).toBe(NOW_MS + 60_000);
+  });
+
+  it("leaves what the cap held back to the next tick, which keeps the manual record", () => {
+    const { deps, runner, paths, machine, projectCwd } = buildMachine();
+    addIdleSessions(paths, machine, projectCwd, ["idle-2", "idle-3", "idle-4"]);
+
+    runReloadPluginsPass(deps, false);
+    runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(respawnedShortIds(runner)).toEqual(["idle-bg1", "idle-2", "idle-3", "idle-4"]);
+    expect(readState(paths.watchDir).pendingReload.changedAtMs).toBe(NOW_MS);
+  });
+
+  it("gives way to an install newer than the manual sweep", () => {
+    const { deps, paths } = buildMachine();
+    runReloadPluginsPass(deps, false);
+    appendInstall(paths.muggleInstallLogFile, NOW_MS + 60_000, "2.0.0");
+    runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+
+    expect(readState(paths.watchDir).pendingReload.changedAtMs).toBe(NOW_MS + 60_000);
   });
 });
 

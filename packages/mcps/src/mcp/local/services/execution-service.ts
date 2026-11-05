@@ -40,6 +40,7 @@ import { DEFAULT_GENERATION_TIMEOUT_MS, DEFAULT_REPLAY_TIMEOUT_MS } from "./exec
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
+import { readStudioBuildAsync } from "./studio-build.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -147,9 +148,29 @@ function extractStudioCloudRefs(studioReturnedResult: unknown): IStudioCloudRefs
 }
 
 /**
+ * Build a generation run's stored studio result: the recorded script under the verdict the studio
+ * reported for the run. The script's own `status` is its lifecycle state, not that verdict.
+ *
+ * @param params.recordedScript - The parsed `gen_*.json`, absent when the run recorded none.
+ * @param params.studioCloudRefs - The parsed cloud refs sidecar, absent when the run published nothing.
+ * @returns The result to store, or undefined when the run left neither file.
+ */
+function buildGenerationStudioResult(params: { recordedScript: unknown; studioCloudRefs: unknown }): unknown {
+  const { recordedScript, studioCloudRefs } = params;
+  if (typeof recordedScript !== "object" || recordedScript === null) {
+    return studioCloudRefs;
+  }
+  const reportedVerdict = (studioCloudRefs as { status?: unknown } | undefined)?.status;
+  return typeof reportedVerdict === "string" && reportedVerdict.length > 0
+    ? { ...recordedScript, status: reportedVerdict }
+    : recordedScript;
+}
+
+/**
  * Read the studio's `cloudrefs_<input>.json` sidecar written next to the input
- * script after it publishes the run. A replay stores it whole as its `studioReturnedResult`, so its
- * optional `status` (the studio verdict, absent from older studio builds) reaches the run report.
+ * script after it publishes the run. Its optional `status` (the studio verdict, absent from older
+ * studio builds) reaches the run report through the stored `studioReturnedResult`: a replay stores
+ * the sidecar whole, a generation lays that status over its recorded script.
  * Returns undefined when absent (e.g. an older studio build that doesn't publish) — callers narrow
  * defensively.
  */
@@ -239,8 +260,12 @@ async function getLocalExecutionContextBaseAsync(params: {
   runByUserId: string;
   originalUrl: string;
   productionUrl: string;
+  electronAppPath: string | null;
 }): Promise<ILocalExecutionContext> {
   const packageJson = await findPackageJsonAsync();
+  const studioBuild = params.electronAppPath
+    ? await readStudioBuildAsync({ executablePath: params.electronAppPath, platformName: os.platform() })
+    : undefined;
 
   return {
     originalUrl: params.originalUrl,
@@ -250,6 +275,7 @@ async function getLocalExecutionContextBaseAsync(params: {
     osInfo: `${os.platform()} ${os.release()} ${os.arch()}`,
     electronAppVersion: packageJson.muggleConfig.electronAppVersion,
     mcpServerVersion: packageJson.version,
+    ...(studioBuild && { studioBuild: studioBuild }),
   };
 }
 
@@ -482,16 +508,12 @@ async function scanForRuntimeDirByMtime(params: {
 }
 
 /**
- * Resolve the electron-app binary path on every call.
+ * The electron-app binary a run resolved, or a detailed error when it found none.
  *
- * Re-resolves from the filesystem each invocation so a long-running MCP
- * server picks up `muggle upgrade` / `muggle setup` changes without a
- * process restart.
- *
- * Throws a detailed error if the binary cannot be found.
+ * Each run resolves from the filesystem so a long-running MCP server picks up
+ * `muggle upgrade` / `muggle setup` changes without a process restart.
  */
-function getElectronAppPathOrThrow(): string {
-  const electronAppPath = resolveElectronAppPathOrNull();
+function requireElectronAppPath(electronAppPath: string | null): string {
   if (electronAppPath && electronAppPath.trim() !== "") {
     return electronAppPath;
   }
@@ -570,6 +592,7 @@ function resolveFailedRunStatus(executionResult: IElectronExecutionResult): RunR
 async function executeElectronAppAsync(params: {
   runId: string;
   runType: "generation" | "replay";
+  electronAppPath: string | null;
   scriptFilePath: string;
   authFilePath: string;
   mutationsFilePath?: string;
@@ -578,7 +601,7 @@ async function executeElectronAppAsync(params: {
   freshSession?: boolean;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
-  const electronAppPath = getElectronAppPathOrThrow();
+  const electronAppPath = requireElectronAppPath(params.electronAppPath);
   const spawnArgs = [mode, params.scriptFilePath, params.mutationsFilePath ?? "", params.authFilePath];
 
   if (params.showUi) {
@@ -775,7 +798,10 @@ async function runTestGenerationLocked(params: {
     throw new Error("Missing required testCase.url for local run upload metadata");
   }
 
+  // Resolved once so the build the run record names is the binary the run spawns.
+  const electronAppPath = resolveElectronAppPathOrNull();
   const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    electronAppPath: electronAppPath,
     runByUserId: userId,
     originalUrl: localUrl,
     productionUrl: testCase.url,
@@ -845,6 +871,7 @@ async function runTestGenerationLocked(params: {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "generation",
+        electronAppPath: electronAppPath,
         scriptFilePath: inputFilePath,
         mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,
@@ -896,15 +923,18 @@ async function runTestGenerationLocked(params: {
           // No gen file produced before failure.
         }
 
-        const failedStudioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
+        const failedCloudRefsContent = await readCloudRefsFile(inputFilePath);
         storage.updateRunResult(runId, {
           status: resolveFailedRunStatus(executionResult),
           testScriptId: localTestScript.id,
           executionTimeMs: executionTimeMs,
           errorMessage: failureMessage,
           artifactsDir: artifactsDir,
-          studioReturnedResult: failedStudioResult,
-          ...failedStudioCloudRefs,
+          studioReturnedResult: buildGenerationStudioResult({
+            recordedScript: failedStudioResult,
+            studioCloudRefs: failedCloudRefsContent,
+          }),
+          ...extractStudioCloudRefs(failedCloudRefsContent),
           localExecutionContext: {
             ...localExecutionContextBase,
             localExecutionCompletedAt: completedAt,
@@ -946,14 +976,17 @@ async function runTestGenerationLocked(params: {
         runId: runId,
         generatedScriptPath: generatedScriptPath,
       });
-      const studioCloudRefs = extractStudioCloudRefs(await readCloudRefsFile(inputFilePath));
+      const cloudRefsContent = await readCloudRefsFile(inputFilePath);
       storage.updateRunResult(runId, {
         status: "passed",
         testScriptId: localTestScript.id,
         executionTimeMs: executionTimeMs,
         artifactsDir: artifactsDir,
-        studioReturnedResult: generatedScript,
-        ...studioCloudRefs,
+        studioReturnedResult: buildGenerationStudioResult({
+          recordedScript: generatedScript,
+          studioCloudRefs: cloudRefsContent,
+        }),
+        ...extractStudioCloudRefs(cloudRefsContent),
         localExecutionContext: {
           ...localExecutionContextBase,
           localExecutionCompletedAt: completedAt,
@@ -1054,7 +1087,10 @@ async function runReplayLocked(params: {
     throw new Error("Missing required testScript.url for local run upload metadata");
   }
 
+  // Resolved once so the build the run record names is the binary the run spawns.
+  const electronAppPath = resolveElectronAppPathOrNull();
   const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    electronAppPath: electronAppPath,
     runByUserId: userId,
     originalUrl: localUrl,
     productionUrl: testScript.url,
@@ -1109,6 +1145,7 @@ async function runReplayLocked(params: {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "replay",
+        electronAppPath: electronAppPath,
         scriptFilePath: inputFilePath,
         mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,

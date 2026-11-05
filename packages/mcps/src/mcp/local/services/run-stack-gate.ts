@@ -90,8 +90,9 @@ export async function readServedStack(params: {
 
 /**
  * Stamp a finished run with the stack it ran against, when that stack held from
- * before the run to after it. A stack that changed mid-run is left unstamped:
- * the run described neither the code it started on nor the code it ended on.
+ * before the run to after it. A stack that changed mid-run is left unstamped and
+ * loses its studio build too: the run described neither the code it started on
+ * nor the code it ended on, so it proves nothing about any commit.
  *
  * @param params.runId - The finished run's id.
  * @param params.servedStack - What {@link readServedStack} returned before the run.
@@ -102,10 +103,17 @@ export function recordServedStack(params: {
   servedStack: IStackNeed[];
   stackChange: IStackCheckReport | null;
 }): void {
-  if (params.servedStack.length === 0 || params.stackChange !== null) return;
+  const hasStackMoved = params.stackChange !== null;
+  if (params.servedStack.length === 0 && !hasStackMoved) return;
   const storage = getRunResultStorageService();
   const runResult = storage.getRunResult(params.runId);
   if (!runResult) return;
+  if (hasStackMoved) {
+    const unprovenContext = { ...runResult.localExecutionContext };
+    delete unprovenContext.studioBuild;
+    storage.updateRunResult(params.runId, { localExecutionContext: unprovenContext });
+    return;
+  }
   storage.updateRunResult(params.runId, {
     localExecutionContext: { ...runResult.localExecutionContext, servedStack: params.servedStack },
   });

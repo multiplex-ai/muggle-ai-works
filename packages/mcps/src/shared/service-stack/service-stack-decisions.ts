@@ -12,13 +12,15 @@
  *
  * A lease is held only while its session is testing: a run in flight keeps it,
  * and once none is, it ends shortly after the last one finished. A grant that
- * never runs must bring its ports up, then start a run, each within a window.
+ * never runs must bring its ports up, then start a run, each within a window,
+ * and must show a service sooner while a peer waits for its ports.
  */
 
 import { compareQueuePlaces } from "../queue-priority/queue-priority.js";
 import type { ICheckoutPullRequest } from "../queue-priority/queue-priority-types.js";
 import {
   CLAIM_GRACE_MS,
+  CONTESTED_START_WINDOW_MS,
   DEAD_HOLDER_GRACE_MS,
   ENDED_LEASE_MEMORY_MS,
   FIRST_RUN_WINDOW_MS,
@@ -62,8 +64,10 @@ export function needsConflict(left: IStackNeed, right: IStackNeed): boolean {
  * A lease with a run in flight never ends for idleness. Without one it ends
  * {@link IDLE_RELEASE_MS} after its last run finished. One that has not run
  * yet ends {@link SERVE_WINDOW_MS} after the grant while its ports do not all
- * serve the claimed code, and {@link FIRST_RUN_WINDOW_MS} after they do. It
- * ends sooner when every holder process it recorded has exited and it has gone
+ * serve the claimed code, and {@link FIRST_RUN_WINDOW_MS} after they do. While
+ * a live ticket wants different code on its ports, one that has not run ends
+ * {@link CONTESTED_START_WINDOW_MS} after the grant if it started no service.
+ * It ends sooner when every holder process it recorded has exited and it has gone
  * {@link DEAD_HOLDER_GRACE_MS} untouched — its session is dead.
  *
  * @param params.record - The committed record.
@@ -80,9 +84,16 @@ export function sweepStackRecord(params: {
 }): IStackRecord {
   const { record, now } = params;
   const servedSince = params.servedSince ?? isServedByNothing;
+  const liveQueue = record.queue.filter((ticket) => now - ticket.lastSeenAt <= TICKET_ABANDON_MS);
   const endings = record.leases.map((lease) => ({
     lease: lease,
-    reason: findLeaseEndReason({ lease: lease, now: now, isAlive: params.isAlive, servedSince: servedSince }),
+    reason: findLeaseEndReason({
+      lease: lease,
+      now: now,
+      isAlive: params.isAlive,
+      servedSince: servedSince,
+      isContested: isLeaseContested({ lease: lease, queue: liveQueue }),
+    }),
   }));
   const liveLeases = endings.filter((ending) => ending.reason === null).map((ending) => ending.lease);
   const endedNow = endings.flatMap(({ lease, reason }): IStackEndedLease[] =>
@@ -90,7 +101,7 @@ export function sweepStackRecord(params: {
   );
   return {
     leases: liveLeases,
-    queue: record.queue.filter((ticket) => now - ticket.lastSeenAt <= TICKET_ABANDON_MS).sort(compareQueuePlaces),
+    queue: liveQueue.sort(compareQueuePlaces),
     portFreedAt: markFreedPorts({
       portFreedAt: forgetSettledPorts({ portFreedAt: record.portFreedAt, now: now }),
       releasedNeeds: endings.filter((ending) => ending.reason !== null).flatMap((ending) => ending.lease.needs),
@@ -333,6 +344,7 @@ function findLeaseEndReason(params: {
   now: number;
   isAlive: (pid: number) => boolean;
   servedSince: StackServedSince;
+  isContested: boolean;
 }): StackLeaseEndReason | null {
   if (liveRuns(params).length > 0) return null;
   const holderPids = params.lease.holderPids ?? [];
@@ -344,10 +356,32 @@ function findLeaseEndReason(params: {
   // For a lease that never ran, lastSeenAt is its grant. An older MCP server records no runs and renews
   // lastSeenAt instead, so its lease in mid-run is never mistaken for an idle one and stopped.
   const servedAt = findLeaseServedAt({ lease: params.lease, servedSince: params.servedSince });
-  if (servedAt === null) return params.now - params.lease.lastSeenAt > SERVE_WINDOW_MS ? StackLeaseEndReason.NeverServed : null;
-  return params.now - Math.max(servedAt, params.lease.lastSeenAt) > FIRST_RUN_WINDOW_MS
-    ? StackLeaseEndReason.NoRunAfterServed
-    : null;
+  if (servedAt === null) {
+    const unservedForMs = params.now - params.lease.lastSeenAt;
+    if (unservedForMs > SERVE_WINDOW_MS) return StackLeaseEndReason.NeverServed;
+    const isStalled = params.isContested && unservedForMs > CONTESTED_START_WINDOW_MS && !hasStartedService(params);
+    return isStalled ? StackLeaseEndReason.NothingStarted : null;
+  }
+  // Not shortened for a waiting peer: a healthy session commonly needs about three minutes from here to its first run.
+  const servedUnusedForMs = params.now - Math.max(servedAt, params.lease.lastSeenAt);
+  return servedUnusedForMs > FIRST_RUN_WINDOW_MS ? StackLeaseEndReason.NoRunAfterServed : null;
+}
+
+// A holder's own ticket and a peer wanting the same code share the lease's services, so neither waits on it.
+function isLeaseContested(params: { lease: IStackLease; queue: IStackTicket[] }): boolean {
+  return params.queue.some(
+    (ticket) =>
+      ticket.cwd !== params.lease.cwd &&
+      ticket.needs.some((wanted) => params.lease.needs.some((held) => needsConflict(held, wanted))),
+  );
+}
+
+// A service older than the grant is a peer's, shared: it shows nothing about this session's progress.
+function hasStartedService(params: { lease: IStackLease; servedSince: StackServedSince }): boolean {
+  return params.lease.needs.some((need) => {
+    const servedAt = params.servedSince(need);
+    return servedAt !== null && servedAt >= params.lease.grantedAt;
+  });
 }
 
 // A port already serving the claimed code before the grant — a peer's service, shared — counts from the grant.

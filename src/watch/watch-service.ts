@@ -44,6 +44,7 @@ import {
 import { canRestartSessionIn } from "./workspace-trust.js";
 import {
   ClaudeProcessStatus,
+  ReloadAction,
   WatcherRecoveryOutcome,
   WatchEventKind,
   type ClaudeLoginRecord,
@@ -259,6 +260,30 @@ function reloadTargetAtMs(deps: WatchTickDeps, installs: InstallRecord[]): numbe
   return resolveReloadTargetAtMs(installs, readMugglePluginUpdatedAtMs(deps.paths.claudeInstalledPluginsFile));
 }
 
+// A manual pass dates its sweep to when it ran, so the sweep in progress is the newer of that and the install.
+function activeReloadTargetAtMs(state: WatchLedgerState, installTargetAtMs: number | undefined): number | undefined {
+  const requestedAtMs = state.pendingReload?.changedAtMs;
+  if (installTargetAtMs === undefined || requestedAtMs === undefined) return installTargetAtMs ?? requestedAtMs;
+  return Math.max(installTargetAtMs, requestedAtMs);
+}
+
+// A sweep still owing idle sessions carries on, so a repeat run reaches the next
+// sessions instead of restarting the first ones again. Only a finished sweep opens a new one.
+function manualReloadRecord(
+  state: WatchLedgerState,
+  installTargetAtMs: number | undefined,
+  claudeSessions: WorkSession[],
+  watchOwnerSessionIds: Set<string>,
+  nowMs: number,
+): PendingReload {
+  const activeTargetAtMs = activeReloadTargetAtMs(state, installTargetAtMs);
+  if (activeTargetAtMs === undefined) return reloadRecordFor(state, nowMs);
+  const activeRecord = reloadRecordFor(state, activeTargetAtMs);
+  const isRestartOwed = planReloadFanOut(claudeSessions, activeRecord, watchOwnerSessionIds)
+    .some((decision) => decision.action === ReloadAction.Respawn);
+  return isRestartOwed ? activeRecord : reloadRecordFor(state, nowMs);
+}
+
 function closeOutTerminalSlots(assessments: WatchSlotAssessment[], deps: WatchTickDeps, at: string): {
   closedOutSlugs: string[];
   events: WatchEvent[];
@@ -367,7 +392,7 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
 
   let pendingReload = state.pendingReload;
   let reload: ReloadReport | undefined;
-  const targetAtMs = reloadTargetAtMs(deps, installs);
+  const targetAtMs = activeReloadTargetAtMs(state, reloadTargetAtMs(deps, installs));
   if (deps.isAutoReloadEnabled && targetAtMs !== undefined && claudeSessions !== null) {
     const reloadableSessions = claudeSessions.filter((session) => !restartedSessionIds.has(session.sessionId));
     const pass = runReloadPass(reloadRecordFor(state, targetAtMs), reloadableSessions, watchOwnersOf(assessments), deps, at);
@@ -452,8 +477,10 @@ export function runWatchTick(deps: WatchTickDeps): WatchSnapshot {
  * auto-reload switch says and whether or not an install changed them — a
  * checkout a session loads skills from changes without one. Restart the idle
  * background sessions loaded before now (resuming watch owners on reconcile)
- * and name the terminal ones; sessions still mid-turn are left for later
- * passes. Watch ownership comes from the last tick's snapshot.
+ * and name the terminal ones; sessions still mid-turn or past the restart cap
+ * are left for later passes, which continue this record. While a sweep still
+ * owes idle sessions, a run continues it rather than opening a new one. Watch
+ * ownership comes from the last tick's snapshot.
  *
  * @returns The pass's report, or null when Claude's session listing could not be read.
  * @throws When another run holds the watch lock.
@@ -464,8 +491,8 @@ export function runReloadPluginsPass(deps: WatchTickDeps, isDryRun: boolean): Re
     const { claudeSessions } = observeSessions(deps, installs);
     if (claudeSessions === null) return null;
     const state = readWatchLedgerState(deps.paths.watchDir);
-    const record = reloadRecordFor(state, deps.nowMs);
     const watchOwnerSessionIds = watchOwnersOf(readWatchSnapshot(deps.paths.watchDir)?.slots ?? []);
+    const record = manualReloadRecord(state, reloadTargetAtMs(deps, installs), claudeSessions, watchOwnerSessionIds, deps.nowMs);
     if (isDryRun) {
       return {
         decisions: planReloadFanOut(claudeSessions, record, watchOwnerSessionIds),

@@ -11,11 +11,11 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-local-check-status",
   },
   {
-    "description": "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
+    "description": "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, (3) testCaseDescription, the description from muggle-remote-test-case-get, and (4) a localhost URL. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
     "name": "muggle-local-execute-replay",
   },
   {
-    "description": "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
+    "description": "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
     "name": "muggle-local-execute-test-generation",
   },
   {
@@ -271,7 +271,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-bulk-preview-submit",
   },
   {
-    "description": "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-chaining-catalog-get.",
+    "description": "Create a new test case for a use case. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-chaining-catalog-get.",
     "name": "muggle-remote-test-case-create",
   },
   {
@@ -295,7 +295,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-list-by-use-case",
   },
   {
-    "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    "description": "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
     "name": "muggle-remote-test-case-update",
   },
   {
@@ -387,11 +387,11 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-use-case-prompt-preview",
   },
   {
-    "description": "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: changing title, description, or url triggers background regeneration of dependent test cases on the server.",
+    "description": "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: a real change to title, description, or url triggers background regeneration of dependent test cases on the server; restating a stored value does not. Regeneration replaces the use case's test cases, which drops the limits stored in their descriptions; store them again afterwards.",
     "name": "muggle-remote-use-case-update",
   },
   {
-    "description": "Update an existing use case by regenerating its fields from a new instruction.",
+    "description": "Update an existing use case by regenerating its fields from a new instruction. Every call also regenerates its test cases. Regeneration replaces the use case's test cases, which drops the limits stored in their descriptions; store them again afterwards.",
     "name": "muggle-remote-use-case-update-from-prompt",
   },
   {
@@ -487,7 +487,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-workflow-start-test-case-detection",
   },
   {
-    "description": "Start a test script generation workflow.",
+    "description": "Start a test script generation workflow. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run.",
     "name": "muggle-remote-workflow-start-test-script-generation",
   },
   {

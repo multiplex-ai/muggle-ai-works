@@ -25,7 +25,7 @@ Branch each test case on its `mode`, then issue **all** workflow-start calls in 
 - `url`: The preview/staging URL
 - `goal`: From the test case
 - `precondition`: From the test case (use `"None"` if empty)
-- `instructions`: From the test case
+- `instructions`: The test case's `description`, plus anything specific to this run. The stored `description` always reaches the run, so a limit belongs there ([limits](../_shared/test-case-design.md#limits)).
 - `expectedResult`: From the test case
 
 **Replay-mode test case** — `muggle-remote-workflow-start-test-script-replay` against the latest replayable script for that test case (resolve via `muggle-remote-test-script-list` with `runEnvironmentType: "remote"` if not already in hand from the classification step). Tag results with `mode: "replay"` so the router routes failures correctly.

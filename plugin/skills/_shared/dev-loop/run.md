@@ -49,7 +49,8 @@ Per test case, or per record when it has [records](#records), branch on `mode`:
 **Replay**
 1. `muggle-remote-test-script-get` (the record's `testScriptId`; with no records, the latest replayable script — the lane-scoped one the caller resolved during classification per [`../failure-mode-handling.md`](../failure-mode-handling.md) §A) → note `actionScriptId`.
 2. `muggle-remote-action-script-get` with that id → full `actionScript` (see [`action-script.md`](action-script.md)), plus the `pinnedAccount` and `freshSession` its `actionParams` recorded.
-3. `muggle-local-execute-replay` with `testScript`, `actionScript`, `localUrl`, `cwd`, `showUi`, `pinnedAccount` and `freshSession` (each copied from the recording's `actionParams` when present; see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
+3. `muggle-remote-test-case-get` for the script's `testCaseId` → its current `description`, which holds the run's [limits](../test-case-design.md#limits).
+4. `muggle-local-execute-replay` with `testScript`, `actionScript`, `testCaseDescription` (that `description`), `localUrl`, `cwd`, `showUi`, `pinnedAccount` and `freshSession` (each copied from the recording's `actionParams` when present; see [`fresh-session.md`](fresh-session.md)), `timeoutMs` (see [`timeouts.md`](timeouts.md)).
 
 **Regen**
 1. `muggle-remote-test-case-get` → full test case object.

@@ -109,6 +109,7 @@ Prompt for projects: "Pick the project to group this test into:"
 - **Test case — Create new test case** (requires a chosen `useCaseId`): User provides an instruction describing what to test.
   1. `muggle-remote-test-case-generate-from-prompt` with `projectId`, `useCaseId`, `instruction` — **preview only** (server test-case prompt preview); show the returned draft(s); get confirmation via `AskUserQuestion`.
   2. Persist the accepted draft with `muggle-remote-test-case-create`, mapping preview fields into the required properties (`title`, `description`, `goal`, `expectedResult`, `url`, etc.). Then continue from **section 5** with that `testCaseId`.
+- **Limits:** anything the user said the test must or must not touch, including which target and which path, goes in the chosen test case's stored `description` before the run, on a new case or an existing one ([limits](../_shared/test-case-design.md#limits)). Stated only in this chat, it does not reach the run.
 
 ### 3. Ensure Local Services Are Ready
 

@@ -343,6 +343,8 @@ For each use case, run a bulk-preview job to generate its test cases.
    url:            <from testCase.url>
    ```
 
+   Anything the source says a test must or must not touch stays in `description`; add it if the preview dropped it ([limits](../_shared/test-case-design.md#limits)).
+
 Print progress: `Creating test cases for "User Authentication"... (1/3)`
 
 It is safe to create test cases for different use cases in parallel once their bulk-preview

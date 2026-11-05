@@ -9,6 +9,7 @@ import { getConfig } from "../../../shared/config.js";
 import { buildDashboardUrl, DashboardPage, withDashboardUrl } from "../../../shared/dashboard-link/index.js";
 import { createChildLogger } from "../../../shared/logger.js";
 import { registerAccount } from "../../../shared/register.js";
+import { TEST_CASE_LIMIT_GUIDANCE, USE_CASE_REGENERATION_WARNING } from "../../../shared/test-case-limit-constants.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult } from "../../../shared/types.js";
 
@@ -269,7 +270,7 @@ const useCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-use-case-update-from-prompt",
-    description: "Update an existing use case by regenerating its fields from a new instruction.",
+    description: `Update an existing use case by regenerating its fields from a new instruction. Every call also regenerates its test cases. ${USE_CASE_REGENERATION_WARNING}`,
     inputSchema: schemas.UseCaseUpdateFromPromptInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UseCaseUpdateFromPromptInputSchema>;
@@ -282,7 +283,7 @@ const useCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-use-case-update",
-    description: "Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: changing title, description, or url triggers background regeneration of dependent test cases on the server.",
+    description: `Directly update an existing use case's fields without invoking the LLM. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, flip status DRAFT→APPROVED, change priority, edit acceptance criteria). For LLM regeneration from a new instruction, use muggle-remote-use-case-update-from-prompt instead. Note: a real change to title, description, or url triggers background regeneration of dependent test cases on the server; restating a stored value does not. ${USE_CASE_REGENERATION_WARNING}`,
     inputSchema: schemas.UseCaseUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UseCaseUpdateInputSchema>;
@@ -476,7 +477,7 @@ const testCaseTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-test-case-create",
     description:
-      "Create a new test case for a use case. Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-chaining-catalog-get.",
+      `Create a new test case for a use case. ${TEST_CASE_LIMIT_GUIDANCE} Optionally place it on the project's test states: the roles it acts as (actsAsRoleIds), the state it needs to start (prerequisiteStateId) and the state it leaves when it passes (resultStateId), using ids from muggle-remote-test-chaining-catalog-get.`,
     inputSchema: schemas.TestCaseCreateInputSchema,
     dashboardLink: linkToInputProjectPage(DashboardPage.TestCases),
     mapToUpstream: (input) => {
@@ -509,7 +510,7 @@ const testCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-test-case-update",
-    description: "Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).",
+    description: `Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. ${TEST_CASE_LIMIT_GUIDANCE} Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).`,
     inputSchema: schemas.TestCaseUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
@@ -930,7 +931,7 @@ const workflowTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-workflow-start-test-script-generation",
-    description: "Start a test script generation workflow.",
+    description: `Start a test script generation workflow. ${TEST_CASE_LIMIT_GUIDANCE}`,
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
     dashboardLink: linkToInputScriptDetails,
     mapToUpstream: (input) => {

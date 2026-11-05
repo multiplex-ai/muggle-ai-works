@@ -11,6 +11,7 @@ import * as path from "node:path";
 
 import { buildDashboardUrl, DashboardPage } from "../../../shared/dashboard-link/index.js";
 import { getLogger } from "../../../shared/logger.js";
+import { TEST_CASE_LIMIT_GUIDANCE } from "../../../shared/test-case-limit-constants.js";
 import { readRunView, renderRunViewText, RunViewError } from "../../local/services/run-view/index.js";
 import { EventName, Outcome, ToolSurface, track } from "@muggleai/telemetry";
 import type { IMcpToolResult, ILocalMcpTool } from "../../local/types/index.js";
@@ -399,7 +400,7 @@ function formatRunViewUrlLine(runId: string): string {
 
 const executeTestGenerationTool: ILocalMcpTool = {
   name: "muggle-local-execute-test-generation",
-  description: "Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
+  description: `Generate an end-to-end (E2E) acceptance test script by launching a real browser against your web app. The browser navigates your app, executes the test case steps (like signing up, filling forms, clicking through flows), and produces a replayable test script with screenshots. Use this to create new browser tests for any user flow. Requires a test case (from muggle-remote-test-case-get) and a localhost URL. ${TEST_CASE_LIMIT_GUIDANCE} Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.`,
   inputSchema: ExecuteTestGenerationInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -480,7 +481,7 @@ const executeTestGenerationTool: ILocalMcpTool = {
 
 const executeReplayTool: ILocalMcpTool = {
   name: "muggle-local-execute-replay",
-  description: "Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, and (3) a localhost URL. Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.",
+  description: `Replay an existing E2E acceptance test script in a real browser to verify your app still works correctly — use this for regression testing after code changes. The browser executes each saved step and captures screenshots so you can see what happened. Requires: (1) test script metadata from muggle-remote-test-script-get, (2) actionScript content from muggle-remote-action-script-get using the testScript.actionScriptId, (3) testCaseDescription, the description from muggle-remote-test-case-get, and (4) a localhost URL. ${TEST_CASE_LIMIT_GUIDANCE} Launches an Electron browser — the user's showElectronBrowser preference decides whether its window shows when set to always or never; under ask it defaults to a visible window and showUi: false runs it headless.`,
   inputSchema: ExecuteReplayInputSchema,
   execute: async (ctx) => {
     const logger = createChildLogger(ctx.correlationId);
@@ -518,6 +519,7 @@ const executeReplayTool: ILocalMcpTool = {
           executeReplay({
             testScript: input.testScript,
             actionScript: input.actionScript,
+            testCaseDescription: input.testCaseDescription,
             localUrl: input.localUrl,
             cwd: input.cwd,
             mutations: input.mutations,

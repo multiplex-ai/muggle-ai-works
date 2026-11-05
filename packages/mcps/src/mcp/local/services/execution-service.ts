@@ -1044,6 +1044,7 @@ async function runTestGenerationLocked(params: {
 export async function executeReplay(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
+  testCaseDescription: string;
   localUrl: string;
   cwd: string;
   mutations?: string[];
@@ -1068,6 +1069,7 @@ export async function executeReplay(params: {
 async function runReplayLocked(params: {
   testScript: TestScriptDetails;
   actionScript: unknown[];
+  testCaseDescription: string;
   localUrl: string;
   mutations?: string[];
   timeoutMs?: number;
@@ -1115,6 +1117,7 @@ async function runReplayLocked(params: {
     const builtActionScript = buildReplayActionScript({
       testScript: testScript,
       actionScript: actionScript,
+      testCaseDescription: params.testCaseDescription,
       localUrl: localUrl,
       runId: runId,
       ownerUserId: authContent.userId,

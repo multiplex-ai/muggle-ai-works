@@ -108,6 +108,8 @@ Do not proceed further.
 
 2. Load and call `muggle-remote-action-script-get` with `actionScriptId`.
 
+3. Load and call `muggle-remote-test-case-get` with the test case ID from Step 4. Keep its `description`.
+
 Tell the user: `Executing task...`
 
 ## Step 7 — Execute locally
@@ -115,6 +117,7 @@ Tell the user: `Executing task...`
 Load and call `muggle-local-execute-replay` with:
 - `testScript`: the full object from Step 6 (from `muggle-remote-test-script-get`)
 - `actionScript`: the content from Step 6 (from `muggle-remote-action-script-get`)
+- `testCaseDescription`: the `description` from Step 6 (from `muggle-remote-test-case-get`)
 - `localUrl`: from Step 1
 - `mutations`: the `mutations[]` array from Step 1 (omit if empty)
 

@@ -9,6 +9,7 @@ import { MuggleEntityIdSchema } from "../../contracts/muggle-entity-id-schema.js
 import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { WORKFLOW_LLM_PARAMS_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
 import { LlmTierEnum } from "../../../shared/llm-tier-types.js";
+import { TEST_CASE_LIMIT_GUIDANCE } from "../../../shared/test-case-limit-constants.js";
 import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { ProjectResolutionSettingsInputSchema } from "./project-display-resolution-schemas.js";
@@ -418,7 +419,7 @@ export const TestCaseCreateInputSchema = z.object({
   projectId: IdSchema.describe("Project ID (UUID)"),
   useCaseId: IdSchema.describe("Use case ID (UUID) to associate the test case with"),
   title: z.string().min(1).describe("Test case title"),
-  description: z.string().min(1).describe("Detailed description of what the test case validates"),
+  description: z.string().min(1).describe(`Detailed description of what the test case validates. ${TEST_CASE_LIMIT_GUIDANCE}`),
   goal: z.string().min(1).describe("Concise, measurable goal of the test"),
   precondition: z.string().optional().describe("Initial state/setup required before test execution"),
   expectedResult: z.string().min(1).describe("Expected outcome after test execution"),
@@ -443,7 +444,7 @@ export const TestCaseCreateInputSchema = z.object({
 export const TestCaseUpdateInputSchema = z.object({
   testCaseId: IdSchema.describe("Test case ID (UUID) to update"),
   title: z.string().min(1).optional().describe("Updated test case title"),
-  description: z.string().min(1).optional().describe("Updated description"),
+  description: z.string().min(1).optional().describe(`Updated description; keep the stored text and add to it. ${TEST_CASE_LIMIT_GUIDANCE}`),
   goal: z.string().min(1).optional().describe("Updated goal"),
   precondition: z.string().optional().describe("Updated precondition"),
   expectedResult: z.string().min(1).optional().describe("Updated expected result"),
@@ -519,7 +520,7 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
   url: z.string().url().describe("Target website URL"),
   goal: z.string().min(1).describe("Test goal"),
   precondition: z.string().min(1).describe("Preconditions"),
-  instructions: z.string().min(1).describe("Step-by-step instructions"),
+  instructions: z.string().min(1).describe("Text for this run. It adds to the test case's stored description, which always reaches the run, and never replaces it."),
   expectedResult: z.string().min(1).describe("Expected result"),
   runEnvironmentType: RunEnvironmentInputSchema,
   workflowParams: WorkflowParamsSchema,

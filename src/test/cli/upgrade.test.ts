@@ -50,6 +50,21 @@ const fsImpl = vi.hoisted(() => ({
   existsSync: vi.fn((p: string) => fsState.existing.has(p)),
   mkdirSync: vi.fn(),
   rmSync: vi.fn(),
+  renameSync: vi.fn((from: string, to: string) => {
+    // The mocked directories are written with forward slashes on every platform.
+    const separator = process.platform === "win32" ? "\\" : "/";
+    const movedPath = (trackedPath: string): string =>
+      (to + trackedPath.slice(from.length)).split(/[\\/]/).join(separator);
+
+    for (const existingPath of [...fsState.existing].filter((p) => p.startsWith(from))) {
+      fsState.existing.delete(existingPath);
+      fsState.existing.add(movedPath(existingPath));
+    }
+    for (const [writtenPath, content] of [...fsState.written].filter(([p]) => p.startsWith(from))) {
+      fsState.written.delete(writtenPath);
+      fsState.written.set(movedPath(writtenPath), content);
+    }
+  }),
   createWriteStream: vi.fn(() => ({ kind: "ws" })),
   writeFileSync: vi.fn((p: string, c: string) => fsState.written.set(p, c)),
   readFileSync: vi.fn((p: string) => fsState.files.get(p) ?? "{}"),
@@ -72,7 +87,13 @@ import {
 } from "../../cli/upgrade.js";
 
 const VERSION_DIR_106 = "/data/electron-app/1.0.6";
-const EXE_106 = join(VERSION_DIR_106, "MuggleAI.exe");
+
+/** Path of a file a version extracts, which lands in staging until the install is replaced. */
+function stagedPath(version: string, ...segments: string[]): string {
+  return join("/data", "studio-stage", version, ...segments);
+}
+
+const EXE_106 = stagedPath("1.0.6", "MuggleAI.exe");
 
 function stubFetchSequence(responses: Array<Record<string, unknown>>): void {
   let i = 0;
@@ -207,7 +228,7 @@ describe("upgradeCommand", () => {
   });
 
   it("downloads and installs a newer release, then auto-cleans old versions", async () => {
-    fsState.existing.add(join("/data/electron-app/1.0.6", "MuggleAI.exe"));
+    fsState.existing.add(EXE_106);
     cleanupMock.cleanupOldVersions.mockReturnValue({
       removed: [{ version: "1.0.3" }],
       freedBytes: 2048,
@@ -229,7 +250,7 @@ describe("upgradeCommand", () => {
   });
 
   it("installs a specific --version using the parameterized download URL", async () => {
-    fsState.existing.add(join("/data/electron-app/1.0.9", "MuggleAI.exe"));
+    fsState.existing.add(stagedPath("1.0.9", "MuggleAI.exe"));
     stubFetchSequence([
       downloadResponse(),
       checksumsResponse(),
@@ -243,7 +264,7 @@ describe("upgradeCommand", () => {
   });
 
   it("refuses a --version at or above the signed-from version when its signature does not verify", async () => {
-    fsState.existing.add(join("/data/electron-app/3.1.4", "MuggleAI.exe"));
+    fsState.existing.add(stagedPath("3.1.4", "MuggleAI.exe"));
     stubFetchSequence([
       downloadResponse(),
       checksumsResponse(),
@@ -299,7 +320,7 @@ describe("upgradeCommand", () => {
   });
 
   it("re-downloads the current version when --force is set despite no update", async () => {
-    fsState.existing.add(join("/data/electron-app/1.0.5", "MuggleAI.exe"));
+    fsState.existing.add(stagedPath("1.0.5", "MuggleAI.exe"));
     stubFetchSequence([
       releasesResponse(["electron-app-v1.0.5"]),
       downloadResponse(),
@@ -386,7 +407,7 @@ describe("upgradeCommand", () => {
 
   it("uses the unzip extractor and darwin executable path on macOS", async () => {
     osMock.platform.mockReturnValue("darwin");
-    const darwinExe = join("/data/electron-app/1.0.6", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
+    const darwinExe = stagedPath("1.0.6", "MuggleAI.app", "Contents", "MacOS", "MuggleAI");
     fsState.existing.add(darwinExe);
     procArch.value = "arm64";
     stubFetchSequence([
@@ -400,7 +421,7 @@ describe("upgradeCommand", () => {
 
   it("finds the Linux executable under its electron-builder name", async () => {
     osMock.platform.mockReturnValue("linux");
-    fsState.existing.add(join("/data/electron-app/1.0.6", "muggle-ai-studio"));
+    fsState.existing.add(stagedPath("1.0.6", "muggle-ai-studio"));
     stubFetchSequence([
       releasesResponse(["electron-app-v1.0.6"]),
       downloadResponse(),

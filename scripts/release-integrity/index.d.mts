@@ -4,6 +4,15 @@ export declare const SIGNER_CERTIFICATE_ISSUER: string;
 
 export declare function compareVersions(a: string, b: string): number;
 
+export declare function enforceReleaseSignature(params: {
+    artifactPath: string;
+    bundleUrl: string;
+    signerIdentityUri: string;
+    expectedChecksum: string;
+    logInfo: (message: string) => void;
+    logWarning: (message: string) => void;
+}): Promise<{ isSignatureVerified: boolean }>;
+
 export declare function resolveIntegrityPolicy(params: {
     version: string;
     signedFromVersion: string;
@@ -18,4 +27,4 @@ export declare function verifyReleaseSignature(params: {
     artifactPath: string;
     bundleUrl: string;
     signerIdentityUri: string;
-}): Promise<{ valid: boolean; reason: string }>;
+}): Promise<{ valid: boolean; reason: string; isTrustRootUnreachable: boolean }>;

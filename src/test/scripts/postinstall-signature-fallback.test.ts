@@ -1,7 +1,7 @@
 /* global structuredClone */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -76,8 +76,8 @@ describe("fresh install (postinstall) with the signature host blocked", () => {
 
   afterAll(async () => {
     await new Promise((resolve) => releaseServer.close(resolve));
-    // The junction goes first: a recursive delete must never reach the repo's node_modules.
-    rmSync(join(packageRoot, "node_modules"), { recursive: false, force: true });
+    // The link goes first: a recursive delete must never reach the repo's node_modules.
+    unlinkSync(join(packageRoot, "node_modules"));
     rmSync(packageRoot, { recursive: true, force: true });
   });
 

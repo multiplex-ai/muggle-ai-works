@@ -162,7 +162,7 @@ export interface IBaselineRunRecord {
   cloudTestCaseId: string;
   cloudRunSettingsId?: string;
   viewUrl?: string;
-  localExecutionContext?: { servedStack?: Array<{ headSha: string }> };
+  localExecutionContext?: { servedStack?: Array<{ headSha: string }>; studioBuild?: { commitSha: string } };
 }
 
 /** What baseline verification reads the world through; tests inject their own. */
@@ -177,7 +177,7 @@ export interface IBaselineVerificationDeps {
   stderrWrite: (text: string) => boolean;
 }
 
-/** The base commits a baseline must have served: from the PR's fork point up to the base tip. */
+/** The base commits a baseline must have served: from the PR's fork point through the base tip, both included. */
 export interface IBaseRange {
   mergeBaseSha: string;
   baseTipSha: string;

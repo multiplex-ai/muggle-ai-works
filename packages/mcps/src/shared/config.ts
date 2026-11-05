@@ -157,6 +157,8 @@ function getMuggleConfig(): IMuggleConfig {
     checksumsByStream:
       (config.checksumsByStream as IMuggleConfig["checksumsByStream"]) || {},
     runtimeTargetDefault: runtimeTargetDefault,
+    electronAppSignedFromVersion: config.electronAppSignedFromVersion as IMuggleConfig["electronAppSignedFromVersion"],
+    signerIdentityUri: config.signerIdentityUri as IMuggleConfig["signerIdentityUri"],
   };
 
   return muggleConfigCache;

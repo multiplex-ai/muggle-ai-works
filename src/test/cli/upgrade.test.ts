@@ -103,19 +103,75 @@ function stubFetchSequence(responses: Array<Record<string, unknown>>): void {
   );
 }
 
-function releasesResponse(tags: string[]): Record<string, unknown> {
+const STUDIO_ZIP_NAMES = [
+  "MuggleAI-win32-x64.zip",
+  "MuggleAI-darwin-x64.zip",
+  "MuggleAI-darwin-arm64.zip",
+  "MuggleAI-linux-x64.zip",
+];
+
+/** Every asset a complete Studio release publishes. */
+const COMPLETE_RELEASE_ASSET_NAMES = [
+  ...STUDIO_ZIP_NAMES,
+  ...STUDIO_ZIP_NAMES.map((zipName) => `${zipName}.sigstore.json`),
+  "checksums.txt",
+  "checksums.txt.sigstore.json",
+];
+
+interface IReleaseFixture {
+  tag_name: string;
+  prerelease: boolean;
+  draft: boolean;
+  assets: Array<{ name: string; state: string }>;
+}
+
+/** A published release carrying every asset, unless the overrides narrow it. */
+function releaseFixture(
+  tagName: string,
+  overrides: { draft?: boolean; prerelease?: boolean; assetNames?: string[]; openAssetNames?: string[] } = {},
+): IReleaseFixture {
+  const assetNames = overrides.assetNames ?? COMPLETE_RELEASE_ASSET_NAMES;
+  const openAssetNames = new Set(overrides.openAssetNames ?? []);
+  return {
+    tag_name: tagName,
+    prerelease: overrides.prerelease ?? tagName.includes("-staging-"),
+    draft: overrides.draft ?? false,
+    assets: assetNames.map((assetName) => ({
+      name: assetName,
+      state: openAssetNames.has(assetName) ? "open" : "uploaded",
+    })),
+  };
+}
+
+/** A complete release with the named assets left out. */
+function releaseWithout(tagName: string, missingAssetNames: string[]): IReleaseFixture {
+  return releaseFixture(tagName, {
+    assetNames: COMPLETE_RELEASE_ASSET_NAMES.filter((assetName) => !missingAssetNames.includes(assetName)),
+  });
+}
+
+/** One page of the releases API, linking to `nextPageUrl` when there is one. */
+function releasesPageResponse(releases: IReleaseFixture[], nextPageUrl?: string): Record<string, unknown> {
+  const linkHeader = nextPageUrl ? `<${nextPageUrl}>; rel="next", <${nextPageUrl}>; rel="last"` : null;
   return {
     ok: true,
     status: 200,
     statusText: "OK",
-    json: async () => tags.map((t) => ({ tag_name: t, prerelease: false, draft: false })),
+    headers: { get: (headerName: string) => (headerName === "link" ? linkHeader : null) },
+    json: async () => releases,
   };
+}
+
+function releasesResponse(tags: string[]): Record<string, unknown> {
+  return releasesPageResponse(tags.map((tag) => releaseFixture(tag)));
 }
 
 function laneReleasesResponse(
   releases: Array<{ tag_name: string; prerelease: boolean; draft: boolean }>,
 ): Record<string, unknown> {
-  return { ok: true, status: 200, statusText: "OK", json: async () => releases };
+  return releasesPageResponse(
+    releases.map((release) => releaseFixture(release.tag_name, { draft: release.draft, prerelease: release.prerelease })),
+  );
 }
 
 function downloadResponse(): Record<string, unknown> {
@@ -429,5 +485,128 @@ describe("upgradeCommand", () => {
     ]);
     await upgradeCommand({});
     expect(fsState.written.has(join("/data/electron-app/1.0.6", ".install-metadata.json"))).toBe(true);
+  });
+
+  describe("choosing the newest installable release", () => {
+    const WIN32_ZIP = "MuggleAI-win32-x64.zip";
+    const printed = (): string => logSpy.mock.calls.map((callArguments: unknown[]) => String(callArguments[0])).join("\n");
+
+    it("picks the highest version when GitHub lists releases out of version order", async () => {
+      stubFetchSequence([releasesResponse([
+        "electron-app-v1.24.9",
+        "electron-app-v1.24.8",
+        "electron-app-v1.24.7",
+        "electron-app-v1.24.10",
+        "electron-app-v1.24.6",
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.10");
+      expect(mcpsMocks.buildElectronAppReleaseAssetUrl).toHaveBeenCalledWith({
+        version: "1.24.10",
+        assetFileName: WIN32_ZIP,
+      });
+    });
+
+    it("compares versions numerically, so 1.24.10 beats both 1.24.9 and 1.9.0", async () => {
+      stubFetchSequence([releasesResponse(["electron-app-v1.24.9", "electron-app-v1.9.0", "electron-app-v1.24.10"])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.10");
+    });
+
+    it("ignores drafts and the other lane even when they carry higher versions", async () => {
+      stubFetchSequence([releasesPageResponse([
+        releaseFixture("electron-app-v1.30.0", { draft: true }),
+        releaseFixture("electron-app-staging-v1.29.0"),
+        releaseFixture("electron-app-v1.24.9"),
+        releaseFixture("electron-app-v1.24.10"),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.10");
+    });
+
+    it("on the staging lane ignores production releases and staging drafts", async () => {
+      mcpsMocks.getElectronAppReleaseTagPrefix.mockReturnValue("electron-app-staging-v");
+      stubFetchSequence([releasesPageResponse([
+        releaseFixture("electron-app-v1.30.0"),
+        releaseFixture("electron-app-staging-v1.24.9"),
+        releaseFixture("electron-app-staging-v1.31.0", { draft: true }),
+        releaseFixture("electron-app-staging-v1.24.10"),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.10");
+    });
+
+    it.each([
+      ["this platform's zip", WIN32_ZIP],
+      ["checksums.txt", "checksums.txt"],
+      ["the zip's signature bundle", `${WIN32_ZIP}.sigstore.json`],
+    ])("skips a newer release that is missing %s", async (_assetDescription, missingAssetName) => {
+      stubFetchSequence([releasesPageResponse([
+        releaseWithout("electron-app-v1.24.10", [missingAssetName]),
+        releaseFixture("electron-app-v1.24.9"),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.9");
+    });
+
+    it("skips a newer release whose zip is still uploading", async () => {
+      stubFetchSequence([releasesPageResponse([
+        releaseFixture("electron-app-v1.24.10", { openAssetNames: [WIN32_ZIP] }),
+        releaseFixture("electron-app-v1.24.9"),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.9");
+    });
+
+    it("judges a release by this platform's assets, not another platform's", async () => {
+      osMock.platform.mockReturnValue("darwin");
+      procArch.value = "arm64";
+      stubFetchSequence([releasesPageResponse([
+        releaseWithout("electron-app-v1.24.10", ["MuggleAI-darwin-arm64.zip", "MuggleAI-darwin-arm64.zip.sigstore.json"]),
+        releaseFixture("electron-app-v1.24.9"),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.9");
+    });
+
+    it("asks no signature bundle of a release older than the signed-from version", async () => {
+      stubFetchSequence([releasesPageResponse([
+        releaseFixture("electron-app-v1.0.9", { assetNames: [...STUDIO_ZIP_NAMES, "checksums.txt"] }),
+      ])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.0.9");
+    });
+
+    it("reads every page of the release list", async () => {
+      const secondPageUrl = "https://api.github.com/repositories/1/releases?per_page=100&page=2";
+      stubFetchSequence([
+        releasesPageResponse([releaseFixture("electron-app-v1.24.9")], secondPageUrl),
+        releasesPageResponse([releaseFixture("electron-app-v1.24.10")]),
+      ]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.24.10");
+      const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>;
+      expect(String(fetchMock.mock.calls[1][0])).toBe(secondPageUrl);
+    });
+
+    it("reports up to date when no release on the lane is installable", async () => {
+      stubFetchSequence([releasesPageResponse([releaseWithout("electron-app-v1.24.10", [WIN32_ZIP])])]);
+      await upgradeCommand({ check: true });
+      expect(printed()).toContain("Latest version:  1.0.5");
+      expect(printed()).toContain("You are on the latest version.");
+    });
+
+    it("installs the version it picked, not the first one listed", async () => {
+      fsState.existing.add(stagedPath("1.0.10", "MuggleAI.exe"));
+      stubFetchSequence([
+        releasesResponse(["electron-app-v1.0.7", "electron-app-v1.0.10", "electron-app-v1.0.9"]),
+        downloadResponse(),
+        checksumsResponse(),
+      ]);
+      await upgradeCommand({});
+      const overridePath = join("/data", "electron-app-version-override.json");
+      expect(JSON.parse(fsState.written.get(overridePath) ?? "{}").version).toBe("1.0.10");
+      expect(fsState.written.has(join("/data/electron-app/1.0.10", ".install-metadata.json"))).toBe(true);
+    });
   });
 });

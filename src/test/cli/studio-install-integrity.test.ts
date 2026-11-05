@@ -117,7 +117,17 @@ function serveRelease(fakeRelease: IFakeRelease): void {
       const url = String(requestUrl);
 
       if (url.includes("api.github.com")) {
-        return Response.json([{ tag_name: `electron-app-v${STUDIO_VERSION}`, prerelease: false, draft: false }]);
+        const releaseAssetNames = [
+          ...ASSET_NAMES,
+          ...ASSET_NAMES.map((assetName) => `${assetName}.sigstore.json`),
+          "checksums.txt",
+        ];
+        return Response.json([{
+          tag_name: `electron-app-v${STUDIO_VERSION}`,
+          prerelease: false,
+          draft: false,
+          assets: releaseAssetNames.map((assetName) => ({ name: assetName, state: "uploaded" })),
+        }]);
       }
       if (url.endsWith("checksums.txt")) {
         const checksumLines = ASSET_NAMES.map((assetName) => `${releaseState.checksum}  ${assetName}`).join("\n");

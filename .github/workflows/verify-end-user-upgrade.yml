@@ -1,9 +1,26 @@
 name: Verify Upgrade Experience for End Users
 
+# Runs the built CLI's setup, cleanup and `upgrade --force` against the live
+# Studio releases in an isolated HOME, and fails unless the upgrade installs the
+# newest release this platform can install. Runs weekly, and on a pull request
+# that changes how the upgrade picks or installs a release.
+
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 9 * * 1"
+  pull_request:
+    branches: [master]
+    paths:
+      - "src/cli/upgrade.ts"
+      - "src/cli/studio-release/**"
+      - "src/cli/studio-install-staging.ts"
+      - "scripts/release-integrity/**"
+      - "scripts/verify-upgrade-experience.mjs"
+      - ".github/workflows/verify-end-user-upgrade.yml"
+
+permissions:
+  contents: read
 
 jobs:
   verify-upgrade-experience:
@@ -31,4 +48,6 @@ jobs:
         run: pnpm run verify:contracts
 
       - name: Verify existing-user upgrade experience
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm run verify:upgrade-experience

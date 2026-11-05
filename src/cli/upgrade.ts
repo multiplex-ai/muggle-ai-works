@@ -37,14 +37,9 @@ import {
   prepareStudioStagingDir,
   replaceStudioInstall,
 } from "./studio-install-staging.js";
+import { resolveNewestInstallableVersion } from "./studio-release/newest-release.js";
 
 const logger = getLogger();
-
-/**
- * GitHub API URL for releases. Staging runner releases are sparse among stable ones,
- * so the default page of 30 can hold none of them.
- */
-const GITHUB_RELEASES_API = "https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=100";
 
 /** Install metadata filename. */
 const INSTALL_METADATA_FILE_NAME = ".install-metadata.json";
@@ -119,20 +114,6 @@ function getBinaryName (): string {
 }
 
 /**
- * Extract the runner version from a release tag on the given lane.
- * @param tag - Release tag (e.g., "electron-app-staging-v1.10.6").
- * @param releaseTagPrefix - The lane's tag prefix (e.g., "electron-app-staging-v").
- * @returns Version string (e.g., "1.10.6"), or null when the tag belongs to another lane.
- */
-function extractVersionFromTag (tag: string, releaseTagPrefix: string): string | null {
-  if (!tag.startsWith(releaseTagPrefix)) {
-    return null;
-  }
-  const match = tag.slice(releaseTagPrefix.length).match(/^(\d+\.\d+\.\d+)$/);
-  return match ? match[1] : null;
-}
-
-/**
  * Get the path to the version override file.
  * @returns Path to the override file.
  */
@@ -180,61 +161,39 @@ function saveVersionOverride (version: string): void {
 }
 
 /**
- * Check for the latest electron-app version from GitHub releases.
+ * Check GitHub releases for the newest electron-app version this machine can install.
  * @returns Update check result.
  */
 async function checkForUpdates (): Promise<IUpdateCheckResult> {
   const currentVersion = getEffectiveElectronAppVersion();
 
   try {
-    const response = await fetch(GITHUB_RELEASES_API, {
-      headers: {
-        "Accept": "application/vnd.github.v3+json",
-        "User-Agent": "muggle",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
-    }
-
-    const releases = await response.json() as Array<{
-      tag_name: string;
-      prerelease: boolean;
-      draft: boolean;
-    }>;
-
+    const binaryName = getBinaryName();
     // The tag prefix is the lane: GitHub marks every staging runner release as a
     // prerelease, so filtering on that flag would hand a staging CLI a stable version
     // and a download URL under a staging tag that was never published.
-    const releaseTagPrefix = getElectronAppReleaseTagPrefix();
-    for (const release of releases) {
-      if (release.draft) {
-        continue;
-      }
+    const newestVersion = await resolveNewestInstallableVersion({
+      releaseTagPrefix: getElectronAppReleaseTagPrefix(),
+      platformArchiveName: binaryName,
+      signedFromVersion: getElectronAppSignedFromVersion(),
+    });
 
-      const version = extractVersionFromTag(release.tag_name, releaseTagPrefix);
-      if (version) {
-        const updateAvailable = compareVersions(version, currentVersion) > 0;
-        const binaryName = getBinaryName();
-
-        return {
-          currentVersion: currentVersion,
-          latestVersion: version,
-          updateAvailable: updateAvailable,
-          downloadUrl: buildElectronAppReleaseAssetUrl({
-            version: version,
-            assetFileName: binaryName,
-          }),
-        };
-      }
+    if (!newestVersion) {
+      return {
+        currentVersion: currentVersion,
+        latestVersion: currentVersion,
+        updateAvailable: false,
+      };
     }
 
-    // No electron-app releases found
     return {
       currentVersion: currentVersion,
-      latestVersion: currentVersion,
-      updateAvailable: false,
+      latestVersion: newestVersion,
+      updateAvailable: compareVersions(newestVersion, currentVersion) > 0,
+      downloadUrl: buildElectronAppReleaseAssetUrl({
+        version: newestVersion,
+        assetFileName: binaryName,
+      }),
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

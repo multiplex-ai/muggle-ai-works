@@ -71,7 +71,7 @@ Opening a PR, or settling its walkthrough, with an unchecked, unwaived line of i
 
 ### Audit trail
 
-Every cycle's closing message opens with the fenced block [`../do/audit-trail.md`](../do/audit-trail.md) defines: the unit tests involved, the E2E tests with results, links to the evidence, and what is missing. A prose recap does not replace it. It reports and gates nothing.
+Every cycle's closing message opens with the fenced block [`../do/audit-trail.md`](../do/audit-trail.md) defines: the unit tests involved, the E2E tests with results, links to the evidence, and what is missing. A prose recap does not replace it. It reports and gates nothing, and it comes after the last action: the watcher arms first.
 
 ## Address-reviews flow
 

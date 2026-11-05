@@ -1,5 +1,7 @@
 # Audit trail
 
+**Arm first.** If this cycle leaves a PR open and its watch is not armed yet, stop reading and arm it now ([`respawn-watcher.md`](respawn-watcher.md), or Stage 8 on a forward cycle). The block is written after the arm, never instead of it.
+
 What a cycle shows the user before it ends: the tests the change involved, their results, and links to the proof. It reports and gates nothing. Anything missing is stated in the block, never a reason to stop, retry, or ask.
 
 ## Where it prints

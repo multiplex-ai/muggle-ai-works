@@ -115,7 +115,7 @@ describe("audit trail", () => {
 
   it("prints at the normal end of a cycle, not only after merge", () => {
     expect(forwardOutput).toMatch(/closing message opens with the \[audit trail\]\(\.\.\/audit-trail\.md\), on every exit, a cycle that opened no PR included/);
-    expect(RESPAWN_WATCHER).toMatch(/closing message opens with the \[audit trail\]\(audit-trail\.md\)/);
+    expect(RESPAWN_WATCHER).toMatch(/closing message is the text after the watch is armed, and it opens with the \[audit trail\]\(audit-trail\.md\)/);
   });
 
   it("goes in the closing message in full, never earlier in the turn or summarized", () => {
@@ -131,6 +131,13 @@ describe("audit trail", () => {
     const skillSection = sectionBody(MUGGLE_DO, /^### Audit trail$/m);
     expect(skillSection).toMatch(/closing message opens with the fenced block/);
     expect(skillSection).toMatch(/reports and gates nothing/);
+    expect(skillSection).toMatch(/the watcher arms first/);
+  });
+
+  it("follows the watcher arm instead of ending the cycle", () => {
+    expect(RESPAWN_WATCHER).toMatch(/Arm before you write anything closing/);
+    expect(RESPAWN_WATCHER).toMatch(/Printing the block does not end the cycle/);
+    expect(AUDIT_TRAIL.split("\n")[2]).toMatch(/^\*\*Arm first\.\*\*.*written after the arm, never instead of it/);
   });
 
   it("prints before the ending selector", () => {

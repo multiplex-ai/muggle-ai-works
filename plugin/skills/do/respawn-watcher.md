@@ -12,7 +12,7 @@ As the final action of the turn, settle the watch per [`../muggle-pr-followup/ar
 
 A cycle is not finished while its per-comment replies are unposted. A blocked reply — e.g. GitHub refuses with 422 while the reviewer's own pending review is open — escalates to the owner and holds this arming until the replies land. Never resume the watch over unposted replies.
 
-The cycle's closing message opens with the [audit trail](audit-trail.md).
+Arm before you write anything closing. The cycle's closing message is the text after the watch is armed, and it opens with the [audit trail](audit-trail.md). Printing the block does not end the cycle: a cycle that printed it and never armed has stranded its PR.
 
 ## Recovery net
 

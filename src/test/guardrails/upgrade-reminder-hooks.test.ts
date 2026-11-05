@@ -19,11 +19,14 @@ const UPKEEP_TIMEOUT_MS = 20_000;
 const UPKEEP_STUB_PROGRAMS = ["muggle", "npm", "sleep"];
 
 let hasBash = false;
+let hasEpochSeconds = false;
 try {
   execFileSync("bash", ["-c", "true"], { stdio: "ignore" });
   hasBash = true;
+  execFileSync("bash", ["-c", '[ -n "${EPOCHSECONDS:-}" ]'], { stdio: "ignore" });
+  hasEpochSeconds = true;
 } catch {
-  // bash unavailable — the wrapper suite below skips
+  // bash unavailable, or before 5 as macOS ships it — the cases that need each one skip
 }
 
 function homeWithUpgradeAvailable(): string {
@@ -127,7 +130,7 @@ describe.skipIf(!hasBash)("skill-stages upkeep launch", () => {
     readFileSync(join(home, ".cache", "muggle", "session-maintenance-due"), "utf-8").trim();
   const nowSeconds = (): number => Math.floor(Date.now() / 1_000);
 
-  it("launches the upkeep once its stamp has come due, which restamps it", async () => {
+  it.skipIf(!hasEpochSeconds)("launches the upkeep once its stamp has come due, which restamps it", async () => {
     const pastDue = nowSeconds() - SECONDS_PER_HOUR;
     const home = homeWithStamp(pastDue);
     runWrapper(home);

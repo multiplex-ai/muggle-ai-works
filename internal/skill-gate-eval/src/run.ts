@@ -39,8 +39,10 @@ import {
 } from "./constants.js";
 import { runScenarioOnce } from "./harness.js";
 import { loadFixtures, loadScenarioFile } from "./scenario.js";
+import { formatNoResultNote, summarizeJudgedReps } from "./scenario-report.js";
 import { EvalHost } from "./types.js";
 import type { CliArgs, Fixtures, RunOptions, RunVerdict, ScenarioReport } from "./types.js";
+import { usageLimitVerdict } from "./usage-limit.js";
 
 interface RunCliArgs extends CliArgs {
   scenarioFilter?: string;
@@ -193,30 +195,37 @@ async function main(): Promise<void> {
       return async (): Promise<{ scenarioIndex: number; verdict: RunVerdict }> => {
         // eslint-disable-next-line no-console
         console.error(`[skill-gate-eval] running ${repLabel}…`);
-        const verdict = await withThrottleRetry(
-          () =>
-            runRep(
-              {
-                scenarioFile: scenarioFile,
-                scenarioFilePath: scenarioFilePath,
-                scenario: scenario,
-                skillsDir: path.resolve(args.skillsDir),
-                model: args.model,
+        let verdict: RunVerdict;
+        try {
+          verdict = await withThrottleRetry(
+            () =>
+              runRep(
+                {
+                  scenarioFile: scenarioFile,
+                  scenarioFilePath: scenarioFilePath,
+                  scenario: scenario,
+                  skillsDir: path.resolve(args.skillsDir),
+                  model: args.model,
+                },
+                args.verbose
+                  ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
+                  : undefined,
+              ),
+            {
+              gate: throttleGate,
+              onThrottle: (attempt, backoffMs, error) => {
+                // eslint-disable-next-line no-console
+                console.error(
+                  `[skill-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
+                );
               },
-              args.verbose
-                ? (msg) => process.stderr.write(`[sdk ${repLabel}] ${oneLine(msg)}\n`)
-                : undefined,
-            ),
-          {
-            gate: throttleGate,
-            onThrottle: (attempt, backoffMs, error) => {
-              // eslint-disable-next-line no-console
-              console.error(
-                `[skill-gate-eval] ${repLabel}: rate-limited (attempt ${attempt}) — backing off ${Math.round(backoffMs / 1000)}s: ${oneLine(String(error))}`,
-              );
             },
-          },
-        );
+          );
+        } catch (error) {
+          verdict = usageLimitVerdict(scenario.name, error);
+          // eslint-disable-next-line no-console
+          console.error(`[skill-gate-eval] ${repLabel}: no result (usage limit): ${oneLine(String(error))}`);
+        }
         if (args.verbose) {
           // eslint-disable-next-line no-console
           console.error(JSON.stringify(verdict, null, 2));
@@ -232,22 +241,9 @@ async function main(): Promise<void> {
     verdictsByScenario[outcome.scenarioIndex].push(outcome.verdict);
   }
 
-  const reports: ScenarioReport[] = filteredScenarios.map((scenario, scenarioIndex) => {
-    const verdicts = verdictsByScenario[scenarioIndex];
-    const passes = verdicts.filter((v) => v.pass).length;
-    const passRate = passes / verdicts.length;
-    const failureReasons = Array.from(
-      new Set(verdicts.flatMap((v) => v.reasons)),
-    );
-    return {
-      name: scenario.name,
-      runs: verdicts.length,
-      passes: passes,
-      passRate: passRate,
-      passed: passRate >= PASS_THRESHOLD,
-      failureReasons: failureReasons,
-    };
-  });
+  const reports: ScenarioReport[] = filteredScenarios.map((scenario, scenarioIndex) =>
+    summarizeJudgedReps(scenario.name, verdictsByScenario[scenarioIndex], PASS_THRESHOLD),
+  );
 
   const resultsPath = path.resolve(
     path.dirname(scenarioFilePath),
@@ -279,7 +275,7 @@ async function main(): Promise<void> {
   for (const r of reports) {
     // eslint-disable-next-line no-console
     console.log(
-      `  ${r.passed ? "PASS" : "FAIL"}  ${r.name}  (${r.passes}/${r.runs} = ${(r.passRate * 100).toFixed(1)}%)`,
+      `  ${r.passed ? "PASS" : "FAIL"}  ${r.name}  (${r.passes}/${r.runs} = ${(r.passRate * 100).toFixed(1)}%${formatNoResultNote(r)})`,
     );
     for (const reason of r.failureReasons) {
       // eslint-disable-next-line no-console

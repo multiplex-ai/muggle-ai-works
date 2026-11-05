@@ -11,6 +11,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { RESULTS_FILENAME_BY_HOST } from "./constants.js";
+import { formatNoResultNote } from "./scenario-report.js";
 import { EvalHost } from "./types.js";
 import type { ScenarioReport } from "./types.js";
 
@@ -64,7 +65,7 @@ for (const f of files) {
   for (const s of r.scenarios) {
     const reasons = s.passed ? "" : ` — ${s.failureReasons.join("; ")}`;
     details.push(
-      `- ${s.passed ? "✓" : "✗"} \`${r.gate}\`/${s.name}: ${s.passes}/${s.runs} (${(s.passRate * 100).toFixed(0)}%)${reasons}`,
+      `- ${s.passed ? "✓" : "✗"} \`${r.gate}\`/${s.name}: ${s.passes}/${s.runs} (${(s.passRate * 100).toFixed(0)}%${formatNoResultNote(s)})${reasons}`,
     );
   }
 }

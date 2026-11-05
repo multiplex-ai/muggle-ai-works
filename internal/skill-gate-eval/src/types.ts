@@ -124,7 +124,12 @@ export interface RunVerdict {
     mcpCalls: MockCall[];
     askQuestions: AskQuestionRecord[];
   };
+  /** True when the run stopped on a usage limit, so it judged nothing and stays out of the pass rate. */
+  isInconclusive?: boolean;
 }
+
+/** The part of a rep's verdict its scenario's pass rate is computed from, on either eval's verdict. */
+export type JudgedRep = Pick<RunVerdict, "pass" | "reasons" | "isInconclusive">;
 
 /** The files and scenario context a gate prompt is built from — see prompt-inputs.ts. */
 export interface GatePromptInputs {
@@ -215,5 +220,7 @@ export interface ScenarioReport {
   passes: number;
   passRate: number;
   passed: boolean;
+  /** Reps that stopped on a usage limit; `runs` and `passes` count the rest. */
+  inconclusiveRuns: number;
   failureReasons: string[];
 }

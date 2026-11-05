@@ -63,6 +63,11 @@ one 429 pauses new starts for every worker instead of compounding. `--verbose`
 traces interleave under concurrency; each line is prefixed with its
 scenario/rep label.
 
+**Usage limits:** a rep stopped by a spent session, weekly or org spend limit is
+not retried and counts as no result. The scenario is judged on its other reps,
+and its report line names the stopped ones. A scenario with no rep left to judge
+fails, because a usage limit is never evidence the gate works.
+
 A scenario passes if it succeeds on ≥ 80% of runs — `PASS_THRESHOLD` in
 `src/constants.ts`, which is the only authority. These runs are probabilistic:
 a healthy gate still misses occasionally, so a bar set at perfection flakes

@@ -420,8 +420,6 @@ export interface AgentRunVerdict {
 
 /** One scenario's pass rate over its conclusive reps, plus what a rep cost on average. */
 export interface AgentScenarioReport extends ScenarioReport {
-  /** Reps that stopped on a usage limit; `runs` and `passes` count the rest. */
-  inconclusiveRuns: number;
   /** Null when no rep reported usage. */
   meanCostUsd: number | null;
   meanDurationMs: number | null;

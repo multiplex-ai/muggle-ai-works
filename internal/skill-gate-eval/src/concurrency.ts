@@ -15,6 +15,7 @@ import {
   THROTTLE_MAX_RETRIES,
 } from "./constants.js";
 import type { ThrottleGateLike, ThrottleRetryOptions } from "./types.js";
+import { isUsageLimitError } from "./usage-limit.js";
 
 const THROTTLE_SIGNATURE =
   /\b429\b|\b529\b|rate.?limit|overloaded|too many requests|usage.?limit|quota exceeded/i;
@@ -76,7 +77,7 @@ export async function withThrottleRetry<T>(
     try {
       return await run();
     } catch (error) {
-      if (!isThrottleError(error) || attempt > maxRetries) throw error;
+      if (!isThrottleError(error) || isUsageLimitError(error) || attempt > maxRetries) throw error;
       const backoffMs = computeBackoffMs(attempt);
       options.gate.reportThrottle(backoffMs);
       if (options.onThrottle) options.onThrottle(attempt, backoffMs, error);

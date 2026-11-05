@@ -3,9 +3,9 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { NO_CONCLUSIVE_RUNS_REASON } from "../src/constants.js";
+import { NO_CONCLUSIVE_RUNS_REASON } from "../../skill-gate-eval/src/constants.js";
+import { isUsageLimitError } from "../../skill-gate-eval/src/usage-limit.js";
 import { summarizeScenarioVerdicts } from "../src/suite-report.js";
-import { isUsageLimitError } from "../src/usage-limit.js";
 import { countOrderedMatches, judgeAgentRun } from "../src/verdict.js";
 import type { AgentScenario, ArtifactSnapshot, ToolAttempt, ToolAttemptPattern } from "../src/types.js";
 

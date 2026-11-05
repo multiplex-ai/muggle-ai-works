@@ -34,7 +34,7 @@ const LEDGER_STEP = /^(\d+)\. \*\*Record the PR in the \[chat ledger\]\(#chat-le
 const LOG_STEP = /^(\d+)\. \*\*Log while the slot exists\.\*\*.*$/m;
 const NEXT_STEP_STEP = /^(\d+)\. Suggest the next step per \[`next-step\.md`\]\(next-step\.md\).*$/m;
 
-const RECORD_FIELDS = ["pr", "state", "title", "e2eFailing", "escalatedReviewIds", "waivers", "teardown", "finishedAt"];
+const RECORD_FIELDS = ["pr", "state", "title", "e2eFailing", "escalatedReviewIds", "waivers", "auditTrail", "teardown", "finishedAt"];
 
 /** The step's number and full line, or `undefined` when no procedure step matches. */
 function findStep(stepPattern: RegExp): { stepNumber: number; line: string } | undefined {

@@ -7,6 +7,7 @@ mandatoryStages:
   - e2e-acceptance.md
   - open-prs/forward.md
   - e2e-repair.md
+  - audit-trail.md
 ---
 
 # Pre-flight Agent (Stage 1)

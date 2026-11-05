@@ -16,6 +16,7 @@ The facts [`next-step.md`](next-step.md) reports a finished PR from. Teardown de
 - `e2eFailing` — the title carries `[E2E FAILING]`: the PR shipped on a waived or still-undecided E2E verdict.
 - `escalatedReviewIds` — `result.md`'s `Escalated review ids`; empty on `none` or when `result.md` is absent.
 - `waivers` — `state.md`'s waiver and Blocker lines and any open `## E2E decision` block, verbatim.
+- `auditTrail` — the [audit trail](audit-trail.md) for this PR, rendered from the slot's `iterations/` and `requirements.md` while they still exist. A slot without them renders the gaps under `Missing`.
 - `teardown` — the note next-step prints, from this turn's teardown report: `cleaned up` when no row is `❌`, the first `❌` row's reason otherwise, `branch kept` when teardown did not run.
 - `finishedAt` — ISO-8601, when step 6 ran.
 

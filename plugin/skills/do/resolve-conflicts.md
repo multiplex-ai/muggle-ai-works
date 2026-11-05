@@ -2,6 +2,7 @@
 mandatoryStages:
   - ../_shared/session-state-writes.md
   - respawn-watcher.md
+  - audit-trail.md
   - ../_shared/telemetry-events/muggle-do-cycle.md
 ---
 

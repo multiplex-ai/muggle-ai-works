@@ -358,6 +358,339 @@
       }
     },
     {
+      "name": "bug-fix-plans-a-regression-case",
+      "prompt": "Resume session escape-visitor-name: stages 1–3 are done and recorded in ~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md, so continue from Stage 4. I'm away — run the rest unattended.",
+      "maxTurns": 90,
+      "preferences": {
+        "autoCreatePR": "never",
+        "autoUseWorktree": "never",
+        "autoInstallCiWorkflow": "never"
+      },
+      "seed": {
+        "repo": "greeting-site",
+        "files": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/state.md",
+            "content": "# Session state\n\n**Slug:** escape-visitor-name\n**Current stage:** 3/7 (build complete)\n**Last update:** 2026-10-22T18:06:00Z\n\n## Pre-flight answers\n\n- Task: Fix the home page rendering the visitor's name as HTML\n- Repos: greeting-site\n- Wave: N/A (single repo)\n- Branch: users/eval/escape-visitor-name\n- Validation: local-e2e\n- Local URL: http://localhost:3000\n- Backend status: N/A\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Test credentials: skip\n- PR target: main\n- Auth status: ok\n- Working tree: {{repo}}\n- CI check: skip\n\n## Waivers\n\n- Build clean (typecheck + lint): greeting-site has no typecheck or lint script; `node --check` passed on every changed file.\n\n## Blockers\nnone\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/requirements.md",
+            "content": "# Requirements\n\n**Goal:** The home page shows a visitor's name as text, never as HTML.\n\n## Acceptance Criteria\n\n- [web] A visitor whose ?name= holds markup sees it as plain text in the greeting, never rendered as HTML.\n- [web] A plain name still greets the visitor by name.\n\n**Change type:** bug fix\n\n**Regression criterion:** [web] A visitor whose ?name= holds markup sees it as plain text in the greeting, never rendered as HTML.\n\n**Affected Repos:** greeting-site\n\n**Notes:** `renderGreeting` interpolates the query value unescaped.\n"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
+            "content": "# Iteration 001 — 2026-10-22T18:02:10Z\n\n### Stage 1 — Pre-flight (2026-10-22T18:02:10Z)\n\n- Task: Fix the home page rendering the visitor's name as HTML\n- Repos: greeting-site\n- Validation: local-e2e\n- Muggle Test project: greeting-site (proj-greeting-site)\n- Working tree: {{repo}}\n\nStage 1 done — state.md written; questionnaire best-efforted from silent detection (unattended run).\n\n### Stage 2 — Requirements (2026-10-22T18:03:00Z)\n\nStage 2 done — requirements.md written: goal, 2 acceptance criteria, change type bug fix, regression criterion.\n\n### Stage 3 — Build (2026-10-22T18:06:00Z)\n\nStage 3 done — fix(home): escape the visitor's name (4b1e2f0); signed (%G? = G). Regression criterion: [web] A visitor whose ?name= holds markup sees it as plain text in the greeting, never rendered as HTML. Regression test: test/greeting_test.js — failed before, passed after. Build clean waived in state.md: no typecheck or lint script; `node --check` passed on every changed file.\n"
+          },
+          {
+            "path": "src/greeting.js",
+            "content": "const escapeHtml = (text) => text.replace(/[&<>\"']/g, (character) => `&#${character.charCodeAt(0)};`);\n\n/** The greeting the home page renders for a visitor, with a farewell line under it. */\nexport function renderGreeting(visitorName) {\n  const name = escapeHtml(visitorName && visitorName.trim() ? visitorName.trim() : \"friend\");\n  return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n}\n"
+          },
+          {
+            "path": "test/greeting_test.js",
+            "content": "import assert from \"node:assert/strict\";\nimport { test } from \"node:test\";\n\nimport { renderGreeting } from \"../src/greeting.js\";\n\ntest(\"greets a named visitor and bids them farewell\", () => {\n  assert.equal(renderGreeting(\"Ada\"), \"<h1>Hello, Ada!</h1>\\n<p>See you soon, Ada!</p>\");\n});\n\ntest(\"falls back to friend for a blank name in both lines\", () => {\n  assert.equal(renderGreeting(\"  \"), \"<h1>Hello, friend!</h1>\\n<p>See you soon, friend!</p>\");\n});\n\ntest(\"shows markup in a name as text\", () => {\n  assert.equal(renderGreeting(\"<b>Ada</b>\"), \"<h1>Hello, &#60;b&#62;Ada&#60;/b&#62;!</h1>\\n<p>See you soon, &#60;b&#62;Ada&#60;/b&#62;!</p>\");\n});\n"
+          }
+        ]
+      },
+      "bashResponses": [
+        {
+          "commandContains": "worktree list",
+          "response": "worktree {{repo}}\nHEAD 4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0\nbranch refs/heads/users/eval/escape-visitor-name\n"
+        },
+        {
+          "commandContains": "diff --name-only",
+          "response": "src/greeting.js\ntest/greeting_test.js"
+        },
+        {
+          "commandContains": "--name-status",
+          "response": "M\tsrc/greeting.js\nM\ttest/greeting_test.js"
+        },
+        {
+          "commandContains": "--stat",
+          "response": " src/greeting.js       | 6 ++++--\n test/greeting_test.js | 4 ++++\n 2 files changed, 8 insertions(+), 2 deletions(-)"
+        },
+        {
+          "commandContains": "diff",
+          "response": "diff --git a/src/greeting.js b/src/greeting.js\nindex 3f1c2a7..8d0e5b1 100644\n--- a/src/greeting.js\n+++ b/src/greeting.js\n@@ -1,5 +1,7 @@\n+const escapeHtml = (text) => text.replace(/[&<>\"']/g, (character) => `&#${character.charCodeAt(0)};`);\n+\n /** The greeting the home page renders for a visitor, with a farewell line under it. */\n export function renderGreeting(visitorName) {\n-  const name = visitorName && visitorName.trim() ? visitorName.trim() : \"friend\";\n+  const name = escapeHtml(visitorName && visitorName.trim() ? visitorName.trim() : \"friend\");\n   return `<h1>Hello, ${name}!</h1>\\n<p>See you soon, ${name}!</p>`;\n }\n"
+        },
+        {
+          "commandContains": "guard-run",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "npm test",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "node --test",
+          "response": "✔ greets a named visitor and bids them farewell (0.9ms)\n✔ falls back to friend for a blank name in both lines (0.2ms)\nℹ tests 2\nℹ suites 0\nℹ pass 2\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 58.4\n[guard-run] exit 0"
+        },
+        {
+          "commandContains": "%G?",
+          "response": "G"
+        },
+        {
+          "commandContains": "log --",
+          "response": "4b1e2f0 fix(home): escape the visitor's name"
+        },
+        {
+          "commandContains": "symbolic-ref",
+          "response": "origin/main"
+        },
+        {
+          "commandContains": "branch --show-current",
+          "response": "users/eval/escape-visitor-name"
+        },
+        {
+          "commandContains": "rev-parse --abbrev-ref",
+          "response": "users/eval/escape-visitor-name"
+        },
+        {
+          "commandContains": "rev-parse",
+          "response": "4b1e2f09c7d3a5e6f8b0c2d4e6f8a0b2c4d6e8f0"
+        },
+        {
+          "commandContains": "rev-list --count",
+          "response": "0"
+        },
+        {
+          "commandContains": "remote get-url",
+          "response": "https://github.com/acme/greeting-site.git"
+        },
+        {
+          "commandContains": " fetch",
+          "response": ""
+        },
+        {
+          "commandContains": " status",
+          "response": "On branch users/eval/escape-visitor-name\nnothing to commit, working tree clean"
+        },
+        {
+          "commandContains": "curl",
+          "response": "200"
+        },
+        {
+          "commandContains": "ls ",
+          "response": "README.md\npackage.json\nsrc\ntest"
+        },
+        {
+          "commandContains": "grep",
+          "response": ""
+        },
+        {
+          "commandContains": "gh pr list",
+          "response": ""
+        },
+        {
+          "commandContains": "gh pr view",
+          "response": "no pull requests found for branch \"users/eval/escape-visitor-name\""
+        }
+      ],
+      "toolResponses": {
+        "Skill": [
+          {
+            "argContains": "muggle-test-prepare",
+            "response": "READY\n\n```\nService        PID     Port   Source      Commit    Smoke Test\n───────────────────────────────────────────────────────────────\ngreeting-site  41873   3000   {{repo}}    4b1e2f0   ✓\n───────────────────────────────────────────────────────────────\nAll services verified. Ready for E2E.\n```"
+          }
+        ]
+      },
+      "fixtures": {
+        "projects": {
+          "items": [
+            {
+              "id": "proj-greeting-site",
+              "name": "greeting-site",
+              "url": "http://localhost:3000"
+            }
+          ]
+        },
+        "lastProject": {
+          "id": "proj-greeting-site",
+          "url": "http://localhost:3000"
+        },
+        "useCases": {
+          "items": [
+            {
+              "id": "uc-greeting",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sees a personalized greeting on the home page",
+              "description": "A visitor opens the home page, optionally with ?name=, and is greeted by name.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-newsletter",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor subscribes to the newsletter from the home page",
+              "description": "A visitor enters an email in the home page footer's newsletter form and subscribes.",
+              "url": "http://localhost:3000/"
+            },
+            {
+              "id": "uc-contact",
+              "projectId": "proj-greeting-site",
+              "title": "Visitor sends a message from the contact page",
+              "description": "A visitor writes a message on the contact page and sends it.",
+              "url": "http://localhost:3000/contact"
+            }
+          ],
+          "totalCount": 3,
+          "totalPages": 1,
+          "hasMore": false
+        },
+        "testCasesByUseCase": {
+          "uc-greeting": {
+            "items": [
+              {
+                "id": "tc-greeting-named",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting names the visitor from the name query",
+                "description": "Verify the home page greets a visitor by the name in the ?name= query",
+                "goal": "Verify the home page greets a visitor by the name in the ?name= query",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, Ada!'",
+                "url": "http://localhost:3000/?name=Ada",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-greeting-blank",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-greeting",
+                "title": "Greeting falls back to friend for a blank name",
+                "description": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "goal": "Verify the home page greets a visitor whose ?name= is blank as friend",
+                "precondition": "",
+                "expectedResult": "The page heading reads 'Hello, friend!'",
+                "url": "http://localhost:3000/?name=%20",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-newsletter": {
+            "items": [
+              {
+                "id": "tc-newsletter-subscribe",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a valid email shows the confirmation",
+                "description": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "goal": "Verify entering ada@example.com in the footer's newsletter form and pressing Subscribe confirms the subscription",
+                "precondition": "",
+                "expectedResult": "The page confirms the visitor is subscribed",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              },
+              {
+                "id": "tc-newsletter-invalid",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-newsletter",
+                "title": "Subscribing with a malformed email shows a validation error",
+                "description": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "goal": "Verify entering ada@ in the footer's newsletter form and pressing Subscribe is refused",
+                "precondition": "",
+                "expectedResult": "The page asks for a valid email address",
+                "url": "http://localhost:3000/",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 2,
+            "totalPages": 1,
+            "hasMore": false
+          },
+          "uc-contact": {
+            "items": [
+              {
+                "id": "tc-contact-send",
+                "projectId": "proj-greeting-site",
+                "useCaseId": "uc-contact",
+                "title": "Sending a message shows the thank-you note",
+                "description": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "goal": "Verify writing a message on the contact page and pressing Send thanks the visitor",
+                "precondition": "",
+                "expectedResult": "The page thanks the visitor and says they will hear back soon",
+                "url": "http://localhost:3000/contact",
+                "status": "ACTIVE"
+              }
+            ],
+            "totalCount": 1,
+            "totalPages": 1,
+            "hasMore": false
+          }
+        }
+      },
+      "expect": {
+        "requireArtifacts": [
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
+            "contains": "e2eScope"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
+            "matches": "newTestCases(?:(?!criteria)[\\s\\S])*useCase(?:Id)?\\W*uc-greeting"
+          },
+          {
+            "path": "~/.muggle-ai/muggle-do/sessions/escape-visitor-name/iterations/001.md",
+            "matches": "impactedTestCases(?:(?!retiredUseCases|retiredTestCases)[\\s\\S])*tc-greeting-named"
+          }
+        ],
+        "requireToolSequence": [
+          {
+            "tool": "Read",
+            "argContains": "impact-analysis.md"
+          },
+          {
+            "tool": "muggle-remote-use-case-list",
+            "argContains": ""
+          },
+          {
+            "tool": "Read",
+            "argContains": "e2e-acceptance.md"
+          },
+          {
+            "tool": "muggle-remote-test-case-create",
+            "argContains": ""
+          }
+        ],
+        "requireToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-generate-from-prompt",
+            "argContains": "uc-greeting"
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-new-"
+          }
+        ],
+        "forbidToolAttempts": [
+          {
+            "tool": "muggle-remote-test-case-delete",
+            "argContains": ""
+          },
+          {
+            "tool": "muggle-remote-use-case-delete",
+            "argContains": ""
+          },
+          {
+            "tool": "muggle-local-execute-test-generation",
+            "argContains": "tc-contact"
+          },
+          {
+            "tool": "muggle-local-execute-replay",
+            "argContains": "tc-contact"
+          }
+        ],
+        "outputMatches": [
+          "Audit trail",
+          "Unit tests",
+          "E2E tests",
+          "Evidence",
+          "test/greeting_test\\.js",
+          "Missing"
+        ]
+      }
+    },
+    {
       "name": "merged-pr-deletes-the-retired-cases",
       "prompt": "cleanup slug=drop-newsletter state=merged",
       "maxTurns": 40,

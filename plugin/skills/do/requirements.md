@@ -24,6 +24,7 @@ You receive:
 2. **Extract the goal** — one clear sentence describing the outcome.
 3. **Extract acceptance criteria** — specific, verifiable conditions that must be true when the task is done. Each criterion should be independently testable. If the user's description is vague, infer reasonable criteria but flag them as inferred. Tag each criterion with its deliverable category per [`../_shared/deliverable-categories.md`](../_shared/deliverable-categories.md#tagging-a-criterion), splitting any criterion that spans two.
 4. **Identify which repos are likely affected** — based on the task description and the repo names provided.
+5. **Mark a bug fix.** A task that corrects wrong behavior is `Change type: bug fix`; anything else is `other`. A bug fix also gets a **regression criterion**: one acceptance criterion, tagged like the rest, saying what behavior proves this bug is gone. Stages 3 and 4 work from that line, and the [audit trail](audit-trail.md) shows it.
 
 ## Output
 
@@ -35,6 +36,10 @@ Write the findings to `~/.muggle-ai/muggle-do/sessions/<slug>/requirements.md`. 
 **Acceptance Criteria:**
 - [<category>] (criterion 1)
 - [<category>] (criterion 2)
+
+**Change type:** bug fix | other
+
+**Regression criterion:** [<category>] (bug fixes only: the behavior that proves this bug is gone, also listed above)
 
 **Affected Repos:** (comma-separated list)
 

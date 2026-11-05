@@ -63,6 +63,7 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 ## muggle-register
 **Engage when:** the user wants a **Muggle AI account of their own** and has none — "create a muggle account", "sign up for muggle", "I don't have a muggle account yet", "muggle register".
 **Boundary vs `muggle-status`:** status reports on an existing login; register creates the account. "Is my login valid?" → status.
+**Boundary vs `muggle-login`:** login signs in to an account that exists; register creates one.
 **Boundary vs `muggle-browser-task`:** creating an account on the user's own app or another site is a browser task; the account here is Muggle's.
 
 ## muggle-pr-followup

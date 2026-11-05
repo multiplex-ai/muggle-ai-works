@@ -78,6 +78,8 @@ Runs once Stage 6 has recorded this change's verdict; a Stage 6 readiness halt n
 
 5. **Overflow comment:** if the walkthrough skill returned a non-null `comment`, post it once — `github` per [`../../_shared/vcs/github/top-level-comment.md`](../../_shared/vcs/github/top-level-comment.md), `gitlab` per [`../../_shared/vcs/gitlab/mr-note.md`](../../_shared/vcs/gitlab/mr-note.md). End the posted body with the signature line (command `/muggle-do`) per [`../../_shared/vcs/post-signature.md`](../../_shared/vcs/post-signature.md). Never post when `comment` is `null`.
 
+6. **Recurring run:** bug fixes only. A regression case guards the future only while something replays it, and the PR walkthrough check replays nothing. Look in the working tree for a scheduled pipeline that runs Muggle: a `schedule:` trigger in `.github/workflows/`, or a scheduled job in `.gitlab-ci.yml`. None found → call `muggle-remote-recommend-schedule` with the project id and put its options on the **Recurring run** output line, adding `/muggle-ci-install` when the repo lacks `muggle-walkthrough.yml`, [`autoInstallCiWorkflow`](../../muggle-preferences/preference-gates/autoInstallCiWorkflow.md) is not `never`, and `state.md` records no `CI check: skip`. This is an offer: nothing here asks, installs, or waits.
+
 ## Stage 7.5 gate
 
 The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once Stage 7 has settled the walkthrough, and before the handoff below. Proceed only on its `green`, `waived`, or `decision-pending` clearance — handing a red run to a watcher with no decision asked puts it in front of reviewers with nobody looking at the failures. When Stage 6 recorded `PASS` or `SKIPPED` the loop clears in its own Step 0 at no cost, so there is never a reason to skip it.
@@ -106,11 +108,14 @@ If `prs.json` is empty, **do not arm** — record the reason in `result.md` and 
 
 ## Output
 
+The cycle's closing message opens with the [audit trail](../audit-trail.md), on every exit, a cycle that opened no PR included. These lines follow it:
+
 **Synced with base:** repo → `rebased onto <base> (<n> behind)` | `already up to date` | `skipped (autoRebase)`
 **PRs Created:** repo → URL
 **Skipped:** repo → reason (when `autoCreatePR` short-circuited)
 **Tested head:** repo → `already the PR head` | `force-pushed <short-sha> (Stage 6 synced onto a moved base)`
 **Overflow comments posted:** repo → PR #
+**Recurring run:** `already scheduled` | `<recommended options>` (bug fixes only)
 **Stage 7.5:** `green` | `waived — <reason>` | `decision-pending`
 **Stage 8:** `Watching <N> PR(s) — one watch loop per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
 **Errors:** repo → message

@@ -69,6 +69,10 @@ Before Stage 7 settles the PR's walkthrough:
 
 Opening a PR, or settling its walkthrough, with an unchecked, unwaived line of its gate is a cycle failure. A Stage 6 readiness halt ([`../do/e2e-acceptance.md`](../do/e2e-acceptance.md) Step 0.5) leaves the E2E line open: no skip code, waiver, or explicit request to open the PR closes it.
 
+### Audit trail
+
+Every cycle's closing message opens with the fenced block [`../do/audit-trail.md`](../do/audit-trail.md) defines: the unit tests involved, the E2E tests with results, links to the evidence, and what is missing. A prose recap does not replace it. It reports and gates nothing, and it comes after the last action: the watcher arms first.
+
 ## Address-reviews flow
 
 When invoked with the directive (PR URL + slug + review ids), routes to [`../do/address-reviews.md`](../do/address-reviews.md). Shares stages 3–5 with the forward pipeline, then sizes the cycle from its diff per [`../do/cycle-size.md`](../do/cycle-size.md): a full cycle adds stage 6 and a fresh walkthrough, a minor one skips E2E under a verified `NO_APP_LOGIC_CHANGE`. Skips pre-flight, requirements, and PR creation. See the orchestrator for the cycle's exact step order, classification rules, and respawn logic.

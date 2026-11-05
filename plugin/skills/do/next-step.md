@@ -18,7 +18,7 @@ The sessions directory holds every chat's slots, so a selector drawn from the wh
 
 1. Read the session plan — the current session's TodoWrite list.
 2. **Pending items remain** → do not prompt. Append `next-step: plan has <N> pending — advancing` to `followup.log` and continue to the next pending item. The user set a course; honor it.
-3. **No pending items** → print the [status block](#status-block), then ask the [selector](#selector) — with one `AskUserQuestion`, or as text while this chat still watches an open PR. The status block always comes first: a selector without it asks the user to decide blind.
+3. **No pending items** → print `terminalRecord`'s [audit trail](audit-trail.md), print the [status block](#status-block), then ask the [selector](#selector) — with one `AskUserQuestion`, or as text while this chat still watches an open PR. The status block always comes first: a selector without it asks the user to decide blind.
 4. Append the chosen outcome to `followup.log`.
 
 Both appends target `<slug>`'s `followup.log` and are skipped once teardown's report marks `Session slot cleared` ✅ — the log went with the slot, and an append would recreate the directory.

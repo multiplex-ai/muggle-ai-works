@@ -13,6 +13,8 @@ Once the cycle's edits are in the working tree, run [`impact-analysis.md`](impac
 - **minor** — every path the cycle changed is docs, tests, lint/format config, or CI config, exactly as the `NO_APP_LOGIC_CHANGE` rule in [`e2e-acceptance.md`](e2e-acceptance.md) defines them.
 - **full** — anything else, a comment-only or formatting-only edit in a source file included. The rule reads paths, not content, because a path rule is what the guardrail can verify.
 
+`Change type` plays no part. A follow-up on a bug-fix PR is sized by the same rule and owes no new regression test or case: those belong to the forward cycle ([`build.md`](build.md)).
+
 An empty `cycleFiles` is neither size: the cycle changed nothing (every review was an answerable question), so it runs no tail — no unit run, no push, no declaration — and goes straight to the mode's replies.
 
 ## Rebase size

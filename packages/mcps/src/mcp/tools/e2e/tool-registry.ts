@@ -1870,7 +1870,7 @@ const userFeedbackTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-user-feedback-create",
     description:
-      "Submit user feedback on a generated action script — either the whole script (targetType='actionScript', targetId=actionScriptId) or a specific step (targetType='step', targetId=`${actionScriptId}:${stepIndex}` with 0-based stepIndex). Persists the feedback and triggers an async feedback-analysis workflow that may regenerate the script. The response includes the saved feedback and, when the analysis workflow was started, a feedbackAnalysisWorkflowRuntimeId for polling.",
+      "Submit user feedback on a generated action script — either the whole script (targetType='actionScript', targetId=actionScriptId) or a specific step (targetType='step', targetId=`${actionScriptId}:${stepIndex}` with 0-based stepIndex). Persists the feedback and triggers an async feedback-analysis workflow that may regenerate the script in the cloud. A script generated on the user's machine is never regenerated there, and nothing happens for it until it runs locally: the response's localRegenerationTestCaseIds names the target when it is one, and the entry's outcome names similar test cases once the analysis ends. The response includes the saved feedback, localRegenerationTestCaseIds and, when the analysis workflow was started, a feedbackAnalysisWorkflowRuntimeId for polling.",
     inputSchema: schemas.UserFeedbackCreateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.UserFeedbackCreateInputSchema>;
@@ -1881,6 +1881,7 @@ const userFeedbackTools: IQaToolDefinition[] = [
           projectId: toolInput.projectId,
           target: toolInput.target,
           feedbackText: toolInput.feedbackText,
+          canRegenerateLocally: true,
         },
       };
     },

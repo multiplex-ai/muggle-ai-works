@@ -10,7 +10,7 @@ description: "Use when the user wants to flag that a generated Muggle Test actio
 
 > Running outside Claude Code (in Codex, for one)? Read [`../_shared/host-tool-equivalents.md`](../_shared/host-tool-equivalents.md) first — it maps the tools and paths this skill names to your host's.
 
-Capture user feedback on what a generated Muggle Test action script did wrong. The server uses each feedback row to find similar test cases via LLM and regenerate their scripts in the background.
+Capture user feedback on what a generated Muggle Test action script did wrong. The server uses each feedback row to find similar test cases via LLM, then each affected script regenerates where it was made: a cloud-generated one in the background, a locally generated one on this machine, run by this skill.
 
 ## Routing
 
@@ -32,6 +32,7 @@ If intent is ambiguous, use `AskUserQuestion` once with options **Submit / List 
   - **One specific step** — `target.targetType = "step"`, `target.targetId = "<actionScriptId>:<stepIndex>"` where `stepIndex` is **0-based** on the wire even though steps are shown to the user 1-based.
 - **Project scope.** All ops scope to the user's last-used project (`muggle-local-last-project-get`). If unset, ask once and persist via `muggle-local-last-project-set` so subsequent ops in this session reuse it.
 - **`feedbackText` must be non-empty.** Re-prompt the user if they leave it blank.
+- **The server cannot start a local run.** It saves the feedback and names the test cases only this machine can regenerate; nothing regenerates for them until this skill runs them.
 
 ## Non-negotiables (all ops)
 
@@ -39,4 +40,5 @@ If intent is ambiguous, use `AskUserQuestion` once with options **Submit / List 
 - Always render the run's steps and summary (§2) **before** collecting feedback — users can only point at what they can see.
 - Convert step numbers between 1-based (rendered to user) and 0-based (wire format) at the boundary. Never expose 0-based indices to the user.
 - One MCP submit/delete call per feedback piece — never batch into a single call.
-- Surface the `feedbackAnalysisWorkflowRuntimeId` returned by submit so the user knows regeneration is running. Do not poll it from this skill.
+- Surface the `feedbackAnalysisWorkflowRuntimeId` returned by submit so the user knows the analysis is running.
+- Say a test case is regenerating only when a run for it started. A cloud regeneration is named in the entry's `outcome.regeneratedTestCaseIds`; a local one exists only once this skill starts it ([`ops/submit.md`](ops/submit.md) §6).

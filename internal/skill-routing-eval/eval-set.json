@@ -2018,5 +2018,425 @@
     "query": "create an account on our app's signup page at staging.acme.io and tell me if it works",
     "expected_skill": "muggle-browser-task",
     "note": "negative boundary for the registration wording \u2014 creating an account ON the user's product is a browser task, not muggle's own signup"
+  },
+  {
+    "query": "muggle init",
+    "expected_skill": "muggle-init",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "run muggle init for me",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "run the muggle onboarding walkthrough",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "can you walk me through the muggle onboarding?",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "do the first-time muggle onboarding here",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "start muggle's onboarding and save my first preferences",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "I skipped muggle onboarding earlier, run it now",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "redo the muggle onboarding walkthrough from the start",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "onboard me to muggle",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "run muggle init, this shell isn't interactive",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "take me through muggle's first-run questions",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "re-run muggle init so I can answer the questions again",
+    "expected_skill": "muggle-init",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle ci-install",
+    "expected_skill": "muggle-ci-install",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "add the muggle walkthrough check to this repo's GitHub Actions",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "make muggle E2E required in CI",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "install the muggle CI check",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "fail pull requests that don't have a muggle walkthrough",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "add the muggle github actions workflow to this repo",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "set up the muggle walkthrough check in CI for this repo",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "run muggle ci-install in this repo",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "require a passing muggle walkthrough on every pull request",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "add muggle-walkthrough.yml to this repository",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "this repo has no muggle check in CI, add it",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "enforce muggle E2E in our GitHub Actions",
+    "expected_skill": "muggle-ci-install",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle login",
+    "expected_skill": "muggle-login",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "log in to muggle",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "sign me in to muggle",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "my muggle session expired, log me back in",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "re-authenticate muggle",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "switch my muggle account",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "sign in to muggle with a different account",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "i need to log into muggle ai",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "reauth muggle please",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "log in to my muggle account",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "connect this machine to my muggle account",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle says I'm not logged in, sign me in",
+    "expected_skill": "muggle-login",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle logout",
+    "expected_skill": "muggle-logout",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "log out of muggle",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "sign me out of muggle",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "clear my muggle credentials",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "remove my stored muggle login from this machine",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "sign out of muggle ai",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "log me out of my muggle account",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "end my muggle session on this machine",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "I'm done on this laptop, log out of muggle",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "forget my muggle credentials",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "disconnect this machine from my muggle account",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "run muggle logout",
+    "expected_skill": "muggle-logout",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle run-view",
+    "expected_skill": "muggle-run-view",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "show me my last local muggle run",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "open the steps and frames of my newest local run",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "view local run 7447af76",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "what did my last local muggle run do step by step?",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "show the frames from my latest local test run",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "open muggle run-view for the newest run",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "replay what the last local run did",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "let me look at the frames for local run abc123",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "view the local run that just finished",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "show the steps of that failed local run beside its frames",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle run-view 7447af76 --open",
+    "expected_skill": "muggle-run-view",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle cleanup",
+    "expected_skill": "muggle-cleanup",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "remove old muggle runner versions",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "free up disk space from old muggle versions",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "delete old electron-app versions",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "clean up old muggle browser runner installs",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "muggle is taking too much disk, delete the old versions",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "remove obsolete muggle skills",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "run muggle cleanup",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "clear out old versions of the muggle test runner",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "see how much space muggle cleanup would free, then run it",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "delete every old muggle runner version, including the rollback one",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "prune old muggle runner installs",
+    "expected_skill": "muggle-cleanup",
+    "note": "Direct intent."
+  },
+  {
+    "query": "log into my Stripe dashboard and refund the last charge",
+    "expected_skill": "muggle-browser-task",
+    "note": "traps muggle-login (\"log into\"); signing in to a third-party site to act there"
+  },
+  {
+    "query": "log in to our staging admin and change the plan on the acme account",
+    "expected_skill": "muggle-browser-task",
+    "note": "traps muggle-login; the login is a step of a website action"
+  },
+  {
+    "query": "is my muggle login still valid?",
+    "expected_skill": "muggle-status",
+    "note": "traps muggle-login; asking about auth health, not signing in"
+  },
+  {
+    "query": "turn off autoLogin in muggle",
+    "expected_skill": "muggle-preferences",
+    "note": "traps muggle-login; changing a saved setting"
+  },
+  {
+    "query": "set autoInstallCiWorkflow to never",
+    "expected_skill": "muggle-preferences",
+    "note": "traps muggle-ci-install; changing a saved setting"
+  },
+  {
+    "query": "test that the login form works on localhost:3000",
+    "expected_skill": "muggle-test-feature-local",
+    "note": "traps muggle-login; verifying the user's own app"
+  },
+  {
+    "query": "add a GitHub Actions workflow that runs our jest tests",
+    "expected_skill": "none",
+    "note": "traps muggle-ci-install; a generic CI workflow, no Muggle check"
+  },
+  {
+    "query": "log the current user out when their session expires in my app",
+    "expected_skill": "none",
+    "note": "traps muggle-logout; application logic"
+  },
+  {
+    "query": "clean up the branches and worktree left after my merged PR",
+    "expected_skill": "none",
+    "note": "traps muggle-cleanup; git housekeeping, not runner versions"
+  },
+  {
+    "query": "delete node_modules and the build cache to free disk space",
+    "expected_skill": "none",
+    "note": "traps muggle-cleanup; project files, not Muggle versions"
+  },
+  {
+    "query": "show me the last GitHub Actions run for this branch",
+    "expected_skill": "none",
+    "note": "traps muggle-run-view; a CI run, not a local Muggle run"
+  },
+  {
+    "query": "onboard our new engineer to this repo with a README section",
+    "expected_skill": "none",
+    "note": "traps muggle-init; writing docs, not Muggle onboarding"
   }
 ]

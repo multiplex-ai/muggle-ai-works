@@ -2,7 +2,7 @@
 
 The "entrance" of a skill is the surface where it becomes relevant and should be recommended: the user intents, phrasings, and contexts that route to it — and the sibling skills it must *not* steal from. This is the contract the router eval (`eval-set.json` + `router_eval.py`) measures each skill's `description` against.
 
-Scope: the 15 skills that auto-trigger from natural language (now including `muggle-pr-followup` and `muggle-do`, both made model-invocable). The `m*` short aliases fire only on explicit `/command` typing and are out of scope. `muggle-works-npm-release` is maintainer-only (relocated to `internal/`) and excluded.
+Scope: the 21 skills that auto-trigger from natural language (now including `muggle-pr-followup` and `muggle-do`, both made model-invocable). The `m*` short aliases fire only on explicit `/command` typing and are out of scope. `muggle-works-npm-release` is maintainer-only (relocated to `internal/`) and excluded.
 
 The hardest routing lives at the boundaries between siblings; each entrance below names the neighbor it is most often confused with and the discriminator.
 
@@ -68,6 +68,32 @@ The hardest routing lives at the boundaries between siblings; each entrance belo
 ## muggle-do
 **Engage when:** the user wants something **built, implemented, added, or fixed and carried to an opened PR** — "implement rate limiting and raise a PR", "build the CSV export and put up a PR", "take this ticket and run with it, ping me when the PR is up", "fix this bug and open a pr", "muggle do …". It writes the code, runs unit and real-browser tests, opens the PR with the walkthrough, and hands it to the watcher. Also the internal `address-reviews` directive the watcher dispatches.
 **Boundary vs `muggle-test`:** validating changes that already exist ("make sure my branch didn't break anything before I open the PR") → `muggle-test`; muggle-do is the one that writes the change. **Boundary vs `muggle-pr-followup`:** watching a PR's incoming reviews → the watcher, which dispatches muggle-do once per review wave. **Boundary vs `none`:** a code edit with no PR in the ask is ordinary coding, not this pipeline.
+
+## muggle-init
+**Engage when:** the user asks to run Muggle's onboarding walkthrough — "muggle init", "run the muggle onboarding", "take me through the first-run questions".
+**Boundary vs `muggle-preferences`:** changing one saved setting → preferences; the whole first-run walkthrough → init.
+**Boundary vs `muggle`:** "what can muggle do" is the menu; init saves answers.
+
+## muggle-ci-install
+**Engage when:** the user wants the Muggle walkthrough check in a repository's CI — "muggle ci-install", "require Muggle E2E in CI", "add the muggle check to GitHub Actions".
+**Boundary:** a generic workflow that runs the project's own tests is not Muggle's; `autoInstallCiWorkflow` as a setting → `muggle-preferences`.
+
+## muggle-login
+**Engage when:** the user wants to sign in to Muggle or switch Muggle accounts — "muggle login", "re-authenticate muggle", "switch my muggle account".
+**Boundary vs `muggle-browser-task`:** logging into another site to act there is a browser task.
+**Boundary vs `muggle-status`:** asking whether the login is valid is status.
+
+## muggle-logout
+**Engage when:** the user wants to sign out of Muggle or clear its stored credentials — "muggle logout", "clear my muggle credentials".
+**Boundary:** logout logic in the user's own app is not Muggle's.
+
+## muggle-run-view
+**Engage when:** the user wants to see what a local Muggle run did — "muggle run-view", "show my last local run", "view the frames from that run".
+**Boundary:** a CI run, or a run on the dashboard, is not a local run.
+
+## muggle-cleanup
+**Engage when:** the user wants old Muggle runner versions or obsolete skills removed — "muggle cleanup", "free disk space from old muggle versions".
+**Boundary:** cleanup after a merged PR and clearing project caches are not Muggle version cleanup.
 
 ## Maintainer-only skills
 

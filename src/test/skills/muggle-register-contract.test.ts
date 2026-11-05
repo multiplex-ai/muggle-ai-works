@@ -26,8 +26,9 @@ const EVAL_MOCK_TOOLS = path.join(REPO_ROOT, "internal", "skill-gate-eval", "src
 // AskUserQuestion refuses a fifth option, so a longer menu never opens at all.
 const MAX_MENU_OPTIONS = 4;
 
+// A Windows checkout holds CRLF, and the section lookups below match on line boundaries.
 function read(filePath: string): string {
-  return fs.readFileSync(filePath, "utf8");
+  return fs.readFileSync(filePath, "utf8").replace(/\r\n/g, "\n");
 }
 
 function routerSection(heading: string): string {

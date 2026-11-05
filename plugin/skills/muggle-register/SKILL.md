@@ -1,7 +1,7 @@
 ---
 name: muggle-register
 model: haiku
-description: "Create a new Muggle AI account from the terminal with an email and password — no browser needed; the API key is stored automatically. Use when the user wants a Muggle account and has none: create a muggle account, sign up for muggle, register for muggle, I don't have a muggle account yet, how do I get a muggle account, open a new muggle account. Also triggers on muggle register. Boundary: signing in to an account that already exists is the muggle-remote-auth-login tool, and checking a login is muggle-status. Not for creating an account on the user's own app or any other site — that is muggle-browser-task."
+description: "Create a new Muggle AI account from the terminal with an email and password — no browser needed; the API key is stored automatically. Use when the user wants a Muggle account and has none: create a muggle account, sign up for muggle, register for muggle, I don't have a muggle account yet, how do I get a muggle account, open a new muggle account. Also triggers on muggle register and /muggle-register. Boundary: signing in to an account that already exists is the muggle-remote-auth-login tool, and checking a login is muggle-status. Not for creating an account on the user's own app or any other site — that is muggle-browser-task."
 ---
 
 # Muggle Test Register

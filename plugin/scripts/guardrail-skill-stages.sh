@@ -43,4 +43,9 @@ guardrail_wants() {
 
 if guardrail_is_hook_script; then
   guardrail_run_standalone "$GUARDRAIL_SUBCOMMAND"
+  # A session open for days would otherwise never refresh the upgrade reminder's lookup. Session start owns the first
+  # run, so a home with no stamp waits for it, and bash before 5 has no clock to read the stamp against.
+  if [[ -n ${EPOCHSECONDS:-} && -f ${HOME}/.cache/muggle/session-maintenance-due ]]; then
+    guardrail_start_due_upkeep "$guardrail_script_dir"
+  fi
 fi

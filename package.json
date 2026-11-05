@@ -18,6 +18,7 @@
     "scripts/claude-marketplace-sync.mjs",
     "scripts/electron-app-install-dir.mjs",
     "scripts/onboarding-backfill.mjs",
+    "scripts/upgrade-notice-cache.mjs",
     "scripts/running-studio-installs.mjs",
     "scripts/release-integrity",
     "scripts/muggle-watch",

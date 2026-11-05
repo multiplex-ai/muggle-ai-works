@@ -20,23 +20,7 @@ if [ -f "$GUARDRAIL_STATE_FILE" ]; then
     touch "$GUARDRAIL_STATE_FILE" 2>/dev/null || true
 fi
 
-# The upkeep stamps the epoch second it next comes due, so a start inside that
-# window launches nothing. Without EPOCHSECONDS (bash before 5) it always
-# launches and the upkeep's own markers decide. Every stream is redirected so the
-# harness sees this hook finish without waiting on it, and it runs at the lowest
-# priority so its npm and install work never starves the hooks of the turn it
-# overlaps.
-upkeep_priority=""
-command -v nice >/dev/null 2>&1 && upkeep_priority="nice -n 19"
-maintenance_due_at=0
-maintenance_stamp="${HOME}/.cache/muggle/session-maintenance-due"
-if [ -f "$maintenance_stamp" ]; then
-    read -r maintenance_due_at <"$maintenance_stamp" || true
-fi
-case "$maintenance_due_at" in ''|*[!0-9]*) maintenance_due_at=0 ;; esac
-if [ -z "${EPOCHSECONDS:-}" ] || [ "$EPOCHSECONDS" -ge "$maintenance_due_at" ]; then
-    ${upkeep_priority} bash "${hook_dir}/session-maintenance.sh" <<<"$GUARDRAIL_PAYLOAD" >/dev/null 2>&1 &
-fi
+guardrail_start_due_upkeep "$hook_dir"
 
 escape_for_json() {
     local s="$1"
@@ -50,9 +34,11 @@ escape_for_json() {
 
 # --- Upgrade notice ---
 # session-maintenance.sh leaves "installed|latest" here only while latest is newer.
+# The preference is read here too, so turning the check off silences the notice at
+# once rather than at the next upkeep.
 upgrade_notice=""
 upgrade_available="${HOME}/.cache/muggle/upgrade-available"
-if [ -f "$upgrade_available" ]; then
+if [ -f "$upgrade_available" ] && ! guardrail_updates_disabled; then
     installed_version=""
     latest_version=""
     IFS='|' read -r installed_version latest_version <"$upgrade_available" || true

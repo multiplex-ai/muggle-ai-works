@@ -111,6 +111,9 @@ var E2E_STOP_VERDICT_SUFFIX = ".e2e-stop-verdict";
 var E2E_SHELL_BLOCKS_SUFFIX = ".e2e-shell-blocks";
 var AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
 var POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";
+var CHECK_FOR_UPDATES_PREFERENCE_KEY = "checkForUpdates";
+var UPGRADE_AVAILABLE_PATH_SEGMENTS = [".cache", "muggle", "upgrade-available"];
+var UPGRADE_SKILL_NAMES = ["muggle-upgrade", "mupgrade"];
 var REWAKE_HOOK_EVENTS = ["Stop", "UserPromptSubmit"];
 var REWAKE_SUBCOMMAND = "rewake";
 var REWAKE_HOOK_SCRIPT = "guardrail-rewake.sh";
@@ -2063,6 +2066,63 @@ function lastAssistantText(transcriptJsonl) {
   }
   return "";
 }
+function parseMaxCatchUpRebases(configuredValue) {
+  if (configuredValue === UNBOUNDED_PREFERENCE_VALUE) return null;
+  const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
+  return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : void 0;
+}
+var readUserPreferences = (homeDir) => asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
+function readPreferenceLayers(homeDir, pluginRoot) {
+  return [readUserPreferences(homeDir), readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS))];
+}
+function pickPreferenceValue(preferenceLayers, preferenceKey) {
+  const configuredValue = preferenceLayers.map((layer) => layer[preferenceKey]).find((layerValue) => layerValue != null);
+  return typeof configuredValue === "string" ? configuredValue : void 0;
+}
+function resolvePreferenceValue(preferenceKey, homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
+  return pickPreferenceValue(readPreferenceLayers(homeDir, pluginRoot), preferenceKey);
+}
+function resolveUserPreferenceValue(preferenceKey, homeDir = homedir()) {
+  return pickPreferenceValue([readUserPreferences(homeDir)], preferenceKey);
+}
+function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
+  const preferenceLayers = readPreferenceLayers(homeDir, pluginRoot);
+  const [userPreferences, shippedDefaults] = preferenceLayers;
+  const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
+  const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
+  const lifetimeSecondsOf = (configuredValue) => typeof configuredValue === "string" ? WATCHER_LIFETIME_SECONDS[configuredValue] : void 0;
+  return {
+    autoRebase,
+    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null,
+    watcherLifetimeSeconds: lifetimeSecondsOf(userPreferences[WATCHER_LIFETIME_PREFERENCE_KEY]) ?? lifetimeSecondsOf(shippedDefaults[WATCHER_LIFETIME_PREFERENCE_KEY])
+  };
+}
+
+// src/guardrails/upgradeReminder.ts
+function readAvailableUpgrade(homeDir = homedir()) {
+  let recordedVersions;
+  try {
+    recordedVersions = readFileSync(join(homeDir, ...UPGRADE_AVAILABLE_PATH_SEGMENTS), "utf-8").trim();
+  } catch {
+    return void 0;
+  }
+  const [installedVersion, latestVersion, ...extraFields] = recordedVersions.split("|");
+  if (!installedVersion || !latestVersion || extraFields.length > 0) return void 0;
+  return { installedVersion, latestVersion };
+}
+function isUpgradeReminderDue(announcement) {
+  if (UPGRADE_SKILL_NAMES.includes(announcement.skillName)) return false;
+  const isTelemetryEmit = MUGGLE_SKILL_EMIT_TOOL.test(announcement.toolName ?? "");
+  return !isTelemetryEmit || announcement.previousSkillName !== announcement.skillName;
+}
+function resolveUpgradeReminder(announcement, homeDir = homedir()) {
+  if (!isUpgradeReminderDue(announcement)) return void 0;
+  const availableUpgrade = readAvailableUpgrade(homeDir);
+  if (!availableUpgrade) return void 0;
+  if (resolvePreferenceValue(CHECK_FOR_UPDATES_PREFERENCE_KEY, homeDir) === UNBOUNDED_PREFERENCE_VALUE) return void 0;
+  return `A newer @muggleai/works is available (${availableUpgrade.installedVersion} \u2192 ${availableUpgrade.latestVersion}). Tell the user to run \`/muggle:muggle-upgrade\` to update.`;
+}
 
 // src/guardrails/testsGreen.ts
 var FAIL = /\b\d+\s+failed\b|\bFAIL\b|✗/;
@@ -2136,38 +2196,6 @@ function buildE2eOwedReason(input2) {
     return owedSentence + `That is the user's standing answer: do not ask them whether to test, and do not end the turn handing the decision back. Run change-driven E2E now via ${input2.muggleTestSkill}${walkthroughStep}, then finish. ${skipClause} A judgment that the change is not worth a run is not a skip.`;
   }
   return owedSentence + `Run change-driven E2E now via ${input2.muggleTestSkill}${walkthroughStep}, then finish. ${skipClause} Only when no verifiable code fits and a browser run genuinely cannot exercise the change, cite ${"NOT_APPLICABLE" /* NotApplicable */} with the reason \u2014 the PR shows it as your unverified judgment.`;
-}
-function parseMaxCatchUpRebases(configuredValue) {
-  if (configuredValue === UNBOUNDED_PREFERENCE_VALUE) return null;
-  const spelled = typeof configuredValue === "number" ? String(configuredValue) : configuredValue;
-  return typeof spelled === "string" && POSITIVE_INTEGER.test(spelled) ? Number(spelled) : void 0;
-}
-var readUserPreferences = (homeDir) => asRecord(readJsonRecord(join(homeDir, ...USER_PREFERENCES_PATH_SEGMENTS)).preferences);
-function readPreferenceLayers(homeDir, pluginRoot) {
-  return [readUserPreferences(homeDir), readJsonRecord(join(pluginRoot, ...PREFERENCE_DEFAULTS_PATH_SEGMENTS))];
-}
-function pickPreferenceValue(preferenceLayers, preferenceKey) {
-  const configuredValue = preferenceLayers.map((layer) => layer[preferenceKey]).find((layerValue) => layerValue != null);
-  return typeof configuredValue === "string" ? configuredValue : void 0;
-}
-function resolvePreferenceValue(preferenceKey, homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
-  return pickPreferenceValue(readPreferenceLayers(homeDir, pluginRoot), preferenceKey);
-}
-function resolveUserPreferenceValue(preferenceKey, homeDir = homedir()) {
-  return pickPreferenceValue([readUserPreferences(homeDir)], preferenceKey);
-}
-function resolveWatchPreferences(homeDir = homedir(), pluginRoot = resolvePluginRoot()) {
-  const preferenceLayers = readPreferenceLayers(homeDir, pluginRoot);
-  const [userPreferences, shippedDefaults] = preferenceLayers;
-  const autoRebase = pickPreferenceValue(preferenceLayers, AUTO_REBASE_PREFERENCE_KEY);
-  const userCap = parseMaxCatchUpRebases(userPreferences[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
-  const shippedCap = parseMaxCatchUpRebases(shippedDefaults[MAX_CATCH_UP_REBASES_PREFERENCE_KEY]);
-  const lifetimeSecondsOf = (configuredValue) => typeof configuredValue === "string" ? WATCHER_LIFETIME_SECONDS[configuredValue] : void 0;
-  return {
-    autoRebase,
-    maxCatchUpRebases: userCap !== void 0 ? userCap : shippedCap ?? null,
-    watcherLifetimeSeconds: lifetimeSecondsOf(userPreferences[WATCHER_LIFETIME_PREFERENCE_KEY]) ?? lifetimeSecondsOf(shippedDefaults[WATCHER_LIFETIME_PREFERENCE_KEY])
-  };
 }
 
 // src/guardrails/finishedRun.ts
@@ -3298,9 +3326,15 @@ function skillStages() {
   });
   startWalkthroughScanOnGateArming(stateBefore, next);
   const unread = unreadMandatoryStages(next);
-  if (unread.length === 0) return "{}";
-  const ctx = `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;
-  return envelope("PostToolUse", ctx, host);
+  const stageContext = unread.length === 0 ? void 0 : `The ${skillName} skill declares required reading: ${unread.map(stageLabel).join(", ")}. Read those files now, before working through the skill's steps \u2014 they carry mandatory steps SKILL.md only links to, and treating them as optional elaboration is how those steps get silently dropped. A Stop gate holds the turn open until they are opened.`;
+  const upgradeReminder = resolveUpgradeReminder({
+    skillName,
+    toolName: input.tool_name,
+    previousSkillName: stateBefore.lastInvokedSkillName
+  });
+  const contextParts = [stageContext, upgradeReminder].filter((contextPart) => contextPart !== void 0);
+  if (contextParts.length === 0) return "{}";
+  return envelope("PostToolUse", contextParts.join("\n\n"), host);
 }
 function recordStageRead() {
   const filePath = input.tool_input?.file_path;

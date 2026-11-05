@@ -32,6 +32,7 @@ import {
     shouldKeepVersionOverride,
 } from "./electron-app-install-dir.mjs";
 import { backfillOnboardingStamp } from "./onboarding-backfill.mjs";
+import { clearUpgradeNoticeCache } from "./upgrade-notice-cache.mjs";
 import { listRunningInstallDirectoryNames, normalizeInstallDirectoryName } from "./running-studio-installs.mjs";
 import {
     SIGNATURE_BUNDLE_SUFFIX,
@@ -1050,6 +1051,7 @@ function logOnboardingBackfill() {
 // Windows) keeps the event loop alive — see issue #167.
 initLogFile();
 logOnboardingBackfill();
+clearUpgradeNoticeCache(join(homedir(), ".cache", "muggle"));
 resetStaleVersionOverrideFile();
 syncCursorSkills();
 syncClaudeMarketplace();

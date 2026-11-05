@@ -352,6 +352,15 @@ export const AUTO_E2E_TEST_PREFERENCE_KEY = "autoE2ETest";
 /** The preference that makes posting the run's visual walkthrough to the PR owed. */
 export const POST_PR_VISUAL_WALKTHROUGH_PREFERENCE_KEY = "postPRVisualWalkthrough";
 
+/** The preference that turns the npm version lookup and every upgrade notice on or off. */
+export const CHECK_FOR_UPDATES_PREFERENCE_KEY = "checkForUpdates";
+
+/** Where session-maintenance.sh leaves `installed|latest`, under the home directory, only while an upgrade exists. */
+export const UPGRADE_AVAILABLE_PATH_SEGMENTS = [".cache", "muggle", "upgrade-available"] as const;
+
+/** The skills that perform the upgrade, so a reminder to run them would only repeat what they are doing. */
+export const UPGRADE_SKILL_NAMES = ["muggle-upgrade", "mupgrade"] as const;
+
 /** Hook events whose synchronous guardrail run has a `guardrail-rewake.sh` companion in plugin/hooks/hooks.json. */
 export const REWAKE_HOOK_EVENTS = ["Stop", "UserPromptSubmit"];
 

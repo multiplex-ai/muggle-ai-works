@@ -157,7 +157,7 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
     description: "At the end of the muggle-do dev cycle (or when a test needs an open PR to post results to), push the branch and open a PR without prompting",
   },
   [PreferenceKey.CheckForUpdates]: {
-    description: "At session start, check if a newer Muggle Test version is available and notify",
+    description: "Check daily for a newer Muggle Test version on the installed release lane, and remind at session start and on every skill call",
   },
   [PreferenceKey.VerboseOutput]: {
     description: "Show detailed progress logs during skill and tool execution",

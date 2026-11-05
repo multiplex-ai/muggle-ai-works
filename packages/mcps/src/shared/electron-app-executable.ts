@@ -1,6 +1,9 @@
 import * as path from "path";
 
-import { ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS } from "./electron-app-executable-constants.js";
+import {
+  ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS,
+  ELECTRON_APP_RESOURCES_PATH_SEGMENTS,
+} from "./electron-app-executable-constants.js";
 import { ElectronAppPlatform } from "./electron-app-executable-types.js";
 
 /**
@@ -29,4 +32,23 @@ export function resolveElectronAppExecutablePath(params: {
   }
 
   return path.join(params.installDir, ...ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS[params.platformName]);
+}
+
+/**
+ * Resolve the resources directory packaged with a studio executable.
+ * @param params - Resolution parameters.
+ * @param params.executablePath - The studio executable, wherever it was installed or built.
+ * @param params.platformName - Platform as `os.platform()` reports it.
+ * @returns Directory path, for example `<executable directory>/resources` on Windows.
+ * @throws Error when no studio build is published for the platform.
+ */
+export function resolveElectronAppResourcesDir(params: {
+  executablePath: string;
+  platformName: string;
+}): string {
+  if (!isElectronAppPlatform(params.platformName)) {
+    throw new Error(`Unsupported platform: ${params.platformName}`);
+  }
+
+  return path.join(path.dirname(params.executablePath), ...ELECTRON_APP_RESOURCES_PATH_SEGMENTS[params.platformName]);
 }

@@ -11,3 +11,13 @@ export const ELECTRON_APP_EXECUTABLE_PATH_SEGMENTS: Readonly<Record<ElectronAppP
   [ElectronAppPlatform.Win32]: ["MuggleAI.exe"],
   [ElectronAppPlatform.Linux]: ["muggle-ai-studio"],
 };
+
+/**
+ * Where a packaged studio keeps its resources, relative to the directory of its executable, as
+ * path segments: the location Electron reports as `process.resourcesPath` in the running app.
+ */
+export const ELECTRON_APP_RESOURCES_PATH_SEGMENTS: Readonly<Record<ElectronAppPlatform, readonly string[]>> = {
+  [ElectronAppPlatform.Darwin]: ["..", "Resources"],
+  [ElectronAppPlatform.Win32]: ["resources"],
+  [ElectronAppPlatform.Linux]: ["resources"],
+};

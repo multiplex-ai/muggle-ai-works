@@ -16,6 +16,22 @@ export type RunResultStatus = "pending" | "running" | "passed" | "failed" | "can
 export type RunResultType = "generation" | "replay";
 
 /**
+ * The studio build a run spawned, as its packaged release manifest states.
+ *
+ * Output shape: `{ commitSha: "cda91cd1…", buildId: "20261103234154", buildTime: "2026-11-03T23:41:54Z", executablePath: "…/MuggleAI.exe" }`
+ */
+export interface IStudioBuild {
+  /** Commit the build was made from: a full SHA from a release build, the literal `local` from a build that named none. */
+  commitSha: string;
+  /** Release build id, or `local`. */
+  buildId: string;
+  /** ISO 8601 build time. */
+  buildTime: string;
+  /** The executable the run spawned. */
+  executablePath: string;
+}
+
+/**
  * Local execution context captured during local run execution.
  */
 export interface ILocalExecutionContext {
@@ -37,6 +53,8 @@ export interface ILocalExecutionContext {
   localExecutionCompletedAt?: number;
   /** The code each local port served, recorded only when the checkout's stack lease held for the whole run. */
   servedStack?: IStackNeed[];
+  /** The studio build the run spawned; dropped when the service stack changed during the run. */
+  studioBuild?: IStudioBuild;
 }
 
 /**

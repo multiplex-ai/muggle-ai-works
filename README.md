@@ -152,6 +152,7 @@ Every skill has a short alias. Both spellings work in Claude Code. In Codex, men
 | `/muggle:muggle-logout` | `/mlogout` | Sign out |
 | `/muggle:muggle-run-view` | `/mrun` | View a local run's steps and frames |
 | `/muggle:muggle-cleanup` | `/mcleanup` | Remove old runner versions |
+| `/muggle:muggle-register` | `/mregister` | Create a new account from the terminal |
 
 ---
 

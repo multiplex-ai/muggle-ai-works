@@ -26,8 +26,8 @@ When user asks for "muggle" with no specific subcommand, use `AskUserQuestion` t
 
 - "Test a feature — run E2E acceptance tests locally or remotely" → `muggle-test-feature-local` (local) or `muggle-test` (remote/change-driven)
 - "Build something — implement a feature with E2E acceptance tests and a visual PR" → `muggle-do`
-- "Health check — verify installation and fix issues" → `muggle-status` (then `muggle-repair` if issues found)
-- "Upgrade — update to latest version" → `muggle-upgrade`
+- "Health check — verify installation, fix issues, or upgrade" → `muggle-status` (then `muggle-repair` if issues found, `muggle-upgrade` if out of date)
+- "Create an account — register a new Muggle AI account" → `muggle-register`
 
 ## Routing
 
@@ -42,6 +42,7 @@ If the user intent clearly matches one command, route directly — no menu neede
 - log out/sign out → `muggle-logout`
 - view a local run/muggle run-view → `muggle-run-view`
 - remove old runner versions/free disk space/muggle cleanup → `muggle-cleanup`
+- create an account/register/sign up for muggle → `muggle-register`
 - test my changes/acceptance test my work/test before push/post E2E acceptance results to PR/test on staging/test on preview → `muggle-test`
 - test localhost/validate single feature/test a feature → `muggle-test-feature-local`
 - build/implement from request/end-to-end → `muggle-do`

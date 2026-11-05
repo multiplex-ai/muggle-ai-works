@@ -2438,5 +2438,55 @@
     "query": "onboard our new engineer to this repo with a README section",
     "expected_skill": "none",
     "note": "traps muggle-init; writing docs, not Muggle onboarding"
+  },
+  {
+    "query": "muggle register",
+    "expected_skill": "muggle-register",
+    "note": "Explicit canonical trigger."
+  },
+  {
+    "query": "/muggle-register",
+    "expected_skill": "muggle-register",
+    "note": "Explicit slash command."
+  },
+  {
+    "query": "create a muggle account for me",
+    "expected_skill": "muggle-register",
+    "note": "Direct account-creation intent."
+  },
+  {
+    "query": "I want to sign up for Muggle, how do I do that from here?",
+    "expected_skill": "muggle-register",
+    "note": "Signup intent phrased as a how-to."
+  },
+  {
+    "query": "I don't have a muggle account yet, can you make one with me@acme.io?",
+    "expected_skill": "muggle-register",
+    "note": "No account yet, email supplied."
+  },
+  {
+    "query": "register me for muggle ai",
+    "expected_skill": "muggle-register",
+    "note": "Register wording, named product."
+  },
+  {
+    "query": "open a new muggle account, I don't want to go through a browser",
+    "expected_skill": "muggle-register",
+    "note": "Headless signup intent."
+  },
+  {
+    "query": "how do I get a Muggle account?",
+    "expected_skill": "muggle-register",
+    "note": "Question form; the skill does it rather than explains it."
+  },
+  {
+    "query": "need a second muggle account on my work email",
+    "expected_skill": "muggle-register",
+    "note": "Already has one; a new account is still register."
+  },
+  {
+    "query": "set me up with a Muggle AI login, I've never used it before",
+    "expected_skill": "muggle-register",
+    "note": "New user; 'login' wording, no existing account."
   }
 ]

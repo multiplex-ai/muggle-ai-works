@@ -40,6 +40,7 @@ import { DEFAULT_GENERATION_TIMEOUT_MS, DEFAULT_REPLAY_TIMEOUT_MS } from "./exec
 import { acquireLocalExecutionLock } from "./local-execution-lock.js";
 import { describeElectronSpawnFailure } from "./spawn-failure-message.js";
 import { resolveEffectiveFreshSession } from "./fresh-session.js";
+import { readStudioBuildAsync } from "./studio-build.js";
 import type { ILocalExecutionContext } from "./run-result-storage-service.js";
 import type { RunResultStatus } from "./run-result-storage-service.js";
 
@@ -239,8 +240,12 @@ async function getLocalExecutionContextBaseAsync(params: {
   runByUserId: string;
   originalUrl: string;
   productionUrl: string;
+  electronAppPath: string | null;
 }): Promise<ILocalExecutionContext> {
   const packageJson = await findPackageJsonAsync();
+  const studioBuild = params.electronAppPath
+    ? await readStudioBuildAsync({ executablePath: params.electronAppPath, platformName: os.platform() })
+    : undefined;
 
   return {
     originalUrl: params.originalUrl,
@@ -250,6 +255,7 @@ async function getLocalExecutionContextBaseAsync(params: {
     osInfo: `${os.platform()} ${os.release()} ${os.arch()}`,
     electronAppVersion: packageJson.muggleConfig.electronAppVersion,
     mcpServerVersion: packageJson.version,
+    ...(studioBuild && { studioBuild: studioBuild }),
   };
 }
 
@@ -482,16 +488,12 @@ async function scanForRuntimeDirByMtime(params: {
 }
 
 /**
- * Resolve the electron-app binary path on every call.
+ * The electron-app binary a run resolved, or a detailed error when it found none.
  *
- * Re-resolves from the filesystem each invocation so a long-running MCP
- * server picks up `muggle upgrade` / `muggle setup` changes without a
- * process restart.
- *
- * Throws a detailed error if the binary cannot be found.
+ * Each run resolves from the filesystem so a long-running MCP server picks up
+ * `muggle upgrade` / `muggle setup` changes without a process restart.
  */
-function getElectronAppPathOrThrow(): string {
-  const electronAppPath = resolveElectronAppPathOrNull();
+function requireElectronAppPath(electronAppPath: string | null): string {
   if (electronAppPath && electronAppPath.trim() !== "") {
     return electronAppPath;
   }
@@ -570,6 +572,7 @@ function resolveFailedRunStatus(executionResult: IElectronExecutionResult): RunR
 async function executeElectronAppAsync(params: {
   runId: string;
   runType: "generation" | "replay";
+  electronAppPath: string | null;
   scriptFilePath: string;
   authFilePath: string;
   mutationsFilePath?: string;
@@ -578,7 +581,7 @@ async function executeElectronAppAsync(params: {
   freshSession?: boolean;
 }): Promise<IElectronExecutionResult> {
   const mode = params.runType === "generation" ? "explore" : "engine";
-  const electronAppPath = getElectronAppPathOrThrow();
+  const electronAppPath = requireElectronAppPath(params.electronAppPath);
   const spawnArgs = [mode, params.scriptFilePath, params.mutationsFilePath ?? "", params.authFilePath];
 
   if (params.showUi) {
@@ -775,7 +778,10 @@ async function runTestGenerationLocked(params: {
     throw new Error("Missing required testCase.url for local run upload metadata");
   }
 
+  // Resolved once so the build the run record names is the binary the run spawns.
+  const electronAppPath = resolveElectronAppPathOrNull();
   const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    electronAppPath: electronAppPath,
     runByUserId: userId,
     originalUrl: localUrl,
     productionUrl: testCase.url,
@@ -845,6 +851,7 @@ async function runTestGenerationLocked(params: {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "generation",
+        electronAppPath: electronAppPath,
         scriptFilePath: inputFilePath,
         mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,
@@ -1054,7 +1061,10 @@ async function runReplayLocked(params: {
     throw new Error("Missing required testScript.url for local run upload metadata");
   }
 
+  // Resolved once so the build the run record names is the binary the run spawns.
+  const electronAppPath = resolveElectronAppPathOrNull();
   const localExecutionContextBase = await getLocalExecutionContextBaseAsync({
+    electronAppPath: electronAppPath,
     runByUserId: userId,
     originalUrl: localUrl,
     productionUrl: testScript.url,
@@ -1109,6 +1119,7 @@ async function runReplayLocked(params: {
       const executionResult = await executeElectronAppAsync({
         runId: runId,
         runType: "replay",
+        electronAppPath: electronAppPath,
         scriptFilePath: inputFilePath,
         mutationsFilePath: mutationsFilePath,
         authFilePath: authFilePath,

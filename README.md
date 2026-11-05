@@ -146,6 +146,12 @@ Every skill has a short alias. Both spellings work in Claude Code. In Codex, men
 | `/muggle:muggle-status` | `/mstatus` | Health check: runner, MCP server, auth |
 | `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix a broken install |
 | `/muggle:muggle-upgrade` | `/mupgrade` | Update to the latest version |
+| `/muggle:muggle-init` | `/minit` | Run the onboarding walkthrough |
+| `/muggle:muggle-ci-install` | `/mci` | Add the walkthrough check to GitHub Actions |
+| `/muggle:muggle-login` | `/mlogin` | Sign in, or switch accounts |
+| `/muggle:muggle-logout` | `/mlogout` | Sign out |
+| `/muggle:muggle-run-view` | `/mrun` | View a local run's steps and frames |
+| `/muggle:muggle-cleanup` | `/mcleanup` | Remove old runner versions |
 
 ---
 

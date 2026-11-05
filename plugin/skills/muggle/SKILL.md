@@ -36,6 +36,12 @@ If the user intent clearly matches one command, route directly — no menu neede
 - status/health/check → `muggle-status`
 - repair/fix/install broken → `muggle-repair`
 - upgrade/update latest → `muggle-upgrade`
+- onboarding/muggle init → `muggle-init`
+- require E2E in CI/add the walkthrough check/muggle ci-install → `muggle-ci-install`
+- log in/sign in/switch account → `muggle-login`
+- log out/sign out → `muggle-logout`
+- view a local run/muggle run-view → `muggle-run-view`
+- remove old runner versions/free disk space/muggle cleanup → `muggle-cleanup`
 - test my changes/acceptance test my work/test before push/post E2E acceptance results to PR/test on staging/test on preview → `muggle-test`
 - test localhost/validate single feature/test a feature → `muggle-test-feature-local`
 - build/implement from request/end-to-end → `muggle-do`

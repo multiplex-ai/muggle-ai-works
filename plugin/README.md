@@ -47,6 +47,12 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-status` | `/mstatus` | Health check for Electron browser test runner, MCP server, and authentication. |
 | `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix broken installation automatically. |
 | `/muggle:muggle-upgrade` | `/mupgrade` | Update Electron browser test runner and MCP server to latest version. |
+| `/muggle:muggle-init` | `/minit` | Run the onboarding walkthrough and save your preferences. |
+| `/muggle:muggle-ci-install` | `/mci` | Add the Muggle walkthrough check to GitHub Actions. |
+| `/muggle:muggle-login` | `/mlogin` | Sign in to Muggle AI, or switch accounts. |
+| `/muggle:muggle-logout` | `/mlogout` | Sign out and clear stored credentials. |
+| `/muggle:muggle-run-view` | `/mrun` | View a local run's steps beside the frames they produced. |
+| `/muggle:muggle-cleanup` | `/mcleanup` | Remove old browser test runner versions and obsolete skills. |
 
 Every skill ships the short alias in the table above. Type `/m` (Claude Code), `m` (Cursor) or `$muggle:m` (Codex) to open the menu, or jump straight to one (e.g. `/mtest`, `$muggle:mtest`). Claude Code namespaces plugin commands, so the aliases resolve as `/muggle:mtest`; mirror them into `~/.claude/commands/` to type `/mtest` bare.
 

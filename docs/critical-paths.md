@@ -18,8 +18,8 @@ Maps each task a user performs with Muggle Works to what serves it, and ranks wh
 | # | Phase | Task | Served by | Coverage |
 | :- | :---- | :--- | :-------- | :------- |
 | 1 | Install | Install the plugin or MCP server | Install pages, `/plugin install` | CLI |
-| 2 | Install | Save preferences, offer the CI check | `muggle init` | CLI |
-| 3 | Install | Sign in | `muggle login`, automatic on first protected call | CLI |
+| 2 | Install | Save preferences, offer the CI check | `/minit` | Skill |
+| 3 | Install | Sign in | `/mlogin`, automatic on first protected call | Skill |
 | 4 | Install | Confirm the install is healthy | `/mstatus`, `muggle doctor` | Skill |
 | 5 | Project | Create a project and seed it from the live site | `muggle-remote-workflow-start-website-scan`, `-start-test-case-detection`, `-use-case-candidates-approve` | MCP only |
 | 6 | Project | Seed from existing tests or PRDs | `/mimport` | Skill |
@@ -32,14 +32,14 @@ Maps each task a user performs with Muggle Works to what serves it, and ranks wh
 | 13 | Build | Take a request to a pull request | `/mdo` | Skill |
 | 14 | Pull request | Post the walkthrough | `/mpr` | Skill |
 | 15 | Pull request | Handle reviews, CI, and base drift | `/mprfollowup`, `muggle watch` | Skill |
-| 16 | Pull request | Require the walkthrough in CI | `muggle ci-install` | CLI |
+| 16 | Pull request | Require the walkthrough in CI | `/mci` | Skill |
 | 17 | Automate | Run on a schedule | `muggle-remote-recommend-schedule` | MCP only |
 | 18 | Automate | Run from CI with an API key | `muggle-remote-auth-api-key-*`, `muggle-remote-recommend-cicd-setup` | MCP only |
 | 19 | Maintain tests | Flag a wrong script or step | `/mfeedback` | Skill |
 | 20 | Maintain tests | Generate missing scripts | `/mregen` | Skill |
 | 21 | Maintain tests | Regenerate stale scripts in bulk | Per case through failure handling | Partial |
 | 22 | Maintain tests | Edit, delete, or approve test cases | `muggle-remote-test-case-*`, `muggle-remote-use-case-*` | MCP only |
-| 23 | Review | See results history and cost | `muggle run-view` for one local run; `muggle-remote-report-*` otherwise | Partial |
+| 23 | Review | See results history and cost | `/mrun` for one local run; `muggle-remote-report-*` otherwise | Partial |
 | 24 | Account | Top up the wallet, set auto top-up | `muggle-remote-wallet-*` | MCP only |
 | 25 | Account | Invite teammates | Organization → Members | Dashboard |
 | 26 | Operate | Change preferences | `/mprefs` | Skill |
@@ -65,23 +65,9 @@ Ranked by how early the gap stops a user. Names are proposals.
 | 9 | `muggle-chaining` skill | 8 | Skills read the test plan graph but never configure it |
 | 10 | `muggle uninstall`, `muggle env` commands | 29, 30 | Removal from a repository and environment switching are manual |
 
-## CLI Commands Without a Slash Command
-
-Slash commands autocomplete in the agent; `muggle x` does not, so a user has to already know the command exists. All 15 files in `plugin/commands/` alias a skill, and none exposes a CLI command.
-
-| CLI command | Proposal | Tasks |
-| :---------- | :------- | :---- |
-| `muggle init` | `/minit` | 2 |
-| `muggle login`, `muggle logout` | `/mlogin`, `/mlogout` | 3 |
-| `muggle ci-install` | `/mci` | 16 |
-| `muggle run-view` | `/mrun` | 23 |
-| `muggle cleanup` | `/mcleanup` | None |
-
-`muggle status` and `muggle doctor` overlap `/mstatus`, `muggle setup` overlaps `/mrepair`, and `muggle upgrade` overlaps `/mupgrade`, so none needs its own command. The rest are run by agents or services, not typed by users: `serve`, `llm-source`, `build-pr-section`, `pr-walkthrough-check`, `e2e-plan`, `checkout-freshness`, `stack`, `watch`, `reload-plugins`.
-
 ## Unreferenced Tools
 
-64 of 126 MCP tools are referenced by no file under `plugin/`, counting exact names only. Most are the tools behind tasks 5, 7, 8, 12, 17, 22, 23, and 24.
+63 of 126 MCP tools are referenced by no file under `plugin/`, counting exact names only. Most are the tools behind tasks 5, 7, 8, 12, 17, 22, 23, and 24.
 
 ## Limits
 

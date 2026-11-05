@@ -53,6 +53,7 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-logout` | `/mlogout` | Sign out and clear stored credentials. |
 | `/muggle:muggle-run-view` | `/mrun` | View a local run's steps beside the frames they produced. |
 | `/muggle:muggle-cleanup` | `/mcleanup` | Remove old browser test runner versions and obsolete skills. |
+| `/muggle:muggle-register` | `/mregister` | Create a new Muggle AI account with an email and password, no browser needed, and store its API key. |
 
 Every skill ships the short alias in the table above. Type `/m` (Claude Code), `m` (Cursor) or `$muggle:m` (Codex) to open the menu, or jump straight to one (e.g. `/mtest`, `$muggle:mtest`). Claude Code namespaces plugin commands, so the aliases resolve as `/muggle:mtest`; mirror them into `~/.claude/commands/` to type `/mtest` bare.
 

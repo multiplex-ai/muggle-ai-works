@@ -72,9 +72,7 @@ The log is for reading; the **diff decides**. `NON_SHIPPING` drops paths that ca
 ### Electron (`muggleConfig`)
 
 1. Read **`package.json` → `muggleConfig.electronAppVersion`**.
-2. **Latest desktop on GitHub:**  
-   `https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=30`  
-   → newest **`tag_name`** matching **`electron-app-v*`** → strip prefix → **`latestElectronVersion`** (semver only).
+2. **Latest desktop on GitHub:** the highest version, compared as semver, among non-draft **`electron-app-v*`** releases that carry all four zips, each zip's `.sigstore.json` bundle and `checksums.txt` → strip prefix → **`latestElectronVersion`**. Read every page of `https://api.github.com/repos/multiplex-ai/muggle-ai-works/releases?per_page=100`, following the `Link: rel="next"` header. GitHub does not list releases in version order, so the first match is not the newest. This is the pick `muggle upgrade` makes (`src/cli/studio-release/newest-release.ts`), held to every platform instead of one.
 
 ### Print (always)
 

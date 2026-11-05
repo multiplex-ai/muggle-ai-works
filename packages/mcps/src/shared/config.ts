@@ -9,6 +9,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 import { getDataDir as getSharedDataDir } from "./data-dir.js";
+import { ELECTRON_APP_CHECKSUMS_ASSET_NAME } from "./electron-app-executable-constants.js";
 import { isElectronAppPlatform, resolveElectronAppExecutablePath } from "./electron-app-executable.js";
 import { buildElectronAppDirName } from "./electron-app-install-dir.js";
 import { readReleaseManifest } from "./release_manifest.js";
@@ -567,7 +568,7 @@ export function buildElectronAppReleaseAssetUrl(params: {
  * @returns Fully-qualified checksums URL.
  */
 export function buildElectronAppChecksumsUrl(version: string): string {
-  return `${getDownloadBaseUrl()}/${buildElectronAppReleaseTag(version)}/checksums.txt`;
+  return `${getDownloadBaseUrl()}/${buildElectronAppReleaseTag(version)}/${ELECTRON_APP_CHECKSUMS_ASSET_NAME}`;
 }
 
 /**

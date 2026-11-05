@@ -32,6 +32,12 @@
       ]
     },
     "thread-resolved": {"tool":"Bash","argContains":"resolveReviewThread"},
+    "greeting-test-edited": {
+      "anyOf": [
+        {"tool":"Edit","argContains":"greeting_test.js\","},
+        {"tool":"Write","argContains":"greeting_test.js\","}
+      ]
+    },
     "unit-run": {
       "anyOf": [
         {"tool":"Bash","argContains":"guard-run"},
@@ -508,20 +514,21 @@
         {"commandContains":"diff --name-only","response":"test/greeting_test.js"}
       ],
       "expect": {
-        "requireToolSequence": [
-          {"tool":"Read","argContains":"fix-ci.md"},
-          {"tool":"Bash","argContains":"lint"},
-          {
-            "anyOf": [
-              {"tool":"Edit","argContains":"greeting_test.js\","},
-              {"tool":"Write","argContains":"greeting_test.js\","}
-            ]
-          },
-          {"tool":"Bash","argContains":"lint"},
-          {"pattern":"unit-run"},
-          {"pattern":"pushed"},
-          {"pattern":"no-app-logic-skip"},
-          {"pattern":"watcher-armed"}
+        "requireToolSequences": [
+          [
+            {"tool":"Read","argContains":"fix-ci.md"},
+            {"tool":"Bash","argContains":"lint"},
+            {"pattern":"greeting-test-edited"},
+            {"tool":"Bash","argContains":"lint"},
+            {"pattern":"pushed"},
+            {"pattern":"no-app-logic-skip"},
+            {"pattern":"watcher-armed"}
+          ],
+          [
+            {"pattern":"greeting-test-edited"},
+            {"pattern":"unit-run"},
+            {"pattern":"pushed"}
+          ]
         ],
         "requireToolAttempts": [{"tool":"Bash","argContains":["git commit","fix(ci)"]},{"pattern":"respawn-read"}],
         "requireLastAmong": [{"among":{"pattern":"outward-action"},"last":{"pattern":"watcher-armed"},"unless":{"pattern":"session-note"}}],

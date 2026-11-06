@@ -13,7 +13,7 @@ const platformState = vi.hoisted(() => ({ value: "win32", home: "/home/u" }));
 
 const mcpsMocks = vi.hoisted(() => ({
   getActiveRuntimeTarget: vi.fn(() => "production"),
-  getAuthService: vi.fn(() => ({ getAuthStatus: vi.fn(() => ({ authenticated: true, email: "u@e.com" })) })),
+  getAuthService: vi.fn(() => ({ getRenewedAuthStatus: vi.fn(async () => ({ authenticated: true, email: "u@e.com" })) })),
   getBundledElectronAppVersion: vi.fn(() => "1.0.4"),
   getConfig: vi.fn(() => ({
     e2e: { promptServiceBaseUrl: "https://prompt" },
@@ -75,7 +75,7 @@ describe("doctorCommand", () => {
     platformState.home = "/home/u";
     mcpsMocks.getElectronAppVersionSource.mockReturnValue("bundled");
     mcpsMocks.getAuthService.mockReturnValue({
-      getAuthStatus: vi.fn(() => ({ authenticated: true, email: "u@e.com" })),
+      getRenewedAuthStatus: vi.fn(async () => ({ authenticated: true, email: "u@e.com" })),
     } as never);
     mcpsMocks.hasApiKey.mockReturnValue(true);
     logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -176,7 +176,7 @@ describe("doctorCommand", () => {
 
   it("reports not-authenticated and missing api key", async () => {
     mcpsMocks.getAuthService.mockReturnValue({
-      getAuthStatus: vi.fn(() => ({ authenticated: false })),
+      getRenewedAuthStatus: vi.fn(async () => ({ authenticated: false })),
     } as never);
     mcpsMocks.hasApiKey.mockReturnValue(false);
     await doctorCommand();

@@ -96,7 +96,7 @@ export async function statusCommand (): Promise<void> {
   console.log(`Backend: ${getConfig().e2e.promptServiceBaseUrl}\n`);
 
   const authService = getAuthService();
-  const status = authService.getAuthStatus();
+  const status = await authService.getRenewedAuthStatus();
   const hasStoredApiKey = hasApiKey();
 
   if (status.authenticated) {

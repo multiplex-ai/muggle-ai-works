@@ -380,7 +380,7 @@ function validateCursorMcpConfig(): { passed: boolean; description: string } {
  * Run all diagnostic checks.
  * @returns Array of check results.
  */
-function runDiagnostics (): ICheckResult[] {
+async function runDiagnosticsAsync (): Promise<ICheckResult[]> {
   const results: ICheckResult[] = [];
   const config = getConfig();
 
@@ -451,7 +451,7 @@ function runDiagnostics (): ICheckResult[] {
 
   // Check 3: Authentication status
   const authService = getAuthService();
-  const authStatus = authService.getAuthStatus();
+  const authStatus = await authService.getRenewedAuthStatus();
   results.push({
     name: "Authentication",
     passed: authStatus.authenticated,
@@ -540,7 +540,7 @@ export async function doctorCommand (): Promise<void> {
   console.log("\nMuggle Works Doctor");
   console.log("=================\n");
 
-  const results = runDiagnostics();
+  const results = await runDiagnosticsAsync();
 
   for (const checkResult of results) {
     console.log(formatCheckResult(checkResult));

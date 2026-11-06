@@ -192,9 +192,9 @@ const activeProcesses: Map<string, IInternalExecutionProcess> = new Map();
 /**
  * Get the authenticated user ID.
  */
-function getAuthenticatedUserId(): string {
+async function getAuthenticatedUserIdAsync(): Promise<string> {
   const authService = getAuthService();
-  const authStatus = authService.getAuthStatus();
+  const authStatus = await authService.getRenewedAuthStatus();
 
   if (!authStatus.authenticated) {
     throw new Error("Not authenticated. Please run muggle-remote-auth-login first.");
@@ -282,9 +282,9 @@ async function getLocalExecutionContextBaseAsync(params: {
 /**
  * Build auth content for electron-app.
  */
-function buildStudioAuthContent(): { accessToken: string; email: string; userId: string } {
+async function buildStudioAuthContentAsync(): Promise<{ accessToken: string; email: string; userId: string }> {
   const authService = getAuthService();
-  const authStatus = authService.getAuthStatus();
+  const authStatus = await authService.getRenewedAuthStatus();
   const storedAuth = authService.loadStoredAuth();
 
   if (!authStatus.authenticated || !storedAuth) {
@@ -792,8 +792,8 @@ async function runTestGenerationLocked(params: {
   const timeoutMs = params.timeoutMs ?? DEFAULT_GENERATION_TIMEOUT_MS;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  const userId = getAuthenticatedUserId(); // Throws if not authenticated
-  const authContent = buildStudioAuthContent();
+  const userId = await getAuthenticatedUserIdAsync(); // Throws if not authenticated
+  const authContent = await buildStudioAuthContentAsync();
   if (!testCase.url) {
     throw new Error("Missing required testCase.url for local run upload metadata");
   }
@@ -1083,8 +1083,8 @@ async function runReplayLocked(params: {
   const timeoutMs = params.timeoutMs ?? DEFAULT_REPLAY_TIMEOUT_MS;
 
   // Verify authentication (authContent will be used when electron-app integration is complete)
-  const userId = getAuthenticatedUserId(); // Throws if not authenticated
-  const authContent = buildStudioAuthContent();
+  const userId = await getAuthenticatedUserIdAsync(); // Throws if not authenticated
+  const authContent = await buildStudioAuthContentAsync();
   if (!testScript.url) {
     throw new Error("Missing required testScript.url for local run upload metadata");
   }

@@ -284,6 +284,7 @@ export interface AgentScenario {
   /**
    * Agent targets: the dispatch prompt the dispatching skill would send.
    * Skill targets: the invocation's arguments, as typed after `/<skill>`.
+   * `{{home}}` and `{{repo}}` become the run's sandbox paths.
    */
   prompt: string;
   /** Scripted results for intercepted Bash calls. */

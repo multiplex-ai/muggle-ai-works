@@ -449,7 +449,7 @@ export const TestCaseUpdateInputSchema = z.object({
   precondition: z.string().optional().describe("Updated precondition"),
   expectedResult: z.string().min(1).optional().describe("Updated expected result"),
   url: z.string().url().optional().describe("Updated target URL"),
-  status: z.enum(["DRAFT", "ACTIVE", "DEPRECATED", "ARCHIVED"]).optional().describe("Updated status"),
+  status: z.enum(["DRAFT", "ACTIVE", "DEPRECATED", "ARCHIVED"]).optional().describe("New lifecycle status; a status the lifecycle does not reach from the current one fails the call"),
   priority: z.enum(["HIGH", "MEDIUM", "LOW"]).optional().describe("Updated priority"),
   tags: z.array(z.string()).optional().describe("Updated tags"),
   category: z.string().optional().describe("Updated category"),

@@ -122,6 +122,12 @@ export interface IQaToolDefinition {
   /** Map validated input to upstream call. */
   mapToUpstream: (input: unknown) => IUpstreamCall;
 
+  /**
+   * Calls the input needs after the primary one, run in order once each call before it succeeded; the
+   * tool answers with the last call's response. Absent or empty when the primary call is the whole write.
+   */
+  mapToFollowUpUpstream?: (input: unknown) => IUpstreamCall[];
+
   /** Map upstream response to tool output. */
   mapFromUpstream?: (response: IUpstreamResponse, input?: unknown) => unknown;
 

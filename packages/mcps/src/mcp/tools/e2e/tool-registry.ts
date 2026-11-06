@@ -45,6 +45,11 @@ import {
   mapSecretGroupSummary,
   mapSecretList,
 } from "./secret-metadata-transform.js";
+import {
+  buildTestCaseDefinitionUpdateBody,
+  buildTestCaseStatusUpdateCall,
+  hasTestCaseDefinitionEdit,
+} from "./test-case-update-upstream.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 import {
@@ -510,31 +515,26 @@ const testCaseTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-test-case-update",
-    description: `Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. ${TEST_CASE_LIMIT_GUIDANCE} Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).`,
+    description: `Directly update an existing test case's fields. Pass only the fields you want to change — others are left untouched. ${TEST_CASE_LIMIT_GUIDANCE} Use this for cheap, deterministic edits (rename, change status/priority, fix expected result, add tags, set or clear the pinned account with pinnedAccount, set whether every run starts from a fresh session with alwaysStartsFreshSession; pinned account and fresh session apply from the next script generation, not to existing scripts; set the roles it acts as and its prerequisite and result test states with actsAsRoleIds, prerequisiteStateId and resultStateId, null clearing each). A status change follows the test case lifecycle and is written after the other fields: a status the lifecycle does not reach from the current one fails the call with the statuses it does reach, and the other fields stay saved. Does not touch the associated test script — script regeneration is a separate workflow (muggle-remote-workflow-start-test-script-generation).`,
     inputSchema: schemas.TestCaseUpdateInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
-      const body: Record<string, unknown> = { id: toolInput.testCaseId, ...pickTestCaseTestStateFields(toolInput) };
-      if (toolInput.title !== undefined) body.title = toolInput.title;
-      if (toolInput.description !== undefined) body.description = toolInput.description;
-      if (toolInput.goal !== undefined) body.goal = toolInput.goal;
-      if (toolInput.precondition !== undefined) body.precondition = toolInput.precondition;
-      if (toolInput.expectedResult !== undefined) body.expectedResult = toolInput.expectedResult;
-      if (toolInput.url !== undefined) body.url = toolInput.url;
-      if (toolInput.status !== undefined) body.status = toolInput.status;
-      if (toolInput.priority !== undefined) body.priority = toolInput.priority;
-      if (toolInput.tags !== undefined) body.tags = toolInput.tags;
-      if (toolInput.category !== undefined) body.category = toolInput.category;
-      if (toolInput.automated !== undefined) body.automated = toolInput.automated;
-      if (toolInput.pinnedAccount !== undefined) body.pinnedAccount = toolInput.pinnedAccount;
-      if (toolInput.alwaysStartsFreshSession !== undefined) {
-        body.alwaysStartsFreshSession = toolInput.alwaysStartsFreshSession;
+      // The definition write drops status, so a lone status goes straight to the state endpoint.
+      if (toolInput.status !== undefined && !hasTestCaseDefinitionEdit(toolInput)) {
+        return buildTestCaseStatusUpdateCall(toolInput.testCaseId, toolInput.status);
       }
       return {
         method: "PUT",
         path: `${MUGGLE_TEST_PREFIX}/test-cases/${toolInput.testCaseId}`,
-        body: body,
+        body: buildTestCaseDefinitionUpdateBody(toolInput),
       };
+    },
+    mapToFollowUpUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestCaseUpdateInputSchema>;
+      // The state write answers with the case read after the definition write, so it goes last.
+      return toolInput.status !== undefined && hasTestCaseDefinitionEdit(toolInput)
+        ? [buildTestCaseStatusUpdateCall(toolInput.testCaseId, toolInput.status)]
+        : [];
     },
   },
   {
@@ -2168,7 +2168,10 @@ export async function executeQaTool(
     try {
       const upstreamCall = tool.mapToUpstream(resolvedInput);
       const client = getPromptServiceClient();
-      const response = await client.execute(upstreamCall, credentials, correlationId);
+      let response = await client.execute(upstreamCall, credentials, correlationId);
+      for (const followUpCall of tool.mapToFollowUpUpstream?.(resolvedInput) ?? []) {
+        response = await client.execute(followUpCall, credentials, correlationId);
+      }
 
       // Map response
       const mapper = tool.mapFromUpstream || defaultResponseMapper;

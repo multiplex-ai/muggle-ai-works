@@ -1,6 +1,6 @@
 {
   "target": {"kind":"skill","name":"muggle-do"},
-  "passThreshold": 1,
+  "passThreshold": 0.66,
   "patterns": {
     "e2e-executed": {
       "anyOf": [

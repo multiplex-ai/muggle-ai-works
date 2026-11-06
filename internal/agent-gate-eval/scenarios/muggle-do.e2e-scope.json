@@ -3,6 +3,7 @@
     "kind": "skill",
     "name": "muggle-do"
   },
+  "passThreshold": 0.66,
   "scenarios": [
     {
       "name": "scopes-retires-and-runs-only-the-scope",

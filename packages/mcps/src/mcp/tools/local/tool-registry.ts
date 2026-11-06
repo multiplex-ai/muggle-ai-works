@@ -105,7 +105,7 @@ const checkStatusTool: ILocalMcpTool = {
 
     const authService = getAuthService();
     const storageService = getStorageService();
-    const authStatus = authService.getAuthStatus();
+    const authStatus = await authService.getRenewedAuthStatus();
 
     const content = [
       "## Muggle Test Local Status",

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-const getAuthStatus = vi.fn();
+const getRenewedAuthStatus = vi.fn();
 
 vi.mock("../../../packages/mcps/src/index.js", () => ({
   assertDeviceCodeClientProvisioned: vi.fn(),
   getActiveRuntimeTarget: vi.fn(() => "production"),
-  getAuthService: vi.fn(() => ({ getAuthStatus })),
+  getAuthService: vi.fn(() => ({ getRenewedAuthStatus })),
   getConfig: vi.fn(() => ({ e2e: { promptServiceBaseUrl: "https://promptservice.muggle-ai.com" } })),
   getLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
   hasApiKey: vi.fn(),
@@ -114,7 +114,7 @@ describe("statusCommand", () => {
   afterEach(() => logSpy.mockRestore());
 
   it("prints authenticated details including expired token note and api key", async () => {
-    getAuthStatus.mockReturnValue({
+    getRenewedAuthStatus.mockResolvedValue({
       authenticated: true,
       email: "u@e.com",
       userId: "uid-1",
@@ -134,7 +134,7 @@ describe("statusCommand", () => {
   });
 
   it("prints not-authenticated guidance", async () => {
-    getAuthStatus.mockReturnValue({ authenticated: false });
+    getRenewedAuthStatus.mockResolvedValue({ authenticated: false });
     mockedHasApiKey.mockReturnValue(false);
 
     await statusCommand();

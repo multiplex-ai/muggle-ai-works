@@ -1948,7 +1948,7 @@ const authTools: IQaToolDefinition[] = [
     },
     localHandler: async () => {
       const authService = getAuthService();
-      const status = authService.getAuthStatus();
+      const status = await authService.getRenewedAuthStatus();
 
       if (!status.authenticated) {
         return {

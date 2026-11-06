@@ -76,6 +76,16 @@ export class AuthService {
   }
 
   /**
+   * Get authentication status after renewing a lapsed access token from the stored refresh token.
+   * Prefer this over getAuthStatus() wherever the answer decides whether the user must log in again.
+   * @returns Status reflecting the renewed token, or the lapsed one when renewal fails.
+   */
+  async getRenewedAuthStatus(): Promise<IAuthStatus> {
+    await this.getValidAccessToken();
+    return this.getAuthStatus();
+  }
+
+  /**
    * Start the device code flow.
    * @param options.forceNewSession - Clear existing Auth0 browser session before login to allow account switching.
    */

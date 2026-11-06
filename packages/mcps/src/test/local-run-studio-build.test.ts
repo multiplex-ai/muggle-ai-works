@@ -56,7 +56,7 @@ vi.mock("../mcp/local/services/local-execution-lock.js", () => ({
 
 vi.mock("../mcp/local/services/index.js", () => ({
   getAuthService: () => ({
-    getAuthStatus: () => ({ authenticated: true, userId: "user-1" }),
+    getRenewedAuthStatus: async () => ({ authenticated: true, userId: "user-1" }),
     loadStoredAuth: () => ({ accessToken: "token", email: "user@example.com", userId: "user-1" }),
   }),
   getRunResultStorageService: () => ({

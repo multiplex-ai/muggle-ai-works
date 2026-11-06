@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +10,7 @@ import { mockToolNamesByCodexName } from "../../skill-gate-eval/src/codex-cli.js
 import { CODEX_EVAL_HOME_MARKER } from "../../skill-gate-eval/src/constants.js";
 import {
   buildCodexAgentInstructions,
+  codexInvocationPrompt,
   codexUnsupportedFeatures,
   prepareCodexAgentHome,
   readCodexAgentTrace,
@@ -175,6 +176,18 @@ describe("the Codex agent harness", () => {
       "toolResponses",
       "requireArtifacts",
     ]);
+  });
+
+  it("runs a scenario that seeds only repo files, since its scripts answer every read of them", () => {
+    const repoFileSeed = { files: [{ path: "web/package.json", content: "{}" }] };
+    expect(codexUnsupportedFeatures({ ...options.scenario, seed: repoFileSeed })).toEqual([]);
+    const homeFileSeed = { files: [{ path: "~/.muggle-ai/x.json", content: "{}" }] };
+    expect(codexUnsupportedFeatures({ ...options.scenario, seed: homeFileSeed })).toEqual(["seed"]);
+  });
+
+  it("names its workspace and the real home where the prompt says {{repo}} and {{home}}", () => {
+    const scenario = { ...options.scenario, prompt: "dir: {{repo}}/web, notes: {{home}}/notes.md" };
+    expect(codexInvocationPrompt(scenario, "/work")).toBe(`dir: /work/web, notes: ${homedir()}/notes.md`);
   });
 
   it("gives the agent its definition and the Codex note, and names the mock tools only when the scenario has fixtures", () => {

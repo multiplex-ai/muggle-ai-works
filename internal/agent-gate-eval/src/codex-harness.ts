@@ -43,8 +43,10 @@ import {
   CODEX_AGENT_TRACE_ENV,
   CODEX_ASK_QUESTION_TOOL,
   DEFAULT_CODEX_AGENT_SANDBOX,
+  HOME_PATH_PREFIXES,
   UNSCRIPTED_BASH_RESPONSE,
 } from "./constants.js";
+import { fillSandboxPathTokens } from "./sandbox/paths.js";
 import { pluginRootOf } from "./target-definition.js";
 import { isSequencedFixture } from "./tools/sequenced-mock-mcp.js";
 import type {
@@ -53,6 +55,8 @@ import type {
   CodexAgentRunOptions,
   CodexAgentTraceEntry,
   CodexScriptedBash,
+  ScenarioSeed,
+  SeedFile,
   ToolAttempt,
 } from "./types.js";
 import { judgeAgentRun } from "./verdict.js";
@@ -60,8 +64,25 @@ import { judgeAgentRun } from "./verdict.js";
 const AGENT_HOOK = fileURLToPath(new URL("./codex-agent-hook.mjs", import.meta.url));
 
 /**
+ * True when a seed only writes repo files. Codex can run such a scenario: its
+ * hook answers every read outside the plugin tree from the scenario's scripts,
+ * so those scripts already speak for the files, and the seed only matters to
+ * the agent SDK harness, whose Read opens the sandbox.
+ */
+function seedsOnlyRepoFiles(seed: ScenarioSeed): boolean {
+  const isHomeFile = (seedFile: SeedFile) => HOME_PATH_PREFIXES.some((prefix) => seedFile.path.startsWith(prefix));
+  return !seed.repo && !seed.transcript && !(seed.files ?? []).some(isHomeFile);
+}
+
+/** The scenario prompt with `{{repo}}` as the Codex workspace, its working directory, and `{{home}}` as the real home it runs under. */
+export function codexInvocationPrompt(scenario: AgentScenario, workspace: string): string {
+  return fillSandboxPathTokens(scenario.prompt, { root: workspace, home: os.homedir(), repo: workspace });
+}
+
+/**
  * The scenario features the Codex harness cannot honor: it keeps no per-run
- * sandbox and its hook answers each shell call statelessly.
+ * sandbox and its hook answers each shell call statelessly. A seed of repo
+ * files is the exception (`seedsOnlyRepoFiles`).
  *
  * Output shape: `["bashResponses sequence", "seed"]` — empty when Codex can run the scenario.
  */
@@ -74,7 +95,7 @@ export function codexUnsupportedFeatures(scenario: AgentScenario): string[] {
     unsupported.push("bashResponses afterCommandContains");
   }
   if (Object.values(scenario.fixtures ?? {}).some(isSequencedFixture)) unsupported.push("fixtures sequence");
-  if (scenario.seed) unsupported.push("seed");
+  if (scenario.seed && !seedsOnlyRepoFiles(scenario.seed)) unsupported.push("seed");
   if (scenario.toolResponses) unsupported.push("toolResponses");
   if (scenario.expect.requireArtifacts) unsupported.push("requireArtifacts");
   return unsupported;
@@ -196,7 +217,7 @@ export async function runAgentScenarioOnceInCodex(
     profile,
     ...(opts.codexModel ? ["--model", opts.codexModel] : []),
     ...(opts.configOverrides ?? []).flatMap((override) => ["-c", override]),
-    opts.scenario.prompt,
+    codexInvocationPrompt(opts.scenario, workspace),
   ];
 
   try {

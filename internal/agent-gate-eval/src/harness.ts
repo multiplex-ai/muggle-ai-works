@@ -69,6 +69,7 @@ import {
   type AgentRunOptions,
   type AgentRunVerdict,
   type AgentScenario,
+  type RunSandbox,
   type RunUsage,
   type SandboxPathContext,
   type SkillDefinition,
@@ -143,10 +144,14 @@ export function buildSkillSystemPromptAppend(
   ].join("\n");
 }
 
-function invocationPrompt(definition: AgentDefinition | SkillDefinition, scenario: AgentScenario): string {
-  return definition.kind === EvalTargetKind.Skill
-    ? buildSkillInvocationMessage(definition, scenario.prompt)
-    : scenario.prompt;
+/** The run's first user message, with `{{home}}` and `{{repo}}` in the scenario prompt filled with this run's sandbox paths. */
+export function invocationPrompt(
+  definition: AgentDefinition | SkillDefinition,
+  scenario: AgentScenario,
+  sandbox: RunSandbox,
+): string {
+  const prompt = fillSandboxPathTokens(scenario.prompt, sandbox);
+  return definition.kind === EvalTargetKind.Skill ? buildSkillInvocationMessage(definition, prompt) : prompt;
 }
 
 /** Run one scenario once and return a verdict. Caller invokes this N times to compute a pass rate. */
@@ -192,7 +197,7 @@ export async function runAgentScenarioOnce(
     }
     if (isSkillTarget) mcpServers[HOST_STUB_SERVER_NAME] = buildHostStubServer(answerTool);
 
-    const firstUserMessage = invocationPrompt(definition, scenario);
+    const firstUserMessage = invocationPrompt(definition, scenario, sandbox);
     const transcript = scenario.seed?.transcript;
     // The transcript gets responders of its own, so its calls leave the live run's sequences unadvanced.
     const answerSeedTool = createToolResponder(scenario.toolResponses);

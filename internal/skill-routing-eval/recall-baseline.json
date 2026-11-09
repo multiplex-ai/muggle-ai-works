@@ -1,5 +1,5 @@
 {
-  "recorded_from": "mean of two full routing sweeps, runs 39018009334 (PR #493) and 39099224150 (PR #495), halves rounded down; skill frontmatter identical to master. muggle-ci-install, muggle-init, muggle-login, muggle-logout and muggle-run-view from one full sweep, run 41972491435 (PR #662), frontmatter identical to master. muggle-cleanup, muggle-do and muggle-register from the nightly full sweep run 42350057837 on master b7c3497, whose routing job passed; frontmatter and queries identical to master",
+  "recorded_from": "mean of two full routing sweeps, runs 39018009334 (PR #493) and 39099224150 (PR #495), halves rounded down; skill frontmatter identical to master. muggle-ci-install, muggle-init, muggle-login, muggle-logout and muggle-run-view from one full sweep, run 41972491435 (PR #662), frontmatter identical to master. muggle-cleanup, muggle-do and muggle-register from the mean of three full sweeps, runs 42270083061 (PR #677), 42350057837 (nightly on master b7c3497) and 42681307743 (PR #684), halves rounded down; frontmatter and queries identical to master. The nightly 42457676811 is left out: it ran in a stretch that depressed every skill",
   "runs_per_query": 3,
   "skills": {
     "muggle": {
@@ -19,7 +19,7 @@
       "total": 12
     },
     "muggle-do": {
-      "passed": 8,
+      "passed": 6,
       "total": 10
     },
     "muggle-feedback": {

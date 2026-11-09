@@ -495,7 +495,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-workflow-start-test-case-detection",
   },
   {
-    "description": "Start a test script generation workflow. The resolutions it records at come from the test case's test spec on the lane; set them with muggle-remote-test-case-display-resolutions-update. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run.",
+    "description": "Start a test script generation workflow. It records at one of the test case's runSettings records, whose resolutions muggle-remote-test-case-display-resolutions-update sets; pass runSettingsId to pick the record. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run.",
     "name": "muggle-remote-workflow-start-test-script-generation",
   },
   {

@@ -1,3 +1,4 @@
+import { breakIssueReferences } from "../e2e-result/format.js";
 import { hasRerunNotice } from "./comment.js";
 import {
   PROGRESS_SECTION,
@@ -12,7 +13,7 @@ import { E2eProgressStatus, type E2eProgressCase } from "./types.js";
 const encodeState = (cases: E2eProgressCase[]): string => JSON.stringify(cases).replace(/--/g, "-\\u002d");
 
 // Pipes split a table cell and newlines end the row.
-const tableCell = (text: string): string => text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
+const tableCell = (text: string): string => breakIssueReferences(text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " "));
 
 const isProgressCase = (value: unknown): value is E2eProgressCase => {
   if (!value || typeof value !== "object") return false;

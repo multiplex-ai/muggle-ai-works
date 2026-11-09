@@ -67,6 +67,13 @@ describe("withProgressSection", () => {
     expect(readProgressCases(body)).toEqual(awkward);
     expect(body).toContain("| Signup -- with \\| pipes --> | ⏳ Queued |");
   });
+
+  it("keeps a title's issue reference from linking, while the hidden state keeps it verbatim", () => {
+    const referencing = [queued("tc-3", "Order #12 refund")];
+    const body = withProgressSection(renderRunningComment(STARTED_AT), referencing) ?? "";
+    expect(body).toContain("| Order #<!-- -->12 refund | ⏳ Queued |");
+    expect(readProgressCases(body)).toEqual(referencing);
+  });
 });
 
 describe("withFinishedCase", () => {

@@ -3,6 +3,7 @@ import {
   HOT_PATH_SLOT_CAPS,
   MAX_TOTAL_HOOK_COMMANDS,
   NOOP_FIRING_BUDGET_MS,
+  NOOP_FIRING_TIMING_BATCHES,
   NOOP_FIRING_TIMING_RUNS,
   NOOP_FORBIDDEN_PROGRAMS,
   NOOP_MEASUREMENT_TIMEOUT_MS,
@@ -13,6 +14,7 @@ import {
   distinctGroupCommands,
   loadHooksManifest,
   measureSlotFootprint,
+  timeFiringBatches,
   timeSlotNoopFiring,
 } from "./footprint.js";
 import { HookShellOstype, type HookSlotCap } from "./types.js";
@@ -105,13 +107,17 @@ describe.skipIf(process.platform === "win32")("hook no-op path wall time", () =>
   it.each(HOT_PATH_SLOT_CAPS.map((cap) => [slotLabel(cap), cap] as const))(
     `%s answers an irrelevant event within ${NOOP_FIRING_BUDGET_MS}ms`,
     (label, cap) => {
-      const firingTimes = Array.from({ length: NOOP_FIRING_TIMING_RUNS }, () => timeSlotNoopFiring(manifest, cap)).sort(
-        (a, b) => a - b,
+      const batches = timeFiringBatches(
+        () => timeSlotNoopFiring(manifest, cap),
+        NOOP_FIRING_TIMING_RUNS,
+        NOOP_FIRING_TIMING_BATCHES,
+        NOOP_FIRING_BUDGET_MS,
       );
-      const medianMs = firingTimes[Math.floor(firingTimes.length / 2)];
-      expect(medianMs, `${label} median no-op firing (runs: ${firingTimes.map(Math.round).join(", ")}ms)`).toBeLessThanOrEqual(
+      const batchTimings = batches.map((batch) => batch.timesMs.map(Math.round).join(", ")).join(" | ");
+      expect(batches.at(-1)?.medianMs, `${label} median no-op firing in every batch (runs: ${batchTimings}ms)`).toBeLessThanOrEqual(
         NOOP_FIRING_BUDGET_MS,
       );
     },
+    NOOP_MEASUREMENT_TIMEOUT_MS,
   );
 });

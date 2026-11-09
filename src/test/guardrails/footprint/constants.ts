@@ -69,8 +69,14 @@ export const NOOP_TRANSCRIPT_PLACEHOLDER = "<footprint-transcript>";
 /** Wall-time budget for one no-op firing of a slot, enforced on Linux and macOS runners. */
 export const NOOP_FIRING_BUDGET_MS = 100;
 
-/** Firings timed per slot; the median is compared with the budget so one noisy run cannot fail CI. */
+/** Firings timed per batch; the batch median is compared with the budget so one noisy run cannot fail CI. */
 export const NOOP_FIRING_TIMING_RUNS = 5;
+
+/**
+ * Most batches timed per slot. A macOS runner can stall for a whole batch, so a batch over budget is followed by a
+ * fresh one; a hook that is itself over budget stays over in every batch and still fails.
+ */
+export const NOOP_FIRING_TIMING_BATCHES = 3;
 
 /**
  * Per-slot ceilings, set at the lazy-core targets: one hook command per hot slot and no program

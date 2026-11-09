@@ -10,6 +10,12 @@ import { PinnedAccountSchema } from "../../contracts/pinned-account-schema.js";
 import { WORKFLOW_LLM_PARAMS_DESCRIPTION } from "../../../shared/llm-tier-constants.js";
 import { LlmTierEnum } from "../../../shared/llm-tier-types.js";
 import { TEST_CASE_LIMIT_GUIDANCE } from "../../../shared/test-case-limit-constants.js";
+import {
+  MAX_WORKFLOW_MAX_RUN_TIME_OVERRIDE_MS,
+  MIN_WORKFLOW_MAX_RUN_TIME_OVERRIDE_MS,
+  WORKFLOW_MAX_RUN_TIME_PARAMS_DESCRIPTION,
+} from "../../../shared/workflow-max-run-time-constants.js";
+import { WorkflowMaxRunTimeTypeEnum } from "../../../shared/workflow-max-run-time-types.js";
 import { WORKFLOW_RUNTIME_ID_NOT_RUN_ID_HINT } from "./constants.js";
 import { FanOutChoiceInputSchema } from "./fan-out-choice.js";
 import { ProjectResolutionSettingsInputSchema } from "./project-display-resolution-schemas.js";
@@ -104,10 +110,28 @@ export const WorkflowLlmParamsSchema = z.object({
   tier: z.enum(LlmTierEnum).optional(),
 });
 
+const WorkflowMaxRunTimeMsSchema = z
+  .number()
+  .int()
+  .min(MIN_WORKFLOW_MAX_RUN_TIME_OVERRIDE_MS)
+  .max(MAX_WORKFLOW_MAX_RUN_TIME_OVERRIDE_MS)
+  .optional();
+
+/** Optional max runtime overrides in workflow params, keyed by workflow kind. */
+export const WorkflowMaxRunTimeParamsSchema = z.object({
+  [WorkflowMaxRunTimeTypeEnum.WebsiteScan]: WorkflowMaxRunTimeMsSchema,
+  [WorkflowMaxRunTimeTypeEnum.TestScriptGeneration]: WorkflowMaxRunTimeMsSchema,
+  [WorkflowMaxRunTimeTypeEnum.TestScriptGenerationBulk]: WorkflowMaxRunTimeMsSchema,
+  [WorkflowMaxRunTimeTypeEnum.TestScriptReplay]: WorkflowMaxRunTimeMsSchema,
+  [WorkflowMaxRunTimeTypeEnum.TestScriptReplayBulk]: WorkflowMaxRunTimeMsSchema,
+  [WorkflowMaxRunTimeTypeEnum.ReportGeneration]: WorkflowMaxRunTimeMsSchema,
+}).strict();
+
 /** Optional workflow parameters. */
 export const WorkflowParamsSchema = z.object({
   memory: WorkflowMemoryParamsSchema.optional().describe("Per-run memory override settings"),
   llm: WorkflowLlmParamsSchema.optional().describe(WORKFLOW_LLM_PARAMS_DESCRIPTION),
+  maxRunTimeMs: WorkflowMaxRunTimeParamsSchema.optional().describe(WORKFLOW_MAX_RUN_TIME_PARAMS_DESCRIPTION),
 }).passthrough().optional().describe("Optional workflow parameters for workflow-level overrides");
 
 /**

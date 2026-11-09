@@ -305,6 +305,8 @@ so the result carries a viewUrl straight to the dashboard
 | `muggle-remote-test-case-generate-from-prompt` | Generate from a prompt |
 | `muggle-remote-test-case-ancestors-get` | Walk prerequisite chains |
 | `muggle-remote-run-settings-list` | A test case's runSettings records in one lane |
+| `muggle-remote-test-case-display-resolutions-get` | The resolutions a test case runs at in one lane, primary first |
+| `muggle-remote-test-case-display-resolutions-update` | Set the resolutions a test case is generated and run at in one lane |
 | `muggle-remote-fan-out-plan` | A lane's records in start order, and whether the rest wait on the primary |
 | `muggle-remote-test-case-bulk-preview-submit` | Async batch preview (~50% cheaper) |
 | `muggle-remote-test-plan-graph-rebuild` | Rebuild the prerequisite graph |

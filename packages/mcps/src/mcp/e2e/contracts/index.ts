@@ -27,6 +27,7 @@ export * from "./project-display-resolution-schemas.js";
 export * from "./run-settings-schemas.js";
 export * from "./run-strategy-types.js";
 export * from "./secret-group-types.js";
+export * from "./test-case-display-resolution-schemas.js";
 export * from "./test-state-schemas.js";
 export * from "./test-state-types.js";
 

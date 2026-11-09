@@ -50,6 +50,11 @@ import {
   buildTestCaseStatusUpdateCall,
   hasTestCaseDefinitionEdit,
 } from "./test-case-update-upstream.js";
+import {
+  buildTestCaseTestSpecPath,
+  buildTestSpecCommitBody,
+  mapTestCaseDisplayResolutions,
+} from "./test-case-display-resolutions-transform.js";
 import { mapTestRunsSummary } from "./test-runs-summary-transform.js";
 import { mapTestScriptsSummary } from "./test-scripts-summary-transform.js";
 import {
@@ -424,6 +429,46 @@ const testCaseTools: IQaToolDefinition[] = [
       };
     },
     mapFromUpstream: mapRunSettingsList,
+  },
+  {
+    name: "muggle-remote-test-case-display-resolutions-get",
+    description:
+      "Get the resolutions one test case runs at on a lane, primary first, with its runSettings records and run strategy. Response shape: { projectId, testCaseId, runEnvironmentType, hasOwnTestSpec, displayResolutions, primaryResolution, featureFlags, runStrategy, runSettingsList: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary }] }. hasOwnTestSpec false means the test case follows the project lane's resolutions. Change them with muggle-remote-test-case-display-resolutions-update.",
+    inputSchema: schemas.TestCaseDisplayResolutionsGetInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestCaseDisplayResolutionsGetInputSchema>;
+      return {
+        method: "GET",
+        path: buildTestCaseTestSpecPath(toolInput),
+        queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
+      };
+    },
+    mapFromUpstream: mapTestCaseDisplayResolutions,
+  },
+  {
+    name: "muggle-remote-test-case-display-resolutions-update",
+    description:
+      "Set the resolutions one test case is generated and run at on a lane, e.g. [\"R_0390x0844\"] to verify it on a phone. Mints the test case's next test spec version: a resolution kept keeps its runSettings record and scripts, a new one gets a new record, and a dropped one's record is retired. The list replaces the whole selection, so read the current resolutions and featureFlags with muggle-remote-test-case-display-resolutions-get and pass back those to keep. Returns the same shape as muggle-remote-test-case-display-resolutions-get, read after the change.",
+    inputSchema: schemas.TestCaseDisplayResolutionsUpdateInputSchema,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestCaseDisplayResolutionsUpdateInputSchema>;
+      return {
+        method: "POST",
+        path: `${buildTestCaseTestSpecPath(toolInput)}/commit`,
+        body: buildTestSpecCommitBody(toolInput),
+      };
+    },
+    mapToFollowUpUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.TestCaseDisplayResolutionsUpdateInputSchema>;
+      return [
+        {
+          method: "GET",
+          path: buildTestCaseTestSpecPath(toolInput),
+          queryParams: { type: toolInput.runEnvironmentType ?? schemas.RunEnvironment.Remote },
+        },
+      ];
+    },
+    mapFromUpstream: mapTestCaseDisplayResolutions,
   },
   {
     name: "muggle-remote-fan-out-plan",
@@ -931,7 +976,7 @@ const workflowTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-workflow-start-test-script-generation",
-    description: `Start a test script generation workflow. ${TEST_CASE_LIMIT_GUIDANCE}`,
+    description: `Start a test script generation workflow. The resolutions it records at come from the test case's test spec on the lane; set them with muggle-remote-test-case-display-resolutions-update. ${TEST_CASE_LIMIT_GUIDANCE}`,
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
     dashboardLink: linkToInputScriptDetails,
     mapToUpstream: (input) => {

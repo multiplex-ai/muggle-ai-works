@@ -33,7 +33,12 @@ export function mapRunSettingsList(response: IUpstreamResponse): IRunSettingsLis
   return { runSettingsList: envelope.runSettingsList.map(toRunSettingsListRow) };
 }
 
-function toRunSettingsListRow(runSettings: IRawRunSettings): IRunSettingsListRow {
+/**
+ * Maps one runSettings record to its id, window size label, matching `displayResolution` and feature flags.
+ *
+ * Output shape: `{ runSettingsId: "7c1e…", resolutionLabel: "390×844", displayResolution: "R_0390x0844" }`
+ */
+export function toRunSettingsListRow(runSettings: IRawRunSettings): IRunSettingsListRow {
   const displayParams = runSettings.displayParams;
   const displayResolution = displayParams ? findDisplayResolution(displayParams) : undefined;
   return {

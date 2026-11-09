@@ -279,6 +279,14 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-test-case-delete",
   },
   {
+    "description": "Get the resolutions one test case runs at on a lane, primary first, with its runSettings records and run strategy. Response shape: { projectId, testCaseId, runEnvironmentType, hasOwnTestSpec, displayResolutions, primaryResolution, featureFlags, runStrategy, runSettingsList: [{ runSettingsId, resolutionLabel, displayResolution, isPrimary }] }. hasOwnTestSpec false means the test case follows the project lane's resolutions. Change them with muggle-remote-test-case-display-resolutions-update.",
+    "name": "muggle-remote-test-case-display-resolutions-get",
+  },
+  {
+    "description": "Set the resolutions one test case is generated and run at on a lane, e.g. ["R_0390x0844"] to verify it on a phone. Mints the test case's next test spec version: a resolution kept keeps its runSettings record and scripts, a new one gets a new record, and a dropped one's record is retired. The list replaces the whole selection, so read the current resolutions and featureFlags with muggle-remote-test-case-display-resolutions-get and pass back those to keep. Returns the same shape as muggle-remote-test-case-display-resolutions-get, read after the change.",
+    "name": "muggle-remote-test-case-display-resolutions-update",
+  },
+  {
     "description": "Generate E2E acceptance test cases from a plain-English description of what to test — e.g., 'test the signup flow with invalid email' or 'verify the checkout handles empty cart'. Returns preview test cases that can be used to generate executable browser test scripts.",
     "name": "muggle-remote-test-case-generate-from-prompt",
   },
@@ -487,7 +495,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-workflow-start-test-case-detection",
   },
   {
-    "description": "Start a test script generation workflow. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run.",
+    "description": "Start a test script generation workflow. It records at one of the test case's runSettings records, whose resolutions muggle-remote-test-case-display-resolutions-update sets; pass runSettingsId to pick the record. Anything the test must or must not touch, including which target and which path, goes in the test case's stored description before the run. A limit stated only in chat with the coding agent does not reach the run.",
     "name": "muggle-remote-workflow-start-test-script-generation",
   },
   {
@@ -580,6 +588,8 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-test-case-bulk-preview-submit",
   "muggle-remote-test-case-create",
   "muggle-remote-test-case-delete",
+  "muggle-remote-test-case-display-resolutions-get",
+  "muggle-remote-test-case-display-resolutions-update",
   "muggle-remote-test-case-generate-from-prompt",
   "muggle-remote-test-case-get",
   "muggle-remote-test-case-list",

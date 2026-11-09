@@ -180,6 +180,20 @@ describe("muggle-remote-workflow-start-test-script-generation lane forwarding", 
     const call = tool.mapToUpstream(genInput());
     expect(call.body as Record<string, unknown>).not.toHaveProperty("runEnvironmentType");
   });
+
+  it("forwards the runSettings record to record against", () => {
+    const tool = getQaToolByName("muggle-remote-workflow-start-test-script-generation")!;
+    const runSettingsId = "76927d6d-36c7-415e-b479-1ccb6751ed46";
+    const call = tool.mapToUpstream(genInput({ runSettingsId: runSettingsId }));
+    expect((call.body as Record<string, unknown>).runSettingsId).toBe(runSettingsId);
+    expect(tool.mapToUpstream(genInput()).body as Record<string, unknown>).not.toHaveProperty("runSettingsId");
+  });
+
+  it("rejects a runSettingsId that is not a UUID", () => {
+    expect(
+      WorkflowStartTestScriptGenerationInputSchema.safeParse(genInput({ runSettingsId: "390x844" })).success,
+    ).toBe(false);
+  });
 });
 
 describe("muggle-remote-test-script-list lane forwarding", () => {

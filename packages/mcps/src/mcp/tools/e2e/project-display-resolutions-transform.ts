@@ -99,7 +99,8 @@ function toKnownDisplayResolutions(optionIds: string[] | undefined): DisplayReso
   return (optionIds ?? []).filter(isKnownDisplayResolution);
 }
 
-function toRunStrategy(fanOutPolicy: string | undefined): RunStrategy {
+/** The run strategy a backend fan-out policy names; primaryOnly when it is absent or unknown to this MCP version. */
+export function toRunStrategy(fanOutPolicy: string | undefined): RunStrategy {
   return fanOutPolicy !== undefined && KNOWN_RUN_STRATEGIES.has(fanOutPolicy)
     ? (fanOutPolicy as RunStrategy)
     : DEFAULT_RUN_STRATEGY;

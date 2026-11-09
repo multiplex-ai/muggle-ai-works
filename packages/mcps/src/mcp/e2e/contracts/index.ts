@@ -33,6 +33,7 @@ export * from "./project-display-resolution-schemas.js";
 export * from "./run-settings-schemas.js";
 export * from "./run-strategy-types.js";
 export * from "./secret-group-types.js";
+export * from "./test-case-display-resolution-schemas.js";
 export * from "./test-state-schemas.js";
 export * from "./test-state-types.js";
 
@@ -547,6 +548,9 @@ export const WorkflowStartTestScriptGenerationInputSchema = z.object({
   instructions: z.string().min(1).describe("Text for this run. It adds to the test case's stored description, which always reaches the run, and never replaces it."),
   expectedResult: z.string().min(1).describe("Expected result"),
   runEnvironmentType: RunEnvironmentInputSchema,
+  runSettingsId: MuggleEntityIdSchema.optional().describe(
+    "The test case's runSettings record to record against, from runSettingsList of muggle-remote-test-case-display-resolutions-get. Omitted, the run records at the test case's primary record, except that a test case with a prerequisite records at its parent's record.",
+  ),
   workflowParams: WorkflowParamsSchema,
 });
 

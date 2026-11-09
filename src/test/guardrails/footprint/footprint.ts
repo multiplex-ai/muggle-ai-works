@@ -11,7 +11,16 @@ import {
   REGEXP_SYNTAX_CHARACTERS,
   SHIMMED_PROGRAMS,
 } from "./constants.js";
-import type { HookCommand, HookGroup, HookShellOstype, HookSlot, HookSlotCap, HooksManifest, SlotFootprint } from "./types.js";
+import type {
+  FiringBatch,
+  HookCommand,
+  HookGroup,
+  HookShellOstype,
+  HookSlot,
+  HookSlotCap,
+  HooksManifest,
+  SlotFootprint,
+} from "./types.js";
 
 const MANIFEST_PATH = join(PLUGIN_ROOT, "hooks", "hooks.json");
 const UNSHIMMED_PATTERN = /(?:^|\s)([\w.+-]+): (?:command not found|No such file or directory)/g;
@@ -158,6 +167,32 @@ export function timeSlotNoopFiring(manifest: HooksManifest, cap: HookSlotCap): n
   const startedAt = performance.now();
   for (const command of commandsForSlot(manifest, cap.slot, cap.noopPayload)) runBash(command.command, env, payload);
   return performance.now() - startedAt;
+}
+
+/** The middle of `values` once sorted; the upper of the two middles for an even count. */
+export function medianOf(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+/**
+ * Times `timeFiring` in batches of `runsPerBatch`, stopping at the first batch whose median is within `budgetMs` or
+ * after `maxBatches`; the last batch is the verdict.
+ *
+ * Output shape: `[{ timesMs: [101, 106, 111, 128, 141], medianMs: 111 }, { timesMs: [62, 64, 65, 66, 70], medianMs: 65 }]`
+ */
+export function timeFiringBatches(
+  timeFiring: () => number,
+  runsPerBatch: number,
+  maxBatches: number,
+  budgetMs: number,
+): FiringBatch[] {
+  const batches: FiringBatch[] = [];
+  do {
+    const timesMs = Array.from({ length: runsPerBatch }, () => timeFiring()).sort((a, b) => a - b);
+    batches.push({ timesMs: timesMs, medianMs: medianOf(timesMs) });
+  } while (batches.length < maxBatches && batches[batches.length - 1].medianMs > budgetMs);
+  return batches;
 }
 
 /**

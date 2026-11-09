@@ -1006,15 +1006,16 @@ describe("issue references in free text", () => {
 
   it("keeps a step's bare element ref readable without GitHub linking it", () => {
     const md = renderTestDetails(latest(referencingFailure), 1);
-    expect(md).toContain("<summary>📷 1 · Click [Reject all] #<!-- -->106 on the cookie banner</summary>");
+    expect(md).toContain("<summary>📷 1 · Click [Reject all] #&#8288;106 on the cookie banner</summary>");
   });
 
   it("leaves no linkable reference in any free-text field of the body", () => {
     const body = renderBody({ projectId: PROJECT_ID, tests: [referencingFailure] }, { inlineDetails: true });
     // Hidden state markers, link targets and attributes are not rendered text, so GitHub never autolinks them.
     const visibleText = body.replace(/<!-- muggle-[\s\S]*?-->/g, "").replace(/(?:href|src|name|alt)="[^"]*"|\]\([^)]*\)/g, "");
-    expect(visibleText).not.toMatch(/(?:#|\bGH-)\d/i);
-    expect(body).toContain("GH-<!-- -->7");
+    expect(visibleText).not.toMatch(/(?:(?<!&)#|\bGH-)\d/i);
+    expect(body).toContain("GH-&#8288;7");
+    expect(body).toContain("| **Why** | Expected #&#8288;5 to be visible |");
   });
 
   it("leaves a #-fragment in the run link untouched", () => {

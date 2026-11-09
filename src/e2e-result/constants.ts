@@ -14,10 +14,11 @@ export const E2E_RESULT_MARKER_SUFFIX = " -->";
 export const ISSUE_REFERENCE_MARKER = /(#|\bGH-)(?=\d)/gi;
 
 /**
- * Splits an issue reference's marker from its digits. Renders as nothing and copies as nothing, and GitHub no
- * longer reads the pair as one reference; an escaped `&#35;` would not do, it is decoded before the autolinker runs.
+ * Splits an issue reference's marker from its digits: a word joiner, zero-width, so the text reads unchanged while
+ * GitHub no longer sees one reference. An escaped `&#35;` would not do, it is decoded before the autolinker runs;
+ * nor an empty HTML comment, which GitHub drops from a table cell before autolinking it.
  */
-export const ISSUE_REFERENCE_BREAK = "<!-- -->";
+export const ISSUE_REFERENCE_BREAK = "&#8288;";
 
 /** Longest error or reason a record keeps per case; the walkthrough's details table holds the full text. */
 export const UNPASSED_DETAIL_MAX_CHARS = 300;

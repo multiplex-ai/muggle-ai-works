@@ -14,7 +14,7 @@ export function escapeHtmlAttribute(s: string): string {
 
 /**
  * Keep an agent's `#106` or `GH-7` from becoming an issue or pull-request link on GitHub while it still reads as
- * written. Only for rendered text: inside a URL or an attribute the inserted comment would corrupt the value.
+ * written. Only for rendered text: inside a URL or an attribute the inserted character would corrupt the value.
  */
 export function breakIssueReferences(s: string): string {
   return s.replace(ISSUE_REFERENCE_MARKER, `$1${ISSUE_REFERENCE_BREAK}`);

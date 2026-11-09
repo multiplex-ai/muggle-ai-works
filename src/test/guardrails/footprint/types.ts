@@ -96,6 +96,12 @@ export interface HookRuntimeScenario {
   payload: Record<string, unknown>;
 }
 
+/** One batch of timed no-op firings of a slot, sorted, and its median. */
+export interface FiringBatch {
+  timesMs: number[];
+  medianMs: number;
+}
+
 /** Wall time of one hook command across a scenario's timed runs. */
 export interface CommandRuntime {
   command: string;

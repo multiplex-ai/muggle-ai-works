@@ -17,7 +17,7 @@ import {
   UPKEEP_SETTLE_POLL_MS,
   UPKEEP_SETTLE_TIMEOUT_MS,
 } from "./constants.js";
-import { commandsForSlot, hookPayloadJson, toBashPathArg } from "./footprint.js";
+import { commandsForSlot, hookPayloadJson, medianOf, toBashPathArg } from "./footprint.js";
 import { HomeSeed, type HookRuntimeScenario, type HooksManifest, type ScenarioRuntime } from "./types.js";
 
 /**
@@ -69,11 +69,6 @@ export async function waitForUpkeepSweeps(homes: string[]): Promise<boolean> {
     await sleep(UPKEEP_SETTLE_POLL_MS);
   }
   return true;
-}
-
-function medianOf(values: number[]): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
 }
 
 /**

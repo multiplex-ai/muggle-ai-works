@@ -976,7 +976,7 @@ const workflowTools: IQaToolDefinition[] = [
   },
   {
     name: "muggle-remote-workflow-start-test-script-generation",
-    description: `Start a test script generation workflow. The resolutions it records at come from the test case's test spec on the lane; set them with muggle-remote-test-case-display-resolutions-update. ${TEST_CASE_LIMIT_GUIDANCE}`,
+    description: `Start a test script generation workflow. It records at one of the test case's runSettings records, whose resolutions muggle-remote-test-case-display-resolutions-update sets; pass runSettingsId to pick the record. ${TEST_CASE_LIMIT_GUIDANCE}`,
     inputSchema: schemas.WorkflowStartTestScriptGenerationInputSchema,
     dashboardLink: linkToInputScriptDetails,
     mapToUpstream: (input) => {
@@ -995,6 +995,7 @@ const workflowTools: IQaToolDefinition[] = [
           instructions: toolInput.instructions,
           expectedResult: toolInput.expectedResult,
           ...(toolInput.runEnvironmentType && { runEnvironmentType: toolInput.runEnvironmentType }),
+          ...(toolInput.runSettingsId && { runSettingsId: toolInput.runSettingsId }),
           ...(toolInput.workflowParams && { workflowParams: toolInput.workflowParams }),
         },
         timeoutMs: getWorkflowTimeoutMs(),

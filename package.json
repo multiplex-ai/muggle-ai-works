@@ -1,7 +1,7 @@
 {
   "name": "@muggleai/works",
   "mcpName": "io.github.multiplex-ai/muggle",
-  "version": "5.26.0",
+  "version": "5.34.1",
   "description": "13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.",
   "type": "module",
   "main": "dist/index.js",

@@ -986,3 +986,39 @@ describe("run summary row", () => {
     expect(md).not.toContain("No summary step");
   });
 });
+
+describe("issue references in free text", () => {
+  const referencingFailure: FailedTest = {
+    ...failedNoMeta,
+    name: "Checkout #12",
+    description: "Covers order #3 totals.",
+    useCaseName: "Cart #4",
+    viewUrl: "https://www.muggle-ai.com/x/run-5#12",
+    error: "Expected #5 to be visible",
+    steps: [{ stepIndex: 0, action: "click", description: "Click [Reject all] #106 on the cookie banner", screenshotUrl: "https://cdn/x.png" }],
+    runSummary: {
+      isRecorded: true,
+      headline: "Banner #106 dismissed",
+      verdict: "Matches GH-7 expectations.",
+      blockingIssues: "Order #1234 missing.",
+    },
+  };
+
+  it("keeps a step's bare element ref readable without GitHub linking it", () => {
+    const md = renderTestDetails(latest(referencingFailure), 1);
+    expect(md).toContain("<summary>📷 1 · Click [Reject all] #<!-- -->106 on the cookie banner</summary>");
+  });
+
+  it("leaves no linkable reference in any free-text field of the body", () => {
+    const body = renderBody({ projectId: PROJECT_ID, tests: [referencingFailure] }, { inlineDetails: true });
+    // Hidden state markers, link targets and attributes are not rendered text, so GitHub never autolinks them.
+    const visibleText = body.replace(/<!-- muggle-[\s\S]*?-->/g, "").replace(/(?:href|src|name|alt)="[^"]*"|\]\([^)]*\)/g, "");
+    expect(visibleText).not.toMatch(/(?:#|\bGH-)\d/i);
+    expect(body).toContain("GH-<!-- -->7");
+  });
+
+  it("leaves a #-fragment in the run link untouched", () => {
+    const md = renderTestDetails(latest(referencingFailure), 1);
+    expect(md).toContain('href="https://www.muggle-ai.com/x/run-5#12"');
+  });
+});

@@ -29,7 +29,7 @@ import {
   TEST_DETAILS_DIVIDER,
 } from "./constants.js";
 import {
-  escapeHtml,
+  escapeFreeText,
   escapeHtmlAttribute,
   renderUnpassedCaseBullet,
   withResolutionLabel,
@@ -245,7 +245,7 @@ function tableCell (s: string): string {
 
 /** What a step did, in the agent's words when it gave them, else the operation verb. */
 function stepText (step: Step): string {
-  return escapeHtml((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
+  return escapeFreeText((step.description ?? step.action).replace(STEP_ELEMENT_ID_SUFFIX, ""));
 }
 
 /** A short ID, when present, in front of the text it labels: `TC-42 · Checkout`. */
@@ -255,7 +255,7 @@ function withShortId (shortId: string | undefined, labelledText: string): string
 
 /** How the summary and the details name a test: `TC-42 · Checkout (390×844)`. */
 function testLabel (test: TestResult): string {
-  return withResolutionLabel(withShortId(test.testCaseShortId, test.name), test.resolutionLabel);
+  return escapeFreeText(withResolutionLabel(withShortId(test.testCaseShortId, test.name), test.resolutionLabel));
 }
 
 /**
@@ -338,7 +338,7 @@ function renderUseCaseGroup (
   ].filter((part): part is string => part !== null).join(" · ");
   return [
     "",
-    `<details${isAllPassed ? "" : " open"}><summary><b>${escapeHtml(useCaseName)}</b> — ${tally}</summary>`,
+    `<details${isAllPassed ? "" : " open"}><summary><b>${escapeFreeText(useCaseName)}</b> — ${tally}</summary>`,
     ...indented(members.map((member) => renderOverviewBullet(member, numbering, ""))),
     "</details>",
   ];
@@ -420,7 +420,7 @@ export function renderTestDetails (
   const { test } = entry;
   const lines: string[] = [`<a name="${testAnchor(test)}"></a>`, "", `#### ${statusEmoji(test)} ${testNumber}. ${testLabel(test)}`, ""];
   if (test.description && !isSameText(test.description, test.name)) {
-    lines.push(`_${singleLine(test.description)}_`, "");
+    lines.push(`_${escapeFreeText(singleLine(test.description))}_`, "");
   }
   lines.push(...renderResultTable(entry));
   const steps = renderSteps(test, screenshotDetail);
@@ -513,7 +513,7 @@ function renderStepScreenshots (step: Step, position: number, screenshotDetail: 
  */
 function runSummaryLabel (runSummary: RecordedRunSummary): string {
   const statusLabel = runSummary.status ? `${RUN_SUMMARY_VERDICT_STATUS_LABELS[runSummary.status]} — ` : "";
-  return `${RUN_SUMMARY_MARKER} Summary · ${statusLabel}${escapeHtml(singleLine(runSummary.headline))}`;
+  return `${RUN_SUMMARY_MARKER} Summary · ${statusLabel}${escapeFreeText(singleLine(runSummary.headline))}`;
 }
 
 /** The verdict text the summary step's comment carries, one labelled line each. */
@@ -524,7 +524,7 @@ function runSummaryVerdictLines (runSummary: RecordedRunSummary): string[] {
   ];
   return labelledTexts
     .filter((labelled): labelled is [string, string] => Boolean(labelled[1]))
-    .map(([label, text]) => `**${label}:** ${escapeHtml(singleLine(text))}`);
+    .map(([label, text]) => `**${label}:** ${escapeFreeText(singleLine(text))}`);
 }
 
 /**
@@ -609,10 +609,10 @@ function renderResultTable (entry: ILatestRun): string[] {
     rows.push("| **Result** | ✅ Passed |", "|:--|:--|");
   } else if (test.status === "failed") {
     rows.push(`| **Result** | ❌ Failed at step ${failureOrdinal(test, test.failureStepIndex)} |`, "|:--|:--|");
-    rows.push(`| **Why** | ${tableCell(escapeHtml(test.error))} |`);
+    rows.push(`| **Why** | ${tableCell(escapeFreeText(test.error))} |`);
   } else {
     rows.push("| **Result** | ⚠️ Inconclusive |", "|:--|:--|");
-    rows.push(`| **Why** | ${tableCell(escapeHtml(test.reason))} |`);
+    rows.push(`| **Why** | ${tableCell(escapeFreeText(test.reason))} |`);
   }
   if (entry.attempts > 1) {
     rows.push(`| **Attempts** | ${entry.attempts} — showing the latest |`);

@@ -1,5 +1,5 @@
 import { SHORT_SHA_LENGTH } from "../pr-walkthrough/constants.js";
-import { UNPASSED_STATUS_EMOJI } from "./constants.js";
+import { ISSUE_REFERENCE_BREAK, ISSUE_REFERENCE_MARKER, UNPASSED_STATUS_EMOJI } from "./constants.js";
 import { UnpassedCaseStatus, type IFailsOnBase, type IUnpassedCase } from "./types.js";
 
 /** Escape text placed inside HTML, so an agent's `<…>` cannot break the markup around it. */
@@ -10,6 +10,19 @@ export function escapeHtml(s: string): string {
 /** Escape text placed inside a double-quoted HTML attribute, so a `"` cannot end the attribute early. */
 export function escapeHtmlAttribute(s: string): string {
   return escapeHtml(s).replace(/"/g, "&quot;");
+}
+
+/**
+ * Keep an agent's `#106` or `GH-7` from becoming an issue or pull-request link on GitHub while it still reads as
+ * written. Only for rendered text: inside a URL or an attribute the inserted comment would corrupt the value.
+ */
+export function breakIssueReferences(s: string): string {
+  return s.replace(ISSUE_REFERENCE_MARKER, `$1${ISSUE_REFERENCE_BREAK}`);
+}
+
+/** Escape free text a walkthrough renders: safe inside HTML and free of issue autolinks. */
+export function escapeFreeText(s: string): string {
+  return breakIssueReferences(escapeHtml(s));
 }
 
 /**
@@ -32,7 +45,7 @@ function describeUnpassedCase(unpassed: IUnpassedCase): string {
     unpassed.status === UnpassedCaseStatus.Failed && unpassed.failedStep !== undefined
       ? `failed at step ${unpassed.failedStep}`
       : unpassed.status;
-  return `${outcome}: ${escapeHtml(unpassed.detail)}`;
+  return `${outcome}: ${escapeFreeText(unpassed.detail)}`;
 }
 
 /**
@@ -54,7 +67,7 @@ function describeFailsOnBase(failsOnBase: IFailsOnBase): string {
  */
 export function renderUnpassedCaseBullet(unpassed: IUnpassedCase, linkText: string, linkTarget: string): string {
   return (
-    `- ${UNPASSED_STATUS_EMOJI[unpassed.status]} **${escapeHtml(withResolutionLabel(unpassed.name, unpassed.resolutionLabel))}** — ` +
+    `- ${UNPASSED_STATUS_EMOJI[unpassed.status]} **${escapeFreeText(withResolutionLabel(unpassed.name, unpassed.resolutionLabel))}** — ` +
     `${describeUnpassedCase(unpassed)} · [${linkText}](${linkTarget})` +
     (unpassed.failsOnBase ? describeFailsOnBase(unpassed.failsOnBase) : "")
   );

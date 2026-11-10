@@ -35,4 +35,4 @@ The watcher's one-line nudge to the loop owner, emitted every tick a PR sits blo
   ⏳ acme/widget#142 awaiting you (2h): muggle-walkthrough stays red on <short-sha> only for cases you waived (Checkout) — merge past it, or re-run E2E. → <pr-url>/checks
   ```
 
-The reminder repeats every blocked tick (at the normal `1m` cadence) until the owner acts; the watcher stops it the moment the fingerprint moves (a push, a new review, or a CI/deploy change).
+The reminder repeats every blocked tick (at the normal `1m` cadence) until the owner acts; the watcher stops it the moment the fingerprint moves (a push, a new review, a CI/deploy change, or a new conversation comment).

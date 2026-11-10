@@ -18,7 +18,9 @@ set -uo pipefail
 #
 # The verbs are matched in the prompt alone, since a hex session id can spell
 # "add" and a cwd can hold "build". Once the session has been routed the offer can
-# never fire again, so its state flag ends the check in-shell.
+# never fire again, so its state flag ends the check in-shell. detectBuildIntent
+# drops a question or a slash command whatever verbs it holds, so those end here
+# too, except a /muggle-do or /mdo command, which Node must see to arm the gate.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -30,6 +32,22 @@ guardrail_wants() {
   if guardrail_load_state && guardrail_state_has '"buildIntentRouted": true'; then
     return 1
   fi
+  guardrail_payload_field prompt || return 1
+  # The prompt is still JSON-escaped: an escaped newline, return or tab counts as leading
+  # space, and any other escape leaves the prompt to Node.
+  local leading_space='^([[:space:]]|\\[nrt])*'
+  local question_pattern="$leading_space"'(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)([^A-Za-z0-9_]|$)'
+  local slash_command_pattern="$leading_space"'/'
+  local muggle_do_command_pattern="$leading_space"'/([A-Za-z0-9_-]+:)?(muggle-do|mdo)([[:space:]]|\\|$)'
+  local is_rejected_by_node=1
+  shopt -s nocasematch
+  if [[ $GUARDRAIL_FIELD_VALUE =~ $question_pattern ]]; then
+    is_rejected_by_node=0
+  elif [[ $GUARDRAIL_FIELD_VALUE =~ $slash_command_pattern && ! $GUARDRAIL_FIELD_VALUE =~ $muggle_do_command_pattern ]]; then
+    is_rejected_by_node=0
+  fi
+  shopt -u nocasematch
+  ((is_rejected_by_node == 0)) && return 1
   guardrail_fields_match prompt '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green|[/$](muggle:)?(muggle-do|mdo))'
 }
 

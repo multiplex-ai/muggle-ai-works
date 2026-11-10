@@ -6,6 +6,7 @@ import { tmpdir } from "os";
 import { delimiter, dirname, join } from "path";
 import { GUARDRAIL_CLI_ENTRY } from "./hook-harness/constants.js";
 import { E2eSkipCode } from "../../e2e-skip/types.js";
+import { detectBuildIntent, isMuggleDoForwardInvocation } from "../../guardrails/detectBuildIntent.js";
 import {
   createHookHome,
   createStubProgramDirectory,
@@ -1055,6 +1056,41 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
   it("build-router: skips Node on a non-build prompt, spawns it on a build ask", () => {
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "a", prompt: "what time is it?" }))).toBe("{}");
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "b", prompt: "implement dark mode" }))).toContain(NODE_RAN);
+  });
+
+  it.each([
+    ["a question holding a build verb", "why does the build fail? fix it"],
+    ["a question after an escaped newline", "\n  explain the build"],
+    ["a slash command holding a build verb", "/code-review fix the build"],
+    ["a command whose name only starts with mdo", "/mdo-x build the page"],
+  ])("build-router: skips Node on %s", (_label, prompt) => {
+    expect(runWrapper("guardrail-build-router.sh", event({ session_id: "rejected", prompt: prompt }))).toBe("{}");
+  });
+
+  // The in-shell question and slash checks may only over-match Node's, never drop a prompt Node acts on.
+  it("build-router: spawns Node for every prompt detectBuildIntent or isMuggleDoForwardInvocation accepts", () => {
+    const prompts = [
+      "implement dark mode",
+      "\timplement dark mode",
+      "isolate the flaky build",
+      "doing the build now",
+      "explainer page: build it",
+      "can you build the export page",
+      "this timeout is annoying, what exactly is it running? build-router",
+      "/mdo paginate the export page",
+      "  /MDO paginate the export page",
+      "/mdo\nfix the export page",
+      "/muggle:muggle-do build it",
+      "$muggle:mdo build it",
+      "what's next? implement it",
+      "is the build green",
+      "/code-review fix the build",
+    ];
+    const nodeAcceptedPrompts = prompts.filter((prompt) => detectBuildIntent(prompt) || isMuggleDoForwardInvocation(prompt));
+    expect(nodeAcceptedPrompts.length).toBeLessThan(prompts.length);
+    for (const prompt of nodeAcceptedPrompts) {
+      expect(runWrapper("guardrail-build-router.sh", event({ session_id: "parity", prompt: prompt })), prompt).toContain(NODE_RAN);
+    }
   });
 
   // The offer fires once per session, so every later build ask would start Node only to answer {}.

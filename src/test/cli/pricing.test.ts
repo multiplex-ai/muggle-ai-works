@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { executeQaTool } = vi.hoisted(() => ({ executeQaTool: vi.fn() }));
+const { executeQaTool, sharedLogger } = vi.hoisted(() => ({ executeQaTool: vi.fn(), sharedLogger: { level: "info" } }));
 
 vi.mock("../../../packages/mcps/src/index.js", () => ({
   e2e: { executeQaTool: executeQaTool, PRICING_GET_TOOL_NAME: "muggle-remote-pricing-get" },
+  getLogger: () => sharedLogger,
 }));
 
 import { pricingCommand, renderPricingText } from "../../cli/pricing.js";
@@ -79,6 +80,13 @@ describe("pricingCommand", () => {
     await pricingCommand({});
     expect(executeQaTool).toHaveBeenCalledWith("muggle-remote-pricing-get", {}, expect.any(String));
     expect(logSpy).toHaveBeenCalledWith(renderPricingText(pricingCatalog));
+  });
+
+  it("keeps per-request info logs off the terminal", async () => {
+    executeQaTool.mockResolvedValueOnce({ content: JSON.stringify(pricingCatalog), isError: false });
+    sharedLogger.level = "info";
+    await pricingCommand({});
+    expect(sharedLogger.level).toBe("warn");
   });
 
   it("prints the tool's JSON with --json", async () => {

@@ -7,8 +7,8 @@
 
 import { randomUUID } from "node:crypto";
 
-import { e2e } from "@muggleai/mcp";
-import { TOKENS_PER_MILLION } from "./pricing-constants.js";
+import { e2e, getLogger } from "@muggleai/mcp";
+import { PRICING_COMMAND_LOG_LEVEL, TOKENS_PER_MILLION } from "./pricing-constants.js";
 import type { IPricingCommandOptions } from "./pricing-types.js";
 
 function formatUsd(amountUsd: number): string {
@@ -70,6 +70,7 @@ export function renderPricingText(catalog: e2e.IPricingCatalogOutput): string {
  * @param options - `--json`.
  */
 export async function pricingCommand(options: IPricingCommandOptions = {}): Promise<void> {
+  getLogger().level = PRICING_COMMAND_LOG_LEVEL;
   const toolResult = await e2e.executeQaTool(e2e.PRICING_GET_TOOL_NAME, {}, randomUUID());
   if (toolResult.isError) {
     const failure = JSON.parse(String(toolResult.content)) as { message?: string };

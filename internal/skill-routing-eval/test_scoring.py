@@ -23,6 +23,26 @@ class TestScoredPass(unittest.TestCase):
             self.assertFalse(scoring.scored_pass("muggle-test", status))
 
 
+class TestMajorityRoute(unittest.TestCase):
+    def test_the_most_common_route_wins(self):
+        self.assertEqual(scoring.majority_route(["muggle-test", "none", "muggle-test"]), "muggle-test")
+
+    def test_a_rate_limited_run_casts_no_vote(self):
+        runs = [scoring.THROTTLED, scoring.THROTTLED, "muggle-test"]
+        self.assertEqual(scoring.majority_route(runs), "muggle-test")
+
+    def test_a_query_with_only_rate_limited_runs_has_no_result(self):
+        majority = scoring.majority_route([scoring.THROTTLED] * 3)
+        self.assertTrue(scoring.is_no_result(majority))
+
+    def test_a_query_that_never_ran_routed_nowhere(self):
+        self.assertEqual(scoring.majority_route([]), scoring.NONE)
+
+    def test_a_timeout_still_votes_because_a_looping_session_is_routing_behavior(self):
+        self.assertFalse(scoring.is_no_result("TIMEOUT"))
+        self.assertEqual(scoring.majority_route(["TIMEOUT", "TIMEOUT", "muggle-test"]), "TIMEOUT")
+
+
 class TestIsMuggle(unittest.TestCase):
     def test_muggle_routes_are_detected(self):
         self.assertTrue(scoring.is_muggle("muggle-status"))

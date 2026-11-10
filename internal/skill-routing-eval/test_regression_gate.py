@@ -6,6 +6,7 @@ from pathlib import Path
 import regression_gate
 from gate_constants import BASELINE_FILENAME
 from gate_types import SkillGateStatus
+from scoring import THROTTLED
 
 HERE = Path(__file__).resolve().parent
 
@@ -37,6 +38,30 @@ class TestSkillTally(unittest.TestCase):
             {"expected_skill": "none", "majority": "muggle-repair"},
         ]
         self.assertEqual(regression_gate.skill_tally(rows, "none"), (2, 3))
+
+    def test_a_query_with_no_result_leaves_the_tally(self):
+        rows = routing_rows(MUGGLE_TEST, 17, 20)
+        rows += [{"expected_skill": MUGGLE_TEST, "majority": THROTTLED} for _ in range(6)]
+        self.assertEqual(regression_gate.skill_tally(rows, MUGGLE_TEST), (17, 20))
+
+    def test_rate_limiting_alone_cannot_regress_a_skill(self):
+        baseline = {MUGGLE_TEST: {"passed": 23, "total": 26}}
+        rows = routing_rows(MUGGLE_TEST, 17, 17)
+        rows += [{"expected_skill": MUGGLE_TEST, "majority": THROTTLED} for _ in range(9)]
+        self.assertEqual(status_of(rows, baseline, MUGGLE_TEST), SkillGateStatus.HELD)
+
+    def test_a_skill_with_every_query_rate_limited_is_inconclusive(self):
+        baseline = {MUGGLE_TEST: {"passed": 23, "total": 26}}
+        rows = [{"expected_skill": MUGGLE_TEST, "majority": THROTTLED} for _ in range(26)]
+        self.assertEqual(status_of(rows, baseline, MUGGLE_TEST), SkillGateStatus.INCONCLUSIVE)
+
+
+class TestPairedTallyNoResult(unittest.TestCase):
+    def test_a_rate_limited_run_counts_in_neither_arm(self):
+        candidate = [{"query": "q", "expected_skill": MUGGLE_TEST, "fired": [MUGGLE_TEST, THROTTLED, THROTTLED]}]
+        control = [{"query": "q", "expected_skill": MUGGLE_TEST, "fired": [MUGGLE_TEST, MUGGLE_TEST, MUGGLE_TEST]}]
+        tally = regression_gate.paired_tally(candidate, control, MUGGLE_TEST)
+        self.assertEqual((tally.candidate_passed, tally.control_passed, tally.total), (1, 1, 1))
 
 
 class TestNoiseTolerance(unittest.TestCase):

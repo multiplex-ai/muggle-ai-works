@@ -766,7 +766,8 @@ jobs:
       # 26/26 twenty minutes apart, so a drop against the recorded baseline is only
       # trusted once it survives a side-by-side run against the base ref's plugin.
       # A full sweep gets no control: it gates the harness itself, which a control
-      # on the same harness would cancel out.
+      # on the same harness would cancel out. run.py re-measures its failing
+      # skills instead, and fails only if the drop reproduces.
       - name: Install the base ref's muggle plugin as the control arm
         if: steps.scope.outputs.should_run == 'true' && steps.scope.outputs.full != 'true'
         run: |
@@ -857,7 +858,8 @@ jobs:
           # Only the full sweep measures every skill, so only it can propose the
           # next baseline; the candidate is published for a human to review.
           # A scoped run that fails re-measures its failing skills against the
-          # control arm installed above, and fails only if the drop survives.
+          # control arm installed above, and fails only if the drop survives; a
+          # full sweep re-measures them once more against the baseline.
           if [ "${{ steps.scope.outputs.full }}" = "true" ]; then
             python internal/skill-routing-eval/run.py \
               --all --runs "$ROUTING_RUNS" --workers "$ROUTING_WORKERS" \

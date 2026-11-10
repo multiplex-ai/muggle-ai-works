@@ -17,7 +17,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from route_constants import REPORT_NONE_REASONS_FIELD
-from scoring import NONE, is_muggle, scored_pass
+from scoring import NONE, is_muggle, is_no_result, scored_pass
 
 
 def none_reasons_of(row: dict) -> dict:
@@ -62,7 +62,8 @@ def derive(report, target):
 
 
 def per_skill_report(report):
-    rows_all = report["results"]
+    no_result_rows = [r for r in report["results"] if is_no_result(r["majority"])]
+    rows_all = [r for r in report["results"] if not is_no_result(r["majority"])]
     for r in rows_all:
         r["_pass"] = scored_pass(r["expected_skill"], r["majority"])
     passed = sum(1 for r in rows_all if r["_pass"])
@@ -88,6 +89,9 @@ def per_skill_report(report):
     lines.append(f"- model: `{report.get('model')}`  runs/query: {report.get('runs_per_query')}")
     lines.append(f"- overall accuracy (muggle-routing): **{passed}/{total} = {passed/total:.1%}**")
     lines.append("- negative-class rule: a query labeled `none` passes when no `muggle*` skill fires; an appropriate non-muggle skill (debugging, review, brainstorming) winning is correct.")
+    if no_result_rows:
+        noun = "query" if len(no_result_rows) == 1 else "queries"
+        lines.append(f"- {len(no_result_rows)} {noun} had no result (every run rate-limited) and are left out of the scores above and below.")
     lines.append("")
 
     by_expected = defaultdict(list)

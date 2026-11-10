@@ -115,6 +115,8 @@ class ScriptedChunks:
         self.planned.append(items)
         if len(self.planned) == 1:
             return {"results": [result_row(item, self.first_sweep_passes(i)) for i, item in enumerate(items)]}
+        if ARM_FIELD not in items[0]:
+            return {"results": [result_row(item, self.candidate_passes(i)) for i, item in enumerate(items)]}
         rows = []
         for i, item in enumerate(items):
             query_index = i // 2
@@ -164,11 +166,20 @@ class TestConfirmationAgainstTheBaseRef(unittest.TestCase):
         }
         self.assertEqual(control_dirs, {"/runner/.cc-config-control"})
 
-    def test_without_a_control_dir_the_first_verdict_decides(self):
-        chunks = ScriptedChunks(depressed_passes, depressed_passes, depressed_passes)
-        code, _printed, _report = self._gate(chunks, None)
+    def test_without_a_control_dir_a_drop_that_does_not_reproduce_holds(self):
+        chunks = ScriptedChunks(depressed_passes, steady_passes, steady_passes)
+        code, printed, report = self._gate(chunks, None)
+        self.assertIsNone(code)
+        self.assertEqual(len(chunks.planned), 2)
+        self.assertNotIn(ARM_FIELD, chunks.planned[1][0])
+        self.assertIn(f"Re-measuring {CONFIRMED_SKILL}", printed)
+        self.assertIn("[held]", report)
+
+    def test_without_a_control_dir_a_drop_that_reproduces_fails(self):
+        chunks = ScriptedChunks(depressed_passes, depressed_passes, steady_passes)
+        code, _printed, report = self._gate(chunks, None)
         self.assertEqual(code, 1)
-        self.assertEqual(len(chunks.planned), 1)
+        self.assertEqual(report.count("[regressed]"), 2)
 
     def test_a_passing_gate_runs_no_confirmation(self):
         chunks = ScriptedChunks(steady_passes, depressed_passes, steady_passes)

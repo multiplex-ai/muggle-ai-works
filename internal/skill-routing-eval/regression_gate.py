@@ -12,7 +12,11 @@ A recorded baseline was measured in another stretch of time, and the model
 routes worse in some stretches than others: identical descriptions have scored
 16/26 and 26/26 twenty minutes apart. So a scoped run's failing verdict is
 confirmed before it fails, against the base ref's plugin measured side by side
-with the PR's (`judge_confirmation`).
+with the PR's (`judge_confirmation`); a full sweep's is confirmed by measuring
+its failing skills again against the same baseline.
+
+A rate-limited run that exhausted its retries is no result rather than a miss,
+in both the per-query majority and the paired tallies.
 """
 
 import json
@@ -28,15 +32,17 @@ from gate_constants import (
     PAIRED_MEASUREMENT_FACTOR,
 )
 from gate_types import PairedTally, RunGateVerdict, SkillGateStatus, SkillGateVerdict
-from scoring import scored_pass
+from scoring import is_no_result, scored_pass
 
 
 def skill_tally(results: list[dict], skill: str) -> tuple[int, int]:
     """Count (passed, total) queries for one expected_skill under the shared pass rule.
 
+    A query no run got through for is left out: it is missing evidence, not a miss.
+
     Output shape: `(21, 24)`
     """
-    rows = [r for r in results if r["expected_skill"] == skill]
+    rows = [r for r in results if r["expected_skill"] == skill and not is_no_result(r["majority"])]
     return sum(1 for r in rows if scored_pass(skill, r["majority"])), len(rows)
 
 
@@ -107,11 +113,15 @@ def judge_skill(
 
 
 def judge_run(results: list[dict], baseline: dict[str, dict], inconclusive_skills: set) -> RunGateVerdict:
-    """Judge every skill a run measured, and their pooled recall, against the baseline."""
-    verdicts = [
-        judge_skill(skill, *skill_tally(results, skill), baseline.get(skill), skill in inconclusive_skills)
-        for skill in evaluated_skills(results)
-    ]
+    """Judge every skill a run measured, and their pooled recall, against the baseline.
+
+    A skill none of whose queries produced a result is inconclusive, like one in `inconclusive_skills`.
+    """
+    verdicts = []
+    for skill in evaluated_skills(results):
+        passed, total = skill_tally(results, skill)
+        is_inconclusive = skill in inconclusive_skills or total == 0
+        verdicts.append(judge_skill(skill, passed, total, baseline.get(skill), is_inconclusive))
 
     # Many per-skill dips can each sit inside their own band while the suite as a
     # whole moves; pooling the comparable skills catches that broad drift.
@@ -168,7 +178,8 @@ def paired_tally(candidate_rows: list[dict], control_rows: list[dict], skill: st
 
     Each query's pass rate is pooled across both arms for the variance, so a
     query that routes reliably adds little and the borderline ones carry the
-    noise. A query either arm is missing is left out of both.
+    noise. A query either arm is missing is left out of both, and each query keeps
+    only as many runs per arm as both arms got a result for.
 
     Output shape: `PairedTally(candidate_passed=118, control_passed=121, total=130, difference_variance=14.2)`
     """
@@ -179,15 +190,21 @@ def paired_tally(candidate_rows: list[dict], control_rows: list[dict], skill: st
         control = control_by_query.get(candidate["query"])
         if control is None:
             continue
-        query_candidate_passed = sum(1 for route in candidate["fired"] if scored_pass(skill, route))
-        query_control_passed = sum(1 for route in control["fired"] if scored_pass(skill, route))
-        query_runs = len(candidate["fired"]) + len(control["fired"])
+        candidate_runs = [route for route in candidate["fired"] if not is_no_result(route)]
+        control_runs = [route for route in control["fired"] if not is_no_result(route)]
+        paired_runs = min(len(candidate_runs), len(control_runs))
+        if not paired_runs:
+            continue
+        candidate_runs, control_runs = candidate_runs[:paired_runs], control_runs[:paired_runs]
+        query_candidate_passed = sum(1 for route in candidate_runs if scored_pass(skill, route))
+        query_control_passed = sum(1 for route in control_runs if scored_pass(skill, route))
+        query_runs = 2 * paired_runs
         pooled_rate = (query_candidate_passed + query_control_passed + LAPLACE_PSEUDO_COUNT) / (
             query_runs + 2 * LAPLACE_PSEUDO_COUNT
         )
         candidate_passed += query_candidate_passed
         control_passed += query_control_passed
-        total += len(candidate["fired"])
+        total += paired_runs
         difference_variance += query_runs * pooled_rate * (1.0 - pooled_rate)
     return PairedTally(candidate_passed, control_passed, total, difference_variance)
 

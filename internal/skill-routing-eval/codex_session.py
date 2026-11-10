@@ -39,6 +39,7 @@ from codex_constants import (
     SESSION_MAX_TOOL_CALLS,
     TRACE_POLL_SECONDS,
 )
+from scoring import THROTTLED
 
 # Codex has no skill tool: the model opens a skill by reading its SKILL.md,
 # through the shell or a file tool, and the directory before it is the skill.
@@ -185,7 +186,7 @@ def run_codex_once(query: str, repo_root: str, timeout: int, model: str | None) 
     failure = turn_failure_text(stream)
     if not ended_at_route and (proc.returncode != 0 or failure):
         if throttle.is_throttle_text("\n".join([failure, *reported_error_texts(stream), err])):
-            return ("THROTTLED", "")
+            return (THROTTLED, "")
         sys.stderr.write(
             f"  [route ERROR] rc={proc.returncode}"
             f" stderr={err.strip()[-1500:]!r}"

@@ -159,6 +159,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-prd-file-upload",
   },
   {
+    "description": "Get Muggle AI's current pricing: plans (monthly price, per-seat terms, concurrent workflows, included tokens, features), the token price per million, and the token packages for sale. Read live from the backend; no sign-in needed. Response shape: { catalogVersion, plans: [{ planId, name, monthlyPriceUsd, isPerSeat, minimumSeats, concurrentWorkflows, includedTokens, tokenGrantCadence, featureDescriptions }], tokenPackages: [{ packageId, name, tokens, priceUsd }], tokenPriceUsdPerMillion }.",
+    "name": "muggle-remote-pricing-get",
+  },
+  {
     "description": "Create an E2E acceptance testing project to organize browser tests for a web app. A project groups test scenarios (use cases), specific test steps (test cases), and replayable browser scripts (test scripts) for one application. Create a project first before generating or running any E2E tests. Pass organizationId to create it under an organization the caller belongs to; omit it for a personal project. Pass primaryResolution, compatibleResolutions and runStrategy to verify every test case at more than one viewport (e.g. desktop and phone); omit them for R_1920x1080 alone under primaryOnly.",
     "name": "muggle-remote-project-create",
   },
@@ -423,6 +427,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-wallet-auto-topup-update",
   },
   {
+    "description": "List the token packages the signed-in user can buy, with the packageId muggle-remote-wallet-topup and muggle-remote-wallet-auto-topup-update take. Response shape: { packages: [{ packageId, name, description, tokens, price, currency }], tokenPriceUsdPerMillion }.",
+    "name": "muggle-remote-wallet-package-list",
+  },
+  {
     "description": "List saved payment methods.",
     "name": "muggle-remote-wallet-payment-method-list",
   },
@@ -431,7 +439,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
     "name": "muggle-remote-wallet-pm-create-setup-session",
   },
   {
-    "description": "Create a Stripe checkout session to purchase a token package.",
+    "description": "Create a Stripe checkout session to purchase a token package. Get packageId from muggle-remote-wallet-package-list.",
     "name": "muggle-remote-wallet-topup",
   },
   {
@@ -558,6 +566,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-prd-file-delete",
   "muggle-remote-prd-file-list-by-project",
   "muggle-remote-prd-file-upload",
+  "muggle-remote-pricing-get",
   "muggle-remote-project-create",
   "muggle-remote-project-delete",
   "muggle-remote-project-display-resolutions-get",
@@ -624,6 +633,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-user-feedback-list",
   "muggle-remote-wallet-auto-topup-set-payment-method",
   "muggle-remote-wallet-auto-topup-update",
+  "muggle-remote-wallet-package-list",
   "muggle-remote-wallet-payment-method-list",
   "muggle-remote-wallet-pm-create-setup-session",
   "muggle-remote-wallet-topup",

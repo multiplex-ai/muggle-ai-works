@@ -10,6 +10,7 @@ import { getInstallId } from "../../shared/install_id.js";
 import { getLogger } from "../../shared/logger.js";
 import { readReleaseManifest } from "../../shared/release_manifest.js";
 
+import { PUBLIC_UPSTREAM_PATHS } from "./upstream-client-constants.js";
 import {
   GatewayError,
   ICallerCredentials,
@@ -57,7 +58,8 @@ export class PromptServiceClient {
    * @throws GatewayError if path is not allowed.
    */
   private validatePath(path: string): void {
-    const isAllowed = ALLOWED_UPSTREAM_PREFIXES.some((prefix) => path.startsWith(prefix));
+    const isAllowed =
+      PUBLIC_UPSTREAM_PATHS.includes(path) || ALLOWED_UPSTREAM_PREFIXES.some((prefix) => path.startsWith(prefix));
 
     if (!isAllowed) {
       const logger = getLogger();
@@ -244,8 +246,8 @@ export class PromptServiceClient {
   ): Promise<IUpstreamResponse<T>> {
     const logger = getLogger();
 
-    // Validate credentials
-    if (!credentials.bearerToken && !credentials.apiKey) {
+    const isPublicPath = PUBLIC_UPSTREAM_PATHS.includes(call.path);
+    if (!isPublicPath && !credentials.bearerToken && !credentials.apiKey) {
       throw new GatewayError({
         code: McpErrorCode.UNAUTHORIZED,
         message: "Missing authentication. Please run 'muggle login' to authenticate.",

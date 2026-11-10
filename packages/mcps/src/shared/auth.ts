@@ -457,6 +457,8 @@ export function toolRequiresAuth(toolName: string): boolean {
     "muggle-remote-auth-login",
     "muggle-remote-auth-poll",
     "muggle-remote-auth-logout",
+    // Public catalog read
+    "muggle-remote-pricing-get",
     // Local project tools (no cloud)
     "muggle-local-project-create",
     "muggle-local-project-list",

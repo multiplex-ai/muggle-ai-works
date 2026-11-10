@@ -177,9 +177,23 @@ describe("createUnifiedMcpServer handlers", () => {
     expect(execute).toHaveBeenCalledWith(expect.objectContaining({ input: {} }));
   });
 
-  it("ListResources returns an empty list", () => {
+  it("ListResources advertises the agent docs", () => {
     createUnifiedMcpServer({ enableQaTools: true, enableLocalTools: true });
-    expect(handlerFor("listResources")({})).toEqual({ resources: [] });
+    const listing = handlerFor("listResources")({}) as { resources: Array<{ uri: string; mimeType: string }> };
+    expect(listing.resources).toEqual([
+      expect.objectContaining({ uri: "muggle://docs/agents", mimeType: "text/markdown" }),
+      expect.objectContaining({ uri: "muggle://docs/llms", mimeType: "text/plain" }),
+    ]);
+  });
+
+  it("ReadResource serves AGENTS.md from the package root", () => {
+    createUnifiedMcpServer({ enableQaTools: true, enableLocalTools: true });
+    const res = handlerFor("readResource")({ params: { uri: "muggle://docs/agents" } }) as {
+      contents: Array<{ uri: string; mimeType: string; text: string }>;
+    };
+    expect(res.contents).toHaveLength(1);
+    expect(res.contents[0]).toMatchObject({ uri: "muggle://docs/agents", mimeType: "text/markdown" });
+    expect(res.contents[0].text).toMatch(/^# Muggle Works for AI agents/);
   });
 
   it("ReadResource echoes a not-found resource for the requested uri", () => {

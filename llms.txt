@@ -1,0 +1,32 @@
+# Muggle Works
+
+> Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.
+
+Muggle Works is the npm package `@muggleai/works` (CLI `muggle`) from Muggle AI. It ships an MCP server (`muggle serve`, stdio, 130 tools: `muggle-remote-*` for cloud projects, test cases, scripts and workflows; `muggle-local-*` for real-browser runs on this machine) and a plugin of skills for Claude Code (`muggle`), Codex and Cursor. Install with `npm install -g @muggleai/works`. Prices change: read them with `muggle pricing` or the `muggle-remote-pricing-get` MCP tool, which needs no sign-in.
+
+## Agent guide
+
+- [AGENTS.md](https://raw.githubusercontent.com/multiplex-ai/muggle-ai-works/master/AGENTS.md): install, sign-in, local and cloud flows, skills, pricing, results, common errors
+- [Quick start](https://github.com/multiplex-ai/muggle-ai-works#quick-start): install per client, setup, first run
+- [Commands](https://github.com/multiplex-ai/muggle-ai-works#commands): every slash-command skill and its alias
+- [MCP tool reference](https://github.com/multiplex-ai/muggle-ai-works#mcp-tool-reference): the 130 MCP tools by area
+- [CLI reference](https://github.com/multiplex-ai/muggle-ai-works#cli-reference): every `muggle` command
+- [Architecture](https://github.com/multiplex-ai/muggle-ai-works#architecture): entity model, execution flow, data directory
+- [Troubleshooting](https://github.com/multiplex-ai/muggle-ai-works#troubleshooting): login, runner and credential fixes
+
+## Skills
+
+- [muggle-test](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-test/SKILL.md): test the user flows a diff, branch or PR affects, before it ships
+- [muggle-test-feature-local](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-test-feature-local/SKILL.md): real-browser test of one flow on localhost
+- [muggle-do](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-do/SKILL.md): request to opened pull request, with browser proof
+- [muggle-pr-visual-walkthrough](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-pr-visual-walkthrough/SKILL.md): post screenshots and a pass/fail summary to a PR
+- [muggle-test-import](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-test-import/SKILL.md): import Playwright, Cypress, Gherkin or PRDs as test cases
+- [muggle-browser-task](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-browser-task/SKILL.md): carry out a real action on a website from plain English
+- [muggle-status](https://github.com/multiplex-ai/muggle-ai-works/blob/master/plugin/skills/muggle-status/SKILL.md): diagnose the install
+
+## Optional
+
+- [Configuration](https://github.com/multiplex-ai/muggle-ai-works#configuration): environment target, multi-repo cycles, preferences
+- [Codex](https://github.com/multiplex-ai/muggle-ai-works#codex): what differs under Codex
+- [Pull-request walkthrough check](https://github.com/multiplex-ai/muggle-ai-works#the-pull-request-walkthrough-check): the GitHub Actions check
+- [Muggle AI](https://www.muggle-ai.com): the hosted product

@@ -1,7 +1,7 @@
 /**
  * @muggleai/works - Ship quality products, not just code.
  *
- * 13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.
+ * Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.
  * Provides MCP tools and CLI for:
  * - Cloud E2E acceptance (validate user flows via Muggle AI; muggle-remote-* tools)
  * - Local E2E acceptance (validate your app before pushing; muggle-local-* tools)

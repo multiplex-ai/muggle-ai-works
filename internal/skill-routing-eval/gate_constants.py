@@ -13,6 +13,8 @@ GATE_AGAINST_RECORDED_BASELINE = "recorded baseline, majority-voted queries"
 
 GATE_AGAINST_CONTROL_ARM = "base ref's plugin measured side by side, single runs"
 
+GATE_AGAINST_REMEASURED_BASELINE = "recorded baseline, failing skills re-measured"
+
 # Two-sided ~95% band: a run inside it is indistinguishable from sampling noise.
 NOISE_SIGMA_MULTIPLIER = 2.0
 

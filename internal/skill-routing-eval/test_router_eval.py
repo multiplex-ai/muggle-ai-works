@@ -15,7 +15,7 @@ from pool_constants import ARM_FIELD, CLAUDE_CONFIG_DIR_FIELD
 from pool_types import SweepArm
 from route_constants import REPORT_NONE_REASONS_FIELD
 from route_types import Host, NoneReason
-from scoring import scored_pass
+from scoring import THROTTLED, scored_pass
 
 SKILL_FIXTURE_TEMPLATE = '''---
 name: {name}
@@ -662,6 +662,20 @@ class TestReportCarriesNoneReasons(unittest.TestCase):
         self.assertEqual(entry["majority"], "none")
         self.assertTrue(entry["pass"])
         self.assertEqual(entry[REPORT_NONE_REASONS_FIELD], {"no_tool_call": 3})
+
+    def test_rate_limited_runs_are_outvoted_by_the_run_that_got_through(self):
+        report = self._report_for(
+            [{"query": "muggle upgrade", "expected_skill": "muggle-upgrade"}],
+            {"muggle upgrade": [
+                router_eval.RouteOutcome(THROTTLED, None),
+                router_eval.RouteOutcome(THROTTLED, None),
+                router_eval.RouteOutcome("muggle-upgrade", None),
+            ]},
+        )
+        entry = report["results"][0]
+        self.assertEqual(entry["fired"], [THROTTLED, THROTTLED, "muggle-upgrade"])
+        self.assertEqual(entry["majority"], "muggle-upgrade")
+        self.assertTrue(entry["pass"])
 
 
 class TestPairedSweepItems(unittest.TestCase):

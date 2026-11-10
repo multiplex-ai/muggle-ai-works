@@ -3,6 +3,7 @@ import unittest
 import analyze
 import run
 from route_constants import REPORT_NONE_REASONS_FIELD
+from scoring import THROTTLED
 
 
 class PerSkillReportEmptyInput(unittest.TestCase):
@@ -24,6 +25,21 @@ class PerSkillReportEmptyInput(unittest.TestCase):
         out = analyze.per_skill_report(report)
         # q1 exact match + q3 negative-clean pass; q2 misses → 2 of 3.
         self.assertIn("2/3", out)
+
+    def test_a_query_no_run_got_through_for_is_counted_apart_not_as_a_miss(self):
+        report = {
+            "model": "m",
+            "runs_per_query": 3,
+            "results": [
+                {"query": "q1", "expected_skill": "muggle-upgrade", "majority": "muggle-upgrade",
+                 "fired": ["muggle-upgrade"] * 3},
+                {"query": "q2", "expected_skill": "muggle-upgrade", "majority": THROTTLED, "fired": [THROTTLED] * 3},
+            ],
+        }
+        out = analyze.per_skill_report(report)
+        self.assertIn("1/1", out)
+        self.assertIn("1 query had no result", out)
+        self.assertNotIn("got `THROTTLED`", out)
 
 
 class GenuineMissesNameWhyNothingRouted(unittest.TestCase):

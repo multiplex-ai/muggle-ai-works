@@ -40,7 +40,7 @@ from route_constants import (
     SHELL_TOOL_NAMES,
 )
 from route_types import Host, NoneReason, RouteOutcome
-from scoring import NONE, scored_pass
+from scoring import NONE, THROTTLED, majority_route, scored_pass
 
 # Shared across the worker pool: one rate-limited run pauses new starts for all.
 THROTTLE_GATE = throttle.ThrottleGate()
@@ -314,7 +314,7 @@ def run_claude_once(
         # result event, and silently scoring it as `none` is what used to pollute
         # negatives and crater positive chunks into the disconnect guard.
         if throttle.is_throttle_text("\n".join([error_text, err])):
-            return ("THROTTLED", "")
+            return (THROTTLED, "")
         # A session that routes on its last allowed turn leaves the CLI exiting
         # non-zero with an `error_max_turns` result. The route intent is already
         # in the stream (the tool_use), so this is a completed session, not a
@@ -387,7 +387,7 @@ def detect_route(
             status, out = codex_session.run_codex_once(query, repo_root, timeout, model)
         else:
             status, out = run_claude_once(query, repo_root, timeout, model, claude_config_dir)
-        if status == "THROTTLED" and attempt <= throttle.MAX_THROTTLE_RETRIES:
+        if status == THROTTLED and attempt <= throttle.MAX_THROTTLE_RETRIES:
             backoff = throttle.backoff_seconds(attempt)
             THROTTLE_GATE.report_throttle(backoff)
             print(
@@ -401,9 +401,9 @@ def detect_route(
             reason = classify_none_reason(out, host) if route == NONE else None
             answer = last_assistant_text(out, host) if reason else ""
             return RouteOutcome(route, reason, answer)
-        # TIMEOUT / ERROR / THROTTLED-with-retries-exhausted: all non-muggle
-        # strings, so they score exactly like the old silent `none` on negatives
-        # while staying attributable in the fired[] lists.
+        # TIMEOUT / ERROR score like a silent `none`; THROTTLED-with-retries-exhausted
+        # is no result and casts no vote (scoring.majority_route). All stay
+        # attributable in the fired[] lists.
         return RouteOutcome(status, None, "")
 
 
@@ -487,8 +487,7 @@ def main():
     passed = 0
     for qi, item in enumerate(eval_set):
         runs = fired.get(qi, [])
-        counts = Counter(runs)
-        majority = counts.most_common(1)[0][0] if counts else NONE
+        majority = majority_route(runs)
         expected = item.get("expected_skill", NONE)
         ok = scored_pass(expected, majority)
         passed += int(ok)

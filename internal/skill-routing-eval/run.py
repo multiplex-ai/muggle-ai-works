@@ -5,7 +5,8 @@ Wraps router_eval.py + analyze.py with the operational lessons learned running
 this by hand: one pooled sweep across every selected skill (so no worker idles
 through a chunk's tail), a disconnect guard (re-run a positive skill that comes
 back all-`none` in a fresh subprocess), aggregation, report generation, a
-side-by-side confirmation against the base ref's plugin before a gate failure —
+confirmation before a gate failure (side by side against the base ref's plugin
+on a scoped run, a second measurement of the failing skills on a full sweep) —
 plus an optional cache sync so `claude -p` tests the working-tree descriptions
 rather than the installed copy.
 
@@ -38,6 +39,7 @@ from gate_constants import (
     BASELINE_SOURCE_FULL_SWEEP,
     CODEX_BASELINE_FILENAME,
     GATE_AGAINST_CONTROL_ARM,
+    GATE_AGAINST_REMEASURED_BASELINE,
 )
 from pool_constants import DEFAULT_ROUTING_WORKERS, MAX_DISCONNECT_ATTEMPTS
 from pool_types import SweepArm
@@ -303,6 +305,27 @@ def main():
         )
         report_gate(format_gate_report(confirmation_verdict, GATE_AGAINST_CONTROL_ARM))
         failing = is_failing(confirmation_verdict)
+    elif failing:
+        # With no control arm (a full sweep gates the harness itself), one bad
+        # stretch of model time is indistinguishable from a regression, so the
+        # failing skills are measured once more. A harness or description
+        # regression reproduces; an unlucky draw does not.
+        skills_to_confirm = confirmation_skills(run_verdict)
+        report_gate([
+            f"Re-measuring {', '.join(skills_to_confirm)} against the recorded baseline "
+            "— the failure stands only if it reproduces."
+        ])
+        remeasured_items = plan_pooled_items(skills_to_confirm, by_skill)
+        print(
+            f"== re-measure sweep: {len(remeasured_items)} queries x {args.runs} runs, {args.workers} workers ==",
+            file=sys.stderr,
+        )
+        remeasured = run_chunk(
+            remeasured_items, out_dir / "chunk_remeasure.json", repo_root, args.runs, args.workers, args.timeout, host
+        )["results"]
+        remeasure_verdict = judge_run(remeasured, load_baseline(baseline_path), flagged_set)
+        report_gate(format_gate_report(remeasure_verdict, GATE_AGAINST_REMEASURED_BASELINE))
+        failing = is_failing(remeasure_verdict)
 
     append_gate_section(md_path, gate_lines)
     if failing:

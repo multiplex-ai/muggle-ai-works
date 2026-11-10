@@ -11,6 +11,7 @@ import {
   ciInstallCommand,
   e2ePlanCommand,
   prWalkthroughCheckCommand,
+  pricingCommand,
   runViewCommand,
   cleanupCommand,
   doctorCommand,
@@ -150,6 +151,12 @@ function createProgram (): Command {
     .command("status")
     .description("Show authentication status")
     .action(statusCommand);
+
+  program
+    .command("pricing")
+    .description("Show Muggle AI plans, token price and token packages from the live catalog")
+    .option("--json", "Print the catalog as JSON")
+    .action(pricingCommand);
 
   program
     .command("build-pr-section")

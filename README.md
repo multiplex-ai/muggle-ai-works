@@ -281,7 +281,7 @@ so the result carries a viewUrl straight to the dashboard
 
 ## MCP tool reference
 
-126 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, billing, and administration. Call them directly from any MCP client to build your own pipeline.
+130 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, pricing, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
 **Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
@@ -346,9 +346,11 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 | `muggle-local-preferences-set` | Set harness preferences |
 | `muggle-remote-local-run-upload` | Publish a local run to the cloud |
 
+**Pricing and billing** — `muggle-remote-pricing-get` reads the live plans, token price and token packages without sign-in. `muggle-remote-wallet-package-list` lists the packages the signed-in user can buy, with the `packageId` that `muggle-remote-wallet-topup` and `-wallet-auto-topup-update` take.
+
 **Reporting** — `muggle-remote-report-stats-summary-get`, `-cost-query`, `-final-generate` (PDF/HTML/Markdown), `-preferences-upsert`.
 
-**Administration** — `muggle-remote-prd-file-*` (upload and process requirements docs), `muggle-remote-secret-*` (credentials for test environments), `muggle-remote-wallet-*` (credits, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`.
+**Administration** — `muggle-remote-prd-file-*` (upload and process requirements docs), `muggle-remote-secret-*` (credentials for test environments), `muggle-remote-wallet-*` (top-ups, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`.
 
 ---
 
@@ -379,6 +381,9 @@ muggle checkout-freshness     # Fetch the base and check this checkout is built 
 muggle login [--key-expiry 90d]
 muggle logout
 muggle status
+
+# Pricing
+muggle pricing [--json]       # Plans, token price and token packages from the live catalog
 
 # Pull requests
 muggle ci-install [--force]   # Add or update the walkthrough check in GitHub Actions

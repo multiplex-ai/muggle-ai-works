@@ -16,6 +16,7 @@ import type { IMcpToolResult } from "../../../shared/types.js";
 import * as schemas from "../../e2e/contracts/index.js";
 import { GatewayError, IQaToolDefinition, IUpstreamResponse } from "../../e2e/types.js";
 import { getPromptServiceClient } from "../../e2e/upstream-client.js";
+import { PRODUCT_CATALOG_PATH } from "../../e2e/upstream-client-constants.js";
 import { getAuthService } from "../../local/services/index.js";
 import { DeviceCodePollStatus } from "../../local/types/index.js";
 import { resolveEntityReferencesAsync } from "./entity-reference-resolver.js";
@@ -34,6 +35,8 @@ import {
   linkToProjects,
 } from "./dashboard-link-targets.js";
 import { mapOrganizationList } from "./organization-list-transform.js";
+import { mapPricingCatalog, mapWalletPackageList } from "./pricing-transform.js";
+import { PRICING_GET_TOOL_NAME, WALLET_PACKAGES_PATH } from "./pricing-transform-constants.js";
 import {
   mapProjectDisplayResolutions,
   toProjectResolutionUpstreamFields,
@@ -1581,10 +1584,34 @@ const prdFileTools: IQaToolDefinition[] = [
   },
 ];
 
+const pricingTools: IQaToolDefinition[] = [
+  {
+    name: PRICING_GET_TOOL_NAME,
+    description:
+      "Get Muggle AI's current pricing: plans (monthly price, per-seat terms, concurrent workflows, included tokens, features), " +
+      "the token price per million, and the token packages for sale. Read live from the backend; no sign-in needed. " +
+      "Response shape: { catalogVersion, plans: [{ planId, name, monthlyPriceUsd, isPerSeat, minimumSeats, concurrentWorkflows, includedTokens, tokenGrantCadence, featureDescriptions }], tokenPackages: [{ packageId, name, tokens, priceUsd }], tokenPriceUsdPerMillion }.",
+    inputSchema: schemas.EmptyInputSchema,
+    requiresAuth: false,
+    mapToUpstream: () => ({ method: "GET", path: PRODUCT_CATALOG_PATH }),
+    mapFromUpstream: mapPricingCatalog,
+  },
+];
+
 const walletTools: IQaToolDefinition[] = [
   {
+    name: "muggle-remote-wallet-package-list",
+    description:
+      "List the token packages the signed-in user can buy, with the packageId muggle-remote-wallet-topup and " +
+      "muggle-remote-wallet-auto-topup-update take. Response shape: { packages: [{ packageId, name, description, tokens, price, currency }], tokenPriceUsdPerMillion }.",
+    inputSchema: schemas.EmptyInputSchema,
+    mapToUpstream: () => ({ method: "GET", path: WALLET_PACKAGES_PATH }),
+    mapFromUpstream: mapWalletPackageList,
+  },
+  {
     name: "muggle-remote-wallet-topup",
-    description: "Create a Stripe checkout session to purchase a token package.",
+    description:
+      "Create a Stripe checkout session to purchase a token package. Get packageId from muggle-remote-wallet-package-list.",
     inputSchema: schemas.WalletTopUpInputSchema,
     mapToUpstream: (input) => {
       const toolInput = input as z.infer<typeof schemas.WalletTopUpInputSchema>;
@@ -2133,6 +2160,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...reportTools,
   ...secretTools,
   ...prdFileTools,
+  ...pricingTools,
   ...walletTools,
   ...recommendationTools,
   ...apiKeyTools,

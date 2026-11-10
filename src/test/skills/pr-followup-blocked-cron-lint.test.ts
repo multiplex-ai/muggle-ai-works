@@ -40,9 +40,18 @@ describe("pr-followup blocked-reminder wiring", () => {
   );
   const tickEvent = read(SHARED_DIR, "telemetry-events", "pr-followup-tick.md");
 
+  // A component missing here lets a blocked tick drop the state it omits: a new
+  // owner conversation comment moved nothing else and was never dispatched.
+  const fingerprintComponents = [
+    "head_sha",
+    "latest_review_id",
+    "ci_digest",
+    "latest_conversation_comment_id",
+  ];
+
   it("state-schemas documents the blocked field with its fingerprint components", () => {
     expect(stateSchemas).toMatch(/"blocked"/);
-    for (const component of ["head_sha", "latest_review_id", "ci_digest"]) {
+    for (const component of fingerprintComponents) {
       expect(
         stateSchemas.includes(component),
         `state-schemas.md blocked fingerprint is missing ${component}`,
@@ -57,7 +66,7 @@ describe("pr-followup blocked-reminder wiring", () => {
 
   it("blocked-tick.md carries the fingerprint + remind detail extracted from contract", () => {
     expect(fs.existsSync(path.join(SKILL_DIR, "blocked-tick.md"))).toBe(true);
-    for (const component of ["head_sha", "latest_review_id", "ci_digest"]) {
+    for (const component of fingerprintComponents) {
       expect(
         blockedTick.includes(component),
         `blocked-tick.md fingerprint is missing ${component}`,
@@ -65,6 +74,22 @@ describe("pr-followup blocked-reminder wiring", () => {
     }
     expect(blockedTick).toMatch(/blocked-reminder\.md/);
     expect(blockedTick).toMatch(/Remind or resume/i);
+  });
+
+  it("blocked fingerprint's conversation component is the loop's CONV signature", () => {
+    expect(blockedTick).toMatch(/latest_conversation_comment_id[^\n]*pr-watch-state\.jq/);
+  });
+
+  it("a fingerprint written without the conversation component reads it from the dispatch watermark", () => {
+    for (const [name, doc] of [
+      ["blocked-tick.md", blockedTick],
+      ["state-schemas.md", stateSchemas],
+    ]) {
+      expect(
+        /no `latest_conversation_comment_id`[^\n]*`last_seen\.lastConversationCommentId`/.test(doc),
+        `${name} does not define the stored value of a fingerprint that predates the conversation component`,
+      ).toBe(true);
+    }
   });
 
   it("contract's idle step reminds on every durable human-block reason", () => {

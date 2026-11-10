@@ -122,7 +122,8 @@ Keyed by `"<owner>/<repo>#<n>"`. One key per PR in the slot.
       "fingerprint": {
         "head_sha": "<sha>",
         "latest_review_id": <int>,
-        "ci_digest": "<string>"
+        "ci_digest": "<string>",
+        "latest_conversation_comment_id": <int>
       }
     }
   }
@@ -155,7 +156,8 @@ Unlike these, `ci_fix_attempts` / `ci_escalated_shas` stay keyed on the head SHA
   - `reason`: which durable block is being awaited — `conflict_escalated` (`rebase_key` ∈ `conflict_escalated_keys`), `ci_escalated` (`head_sha` ∈ `ci_escalated_shas`), `reviews_escalated` (a review sits in `escalated_review_ids` awaiting the user, actionable set empty), or `rebase_budget_exhausted` (`catch_up_rebases` reached its cap). Selects the reminder wording; the resume decision is fingerprint-driven for every reason but the last.
   - `rebase_budget_exhausted` is the one reason a fingerprint move does not clear. Base movement is what spent the budget, so resuming on it would restore the unbounded rebase loop the cap exists to end; it clears when the owner raises `maxCatchUpRebases` or the PR goes terminal.
   - `since`: when the block was first flagged — lets the reminder state how long the owner has been the blocker.
-  - `fingerprint`: the external state the block is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts. Any change clears the block and resumes evaluation.
+  - `fingerprint`: the external state the block is waiting on. `head_sha` moves on a new push (which also clears the per-SHA escalation sets, keyed by SHA); `latest_review_id` is `max(id)` over submitted reviews and moves when a reviewer submits anything new; `ci_digest` is a stable digest of the head SHA's CI rollup (bucket + each check's name/conclusion, sorted) and moves when a check flips, a rerun lands, or an external check such as a staging deploy posts; `latest_conversation_comment_id` is `max(id)` over conversation comments muggle did not post and no bot wrote (`0` under GitLab) and moves when the owner answers on the Conversation tab. Any change clears the block and resumes evaluation.
+  - A fingerprint with no `latest_conversation_comment_id` predates that component: the resume gate reads it as `last_seen.lastConversationCommentId`, or as unchanged when that key is absent too ([`blocked-tick.md`](blocked-tick.md#the-fingerprint)).
 
 ## `state.md`
 

@@ -14,6 +14,11 @@ import {
 import { STOP_REQUEST_GRACE_MS } from "../mcp/local/services/execution-stop-constants.js";
 import { RunStopReasonEnum, type IStoppableProcess } from "../mcp/local/services/execution-stop-types.js";
 
+vi.mock("fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("fs/promises")>();
+  return { ...actual, writeFile: vi.fn(actual.writeFile) };
+});
+
 const RUN_ID = "11111111-1111-4111-8111-111111111111";
 
 let tempDir: string;
@@ -97,6 +102,22 @@ describe("requestGracefulStopAsync", () => {
 
     await requestGracefulStopAsync({
       tempDir: path.join(tempDir, "missing", "dir"),
+      runId: RUN_ID,
+      reason: RunStopReasonEnum.Timeout,
+      child: child,
+    });
+
+    vi.advanceTimersByTime(STOP_REQUEST_GRACE_MS);
+    expect(child.kill).toHaveBeenCalledWith("SIGTERM");
+  });
+
+  it("arms the hard kill before writing the stop request, so a stalled write cannot keep the run alive", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    vi.mocked(fs.writeFile).mockImplementationOnce(() => new Promise<void>(() => undefined));
+    const child = _runningProcess();
+
+    void requestGracefulStopAsync({
+      tempDir: tempDir,
       runId: RUN_ID,
       reason: RunStopReasonEnum.Timeout,
       child: child,

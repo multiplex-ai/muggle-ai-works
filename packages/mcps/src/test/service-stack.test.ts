@@ -13,6 +13,9 @@ const HOME_ENV_VAR = os.platform() === "win32" ? "USERPROFILE" : "HOME";
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
 const SHA_BASE = "c".repeat(40);
+// Tracked services run as this process, so a literal PID would read as tracked whenever the runner hands it to us.
+const FOREIGN_LISTENER_PID = process.pid + 1;
+const FOREIGN_ANCESTOR_PID = process.pid + 2;
 
 let tempHome: string;
 let savedHome: string | undefined;
@@ -261,7 +264,9 @@ describe("checkServiceStack", () => {
     const report = await checkServiceStack({
       cwd: "/wt/a",
       runGit: git,
-      readListener: fakeListeners({ 3000: { pid: 34016, commandLine: "", ancestorPids: [880] } }),
+      readListener: fakeListeners({
+        3000: { pid: FOREIGN_LISTENER_PID, commandLine: "", ancestorPids: [FOREIGN_ANCESTOR_PID] },
+      }),
     });
 
     expect(report.verdict).toBe(StackCheckVerdict.Stale);

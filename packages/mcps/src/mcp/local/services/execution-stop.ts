@@ -22,7 +22,8 @@ export function buildStopRequestFilePath(params: { tempDir: string; runId: strin
 /**
  * Asks a running studio to stop — so it ends between steps, publishes what it recorded and quits — and schedules
  * a hard kill for when it has not exited by the end of the grace period. A studio that predates stop requests
- * ignores the file and is hard-killed after the grace, as before.
+ * ignores the file and is hard-killed after the grace, as before. The grace period starts before the request is
+ * written, so a slow or stalled write never delays or prevents the hard kill.
  *
  * @param params.tempDir - The MCP temp dir the studio watches.
  * @param params.runId - The run to stop.
@@ -36,16 +37,7 @@ export async function requestGracefulStopAsync(params: {
   reason: RunStopReasonEnum;
   child: IStoppableProcess;
 }): Promise<ReturnType<typeof setTimeout>> {
-  try {
-    await fs.writeFile(buildStopRequestFilePath(params), params.reason, "utf-8");
-  } catch (writeError) {
-    logger.warn("Could not write the stop request; the run will be hard-killed after the grace period", {
-      runId: params.runId,
-      error: writeError instanceof Error ? writeError.message : String(writeError),
-    });
-  }
-
-  return setTimeout(() => {
+  const hardKillTimer = setTimeout(() => {
     if (params.child.exitCode === null && params.child.signalCode === null) {
       logger.warn("Run did not stop within the grace period; killing it", {
         runId: params.runId,
@@ -54,6 +46,16 @@ export async function requestGracefulStopAsync(params: {
       params.child.kill("SIGTERM");
     }
   }, STOP_REQUEST_GRACE_MS);
+
+  try {
+    await fs.writeFile(buildStopRequestFilePath(params), params.reason, "utf-8");
+  } catch (writeError) {
+    logger.warn("Could not write the stop request; the run will be hard-killed after the grace period", {
+      runId: params.runId,
+      error: writeError instanceof Error ? writeError.message : String(writeError),
+    });
+  }
+  return hardKillTimer;
 }
 
 /**

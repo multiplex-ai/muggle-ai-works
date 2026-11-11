@@ -1,10 +1,11 @@
-/** Tests for Light mode inputs: the remote workflowParams.llm override, the local lightMode flag, and the run report line. */
+/** Tests for light-tier inputs: the remote workflowParams.llm override, the local lightMode flag, and the run report line. */
 
 import { describe, expect, it } from "vitest";
 
 import { WorkflowParamsSchema } from "../mcp/e2e/contracts/index.js";
 import { ExecuteReplayInputSchema, ExecuteTestGenerationInputSchema } from "../mcp/local/contracts/project-schemas.js";
 import { formatLlmTierLine } from "../mcp/tools/local/llm-tier-line.js";
+import { LIGHT_MODE_INPUT_DESCRIPTION, WORKFLOW_LLM_PARAMS_DESCRIPTION } from "../shared/llm-tier-constants.js";
 import { LlmTierEnum } from "../shared/llm-tier-types.js";
 
 const TEST_CASE_ID = "11111111-1111-4111-8111-111111111111";
@@ -71,12 +72,25 @@ describe("local execute lightMode", () => {
 });
 
 describe("formatLlmTierLine", () => {
-  it("reports Light mode", () => {
-    expect(formatLlmTierLine(true)).toBe("**Model tier:** Light mode");
+  it("reports Standard for a light run", () => {
+    expect(formatLlmTierLine(true)).toBe("**Model tier:** Standard");
   });
 
-  it("reports Standard when Light mode is off or absent", () => {
-    expect(formatLlmTierLine(false)).toBe("**Model tier:** Standard");
-    expect(formatLlmTierLine(undefined)).toBe("**Model tier:** Standard");
+  it("reports Premium for a default run", () => {
+    expect(formatLlmTierLine(false)).toBe("**Model tier:** Premium");
+    expect(formatLlmTierLine(undefined)).toBe("**Model tier:** Premium");
+  });
+});
+
+describe("tier input descriptions", () => {
+  it("names the model behind each tier on the lightMode flag", () => {
+    expect(LIGHT_MODE_INPUT_DESCRIPTION).toBe(
+      "true runs the Standard tier (Claude Sonnet 5.5, faster and lower cost). Default false runs the Premium tier (Claude Opus 5.5, the default).",
+    );
+  });
+
+  it("maps each wire value to its display tier on the workflowParams.llm override", () => {
+    expect(WORKFLOW_LLM_PARAMS_DESCRIPTION).toContain("tier 'light' runs the Standard tier (Claude Sonnet 5.5");
+    expect(WORKFLOW_LLM_PARAMS_DESCRIPTION).toContain("tier 'standard' runs the Premium tier (Claude Opus 5.5");
   });
 });

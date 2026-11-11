@@ -1,15 +1,24 @@
 import { LlmTierEnum } from "./llm-tier-types.js";
 
+/** User-facing label of each model tier, matching the dashboard and pricing. */
+export const LLM_TIER_DISPLAY_LABELS: Record<LlmTierEnum, string> = {
+  [LlmTierEnum.Standard]: "Premium",
+  [LlmTierEnum.Light]: "Standard",
+};
+
+/** Model each tier runs Studio's prediction agent on. */
+export const LLM_TIER_MODEL_NAMES: Record<LlmTierEnum, string> = {
+  [LlmTierEnum.Standard]: "Claude Opus 5.5",
+  [LlmTierEnum.Light]: "Claude Sonnet 5.5",
+};
+
+const LIGHT_TIER_SUMMARY = `the ${LLM_TIER_DISPLAY_LABELS[LlmTierEnum.Light]} tier (${LLM_TIER_MODEL_NAMES[LlmTierEnum.Light]}, faster and lower cost)`;
+const DEFAULT_TIER_SUMMARY = `the ${LLM_TIER_DISPLAY_LABELS[LlmTierEnum.Standard]} tier (${LLM_TIER_MODEL_NAMES[LlmTierEnum.Standard]}, the default)`;
+
 /** Agent-facing description of the remote `workflowParams.llm` override. */
 export const WORKFLOW_LLM_PARAMS_DESCRIPTION =
-  "Set tier to 'light' to run Studio in Light mode — a faster, lower-cost model (Claude Sonnet 5.5). Omit to inherit the project/use case/test case setting.";
+  `Model tier override. tier '${LlmTierEnum.Light}' runs ${LIGHT_TIER_SUMMARY}; tier '${LlmTierEnum.Standard}' runs ${DEFAULT_TIER_SUMMARY}. Omit to inherit the project/use case/test case setting.`;
 
 /** Agent-facing description of the local `lightMode` flag. */
 export const LIGHT_MODE_INPUT_DESCRIPTION =
-  "Run Studio in Light mode — faster, lower-cost model (Claude Sonnet 5.5). Default false.";
-
-/** User-facing label of each model tier, shown in run summaries. */
-export const LLM_TIER_DISPLAY_LABELS: Record<LlmTierEnum, string> = {
-  [LlmTierEnum.Standard]: "Standard",
-  [LlmTierEnum.Light]: "Light mode",
-};
+  `true runs ${LIGHT_TIER_SUMMARY}. Default false runs ${DEFAULT_TIER_SUMMARY}.`;

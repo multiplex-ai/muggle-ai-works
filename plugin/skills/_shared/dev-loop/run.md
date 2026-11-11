@@ -14,7 +14,7 @@ The caller resolves these before the loop and supplies them per test case:
 - `baseBranch` — the change's base, only when it is not the remote default (a stacked change, a PR into a release branch). Omitted, the tools check `cwd` against the remote default.
 - `testCase` / `cloudTestCaseId` / `projectId` — the cloud test case, its id and its project.
 - `showUi` — from the caller's `showElectronBrowser` resolution: omit for visible, `false` for headless.
-- `lightMode` — `true` only when the user asks for Light mode (faster, lower-cost model, Claude Sonnet 5.5); omit otherwise.
+- `lightMode` — `true` only when the user asks for the Standard tier (Claude Sonnet 5.5, faster and lower cost), whether they call it Standard, light, faster or cheaper; omit otherwise, which runs the Premium tier (Claude Opus 5.5, the default).
 
 The tool boundary is fixed: cloud reads (`muggle-remote-*`) resolve definitions and scripts; local tools (`muggle-local-*`) run the browser, fetch results, and publish.
 

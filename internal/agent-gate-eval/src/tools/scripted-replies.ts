@@ -31,11 +31,13 @@ export function scriptedReplyAt(reply: ScriptedReply, callIndex: number): string
  * @param entries - Scripted entries, in declaration order.
  * @param isMatch - Whether an entry answers a call, given the call's subject (a command, or serialized input).
  * @param unscriptedReply - The answer for a call no entry matches.
+ * @param completeReply - Turns the matched entry's scripted reply into the final answer; unset, the reply stands.
  */
 export function createSequencedResponder<Entry extends ScriptedReply>(
   entries: Entry[] | undefined,
   isMatch: (entry: Entry, subject: string) => boolean,
   unscriptedReply: string,
+  completeReply: (entry: Entry, reply: string) => string = (_entry, reply) => reply,
 ): (subject: string) => string {
   const callCountsByEntry = new Map<Entry, number>();
   return (subject) => {
@@ -43,8 +45,18 @@ export function createSequencedResponder<Entry extends ScriptedReply>(
     if (!entry) return unscriptedReply;
     const callIndex = callCountsByEntry.get(entry) ?? 0;
     callCountsByEntry.set(entry, callIndex + 1);
-    return scriptedReplyAt(entry, callIndex);
+    return completeReply(entry, scriptedReplyAt(entry, callIndex));
   };
+}
+
+/** A scripted reply followed by the output of the entry's own `run` command, when it has one. */
+function withRunOutput(
+  scripted: ScriptedBashResponse,
+  reply: string,
+  runInRepo: ((command: string) => string) | undefined,
+): string {
+  if (scripted.run === undefined || !runInRepo) return reply;
+  return [reply, runInRepo(scripted.run)].filter((part) => part !== "").join("\n");
 }
 
 function bashResponseMatches(scripted: ScriptedBashResponse, command: string): boolean {
@@ -108,9 +120,12 @@ export function resolveScriptedBashResponse(
  * of literals prints what the shell would; a command only the catch-all
  * matches prints nothing. When no command in the chain matches a specific
  * entry, the chain is answered whole.
+ *
+ * @param runInRepo - Runs an entry's `run` command in the sandbox repo; unset, `run` is ignored.
  */
 export function createBashResponder(
   responses: ScriptedBashResponse[] | undefined,
+  runInRepo?: (command: string) => string,
 ): (command: string) => string {
   const answeredCommands: string[] = [];
   const respond = createSequencedResponder(
@@ -118,6 +133,7 @@ export function createBashResponder(
     (scripted: ScriptedBashResponse, command) =>
       bashResponseMatches(scripted, command) && hasPrecedingCommand(scripted, answeredCommands),
     UNSCRIPTED_BASH_RESPONSE,
+    (scripted, reply) => withRunOutput(scripted, reply, runInRepo),
   );
   const answer = (command: string): string => {
     const reply = respond(command);

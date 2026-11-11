@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { UNSCRIPTED_BASH_RESPONSE } from "../src/constants.js";
 import { loadAgentScenarioFile } from "../src/scenario.js";
-import { resolveScriptedBashResponse } from "../src/tools/scripted-replies.js";
+import { createBashResponder, resolveScriptedBashResponse } from "../src/tools/scripted-replies.js";
 
 const scenariosDir = path.join(
   path.dirname(path.dirname(fileURLToPath(import.meta.url))),
@@ -90,5 +90,32 @@ describe("muggle-pr-followup tick verdict stubs", () => {
     const verdictCall =
       'node "/plugin/scripts/pr-watch-verdict.mjs" tick --pr-key "multiplex-ai/muggle-ai-works#540" --head 9f2c1e4 --rebase-due yes --ci green';
     expect(resolveScriptedBashResponse(verdictCall, scenario?.bashResponses)).toBe("VERDICT=dispatch-rebase");
+  });
+});
+
+describe("muggle-do scenarios answer the agent's own edits", () => {
+  const scenarioNamed = (file: string, name: string) =>
+    loadAgentScenarioFile(path.join(scenariosDir, file)).scenarios.find((candidate) => candidate.name === name);
+
+  it("full-forward diffs and tests whatever the agent wrote, not a canned implementation", () => {
+    const responses = scenarioNamed("muggle-do.adherence.json", "full-forward")?.bashResponses;
+    const answer = createBashResponder(responses, (command) => `ran ${command}`);
+    expect(answer("git diff --name-only main...HEAD")).toBe("ran git add -A -N && git diff --name-only HEAD");
+    expect(answer("git diff main...HEAD")).toBe("ran git add -A -N && git diff HEAD");
+    expect(answer("guard-run -- npm test")).toContain("node --test");
+    expect(answer("curl -s http://localhost:3000/")).toContain("node src/server.js");
+  });
+
+  it("reviews-mixed shows a posted reply when the agent re-reads the thread, and not before", () => {
+    const responses = scenarioNamed("muggle-do.modes.json", "reviews-mixed")?.bashResponses;
+    const answer = createBashResponder(responses, (command) => command);
+    const listComments = "gh api repos/acme/tiny-web-app/pulls/142/comments";
+    const commentIds = () => (JSON.parse(answer(listComments)) as { id: number }[]).map((comment) => comment.id);
+
+    expect(commentIds()).toEqual([3305, 3306]);
+    expect(answer("gh api -X POST repos/acme/tiny-web-app/pulls/142/comments/3305/replies -f body=x")).toContain('"id": 3401');
+    expect(commentIds()).toEqual([3305, 3306, 3401]);
+    expect(answer("gh api -X POST repos/acme/tiny-web-app/pulls/142/comments/3306/replies -f body=y")).toContain('"id": 3402');
+    expect(commentIds()).toEqual([3305, 3306, 3401, 3402]);
   });
 });

@@ -1,5 +1,6 @@
 /** Creates, seeds, inspects, and removes one run's sandbox directory. */
 
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -10,7 +11,10 @@ import {
   DEFAULT_CLAUDE_CONFIG_DIRNAME,
   FIXTURE_REPOS_DIR,
   RESUME_CONFIG_DIR_PREFIX,
+  SANDBOX_BASELINE_COMMIT,
   SANDBOX_DIR_PREFIX,
+  SANDBOX_RUN_SHELL,
+  SANDBOX_RUN_TIMEOUT_MS,
 } from "../constants.js";
 import type {
   ArtifactExpectation,
@@ -41,6 +45,45 @@ export function resolveFixtureRepo(repoName: string, fixturesDir: string = FIXTU
  */
 export function sandboxPathContext(sandbox: RunSandbox, passthroughRoots: string[] = []): SandboxPathContext {
   return { ...sandbox, realHome: os.homedir(), passthroughRoots: passthroughRoots };
+}
+
+/**
+ * Run a scenario's own command in the sandbox repo and return what a terminal
+ * would show: stdout and stderr, then `(exit N)` when the command failed.
+ *
+ * Output shape: `"partial\n(exit 3)"`
+ */
+export function runInSandboxRepo(sandbox: RunSandbox, command: string): string {
+  const ran = spawnSync(SANDBOX_RUN_SHELL, ["-c", command], {
+    cwd: sandbox.repo,
+    encoding: "utf8",
+    timeout: SANDBOX_RUN_TIMEOUT_MS,
+  });
+  const printed = `${ran.stdout ?? ""}${ran.stderr ?? ""}`.trimEnd();
+  const exitCode = ran.status ?? 1;
+  return exitCode === 0 ? printed : [printed, `(exit ${exitCode})`].filter((part) => part !== "").join("\n");
+}
+
+/**
+ * Commit the seeded repo as it stands, so a scenario's `run` commands can diff
+ * the agent's edits against the fixture.
+ *
+ * @throws when git cannot initialize or commit the repo.
+ */
+export function commitSandboxBaseline(sandbox: RunSandbox): void {
+  const { authorName, authorEmail, message } = SANDBOX_BASELINE_COMMIT;
+  const gitCommands = [
+    ["init", "-q"],
+    // A machine-wide autocrlf would add line-ending warnings to every diff the agent is shown.
+    ["config", "core.autocrlf", "false"],
+    ["add", "-A"],
+    ["-c", `user.name=${authorName}`, "-c", `user.email=${authorEmail}`, "-c", "commit.gpgsign=false",
+      "commit", "-q", "--allow-empty", "-m", message],
+  ];
+  for (const args of gitCommands) {
+    const ran = spawnSync("git", args, { cwd: sandbox.repo, encoding: "utf8" });
+    if (ran.status !== 0) throw new Error(`sandbox baseline failed at \`git ${args.join(" ")}\`: ${ran.stderr || ran.error}`);
+  }
 }
 
 /**

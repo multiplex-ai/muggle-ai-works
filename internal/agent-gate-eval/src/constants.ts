@@ -248,6 +248,19 @@ export const FIXTURE_REPOS_DIR = fileURLToPath(new URL("../fixtures/", import.me
 /** Prefix of each run's sandbox directory under the OS temp dir. */
 export const SANDBOX_DIR_PREFIX = "muggle-agent-eval-run-";
 
+/** The shell a scenario's own `run` commands execute in; written POSIX so CI and Git Bash agree. */
+export const SANDBOX_RUN_SHELL = "bash";
+
+/** A `run` command that has not finished by now is killed, and what it printed so far stands. */
+export const SANDBOX_RUN_TIMEOUT_MS = 30_000;
+
+/** Identity and message of the commit that records a seeded sandbox repo before the agent touches it. */
+export const SANDBOX_BASELINE_COMMIT = {
+  authorName: "eval-baseline",
+  authorEmail: "eval-baseline@example.invalid",
+  message: "baseline: the seeded fixture before the agent's edits",
+};
+
 /** Env var that relocates the Claude Code CLI's config dir (CI points it at a temp dir). */
 export const CLAUDE_CONFIG_DIR_ENV = "CLAUDE_CONFIG_DIR";
 

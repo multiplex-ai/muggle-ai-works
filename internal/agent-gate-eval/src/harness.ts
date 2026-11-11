@@ -51,7 +51,14 @@ import {
   SKILL_BUILTIN_TOOLS,
 } from "./constants.js";
 import { fillSandboxPathTokens } from "./sandbox/paths.js";
-import { createRunSandbox, removeRunSandbox, sandboxPathContext, snapshotArtifacts } from "./sandbox/sandbox.js";
+import {
+  commitSandboxBaseline,
+  createRunSandbox,
+  removeRunSandbox,
+  runInSandboxRepo,
+  sandboxPathContext,
+  snapshotArtifacts,
+} from "./sandbox/sandbox.js";
 import { buildPreferencesContext } from "./session-context.js";
 import { buildSkillInvocationMessage } from "./skill-definition.js";
 import { pluginRootOf } from "./target-definition.js";
@@ -164,11 +171,14 @@ export async function runAgentScenarioOnce(
   const pluginRoot = pluginRootOf(definition);
   const sandbox = createRunSandbox(scenario.seed);
   try {
+    const runsCommands = (scenario.bashResponses ?? []).some((scripted) => scripted.run !== undefined);
+    if (runsCommands) commitSandboxBaseline(sandbox);
+    const runInRepo = runsCommands ? (command: string) => runInSandboxRepo(sandbox, command) : undefined;
     const paths = sandboxPathContext(sandbox, [pluginRoot]);
     const answerScriptedTool = createToolResponder(scenario.toolResponses);
     const answerTool = (tool: ScriptedTool, serializedInput: string): string =>
       fillSandboxPathTokens(answerScriptedTool(tool, serializedInput), sandbox);
-    const answerScriptedBash = createBashResponder(scenario.bashResponses);
+    const answerScriptedBash = createBashResponder(scenario.bashResponses, runInRepo);
     // Bash output can name a shipped script, so it fills `{{pluginRoot}}` as well as the sandbox paths.
     const runPathsByToken = transcriptPathsByToken(paths, pluginRoot);
     const builtinTools = isSkillTarget ? SKILL_BUILTIN_TOOLS : AGENT_BUILTIN_TOOLS;
@@ -209,7 +219,7 @@ export async function runAgentScenarioOnce(
           context: {
             paths: paths,
             pluginRoot: pluginRoot,
-            answerBash: createBashResponder(scenario.bashResponses),
+            answerBash: createBashResponder(scenario.bashResponses, runInRepo),
             answerTool: (tool, serializedInput) =>
               fillSandboxPathTokens(answerSeedTool(tool, serializedInput), sandbox),
             answerMockTool: createMockToolAnswerer(scenario.fixtures ?? {}),

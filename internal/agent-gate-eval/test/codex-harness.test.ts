@@ -162,6 +162,7 @@ describe("the Codex agent harness", () => {
         bashResponses: [
           { commandContains: "gh", sequence: ["red", "green"] },
           { commandContains: "git status", afterCommandContains: "git commit", response: "clean" },
+          { commandContains: "git diff", response: "", run: "git diff HEAD" },
         ],
         fixtures: { executeResult: { sequence: [{ status: "failed" }, { status: "passed" }] } },
         seed: { repo: "tiny-web-app" },
@@ -171,6 +172,7 @@ describe("the Codex agent harness", () => {
     ).toEqual([
       "bashResponses sequence",
       "bashResponses afterCommandContains",
+      "bashResponses run",
       "fixtures sequence",
       "seed",
       "toolResponses",

@@ -107,10 +107,17 @@ describe("loadAgentScenarioFile", () => {
     expect(() => loadAgentScenarioFile(p)).toThrow(/repeats/);
   });
 
+  it("accepts a bash response whose whole answer is the command the harness runs", () => {
+    const runOnly = { ...minimalScenario, bashResponses: [{ commandContains: "git diff", run: "git diff HEAD" }] };
+    const p = writeScenarios("a", { target: agentTarget, scenarios: [runOnly] });
+    expect(loadAgentScenarioFile(p).scenarios[0].bashResponses).toEqual(runOnly.bashResponses);
+  });
+
   it.each([
     ["a bash response with neither response nor sequence", { bashResponses: [{ commandContains: "gh" }] }, /bashResponses/],
     ["an empty bash sequence", { bashResponses: [{ commandContains: "gh", sequence: [] }] }, /bashResponses/],
     ["a non-string afterCommandContains", { bashResponses: [{ commandContains: "gh", afterCommandContains: 1, response: "x" }] }, /afterCommandContains/],
+    ["a non-string run", { bashResponses: [{ commandContains: "git diff", run: ["git", "diff"] }] }, /run/],
     ["a toolResponses key that is no scripted tool", { toolResponses: { Bash: [{ argContains: "", response: "x" }] } }, /toolResponses key "Bash"/],
     ["a toolResponses entry without argContains", { toolResponses: { Skill: [{ response: "x" }] } }, /toolResponses\.Skill/],
     ["an unknown cadence", { cadence: "weekly" }, /cadence/],

@@ -10,8 +10,8 @@ set -uo pipefail
 # it fires on EVERY turn end, so the pre-filter has to be cheap. The claim lives
 # in the assistant's prose. A payload carrying the closing message
 # (`last_assistant_message` — Codex always sends it, Claude Code may) is
-# searched in-shell; otherwise the filter greps the transcript tail for an
-# impossibility word in-shell and spawns Node only on a hit. Node then applies
+# searched in-shell; otherwise the filter greps the transcript tail for the
+# detector's three word groups in-shell and spawns Node only on a hit. Node then applies
 # the real per-sentence detector, which is what keeps a genuine SMS/TOTP limit
 # from being "corrected". Over-matching here costs a needless spawn; it can
 # never emit a spurious nudge. Degrades to {} so it never blocks on its own
@@ -23,14 +23,30 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 
 GUARDRAIL_SUBCOMMAND="capability-claim-gate"
 
+# Whether the text holds all three word groups detectFalseCapabilityClaim needs in one sentence:
+# an impossibility, a flow a managed profile clears, and a testing context. Each is a superset of
+# its capabilityClaim.ts pattern, matched anywhere in the text, so it never drops a claim Node
+# would catch. An impossibility word alone hits most turn ends, which say "can't" about anything.
+# The apostrophe slot takes a curly quote as UTF-8 bytes or as the backslash-u2019 escape JSON may carry.
+capability_claim_text_could_match() {
+  local text="$1"
+  local impossibility_pattern='can(.{1,3}|\\u2019)t|could ?n(.{1,3}|\\u2019)?t|unable to|no way to|not able to|untestable|unverifiable|not testable|impossible|infeasible|blocked from|no (local )?(mail|email|smtp) path'
+  local cleared_flow_pattern='link|otp|code|password|verif|2fa|factor|inbox|mail|smtp|captcha|log ?in|logged|sign|auth|credential|sms|text|totp'
+  local testing_context_pattern='e2e|end.to.end|test|verif|validat|automat|coverage|covered|exercis|reproduc|replay|script|muggle|playwright|cypress|selenium'
+  local matched=1
+  shopt -s nocasematch
+  [[ $text =~ $impossibility_pattern && $text =~ $cleared_flow_pattern && $text =~ $testing_context_pattern ]] && matched=0
+  shopt -u nocasematch
+  return "$matched"
+}
+
 guardrail_wants() {
   if guardrail_load_state && guardrail_state_has '"capabilityClaimNudged": true'; then
     return 1
   fi
-  local claim_pattern='can.t|cannot|unable to|no way to|untestable|unverifiable|impossible|infeasible'
   local closing_message_pattern='"last_assistant_message"[[:space:]]*:[[:space:]]*"'
   if [[ $GUARDRAIL_PAYLOAD =~ $closing_message_pattern ]]; then
-    guardrail_payload_matches "$claim_pattern"
+    capability_claim_text_could_match "$GUARDRAIL_PAYLOAD"
     return
   fi
   local transcript_pattern='"transcript_path"[[:space:]]*:[[:space:]]*"([^"]*)"'
@@ -42,11 +58,7 @@ guardrail_wants() {
   # in-shell costs more than a tail. Gone for the session once the gate has nudged.
   local transcript_tail
   transcript_tail="$(tail -c 20000 "$transcript" 2>/dev/null)"
-  local matched=1
-  shopt -s nocasematch
-  [[ $transcript_tail =~ $claim_pattern ]] && matched=0
-  shopt -u nocasematch
-  return "$matched"
+  capability_claim_text_could_match "$transcript_tail"
 }
 
 if guardrail_is_hook_script; then

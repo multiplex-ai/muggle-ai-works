@@ -1053,6 +1053,32 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     ).toBe("{}");
   });
 
+  // An impossibility word alone is in most closing messages, so the pre-filter waits for the other two word groups
+  // the detector needs.
+  it("capability-claim: skips Node on a can't that names no gated flow or testing context", () => {
+    expect(
+      runWrapper(
+        "guardrail-capability-claim.sh",
+        event({ session_id: "cm-c", transcript_path: null, last_assistant_message: "I can't find that file anywhere." }),
+      ),
+    ).toBe("{}");
+  });
+
+  it.each([
+    "I couldn't test the magic link login.",
+    "We could not verify the OTP sign in flow.",
+    "I'm not able to automate the password reset.",
+    "Testing is blocked from the inbox step.",
+    "I can’t test the 2FA login.",
+  ])("capability-claim: spawns Node on every impossibility form the detector reads: %s", (closingMessage) => {
+    expect(
+      runWrapper(
+        "guardrail-capability-claim.sh",
+        event({ session_id: "cm-d", transcript_path: null, last_assistant_message: closingMessage }),
+      ),
+    ).toContain(NODE_RAN);
+  });
+
   it("build-router: skips Node on a non-build prompt, spawns it on a build ask", () => {
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "a", prompt: "what time is it?" }))).toBe("{}");
     expect(runWrapper("guardrail-build-router.sh", event({ session_id: "b", prompt: "implement dark mode" }))).toContain(NODE_RAN);
@@ -1077,7 +1103,13 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
       "explainer page: build it",
       "can you build the export page",
       "this timeout is annoying, what exactly is it running? build-router",
+      "wire up the export button",
+      "resolve the merge conflicts on my branch",
+      "get PR 12 to green",
       "/mdo paginate the export page",
+      "/mdo",
+      "/muggle:muggle-do the export page should paginate",
+      "$muggle:mdo the export page should paginate",
       "  /MDO paginate the export page",
       "/mdo\nfix the export page",
       "/muggle:muggle-do build it",
@@ -1091,6 +1123,20 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
     for (const prompt of nodeAcceptedPrompts) {
       expect(runWrapper("guardrail-build-router.sh", event({ session_id: "parity", prompt: prompt })), prompt).toContain(NODE_RAN);
     }
+  });
+
+  // The verbs are searched from the prompt key on, so a session id or cwd ahead of it never counts.
+  it("build-router: skips Node when only the session id and cwd spell a build verb", () => {
+    const payload = event({ session_id: "0add4f2e", cwd: "/repo/build", prompt: "thanks, that looks right" });
+    expect(runWrapper("guardrail-build-router.sh", payload)).toBe("{}");
+  });
+
+  // A pasted log usually carries the ask at its end, past any head the question checks read.
+  it("build-router: spawns Node for a build ask after a long pasted log", () => {
+    const pastedLog = 'at Object.<anonymous> (C:\\repo\\src\\index.ts:12:5) "status": 500\n'.repeat(3000);
+    expect(
+      runWrapper("guardrail-build-router.sh", event({ session_id: "paste", prompt: `${pastedLog}please fix this` })),
+    ).toContain(NODE_RAN);
   });
 
   // The offer fires once per session, so every later build ask would start Node only to answer {}.
@@ -1289,6 +1335,22 @@ describe.skipIf(process.platform === "win32")("guardrail wrapper pre-filter (no 
         "guardrail-pr-terminal.sh",
         event({ tool_name: "Bash", tool_response: { stdout: "TERMINAL pr=331 state=MERGED" } }),
       ),
+    ).toContain(NODE_RAN);
+  });
+
+  // detectPrTerminal reads output only after a merge, close, reopen or watch-script command, so a terminal line in
+  // any other command's output — a `git log` of merge commits, a `cat` of a watch log — never starts Node.
+  it("pr-terminal: skips Node on a terminal line in an unrelated command's output, spawns it after a merge", () => {
+    const shellCall = (command: string, stdout: string): string =>
+      event({ tool_name: "Bash", tool_input: { command: command }, tool_response: { stdout: stdout } });
+    expect(
+      runWrapper("guardrail-pr-terminal.sh", shellCall("git log -3", "Merged pull request #341\nTERMINAL pr=331 state=MERGED")),
+    ).toBe("{}");
+    expect(
+      runWrapper("guardrail-pr-terminal.sh", shellCall("gh pr merge 341 --squash", "✓ Squashed and merged pull request #341")),
+    ).toContain(NODE_RAN);
+    expect(
+      runWrapper("guardrail-pr-terminal.sh", shellCall("bash pr-watch-loop.sh --slot /s", "TERMINAL pr=331 state=MERGED")),
     ).toContain(NODE_RAN);
   });
 

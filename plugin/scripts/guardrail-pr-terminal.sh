@@ -14,6 +14,12 @@ set -uo pipefail
 # dropped it a close+reopen — routine, to re-fire a lost workflow trigger — left
 # the handoff armed on a change that is open again. Degrades to {} so it never
 # blocks.
+#
+# The output shapes are searched across the whole payload, which carries the
+# command's full output, so the command is checked first: detectPrTerminal only
+# reads the output of a merge, close or reopen, or of the watch scripts, and a
+# payload with no command at all is left to it. Every other command ends here
+# before its output is scanned.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -22,6 +28,14 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="pr-terminal"
 
 guardrail_wants() {
+  if guardrail_payload_field command; then
+    local terminal_command_pattern='(gh|glab)[[:space:]]+(pr|mr)[[:space:]]+(merge|close|reopen)|pr-watch-(loop|arm)\.sh'
+    local is_terminal_command=1
+    shopt -s nocasematch
+    [[ $GUARDRAIL_FIELD_VALUE =~ $terminal_command_pattern ]] && is_terminal_command=0
+    shopt -u nocasematch
+    ((is_terminal_command == 0)) || return 1
+  fi
   guardrail_payload_matches '(merged|closed|reopened) pull request|TERMINAL pr='
 }
 

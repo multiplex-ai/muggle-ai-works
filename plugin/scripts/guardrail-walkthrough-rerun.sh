@@ -18,7 +18,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="walkthrough-rerun-notice"
 
 guardrail_wants() {
-  guardrail_payload_matches 'muggle[-_]local[-_](execute[-_]test[-_]generation|execute[-_]replay)'
+  guardrail_fields_match tool_name 'muggle[-_]local[-_](execute[-_]test[-_]generation|execute[-_]replay)'
 }
 
 if guardrail_is_hook_script; then

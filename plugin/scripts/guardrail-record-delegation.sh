@@ -17,7 +17,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="record-delegation"
 
 guardrail_wants() {
-  guardrail_payload_matches 'acceptance-tester'
+  guardrail_fields_match subagent_type 'acceptance-tester'
 }
 
 if guardrail_is_hook_script; then

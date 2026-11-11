@@ -751,7 +751,7 @@ async function executeElectronAppAsync(params: {
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
  * @param params.runSettingsId - Local runSettings record the cloud records the generation against.
- * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier.
+ * @param params.isLightMode - Run Studio's prediction agent on the light tier.
  * @returns Run result with generated script info.
  */
 export async function executeTestGeneration(params: {
@@ -1038,7 +1038,7 @@ async function runTestGenerationLocked(params: {
  * @param params.localUrl - Local URL to test against.
  * @param params.timeoutMs - Optional timeout in milliseconds.
  * @param params.showUi - Optional flag to show electron-app UI during execution.
- * @param params.isLightMode - Run Studio's prediction agent on the Light mode tier.
+ * @param params.isLightMode - Run Studio's prediction agent on the light tier.
  * @returns Run result.
  */
 export async function executeReplay(params: {

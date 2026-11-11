@@ -128,7 +128,7 @@ export const ExecuteTestGenerationInputSchema = z.object({
   runSettingsId: z.string().optional().describe(
     "Local runSettings record to record this run against, e.g. a local script's runSettingsId. Pass its resolution as displayResolution.",
   ),
-  /** Run Studio's prediction agent on the Light mode model tier. */
+  /** Run Studio's prediction agent on the light tier. */
   lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
 });
 
@@ -165,7 +165,7 @@ export const ExecuteReplayInputSchema = z.object({
   displayResolution: DisplayResolutionSchema.optional().describe(
     "Browser resolution, e.g. R_0390x0844. Defaults to the script's recorded size.",
   ),
-  /** Run Studio's prediction agent on the Light mode model tier. */
+  /** Run Studio's prediction agent on the light tier. */
   lightMode: z.boolean().optional().describe(LIGHT_MODE_INPUT_DESCRIPTION),
 });
 

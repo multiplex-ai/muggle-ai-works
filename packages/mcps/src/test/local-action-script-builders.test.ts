@@ -1,4 +1,4 @@
-/** Tests for local action-script builders: executionSource tag, SharedTestMemory id, webview sizing, record naming, Light mode tier. */
+/** Tests for local action-script builders: executionSource tag, SharedTestMemory id, webview sizing, record naming, light tier. */
 
 import { describe, expect, it } from "vitest";
 
@@ -373,7 +373,7 @@ describe("buildReplayActionScript run identity", () => {
   });
 });
 
-describe("Light mode workflowParams", () => {
+describe("light-tier workflowParams", () => {
   const generationBase = {
     testCase: makeTestCase(),
     localUrl: "http://localhost:3999",
@@ -391,17 +391,17 @@ describe("Light mode workflowParams", () => {
   };
   const lightWorkflowParams = { llm: { tier: LlmTierEnum.Light } };
 
-  it("writes the light tier for a generation in Light mode", () => {
+  it("writes the light tier for a light generation", () => {
     const script = buildGenerationActionScript({ ...generationBase, isLightMode: true });
     expect(actionParams(script).workflowParams).toEqual(lightWorkflowParams);
   });
 
-  it("writes the light tier for a replay in Light mode", () => {
+  it("writes the light tier for a light replay", () => {
     const script = buildReplayActionScript({ ...replayBase, isLightMode: true });
     expect(actionParams(script).workflowParams).toEqual(lightWorkflowParams);
   });
 
-  it("leaves workflowParams unset when Light mode is off or absent", () => {
+  it("leaves workflowParams unset when lightMode is off or absent", () => {
     expect(actionParams(buildGenerationActionScript(generationBase))).not.toHaveProperty("workflowParams");
     expect(actionParams(buildGenerationActionScript({ ...generationBase, isLightMode: false }))).not.toHaveProperty("workflowParams");
     expect(actionParams(buildReplayActionScript(replayBase))).not.toHaveProperty("workflowParams");

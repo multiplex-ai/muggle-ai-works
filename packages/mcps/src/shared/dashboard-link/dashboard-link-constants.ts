@@ -22,3 +22,9 @@ export const SCRIPTS_MODAL_ACTION_SCRIPT_ID_KEY = "actionScriptId";
 
 /** Field a tool response carries its dashboard link in. */
 export const DASHBOARD_URL_FIELD = "dashboardUrl";
+
+/** Last segment of the projects base every lane's dashboard URL ends in. */
+export const DASHBOARD_PROJECTS_SEGMENT = "/projects";
+
+/** Dashboard segment, beside the projects one, holding the viewer's bug reports. */
+export const DASHBOARD_BUG_REPORTS_SEGMENT = "/bug-reports";

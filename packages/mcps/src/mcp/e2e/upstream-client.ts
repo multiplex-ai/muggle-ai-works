@@ -10,11 +10,13 @@ import { getInstallId } from "../../shared/install_id.js";
 import { getLogger } from "../../shared/logger.js";
 import { readReleaseManifest } from "../../shared/release_manifest.js";
 
+import { BUG_REPORTS_PATH } from "../../shared/bug-report/index.js";
 import { PUBLIC_UPSTREAM_PATHS } from "./upstream-client-constants.js";
 import {
   GatewayError,
   ICallerCredentials,
   IUpstreamCall,
+  IUpstreamMultipartFormData,
   IUpstreamResponse,
   McpErrorCode,
 } from "./types.js";
@@ -28,6 +30,7 @@ const ALLOWED_UPSTREAM_PREFIXES = [
   "/v1/protected/wallet/",
   "/v1/protected/api-keys",
   "/v1/protected/actionScript/",
+  BUG_REPORTS_PATH,
   // Only the caller's own membership read: the organization admin routes stay out of an agent's reach.
   "/v1/protected/organizations/my-organizations",
 ];
@@ -138,20 +141,22 @@ export class PromptServiceClient {
   }
 
   /**
-   * Build the multipart body for a file upload.
-   * @param multipartFormData - File part to send, with base64-encoded bytes.
-   * @returns Form data holding the decoded file under its field name.
+   * Build the multipart body for an upload.
+   * @param multipartFormData - Text fields and file parts to send, file bytes base64-encoded.
+   * @returns Form data holding each text field, then each decoded file under its field name.
    */
-  private buildMultipartBody(
-    multipartFormData: NonNullable<IUpstreamCall["multipartFormData"]>,
-  ): FormData {
+  private buildMultipartBody(multipartFormData: IUpstreamMultipartFormData): FormData {
     const uploadForm = new FormData();
-    const fileBytes = Buffer.from(multipartFormData.fileBase64, "base64");
-    uploadForm.append(
-      multipartFormData.fileFieldName,
-      new Blob([fileBytes], { type: multipartFormData.contentType }),
-      multipartFormData.fileName,
-    );
+    for (const [fieldName, fieldValue] of Object.entries(multipartFormData.textFields ?? {})) {
+      uploadForm.append(fieldName, fieldValue);
+    }
+    for (const multipartFile of multipartFormData.files) {
+      uploadForm.append(
+        multipartFile.fieldName,
+        new Blob([Buffer.from(multipartFile.fileBase64, "base64")], { type: multipartFile.contentType }),
+        multipartFile.fileName,
+      );
+    }
     return uploadForm;
   }
 

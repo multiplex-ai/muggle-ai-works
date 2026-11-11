@@ -30,6 +30,15 @@ describe("buildDashboardUrl", () => {
     ).toBe(`${BASE}/p1/scripts?modal=script-details&testCaseId=tc1&actionScriptId=as1`);
   });
 
+  it("resolves bug report pages beside the projects base", () => {
+    expect(buildDashboardUrl({ page: DashboardPage.BugReports }, BASE)).toBe(
+      "https://dashboard.test/muggleTestV0/dashboard/bug-reports",
+    );
+    expect(buildDashboardUrl({ page: DashboardPage.BugReport, bugReportId: "bug 1" }, BASE)).toBe(
+      "https://dashboard.test/muggleTestV0/dashboard/bug-reports/bug%201",
+    );
+  });
+
   it.each([
     ["production", "https://www.muggle-ai.com/muggleTestV0/dashboard/projects/p1/runs"],
     ["staging", "https://staging.muggle-ai.com/muggleTestV0/dashboard/projects/p1/runs"],

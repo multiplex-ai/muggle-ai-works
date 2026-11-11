@@ -75,6 +75,8 @@ function isLocalOnlyTool(toolName: string): boolean {
     // Client telemetry — purely local, no backend call
     "muggle-local-telemetry-skill-emit",
     "muggle-local-telemetry-event-emit",
+    // Reads only local install and run state, so context shows before sign-in
+    "muggle-local-bug-report-context-get",
   ];
 
   return localOnlyTools.includes(toolName);

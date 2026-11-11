@@ -36,6 +36,7 @@ export * from "./secret-group-types.js";
 export * from "./test-case-display-resolution-schemas.js";
 export * from "./test-state-schemas.js";
 export * from "./test-state-types.js";
+export * from "./bug-report-schemas.js";
 
 /**
  * Pagination input schema shared by list tools.

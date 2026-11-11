@@ -3,6 +3,10 @@
 exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name + description for every tool 1`] = `
 [
   {
+    "description": "Gather the harness context a Muggle bug report carries: Muggle CLI and Studio versions, operating system, the last Muggle Test project selected for this directory, and the newest local run with its status. Values that look like secrets are dropped and named in strippedFieldNames. Read-only. Show the result to the user before filing, then pass the clientContext JSON block unchanged as clientContext to muggle-remote-bug-report-create.",
+    "name": "muggle-local-bug-report-context-get",
+  },
+  {
     "description": "Cancel an active test generation or replay execution.",
     "name": "muggle-local-cancel-execution",
   },
@@ -121,6 +125,22 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
   {
     "description": "Check current authentication status. Shows if you're logged in and when your session expires.",
     "name": "muggle-remote-auth-status",
+  },
+  {
+    "description": "File a bug report about Muggle AI itself (the harness, a run, the dashboard, billing) for the Muggle team. Takes title, description, severity and optional steps / expected / actual, screenshotPaths read from this machine (images only, at most 5, 5 MB each) and clientContext from muggle-local-bug-report-context-get; secret-looking context values are dropped before sending. Not for a generated test script that did the wrong thing: that is muggle-remote-user-feedback-create. Returns the report with its bugReportId and shortId (e.g. BUG-4821) plus dashboardUrl to the ticket. Ten reports per hour per user.",
+    "name": "muggle-remote-bug-report-create",
+  },
+  {
+    "description": "Get one of the user's bug reports with its public timeline. Response: { report, activities: [{ kind, actorKind, actorDisplayName, message, fromStatus, toStatus, screenshots, createdAtMs }] } plus dashboardUrl. Takes the bugReportId, not the shortId.",
+    "name": "muggle-remote-bug-report-get",
+  },
+  {
+    "description": "List the signed-in user's own bug reports, newest activity first. Response: { items: [{ bugReportId, shortId, title, status, severity, priority, source, createdAtMs, updatedAtMs, lastActivityAtMs, hasFilerReplySinceTriage }], nextCursor }. Pass nextCursor back as cursor for the next page. Use it to find a bugReportId from a shortId like BUG-4821.",
+    "name": "muggle-remote-bug-report-list",
+  },
+  {
+    "description": "Post the user's reply on one of their bug reports, with optional screenshotPaths read from this machine (images only, at most 5, 5 MB each). A reply on a needs_info ticket returns it to triaged; on a fixed or closed ticket it reopens it within 14 days, and after that the backend refuses with bug_report_reopen_window_elapsed: file a new report naming the old shortId instead. Returns the new timeline activity.",
+    "name": "muggle-remote-bug-report-reply",
   },
   {
     "description": "Request cancellation of a bulk-preview job. Cancellation is cooperative — the harvester picks it up on its next tick and moves the job to status=cancelled.",
@@ -527,6 +547,7 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact name 
 
 exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set of tool names 1`] = `
 [
+  "muggle-local-bug-report-context-get",
   "muggle-local-cancel-execution",
   "muggle-local-check-status",
   "muggle-local-execute-replay",
@@ -557,6 +578,10 @@ exports[`MCP tool surface (Lazy-core parity oracle) > advertises the exact set o
   "muggle-remote-auth-poll",
   "muggle-remote-auth-register",
   "muggle-remote-auth-status",
+  "muggle-remote-bug-report-create",
+  "muggle-remote-bug-report-get",
+  "muggle-remote-bug-report-list",
+  "muggle-remote-bug-report-reply",
   "muggle-remote-bulk-preview-job-cancel",
   "muggle-remote-bulk-preview-job-get",
   "muggle-remote-bulk-preview-job-list",

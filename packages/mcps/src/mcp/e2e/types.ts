@@ -47,6 +47,30 @@ export class GatewayError extends Error {
 }
 
 /**
+ * One file part of a multipart upload.
+ */
+export interface IUpstreamMultipartFile {
+  /** Form field the file is sent under (e.g., "file"); repeat it to send several files under one field. */
+  fieldName: string;
+  /** File name to provide to upstream. */
+  fileName: string;
+  /** MIME type for the uploaded file. */
+  contentType: string;
+  /** Base64-encoded file bytes. */
+  fileBase64: string;
+}
+
+/**
+ * Multipart form-data body: plain text fields followed by file parts.
+ */
+export interface IUpstreamMultipartFormData {
+  /** Text fields by form field name. */
+  textFields?: Record<string, string>;
+  /** File parts, sent in order. */
+  files: IUpstreamMultipartFile[];
+}
+
+/**
  * Mapped upstream HTTP call specification.
  */
 export interface IUpstreamCall {
@@ -63,16 +87,7 @@ export interface IUpstreamCall {
   body?: unknown;
 
   /** Optional multipart form-data upload. */
-  multipartFormData?: {
-    /** Field name for the uploaded file (e.g., "file"). */
-    fileFieldName: string;
-    /** File name to provide to upstream. */
-    fileName: string;
-    /** MIME type for the uploaded file. */
-    contentType: string;
-    /** Base64-encoded file bytes. */
-    fileBase64: string;
-  };
+  multipartFormData?: IUpstreamMultipartFormData;
 
   /** Timeout in milliseconds (overrides default). */
   timeoutMs?: number;

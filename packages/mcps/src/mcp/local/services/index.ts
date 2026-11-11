@@ -32,3 +32,5 @@ export {
   readLocalExecutionLockState,
 } from "./local-execution-lock.js";
 export type { ILocalExecutionLockHandle } from "./local-execution-lock.js";
+
+export { collectBugReportClientContext } from "./bug-report-context.js";

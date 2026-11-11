@@ -26,10 +26,14 @@ import {
   TEST_SCRIPT_ID_REFERENCE_FIELD,
   USE_CASE_ID_REFERENCE_FIELD,
 } from "./entity-reference-resolver-constants.js";
+import { buildBugReportCreateCall, buildBugReportReplyCall } from "./bug-report-upstream.js";
 import {
+  linkToBugReports,
+  linkToCreatedBugReport,
   linkToCreatedProject,
   linkToFetchedTestCase,
   linkToFetchedTestScript,
+  linkToInputBugReport,
   linkToInputProjectPage,
   linkToInputScriptDetails,
   linkToProjects,
@@ -69,6 +73,7 @@ import {
   pickTestCaseTestStateFields,
 } from "./test-state-upstream.js";
 import { MUGGLE_TEST_PREFIX } from "./upstream-route-constants.js";
+import { BUG_REPORTS_PATH } from "../../../shared/bug-report/index.js";
 
 /** Default workflow timeout. */
 const getWorkflowTimeoutMs = (): number => getConfig().e2e.workflowTimeoutMs;
@@ -1516,10 +1521,14 @@ const prdFileTools: IQaToolDefinition[] = [
         method: "POST",
         path: `${MUGGLE_TEST_PREFIX}/workflow/use-case/prd-file-upload`,
         multipartFormData: {
-          fileFieldName: "file",
-          fileName: toolInput.fileName,
-          contentType: toolInput.contentType || "application/octet-stream",
-          fileBase64: toolInput.contentBase64,
+          files: [
+            {
+              fieldName: "file",
+              fileName: toolInput.fileName,
+              contentType: toolInput.contentType || "application/octet-stream",
+              fileBase64: toolInput.contentBase64,
+            },
+          ],
         },
       };
     },
@@ -1996,6 +2005,57 @@ const userFeedbackTools: IQaToolDefinition[] = [
   },
 ];
 
+const bugReportTools: IQaToolDefinition[] = [
+  {
+    name: "muggle-remote-bug-report-create",
+    description:
+      "File a bug report about Muggle AI itself (the harness, a run, the dashboard, billing) for the Muggle team. Takes title, description, severity and optional steps / expected / actual, screenshotPaths read from this machine (images only, at most 5, 5 MB each) and clientContext from muggle-local-bug-report-context-get; secret-looking context values are dropped before sending. Not for a generated test script that did the wrong thing: that is muggle-remote-user-feedback-create. Returns the report with its bugReportId and shortId (e.g. BUG-4821) plus dashboardUrl to the ticket. Ten reports per hour per user.",
+    inputSchema: schemas.BugReportCreateInputSchema,
+    dashboardLink: linkToCreatedBugReport,
+    mapToUpstream: (input) => buildBugReportCreateCall(input as z.infer<typeof schemas.BugReportCreateInputSchema>),
+  },
+  {
+    name: "muggle-remote-bug-report-list",
+    description:
+      "List the signed-in user's own bug reports, newest activity first. Response: { items: [{ bugReportId, shortId, title, status, severity, priority, source, createdAtMs, updatedAtMs, lastActivityAtMs, hasFilerReplySinceTriage }], nextCursor }. Pass nextCursor back as cursor for the next page. Use it to find a bugReportId from a shortId like BUG-4821.",
+    inputSchema: schemas.BugReportListInputSchema,
+    dashboardLink: linkToBugReports,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.BugReportListInputSchema>;
+      return {
+        method: "GET",
+        path: BUG_REPORTS_PATH,
+        queryParams: {
+          pageSize: toolInput.pageSize,
+          cursor: toolInput.cursor,
+        },
+      };
+    },
+  },
+  {
+    name: "muggle-remote-bug-report-get",
+    description:
+      "Get one of the user's bug reports with its public timeline. Response: { report, activities: [{ kind, actorKind, actorDisplayName, message, fromStatus, toStatus, screenshots, createdAtMs }] } plus dashboardUrl. Takes the bugReportId, not the shortId.",
+    inputSchema: schemas.BugReportGetInputSchema,
+    dashboardLink: linkToInputBugReport,
+    mapToUpstream: (input) => {
+      const toolInput = input as z.infer<typeof schemas.BugReportGetInputSchema>;
+      return {
+        method: "GET",
+        path: `${BUG_REPORTS_PATH}/${encodeURIComponent(toolInput.bugReportId)}`,
+      };
+    },
+  },
+  {
+    name: "muggle-remote-bug-report-reply",
+    description:
+      "Post the user's reply on one of their bug reports, with optional screenshotPaths read from this machine (images only, at most 5, 5 MB each). A reply on a needs_info ticket returns it to triaged; on a fixed or closed ticket it reopens it within 14 days, and after that the backend refuses with bug_report_reopen_window_elapsed: file a new report naming the old shortId instead. Returns the new timeline activity.",
+    inputSchema: schemas.BugReportReplyInputSchema,
+    dashboardLink: linkToInputBugReport,
+    mapToUpstream: (input) => buildBugReportReplyCall(input as z.infer<typeof schemas.BugReportReplyInputSchema>),
+  },
+];
+
 const authTools: IQaToolDefinition[] = [
   {
     name: "muggle-remote-auth-register",
@@ -2165,6 +2225,7 @@ export const allQaToolDefinitions: IQaToolDefinition[] = [
   ...recommendationTools,
   ...apiKeyTools,
   ...userFeedbackTools,
+  ...bugReportTools,
   ...authTools,
 ];
 

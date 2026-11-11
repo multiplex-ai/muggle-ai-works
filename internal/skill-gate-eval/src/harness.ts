@@ -33,9 +33,8 @@ import type {
 } from "./types.js";
 import { usageLimitErrorFromResult } from "./usage-limit.js";
 import {
-  extractFirstQuestionText,
+  answerAskQuestionCall,
   isGateQuestion,
-  matchAskQuestionAnswer,
   verdict,
 } from "./verdict.js";
 
@@ -112,6 +111,7 @@ export async function runScenarioOnce(
 
   const mcpCalls: MockCall[] = [];
   const askQuestions: AskQuestionRecord[] = [];
+  let nextSequence = 0;
   let gateQuestionFired = false;
 
   const systemPrompt = buildSystemPrompt(opts);
@@ -121,25 +121,17 @@ export async function runScenarioOnce(
     input,
   ): Promise<PermissionResult> => {
     if (toolName === ASK_QUESTION_TOOL) {
-      // The agent's AskQuestion input is { questions: [{ question, options, ... }] }.
-      // Extract the first question's text; that's what we match on.
-      const firstQuestion = extractFirstQuestionText(input);
-      if (isGateQuestion(firstQuestion, opts.scenario)) {
+      // A call can batch several questions; each is recorded and answered.
+      const answered = answerAskQuestionCall(input, opts.scenario, nextSequence++);
+      if (answered.records.some((record) => isGateQuestion(record.question, opts.scenario))) {
         gateQuestionFired = true;
       }
-      const answer = matchAskQuestionAnswer(firstQuestion, opts.scenario);
-      askQuestions.push({ question: firstQuestion, answer: answer });
-      return {
-        behavior: "deny",
-        message:
-          answer !== null
-            ? `User selected: "${answer}"`
-            : "[harness] no scripted answer for this question — scenario should add one",
-      };
+      askQuestions.push(...answered.records);
+      return { behavior: "deny", message: answered.replyMessage };
     }
 
     if (toolName.startsWith(MOCK_MCP_PREFIX)) {
-      mcpCalls.push({ tool: bareToolName(toolName), args: input });
+      mcpCalls.push({ tool: bareToolName(toolName), args: input, sequence: nextSequence++ });
       return { behavior: "allow", updatedInput: input };
     }
 

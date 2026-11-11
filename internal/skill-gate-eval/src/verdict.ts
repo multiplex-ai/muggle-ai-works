@@ -17,6 +17,32 @@ export function matchAskQuestionAnswer(
 }
 
 /**
+ * Answer one AskQuestion call: a record per question it carries, all sharing
+ * the call's `sequence`, and the message that hands the agent its answers.
+ *
+ * Output shape: `{ records: [{ question: "Which use case…?", answer: "Sign up flow", sequence: 4 }],
+ * replyMessage: 'User selected: "Sign up flow"' }`
+ */
+export function answerAskQuestionCall(
+  input: Record<string, unknown>,
+  scenario: Scenario,
+  sequence: number,
+): { records: AskQuestionRecord[]; replyMessage: string } {
+  const records = extractQuestionTexts(input).map((question) => ({
+    question: question,
+    answer: matchAskQuestionAnswer(question, scenario),
+    sequence: sequence,
+  }));
+  const replyFor = (record: AskQuestionRecord): string => record.answer !== null
+    ? `User selected: "${record.answer}"`
+    : "[harness] no scripted answer for this question — scenario should add one";
+  const replyMessage = records.length === 1
+    ? replyFor(records[0])
+    : records.map((record) => `${JSON.stringify(record.question)} → ${replyFor(record)}`).join("\n");
+  return { records: records, replyMessage: replyMessage };
+}
+
+/**
  * Decide whether an AskQuestion call relates to the gate under test.
  * The simplest signal is `gateQuestionSubstring` — when present, an
  * AskQuestion whose text contains the substring is "the gate firing".
@@ -25,6 +51,18 @@ export function isGateQuestion(question: string, scenario: Scenario): boolean {
   const sub = scenario.expect.gateQuestionSubstring;
   if (!sub) return false;
   return question.includes(sub);
+}
+
+/** Every question text in one AskQuestion call, in order — a batch carries several. */
+export function extractQuestionTexts(input: Record<string, unknown>): string[] {
+  const questions = (input as { questions?: unknown }).questions;
+  if (Array.isArray(questions) && questions.length > 0) {
+    return questions.map((q) => {
+      const text = (q as { question?: unknown }).question;
+      return typeof text === "string" ? text : "";
+    });
+  }
+  return [extractFirstQuestionText(input)];
 }
 
 export function extractFirstQuestionText(input: Record<string, unknown>): string {
@@ -36,6 +74,21 @@ export function extractFirstQuestionText(input: Record<string, unknown>): string
   // Fallback: some callers may pass a flat `question` field.
   const flat = (input as { question?: unknown }).question;
   return typeof flat === "string" ? flat : "";
+}
+
+/**
+ * The questions asked after the first call to `tool`.
+ *
+ * @returns `null` when `tool` was never called, so there is no "after" to judge.
+ */
+export function questionsAfterFirstCall(
+  tool: string,
+  mcpCalls: MockCall[],
+  askQuestions: AskQuestionRecord[],
+): AskQuestionRecord[] | null {
+  const firstCall = mcpCalls.find((c) => c.tool === tool);
+  if (!firstCall) return null;
+  return askQuestions.filter((asked) => asked.sequence > firstCall.sequence);
 }
 
 export function verdict(
@@ -90,6 +143,42 @@ export function verdict(
             reasons.push(`expected ${k}=${JSON.stringify(expected)} on ${exec.tool} but got ${JSON.stringify(args[k])}`);
           }
         }
+      }
+    }
+  }
+
+  const silentAfterTool = scenario.expect.noQuestionAfterTool;
+  if (silentAfterTool) {
+    const lateQuestions = questionsAfterFirstCall(silentAfterTool, mcpCalls, askQuestions);
+    if (lateQuestions === null) {
+      reasons.push(`expected ${silentAfterTool} to be called but it was not`);
+    } else if (lateQuestions.length > 0) {
+      const asked = lateQuestions.map((q) => JSON.stringify(q.question)).join(", ");
+      reasons.push(`expected no question after ${silentAfterTool} but the run asked ${asked}`);
+    }
+  }
+
+  const askingAfterTool = scenario.expect.questionAfterTool;
+  if (askingAfterTool) {
+    const lateQuestions = questionsAfterFirstCall(askingAfterTool, mcpCalls, askQuestions);
+    if (lateQuestions === null) {
+      reasons.push(`expected ${askingAfterTool} to be called but it was not`);
+    } else if (lateQuestions.length === 0) {
+      reasons.push(`expected a question after ${askingAfterTool} but the run asked none`);
+    }
+  }
+
+  const upFrontQuestion = scenario.expect.questionBeforeTool;
+  if (upFrontQuestion) {
+    const firstCall = mcpCalls.find((c) => c.tool === upFrontQuestion.tool);
+    if (!firstCall) {
+      reasons.push(`expected ${upFrontQuestion.tool} to be called but it was not`);
+    } else {
+      const isAskedBefore = askQuestions.some(
+        (asked) => asked.question.includes(upFrontQuestion.questionContains) && asked.sequence < firstCall.sequence,
+      );
+      if (!isAskedBefore) {
+        reasons.push(`expected a question containing "${upFrontQuestion.questionContains}" before ${upFrontQuestion.tool} but none was asked`);
       }
     }
   }

@@ -117,10 +117,10 @@ describe("reading what a Codex run did", () => {
     const all = readCodexGateTrace(trace, 0, names);
     expect(all.entries).toBe(4);
     expect(all.mcpCalls).toEqual([
-      { tool: "muggle-local-check-status", args: {} },
-      { tool: "muggle-local-execute-test-generation", args: { showUi: true } },
+      { tool: "muggle-local-check-status", args: {}, sequence: 0 },
+      { tool: "muggle-local-execute-test-generation", args: { showUi: true }, sequence: 3 },
     ]);
-    expect(all.askQuestions).toEqual([{ question: "Show the test browser as it runs?", answer: "Show it" }]);
+    expect(all.askQuestions).toEqual([{ question: "Show the test browser as it runs?", answer: "Show it", sequence: 1 }]);
     expect(readCodexGateTrace(trace, 2, names).mcpCalls).toEqual([all.mcpCalls[1]]);
   });
 

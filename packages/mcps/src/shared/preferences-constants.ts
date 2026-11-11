@@ -53,6 +53,7 @@ export const DEFAULT_PREFERENCES: IPreferences = {
   [PreferenceKey.AutoInstallCiWorkflow]: PreferenceValue.Ask,
   [PreferenceKey.AutoInstallWatchService]: PreferenceValue.Ask,
   [PreferenceKey.ReusePreparePlan]: PreferenceValue.Always,
+  [PreferenceKey.FrontloadQuestions]: PreferenceValue.Always,
   [PreferenceKey.WatcherLifetime]: PreferenceValue.SevenDays,
   [PreferenceKey.MaxCatchUpRebases]: PreferenceValue.TwentyRebases,
 };
@@ -60,6 +61,12 @@ export const DEFAULT_PREFERENCES: IPreferences = {
 const ALWAYS_ASK_NEVER = [
   PreferenceValue.Always,
   PreferenceValue.Ask,
+  PreferenceValue.Never,
+] as const;
+
+// "Ask whether to ask up front" has no meaning, so frontloadQuestions offers no `ask`.
+const ALWAYS_NEVER = [
+  PreferenceValue.Always,
   PreferenceValue.Never,
 ] as const;
 
@@ -117,6 +124,7 @@ export const PREFERENCE_ALLOWED_VALUES: Record<PreferenceKey, readonly Preferenc
   [PreferenceKey.AutoInstallCiWorkflow]: ALWAYS_ASK_NEVER,
   [PreferenceKey.AutoInstallWatchService]: ALWAYS_ASK_NEVER,
   [PreferenceKey.ReusePreparePlan]: ALWAYS_ASK_NEVER,
+  [PreferenceKey.FrontloadQuestions]: ALWAYS_NEVER,
   [PreferenceKey.WatcherLifetime]: WATCHER_LIFETIMES,
   [PreferenceKey.MaxCatchUpRebases]: CATCH_UP_REBASE_BUDGETS,
 };
@@ -194,6 +202,9 @@ export const PREFERENCES_SCHEMA: Record<PreferenceKey, IPreferenceSchemaEntry> =
   },
   [PreferenceKey.ReusePreparePlan]: {
     description: "Reuse the saved prepare plan for this stack (skip discovery, jump to check-running + smoke-test) instead of rediscovering from scratch",
+  },
+  [PreferenceKey.FrontloadQuestions]: {
+    description: "Ask every question a run can foresee in one batch before its first long-running step; after that, take a best-effort default for anything new and list it in the final report instead of blocking — decisions only the user may make stay open and are surfaced, never defaulted",
   },
   [PreferenceKey.WatcherLifetime]: {
     description: "How long a muggle-pr-followup watch loop polls before retiring itself — 1d, 7d, or never (unbounded, which leaves no time-based reaper for an orphaned loop)",

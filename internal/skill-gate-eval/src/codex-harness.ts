@@ -160,11 +160,11 @@ export function prepareCodexGateHome(codexHome: string, fixtures: Fixtures): voi
  * question only when it asks one, so a summary that names a use case does not
  * read as the use-case picker.
  */
-function closingQuestion(message: string, scenario: Scenario): AskQuestionRecord | undefined {
+function closingQuestion(message: string, scenario: Scenario, sequence: number): AskQuestionRecord | undefined {
   if (!message.includes("?")) return undefined;
   const answer = matchAskQuestionAnswer(message, scenario);
   if (answer === null && !isGateQuestion(message, scenario)) return undefined;
-  return { question: message, answer: answer };
+  return { question: message, answer: answer, sequence: sequence };
 }
 
 /** The calls the hook recorded since `fromLine`, read as the agent SDK harness records its own. */
@@ -178,13 +178,17 @@ export function readCodexGateTrace(
     : [];
   const mcpCalls: MockCall[] = [];
   const askQuestions: AskQuestionRecord[] = [];
-  for (const line of lines.slice(fromLine)) {
-    const entry = JSON.parse(line) as CodexGateTraceEntry;
+  for (let lineIndex = fromLine; lineIndex < lines.length; lineIndex++) {
+    const entry = JSON.parse(lines[lineIndex]) as CodexGateTraceEntry;
     if (entry.tool_name === CODEX_ASK_QUESTION_TOOL) {
-      askQuestions.push({ question: extractFirstQuestionText(entry.tool_input), answer: entry.answer ?? null });
+      askQuestions.push({
+        question: extractFirstQuestionText(entry.tool_input),
+        answer: entry.answer ?? null,
+        sequence: lineIndex,
+      });
     } else if (entry.tool_name.startsWith(MOCK_TOOL_PREFIX)) {
       const bare = toolNames.get(entry.tool_name) ?? entry.tool_name.slice(MOCK_TOOL_PREFIX.length);
-      mcpCalls.push({ tool: bare, args: entry.tool_input });
+      mcpCalls.push({ tool: bare, args: entry.tool_input, sequence: lineIndex });
     }
   }
   return { entries: lines.length, mcpCalls: mcpCalls, askQuestions: askQuestions };
@@ -242,7 +246,8 @@ export async function runScenarioOnceInCodex(
     let stream = await takeTurn([opts.scenario.userPrompt]);
     const thread = threadIdOf(stream);
     for (let resumes = 0; resumes < CODEX_MAX_RESUMES; resumes++) {
-      const question = closingQuestion(closingMessageOf(stream), opts.scenario);
+      // A turn's closing question comes after every call that turn traced and before the next turn's first.
+      const question = closingQuestion(closingMessageOf(stream), opts.scenario, traced - 0.5);
       if (!question) break;
       askQuestions.push(question);
       if (question.answer === null || !thread) break;

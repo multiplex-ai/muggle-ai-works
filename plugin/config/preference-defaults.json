@@ -23,6 +23,7 @@
   "autoInstallCiWorkflow": "ask",
   "autoInstallWatchService": "ask",
   "reusePreparePlan": "always",
+  "frontloadQuestions": "always",
   "watcherLifetime": "7d",
   "maxCatchUpRebases": "20"
 }

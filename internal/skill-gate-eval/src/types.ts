@@ -53,6 +53,8 @@ export interface MockServerHandle {
 export interface MockCall {
   tool: string;
   args: Record<string, unknown>;
+  /** Position in the run's combined trace of tool calls and questions; higher is later. */
+  sequence: number;
 }
 
 export interface ScenarioExpectation {
@@ -82,6 +84,15 @@ export interface ScenarioExpectation {
     | "muggle-local-execute-test-generation"
     | "muggle-local-execute-replay";
   executeArgs?: Record<string, unknown | "OMITTED">;
+
+  /** No AskQuestion may follow the first call to this tool: the run asked everything before it. */
+  noQuestionAfterTool?: string;
+
+  /** At least one AskQuestion must follow the first call to this tool: the run still asks mid-run. */
+  questionAfterTool?: string;
+
+  /** An AskQuestion containing `questionContains` must come before the first call to `tool`: the run batched it up front. */
+  questionBeforeTool?: { tool: string; questionContains: string };
 }
 
 export interface Scenario {
@@ -114,6 +125,8 @@ export interface ScenarioFile {
 export interface AskQuestionRecord {
   question: string;
   answer: string | null;
+  /** Position in the run's combined trace of tool calls and questions; higher is later. */
+  sequence: number;
 }
 
 export interface RunVerdict {

@@ -6,7 +6,8 @@ actually fire.
 
 Default allowed values: `always` / `never` / `ask`. Per-key overrides are noted
 in their own file: `defaultExecutionMode` (`local` / `remote` / `ask`),
-`autoE2ETest` (`always` / `ask`), `watcherLifetime` (`1d` / `7d` / `never`), and
+`autoE2ETest` (`always` / `ask`), `frontloadQuestions` (`always` / `never`),
+`watcherLifetime` (`1d` / `7d` / `never`), and
 `maxCatchUpRebases` (a positive integer, or `never`).
 
 `watcherLifetime` and `maxCatchUpRebases` are **configuration values rather than
@@ -29,6 +30,11 @@ key is never absent.
 - `ask` → run Picker 1 (per-key file) → Picker 2 (below).
 
 `defaultExecutionMode` uses `local`/`remote` instead of `always`/`never`.
+
+**When** an `ask` gate's pickers run is set by
+[`frontloadQuestions`](frontloadQuestions.md): under `always` (the default) they
+join the run's up-front batch and their answer is applied when the step arrives;
+under `never` they run at the step itself.
 
 ## Silent footer (mandatory whenever a prompt is skipped)
 

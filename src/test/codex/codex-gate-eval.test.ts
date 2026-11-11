@@ -119,8 +119,9 @@ describe.skipIf(!CODEX_BIN)("the skill-gate eval's Codex harness in a real Codex
       },
     );
     expect(verdict.reasons).toEqual([]);
-    expect(verdict.trace.askQuestions).toEqual([{ question: GATE_QUESTION, answer: "Show it" }]);
-    expect(verdict.trace.mcpCalls).toEqual([{ tool: EXECUTE_TOOL, args: { showUi: true } }]);
+    expect(verdict.trace.askQuestions).toEqual([{ question: GATE_QUESTION, answer: "Show it", sequence: expect.any(Number) }]);
+    expect(verdict.trace.mcpCalls).toEqual([{ tool: EXECUTE_TOOL, args: { showUi: true }, sequence: expect.any(Number) }]);
+    expect(verdict.trace.askQuestions[0].sequence).toBeLessThan(verdict.trace.mcpCalls[0].sequence);
   }, LIVE_TIMEOUT_MS);
 
   it("answers a question a turn ended on by resuming the thread with the pick", async () => {
@@ -134,7 +135,8 @@ describe.skipIf(!CODEX_BIN)("the skill-gate eval's Codex harness in a real Codex
       },
     );
     expect(verdict.reasons).toEqual([]);
-    expect(verdict.trace.askQuestions).toEqual([{ question: asked, answer: "Show it" }]);
+    expect(verdict.trace.askQuestions).toEqual([{ question: asked, answer: "Show it", sequence: expect.any(Number) }]);
+    expect(verdict.trace.askQuestions[0].sequence).toBeLessThan(verdict.trace.mcpCalls[0].sequence);
     expect(requests.length).toBeGreaterThanOrEqual(3);
   }, LIVE_TIMEOUT_MS);
 
@@ -153,7 +155,7 @@ describe.skipIf(!CODEX_BIN)("the skill-gate eval's Codex harness in a real Codex
     );
     expect(denial).toContain("[harness] tool list_mcp_resources is not available in this eval");
     expect(verdict.reasons).toEqual([]);
-    expect(verdict.trace.mcpCalls).toEqual([{ tool: EXECUTE_TOOL, args: { showUi: false } }]);
+    expect(verdict.trace.mcpCalls).toEqual([{ tool: EXECUTE_TOOL, args: { showUi: false }, sequence: expect.any(Number) }]);
   }, LIVE_TIMEOUT_MS);
 
   it("fails a run that broke its gate, and says how", async () => {

@@ -34,9 +34,9 @@ import {
 } from "../shared/preferences-service.js";
 
 describe("PreferenceKey enum", () => {
-  it("has exactly 26 keys", () => {
+  it("has exactly 27 keys", () => {
     const keys = Object.values(PreferenceKey);
-    expect(keys).toHaveLength(26);
+    expect(keys).toHaveLength(27);
   });
 
   it("contains all expected keys", () => {
@@ -63,6 +63,7 @@ describe("PreferenceKey enum", () => {
     expect(PreferenceKey.AutoWatchPR).toBe("autoWatchPR");
     expect(PreferenceKey.AutoInstallCiWorkflow).toBe("autoInstallCiWorkflow");
     expect(PreferenceKey.ReusePreparePlan).toBe("reusePreparePlan");
+    expect(PreferenceKey.FrontloadQuestions).toBe("frontloadQuestions");
     expect(PreferenceKey.WatcherLifetime).toBe("watcherLifetime");
     expect(PreferenceKey.MaxCatchUpRebases).toBe("maxCatchUpRebases");
   });
@@ -100,6 +101,13 @@ describe("PREFERENCE_ALLOWED_VALUES", () => {
     expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.AutoLogin]).toEqual(usual);
     expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.VerboseOutput]).toEqual(usual);
     expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.CheckForUpdates]).toEqual(usual);
+  });
+
+  it("uses always/never for frontloadQuestions — no ask", () => {
+    expect(PREFERENCE_ALLOWED_VALUES[PreferenceKey.FrontloadQuestions]).toEqual([
+      PreferenceValue.Always,
+      PreferenceValue.Never,
+    ]);
   });
 
   it("uses local/remote/ask for defaultExecutionMode", () => {
@@ -342,6 +350,16 @@ describe("PreferencesService", () => {
     it("rejects local/remote for keys that don't accept them", () => {
       expect(validatePreference("autoLogin", "local")).toBe(false);
       expect(validatePreference("verboseOutput", "remote")).toBe(false);
+    });
+
+    it("accepts always/never and rejects ask for frontloadQuestions", () => {
+      expect(validatePreference("frontloadQuestions", "always")).toBe(true);
+      expect(validatePreference("frontloadQuestions", "never")).toBe(true);
+      expect(validatePreference("frontloadQuestions", "ask")).toBe(false);
+    });
+
+    it("resolves frontloadQuestions to always when unset", () => {
+      expect(DEFAULT_PREFERENCES[PreferenceKey.FrontloadQuestions]).toBe(PreferenceValue.Always);
     });
 
     it("rejects invalid key", () => {

@@ -58,6 +58,8 @@ export enum PreferenceKey {
   MaxCatchUpRebases = "maxCatchUpRebases",
   /** Reuse the saved prepare plan for this stack instead of rediscovering. */
   ReusePreparePlan = "reusePreparePlan",
+  /** Ask every question a run can foresee up front, and never block mid-run on a new one. */
+  FrontloadQuestions = "frontloadQuestions",
 }
 
 /**

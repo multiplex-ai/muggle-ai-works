@@ -20,6 +20,7 @@ Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
+| `frontloadQuestions` | every step | When the run asks: one up-front batch before the first long-running step, nothing after it (see [`frontloadQuestions.md`](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 

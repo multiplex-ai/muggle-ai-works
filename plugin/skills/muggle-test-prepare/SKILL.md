@@ -69,10 +69,11 @@ Every service runs code built on the latest base: the caller's own checkout, syn
 
 ## Preferences
 
-Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md). All three resolve in the Decide phase; the agent receives outcomes, never gates.
+Gates run per [`preference-gates/README.md`](../muggle-preferences/preference-gates/README.md). All of them resolve in the Decide phase; the agent receives outcomes, never gates.
 
 | Preference | Gates |
 |------------|-------|
+| `frontloadQuestions` | every Decide-phase question — asked in one batch before any service starts; the runner never asks (see [`frontloadQuestions.md`](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoRebase` | [rebase-check](./steps/rebase-check.md) — rebase onto `origin/<base>` without asking before starting dev servers; not rebasing stops the run |
 | `reusePreparePlan` | [reuse-plan](./steps/reuse-plan.md) — reuse the saved prepare plan for this stack, or rediscover; also [e2e-instructions](./steps/e2e-instructions.md), which goes stale for the same reason |
 | `autoSelectLocalHost` | [check-running](./steps/check-running.md) — reuse the recorded dev-server URL silently, or confirm it each run |

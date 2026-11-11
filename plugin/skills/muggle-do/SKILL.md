@@ -85,6 +85,7 @@ When invoked with the directive (PR URL + slug + review ids), routes to [`../do/
 
 | Preference | Gate |
 | :--------- | :--- |
+| `frontloadQuestions` | Every stage — `always` keeps Stage 1 the only questioning turn and Stage 7.5's decision open rather than asked; `never` lets a later stage ask when a question arises ([rule](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoE2ETest` | Stage 6 — run E2E every cycle (default `always`), or fold into pre-flight |
 | `autoResolveConflicts` | On rebase conflict — `always` resolves autonomously behind a verify-or-rollback gate, `never` aborts + escalates; resolve from the configured preference (don't assume a default) |
 | `autoRouteBuildToMuggleDo` | Front-door guardrail — route build/implement/fix requests through this pipeline (build delegated to superpowers); fired by the UserPromptSubmit guardrail, default `ask` |

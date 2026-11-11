@@ -136,6 +136,15 @@ export const ONBOARDING_CHOICE_GROUPS: readonly IOnboardingChoiceLayout[] = [
     ],
   },
   {
+    header: "Questions",
+    key: PreferenceKey.FrontloadQuestions,
+    prompt: "When should a long run ask you its questions?",
+    optionLabels: [
+      { value: PreferenceValue.Always, label: "All up front — then run unattended and list any defaults it took" },
+      { value: PreferenceValue.Never, label: "As each one comes up — the run waits for my answer" },
+    ],
+  },
+  {
     header: "PR watcher",
     key: PreferenceKey.WatcherLifetime,
     prompt: "How long should a PR watcher keep polling for new reviews?",

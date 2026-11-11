@@ -48,6 +48,7 @@ Gates run per `preference-gates/README.md`.
 
 | Preference | Step | Decision it gates |
 |------------|------|-------------------|
+| `frontloadQuestions` | every step | When the run asks: one up-front batch before the first long-running step, nothing after it (see [`frontloadQuestions.md`](../muggle-preferences/preference-gates/frontloadQuestions.md)) |
 | `autoLogin` | 1 | Reuse saved credentials when auth is required |
 | `autoSelectProject` | 2 | Reuse last-used Muggle Test project for this repo |
 | `autoSelectLocalHost` | 4 | Reuse last-used local dev server URL for this repo |
@@ -113,7 +114,7 @@ Prompt for projects: "Pick the project to group this test into:"
 
 ### 3. Ensure Local Services Are Ready
 
-**Ask first.** Prepare's grant holds ports other sessions wait for, and its lease ends four minutes after the services come up with no run. So before invoking it, resolve every question asked on the way to the first run: Step 4's URL gate, Step 5's script choice (applied after Step 4a), and Step 7's `showElectronBrowser` gate. From prepare to the first execute call, ask nothing.
+**Ask first.** Prepare's grant holds ports other sessions wait for, and its lease ends four minutes after the services come up with no run. So before invoking it, resolve every question asked on the way to the first run: Step 4's URL gate, Step 5's script choice (applied after Step 4a), and Step 7's `showElectronBrowser` gate. From prepare to the first execute call, ask nothing. Under `frontloadQuestions=always` — the default, so also when the key is absent — add to this batch every later gate that resolves to `ask`: Step 8's `openTestResultsAfterRun`, Step 10's `postPRVisualWalkthrough` and `autoCreatePR`, Step 10.5's `autoWatchPR`. Ask each one's Picker 1 here, never default it; nothing is asked after the first execute call.
 
 Then invoke the `muggle:muggle-test-prepare` skill via the `Skill` tool from the checkout under test — every run, even when services look up. Live PIDs prove nothing about which code they serve: prepare syncs this checkout onto the latest base, starts sibling services from base checkouts on the latest default branch, and keeps a running service only when it still serves the right commit. It fast-exits when everything is proven. Once it reports ready, check its readiness table: this checkout's services must show this checkout as their `Source` at its current HEAD. Then proceed to Step 4.
 
@@ -172,7 +173,7 @@ The studio publishes every completed run — pass or fail — to the cloud durin
 - Gate `openTestResultsAfterRun` (per `preference-gates/README.md`):
   - `always` → open `viewUrl` automatically (`open "<viewUrl>"` on macOS or OS equivalent).
   - `never` → print the URL only.
-  - `ask` → run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`; map the answer back to one of the actions above.
+  - `ask` → under `frontloadQuestions=always`, apply the answer Step 3's batch collected; otherwise run Picker 1 from `preference-gates/openTestResultsAfterRun.md` via `AskUserQuestion`. Map the answer back to one of the actions above.
 
 ### 9. Report
 
@@ -194,7 +195,7 @@ Skip only when the run passed cleanly — the debug path is by definition about 
 
 Fires after **every** Electron run, pass or fail. A run can technically pass while still containing steps the user would correct — a misclick, wrong element, or a summary that doesn't match intent. This is the user's chance to flag it before regeneration picks up elsewhere.
 
-**Skip if 9a already routed the user into `muggle-feedback` for this run.** Otherwise ask via `AskUserQuestion`:
+**Skip if 9a already routed the user into `muggle-feedback` for this run.** Under `frontloadQuestions=always`, print the question below as a report line with its path — `/muggle-feedback <runId>` — instead of asking. Otherwise ask via `AskUserQuestion`:
 
 > "Did the agent miss or do anything wrong on this run? Your feedback regenerates the affected scripts."
 
@@ -234,7 +235,7 @@ The `/mprfollowup` shortcut starts the same watcher manually at any time.
 - Satisfy the prerequisite chain (Step 4a) before generating or replaying the target. Read it from `muggle-remote-test-case-ancestors-get` — never infer parents from `precondition` text. Generate any not-ready ancestor test-generation-only, root-first.
 - If replayable scripts exist, do not default to generation without user choice.
 - No hiding failures: surface errors and artifact paths.
-- **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong.
+- **Always offer the agent-guidance reminder after every Electron run** (Step 9b) — pass or fail — unless 9a already routed the user into `muggle-feedback`. Never silently end a run without giving the user a one-click path to flag what was wrong — under `frontloadQuestions=always` that path is a report line, not a question.
 - Replay/timeout discipline per [`../_shared/dev-loop/run.md`](../_shared/dev-loop/run.md) — never hand-build `actionScript`; always pass `timeoutMs`.
 - Use `AskUserQuestion` for every selection — project, use case, test case, script. Never ask the user to type a number.
 - Project, use case, and test case selection lists must always include "Create new ...". Include "Show full list" whenever the API returned at least one row for that step; omit "Show full list" when the list is empty (offer "Create new ..." only). For creates, use preview tools (`muggle-remote-use-case-prompt-preview`, `muggle-remote-test-case-generate-from-prompt`) before persisting.

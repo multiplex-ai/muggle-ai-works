@@ -49,6 +49,7 @@ Type `muggle` to discover the full command family.
 | `/muggle:muggle-pr-visual-walkthrough` | `/mpr` | Post per-test-case dashboard links, step-by-step screenshots, and a pass/fail summary to a PR. |
 | `/muggle:muggle-pr-followup` | `/mprfollowup` | Watch one PR's review thread and dispatch the work to address incoming feedback. |
 | `/muggle:muggle-feedback` | `/mfeedback` | Flag a generated action script, or one step in it, as wrong so Muggle can analyze and regenerate affected scripts. |
+| `/muggle:muggle-bug-report` | `/mbugreport` | Report a bug in Muggle AI itself to the Muggle team, with harness context you review first; list, check or reply to your reports. |
 | `/muggle:muggle-preferences` | `/mprefs` | View, set, or reset the preferences that gate Muggle Test behavior. |
 | `/muggle:muggle-status` | `/mstatus` | Health check for Electron browser test runner, MCP server, and authentication. |
 | `/muggle:muggle-repair` | `/mrepair` | Diagnose and fix broken installation automatically. |

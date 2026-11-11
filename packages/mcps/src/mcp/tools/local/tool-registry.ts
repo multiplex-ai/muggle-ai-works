@@ -35,6 +35,7 @@ import {
   LastHostClearInputSchema,
   SkillTelemetryEmitInputSchema,
   EventTelemetryEmitInputSchema,
+  BugReportContextGetInputSchema,
   FailureEventType,
   WorkflowEventType,
 } from "../../local/contracts/index.js";
@@ -59,6 +60,7 @@ import {
 import { MUGGLE_HOME_DISPLAY_DIR } from "../../../shared/cwd-keyed-cache-constants.js";
 import {
   cancelExecution,
+  collectBugReportClientContext,
   executeReplay,
   executeTestGeneration,
   findRunCheckoutRefusal,
@@ -771,6 +773,43 @@ const lastHostClearTool: ILocalMcpTool = {
 };
 
 
+const bugReportContextGetTool: ILocalMcpTool = {
+  name: "muggle-local-bug-report-context-get",
+  description:
+    "Gather the harness context a Muggle bug report carries: Muggle CLI and Studio versions, operating system, " +
+    "the last Muggle Test project selected for this directory, and the newest local run with its status. " +
+    "Values that look like secrets are dropped and named in strippedFieldNames. Read-only. Show the result to the " +
+    "user before filing, then pass the clientContext JSON block unchanged as clientContext to muggle-remote-bug-report-create.",
+  inputSchema: BugReportContextGetInputSchema,
+  execute: async (ctx) => {
+    const logger = createChildLogger(ctx.correlationId);
+    logger.info("Executing muggle-local-bug-report-context-get");
+
+    const input = BugReportContextGetInputSchema.parse(ctx.input);
+    const sanitizedContext = collectBugReportClientContext({ cwd: input.cwd });
+    const contextLines = Object.entries(sanitizedContext.clientContext).map(
+      ([fieldName, fieldValue]) => `- ${fieldName}: ${fieldValue}`,
+    );
+
+    const content = [
+      "## Included with your bug report",
+      "",
+      ...(contextLines.length > 0 ? contextLines : ["- (no harness context found)"]),
+      ...(sanitizedContext.strippedFieldNames.length > 0
+        ? [`- Left out because they looked like secrets: ${sanitizedContext.strippedFieldNames.join(", ")}`]
+        : []),
+      "",
+      "clientContext:",
+      "```json",
+      JSON.stringify(sanitizedContext.clientContext, null, 2),
+      "```",
+    ].join("\n");
+
+    return { content: content, isError: false, data: sanitizedContext };
+  },
+};
+
+
 // Skills call this in their first step so we can count skill invocations.
 // Always returns ok — never blocks the skill on telemetry failure.
 const telemetrySkillEmitTool: ILocalMcpTool = {
@@ -844,6 +883,8 @@ export const allLocalQaTools: ILocalMcpTool[] = [
   lastHostGetTool,
   lastHostSetTool,
   lastHostClearTool,
+  // Harness context a bug report carries, shown to the user before filing
+  bugReportContextGetTool,
   // Client telemetry: skills emit invocation events through this tool
   telemetrySkillEmitTool,
   telemetryEventEmitTool,

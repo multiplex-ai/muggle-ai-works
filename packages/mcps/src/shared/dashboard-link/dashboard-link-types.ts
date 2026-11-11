@@ -12,6 +12,10 @@ export enum DashboardPage {
   ScriptDetails = "script-details",
   /** A project's run history. */
   Runs = "runs",
+  /** The viewer's own bug reports. */
+  BugReports = "bug-reports",
+  /** One bug report's timeline. */
+  BugReport = "bug-report",
 }
 
 /** Project pages that need only the project to resolve. */
@@ -20,5 +24,7 @@ export type DashboardProjectPage = DashboardPage.Project | DashboardPage.TestCas
 /** What a dashboard link points at; each page carries exactly the ids its route needs. */
 export type DashboardLinkTarget =
   | { page: DashboardPage.Projects }
+  | { page: DashboardPage.BugReports }
+  | { page: DashboardPage.BugReport; bugReportId: string }
   | { page: DashboardProjectPage; projectId: string }
   | { page: DashboardPage.ScriptDetails; projectId: string; testCaseId: string; actionScriptId?: string };

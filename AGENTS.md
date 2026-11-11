@@ -91,6 +91,7 @@ Claude Code: `/muggle:<name>` or the alias. Codex: `$muggle:<name>`. Source: `pl
 | `muggle-pr-visual-walkthrough` | `/mpr` | Post existing results to a PR |
 | `muggle-pr-followup` | `/mprfollowup` | Watch a PR and address new review comments, red CI and base drift |
 | `muggle-feedback` | `/mfeedback` | Flag a generated script or step as wrong so it is regenerated |
+| `muggle-bug-report` | `/mbugreport` | Report a bug in Muggle AI itself, then follow or answer the ticket |
 | `muggle-run-view` | `/mrun` | Show a local run's steps beside its frames |
 | `muggle-preferences` | `/mprefs` | View, set or reset preferences |
 | `muggle-init` | `/minit` | First-time onboarding |

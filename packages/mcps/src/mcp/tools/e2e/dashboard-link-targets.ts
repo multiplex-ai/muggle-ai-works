@@ -92,3 +92,32 @@ export function linkToFetchedTestScript(_input: unknown, response: IUpstreamResp
     ...(actionScriptId ? { actionScriptId: actionScriptId } : {}),
   };
 }
+
+/**
+ * Link every response to the viewer's own bug reports.
+ * @returns The bug reports page target.
+ */
+export function linkToBugReports(): DashboardLinkTarget {
+  return { page: DashboardPage.BugReports };
+}
+
+/**
+ * Link a tool taking `bugReportId` to that ticket's page.
+ * @param input - Validated tool input.
+ * @returns The bug report target, or null when the input has no id.
+ */
+export function linkToInputBugReport(input: unknown): DashboardLinkTarget | null {
+  const bugReportId = readStringField(input, "bugReportId");
+  return bugReportId ? { page: DashboardPage.BugReport, bugReportId: bugReportId } : null;
+}
+
+/**
+ * Link a newly filed bug report to its ticket page, using the id the response returns.
+ * @param _input - Unused; the id only exists once the report does.
+ * @param response - Upstream response carrying the filed report.
+ * @returns The bug report target, or null when the response has no id.
+ */
+export function linkToCreatedBugReport(_input: unknown, response: IUpstreamResponse): DashboardLinkTarget | null {
+  const bugReportId = readStringField(response.data, "bugReportId");
+  return bugReportId ? { page: DashboardPage.BugReport, bugReportId: bugReportId } : null;
+}

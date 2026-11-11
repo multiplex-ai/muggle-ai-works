@@ -1,6 +1,8 @@
 import { getDashboardBaseUrl } from "../config.js";
 import {
+  DASHBOARD_BUG_REPORTS_SEGMENT,
   DASHBOARD_PROJECT_PAGE_SEGMENTS,
+  DASHBOARD_PROJECTS_SEGMENT,
   DASHBOARD_URL_FIELD,
   SCRIPT_DETAILS_MODAL_VALUE,
   SCRIPTS_MODAL_ACTION_SCRIPT_ID_KEY,
@@ -8,6 +10,13 @@ import {
   SCRIPTS_MODAL_TEST_CASE_ID_KEY,
 } from "./dashboard-link-constants.js";
 import { DashboardPage, type DashboardLinkTarget } from "./dashboard-link-types.js";
+
+function buildBugReportsUrl(dashboardBaseUrl: string): string {
+  const dashboardRootUrl = dashboardBaseUrl.endsWith(DASHBOARD_PROJECTS_SEGMENT)
+    ? dashboardBaseUrl.slice(0, -DASHBOARD_PROJECTS_SEGMENT.length)
+    : dashboardBaseUrl;
+  return `${dashboardRootUrl}${DASHBOARD_BUG_REPORTS_SEGMENT}`;
+}
 
 /**
  * Build the dashboard URL for a target on the lane this MCP runs on.
@@ -23,6 +32,12 @@ export function buildDashboardUrl(
 ): string {
   if (target.page === DashboardPage.Projects) {
     return dashboardBaseUrl;
+  }
+  if (target.page === DashboardPage.BugReports || target.page === DashboardPage.BugReport) {
+    const bugReportsUrl = buildBugReportsUrl(dashboardBaseUrl);
+    return target.page === DashboardPage.BugReport
+      ? `${bugReportsUrl}/${encodeURIComponent(target.bugReportId)}`
+      : bugReportsUrl;
   }
   const projectUrl = `${dashboardBaseUrl}/${encodeURIComponent(target.projectId)}`;
   if (target.page === DashboardPage.ScriptDetails) {

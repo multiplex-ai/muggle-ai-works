@@ -52,6 +52,11 @@ describe("upstream path allowlist", () => {
     expect(upstreamResponse.data).toEqual({ organizations: [] });
   });
 
+  it("lets the caller's own bug reports through", async () => {
+    const upstreamResponse = await executeGetAsync("/v1/protected/bug-reports/bug-1");
+    expect(upstreamResponse.statusCode).toBe(200);
+  });
+
   it("keeps the other organization routes closed", async () => {
     await expect(executeGetAsync("/v1/protected/organizations/org-1/members")).rejects.toThrow("is not allowed");
     await expect(executeGetAsync("/v1/protected/organizations/org-1")).rejects.toThrow("is not allowed");

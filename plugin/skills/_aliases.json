@@ -21,6 +21,7 @@
         "mlogin",
         "mlogout",
         "mrun",
-        "mcleanup"
+        "mcleanup",
+        "mbugreport"
     ]
 }

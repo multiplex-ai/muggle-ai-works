@@ -49,5 +49,6 @@ If the user intent clearly matches one command, route directly — no menu neede
 - post results to PR/attach walkthrough/visual evidence on PR → `muggle-pr-visual-walkthrough`
 - watch my PR for reviews/follow up on PR reviews/babysit PR review thread → `muggle-pr-followup`
 - give feedback on a run/the test was wrong/step N didn't work/show my feedback/delete feedback → `muggle-feedback`
+- report a bug in muggle/muggle itself is broken/my bug reports/status of BUG-NNNN → `muggle-bug-report`
 
 If intent is ambiguous, use `AskUserQuestion` with the most likely options rather than asking the user to type a clarification.

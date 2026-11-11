@@ -61,6 +61,13 @@ export interface ScriptedBashResponse extends ScriptedReply {
    * state a commit, push or rebase leaves behind, for the reads that follow it.
    */
   afterCommandContains?: string;
+  /**
+   * A command the harness itself runs in the sandbox repo, its output following
+   * the scripted reply: for reads that must reflect the agent's own edits, such
+   * as a diff or a test run. The agent's command only selects the entry; it never
+   * runs. A scenario with any `run` entry gets its repo committed as a baseline.
+   */
+  run?: string;
 }
 
 /**

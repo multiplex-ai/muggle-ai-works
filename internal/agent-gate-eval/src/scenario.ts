@@ -88,8 +88,12 @@ function resolveExpectationPatterns(
 function validateScenario(scenario: AgentScenario, filePath: string): void {
   const label = `Scenario "${scenario.name}" in ${filePath}`;
   for (const scripted of scenario.bashResponses ?? []) {
-    if (typeof scripted.commandContains !== "string" || !isScriptedReply(scripted)) {
-      throw new Error(`${label}: each bashResponses entry needs commandContains and a response or non-empty sequence`);
+    if (scripted.run !== undefined && typeof scripted.run !== "string") {
+      throw new Error(`${label}: bashResponses run must be a command string`);
+    }
+    const hasAnswer = isScriptedReply(scripted) || typeof scripted.run === "string";
+    if (typeof scripted.commandContains !== "string" || !hasAnswer) {
+      throw new Error(`${label}: each bashResponses entry needs commandContains and a response, non-empty sequence, or run`);
     }
     if (scripted.afterCommandContains !== undefined && typeof scripted.afterCommandContains !== "string") {
       throw new Error(`${label}: bashResponses afterCommandContains must be a string`);

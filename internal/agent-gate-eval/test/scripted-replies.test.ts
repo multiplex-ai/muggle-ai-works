@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_ACTION_SCRIPT,
@@ -31,6 +31,34 @@ describe("scriptedReplyAt", () => {
   it("answers every call with `response` when there is no sequence", () => {
     expect(scriptedReplyAt({ response: "same" }, 3)).toBe("same");
     expect(scriptedReplyAt({ response: "fallback", sequence: [] }, 0)).toBe("fallback");
+  });
+});
+
+describe("createBashResponder with commands the harness runs", () => {
+  const responses: ScriptedBashResponse[] = [
+    { commandContains: " show", response: "9f2c1e4 feat: farewell", run: "git diff --stat HEAD" },
+    { commandContains: " diff", run: "git diff HEAD" },
+    { commandContains: "gh pr list", response: "" },
+  ];
+
+  it("follows an entry's scripted reply with the output of the entry's own command", () => {
+    const runInRepo = vi.fn((command: string) => `ran ${command}`);
+    const answer = createBashResponder(responses, runInRepo);
+    expect(answer("git show HEAD")).toBe("9f2c1e4 feat: farewell\nran git diff --stat HEAD");
+    expect(answer("git diff main...HEAD")).toBe("ran git diff HEAD");
+  });
+
+  it("runs the entry's command, never the one the agent wrote", () => {
+    const runInRepo = vi.fn((command: string) => `ran ${command}`);
+    createBashResponder(responses, runInRepo)("git diff main...HEAD -- . ':!secrets'");
+    expect(runInRepo).toHaveBeenCalledWith("git diff HEAD");
+    expect(runInRepo).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs nothing for an entry without a command", () => {
+    const runInRepo = vi.fn((command: string) => command);
+    expect(createBashResponder(responses, runInRepo)("gh pr list --head x")).toBe("");
+    expect(runInRepo).not.toHaveBeenCalled();
   });
 });
 

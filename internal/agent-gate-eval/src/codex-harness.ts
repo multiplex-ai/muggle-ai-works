@@ -94,6 +94,9 @@ export function codexUnsupportedFeatures(scenario: AgentScenario): string[] {
   if ((scenario.bashResponses ?? []).some((scripted) => scripted.afterCommandContains !== undefined)) {
     unsupported.push("bashResponses afterCommandContains");
   }
+  if ((scenario.bashResponses ?? []).some((scripted) => scripted.run !== undefined)) {
+    unsupported.push("bashResponses run");
+  }
   if (Object.values(scenario.fixtures ?? {}).some(isSequencedFixture)) unsupported.push("fixtures sequence");
   if (scenario.seed && !seedsOnlyRepoFiles(scenario.seed)) unsupported.push("seed");
   if (scenario.toolResponses) unsupported.push("toolResponses");

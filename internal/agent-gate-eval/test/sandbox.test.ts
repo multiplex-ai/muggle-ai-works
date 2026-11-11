@@ -1,15 +1,19 @@
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { SANDBOX_RUN_SHELL } from "../src/constants.js";
 import { isArtifactSatisfied } from "../src/sandbox/artifacts.js";
 import { normalizePathText, resolveSandboxPath, sandboxPathSpellings } from "../src/sandbox/paths.js";
 import {
+  commitSandboxBaseline,
   createRunSandbox,
   removeRunSandbox,
   resolveFixtureRepo,
+  runInSandboxRepo,
   sandboxPathContext,
   sandboxResumeConfigDirs,
   sandboxSessionRecordsDir,
@@ -144,6 +148,32 @@ describe("isArtifactSatisfied", () => {
     expect(isArtifactSatisfied({ path: prsJson, contains: "7" }, snapshotWith(null), [write(path.join(sessionSlot, "prs.json"), "{\"number\":7}")])).toBe(true);
     expect(isArtifactSatisfied({ path: prsJson, contains: "7" }, snapshotWith(null), [write(path.join(realHome, ".muggle-ai", "muggle-do", "sessions", "s", "prs.json"), "7")])).toBe(true);
     expect(isArtifactSatisfied({ path: prsJson, contains: "7" }, snapshotWith(null), [write(path.join(sessionSlot, "prs.json"), "{}")])).toBe(false);
+  });
+});
+
+// `run` commands execute in bash, which CI always has and a Windows shell may not.
+const hasRunShell = spawnSync(SANDBOX_RUN_SHELL, ["-c", "exit 0"]).status === 0;
+
+describe.runIf(hasRunShell)("running a scenario's own commands in the sandbox repo", () => {
+  it("shows the agent's edits against the fixture as the baseline commit records it", () => {
+    const sandbox = createRunSandbox({ repo: "tiny-web-app" });
+    try {
+      commitSandboxBaseline(sandbox);
+      expect(runInSandboxRepo(sandbox, "git diff --name-only HEAD")).toBe("");
+      fs.appendFileSync(path.join(sandbox.repo, "src", "greeting.js"), "\nexport const farewell = true;\n");
+      expect(runInSandboxRepo(sandbox, "git diff --name-only HEAD")).toBe("src/greeting.js");
+    } finally {
+      removeRunSandbox(sandbox);
+    }
+  });
+
+  it("reports a failing command's exit status after its output, as a terminal would show it", () => {
+    const sandbox = createRunSandbox();
+    try {
+      expect(runInSandboxRepo(sandbox, "echo partial; exit 3")).toBe("partial\n(exit 3)");
+    } finally {
+      removeRunSandbox(sandbox);
+    }
   });
 });
 

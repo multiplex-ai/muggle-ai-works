@@ -6608,6 +6608,46 @@
       "seed": {
         "repo": "tiny-web-app"
       },
+      "bashResponses": [
+        {
+          "commandContains": "diff --name-only",
+          "run": "git add -A -N && git diff --name-only HEAD"
+        },
+        {
+          "commandContains": "diff --stat",
+          "run": "git add -A -N && git diff --stat HEAD"
+        },
+        {
+          "commandContains": " diff",
+          "run": "git add -A -N && git diff HEAD"
+        },
+        {
+          "commandContains": " show",
+          "response": "9f2c1e4 feat(greeting): add a farewell line under the greeting",
+          "run": "git add -A -N && git diff --stat HEAD"
+        },
+        {
+          "commandContains": "git commit",
+          "response": "[users/eval/farewell-line 9f2c1e4] feat(greeting): add a farewell line under the greeting",
+          "run": "git add -A -N && git diff --shortstat HEAD"
+        },
+        {
+          "commandContains": "guard-run",
+          "run": "node --test 2>&1; echo \"[guard-run] exit $?\""
+        },
+        {
+          "commandContains": "npm test",
+          "run": "node --test"
+        },
+        {
+          "commandContains": "node --test",
+          "run": "node --test"
+        },
+        {
+          "commandContains": "curl",
+          "run": "PORT=3917 node src/server.js >/dev/null 2>&1 & server=$!; sleep 1; curl -s http://localhost:3917/; kill $server"
+        }
+      ],
       "toolResponses": {
         "AskUserQuestion": [
           {

@@ -1719,6 +1719,50 @@
         {"commandContains":"%G?","response":"G"},
         {"commandContains":"gpgsign","response":"true"},
         {
+          "commandContains": "guard-run",
+          "run": "node --test 2>&1; echo \"[guard-run] exit $?\""
+        },
+        {
+          "commandContains": "npm test",
+          "run": "node --test"
+        },
+        {
+          "commandContains": "node --test",
+          "run": "node --test"
+        },
+        {
+          "commandContains": "curl",
+          "run": "PORT=3917 node src/server.js >/dev/null 2>&1 & server=$!; sleep 1; curl -s http://localhost:3917/; kill $server"
+        },
+        {
+          "commandContains": "3305/replies",
+          "response": "{\"id\": 3401, \"user\": {\"login\": \"eval-bot\"}, \"path\": \"README.md\", \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"in_reply_to_id\": 3305, \"created_at\": \"2026-10-23T09:40:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\"}"
+        },
+        {
+          "commandContains": "3306/replies",
+          "response": "{\"id\": 3402, \"user\": {\"login\": \"eval-bot\"}, \"path\": \"src/greeting.js\", \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"in_reply_to_id\": 3306, \"created_at\": \"2026-10-23T09:40:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3402\"}"
+        },
+        {
+          "commandContains": "graphql",
+          "afterCommandContains": "3306/replies",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3305\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3305, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}, {\"databaseId\": 3401, \"pullRequestReview\": null, \"author\": {\"login\": \"eval-bot\"}, \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"createdAt\": \"2026-10-23T09:40:00Z\"}]}}, {\"id\": \"PRRT_kwDOeval3306\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3306, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}, {\"databaseId\": 3402, \"pullRequestReview\": null, \"author\": {\"login\": \"eval-bot\"}, \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"createdAt\": \"2026-10-23T09:40:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "afterCommandContains": "3306/replies",
+          "response": "[{\"id\": 3305, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3306, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3401, \"user\": {\"login\": \"eval-bot\"}, \"path\": \"README.md\", \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"in_reply_to_id\": 3305, \"created_at\": \"2026-10-23T09:40:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\"}, {\"id\": 3402, \"user\": {\"login\": \"eval-bot\"}, \"path\": \"src/greeting.js\", \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"in_reply_to_id\": 3306, \"created_at\": \"2026-10-23T09:40:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3402\"}]"
+        },
+        {
+          "commandContains": "graphql",
+          "afterCommandContains": "3305/replies",
+          "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3305\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3305, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}, {\"databaseId\": 3401, \"pullRequestReview\": null, \"author\": {\"login\": \"eval-bot\"}, \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"createdAt\": \"2026-10-23T09:40:00Z\"}]}}, {\"id\": \"PRRT_kwDOeval3306\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3306, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
+        },
+        {
+          "commandContains": "pulls/142/comments",
+          "afterCommandContains": "3305/replies",
+          "response": "[{\"id\": 3305, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"README.md\", \"line\": 5, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3306, \"pull_request_review_id\": 2105, \"user\": {\"login\": \"dana-reviewer\"}, \"path\": \"src/greeting.js\", \"line\": 4, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"in_reply_to_id\": null, \"created_at\": \"2026-10-23T09:12:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\"}, {\"id\": 3401, \"user\": {\"login\": \"eval-bot\"}, \"path\": \"README.md\", \"body\": \"Fixed in the latest push.\\n\\n<!-- muggle-do:bot -->\", \"in_reply_to_id\": 3305, \"created_at\": \"2026-10-23T09:40:00Z\", \"commit_id\": \"9f2c1e4b7a3d5f6e8c0b1a2d3e4f5a6b7c8d9e0f\", \"html_url\": \"https://github.com/acme/tiny-web-app/pull/142#discussion_r3401\"}]"
+        },
+        {
           "commandContains": "graphql",
           "response": "{\"data\": {\"repository\": {\"pullRequest\": {\"reviewThreads\": {\"nodes\": [{\"id\": \"PRRT_kwDOeval3305\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"README.md\", \"comments\": {\"nodes\": [{\"databaseId\": 3305, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Typo: \\\"Configuraiton\\\" \\u2192 \\\"Configuration\\\".\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}, {\"id\": \"PRRT_kwDOeval3306\", \"isResolved\": false, \"isOutdated\": false, \"path\": \"src/greeting.js\", \"comments\": {\"nodes\": [{\"databaseId\": 3306, \"pullRequestReview\": {\"databaseId\": 2105}, \"author\": {\"login\": \"dana-reviewer\"}, \"body\": \"Product changed the copy: the farewell should read `<p>Goodbye, <name>!</p>`. Please update it and the tests.\", \"createdAt\": \"2026-10-23T09:12:00Z\"}]}}]}}}}}"
         },

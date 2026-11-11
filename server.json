@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.multiplex-ai/muggle",
+  "name": "io.github.multiplex-ai/muggleai",
   "title": "Muggle Works",
   "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
   "websiteUrl": "https://github.com/multiplex-ai/muggle-ai-works#readme",

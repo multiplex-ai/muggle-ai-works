@@ -2,7 +2,7 @@
   "cli": {
     "packageName": "@muggleai/works",
     "binaryName": "muggle",
-    "mcpName": "io.github.multiplex-ai/muggle",
+    "mcpName": "io.github.multiplex-ai/muggleai",
     "requiredCommands": [
       "serve",
       "init",
@@ -14,7 +14,7 @@
     ]
   },
   "server": {
-    "name": "io.github.multiplex-ai/muggle",
+    "name": "io.github.multiplex-ai/muggleai",
     "packageIdentifier": "@muggleai/works"
   },
   "plugins": {

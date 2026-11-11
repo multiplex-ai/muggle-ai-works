@@ -19,7 +19,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="resolve-gate"
 
 guardrail_wants() {
-  guardrail_payload_matches 'resolveReviewThread|resolved=(true|false)'
+  guardrail_fields_match command 'resolveReviewThread|resolved=(true|false)'
 }
 
 if guardrail_is_hook_script; then

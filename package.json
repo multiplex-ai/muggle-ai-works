@@ -1,6 +1,6 @@
 {
   "name": "@muggleai/works",
-  "mcpName": "io.github.multiplex-ai/muggle",
+  "mcpName": "io.github.multiplex-ai/muggleai",
   "version": "5.34.1",
   "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
   "type": "module",

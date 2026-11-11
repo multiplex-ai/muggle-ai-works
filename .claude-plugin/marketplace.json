@@ -1,5 +1,6 @@
 {
   "name": "muggle-works",
+  "description": "Muggle Works: acceptance test agent for coding agents, with real-browser tests and screenshots on the PR.",
   "owner": {
     "name": "Muggle AI",
     "email": "support@muggle-ai.com"

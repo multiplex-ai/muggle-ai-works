@@ -5,7 +5,13 @@ Real-browser E2E acceptance for your coding agent: test the flows you changed an
 ## Install
 
 ```
-/plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
+/plugin install muggleai --marketplace multiplex-ai/muggle-ai-works
+```
+
+On Claude Code before 2.1.275, add the marketplace first:
+
+```
+/plugin marketplace add multiplex-ai/muggle-ai-works
 /plugin install muggleai@muggle-works
 ```
 

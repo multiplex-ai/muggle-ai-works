@@ -439,7 +439,7 @@ jobs:
             npm publish "$PACKAGE_TARBALL" --access public --provenance
           fi
 
-  # Lists the release in the official MCP Registry as io.github.multiplex-ai/muggle.
+  # Lists the release in the official MCP Registry as io.github.multiplex-ai/muggleai.
   # Production only: the registry marks the highest semver as latest, so a
   # staging pre-release (5.35.0-staging.300 > 5.34.1) would become what every
   # registry client installs, and it is built against the staging backend.
@@ -526,7 +526,7 @@ jobs:
       - name: Report the registry failure
         if: failure()
         run: |
-          echo "::error title=MCP Registry not updated::@muggleai/works@${PACKAGE_VERSION} is on npm, but io.github.multiplex-ai/muggle was not published to registry.modelcontextprotocol.io. Re-run this job."
+          echo "::error title=MCP Registry not updated::@muggleai/works@${PACKAGE_VERSION} is on npm, but io.github.multiplex-ai/muggleai was not published to registry.modelcontextprotocol.io. Re-run this job."
           {
             echo "### MCP Registry not updated"
             echo ""

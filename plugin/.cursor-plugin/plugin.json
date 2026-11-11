@@ -1,13 +1,13 @@
 {
   "name": "muggle",
   "displayName": "Muggle AI",
-  "description": "Real-browser E2E acceptance for your coding agent: test the flows you changed and open the PR with screenshots. Built for flows other tools can't reach: managed test identities with live inboxes (magic links, email OTP and 2FA, verification mail, password resets), an encrypted secret store for login and test credentials, and a test graph that runs prerequisite flows first. Plain-English tests become replayable scripts on localhost or preview URLs.",
+  "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
   "version": "5.34.1",
   "author": {
     "name": "Muggle AI",
     "email": "support@muggle-ai.com"
   },
-  "homepage": "https://www.muggletest.com",
+  "homepage": "https://www.muggle-ai.com",
   "repository": "https://github.com/multiplex-ai/muggle-ai-works",
   "license": "Apache-2.0",
   "keywords": [

@@ -1,15 +1,17 @@
 # Muggle Works
 
-**13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.**
+**Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.**
 
 Coding agents are good at producing a diff. They are bad at knowing whether the diff works, whether it broke the login flow, and what still has to happen before a human can merge it. Muggle Works is the harness around the agent that answers those questions: it freezes requirements, delegates the design and build, runs the unit suite, drives a **real browser** through the affected user flows, opens the pull request with screenshots attached, and then keeps watching that PR — picking up review comments, red CI, and a stale base branch until the change is genuinely mergeable.
 
 [![npm](https://img.shields.io/npm/v/@muggleai/works.svg)](https://www.npmjs.com/package/@muggleai/works)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen.svg)](https://nodejs.org)
-[![MCP tools](https://img.shields.io/badge/MCP%20tools-100%2B-blue.svg)](#mcp-tool-reference)
+[![MCP tools](https://img.shields.io/badge/MCP%20tools-130-blue.svg)](#mcp-tool-reference)
 
-Works in Claude Code, Cursor, Codex, Windsurf, and any MCP client. Powered by [Muggle Test](https://www.muggletest.com).
+Works in Claude Code, Cursor, Codex, Windsurf, and any MCP client. Powered by [Muggle AI](https://www.muggle-ai.com).
+
+AI agents: start with [AGENTS.md](AGENTS.md) (install, sign-in, flows, skills, errors) or [llms.txt](llms.txt). `muggle serve` also serves both as MCP resources, `muggle://docs/agents` and `muggle://docs/llms`.
 
 ---
 
@@ -21,7 +23,7 @@ Works in Claude Code, Cursor, Codex, Windsurf, and any MCP client. Powered by [M
 - **The loop keeps running after you close the laptop.** A watcher polls the PR and re-enters the cycle when a reviewer comments, CI goes red, or the branch falls behind its base. Feedback becomes commits without you relaying it.
 - **A gate, not a vibe.** No PR is opened until requirements are written, the build typechecks and lints, new logic carries unit tests, the suite passes, and a browser verdict is recorded — or a waiver reason is written down. Silence is not a waiver.
 - **Plain English in, replayable scripts out.** Describe a flow in a sentence; get a script that persists across sessions and re-runs as a regression test after every change.
-- **100+ MCP tools** if you'd rather assemble your own pipeline than use the packaged one.
+- **130 MCP tools** if you'd rather assemble your own pipeline than use the packaged one.
 
 ### Built for two kinds of people
 
@@ -57,9 +59,11 @@ Stage 5.5 refuses to open the PR until build and unit tests meet the Definition 
 **Claude Code** — full plugin: skills, MCP tools, and the browser runner.
 
 ```
-/plugin marketplace add https://github.com/multiplex-ai/muggle-ai-works
+/plugin marketplace add multiplex-ai/muggle-ai-works
 /plugin install muggleai@muggle-works
 ```
+
+The marketplace is `muggle-works` and its entry is `muggleai`; the installed plugin is named `muggle`, so its skills appear as `/muggle:<skill>`.
 
 **Cursor** — `npm install -g @muggleai/works`. The postinstall writes `~/.cursor/mcp.json` and syncs the `muggle-*` skills into `~/.cursor/skills/`. Restart Cursor.
 
@@ -283,17 +287,18 @@ so the result carries a viewUrl straight to the dashboard
 
 130 tools across authentication, projects, use cases, test cases, test states, scripts, workflows, local execution, reporting, secrets, pricing, billing, and administration. Call them directly from any MCP client to build your own pipeline.
 
-**Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, plus `-api-key-create`, `-list`, `-get`, `-revoke`.
+**Authentication** — `muggle-remote-auth-status`, `-login`, `-poll`, `-logout`, `-register` (create an account from an email and password, no browser), plus `-api-key-create`, `-list`, `-get`, `-revoke`.
 
-**Projects** — `muggle-remote-project-create`, `-list`, `-get`, `-update`, `-delete`, plus per-project rollups: `-test-results-summary-get`, `-test-runs-summary-get`, `-test-scripts-summary-get`. Pass `primaryResolution`, `compatibleResolutions` and `runStrategy` (`primaryOnly`, the default, `primaryFirst` or `allAtOnce`) to `-create` or `-update` to verify every test case at more than one viewport; `muggle-remote-project-display-resolutions-get` reads a lane's primary, compatible and enabled resolutions and its run strategy.
+**Projects** — `muggle-remote-organization-list` names the organizations an `organizationId` can make a project belong to. `muggle-remote-project-create`, `-list`, `-get`, `-update`, `-delete`, plus per-project rollups: `-test-results-summary-get`, `-test-runs-summary-get`, `-test-scripts-summary-get`. Pass `primaryResolution`, `compatibleResolutions` and `runStrategy` (`primaryOnly`, the default, `primaryFirst` or `allAtOnce`) to `-create` or `-update` to verify every test case at more than one viewport; `muggle-remote-project-display-resolutions-get` reads a lane's primary, compatible and enabled resolutions and its run strategy.
 
 | Use cases | Purpose |
 | :-------- | :------ |
 | `muggle-remote-use-case-list` / `-get` | Read use cases |
-| `muggle-remote-use-case-create` | Persist a fully-specified use case (no LLM) |
+| `muggle-remote-use-case-create` / `-update` | Persist a fully-specified use case (no LLM) |
 | `muggle-remote-use-case-create-from-prompts` | Create from natural language |
 | `muggle-remote-use-case-prompt-preview` | Preview before creating |
 | `muggle-remote-use-case-update-from-prompt` | Regenerate from a new prompt |
+| `muggle-remote-use-case-discovery-memory-get` | Candidates a site scan discovered |
 | `muggle-remote-use-case-candidates-approve` | Approve discovered candidates |
 | `muggle-remote-use-case-bulk-preview-submit` | Async batch preview (~50% cheaper) |
 | `muggle-remote-use-case-delete` | Delete (cascades to test cases + scripts) |
@@ -330,12 +335,15 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 | `muggle-remote-workflow-start-test-script-generation-bulk` | Generate in bulk |
 | `muggle-remote-workflow-start-test-script-replay` | Replay one script |
 | `muggle-remote-workflow-start-test-script-replay-bulk` | Batch replay |
+| `muggle-remote-workflow-start-prd-file-process` | Turn an uploaded requirements doc into use cases |
 | `muggle-remote-workflow-cancel-run` / `-cancel-runtime` | Cancel in flight |
-| `muggle-remote-wf-get-*` | Poll the latest run of each workflow type |
+| `muggle-remote-workflow-get-website-scan-latest-run`, `muggle-remote-wf-get-*` | Poll the latest run of each workflow type |
+| `muggle-remote-workflow-list-website-scan-runtimes`, `muggle-remote-wf-list-*` | List a workflow type's runtimes |
 
 | Local execution | Purpose |
 | :-------------- | :------ |
 | `muggle-local-check-status` | Browser runner status |
+| `muggle-local-list-sessions` | Stored local run sessions |
 | `muggle-local-execute-test-generation` | Generate a script by driving the browser |
 | `muggle-local-execute-replay` | Replay an existing script |
 | `muggle-local-cancel-execution` | Cancel the active run |
@@ -344,13 +352,16 @@ Bulk-preview submissions return a `jobId` immediately. Poll `muggle-remote-bulk-
 | `muggle-local-test-script-list` / `-get` | Read locally cached scripts |
 | `muggle-local-last-host-*` / `-last-project-*` | Remember the host and project between runs |
 | `muggle-local-preferences-set` | Set harness preferences |
+| `muggle-local-telemetry-skill-emit` / `-event-emit` | Usage telemetry the skills record |
 | `muggle-remote-local-run-upload` | Publish a local run to the cloud |
 
 **Pricing and billing** — `muggle-remote-pricing-get` reads the live plans, token price and token packages without sign-in. `muggle-remote-wallet-package-list` lists the packages the signed-in user can buy, with the `packageId` that `muggle-remote-wallet-topup` and `-wallet-auto-topup-update` take.
 
 **Reporting** — `muggle-remote-report-stats-summary-get`, `-cost-query`, `-final-generate` (PDF/HTML/Markdown), `-preferences-upsert`.
 
-**Administration** — `muggle-remote-prd-file-*` (upload and process requirements docs), `muggle-remote-secret-*` (credentials for test environments), `muggle-remote-wallet-*` (top-ups, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`.
+**Administration** — `muggle-remote-prd-file-*` (upload, list and delete requirements docs), `muggle-remote-secret-*` (credentials for test environments, with `-secret-group-*` and `-secret-type-list`), `muggle-remote-wallet-*` (top-ups, payment methods, auto-topup), `muggle-remote-recommend-cicd-setup` / `-recommend-schedule`, `muggle-remote-user-feedback-*`.
+
+**Resources** — `muggle://docs/agents` ([AGENTS.md](AGENTS.md)) and `muggle://docs/llms` ([llms.txt](llms.txt)), read from the installed package through `resources/list` and `resources/read`.
 
 ---
 
@@ -363,22 +374,23 @@ muggle serve --e2e            # Cloud tools only (muggle-remote-*)
 muggle serve --local          # Local tools only (muggle-local-*)
 
 # Setup and diagnostics
-muggle init                   # Guided setup; saves preferences, offers the CI check
+muggle init [--json | --apply <file>]  # Guided setup; saves preferences, offers the CI check
 muggle llm-source [--show]    # Who supplies the model for local runs: Muggle AI credit, your Anthropic key, a local model, or your Claude Code
+muggle llm-source --use <source> [--base-url <url> --model <name>]  # Set it without prompting
 muggle setup [--force]        # Download or update the browser runner
-muggle upgrade [--check]      # Install the latest runner version
+muggle upgrade [--check | --version <v>] [--force]  # Install the latest (or a given) runner version
 muggle versions               # List installed runner versions
-muggle cleanup [--dry-run]    # Remove old versions and obsolete skills
+muggle cleanup [--dry-run] [--all] [--skills]  # Remove old versions and obsolete skills
 muggle doctor                 # Diagnose installation problems
 
 # Inspecting runs
 muggle run-view [runId]       # A run's steps beside the frames they produced (newest run by default)
-muggle run-view --html        # Render those frames as a self-contained page
+muggle run-view --html [--out-dir <dir>]  # Render those frames as a self-contained page
 muggle run-view --open        # Render it and open it in the browser
-muggle checkout-freshness     # Fetch the base and check this checkout is built on its latest commit
+muggle checkout-freshness [--base <branch>] [--no-fetch]  # Fetch the base and check this checkout is built on its latest commit
 
 # Authentication
-muggle login [--key-expiry 90d]
+muggle login [--key-name <name>] [--key-expiry 30d|90d|1y|never]
 muggle logout
 muggle status
 
@@ -387,8 +399,23 @@ muggle pricing [--json]       # Plans, token price and token packages from the l
 
 # Pull requests
 muggle ci-install [--force]   # Add or update the walkthrough check in GitHub Actions
-muggle pr-walkthrough-check   # Verify a PR's walkthrough comment is settled
-muggle build-pr-section       # Render a PR evidence block from a report on stdin
+muggle pr-walkthrough-check [--pr <n>] [--check-run]  # Verify a PR's walkthrough comment is settled
+muggle build-pr-section [--base <branch>]  # Render a PR evidence block from a report on stdin
+muggle e2e-plan [--pr <url>]  # Post the test cases a local run is about to execute (JSON on stdin) to the walkthrough
+
+# Shared local services, between agents in different checkouts
+muggle stack claim [--wait <seconds>]  # Claim the ports this checkout's E2E run needs
+muggle stack check [--port <port>]     # Confirm the stack still serves this checkout's claim
+muggle stack release                   # Give up the lease and place in line
+muggle stack status                    # Every lease, the line, and tracked services
+
+# Session and PR-watcher supervision
+muggle watch install [--uninstall]     # Schedule the watch with the OS scheduler
+muggle watch tick                      # Run one watch pass
+muggle watch status                    # Last pass: sessions, processes, PR watches, findings
+muggle watch reload-plugins [--dry-run]  # Reload plugins across active Claude sessions
+muggle watch register --slot <dir>     # Opt a PR-watch slot into out-of-session recovery
+muggle watch unregister --slot <dir>   # Withdraw it
 
 muggle --version
 muggle --help
@@ -495,7 +522,7 @@ muggle login
 
 With both installed, muggle-ai-teams folds acceptance testing into each workflow step: test instructions written per slice at **Plan**, per-slice browser tests at **Build**, a full regression sweep at **Verify**, and results published and linked in the PR at **Ship**. Frontend slices get browser tests; backend-only slices are covered by unit tests, with the skip reasoned in writing.
 
-Want it hosted, with nothing to configure? [Muggle Test](https://www.muggletest.com).
+Want it hosted, with nothing to configure? [Muggle AI](https://www.muggle-ai.com).
 
 ---
 

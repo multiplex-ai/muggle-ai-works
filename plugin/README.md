@@ -86,7 +86,7 @@ codex plugin remove muggle@muggle-works   # Codex
 
 ## Links
 
-- [MuggleTest](https://www.muggletest.com)
+- [Muggle AI](https://www.muggle-ai.com)
 - [GitHub](https://github.com/multiplex-ai/muggle-ai-works)
 ## License
 

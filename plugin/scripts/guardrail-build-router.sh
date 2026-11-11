@@ -21,6 +21,13 @@ set -uo pipefail
 # never fire again, so its state flag ends the check in-shell. detectBuildIntent
 # drops a question or a slash command whatever verbs it holds, so those end here
 # too, except a /muggle-do or /mdo command, which Node must see to arm the gate.
+#
+# A pasted log makes the prompt hundreds of KB, and capturing it with a regex costs
+# about 1.5 ms per KB, so the prompt is never extracted. The payload is cut at its
+# "prompt" key, which a string value cannot spell unescaped, and the question and
+# slash checks read only the head of what follows while the verbs are glob
+# substring tests, several times cheaper than one alternation regex. Whatever
+# follows the prompt in the payload is searched too, which only over-matches.
 
 guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 [[ $guardrail_script_dir == "${BASH_SOURCE[0]}" ]] && guardrail_script_dir=.
@@ -28,27 +35,47 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 
 GUARDRAIL_SUBCOMMAND="build-router"
 
+# Matched case-insensitively as substrings, so "muggle-do" and "mdo" cover every
+# /muggle-do, /muggle:mdo and $mdo spelling.
+BUILD_ROUTER_WORDS=(implement build add create write fix refactor "wire up" "hook up" make "change the" conflict merged passing green muggle-do mdo)
+
 guardrail_wants() {
   if guardrail_load_state && guardrail_state_has '"buildIntentRouted": true'; then
     return 1
   fi
-  guardrail_payload_field prompt || return 1
+  local prompt_key='"prompt"'
+  [[ $GUARDRAIL_PAYLOAD == *"$prompt_key"* ]] || return 1
+  local prompt_onward="${GUARDRAIL_PAYLOAD#*"$prompt_key"}"
+  local value_opening_pattern='^[[:space:]]*:[[:space:]]*"'
+  [[ ${prompt_onward:0:64} =~ $value_opening_pattern ]] || return 1
+  prompt_onward="${prompt_onward:${#BASH_REMATCH[0]}}"
+  local prompt_head="${prompt_onward:0:256}"
   # The prompt is still JSON-escaped: an escaped newline, return or tab counts as leading
-  # space, and any other escape leaves the prompt to Node.
+  # space, and any other escape leaves the prompt to Node. The value's closing quote ends
+  # a command name the way the end of the prompt does.
   local leading_space='^([[:space:]]|\\[nrt])*'
   local question_pattern="$leading_space"'(why|what|how|when|where|who|is|are|does|do|can you (explain|tell)|explain)([^A-Za-z0-9_]|$)'
   local slash_command_pattern="$leading_space"'/'
-  local muggle_do_command_pattern="$leading_space"'/([A-Za-z0-9_-]+:)?(muggle-do|mdo)([[:space:]]|\\|$)'
+  local muggle_do_command_pattern="$leading_space"'/([A-Za-z0-9_-]+:)?(muggle-do|mdo)([[:space:]]|\\|"|$)'
   local is_rejected_by_node=1
   shopt -s nocasematch
-  if [[ $GUARDRAIL_FIELD_VALUE =~ $question_pattern ]]; then
+  if [[ $prompt_head =~ $question_pattern ]]; then
     is_rejected_by_node=0
-  elif [[ $GUARDRAIL_FIELD_VALUE =~ $slash_command_pattern && ! $GUARDRAIL_FIELD_VALUE =~ $muggle_do_command_pattern ]]; then
+  elif [[ $prompt_head =~ $slash_command_pattern && ! $prompt_head =~ $muggle_do_command_pattern ]]; then
     is_rejected_by_node=0
   fi
+  local is_build_word_found=1
+  if ((is_rejected_by_node == 1)); then
+    local build_word
+    for build_word in "${BUILD_ROUTER_WORDS[@]}"; do
+      if [[ $prompt_onward == *"$build_word"* ]]; then
+        is_build_word_found=0
+        break
+      fi
+    done
+  fi
   shopt -u nocasematch
-  ((is_rejected_by_node == 0)) && return 1
-  guardrail_fields_match prompt '(implement|build|add|create|write|fix|refactor|wire up|hook up|make|change the|conflict|merged|passing|green|[/$](muggle:)?(muggle-do|mdo))'
+  return "$is_build_word_found"
 }
 
 if guardrail_is_hook_script; then

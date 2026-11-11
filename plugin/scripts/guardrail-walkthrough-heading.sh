@@ -21,7 +21,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="walkthrough-heading-gate"
 
 guardrail_wants() {
-  guardrail_payload_matches 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
+  guardrail_fields_match command 'gh[[:space:]]+pr[[:space:]]+(comment|create|edit)|issues/comments/[0-9]'
 }
 
 if guardrail_is_hook_script; then

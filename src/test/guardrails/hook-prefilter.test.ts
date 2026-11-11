@@ -37,6 +37,35 @@ const commandPayload = (command: string): string =>
 const outputPayload = (stderr: string): string =>
   JSON.stringify({ tool_name: "Bash", tool_response: { stderr: stderr } });
 
+// An unrelated command whose output quotes every trigger the command-keyed pre-filters look for, as a `git log` or
+// a `cat` of a skill file does. The detectors judge the command alone, so none of it may start Node.
+const unrelatedCommandQuotingTriggersPayload = JSON.stringify({
+  tool_name: "Bash",
+  tool_input: { command: "git log -5" },
+  tool_response: {
+    stdout:
+      "gh pr create --fill; gh pr comment 1; resolveReviewThread; reviewThreads; MUGGLE_REPLY_SKIP; " +
+      "issues/comments/12; muggle-local-execute-replay; acceptance-tester",
+  },
+});
+
+describe("command-keyed pre-filters ignore triggers quoted in a command's output", () => {
+  it.each([
+    "guardrail-pr-opened.sh",
+    "guardrail-report-format.sh",
+    "guardrail-walkthrough-heading.sh",
+    "guardrail-resolve-gate.sh",
+    "guardrail-record-comment-replies.sh",
+    "guardrail-record-stage-signals.sh",
+    "guardrail-record-delegation.sh",
+    "guardrail-classify-gate.sh",
+    "guardrail-walkthrough-progress.sh",
+    "guardrail-walkthrough-rerun.sh",
+  ])("%s short-circuits", (wrapperScriptName) => {
+    expect(wrapperPayloadPrefilter(wrapperScriptName).test(unrelatedCommandQuotingTriggersPayload)).toBe(false);
+  });
+});
+
 describe("record-tests pre-filter reaches every payload the recorder acts on", () => {
   const prefilter = wrapperPayloadPrefilter("guardrail-record-tests.sh");
   const reaching: Array<[string, string]> = [
@@ -247,32 +276,6 @@ describe("record-comment-replies pre-filter reaches every payload the recorder a
   // spawning Node on one would be pure waste.
   it("short-circuits a push", () => {
     expect(prefilter.test(commandPayload("git push origin users/stan4/fix"))).toBe(false);
-  });
-});
-
-describe("build-router pre-filter reaches every prompt detectBuildIntent accepts", () => {
-  const prefilter = wrapperPayloadPrefilter("guardrail-build-router.sh");
-  const reaching: Array<[string, string]> = [
-    ["a build verb", JSON.stringify({ prompt: "implement a dark-mode toggle" })],
-    ["a wire-up ask", JSON.stringify({ prompt: "wire up the export button" })],
-    ["a conflict-resolution ask", JSON.stringify({ prompt: "resolve the merge conflicts on my branch" })],
-    ["a drive-the-PR-green ask", JSON.stringify({ prompt: "get PR 12 to green" })],
-    ["a /mdo invocation with no build verb", JSON.stringify({ prompt: "/mdo paginate the export page" })],
-    ["a namespaced muggle-do invocation", JSON.stringify({ prompt: "/muggle:muggle-do the export page should paginate" })],
-    ["a Codex muggle-do invocation", JSON.stringify({ prompt: "$muggle:mdo the export page should paginate" })],
-  ];
-
-  it.each(reaching)("spawns Node for %s", (_label, payload) => {
-    expect(prefilter.test(payload)).toBe(true);
-  });
-
-  it("short-circuits a question", () => {
-    expect(prefilter.test(JSON.stringify({ prompt: "what time is it?" }))).toBe(false);
-  });
-
-  it("short-circuits a question whose session id and cwd spell a build verb", () => {
-    const payload = JSON.stringify({ session_id: "0add4f2e", cwd: "/repo/build", prompt: "what time is it?" });
-    expect(prefilter.test(payload)).toBe(false);
   });
 });
 

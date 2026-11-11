@@ -18,7 +18,7 @@ guardrail_script_dir="${BASH_SOURCE[0]%/*}"
 GUARDRAIL_SUBCOMMAND="pr-opened"
 
 guardrail_wants() {
-  guardrail_payload_matches 'gh[[:space:]]+pr[[:space:]]+(create|ready)|glab[[:space:]]+mr[[:space:]]+(create|update)'
+  guardrail_fields_match command 'gh[[:space:]]+pr[[:space:]]+(create|ready)|glab[[:space:]]+mr[[:space:]]+(create|update)'
 }
 
 if guardrail_is_hook_script; then

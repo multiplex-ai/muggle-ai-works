@@ -100,6 +100,7 @@ jobs:
       - verify
     outputs:
       package_tarball: ${{ steps.pack.outputs.package_tarball }}
+      package_version: ${{ steps.pack.outputs.package_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -300,6 +301,7 @@ jobs:
           npm pack --json > pack-result.json
           PACKAGE_TARBALL=$(node -e "const output=require('./pack-result.json');if(!Array.isArray(output)||output.length!==1){throw new Error('Unexpected npm pack output');}process.stdout.write(output[0].filename);")
           echo "package_tarball=$PACKAGE_TARBALL" >> "$GITHUB_OUTPUT"
+          echo "package_version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
           echo "PACKAGE_TARBALL=$PACKAGE_TARBALL" >> "$GITHUB_ENV"
 
       - name: Validate package contents
@@ -437,11 +439,100 @@ jobs:
             npm publish "$PACKAGE_TARBALL" --access public --provenance
           fi
 
-  # TODO: Add publish-mcp-registry job when mcp-publisher CLI is publicly available.
-  # The official MCP registry (modelcontextprotocol.io) is in preview and the CLI
-  # tooling is not yet distributed via npm. Until then, publish manually:
-  #   mcp-publisher login github
-  #   mcp-publisher publish
+  # Lists the release in the official MCP Registry as io.github.multiplex-ai/muggle.
+  # Production only: the registry marks the highest semver as latest, so a
+  # staging pre-release (5.35.0-staging.300 > 5.34.1) would become what every
+  # registry client installs, and it is built against the staging backend.
+  # The npm release is already final when this runs. `continue-on-error` keeps a
+  # registry outage from turning the release run red — /mrelease watches it with
+  # `gh run watch --exit-status`, and a red run reads as a failed release that
+  # someone re-dispatches, bumping npm again. The failure stays visible as an
+  # error annotation and job summary; recover with "Re-run failed jobs".
+  publish-mcp-registry:
+    runs-on: ubuntu-latest
+    needs:
+      - package-audit
+      - publish
+    if: >-
+      !cancelled()
+      && needs.publish.result == 'success'
+      && (inputs.channel || 'production') == 'production'
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      # Raise deliberately; the download is pinned to this tag and its Sigstore bundle.
+      MCP_PUBLISHER_VERSION: v1.8.6
+      PACKAGE_VERSION: ${{ needs.package-audit.outputs.package_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set server.json to the published version
+        run: |
+          set -euo pipefail
+          jq --arg version "$PACKAGE_VERSION" \
+            '.version = $version | .packages[0].version = $version' \
+            server.json > server.json.next
+          mv server.json.next server.json
+          cat server.json
+
+      # The registry proves ownership by reading `mcpName` from this exact
+      # version on npm, so wait out the registry's read-after-publish lag.
+      - name: Wait for the npm version to carry mcpName
+        run: |
+          set -euo pipefail
+          IDENTIFIER=$(jq -r '.packages[0].identifier' server.json)
+          EXPECTED=$(jq -r '.name' server.json)
+          for attempt in $(seq 1 20); do
+            ACTUAL=$(curl --fail --silent --show-error "https://registry.npmjs.org/${IDENTIFIER}/${PACKAGE_VERSION}" | jq -r '.mcpName // empty' || true)
+            if [ "$ACTUAL" = "$EXPECTED" ]; then
+              echo "${IDENTIFIER}@${PACKAGE_VERSION} carries mcpName ${ACTUAL}."
+              exit 0
+            fi
+            echo "Attempt ${attempt}: mcpName is '${ACTUAL}', want '${EXPECTED}'. Retrying in 15s."
+            sleep 15
+          done
+          echo "${IDENTIFIER}@${PACKAGE_VERSION} never reported mcpName ${EXPECTED}." >&2
+          exit 1
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          ARCHIVE="mcp-publisher_linux_amd64.tar.gz"
+          BASE_URL="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$ARCHIVE" "$BASE_URL/$ARCHIVE"
+          curl --fail --location --silent --show-error --output "$ARCHIVE.sigstore.json" "$BASE_URL/$ARCHIVE.sigstore.json"
+          cosign verify-blob \
+            --bundle "$ARCHIVE.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$ARCHIVE"
+          tar xzf "$ARCHIVE" mcp-publisher
+          rm -f "$ARCHIVE" "$ARCHIVE.sigstore.json"
+
+      # OIDC grants io.github.<repository owner>/*, so no secret and no
+      # org-Owner token is involved.
+      - name: Authenticate to the MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to the MCP Registry
+        run: ./mcp-publisher publish server.json
+
+      - name: Report the registry failure
+        if: failure()
+        run: |
+          echo "::error title=MCP Registry not updated::@muggleai/works@${PACKAGE_VERSION} is on npm, but io.github.multiplex-ai/muggle was not published to registry.modelcontextprotocol.io. Re-run this job."
+          {
+            echo "### MCP Registry not updated"
+            echo ""
+            echo "npm has \`@muggleai/works@${PACKAGE_VERSION}\`; the registry listing still shows the previous version."
+            echo "Retry by re-running only this job (its re-run button, or \`gh run rerun ${GITHUB_RUN_ID} --job <job id>\`). Never re-run the whole workflow: the npm release needs no action."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   notify-on-failure:
     runs-on: ubuntu-latest

@@ -2,7 +2,7 @@
   "name": "@muggleai/works",
   "mcpName": "io.github.multiplex-ai/muggle",
   "version": "5.34.1",
-  "description": "13 years of Microsoft hyperscale engineering, packaged as a harness for your AI coding agent.",
+  "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -13,6 +13,8 @@
     "plugin",
     "bin/muggle.js",
     ".claude-plugin/marketplace.json",
+    "AGENTS.md",
+    "llms.txt",
     "scripts/postinstall.mjs",
     "scripts/post-install-guide",
     "scripts/claude-marketplace-sync.mjs",
@@ -123,16 +125,24 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "muggle-ai",
+    "acceptance-testing",
+    "acceptance-test-agent",
+    "e2e",
     "e2e-testing",
-    "testing",
-    "automation",
-    "localhost",
+    "browser-automation",
+    "real-browser",
+    "pull-request",
+    "coding-agent",
+    "ai-agent",
     "ai-coding",
-    "user-experience",
-    "cursor",
     "claude-code",
+    "claude-code-plugin",
+    "codex",
+    "cursor",
+    "localhost",
     "vibe-coding"
   ],
   "author": "Muggle AI",
@@ -142,5 +152,5 @@
     "type": "git",
     "url": "git+https://github.com/multiplex-ai/muggle-ai-works.git"
   },
-  "homepage": "https://www.muggle-ai.com/muggleTestV0/docs/mcp/mcp-overview"
+  "homepage": "https://github.com/multiplex-ai/muggle-ai-works#readme"
 }

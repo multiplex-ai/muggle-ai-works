@@ -22,6 +22,7 @@ import {
   toolRequiresAuth,
 } from "../../packages/mcps/src/index.js";
 import type { ICallerCredentials, IMcpTool } from "../../packages/mcps/src/index.js";
+import { listAgentDocResources, readAgentDocResource } from "./docs-resources/docs-resources.js";
 
 /** Options for creating the unified MCP server. */
 export interface IUnifiedMcpServerOptions {
@@ -407,16 +408,20 @@ export function createUnifiedMcpServer (options: IUnifiedMcpServerOptions): Serv
     }
   });
 
-  // Handle list resources request
   server.setRequestHandler(ListResourcesRequestSchema, () => {
-    logger.debug("Listing resources");
-    return { resources: [] };
+    const resources = listAgentDocResources();
+    logger.debug("Listing resources", { count: resources.length });
+    return { resources: resources };
   });
 
-  // Handle read resource request
   server.setRequestHandler(ReadResourceRequestSchema, (request) => {
     const uri = request.params.uri;
     logger.debug("Reading resource", { uri: uri });
+
+    const agentDocContents = readAgentDocResource(uri);
+    if (agentDocContents) {
+      return { contents: [agentDocContents] };
+    }
 
     return {
       contents: [

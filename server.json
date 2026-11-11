@@ -1,7 +1,9 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.multiplex-ai/muggle",
-  "description": "Real-browser E2E for coding agents: live test inboxes, encrypted secrets, test graph, PR screenshots",
+  "title": "Muggle Works",
+  "description": "Acceptance test agent for coding agents: real-browser tests, with screenshots on the PR.",
+  "websiteUrl": "https://github.com/multiplex-ai/muggle-ai-works#readme",
   "repository": {
     "url": "https://github.com/multiplex-ai/muggle-ai-works",
     "source": "github"
@@ -10,16 +12,19 @@
   "packages": [
     {
       "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@muggleai/works",
       "version": "5.34.1",
-      "runtime": "node",
-      "runtimeArgs": [
-        ">=22.0.0"
-      ],
+      "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
       },
-      "environmentVariables": []
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "serve"
+        }
+      ]
     }
   ]
 }

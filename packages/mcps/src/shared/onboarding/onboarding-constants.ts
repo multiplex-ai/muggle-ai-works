@@ -41,8 +41,8 @@ export const ONBOARDING_TOGGLE_PROMPT =
 
 /**
  * Multi-key groups whose members are each toggled on (`always`) or left off.
- * Extends the grouping the `/mprefs` configure picker uses, which reaches 19 of the
- * 23 keys, so first-run setup covers every knob without inventing new headings.
+ * Extends the grouping the `/mprefs` configure picker uses, so first-run setup covers
+ * every toggleable key without inventing new headings.
  */
 export const ONBOARDING_TOGGLE_GROUPS: readonly IOnboardingGroupLayout[] = [
   {

@@ -23,7 +23,8 @@ import {
  * An escalation suppresses dispatch only when a cycle actually ran and gave up on the same key or head
  * (see {@link isRebaseKeyEscalated}); an entry written without an attempt behind it is ignored, so the work dispatches.
  * A red head whose fix-ci budget is spent holds as escalated even when no escalation was written: idling there would
- * leave the PR red with nobody told.
+ * leave the PR red with nobody told. A PR whose forward stages are still in flight dispatches nothing: Stage 6 tests
+ * the head a cycle would push over, and Stage 7.5 decides when the watch may act.
  */
 export function resolveWatchTickVerdict(
   lastSeenEntry: LastSeenPrEntry,
@@ -31,6 +32,7 @@ export function resolveWatchTickVerdict(
   preferences: WatchPreferences,
 ): WatchTickVerdict {
   const { headSha, rebaseKey } = observation;
+  if (lastSeenEntry.forward_stages_in_flight === true) return WatchTickVerdict.HoldForwardStages;
   if (observation.isRebaseDue) {
     if (isRebaseBudgetExhausted(lastSeenEntry, preferences.maxCatchUpRebases)) {
       return WatchTickVerdict.BlockRebaseBudgetExhausted;

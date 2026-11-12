@@ -166,7 +166,7 @@ function stubGhDir(
 //
 // PATH is joined with the platform delimiter and native paths: a POSIX-joined
 // PATH breaks locating `bash` itself on Windows, long before the stub matters.
-function armSlot(session?: string): string {
+function armSlot(session?: string, ownerFlagSession?: string): string {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   const env: NodeJS.ProcessEnv = {
     ...process.env,
@@ -176,7 +176,19 @@ function armSlot(session?: string): string {
   if (session !== undefined) env.CLAUDE_CODE_SESSION_ID = session;
   execFileSync(
     "bash",
-    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master", "--no-exec"],
+    [
+      armPath,
+      "--slot",
+      toBash(slot),
+      "--repo",
+      "o/n",
+      "--pr",
+      "1",
+      "--base",
+      "master",
+      ...(ownerFlagSession === undefined ? [] : ["--owner", ownerFlagSession]),
+      "--no-exec",
+    ],
     { env: env, stdio: "ignore" },
   );
   return slot;
@@ -214,6 +226,17 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh slot ownership", () => {
   // recognise as another session's claim, so a placeholder strands the slot.
   it("leaves the slot unowned when the session id is unset", () => {
     expect(existsSync(join(armSlot(), "owner.json"))).toBe(false);
+  });
+
+  it("claims the slot for the owner --owner names, as the watch service arms outside every session", () => {
+    const slot = armSlot(undefined, "recorded-owner");
+    expect(JSON.parse(readFileSync(join(slot, "owner.json"), "utf8")).session_id).toBe("recorded-owner");
+    expect(existsSync(join(slot, "watch-registration.json"))).toBe(true);
+  });
+
+  it("prefers --owner over the environment's session id", () => {
+    const owner = JSON.parse(readFileSync(join(armSlot("whoever-ran-it", "recorded-owner"), "owner.json"), "utf8"));
+    expect(owner.session_id).toBe("recorded-owner");
   });
 
   it("registers an owned slot with the watch service", () => {
@@ -434,9 +457,11 @@ describe.skipIf(!hasBash)("pr-watch-loop.sh exits on report", () => {
     runLoopOverSlot(slot, stubGhDir(), { ...quickExit, MUGGLE_PR_WATCH_LISTENER: "muggle-watch" });
     expect(readSlotFile(slot, "watch-listener").trim()).toBe("muggle-watch");
     writeFileSync(join(slot, "watch-service.out"), "EVENT pr=1 new submitted review id=42\n");
+    writeFileSync(join(slot, "watch-service.queued.out"), "EVENT pr=1 new conversation comment id=9\n");
     runLoopOverSlot(slot, stubGhDir(), quickExit);
     expect(existsSync(join(slot, "watch-listener"))).toBe(false);
     expect(existsSync(join(slot, "watch-service.out"))).toBe(false);
+    expect(existsSync(join(slot, "watch-service.queued.out"))).toBe(false);
   }, 60_000);
 });
 

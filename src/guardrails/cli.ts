@@ -656,6 +656,12 @@ function watchGate(): string {
 
 function owedWatchWorkLine(work: OwedWatchWork): string {
   const muggleDo = muggleSkill("/muggle-do");
+  if (work.kind === OwedWatchWorkKind.PendingWake) {
+    return (
+      `- PR #${work.prNumber} (${work.prUrl}): the muggle watch reported \`${work.dueOn}\` and it never reached this ` +
+      `session: run \`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\`.`
+    );
+  }
   if (work.kind === OwedWatchWorkKind.Rebase) {
     return (
       `- PR #${work.prNumber} (${work.prUrl}) is behind or conflicting with its base (key ${work.dueOn}) and no rebase ` +
@@ -711,7 +717,8 @@ function watchFollowThroughGate(): string {
         `first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like ` +
         `a new head, clears this. Writing the count without running the cycle — or for an E2E run queued for a ` +
         `different PR — leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not ` +
-        `clear this, and neither does re-arming the watch. ${holdInstruction}`
+        `clear this, and neither does re-arming the watch. An undelivered watch report clears once the tick it names ` +
+        `re-arms the watch from this session. ${holdInstruction}`
       : `Watcher work still owed (reminder ${decision.blockCount}):\n${owedList}\n${holdInstruction}`;
   return blockStop(reason, host);
 }

@@ -326,6 +326,8 @@ export interface WatchGateDecision {
 export enum OwedWatchWorkKind {
   Rebase = "rebase",
   FixCi = "fix-ci",
+  /** A muggle watch service report on the PR never reached this session. */
+  PendingWake = "pending-wake",
 }
 
 /** One piece of work a watch this session owns found due and nothing ever attempted. */
@@ -334,7 +336,7 @@ export interface OwedWatchWork {
   slug: string;
   prUrl: string;
   prNumber: number;
-  /** The `<head>..<base-tip>` key a rebase is due on, or the head whose CI is red. */
+  /** The `<head>..<base-tip>` key a rebase is due on, the head whose CI is red, or the undelivered report's line. */
   dueOn: string;
 }
 

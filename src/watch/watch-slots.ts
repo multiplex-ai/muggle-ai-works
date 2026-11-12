@@ -13,7 +13,7 @@ import {
   WATCH_REGISTRATION_FILE,
 } from "./constants.js";
 import { optionalString } from "./field-parsers.js";
-import { readServiceLoopReport } from "./service-loop.js";
+import { readQueuedWakeReport, readServiceLoopReport } from "./service-loop.js";
 import type { SlotPr, WatchSlotRecord, WatchSlotRegistration } from "./types.js";
 
 interface PrsJsonEntry {
@@ -99,6 +99,7 @@ export function readOpenWatchSlots(slotsDir: string): WatchSlotRecord[] {
       followupLogLines: readSlotText(join(slotDir, FOLLOWUP_LOG_FILE)).split(/\r?\n/),
       isHeardByService: readSlotText(join(slotDir, WATCH_LISTENER_FILE)).trim() === SERVICE_WATCH_LISTENER,
       serviceLoopReport: readServiceLoopReport(slotDir),
+      queuedWakeReport: readQueuedWakeReport(slotDir),
     });
   }
   return slots;

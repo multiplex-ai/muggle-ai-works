@@ -11,7 +11,14 @@ import {
   RESULT_FILE_NAME,
   WATCH_DUE_FILE_NAME,
 } from "../pr-watch/constants.js";
-import { lastSeenEntryFor, parseWatchDueRecord, readJsonRecord, readSlotPr, readSlotText } from "../pr-watch/slotFiles.js";
+import {
+  lastSeenEntryFor,
+  parseWatchDueRecord,
+  readJsonRecord,
+  readSlotPr,
+  readSlotText,
+  undeliveredWakeLineIn,
+} from "../pr-watch/slotFiles.js";
 import type { SlotPrRecord, WatchDueRecord, WatchPreferences } from "../pr-watch/types.js";
 import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
 import {
@@ -48,14 +55,17 @@ function isDueRecordSuperseded(slotPath: string, slotPr: SlotPrRecord, dueRecord
 
 /**
  * The watcher work one slot owes `sessionId`: due per the record its watch keeps (`watch-due.env`), and never
- * attempted per `last_seen.json`.
+ * attempted per `last_seen.json`, plus any muggle watch service report on the PR that never reached the session.
  *
+ * - A pending wake is owed while the service holds a report for the session, queued or from its exited loop. The
+ *   tick it names handles it, and the arm that tick ends on retires the report.
  * - A rebase is owed when the branch was found behind or conflicting, `autoRebase` is `always`, the PR has catch-up
  *   budget left, and no rebase cycle ran for the `<head>..<base-tip>` key.
  * - A fix is owed when the head's checks settled red and no fix-ci cycle ran for that head.
  *
  * An escalation entry never excuses either: only an attempt counter does. Every file is local, so this answers within
- * a hook's budget; a slot another session owns, a stopped or finalized slot, and a terminal PR owe nothing.
+ * a hook's budget; a slot another session owns, a stopped or finalized slot, a terminal PR, and a PR whose forward
+ * stages are still in flight owe nothing. The last is watched, but its cycles wait for the Stage 8 handoff's tick.
  */
 export function owedWorkInSlot(
   slotPath: string,
@@ -65,7 +75,8 @@ export function owedWorkInSlot(
 ): OwedWatchWork[] {
   if (slug.endsWith(STOPPED_SLOT_SUFFIX)) return [];
   const dueRecord = parseWatchDueRecord(readSlotText(join(slotPath, WATCH_DUE_FILE_NAME)));
-  if (!dueRecord) return [];
+  const undeliveredWakeLine = undeliveredWakeLineIn(slotPath);
+  if (!dueRecord && undeliveredWakeLine === undefined) return [];
   if (readJsonRecord(join(slotPath, OWNER_FILE_NAME)).session_id !== sessionId) return [];
   if (existsSync(join(slotPath, RESULT_FILE_NAME))) return [];
   const slotPr = readSlotPr(slotPath);
@@ -73,9 +84,9 @@ export function owedWorkInSlot(
   const prNumber = slotPr?.number;
   if (!slotPr?.repo || typeof prUrl !== "string" || typeof prNumber !== "number") return [];
   if ((TERMINAL_SLOT_PR_STATES as readonly string[]).includes((slotPr.state ?? "").toLowerCase())) return [];
-  if (isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return [];
 
   const lastSeenEntry = lastSeenEntryFor(readSlotText(join(slotPath, LAST_SEEN_FILE_NAME)), `${slotPr.repo}#${prNumber}`);
+  if (lastSeenEntry.forward_stages_in_flight === true) return [];
   const workOn = (kind: OwedWatchWorkKind, dueOn: string): OwedWatchWork => ({
     kind: kind,
     slug: slug,
@@ -84,6 +95,8 @@ export function owedWorkInSlot(
     dueOn: dueOn,
   });
   const owed: OwedWatchWork[] = [];
+  if (undeliveredWakeLine !== undefined) owed.push(workOn(OwedWatchWorkKind.PendingWake, undeliveredWakeLine));
+  if (!dueRecord || isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
   const isRebaseOwed =
     dueRecord.rebaseDueKey !== "" &&
     preferences.autoRebase === ALWAYS_PREFERENCE_VALUE &&

@@ -140,6 +140,8 @@ export interface WatchSlotRecord {
   isHeardByService: boolean;
   /** What the last loop the watch started printed, until its report reaches the owner. */
   serviceLoopReport?: ServiceLoopReport;
+  /** Reports set aside for the owner when a fresh loop took over the PR, until they reach the owner. */
+  queuedWakeReport?: ServiceLoopReport;
 }
 
 /** Why a loop the watch started ended, read from its output. */
@@ -162,6 +164,19 @@ export interface ServiceLoopReport {
   /** The lines that say why it ended, e.g. `EVENT pr=7 new submitted review id=42`. */
   reportLines: string[];
   writtenAtMs: number;
+}
+
+/** A report its owner session has not been woken for, with how long it has waited. */
+export interface UndeliveredWake {
+  report: ServiceLoopReport;
+  ageMs?: number;
+}
+
+/** Another slot of the same owner whose report waits, named in a wake so the owner hears every one. */
+export interface PendingWakeRef {
+  slotSlug: string;
+  prNumber: number;
+  reportKind: ServiceLoopReportKind;
 }
 
 /** Work a PR's watcher gave up on and handed to its owner session. */
@@ -258,6 +273,8 @@ export interface WatchSlotAssessment {
   isHeardByService: boolean;
   serviceLoopReport?: ServiceLoopReport;
   serviceLoopReportAgeMs?: number;
+  queuedWakeReport?: ServiceLoopReport;
+  queuedWakeReportAgeMs?: number;
 }
 
 /** How loudly a finding is surfaced: alerts notify, warnings and notices only land in the ledger. */
@@ -323,6 +340,8 @@ export interface WatcherRecovery {
   ownerShortId?: string;
   /** Set when the owner's job continued under a newer session id than `ownerSessionId`: the id its exit is awaited by. */
   ownerRunningSessionId?: string;
+  /** The owner's other slots whose reports also wait, named in the same wake. */
+  otherPendingWakes?: PendingWakeRef[];
 }
 
 /** A session to resume in the background, from the project dir its transcript names. */
@@ -383,6 +402,8 @@ export enum ServiceArmOutcome {
   Armed = "armed",
   ArmFailed = "arm-failed",
   DeferredByTickCap = "deferred-by-tick-cap",
+  /** The last loop's undelivered report could not be set aside yet, since that loop still holds its output open. */
+  DeferredByReportInUse = "deferred-by-report-in-use",
 }
 
 /** One slot whose loop the watch started, out of every session. */
@@ -394,9 +415,9 @@ export interface ServiceArm {
 
 /**
  * Starts one slot's loop detached from every session, its output written to the
- * slot; false when it could not start.
+ * slot and the slot claimed for `ownerSessionId`; false when it could not start.
  */
-export type ServiceLoopLauncher = (slotDir: string, pr: SlotPr, baseBranch: string) => boolean;
+export type ServiceLoopLauncher = (slotDir: string, pr: SlotPr, baseBranch: string, ownerSessionId: string) => boolean;
 
 /** The edges `executeWatcherRecoveries` acts through. */
 export interface RecoveryExecutionDeps {

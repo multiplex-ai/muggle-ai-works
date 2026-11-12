@@ -25,6 +25,7 @@
         {"tool":"Bash","argContains":"pr-watch-arm.sh"}
       ]
     },
+    "stage-handoff-tick": {"tool":"Skill","argContains":["muggle-pr-followup","--wake=stage-handoff"]},
     "thread-resolved": {"tool":"Bash","argContains":"resolveReviewThread"},
     "no-web-surface-skip": {"tool":"Bash","argContains":"MUGGLE_E2E_SKIP: NO_WEB_SURFACE"}
   },
@@ -566,10 +567,11 @@
       "expect": {
         "requireToolSequence": [
           {"pattern":"pr-created"},
+          {"pattern":"prs-manifest-written"},
+          {"pattern":"watcher-armed"},
           {"pattern":"e2e-executed"},
           {"pattern":"walkthrough-posted"},
-          {"pattern":"prs-manifest-written"},
-          {"pattern":"watcher-armed"}
+          {"pattern":"stage-handoff-tick"}
         ],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/farewell-line/prs.json","contains":"142"}],
         "forbidToolAttempts": [{"pattern":"thread-resolved"}]
@@ -1065,9 +1067,10 @@
       "expect": {
         "requireToolSequence": [
           {"tool":"Bash","argContains":["gh pr create","[UNIT-ONLY]"]},
-          {"pattern":"no-web-surface-skip"},
           {"pattern":"prs-manifest-written"},
-          {"pattern":"watcher-armed"}
+          {"pattern":"watcher-armed"},
+          {"pattern":"no-web-surface-skip"},
+          {"pattern":"stage-handoff-tick"}
         ],
         "requireArtifacts": [{"path":"~/.muggle-ai/muggle-do/sessions/slug-max-length/prs.json","contains":"57"}],
         "forbidToolAttempts": [{"pattern":"e2e-executed"},{"pattern":"thread-resolved"}]
@@ -1123,10 +1126,15 @@
         ]
       },
       "expect": {
-        "requireToolSequence": [{"pattern":"pr-created"},{"tool":"Skill","argContains":"muggle-test-prepare"}],
+        "requireToolSequence": [
+          {"pattern":"pr-created"},
+          {"pattern":"prs-manifest-written"},
+          {"pattern":"watcher-armed"},
+          {"tool":"Skill","argContains":"muggle-test-prepare"}
+        ],
         "forbidToolAttempts": [
           {"pattern":"walkthrough-posted"},
-          {"pattern":"watcher-armed"},
+          {"pattern":"stage-handoff-tick"},
           {"pattern":"thread-resolved"}
         ],
         "outputMatches": ["3000|[Dd]ev server|DEV_SERVER","[Hh]alt|[Ee]scalat|[Bb]lock|[Ss]topp|[Uu]nsettled"]

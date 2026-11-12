@@ -4,11 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   LIMIT_RESUME_PROMPT,
   MUGGLE_PLUGIN_ID,
-  SERVICE_LOOP_DELIVERED_FILE,
-  SERVICE_LOOP_OUTPUT_FILE,
   SESSION_EXIT_WAIT_MS,
   TRUST_PROBE_SESSION_NAME,
 } from "../../watch/constants.js";
+import { SERVICE_LOOP_DELIVERED_FILE, SERVICE_LOOP_OUTPUT_FILE, SERVICE_LOOP_QUEUED_WAKE_FILE } from "../../pr-watch/constants.js";
 import {
   LimitResumeAction,
   ServiceArmOutcome,
@@ -332,6 +331,33 @@ describe("runWatchTick", () => {
     );
     runWatchTick({ ...deps, nowMs: NOW_MS + 2 * HOUR_MS });
     expect(sessionCalls(runner)).toEqual([]);
+  });
+
+  it("keeps watching a PR whose report waits on a busy owner, then wakes the owner for the queued report", () => {
+    const { deps, machine, runner, paths, launches, projectCwd } = buildMachine();
+    const slotDir = writeSlot(paths.slotsDir, "busy-owned", {
+      prsJson: [openPrEntry("o/r", 2)],
+      ownerSessionId: "owner-live",
+      heartbeatMtimeMs: NOW_MS - 2 * HOUR_MS,
+      isRegistered: true,
+    });
+    writeFileSync(join(paths.claudeProjectsDir, "repo", "owner-live.jsonl"), `${JSON.stringify({ cwd: projectCwd })}\n`);
+    const conversationLine = "EVENT pr=2 new conversation comment id=4410";
+    writeFileSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), `${conversationLine}\n`);
+
+    const busy = runWatchTick(deps);
+    expect(launches.map(([slug]) => slug)).toContain("busy-owned");
+    expect(busy.serviceArms?.find((serviceArm) => serviceArm.slug === "busy-owned")?.outcome).toBe(ServiceArmOutcome.Armed);
+    expect(readFileSync(join(slotDir, SERVICE_LOOP_QUEUED_WAKE_FILE), "utf-8")).toContain(conversationLine);
+    expect(sessionCalls(runner)).toEqual([]);
+
+    machine.claudeListing = (machine.claudeListing ?? []).map((listing) =>
+      (listing as { sessionId: string }).sessionId === "owner-live" ? { ...(listing as object), status: "idle", state: "blocked" } : listing,
+    );
+    const idle = runWatchTick({ ...deps, nowMs: NOW_MS + 120_000 });
+    expect(idle.recoveries.map((recovery) => [recovery.slotSlug, recovery.outcome])).toEqual([["busy-owned", WatcherRecoveryOutcome.Resumed]]);
+    expect(existsSync(join(slotDir, SERVICE_LOOP_QUEUED_WAKE_FILE))).toBe(false);
+    expect(readFileSync(join(slotDir, SERVICE_LOOP_DELIVERED_FILE), "utf-8")).toContain(conversationLine);
   });
 
   it("closes out a merged PR's slot that nobody watches, sending nothing to the PR", () => {

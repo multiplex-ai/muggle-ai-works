@@ -25,6 +25,15 @@ const observe = (overrides: Partial<WatchTickObservation> = {}): WatchTickObserv
 const verdictFor = (entry: LastSeenPrEntry, overrides: Partial<WatchTickObservation> = {}, preferences = defaults) =>
   resolveWatchTickVerdict(entry, observe(overrides), preferences);
 
+describe("resolveWatchTickVerdict: forward stages in flight", () => {
+  it("holds every dispatch until the Stage 8 handoff lifts the hold", () => {
+    const held: LastSeenPrEntry = { forward_stages_in_flight: true };
+    expect(verdictFor(held, { isRebaseDue: true })).toBe(WatchTickVerdict.HoldForwardStages);
+    expect(verdictFor(held, { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.HoldForwardStages);
+    expect(verdictFor({ forward_stages_in_flight: false }, { ciBucket: CiRollupBucket.Red })).toBe(WatchTickVerdict.DispatchFixCi);
+  });
+});
+
 describe("resolveWatchTickVerdict: a due rebase", () => {
   it("dispatches when nothing was attempted", () => {
     expect(verdictFor({}, { isRebaseDue: true })).toBe(WatchTickVerdict.DispatchRebase);

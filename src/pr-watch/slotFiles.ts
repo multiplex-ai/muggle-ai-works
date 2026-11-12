@@ -7,10 +7,14 @@ import {
   SERVICE_LOOP_OUTPUT_FILE,
   SERVICE_LOOP_QUEUED_WAKE_FILE,
   WATCH_DUE_CI_RED_FIELD,
+  WATCH_DUE_FEEDBACK_CONVERSATION_FIELD,
+  WATCH_DUE_FEEDBACK_REVIEWS_FIELD,
+  WATCH_DUE_FEEDBACK_THREADS_FIELD,
   WATCH_DUE_HEAD_FIELD,
   WATCH_DUE_REBASE_FIELD,
 } from "./constants.js";
 import type { LastSeenPrEntry, SlotPrRecord, WatchDueRecord } from "./types.js";
+import { parseFeedbackIdList, parseUnansweredThreadComments } from "./unhandledFeedback.js";
 
 /** A slot file's text, or empty when it is missing or unreadable. */
 export function readSlotText(filePath: string): string {
@@ -76,7 +80,8 @@ export function parseEnvFileLines(envFileText: string): Record<string, string> {
 /**
  * The due work a `watch-due.env` records, or null when it records none.
  *
- * Output shape: `{ headSha: "abc", rebaseDueKey: "abc..def", ciRedHeadSha: "" }`
+ * Output shape: `{ headSha: "abc", rebaseDueKey: "abc..def", ciRedHeadSha: "", feedback: { bodyOnlyReviewIds: [],
+ * conversationCommentIds: [9], unansweredThreadComments: [] } }`
  */
 export function parseWatchDueRecord(watchDueText: string): WatchDueRecord | null {
   const fields = parseEnvFileLines(watchDueText);
@@ -84,8 +89,18 @@ export function parseWatchDueRecord(watchDueText: string): WatchDueRecord | null
     headSha: fields[WATCH_DUE_HEAD_FIELD] ?? "",
     rebaseDueKey: fields[WATCH_DUE_REBASE_FIELD] ?? "",
     ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? "",
+    feedback: {
+      bodyOnlyReviewIds: parseFeedbackIdList(fields[WATCH_DUE_FEEDBACK_REVIEWS_FIELD] ?? ""),
+      conversationCommentIds: parseFeedbackIdList(fields[WATCH_DUE_FEEDBACK_CONVERSATION_FIELD] ?? ""),
+      unansweredThreadComments: parseUnansweredThreadComments(fields[WATCH_DUE_FEEDBACK_THREADS_FIELD] ?? ""),
+    },
   };
-  return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha ? dueRecord : null;
+  const { feedback } = dueRecord;
+  const hasFeedback =
+    feedback.bodyOnlyReviewIds.length > 0 ||
+    feedback.conversationCommentIds.length > 0 ||
+    feedback.unansweredThreadComments.length > 0;
+  return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha || hasFeedback ? dueRecord : null;
 }
 
 /**

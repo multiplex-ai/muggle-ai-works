@@ -205,7 +205,15 @@ describe.skipIf(!hasBash)("watch_record_due_work", () => {
   }
 
   it("writes the head, the due rebase key, and the red head", () => {
-    expect(recordDue('h1 "h1..b1" h1')).toBe('HEAD="h1"\nREBASE_DUE="h1..b1"\nCI_RED_HEAD="h1"\n');
+    expect(recordDue('h1 "h1..b1" h1')).toBe(
+      'HEAD="h1"\nREBASE_DUE="h1..b1"\nCI_RED_HEAD="h1"\nFEEDBACK_REVIEWS=""\nFEEDBACK_CONVERSATION=""\nFEEDBACK_THREADS=""\n',
+    );
+  });
+
+  it("writes the arm's feedback lists even with no rebase or red head due", () => {
+    expect(recordDue('h1 "" "" 41 "9,12" "112:57"')).toBe(
+      'HEAD="h1"\nREBASE_DUE=""\nCI_RED_HEAD=""\nFEEDBACK_REVIEWS="41"\nFEEDBACK_CONVERSATION="9,12"\nFEEDBACK_THREADS="112:57"\n',
+    );
   });
 
   it("leaves the file empty when nothing is due", () => {

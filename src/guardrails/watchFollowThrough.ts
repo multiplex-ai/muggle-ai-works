@@ -10,16 +10,20 @@ import {
   PRS_FILE_NAME,
   RESULT_FILE_NAME,
   WATCH_DUE_FILE_NAME,
+  WATCH_WATERMARK_COMMENT_FIELD,
+  WATCH_WATERMARK_FILE_NAME,
 } from "../pr-watch/constants.js";
 import {
   lastSeenEntryFor,
+  parseEnvFileLines,
   parseWatchDueRecord,
   readJsonRecord,
   readSlotPr,
   readSlotText,
   undeliveredWakeLineIn,
 } from "../pr-watch/slotFiles.js";
-import type { SlotPrRecord, WatchDueRecord, WatchPreferences } from "../pr-watch/types.js";
+import type { LastSeenPrEntry, SlotPrRecord, WatchDueRecord, WatchPreferences } from "../pr-watch/types.js";
+import { resolveUnhandledFeedback } from "../pr-watch/unhandledFeedback.js";
 import { userAuthoredTextsContaining } from "../transcript/userTurns.js";
 import {
   STOPPED_SLOT_SUFFIX,
@@ -54,11 +58,34 @@ function isDueRecordSuperseded(slotPath: string, slotPr: SlotPrRecord, dueRecord
 }
 
 /**
+ * The feedback a due record lists that is still unhandled, as `reviews=[41 57] conversation=[9]`; undefined when
+ * none is.
+ *
+ * Judged as the arm judges it, against `last_seen.json`, never against what a loop reported. A thread comment counts
+ * as handled once the slot's watermark `COM` reaches it: the cycle advances that floor past the threads it answered
+ * and never past one it left.
+ */
+function unhandledFeedbackLine(slotPath: string, lastSeenEntry: LastSeenPrEntry, dueRecord: WatchDueRecord): string | undefined {
+  const watermarkFields = parseEnvFileLines(readSlotText(join(slotPath, WATCH_WATERMARK_FILE_NAME)));
+  const handledCommentId = Number(watermarkFields[WATCH_WATERMARK_COMMENT_FIELD] ?? "0") || 0;
+  const unhandled = resolveUnhandledFeedback(lastSeenEntry, {
+    ...dueRecord.feedback,
+    unansweredThreadComments: dueRecord.feedback.unansweredThreadComments.filter(
+      (threadComment) => threadComment.commentId > handledCommentId,
+    ),
+  });
+  if (unhandled.reviewIds.length === 0 && unhandled.conversationCommentIds.length === 0) return undefined;
+  return `reviews=[${unhandled.reviewIds.join(" ")}] conversation=[${unhandled.conversationCommentIds.join(" ")}]`;
+}
+
+/**
  * The watcher work one slot owes `sessionId`: due per the record its watch keeps (`watch-due.env`), and never
  * attempted per `last_seen.json`, plus any muggle watch service report on the PR that never reached the session.
  *
  * - A pending wake is owed while the service holds a report for the session, queued or from its exited loop. The
  *   tick it names handles it, and the arm that tick ends on retires the report.
+ * - Review feedback is owed while feedback the arm recorded due is neither handled nor escalated per `last_seen.json`,
+ *   whatever a loop already reported, and on any head: the reply is owed to the comment, not to the commit.
  * - A rebase is owed when the branch was found behind or conflicting, `autoRebase` is `always`, the PR has catch-up
  *   budget left, and no rebase cycle ran for the `<head>..<base-tip>` key.
  * - A fix is owed when the head's checks settled red and no fix-ci cycle ran for that head.
@@ -96,7 +123,10 @@ export function owedWorkInSlot(
   });
   const owed: OwedWatchWork[] = [];
   if (undeliveredWakeLine !== undefined) owed.push(workOn(OwedWatchWorkKind.PendingWake, undeliveredWakeLine));
-  if (!dueRecord || isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
+  if (!dueRecord) return owed;
+  const feedbackLine = unhandledFeedbackLine(slotPath, lastSeenEntry, dueRecord);
+  if (feedbackLine !== undefined) owed.push(workOn(OwedWatchWorkKind.ReviewFeedback, feedbackLine));
+  if (isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
   const isRebaseOwed =
     dueRecord.rebaseDueKey !== "" &&
     preferences.autoRebase === ALWAYS_PREFERENCE_VALUE &&

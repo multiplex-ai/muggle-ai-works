@@ -328,6 +328,8 @@ export enum OwedWatchWorkKind {
   FixCi = "fix-ci",
   /** A muggle watch service report on the PR never reached this session. */
   PendingWake = "pending-wake",
+  /** Review feedback the arm found that `last_seen.json` still records neither handled nor escalated. */
+  ReviewFeedback = "review-feedback",
 }
 
 /** One piece of work a watch this session owns found due and nothing ever attempted. */
@@ -336,7 +338,7 @@ export interface OwedWatchWork {
   slug: string;
   prUrl: string;
   prNumber: number;
-  /** The `<head>..<base-tip>` key a rebase is due on, the head whose CI is red, or the undelivered report's line. */
+  /** The `<head>..<base-tip>` key a rebase is due on, the head whose CI is red, the undelivered report's line, or the unhandled feedback (`reviews=[41] conversation=[9]`). */
   dueOn: string;
 }
 

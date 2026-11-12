@@ -933,6 +933,11 @@ var WATCH_DUE_FILE_NAME = "watch-due.env";
 var WATCH_DUE_HEAD_FIELD = "HEAD";
 var WATCH_DUE_REBASE_FIELD = "REBASE_DUE";
 var WATCH_DUE_CI_RED_FIELD = "CI_RED_HEAD";
+var WATCH_DUE_FEEDBACK_REVIEWS_FIELD = "FEEDBACK_REVIEWS";
+var WATCH_DUE_FEEDBACK_CONVERSATION_FIELD = "FEEDBACK_CONVERSATION";
+var WATCH_DUE_FEEDBACK_THREADS_FIELD = "FEEDBACK_THREADS";
+var WATCH_WATERMARK_FILE_NAME = "watch-watermark.env";
+var WATCH_WATERMARK_COMMENT_FIELD = "COM";
 var SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";
 var SERVICE_LOOP_QUEUED_WAKE_FILE = "watch-service.queued.out";
 var SERVICE_LOOP_EVENT_LINE_PREFIX = "EVENT ";
@@ -948,6 +953,59 @@ var WATCHER_LIFETIME_SECONDS = { "1d": 86400, "7d": 604800, never: 0 };
 var ALWAYS_PREFERENCE_VALUE = "always";
 var UNBOUNDED_PREFERENCE_VALUE = "never";
 var POSITIVE_INTEGER = /^[1-9]\d*$/;
+var STATE_LIST_SEPARATOR = ",";
+var THREAD_COMMENT_REVIEW_SEPARATOR = ":";
+
+// src/pr-watch/unhandledFeedback.ts
+function parseFeedbackId(text) {
+  const parsed = Number(text.trim());
+  return text.trim() !== "" && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function parseFeedbackIdList(listText) {
+  return listText.split(STATE_LIST_SEPARATOR).map(parseFeedbackId).filter((feedbackId) => feedbackId !== void 0);
+}
+function parseUnansweredThreadComments(listText) {
+  const threadComments = [];
+  for (const entry of listText.split(STATE_LIST_SEPARATOR)) {
+    const [commentText = "", reviewText = ""] = entry.split(THREAD_COMMENT_REVIEW_SEPARATOR);
+    const commentId = parseFeedbackId(commentText);
+    if (commentId === void 0) continue;
+    threadComments.push({ commentId, owningReviewId: parseFeedbackId(reviewText) });
+  }
+  return threadComments;
+}
+function handledWatermark(recorded) {
+  return typeof recorded === "number" && Number.isFinite(recorded) ? recorded : void 0;
+}
+function floorCeilingBelow(feedbackIds) {
+  return feedbackIds.length > 0 ? Math.min(...feedbackIds) - 1 : void 0;
+}
+var ascendingUnique = (feedbackIds) => [...new Set(feedbackIds)].sort((left, right) => left - right);
+function resolveUnhandledFeedback(lastSeenEntry, observation) {
+  const escalatedReviewIds = new Set(lastSeenEntry.escalated_review_ids ?? []);
+  const escalatedConversationIds = new Set(lastSeenEntry.escalated_conversation_comment_ids ?? []);
+  const handledBodyReviewId = handledWatermark(lastSeenEntry.lastBodyReviewId);
+  const handledConversationId = handledWatermark(lastSeenEntry.lastConversationCommentId);
+  const unhandledBodyReviewIds = handledBodyReviewId === void 0 ? [] : observation.bodyOnlyReviewIds.filter(
+    (reviewId) => reviewId > handledBodyReviewId && !escalatedReviewIds.has(reviewId)
+  );
+  const unansweredThreadComments = observation.unansweredThreadComments.filter(
+    (threadComment) => threadComment.owningReviewId === void 0 || !escalatedReviewIds.has(threadComment.owningReviewId)
+  );
+  const unhandledConversationIds = handledConversationId === void 0 ? [] : observation.conversationCommentIds.filter(
+    (commentId) => commentId > handledConversationId && !escalatedConversationIds.has(commentId)
+  );
+  const threadOwningReviewIds = unansweredThreadComments.map((threadComment) => threadComment.owningReviewId).filter((reviewId) => reviewId !== void 0);
+  return {
+    reviewIds: ascendingUnique([...unhandledBodyReviewIds, ...threadOwningReviewIds]),
+    conversationCommentIds: ascendingUnique(unhandledConversationIds),
+    reviewFloorCeiling: floorCeilingBelow(unhandledBodyReviewIds),
+    commentFloorCeiling: floorCeilingBelow(unansweredThreadComments.map((threadComment) => threadComment.commentId)),
+    conversationFloorCeiling: floorCeilingBelow(unhandledConversationIds)
+  };
+}
+
+// src/pr-watch/slotFiles.ts
 function readSlotText(filePath) {
   try {
     return readFileSync(filePath, "utf-8");
@@ -994,9 +1052,16 @@ function parseWatchDueRecord(watchDueText) {
   const dueRecord = {
     headSha: fields[WATCH_DUE_HEAD_FIELD] ?? "",
     rebaseDueKey: fields[WATCH_DUE_REBASE_FIELD] ?? "",
-    ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? ""
+    ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? "",
+    feedback: {
+      bodyOnlyReviewIds: parseFeedbackIdList(fields[WATCH_DUE_FEEDBACK_REVIEWS_FIELD] ?? ""),
+      conversationCommentIds: parseFeedbackIdList(fields[WATCH_DUE_FEEDBACK_CONVERSATION_FIELD] ?? ""),
+      unansweredThreadComments: parseUnansweredThreadComments(fields[WATCH_DUE_FEEDBACK_THREADS_FIELD] ?? "")
+    }
   };
-  return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha ? dueRecord : null;
+  const { feedback } = dueRecord;
+  const hasFeedback = feedback.bodyOnlyReviewIds.length > 0 || feedback.conversationCommentIds.length > 0 || feedback.unansweredThreadComments.length > 0;
+  return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha || hasFeedback ? dueRecord : null;
 }
 function undeliveredWakeLineIn(slotPath) {
   for (const reportFile of [SERVICE_LOOP_QUEUED_WAKE_FILE, SERVICE_LOOP_OUTPUT_FILE]) {
@@ -1481,6 +1546,18 @@ function isDueRecordSuperseded(slotPath, slotPr, dueRecord) {
   const dueWrittenAtMs = mtimeMsOf(join(slotPath, WATCH_DUE_FILE_NAME));
   return prsWrittenAtMs !== void 0 && dueWrittenAtMs !== void 0 && prsWrittenAtMs > dueWrittenAtMs;
 }
+function unhandledFeedbackLine(slotPath, lastSeenEntry, dueRecord) {
+  const watermarkFields = parseEnvFileLines(readSlotText(join(slotPath, WATCH_WATERMARK_FILE_NAME)));
+  const handledCommentId = Number(watermarkFields[WATCH_WATERMARK_COMMENT_FIELD] ?? "0") || 0;
+  const unhandled = resolveUnhandledFeedback(lastSeenEntry, {
+    ...dueRecord.feedback,
+    unansweredThreadComments: dueRecord.feedback.unansweredThreadComments.filter(
+      (threadComment) => threadComment.commentId > handledCommentId
+    )
+  });
+  if (unhandled.reviewIds.length === 0 && unhandled.conversationCommentIds.length === 0) return void 0;
+  return `reviews=[${unhandled.reviewIds.join(" ")}] conversation=[${unhandled.conversationCommentIds.join(" ")}]`;
+}
 function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
   if (slug.endsWith(STOPPED_SLOT_SUFFIX)) return [];
   const dueRecord = parseWatchDueRecord(readSlotText(join(slotPath, WATCH_DUE_FILE_NAME)));
@@ -1504,7 +1581,10 @@ function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
   });
   const owed = [];
   if (undeliveredWakeLine !== void 0) owed.push(workOn("pending-wake" /* PendingWake */, undeliveredWakeLine));
-  if (!dueRecord || isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
+  if (!dueRecord) return owed;
+  const feedbackLine = unhandledFeedbackLine(slotPath, lastSeenEntry, dueRecord);
+  if (feedbackLine !== void 0) owed.push(workOn("review-feedback" /* ReviewFeedback */, feedbackLine));
+  if (isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
   const isRebaseOwed = dueRecord.rebaseDueKey !== "" && preferences.autoRebase === ALWAYS_PREFERENCE_VALUE && !isRebaseBudgetExhausted(lastSeenEntry, preferences.maxCatchUpRebases) && !isRebaseKeyAttempted(lastSeenEntry, dueRecord.rebaseDueKey);
   if (isRebaseOwed) owed.push(workOn("rebase" /* Rebase */, dueRecord.rebaseDueKey));
   if (dueRecord.ciRedHeadSha !== "" && !isCiHeadAttempted(lastSeenEntry, dueRecord.ciRedHeadSha)) {
@@ -3479,6 +3559,9 @@ function owedWatchWorkLine(work) {
   if (work.kind === "pending-wake" /* PendingWake */) {
     return `- PR #${work.prNumber} (${work.prUrl}): the muggle watch reported \`${work.dueOn}\` and it never reached this session: run \`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\`.`;
   }
+  if (work.kind === "review-feedback" /* ReviewFeedback */) {
+    return `- PR #${work.prNumber} (${work.prUrl}) has review feedback last_seen.json records neither handled nor escalated (${work.dueOn}); a watch report is not an answer: run \`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\`, whose tick dispatches address-reviews.`;
+  }
   if (work.kind === "rebase" /* Rebase */) {
     return `- PR #${work.prNumber} (${work.prUrl}) is behind or conflicting with its base (key ${work.dueOn}) and no rebase was attempted: dispatch \`${muggleDo} rebase on ${work.prUrl} slug=${work.slug}\`.`;
   }
@@ -3510,7 +3593,7 @@ function watchFollowThroughGate() {
   const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:
 ${owedList}
-autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now: run the cycle the tick dispatches \u2014 if it finds actionable review feedback it dispatches that first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like a new head, clears this. Writing the count without running the cycle \u2014 or for an E2E run queued for a different PR \u2014 leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not clear this, and neither does re-arming the watch. An undelivered watch report clears once the tick it names re-arms the watch from this session. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
+autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now: run the cycle the tick dispatches \u2014 if it finds actionable review feedback it dispatches that first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like a new head, clears this; an address-reviews cycle clears owed feedback by advancing lastBodyReviewId / lastConversationCommentId (a thread: the watermark COM) past it, or by escalating it. Writing the count without running the cycle \u2014 or for an E2E run queued for a different PR \u2014 leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not clear this, and neither does re-arming the watch. An undelivered watch report clears once the tick it names re-arms the watch from this session. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
 ${owedList}
 ${holdInstruction}`;
   return blockStop(reason, host);

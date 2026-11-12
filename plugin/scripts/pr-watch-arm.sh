@@ -239,7 +239,37 @@ conversation_floor="$(floor_capped_at "$conversation_floor" "$conversation_floor
     printf 'REBASE_HELD="%s"\n' "$rebase_held"
 } > "${slot}/watch-watermark.env"
 
-watch_record_due_work "$slot" "$head_sha" "$recorded_rebase_due_key" "$ci_red_head"
+# The loop fires only above both this watermark and watch-reported.env, so a
+# reported floor past the same feedback silences it just as surely: a loop that
+# once reported a comment nobody answered left the next loop quiet on it, and
+# only the drain line, which a busy session reads past, still named it. Being
+# reported is not being handled, so the reported floors are capped the same way.
+# A service arm over a report still queued for the owner leaves them: that
+# report already wakes the owner, and repeating it each service tick would only
+# churn the loop.
+if [ -f "${slot}/${MUGGLE_PR_WATCH_REPORTED_FILE}" ] && [ -n "$has_unhandled_feedback" ] \
+    && ! { [ -n "${MUGGLE_PR_WATCH_LISTENER:-}" ] && [ -s "${slot}/watch-service.queued.out" ]; }; then
+    watch_record_reported "$slot" \
+        "$(floor_capped_at "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" REV)" "$review_floor_ceiling")" \
+        "$(floor_capped_at "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" COM)" "$comment_floor_ceiling")" \
+        "$(floor_capped_at "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" CONV)" "$conversation_floor_ceiling")" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" THREADS)" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" CIRED)" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" REBASED)" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" BLOCKED_CIDIGEST)" \
+        "$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_REPORTED_FILE" BLOCKED_FOR)"
+fi
+
+# Unhandled feedback goes on the due record with the arm read's lists, so the
+# turn-end gate keeps it owed until last_seen.json records it handled.
+due_feedback_reviews="" due_feedback_conversation="" due_feedback_threads=""
+if [ -n "$has_unhandled_feedback" ]; then
+    due_feedback_reviews="$body_only_review_ids"
+    due_feedback_conversation="$conversation_comment_ids"
+    due_feedback_threads="$unanswered_thread_comments"
+fi
+watch_record_due_work "$slot" "$head_sha" "$recorded_rebase_due_key" "$ci_red_head" \
+    "$due_feedback_reviews" "$due_feedback_conversation" "$due_feedback_threads"
 
 # Claim the slot for its owner: the session --owner names, else this session.
 # The muggle watch service arms outside every session, so it passes the owner

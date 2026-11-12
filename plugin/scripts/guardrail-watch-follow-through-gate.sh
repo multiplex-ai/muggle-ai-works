@@ -3,8 +3,9 @@ set -uo pipefail
 
 # watcher follow-through gate (Stop). When a muggle-pr-followup watch this
 # session owns has recorded due work — a rebase on a stale branch, a fix on a red
-# head — and no attempt for it is recorded, block the turn end and name the
-# dispatch. A muggle watch service report the session was never woken for blocks
+# head, review feedback the arm found unhandled — and no attempt for it is
+# recorded, block the turn end and name the dispatch. Feedback a loop already
+# reported still counts until last_seen.json records it handled or escalated. A muggle watch service report the session was never woken for blocks
 # the same way, naming its tick, so a busy owner still hears every slot it owns.
 # Released only by the attempt itself (for a report, the re-arm its tick ends
 # on), a new head, or the user's own

@@ -140,4 +140,6 @@ export interface WatchDueRecord {
   rebaseDueKey: string;
   /** The head whose checks settled red, empty when CI is green or still pending. */
   ciRedHeadSha: string;
+  /** The arm read's feedback lists, recorded when it found any of them unhandled; empty lists otherwise. */
+  feedback: ArmFeedbackObservation;
 }

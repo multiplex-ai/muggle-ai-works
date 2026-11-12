@@ -15,6 +15,18 @@ export interface WatchSlotFixture {
   ciRedHeadSha?: string;
   /** The PR's `last_seen.json` entry. */
   lastSeenEntry?: Record<string, unknown>;
+  /** The arm's feedback lists on the due record, in the state projection's spelling. */
+  dueFeedback?: WatchSlotDueFeedback;
+  /** The slot's `watch-watermark.env` text; none is written when absent. */
+  watermark?: string;
+}
+
+/** The `watch-due.env` feedback fields a slot fixture records, each comma-joined as the arm writes it. */
+export interface WatchSlotDueFeedback {
+  reviews?: string;
+  conversation?: string;
+  /** `<newest-comment-id>:<owning-review-id>` entries. */
+  threads?: string;
 }
 
 /** A child_process call whose options do not carry an inline `windowsHide: true`. */

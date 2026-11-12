@@ -79,6 +79,12 @@ has_iterated=""
 # work changes rather than every poll.
 due_rebase_key=""
 recorded_due_work="unrecorded"
+# The feedback the arm recorded due. The loop has no last_seen.json to judge it
+# against, and reporting it does not handle it, so every rewrite carries it on
+# until the next arm reads it handled.
+due_feedback_reviews="$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_DUE_FILE" FEEDBACK_REVIEWS)"
+due_feedback_conversation="$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_DUE_FILE" FEEDBACK_CONVERSATION)"
+due_feedback_threads="$(watch_read_slot_value "$slot" "$MUGGLE_PR_WATCH_DUE_FILE" FEEDBACK_THREADS)"
 
 # Pin the token once: a detached loop can lose access to gh's OS keyring
 # mid-run, which surfaces as empty fetches rather than an error.
@@ -263,7 +269,8 @@ while :; do
     watch_checks_settled_red "$pending_checks" "$failed_checks" && ci_red_head="$head_sha"
     due_work="${head_sha} ${due_rebase_key} ${ci_red_head}"
     if [ "$due_work" != "$recorded_due_work" ]; then
-        watch_record_due_work "$slot" "$head_sha" "$due_rebase_key" "$ci_red_head"
+        watch_record_due_work "$slot" "$head_sha" "$due_rebase_key" "$ci_red_head" \
+            "$due_feedback_reviews" "$due_feedback_conversation" "$due_feedback_threads"
         recorded_due_work="$due_work"
     fi
 

@@ -79,6 +79,15 @@ export const HEAD_FLAG = "head";
 export const REBASE_KEY_FLAG = "rebase-key";
 export const REBASE_DUE_FLAG = "rebase-due";
 export const CI_FLAG = "ci";
+export const BODY_REVIEWS_FLAG = "body-reviews";
+export const CONVERSATION_COMMENTS_FLAG = "conversation-comments";
+export const UNANSWERED_THREADS_FLAG = "unanswered-threads";
+
+/** Separates the entries of the state projection's id lists. */
+export const STATE_LIST_SEPARATOR = ",";
+
+/** Joins an unanswered thread's newest comment id to its owning review id in the state projection. */
+export const THREAD_COMMENT_REVIEW_SEPARATOR = ":";
 
 /** The `--rebase-due` spelling for a branch behind or conflicting with its base. */
 export const REBASE_DUE_YES = "yes";
@@ -87,6 +96,7 @@ export const REBASE_DUE_YES = "yes";
 export const USAGE_EXIT_CODE = 2;
 
 export const PR_WATCH_VERDICT_USAGE =
-  "usage: pr-watch-verdict.mjs arm-floors --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> < last_seen.json\n" +
+  "usage: pr-watch-verdict.mjs arm-floors --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> " +
+  "[--body-reviews <ids>] [--conversation-comments <ids>] [--unanswered-threads <comment:review,...>] < last_seen.json\n" +
   "       pr-watch-verdict.mjs tick --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> " +
   "--rebase-due <yes|no> --ci <red|pending|green> < last_seen.json";

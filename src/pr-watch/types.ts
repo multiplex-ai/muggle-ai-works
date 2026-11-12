@@ -10,6 +10,10 @@ export interface LastSeenPrEntry {
   ci_rerun_shas?: string[];
   catch_up_rebases?: number;
   rebase_budget_exhausted?: boolean;
+  /** The handled watermark for body-only reviews: one at or below it was addressed. */
+  lastBodyReviewId?: number;
+  /** The handled watermark for conversation comments; absent on an entry that predates watching them. */
+  lastConversationCommentId?: number;
   escalated_review_ids?: number[];
   escalated_conversation_comment_ids?: number[];
   blocked?: { fingerprint?: { ci_digest?: unknown } };
@@ -73,6 +77,42 @@ export interface ArmFloorEvidence {
   isRebaseBudgetExhausted: boolean;
   /** The blocked fingerprint's CI digest, empty when the PR is not blocked or the digest could forge a watermark line. */
   blockedCiDigest: string;
+  /** Review feedback outstanding at arm time that nothing recorded as handled. */
+  unhandledFeedback: UnhandledFeedback;
+}
+
+/** The newest comment of one unresolved thread muggle has not answered, with the review that owns it. */
+export interface UnansweredThreadComment {
+  commentId: number;
+  /** Undefined when the provider named no owning review. */
+  owningReviewId?: number;
+}
+
+/** The review feedback one arm-time read of the PR found, in the lists the state projection's last three fields carry. */
+export interface ArmFeedbackObservation {
+  bodyOnlyReviewIds: number[];
+  conversationCommentIds: number[];
+  unansweredThreadComments: UnansweredThreadComment[];
+}
+
+/**
+ * Feedback the arm step found that `last_seen.json` does not record as handled or escalated, and the highest floor
+ * each loop watermark may take without passing any of it.
+ *
+ * Output shape: `{ reviewIds: [41, 57], conversationCommentIds: [6809364360], reviewFloorCeiling: 40,
+ * commentFloorCeiling: 112, conversationFloorCeiling: 6809364359 }`.
+ */
+export interface UnhandledFeedback {
+  /** Owning review ids to dispatch: unhandled body-only reviews and the reviews owning unanswered threads, ascending. */
+  reviewIds: number[];
+  /** Unhandled conversation comment ids, ascending. */
+  conversationCommentIds: number[];
+  /** One below the lowest unhandled body-only review id; undefined when there is none. */
+  reviewFloorCeiling?: number;
+  /** One below the lowest unanswered thread's newest comment id; undefined when there is none. */
+  commentFloorCeiling?: number;
+  /** One below the lowest unhandled conversation comment id; undefined when there is none. */
+  conversationFloorCeiling?: number;
 }
 
 /** The subcommands of `pr-watch-verdict.mjs`. */

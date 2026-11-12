@@ -13,9 +13,15 @@ export function watchFixturePrUrl(prNumber: number): string {
  * Output shape: `{ "prs.json": "[...]", "owner.json": "{...}", "last_seen.json": "{...}", "watch-due.env": "HEAD=..." }`
  */
 export function watchSlotFiles(fixture: WatchSlotFixture): Record<string, string> {
-  const dueLines = `HEAD="${fixture.headSha}"\nREBASE_DUE="${fixture.rebaseDueKey ?? ""}"\nCI_RED_HEAD="${fixture.ciRedHeadSha ?? ""}"\n`;
-  const isNothingDue = !fixture.rebaseDueKey && !fixture.ciRedHeadSha;
+  const feedback = fixture.dueFeedback ?? {};
+  const dueLines =
+    `HEAD="${fixture.headSha}"\nREBASE_DUE="${fixture.rebaseDueKey ?? ""}"\nCI_RED_HEAD="${fixture.ciRedHeadSha ?? ""}"\n` +
+    `FEEDBACK_REVIEWS="${feedback.reviews ?? ""}"\nFEEDBACK_CONVERSATION="${feedback.conversation ?? ""}"\n` +
+    `FEEDBACK_THREADS="${feedback.threads ?? ""}"\n`;
+  const isNothingDue =
+    !fixture.rebaseDueKey && !fixture.ciRedHeadSha && !feedback.reviews && !feedback.conversation && !feedback.threads;
   return {
+    ...(fixture.watermark === undefined ? {} : { "watch-watermark.env": fixture.watermark }),
     "prs.json": JSON.stringify([
       {
         repo: WATCH_FIXTURE_REPO,

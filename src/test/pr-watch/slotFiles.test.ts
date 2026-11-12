@@ -16,6 +16,24 @@ describe("parseWatchDueRecord", () => {
       headSha: "h1",
       rebaseDueKey: "h1..b1",
       ciRedHeadSha: "",
+      feedback: { bodyOnlyReviewIds: [], conversationCommentIds: [], unansweredThreadComments: [] },
+    });
+  });
+
+  it("reads the arm's feedback lists as a record even with nothing else due", () => {
+    expect(
+      parseWatchDueRecord(
+        'HEAD="h1"\nREBASE_DUE=""\nCI_RED_HEAD=""\nFEEDBACK_REVIEWS="41"\nFEEDBACK_CONVERSATION="9,12"\nFEEDBACK_THREADS="112:57"\n',
+      ),
+    ).toEqual({
+      headSha: "h1",
+      rebaseDueKey: "",
+      ciRedHeadSha: "",
+      feedback: {
+        bodyOnlyReviewIds: [41],
+        conversationCommentIds: [9, 12],
+        unansweredThreadComments: [{ commentId: 112, owningReviewId: 57 }],
+      },
     });
   });
 

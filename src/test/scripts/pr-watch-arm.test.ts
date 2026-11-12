@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 
 import { detectPrTerminal } from "../../guardrails/prTerminal.js";
-import { PrTerminalVerdict } from "../../guardrails/types.js";
+import { OwedWatchWorkKind, PrTerminalVerdict } from "../../guardrails/types.js";
+import { owedWorkInSlot } from "../../guardrails/watchFollowThrough.js";
 
 const toBash = (p: string) => p.replace(/\\/g, "/");
 
@@ -701,7 +702,9 @@ describe.skipIf(!hasBash || !hasJq)("pr-watch-arm.sh floors only attempted work"
 
   it("records the due rebase for the turn-end gate", () => {
     const { slot } = armAgainstBaseMovement(stale);
-    expect(readSlotFile(slot, "watch-due.env")).toBe('HEAD="HEAD1"\nREBASE_DUE="HEAD1..BASENEW"\nCI_RED_HEAD=""\n');
+    expect(readSlotFile(slot, "watch-due.env")).toBe(
+      'HEAD="HEAD1"\nREBASE_DUE="HEAD1..BASENEW"\nCI_RED_HEAD=""\nFEEDBACK_REVIEWS=""\nFEEDBACK_CONVERSATION=""\nFEEDBACK_THREADS=""\n',
+    );
   }, 60_000);
 
   it("records nothing due for a current branch", () => {
@@ -1049,21 +1052,30 @@ function feedbackStateLine(feedback: {
 
 // Arms o/n#1 over `lastSeenEntry` (and `previousWatermark`, for a re-arm) while
 // the PR reads `stateLine`, then lets the loop poll until the stub supersedes it.
+// `slotFiles` seeds further slot files by name; `extraEnv` reaches the arm.
 function armOverFeedback(
   lastSeenEntry: object,
   stateLine: string,
   previousWatermark?: string,
+  slotFiles: Record<string, string> = {},
+  extraEnv: NodeJS.ProcessEnv = {},
 ): { slot: string; stdout: string } {
   const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
   writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
   if (previousWatermark !== undefined) writeFileSync(join(slot, "watch-watermark.env"), previousWatermark);
+  for (const [fileName, contents] of Object.entries(slotFiles)) writeFileSync(join(slot, fileName), contents);
   const stubDir = stubGhDir("OPEN", "", 0, slot);
   writeFileSync(join(stubDir, "state.tsv"), stateLine);
   const stdout = execFileSync(
     "bash",
     [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
     {
-      env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
+      env: {
+        ...process.env,
+        PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`,
+        ...UNWINDOWED_LOOP_ENV,
+        ...extraEnv,
+      },
       encoding: "utf8",
       timeout: 60_000,
     },
@@ -1143,5 +1155,69 @@ describe.skipIf(!hasBash)("pr-watch-arm.sh feedback nobody handled", () => {
     expect(drainLines(stdout).find((line) => line.includes("dispatch address-reviews"))).toContain("reviews=[57]");
     expect(readSlotFile(slot, "watch-watermark.env")).toContain("COM=111\n");
     expect(eventLines(stdout).some((line) => line.includes("id=112"))).toBe(true);
+  }, 60_000);
+});
+
+// An earlier loop reported the comment, so watch-reported.env sits at its id,
+// yet nobody answered it. The next loop read that as already told and stayed
+// quiet; only the one-off drain line still named it.
+describe.skipIf(!hasBash)("pr-watch-arm.sh feedback reported but never handled", () => {
+  const COMMENT = 6809364360;
+  const unhandledEntry = { lastBodyReviewId: 0, lastConversationCommentId: 0 };
+  const commentState = feedbackStateLine({ latestConversation: COMMENT, conversationCommentIds: String(COMMENT) });
+  const reportedPastComment = `REV=0\nCOM=0\nCONV=${COMMENT}\nTHREADS=""\nCIRED=""\nREBASED=""\nBLOCKED_CIDIGEST=""\nBLOCKED_FOR=""\n`;
+  const commentEvent = `EVENT pr=1 new conversation comment id=${COMMENT}`;
+  const OWNER = "reported-floor-owner";
+  const preferences = { autoRebase: "always", maxCatchUpRebases: 20 };
+
+  const rearmOverReported = (lastSeenEntry: object, slotFiles: Record<string, string> = {}, extraEnv: NodeJS.ProcessEnv = {}) =>
+    armOverFeedback(
+      lastSeenEntry,
+      commentState,
+      conversationWatermark(COMMENT),
+      { "watch-reported.env": reportedPastComment, ...slotFiles },
+      extraEnv,
+    );
+
+  // The slot as the owning session's Stop gate reads it after the arm.
+  const owedFeedbackKinds = (slot: string): OwedWatchWorkKind[] => {
+    writeFileSync(join(slot, "owner.json"), JSON.stringify({ session_id: OWNER }));
+    writeFileSync(join(slot, "prs.json"), JSON.stringify([{ repo: "o/n", number: 1, url: "https://github.com/o/n/pull/1", head_sha: "HEAD1", state: "open" }]));
+    return owedWorkInSlot(slot, "o-n-pr1", OWNER, preferences)
+      .map((work) => work.kind)
+      .filter((kind) => kind === OwedWatchWorkKind.ReviewFeedback);
+  };
+
+  it("re-reports the comment from the re-armed loop and keeps the Stop gate blocking on it", () => {
+    const { slot, stdout } = rearmOverReported(unhandledEntry);
+    expect(readSlotFile(slot, "watch-reported.env")).toContain(`CONV=${COMMENT}\n`);
+    expect(eventLines(stdout)).toContain(commentEvent);
+    expect(readSlotFile(slot, "watch-due.env")).toContain(`FEEDBACK_CONVERSATION="${COMMENT}"`);
+    expect(owedFeedbackKinds(slot)).toEqual([OwedWatchWorkKind.ReviewFeedback]);
+  }, 60_000);
+
+  it("stays quiet on a comment the cycle recorded handled", () => {
+    const { slot, stdout } = rearmOverReported({ ...unhandledEntry, lastConversationCommentId: COMMENT });
+    expect(eventLines(stdout)).not.toContain(commentEvent);
+    expect(readSlotFile(slot, "watch-due.env")).not.toContain(String(COMMENT));
+    expect(owedFeedbackKinds(slot)).toEqual([]);
+  }, 60_000);
+
+  it("stays quiet on a comment the cycle escalated", () => {
+    const { slot, stdout } = rearmOverReported({ ...unhandledEntry, escalated_conversation_comment_ids: [COMMENT] });
+    expect(eventLines(stdout)).not.toContain(commentEvent);
+    expect(owedFeedbackKinds(slot)).toEqual([]);
+  }, 60_000);
+
+  // The queued report already wakes the owner; re-reporting it on each service
+  // arm would only restart the loop every tick.
+  it("leaves the reported floor on a service arm while a report waits queued for the owner", () => {
+    const { slot, stdout } = rearmOverReported(
+      unhandledEntry,
+      { "watch-service.queued.out": `${commentEvent}\n` },
+      { MUGGLE_PR_WATCH_LISTENER: "muggle-watch" },
+    );
+    expect(eventLines(stdout)).not.toContain(commentEvent);
+    expect(owedFeedbackKinds(slot)).toEqual([OwedWatchWorkKind.ReviewFeedback]);
   }, 60_000);
 });

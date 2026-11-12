@@ -90,6 +90,58 @@ describe("owed fix-ci", () => {
   });
 });
 
+// A loop that already reported the comment leaves watch-reported.env past it, so
+// only the gate still knows nobody answered it.
+describe("owed review feedback", () => {
+  const COMMENT = 6809364360;
+  const unhandledEntry = { lastBodyReviewId: 0, lastConversationCommentId: 0 };
+
+  it("is owed for a reported conversation comment last_seen.json never recorded handled", () => {
+    expect(owedIn({ dueFeedback: { conversation: String(COMMENT) }, lastSeenEntry: unhandledEntry })).toEqual([
+      {
+        kind: OwedWatchWorkKind.ReviewFeedback,
+        slug: "repo-pr7",
+        prUrl: watchFixturePrUrl(7),
+        prNumber: 7,
+        dueOn: `reviews=[] conversation=[${COMMENT}]`,
+      },
+    ]);
+  });
+
+  it("clears once the cycle records the comment handled, or escalates it", () => {
+    const dueFeedback = { conversation: String(COMMENT) };
+    expect(kindsOwed({ dueFeedback: dueFeedback, lastSeenEntry: { ...unhandledEntry, lastConversationCommentId: COMMENT } })).toEqual([]);
+    expect(
+      kindsOwed({ dueFeedback: dueFeedback, lastSeenEntry: { ...unhandledEntry, escalated_conversation_comment_ids: [COMMENT] } }),
+    ).toEqual([]);
+  });
+
+  it("owes a body-only review above lastBodyReviewId and clears it once the watermark reaches it", () => {
+    expect(owedIn({ dueFeedback: { reviews: "41" }, lastSeenEntry: unhandledEntry })[0]?.dueOn).toBe("reviews=[41] conversation=[]");
+    expect(kindsOwed({ dueFeedback: { reviews: "41" }, lastSeenEntry: { ...unhandledEntry, lastBodyReviewId: 41 } })).toEqual([]);
+  });
+
+  it("owes an unanswered thread until the watermark's COM passes its comment", () => {
+    const threadSlot = { dueFeedback: { threads: "112:57" }, lastSeenEntry: unhandledEntry };
+    expect(owedIn({ ...threadSlot, watermark: 'REV=0\nCOM=111\nCONV=0\nTHREADS=""\n' })[0]?.dueOn).toBe("reviews=[57] conversation=[]");
+    expect(kindsOwed({ ...threadSlot, watermark: 'REV=0\nCOM=112\nCONV=0\nTHREADS=""\n' })).toEqual([]);
+    expect(kindsOwed({ ...threadSlot, lastSeenEntry: { ...unhandledEntry, escalated_review_ids: [57] } })).toEqual([]);
+  });
+
+  // A reply is owed to the comment, so a push since the record does not excuse it.
+  it("stays owed on a record a newer tick superseded with another head", () => {
+    const { slotPath } = seedSlot({ dueFeedback: { conversation: String(COMMENT) }, lastSeenEntry: unhandledEntry });
+    const prsPath = join(slotPath, "prs.json");
+    const prs = JSON.parse(readFileSync(prsPath, "utf-8")) as Array<Record<string, unknown>>;
+    writeFileSync(prsPath, JSON.stringify([{ ...prs[0], head_sha: "3333333333333333333333333333333333333333" }]));
+    const evenLater = new Date(statSync(join(slotPath, "watch-due.env")).mtimeMs + 5_000);
+    utimesSync(prsPath, evenLater, evenLater);
+    expect(owedWorkInSlot(slotPath, "repo-pr7", SESSION, always).map((work) => work.kind)).toEqual([
+      OwedWatchWorkKind.ReviewFeedback,
+    ]);
+  });
+});
+
 describe("owed pending wake", () => {
   const CONVERSATION_LINE = "EVENT pr=7 new conversation comment id=4410";
 

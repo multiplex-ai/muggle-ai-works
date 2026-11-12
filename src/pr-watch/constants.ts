@@ -23,6 +23,15 @@ export const WATCH_DUE_FILE_NAME = "watch-due.env";
 export const WATCH_DUE_HEAD_FIELD = "HEAD";
 export const WATCH_DUE_REBASE_FIELD = "REBASE_DUE";
 export const WATCH_DUE_CI_RED_FIELD = "CI_RED_HEAD";
+export const WATCH_DUE_FEEDBACK_REVIEWS_FIELD = "FEEDBACK_REVIEWS";
+export const WATCH_DUE_FEEDBACK_CONVERSATION_FIELD = "FEEDBACK_CONVERSATION";
+export const WATCH_DUE_FEEDBACK_THREADS_FIELD = "FEEDBACK_THREADS";
+
+/** The slot file the arm seeds and the session advances past the feedback it handled. */
+export const WATCH_WATERMARK_FILE_NAME = "watch-watermark.env";
+
+/** The `watch-watermark.env` key holding the highest thread-comment id already handled. */
+export const WATCH_WATERMARK_COMMENT_FIELD = "COM";
 
 /** Where a loop the muggle watch service started writes its output, inside its slot. */
 export const SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";

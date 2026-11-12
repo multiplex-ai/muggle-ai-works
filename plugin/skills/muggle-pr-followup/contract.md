@@ -115,7 +115,7 @@ The watcher does **not** classify. Classification, batching, replying, escalatio
    A wave of conversation comments alone dispatches with an empty review list: `address reviews conversation <cid1> on <pr-url> slug=<slug>`.
 4. Append a dispatching line to `followup.log` per [`output-templates/watcher-log.md`](output-templates/watcher-log.md).
 5. Emit a `tick` event with `actionable_threads: <count>` (conversation comments included), `dispatched_review_ids: [<id>, ...]`.
-6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The arm's drain applies the same precedence: it lists unhandled feedback ahead of any red CI or stale branch and never floors it ([`arm-watcher.md`](arm-watcher.md)). The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
+6. Exit. **Reviews preempt CI** — when there is actionable feedback, this tick dispatches address-reviews and never polls CI. The arm's drain applies the same precedence: it lists unhandled feedback ahead of any red CI or stale branch and never floors it ([`arm-watcher.md`](arm-watcher.md)). A loop having reported the feedback is no exception: only this step's actionable rules decide what is handled, so a re-armed loop reports it again and the follow-through Stop gate keeps the turn open on it ([`../../hooks/README.md`](../../hooks/README.md)). The watcher is now stopped; the dev cycle owns the PR and restarts the watcher when it finishes. (The watcher also self-unschedules in Step 2, terminal.)
 
 ### Step 5 — No actionable feedback → read the branch's standing against its base
 

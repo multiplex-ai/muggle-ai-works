@@ -1,6 +1,7 @@
 import { isCiHeadSettled, isRebaseBudgetExhausted, isRebaseKeyAttempted } from "./attempts.js";
 import { LINE_BREAK } from "./constants.js";
-import type { ArmFloorEvidence, LastSeenPrEntry } from "./types.js";
+import type { ArmFeedbackObservation, ArmFloorEvidence, LastSeenPrEntry } from "./types.js";
+import { resolveUnhandledFeedback } from "./unhandledFeedback.js";
 
 /**
  * What arming may floor. The arm step marks outstanding work as seen only when the slot proves it was handled — a
@@ -10,12 +11,16 @@ import type { ArmFloorEvidence, LastSeenPrEntry } from "./types.js";
  *
  * A spent catch-up rebase budget is the one hold: the tick refuses every rebase until the owner raises
  * `maxCatchUpRebases`, so a rebase wake would only ask for work the verdict turns down.
+ *
+ * Review feedback is judged against the handled watermarks rather than the arm's read (see
+ * {@link resolveUnhandledFeedback}), so a comment that predates the slot is reported, never floored unseen.
  */
 export function resolveArmFloorEvidence(
   lastSeenEntry: LastSeenPrEntry,
   headSha: string,
   rebaseKey: string,
   maxCatchUpRebases: number | null,
+  feedbackObservation: ArmFeedbackObservation,
 ): ArmFloorEvidence {
   const blockedCiDigest = lastSeenEntry.blocked?.fingerprint?.ci_digest;
   return {
@@ -23,5 +28,6 @@ export function resolveArmFloorEvidence(
     isCiHeadSettled: headSha !== "" && isCiHeadSettled(lastSeenEntry, headSha),
     isRebaseBudgetExhausted: isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases),
     blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : "",
+    unhandledFeedback: resolveUnhandledFeedback(lastSeenEntry, feedbackObservation),
   };
 }

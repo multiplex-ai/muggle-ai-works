@@ -1011,3 +1011,137 @@ describe.skipIf(!hasBash)("PR conversation comments", () => {
     expect(eventLines(loopOverConversation(slot, conversationStateLine(42)))).toEqual([]);
   }, 60_000);
 });
+
+// A state line carrying the projection's feedback lists: `latestReview`,
+// `latestComment` and `latestConversation` as the maxima, then the body-only
+// review ids, the conversation comment ids and the unanswered threads'
+// `<comment>:<review>` pairs. Its checks have settled red and it conflicts with
+// its base, so fix-ci and a rebase are both due beside the feedback.
+function feedbackStateLine(feedback: {
+  latestReview?: number;
+  latestComment?: number;
+  threadIds?: string;
+  latestConversation?: number;
+  bodyOnlyReviewIds?: string;
+  conversationCommentIds?: string;
+  unansweredThreads?: string;
+}): string {
+  return (
+    [
+      "OPEN",
+      "HEAD1",
+      "BASE1",
+      "CONFLICTING",
+      feedback.latestReview ?? 0,
+      feedback.latestComment ?? 0,
+      feedback.threadIds ?? "",
+      0,
+      1,
+      "unit:FAILURE",
+      "unit#7",
+      feedback.latestConversation ?? 0,
+      feedback.bodyOnlyReviewIds ?? "",
+      feedback.conversationCommentIds ?? "",
+      feedback.unansweredThreads ?? "",
+    ].join("\t") + "\n"
+  );
+}
+
+// Arms o/n#1 over `lastSeenEntry` (and `previousWatermark`, for a re-arm) while
+// the PR reads `stateLine`, then lets the loop poll until the stub supersedes it.
+function armOverFeedback(
+  lastSeenEntry: object,
+  stateLine: string,
+  previousWatermark?: string,
+): { slot: string; stdout: string } {
+  const slot = mkdtempSync(join(tmpdir(), "pr-watch-slot-"));
+  writeFileSync(join(slot, "last_seen.json"), JSON.stringify({ "o/n#1": lastSeenEntry }));
+  if (previousWatermark !== undefined) writeFileSync(join(slot, "watch-watermark.env"), previousWatermark);
+  const stubDir = stubGhDir("OPEN", "", 0, slot);
+  writeFileSync(join(stubDir, "state.tsv"), stateLine);
+  const stdout = execFileSync(
+    "bash",
+    [armPath, "--slot", toBash(slot), "--repo", "o/n", "--pr", "1", "--base", "master"],
+    {
+      env: { ...process.env, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ""}`, ...UNWINDOWED_LOOP_ENV },
+      encoding: "utf8",
+      timeout: 60_000,
+    },
+  );
+  return { slot: slot, stdout: stdout };
+}
+
+const drainLines = (stdout: string): string[] => stdout.split("\n").filter((line) => line.startsWith("DRAIN "));
+
+// The 2026-11-12 incident on muggle-ai-prompt-service#1166: a conversation
+// comment posted before the slot was bootstrapped, last_seen.json's handled
+// watermark at 0. The drain asked for fix-ci and a rebase and nothing for the
+// comment, and seeded CONV at the comment's own id, so no loop ever reported
+// it through five rebase cycles.
+describe.skipIf(!hasBash)("pr-watch-arm.sh feedback nobody handled", () => {
+  const INCIDENT_COMMENT = 6809364360;
+  const incidentEntry = { lastBodyReviewId: 0, lastConversationCommentId: 0, escalated_conversation_comment_ids: [] };
+  const incidentState = feedbackStateLine({
+    latestConversation: INCIDENT_COMMENT,
+    conversationCommentIds: String(INCIDENT_COMMENT),
+  });
+
+  it("dispatches address-reviews for a pre-existing comment ahead of fix-ci and rebase", () => {
+    const drain = drainLines(armOverFeedback(incidentEntry, incidentState).stdout);
+    const feedbackIndex = drain.findIndex((line) => line.includes("dispatch address-reviews"));
+    expect(drain[feedbackIndex]).toContain(`conversation=[${INCIDENT_COMMENT}]`);
+    expect(feedbackIndex).toBeLessThan(drain.findIndex((line) => line.includes("dispatch fix-ci")));
+    expect(feedbackIndex).toBeLessThan(drain.findIndex((line) => line.includes("dispatch rebase")));
+    expect(drain).toContain(
+      "DRAIN ci red at arm time — fix-ci not finished with head HEAD1, not floored: dispatch fix-ci after address-reviews",
+    );
+  }, 60_000);
+
+  it("seeds the conversation floor below the comment, so the loop reports it", () => {
+    const { slot, stdout } = armOverFeedback(incidentEntry, incidentState);
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain(`CONV=${INCIDENT_COMMENT - 1}\n`);
+    expect(eventLines(stdout)).toContain(`EVENT pr=1 new conversation comment id=${INCIDENT_COMMENT}`);
+  }, 60_000);
+
+  // A slot already armed past the comment is lowered on its next arm.
+  it("lowers a re-armed floor that already passed the comment", () => {
+    const { slot } = armOverFeedback(incidentEntry, incidentState, conversationWatermark(INCIDENT_COMMENT));
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain(`CONV=${INCIDENT_COMMENT - 1}\n`);
+  }, 60_000);
+
+  it("floors a comment the cycle recorded as handled", () => {
+    const { slot, stdout } = armOverFeedback({ ...incidentEntry, lastConversationCommentId: INCIDENT_COMMENT }, incidentState);
+    expect(stdout).not.toContain("dispatch address-reviews");
+    expect(stdout).toMatch(/not floored: dispatch fix-ci$/m);
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain(`CONV=${INCIDENT_COMMENT}\n`);
+  }, 60_000);
+
+  it("floors a comment the cycle escalated", () => {
+    const { slot, stdout } = armOverFeedback(
+      { ...incidentEntry, escalated_conversation_comment_ids: [INCIDENT_COMMENT] },
+      incidentState,
+    );
+    expect(stdout).not.toContain("dispatch address-reviews");
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain(`CONV=${INCIDENT_COMMENT}\n`);
+  }, 60_000);
+
+  it("dispatches a body-only review above lastBodyReviewId and floors the review id below it", () => {
+    const { slot, stdout } = armOverFeedback(
+      incidentEntry,
+      feedbackStateLine({ latestReview: 41, bodyOnlyReviewIds: "41" }),
+    );
+    expect(drainLines(stdout).find((line) => line.includes("dispatch address-reviews"))).toContain("reviews=[41]");
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("REV=40\n");
+    expect(eventLines(stdout)).toContain("EVENT pr=1 new submitted review id=41");
+  }, 60_000);
+
+  it("dispatches an unanswered thread's review and floors the comment id below it", () => {
+    const { slot, stdout } = armOverFeedback(
+      incidentEntry,
+      feedbackStateLine({ latestReview: 57, latestComment: 112, threadIds: "T1", unansweredThreads: "112:57" }),
+    );
+    expect(drainLines(stdout).find((line) => line.includes("dispatch address-reviews"))).toContain("reviews=[57]");
+    expect(readSlotFile(slot, "watch-watermark.env")).toContain("COM=111\n");
+    expect(eventLines(stdout).some((line) => line.includes("id=112"))).toBe(true);
+  }, 60_000);
+});

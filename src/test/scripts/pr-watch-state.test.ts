@@ -47,9 +47,19 @@ enum Field {
   CheckDigest = 9,
   RedCheckRuns = 10,
   LatestConversationComment = 11,
+  BodyOnlyReviewIds = 12,
+  ConversationCommentIds = 13,
+  UnansweredThreadComments = 14,
 }
 
-const STATE_FIELD_COUNT = 12;
+const STATE_FIELD_COUNT = 15;
+
+interface ReviewFixture {
+  databaseId: number;
+  body: string;
+  state?: string;
+  lineCommentCount?: number;
+}
 
 interface ConversationCommentFixture {
   databaseId: number;
@@ -71,7 +81,7 @@ interface ThreadFixture {
 // `baseRef` is the base branch itself; null is what GitHub returns once that
 // branch is gone.
 function snapshot(
-  reviews: Array<{ databaseId: number; body: string }>,
+  reviews: ReviewFixture[],
   threads: ThreadFixture[],
   contexts: unknown[] = [],
   baseRef: { target: { oid: string } } | null = { target: { oid: "ccc" } },
@@ -87,7 +97,14 @@ function snapshot(
           baseRef: baseRef,
           mergeable: "MERGEABLE",
           commits: { nodes: [{ commit: { statusCheckRollup: { contexts: { nodes: contexts } } } }] },
-          reviews: { nodes: reviews },
+          reviews: {
+            nodes: reviews.map((review) => ({
+              databaseId: review.databaseId,
+              body: review.body,
+              state: review.state ?? "COMMENTED",
+              comments: { totalCount: review.lineCommentCount ?? 0 },
+            })),
+          },
           reviewThreads: {
             nodes: threads.map((thread) => ({
               id: thread.id,
@@ -326,6 +343,56 @@ describe.skipIf(!hasJq)("pr-watch-state projection", () => {
       const quotedReply =
         "> done\n> 🤖 _Posted by `/muggle-do` · [Muggle Works](https://github.com/multiplex-ai/muggle-ai-works)_\n\nthat broke the build";
       expect(latestConversation([{ databaseId: 90, body: quotedReply }])).toBe("90");
+    });
+  });
+
+  // The arm step checks each list against what last_seen.json records as
+  // handled, so muggle's own posts must never appear in one.
+  describe("feedback lists for the arm step", () => {
+    it("lists body-only reviews, skipping line-comment, empty, dismissed and muggle-signed ones", () => {
+      const fields = project(
+        snapshot(
+          [
+            { databaseId: 41, body: "please split this" },
+            { databaseId: 42, body: "", lineCommentCount: 0 },
+            { databaseId: 43, body: "see inline", lineCommentCount: 2 },
+            { databaseId: 44, body: "old", state: "DISMISSED" },
+            { databaseId: 45, body: "<!-- muggle-works:signature -->\nnotice" },
+            { databaseId: 39, body: "lgtm with a nit", state: "APPROVED" },
+          ],
+          [],
+        ),
+      );
+      expect(fields[Field.BodyOnlyReviewIds]).toBe("39,41");
+    });
+
+    it("lists human conversation comments, skipping muggle's signed replies and bots", () => {
+      const fields = project(
+        snapshot([], [], [], { target: { oid: "ccc" } }, [
+          { databaseId: 6809364360, body: "can you also cover the retry path?" },
+          { databaseId: 6809364400, body: "<!-- muggle-works:signature -->\nAddressed in abc1234." },
+          { databaseId: 6809364500, body: "deploy ok", authorType: "Bot", authorLogin: "github-actions" },
+          { databaseId: 6809364300, body: "first look" },
+        ]),
+      );
+      expect(fields[Field.ConversationCommentIds]).toBe("6809364300,6809364360");
+    });
+
+    // Outdatedness is not a gate on the tick's actionable threads, so it is not one here.
+    it("pairs each unanswered thread's newest comment with its review, outdated threads included", () => {
+      const fields = project(
+        snapshot(
+          [],
+          [
+            { id: "T1", commentId: 112, body: humanComment, reviewId: 57 },
+            { id: "T2", commentId: 113, body: humanComment, reviewId: 58, isOutdated: true },
+            { id: "T3", commentId: 114, body: loopReply, reviewId: 59 },
+            { id: "T4", commentId: 115, body: humanComment, reviewId: 60, isResolved: true },
+            { id: "T5", commentId: 116, body: humanComment, reviewId: 61, reviewState: "PENDING" },
+          ],
+        ),
+      );
+      expect(fields[Field.UnansweredThreadComments]).toBe("112:57,113:58");
     });
   });
 

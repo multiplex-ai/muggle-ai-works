@@ -6,7 +6,8 @@
 # Field order is the contract pr-watch-loop.sh reads positionally:
 #   state, headRefOid, base-tip, mergeable, latest-review, latest-comment,
 #   unresolved-thread-ids, pending-checks, failed-checks, check-digest,
-#   red-check-runs, latest-conversation-comment
+#   red-check-runs, latest-conversation-comment, body-only-review-ids,
+#   conversation-comment-ids, unanswered-thread-comments
 #
 # red-check-runs names each failed check with its run id (`name#id`, sorted).
 # A settle, a rerun or a comment-triggered re-check publishes a new run on the
@@ -21,7 +22,18 @@
 # an empty field rather than a missing one, so no later field shifts.
 #
 # latest-conversation-comment is the newest top-level PR comment (the
-# Conversation tab) a human wrote. Last, so every earlier reader keeps its index.
+# Conversation tab) a human wrote.
+#
+# The last three fields list, rather than take the maximum of, the feedback the
+# arm step checks against what last_seen.json records as handled: one escalated
+# id above the handled watermark must not hide an unhandled one below it.
+#   body-only-review-ids — submitted reviews with a body and no line comments,
+#     comma-joined: the reviews the tick dispatches against lastBodyReviewId.
+#   conversation-comment-ids — the ids latest-conversation-comment ranges over.
+#   unanswered-thread-comments — `<newest-comment-id>:<owning-review-id>` for
+#     each unresolved thread, outdated or not, whose newest comment muggle did
+#     not post: the threads the tick finds actionable.
+# Appended after every earlier field, so each earlier reader keeps its index.
 
 def loop_marked: ((.body // "") | contains("<!-- muggle-do:bot -->"));
 
@@ -67,15 +79,23 @@ def bot_authored:
 # it answers a comment, and the tick it triggers can only idle.
 | ($liveComments | map(select(loop_marked) | .pullRequestReview.databaseId | values)) as $loopOwnedReviews
 | ($liveComments | map(select(loop_marked | not) | .pullRequestReview.databaseId | values)) as $humanOwnedReviews
+| def is_body_only_review:
+    ((.comments.totalCount // 0) == 0)
+    and ((.state // "") != "DISMISSED")
+    and ((.body // "") | test("\\S"))
+    and (muggle_posted | not);
 # `index` evaluates its argument against the array it is indexing, so the review
 # has to be bound before either membership test can name its id.
-| def is_echo_review:
+  def is_echo_review:
     . as $review
     | ((($review.body // "") == "") or ($review | loop_marked))
       and (($loopOwnedReviews | index($review.databaseId)) != null)
       and (($humanOwnedReviews | index($review.databaseId)) == null);
 
-[
+  (($pr.comments.nodes // []) | map(select((muggle_posted | not) and (bot_authored | not)) | .databaseId))
+    as $humanConversationIds
+
+| [
   $pr.state,
   $pr.headRefOid,
   ($pr.baseRef.target.oid // ""),
@@ -88,5 +108,10 @@ def bot_authored:
   ($failedChecks | length),
   ($checks | sort_by(.name) | map(.name + ":" + .verdict) | join(",")),
   ($failedChecks | map(.name + "#" + (.runId | tostring)) | sort | join(",")),
-  ((($pr.comments.nodes // []) | map(select((muggle_posted | not) and (bot_authored | not)) | .databaseId) | max) // 0)
+  ($humanConversationIds | max // 0),
+  ([$pr.reviews.nodes[] | select(is_body_only_review) | .databaseId] | sort | map(tostring) | join(",")),
+  ($humanConversationIds | sort | map(tostring) | join(",")),
+  ([$pr.reviewThreads.nodes[] | select(.isResolved == false) | .comments.nodes[-1] // empty
+    | select((.pullRequestReview.state // "SUBMITTED") != "PENDING") | select(muggle_posted | not)
+    | "\(.databaseId):\(.pullRequestReview.databaseId // "")"] | join(","))
 ] | @tsv

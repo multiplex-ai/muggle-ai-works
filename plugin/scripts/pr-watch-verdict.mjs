@@ -23,9 +23,14 @@ var HEAD_FLAG = "head";
 var REBASE_KEY_FLAG = "rebase-key";
 var REBASE_DUE_FLAG = "rebase-due";
 var CI_FLAG = "ci";
+var BODY_REVIEWS_FLAG = "body-reviews";
+var CONVERSATION_COMMENTS_FLAG = "conversation-comments";
+var UNANSWERED_THREADS_FLAG = "unanswered-threads";
+var STATE_LIST_SEPARATOR = ",";
+var THREAD_COMMENT_REVIEW_SEPARATOR = ":";
 var REBASE_DUE_YES = "yes";
 var USAGE_EXIT_CODE = 2;
-var PR_WATCH_VERDICT_USAGE = "usage: pr-watch-verdict.mjs arm-floors --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> < last_seen.json\n       pr-watch-verdict.mjs tick --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> --rebase-due <yes|no> --ci <red|pending|green> < last_seen.json";
+var PR_WATCH_VERDICT_USAGE = "usage: pr-watch-verdict.mjs arm-floors --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> [--body-reviews <ids>] [--conversation-comments <ids>] [--unanswered-threads <comment:review,...>] < last_seen.json\n       pr-watch-verdict.mjs tick --pr-key <owner/repo#n> --head <sha> --rebase-key <head..base-tip> --rebase-due <yes|no> --ci <red|pending|green> < last_seen.json";
 
 // src/pr-watch/attempts.ts
 function recordedCount(counts, key) {
@@ -66,14 +71,64 @@ function hasEscalatedReviewFeedback(lastSeenEntry) {
   );
 }
 
+// src/pr-watch/unhandledFeedback.ts
+function parseFeedbackId(text) {
+  const parsed = Number(text.trim());
+  return text.trim() !== "" && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function parseFeedbackIdList(listText) {
+  return listText.split(STATE_LIST_SEPARATOR).map(parseFeedbackId).filter((feedbackId) => feedbackId !== void 0);
+}
+function parseUnansweredThreadComments(listText) {
+  const threadComments = [];
+  for (const entry of listText.split(STATE_LIST_SEPARATOR)) {
+    const [commentText = "", reviewText = ""] = entry.split(THREAD_COMMENT_REVIEW_SEPARATOR);
+    const commentId = parseFeedbackId(commentText);
+    if (commentId === void 0) continue;
+    threadComments.push({ commentId, owningReviewId: parseFeedbackId(reviewText) });
+  }
+  return threadComments;
+}
+function handledWatermark(recorded) {
+  return typeof recorded === "number" && Number.isFinite(recorded) ? recorded : void 0;
+}
+function floorCeilingBelow(feedbackIds) {
+  return feedbackIds.length > 0 ? Math.min(...feedbackIds) - 1 : void 0;
+}
+var ascendingUnique = (feedbackIds) => [...new Set(feedbackIds)].sort((left, right) => left - right);
+function resolveUnhandledFeedback(lastSeenEntry, observation) {
+  const escalatedReviewIds = new Set(lastSeenEntry.escalated_review_ids ?? []);
+  const escalatedConversationIds = new Set(lastSeenEntry.escalated_conversation_comment_ids ?? []);
+  const handledBodyReviewId = handledWatermark(lastSeenEntry.lastBodyReviewId);
+  const handledConversationId = handledWatermark(lastSeenEntry.lastConversationCommentId);
+  const unhandledBodyReviewIds = handledBodyReviewId === void 0 ? [] : observation.bodyOnlyReviewIds.filter(
+    (reviewId) => reviewId > handledBodyReviewId && !escalatedReviewIds.has(reviewId)
+  );
+  const unansweredThreadComments = observation.unansweredThreadComments.filter(
+    (threadComment) => threadComment.owningReviewId === void 0 || !escalatedReviewIds.has(threadComment.owningReviewId)
+  );
+  const unhandledConversationIds = handledConversationId === void 0 ? [] : observation.conversationCommentIds.filter(
+    (commentId) => commentId > handledConversationId && !escalatedConversationIds.has(commentId)
+  );
+  const threadOwningReviewIds = unansweredThreadComments.map((threadComment) => threadComment.owningReviewId).filter((reviewId) => reviewId !== void 0);
+  return {
+    reviewIds: ascendingUnique([...unhandledBodyReviewIds, ...threadOwningReviewIds]),
+    conversationCommentIds: ascendingUnique(unhandledConversationIds),
+    reviewFloorCeiling: floorCeilingBelow(unhandledBodyReviewIds),
+    commentFloorCeiling: floorCeilingBelow(unansweredThreadComments.map((threadComment) => threadComment.commentId)),
+    conversationFloorCeiling: floorCeilingBelow(unhandledConversationIds)
+  };
+}
+
 // src/pr-watch/armFloors.ts
-function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases) {
+function resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, maxCatchUpRebases, feedbackObservation) {
   const blockedCiDigest = lastSeenEntry.blocked?.fingerprint?.ci_digest;
   return {
     isRebaseKeyAttempted: rebaseKey !== "" && isRebaseKeyAttempted(lastSeenEntry, rebaseKey),
     isCiHeadSettled: headSha !== "" && isCiHeadSettled(lastSeenEntry, headSha),
     isRebaseBudgetExhausted: isRebaseBudgetExhausted(lastSeenEntry, maxCatchUpRebases),
-    blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : ""
+    blockedCiDigest: typeof blockedCiDigest === "string" && !LINE_BREAK.test(blockedCiDigest) ? blockedCiDigest : "",
+    unhandledFeedback: resolveUnhandledFeedback(lastSeenEntry, feedbackObservation)
   };
 }
 function readJsonRecord(filePath) {
@@ -153,12 +208,22 @@ function runPrWatchVerdictCommand(commandLine, lastSeenJson, resolvePreferences)
   const headSha = flags[HEAD_FLAG] ?? "";
   const rebaseKey = flags[REBASE_KEY_FLAG] ?? "";
   if (subcommand === "arm-floors" /* ArmFloors */) {
-    const evidence = resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, resolvePreferences().maxCatchUpRebases);
+    const evidence = resolveArmFloorEvidence(lastSeenEntry, headSha, rebaseKey, resolvePreferences().maxCatchUpRebases, {
+      bodyOnlyReviewIds: parseFeedbackIdList(flags[BODY_REVIEWS_FLAG] ?? ""),
+      conversationCommentIds: parseFeedbackIdList(flags[CONVERSATION_COMMENTS_FLAG] ?? ""),
+      unansweredThreadComments: parseUnansweredThreadComments(flags[UNANSWERED_THREADS_FLAG] ?? "")
+    });
+    const { unhandledFeedback } = evidence;
     return {
       stdout: `REBASE_ATTEMPTED=${evidence.isRebaseKeyAttempted ? 1 : 0}
 CI_SETTLED=${evidence.isCiHeadSettled ? 1 : 0}
 BLOCKED_CIDIGEST=${evidence.blockedCiDigest}
 REBASE_BUDGET_EXHAUSTED=${evidence.isRebaseBudgetExhausted ? 1 : 0}
+UNHANDLED_REVIEW_IDS=${unhandledFeedback.reviewIds.join(" ")}
+UNHANDLED_CONVERSATION_IDS=${unhandledFeedback.conversationCommentIds.join(" ")}
+REVIEW_FLOOR_CEILING=${unhandledFeedback.reviewFloorCeiling ?? ""}
+COMMENT_FLOOR_CEILING=${unhandledFeedback.commentFloorCeiling ?? ""}
+CONVERSATION_FLOOR_CEILING=${unhandledFeedback.conversationFloorCeiling ?? ""}
 `,
       stderr: "",
       exitCode: 0

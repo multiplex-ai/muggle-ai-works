@@ -43,7 +43,9 @@ describe("runPrWatchVerdictCommand", () => {
       preferences,
     );
     expect(outcome).toEqual({
-      stdout: "REBASE_ATTEMPTED=1\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n",
+      stdout:
+        "REBASE_ATTEMPTED=1\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n" +
+        "UNHANDLED_REVIEW_IDS=\nUNHANDLED_CONVERSATION_IDS=\nREVIEW_FLOOR_CEILING=\nCOMMENT_FLOOR_CEILING=\nCONVERSATION_FLOOR_CEILING=\n",
       stderr: "",
       exitCode: 0,
     });
@@ -56,6 +58,32 @@ describe("runPrWatchVerdictCommand", () => {
     expect(
       runPrWatchVerdictCommand(armFloors, spent, () => ({ autoRebase: "always", maxCatchUpRebases: 25 })).stdout,
     ).toContain("REBASE_BUDGET_EXHAUSTED=0\n");
+  });
+
+  it("arm-floors reports the feedback last_seen.json does not record as handled", () => {
+    const outcome = runPrWatchVerdictCommand(
+      [
+        "arm-floors",
+        "--pr-key",
+        "o/r#7",
+        "--head",
+        "h1",
+        "--rebase-key",
+        "h1..b1",
+        "--body-reviews",
+        "41",
+        "--conversation-comments",
+        "6809364360",
+        "--unanswered-threads",
+        "112:57,not-an-id:3",
+      ],
+      lastSeen({ lastBodyReviewId: 0, lastConversationCommentId: 0 }),
+      preferences,
+    );
+    expect(outcome.stdout).toContain(
+      "UNHANDLED_REVIEW_IDS=41 57\nUNHANDLED_CONVERSATION_IDS=6809364360\n" +
+        "REVIEW_FLOOR_CEILING=40\nCOMMENT_FLOOR_CEILING=111\nCONVERSATION_FLOOR_CEILING=6809364359\n",
+    );
   });
 
   it("tick prints the verdict", () => {
@@ -100,7 +128,10 @@ describe("the shipped pr-watch-verdict.mjs", () => {
       [SHIPPED_BUNDLE, "arm-floors", "--pr-key", "o/r#7", "--head", "h1", "--rebase-key", "h1..b1"],
       { input: "", encoding: "utf-8", windowsHide: true },
     );
-    expect(run.stdout).toBe("REBASE_ATTEMPTED=0\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n");
+    expect(run.stdout).toBe(
+      "REBASE_ATTEMPTED=0\nCI_SETTLED=0\nBLOCKED_CIDIGEST=\nREBASE_BUDGET_EXHAUSTED=0\n" +
+        "UNHANDLED_REVIEW_IDS=\nUNHANDLED_CONVERSATION_IDS=\nREVIEW_FLOOR_CEILING=\nCOMMENT_FLOOR_CEILING=\nCONVERSATION_FLOOR_CEILING=\n",
+    );
   });
 });
 

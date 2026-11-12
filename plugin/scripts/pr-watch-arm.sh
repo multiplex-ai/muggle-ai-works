@@ -13,6 +13,13 @@
 # seen without ever being reported. A re-arm keeps the review, comment and thread
 # floors the session already holds, for the same reason.
 #
+# Neither may sit above feedback nobody handled. The read's own ids are not the
+# handled ones: a comment posted before the slot was bootstrapped is in the read,
+# so a first arm floored it, and the loop never reported it while it reported
+# every rebase and red check after it. Each floor is capped just below the
+# lowest feedback last_seen.json does not record as handled or escalated, and
+# the drain names that feedback first, since reviews preempt CI and rebase.
+#
 # A stale branch is floored only when the slot proves a rebase ran for it, and a
 # red head only once fix-ci is finished with it — escalated, or out of attempts.
 # Flooring whatever was outstanding at arm time let a session that never rebased
@@ -82,6 +89,9 @@ pending_checks="${STATE_FIELDS[7]-}"
 failed_checks="${STATE_FIELDS[8]-}"
 ci_red_key="$(watch_ci_red_key "$head_sha" "${STATE_FIELDS[10]-}")"
 latest_conversation="${STATE_FIELDS[11]-}"
+body_only_review_ids="${STATE_FIELDS[12]-}"
+conversation_comment_ids="${STATE_FIELDS[13]-}"
+unanswered_thread_comments="${STATE_FIELDS[14]-}"
 
 if [ "$pr_state" = "MERGED" ] || [ "$pr_state" = "CLOSED" ]; then
     echo "TERMINAL pr=$pr_number state=$pr_state — nothing to arm"
@@ -114,6 +124,11 @@ rebase_attempted=0
 ci_settled=0
 blocked_digest_floor=""
 rebase_budget_exhausted=0
+unhandled_review_ids=""
+unhandled_conversation_ids=""
+review_floor_ceiling=""
+comment_floor_ceiling=""
+conversation_floor_ceiling=""
 while IFS= read -r evidence_line; do
     evidence_line="${evidence_line%$'\r'}"
     case "$evidence_line" in
@@ -121,9 +136,23 @@ while IFS= read -r evidence_line; do
         CI_SETTLED=*) ci_settled="${evidence_line#CI_SETTLED=}" ;;
         BLOCKED_CIDIGEST=*) blocked_digest_floor="${evidence_line#BLOCKED_CIDIGEST=}" ;;
         REBASE_BUDGET_EXHAUSTED=*) rebase_budget_exhausted="${evidence_line#REBASE_BUDGET_EXHAUSTED=}" ;;
+        UNHANDLED_REVIEW_IDS=*) unhandled_review_ids="${evidence_line#UNHANDLED_REVIEW_IDS=}" ;;
+        UNHANDLED_CONVERSATION_IDS=*) unhandled_conversation_ids="${evidence_line#UNHANDLED_CONVERSATION_IDS=}" ;;
+        REVIEW_FLOOR_CEILING=*) review_floor_ceiling="${evidence_line#REVIEW_FLOOR_CEILING=}" ;;
+        COMMENT_FLOOR_CEILING=*) comment_floor_ceiling="${evidence_line#COMMENT_FLOOR_CEILING=}" ;;
+        CONVERSATION_FLOOR_CEILING=*) conversation_floor_ceiling="${evidence_line#CONVERSATION_FLOOR_CEILING=}" ;;
     esac
 done < <(node "${script_dir}/pr-watch-verdict.mjs" arm-floors --pr-key "${repo}#${pr_number}" \
-    --head "$head_sha" --rebase-key "$rebase_key" < "$last_seen_file" 2>/dev/null)
+    --head "$head_sha" --rebase-key "$rebase_key" \
+    --body-reviews "$body_only_review_ids" --conversation-comments "$conversation_comment_ids" \
+    --unanswered-threads "$unanswered_thread_comments" < "$last_seen_file" 2>/dev/null)
+
+has_unhandled_feedback=""
+if [ -n "$unhandled_review_ids" ] || [ -n "$unhandled_conversation_ids" ]; then
+    has_unhandled_feedback=1
+fi
+after_feedback=""
+[ -n "$has_unhandled_feedback" ] && after_feedback=" after address-reviews"
 
 ci_red_floor=""
 [ -n "$ci_red_head" ] && [ "$ci_settled" = "1" ] && ci_red_floor="$ci_red_key"
@@ -149,11 +178,14 @@ thread_count=0
 echo "DRAIN pr=$pr_number state=$pr_state head=${head_sha:0:8}"
 echo "DRAIN unresolved-threads=$thread_count latest-review=${latest_review:-0} latest-comment=${latest_comment:-0} latest-conversation-comment=${latest_conversation:-0}"
 echo "DRAIN checks pending=${pending_checks:-0} failed=${failed_checks:-0} behind-base=${behind_count:-unknown} mergeable=${mergeable:-UNKNOWN}"
+if [ -n "$has_unhandled_feedback" ]; then
+    echo "DRAIN review feedback unhandled at arm time — reviews=[${unhandled_review_ids}] conversation=[${unhandled_conversation_ids}] not recorded handled in last_seen.json, not floored: dispatch address-reviews"
+fi
 if [ -n "$ci_red_head" ]; then
     if [ -n "$ci_red_floor" ]; then
         echo "DRAIN ci red at arm time — fix-ci escalated or spent its attempts on head ${head_sha:0:8}, floored"
     else
-        echo "DRAIN ci red at arm time — fix-ci not finished with head ${head_sha:0:8}, not floored: dispatch fix-ci"
+        echo "DRAIN ci red at arm time — fix-ci not finished with head ${head_sha:0:8}, not floored: dispatch fix-ci${after_feedback}"
     fi
 fi
 if [ -n "$rebase_due_key" ]; then
@@ -162,7 +194,7 @@ if [ -n "$rebase_due_key" ]; then
     elif [ -n "$rebase_floor" ]; then
         echo "DRAIN branch stale at arm time — a rebase already ran for key ${rebase_due_key}, floored"
     else
-        echo "DRAIN branch stale at arm time — no rebase attempt recorded for key ${rebase_due_key}, not floored: dispatch rebase"
+        echo "DRAIN branch stale at arm time — no rebase attempt recorded for key ${rebase_due_key}, not floored: dispatch rebase${after_feedback}"
     fi
 fi
 
@@ -186,6 +218,15 @@ if [ -f "${slot}/watch-watermark.env" ]; then
     threads_floor="$(watch_threads_still_unresolved \
         "$(watch_read_slot_value "$slot" watch-watermark.env THREADS)" "$unresolved_threads")"
 fi
+
+# Prints `floor`, lowered to `ceiling` when one is set and is lower.
+floor_capped_at() {
+    local floor="${1:-0}" ceiling="$2"
+    if [ -n "$ceiling" ] && [ "$ceiling" -lt "$floor" ] 2>/dev/null; then printf '%s' "$ceiling"; else printf '%s' "$floor"; fi
+}
+review_floor="$(floor_capped_at "$review_floor" "$review_floor_ceiling")"
+comment_floor="$(floor_capped_at "$comment_floor" "$comment_floor_ceiling")"
+conversation_floor="$(floor_capped_at "$conversation_floor" "$conversation_floor_ceiling")"
 
 {
     printf 'REV=%s\n' "${review_floor:-0}"

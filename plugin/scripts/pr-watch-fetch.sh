@@ -33,7 +33,7 @@ query($owner: String!, $name: String!, $number: Int!) {
           }
         }
       }
-      reviews(last: 20, states: [COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED]) { nodes { databaseId body } }
+      reviews(last: 20, states: [COMMENTED, APPROVED, CHANGES_REQUESTED, DISMISSED]) { nodes { databaseId body state comments { totalCount } } }
       reviewThreads(first: 100) {
         nodes {
           id

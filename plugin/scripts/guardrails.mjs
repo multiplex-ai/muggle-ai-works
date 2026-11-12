@@ -2215,9 +2215,18 @@ function detectFinishedRun(input2) {
   };
 }
 
+// src/e2e-result/constants.ts
+var ISSUE_REFERENCE_MARKER = /(#|\bGH-)(?=\d)/gi;
+var ISSUE_REFERENCE_BREAK = "&#8288;";
+
+// src/e2e-result/format.ts
+function breakIssueReferences(s) {
+  return s.replace(ISSUE_REFERENCE_MARKER, `$1${ISSUE_REFERENCE_BREAK}`);
+}
+
 // src/pr-walkthrough/progress.ts
 var encodeState = (cases) => JSON.stringify(cases).replace(/--/g, "-\\u002d");
-var tableCell = (text) => text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
+var tableCell = (text) => breakIssueReferences(text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " "));
 var isProgressCase = (value) => {
   if (!value || typeof value !== "object") return false;
   const candidate = value;

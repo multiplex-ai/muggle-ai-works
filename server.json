@@ -8,13 +8,13 @@
     "url": "https://github.com/multiplex-ai/muggle-ai-works",
     "source": "github"
   },
-  "version": "5.34.1",
+  "version": "5.36.0",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@muggleai/works",
-      "version": "5.34.1",
+      "version": "5.36.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

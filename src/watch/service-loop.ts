@@ -1,13 +1,9 @@
-import { existsSync, readFileSync, renameSync, statSync } from "fs";
+import { appendFileSync, existsSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "fs";
 import { join } from "path";
 import { ProviderPrState } from "../guardrails/types.js";
-import {
-  MAX_SERVICE_ARMS_PER_TICK,
-  RECOVERY_COOLDOWN_MS,
-  SERVICE_LOOP_DELIVERED_FILE,
-  SERVICE_LOOP_OUTPUT_FILE,
-  SERVICE_LOOP_REPORT_PREFIXES,
-} from "./constants.js";
+import { SERVICE_LOOP_DELIVERED_FILE, SERVICE_LOOP_OUTPUT_FILE, SERVICE_LOOP_QUEUED_WAKE_FILE } from "../pr-watch/constants.js";
+import { readSlotText } from "../pr-watch/slotFiles.js";
+import { MAX_SERVICE_ARMS_PER_TICK, RECOVERY_COOLDOWN_MS, SERVICE_LOOP_REPORT_PREFIXES } from "./constants.js";
 import {
   ClaudeTurnStatus,
   ServiceArmOutcome,
@@ -17,6 +13,7 @@ import {
   type ServiceArm,
   type ServiceLoopLauncher,
   type ServiceLoopReport,
+  type UndeliveredWake,
   type WatchEvent,
   type WatchSlotAssessment,
   type WorkSession,
@@ -40,14 +37,23 @@ export function parseServiceLoopReport(outputText: string, writtenAtMs: number):
   return { kind: kind, reportLines: reportLines, writtenAtMs: writtenAtMs };
 }
 
-/** The report of the last loop the watch started in this slot, or undefined when it has none waiting. */
-export function readServiceLoopReport(slotDir: string): ServiceLoopReport | undefined {
-  const outputPath = join(slotDir, SERVICE_LOOP_OUTPUT_FILE);
+function readReportFile(reportPath: string): ServiceLoopReport | undefined {
   try {
-    return parseServiceLoopReport(readFileSync(outputPath, "utf-8"), statSync(outputPath).mtimeMs);
+    return parseServiceLoopReport(readFileSync(reportPath, "utf-8"), statSync(reportPath).mtimeMs);
   } catch {
     return undefined;
   }
+}
+
+/** The report of the last loop the watch started in this slot, or undefined when it has none waiting. */
+export function readServiceLoopReport(slotDir: string): ServiceLoopReport | undefined {
+  return readReportFile(join(slotDir, SERVICE_LOOP_OUTPUT_FILE));
+}
+
+/** The reports set aside for the owner while a fresh loop watches the PR, or undefined when none waits. */
+export function readQueuedWakeReport(slotDir: string): ServiceLoopReport | undefined {
+  const queued = readReportFile(join(slotDir, SERVICE_LOOP_QUEUED_WAKE_FILE));
+  return isOwnerWakeReport(queued) ? queued : undefined;
 }
 
 /** Whether a report names work the owner session must be woken for: new activity on its PR, or the PR ending. */
@@ -55,38 +61,94 @@ export function isOwnerWakeReport(report: ServiceLoopReport | undefined): boolea
   return report?.kind === ServiceLoopReportKind.Event || report?.kind === ServiceLoopReportKind.Terminal;
 }
 
-/** Set a delivered report aside so no later tick wakes the owner for it again. */
+/**
+ * The report the owner has not been woken for: the last loop's own once that loop has exited, or else what was set
+ * aside when a fresh loop took over the PR.
+ *
+ * Output shape: `{ report: { kind: "event", reportLines: ["EVENT pr=7 new conversation comment id=9"], writtenAtMs: 1793383626645 }, ageMs: 60000 }`
+ */
+export function undeliveredWakeOf(assessment: WatchSlotAssessment): UndeliveredWake | undefined {
+  const report = assessment.serviceLoopReport;
+  if (report !== undefined && isOwnerWakeReport(report) && assessment.watcher !== WatcherLiveness.Polling) {
+    return { report: report, ageMs: assessment.serviceLoopReportAgeMs };
+  }
+  if (assessment.queuedWakeReport === undefined) return undefined;
+  return { report: assessment.queuedWakeReport, ageMs: assessment.queuedWakeReportAgeMs };
+}
+
+// A loop still exiting on Windows holds its output open, and the file cannot be removed until it lets go.
+function removeIfPresent(filePath: string): boolean {
+  try {
+    rmSync(filePath, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Move an exited loop's undelivered report out of the output file a fresh loop truncates, appending it to the slot's
+ * queued wakes so the owner is still woken for it.
+ *
+ * @returns Whether the output file is free for a fresh loop: nothing needed setting aside, or the report was moved.
+ */
+export function queueServiceLoopWakeReport(slotDir: string): boolean {
+  const outputPath = join(slotDir, SERVICE_LOOP_OUTPUT_FILE);
+  const report = readReportFile(outputPath);
+  if (report === undefined || !isOwnerWakeReport(report)) return true;
+  const outputText = readSlotText(outputPath);
+  if (!removeIfPresent(outputPath)) return false;
+  const queuedPath = join(slotDir, SERVICE_LOOP_QUEUED_WAKE_FILE);
+  const isFirstQueued = !existsSync(queuedPath);
+  appendFileSync(queuedPath, outputText.endsWith("\n") ? outputText : `${outputText}\n`);
+  // The wait is measured from when the loop reported, not from when its report was moved.
+  if (isFirstQueued) utimesSync(queuedPath, report.writtenAtMs / 1000, report.writtenAtMs / 1000);
+  return true;
+}
+
+/** Set every delivered report aside, the last loop's and any queued, so no later tick wakes the owner for them again. */
 export function markServiceLoopReportDelivered(slotDir: string): void {
   const outputPath = join(slotDir, SERVICE_LOOP_OUTPUT_FILE);
-  if (existsSync(outputPath)) renameSync(outputPath, join(slotDir, SERVICE_LOOP_DELIVERED_FILE));
+  const queuedPath = join(slotDir, SERVICE_LOOP_QUEUED_WAKE_FILE);
+  const outputText = readSlotText(outputPath);
+  const isOutputUndelivered = isOwnerWakeReport(parseServiceLoopReport(outputText, 0));
+  const deliveredText = `${readSlotText(queuedPath)}${isOutputUndelivered ? outputText : ""}`;
+  if (deliveredText === "") return;
+  writeFileSync(join(slotDir, SERVICE_LOOP_DELIVERED_FILE), deliveredText);
+  removeIfPresent(queuedPath);
+  if (isOutputUndelivered) removeIfPresent(outputPath);
 }
 
 /**
  * Whether the watch should start this slot's loop itself. The loop runs as a
  * program, outside every session, so starting it spends no model turn and
- * interrupts nobody. It is skipped while the slot holds a report its owner has
- * not been woken for — a fresh loop would floor that work unread — and while
- * the owner is mid-turn, since that turn may be the cycle that re-arms it.
+ * interrupts nobody. A report its owner has not been woken for never holds the
+ * PR unwatched: it is queued for the owner and the fresh loop watches on. An
+ * owner mid-turn is otherwise left to re-arm, since that turn may be the cycle
+ * that does, but not while a report waits on it: that proves the turn has not
+ * heard the slot's last loop.
  *
  * @param ownerSession - The owner's session listing, when it is running.
  */
 export function isServiceArmDue(assessment: WatchSlotAssessment, nowMs: number, ownerSession?: WorkSession): boolean {
   const report = assessment.serviceLoopReport;
   const isFailureCoolingDown = report?.kind === ServiceLoopReportKind.Failed && nowMs - report.writtenAtMs < RECOVERY_COOLDOWN_MS;
+  const isLeftToOwnerTurn = ownerSession?.turnStatus === ClaudeTurnStatus.Busy && undeliveredWakeOf(assessment) === undefined;
   return (
     assessment.isRegistered &&
     (assessment.watcher === WatcherLiveness.Dead || assessment.watcher === WatcherLiveness.Deaf) &&
     assessment.live?.state === ProviderPrState.Open &&
     assessment.live.baseBranch !== undefined &&
     assessment.ownerSessionId !== undefined &&
-    ownerSession?.turnStatus !== ClaudeTurnStatus.Busy &&
-    !isOwnerWakeReport(report) &&
+    !isLeftToOwnerTurn &&
     !isFailureCoolingDown
   );
 }
 
 /**
- * Start a loop for every slot that needs one, up to the per-tick cap.
+ * Start a loop for every slot that needs one, up to the per-tick cap. Each
+ * loop is claimed for the owner `owner.json` records, so a service arm never
+ * leaves its slot unowned.
  *
  * @param ownerSessionOf - The owner's running session listing, undefined when it is not running.
  */
@@ -112,7 +174,16 @@ export function startServiceLoops(
       serviceArms.push({ slug: assessment.slug, prUrl: assessment.pr.url, outcome: ServiceArmOutcome.DeferredByTickCap });
       continue;
     }
-    const isStarted = launchServiceLoop(assessment.slotDir, assessment.pr, assessment.live?.baseBranch as string);
+    if (!queueServiceLoopWakeReport(assessment.slotDir)) {
+      serviceArms.push({ slug: assessment.slug, prUrl: assessment.pr.url, outcome: ServiceArmOutcome.DeferredByReportInUse });
+      continue;
+    }
+    const isStarted = launchServiceLoop(
+      assessment.slotDir,
+      assessment.pr,
+      assessment.live?.baseBranch as string,
+      assessment.ownerSessionId as string,
+    );
     serviceArms.push({ slug: assessment.slug, prUrl: assessment.pr.url, outcome: isStarted ? ServiceArmOutcome.Armed : ServiceArmOutcome.ArmFailed });
     events.push({
       at: at,

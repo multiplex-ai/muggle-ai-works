@@ -2,7 +2,8 @@ import { spawn } from "child_process";
 import { closeSync, existsSync, openSync } from "fs";
 import { join, win32 } from "path";
 import { resolveWatchPreferences } from "../pr-watch/watchPreferences.js";
-import { PR_WATCH_ARM_SCRIPT_RELATIVE_PATH, SERVICE_LOOP_OUTPUT_FILE, SERVICE_WATCH_LISTENER } from "./constants.js";
+import { SERVICE_LOOP_OUTPUT_FILE } from "../pr-watch/constants.js";
+import { PR_WATCH_ARM_SCRIPT_RELATIVE_PATH, SERVICE_WATCH_LISTENER } from "./constants.js";
 import { findShippedFile } from "./service-installer.js";
 import type { CommandRunner, ServiceLoopLauncher } from "./types.js";
 
@@ -32,11 +33,11 @@ function toBashPath(nativePath: string): string {
 /**
  * A launcher that runs `pr-watch-arm.sh` detached, so the loop outlives the
  * tick and answers to no session. The loop records the watch as its listener,
- * and the session id is withheld so the arm never claims the slot for whoever
- * ran the tick.
+ * and the arm claims the slot for the owner the caller names: the environment's
+ * session id is withheld, so the slot is never claimed for whoever ran the tick.
  */
 export function createServiceLoopLauncher(platform: NodeJS.Platform, runCommand: CommandRunner, env: NodeJS.ProcessEnv = process.env): ServiceLoopLauncher {
-  return (slotDir, pr, baseBranch) => {
+  return (slotDir, pr, baseBranch, ownerSessionId) => {
     const bash = resolveLoopBash(platform, runCommand, env);
     const armScript = findShippedFile(PR_WATCH_ARM_SCRIPT_RELATIVE_PATH);
     if (!bash || !armScript) return false;
@@ -46,7 +47,19 @@ export function createServiceLoopLauncher(platform: NodeJS.Platform, runCommand:
     if (loopEnv.MUGGLE_PR_WATCH_MAX_LIFETIME === undefined && lifetimeSeconds !== undefined) {
       loopEnv.MUGGLE_PR_WATCH_MAX_LIFETIME = String(lifetimeSeconds);
     }
-    const args = [toBashPath(armScript), "--slot", toBashPath(slotDir), "--repo", pr.repo, "--pr", String(pr.number), "--base", baseBranch];
+    const args = [
+      toBashPath(armScript),
+      "--slot",
+      toBashPath(slotDir),
+      "--repo",
+      pr.repo,
+      "--pr",
+      String(pr.number),
+      "--base",
+      baseBranch,
+      "--owner",
+      ownerSessionId,
+    ];
     let outputFd: number | undefined;
     try {
       outputFd = openSync(join(slotDir, SERVICE_LOOP_OUTPUT_FILE), "w");

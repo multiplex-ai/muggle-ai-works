@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
 import { ProviderPrState } from "../../guardrails/types.js";
-import { SERVICE_LOOP_DELIVERED_FILE, SERVICE_LOOP_OUTPUT_FILE } from "../../watch/constants.js";
-import { executeWatcherRecoveries, isOwnerWakeDue, planWatcherRecoveries } from "../../watch/recovery.js";
+import { SERVICE_LOOP_DELIVERED_FILE, SERVICE_LOOP_OUTPUT_FILE } from "../../pr-watch/constants.js";
+import { composeOwnerWakePrompt, executeWatcherRecoveries, isOwnerWakeDue, planWatcherRecoveries } from "../../watch/recovery.js";
 import {
   ClaudeSessionKind,
   ClaudeTurnStatus,
@@ -125,12 +125,52 @@ describe("isOwnerWakeDue", () => {
   });
 });
 
+describe("isOwnerWakeDue with a queued report", () => {
+  it("wakes the owner for a report queued while a fresh loop watches the PR", () => {
+    const queued = reportedSlot("a", "o1", {
+      watcher: WatcherLiveness.Polling,
+      serviceLoopReport: { kind: ServiceLoopReportKind.Silent, reportLines: [], writtenAtMs: NOW_MS },
+      queuedWakeReport: { kind: ServiceLoopReportKind.Event, reportLines: [NEW_REVIEW_LINE], writtenAtMs: NOW_MS - MINUTE_MS },
+    });
+    expect(isOwnerWakeDue(queued)).toBe(true);
+    expect(planWatcherRecoveries([queued], {}, NOW_MS, false).map((recovery) => recovery.reportKind)).toEqual([ServiceLoopReportKind.Event]);
+  });
+});
+
+describe("composeOwnerWakePrompt", () => {
+  it("names one slot, and the owner's other waiting slots only when there are any", () => {
+    expect(composeOwnerWakePrompt("csv", 7, ServiceLoopReportKind.Event)).toBe("/muggle:muggle-pr-followup csv 7 --wake=event");
+    expect(
+      composeOwnerWakePrompt("csv", 7, ServiceLoopReportKind.Event, [
+        { slotSlug: "ui-pr793", prNumber: 793, reportKind: ServiceLoopReportKind.Event },
+        { slotSlug: "ps-pr1164", prNumber: 1164, reportKind: ServiceLoopReportKind.Terminal },
+      ]),
+    ).toBe("/muggle:muggle-pr-followup csv 7 --wake=event --also=ui-pr793:793:event,ps-pr1164:1164:terminal");
+  });
+});
+
 describe("planWatcherRecoveries", () => {
-  it("plans one wake per owner, for its first slot with a report", () => {
+  it("plans one wake per owner, for its first slot with a report, naming the owner's other waiting reports in it", () => {
     const planned = planWatcherRecoveries([reportedSlot("b", "o1"), reportedSlot("a", "o1"), reportedSlot("c", "o2")], {}, NOW_MS, false);
     expect(planned).toEqual([
-      { ownerSessionId: "o1", slotSlug: "a", slotDir: "/s/a", prNumber: 1, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.ResumeDue },
+      {
+        ownerSessionId: "o1",
+        slotSlug: "a",
+        slotDir: "/s/a",
+        prNumber: 1,
+        reportKind: ServiceLoopReportKind.Event,
+        outcome: WatcherRecoveryOutcome.ResumeDue,
+        otherPendingWakes: [{ slotSlug: "b", prNumber: 1, reportKind: ServiceLoopReportKind.Event }],
+      },
       { ownerSessionId: "o2", slotSlug: "c", slotDir: "/s/c", prNumber: 1, reportKind: ServiceLoopReportKind.Event, outcome: WatcherRecoveryOutcome.ResumeDue },
+    ]);
+  });
+
+  it("names a waiting report of the owner's even on a slot this tick could not wake for", () => {
+    const unregistered = reportedSlot("b", "o1", { isRegistered: false, pr: { repo: "o/r", number: 793, url: "u-b" } });
+    const planned = planWatcherRecoveries([reportedSlot("a", "o1"), unregistered], {}, NOW_MS, false);
+    expect(planned.map((recovery) => [recovery.slotSlug, recovery.otherPendingWakes])).toEqual([
+      ["a", [{ slotSlug: "b", prNumber: 793, reportKind: ServiceLoopReportKind.Event }]],
     ]);
   });
 

@@ -105,6 +105,7 @@ var CiRollupBucket = /* @__PURE__ */ ((CiRollupBucket2) => {
 // src/pr-watch/tickVerdict.ts
 function resolveWatchTickVerdict(lastSeenEntry, observation, preferences) {
   const { headSha, rebaseKey } = observation;
+  if (lastSeenEntry.forward_stages_in_flight === true) return "hold-forward-stages" /* HoldForwardStages */;
   if (observation.isRebaseDue) {
     if (isRebaseBudgetExhausted(lastSeenEntry, preferences.maxCatchUpRebases)) {
       return "block-rebase-budget-exhausted" /* BlockRebaseBudgetExhausted */;

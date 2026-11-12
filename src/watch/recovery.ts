@@ -3,6 +3,7 @@ import { ProviderPrState } from "../guardrails/types.js";
 import { findClaudeSessionCwd } from "./claude-transcripts.js";
 import {
   MAX_RESUMES_PER_TICK,
+  OWNER_WAKE_ALSO_FLAG,
   PR_FOLLOWUP_COMMAND,
   RECOVERY_ATTEMPT_WINDOW_MS,
   RECOVERY_COOLDOWN_MS,
@@ -10,7 +11,7 @@ import {
 } from "./constants.js";
 import { shortSessionId } from "./format.js";
 import { isTerminalPrState } from "./pr-status.js";
-import { isOwnerWakeReport, markServiceLoopReportDelivered } from "./service-loop.js";
+import { markServiceLoopReportDelivered, undeliveredWakeOf } from "./service-loop.js";
 import { isIdleBackgroundSession } from "./session-liveness.js";
 import { resumeSession } from "./session-restart.js";
 import {
@@ -19,6 +20,7 @@ import {
   WatcherRecoveryOutcome,
   WatchEventKind,
   type ExecutedRecoveries,
+  type PendingWakeRef,
   type RecoveryExecutionDeps,
   type ServiceLoopReportKind,
   type WatcherRecovery,
@@ -29,9 +31,10 @@ import {
 
 /**
  * Whether the watch may wake this slot's owner for what its loop reported.
- * Only a report from a loop the watch started counts, and only once that loop
- * has exited. A running owner is woken only between turns — never while it
- * works or waits on its user — and an ended one is resumed, unless its PR has
+ * Only a report from a loop the watch started counts: once that loop has
+ * exited, or once it was queued for the owner while a fresh loop watches on.
+ * A running owner is woken only between turns — never while it works or
+ * waits on its user — and an ended one is resumed, unless its PR has
  * merged or closed: that slot is closed out instead, without waking anyone.
  *
  * @param ownerSession - The owner's session listing, when it is running.
@@ -43,8 +46,7 @@ export function isOwnerWakeDue(assessment: WatchSlotAssessment, ownerSession?: W
     : ownerSession !== undefined && isIdleBackgroundSession(ownerSession);
   return (
     assessment.isRegistered &&
-    isOwnerWakeReport(assessment.serviceLoopReport) &&
-    assessment.watcher !== WatcherLiveness.Polling &&
+    undeliveredWakeOf(assessment) !== undefined &&
     assessment.ownerSessionId !== undefined &&
     assessment.live !== undefined &&
     (assessment.live.state === ProviderPrState.Open || isTerminalPrState(assessment.live.state)) &&
@@ -73,9 +75,34 @@ export function findRunningOwner(sessionsById: Map<string, WorkSession>, ownerSe
   return sessionsById.get(ownerSessionId) ?? [...sessionsById.values()].find((session) => session.shortId === ownerShortId);
 }
 
-/** The one command a woken owner starts on: its own slot and PR, never a sweep of other sessions' work. */
-export function composeOwnerWakePrompt(slotSlug: string, prNumber: number, reportKind: ServiceLoopReportKind): string {
-  return `${PR_FOLLOWUP_COMMAND} ${slotSlug} ${prNumber} --wake=${reportKind}`;
+/**
+ * The one command a woken owner starts on: its own slot and PR, never a sweep of other sessions' work. The owner's
+ * other slots whose reports also wait ride along in `--also`, so the session hears every one of them in this wake.
+ *
+ * Output shape: `/muggle:muggle-pr-followup csv-export 7 --wake=event --also=billing-page:12:event,search-api:31:terminal`
+ */
+export function composeOwnerWakePrompt(
+  slotSlug: string,
+  prNumber: number,
+  reportKind: ServiceLoopReportKind,
+  otherPendingWakes: PendingWakeRef[] = [],
+): string {
+  const command = `${PR_FOLLOWUP_COMMAND} ${slotSlug} ${prNumber} --wake=${reportKind}`;
+  if (otherPendingWakes.length === 0) return command;
+  const also = otherPendingWakes.map((pending) => `${pending.slotSlug}:${pending.prNumber}:${pending.reportKind}`).join(",");
+  return `${command} ${OWNER_WAKE_ALSO_FLAG}${also}`;
+}
+
+// Every waiting report of the owner's, whether or not this tick could wake for it, so none is left unmentioned.
+function otherPendingWakesOf(assessments: WatchSlotAssessment[], chosen: WatchSlotAssessment): PendingWakeRef[] {
+  const others: PendingWakeRef[] = [];
+  for (const assessment of assessments) {
+    if (assessment.ownerSessionId !== chosen.ownerSessionId || assessment.slotDir === chosen.slotDir) continue;
+    const undelivered = undeliveredWakeOf(assessment);
+    if (undelivered === undefined || others.some((other) => other.slotSlug === assessment.slug)) continue;
+    others.push({ slotSlug: assessment.slug, prNumber: assessment.pr.number, reportKind: undelivered.report.kind });
+  }
+  return others.sort((left, right) => left.slotSlug.localeCompare(right.slotSlug));
 }
 
 /**
@@ -100,7 +127,8 @@ export function planWatcherRecoveries(
 ): WatcherRecovery[] {
   if (isPollingDisabled) return [];
   const dueByOwner = new Map<string, WatchSlotAssessment>();
-  for (const assessment of [...assessments].sort((left, right) => left.slug.localeCompare(right.slug))) {
+  const sortedAssessments = [...assessments].sort((left, right) => left.slug.localeCompare(right.slug));
+  for (const assessment of sortedAssessments) {
     const ownerSession = assessment.ownerSessionId === undefined ? undefined : findRunningOwner(sessionsById, assessment.ownerSessionId);
     if (!isOwnerWakeDue(assessment, ownerSession)) continue;
     const ownerSessionId = assessment.ownerSessionId as string;
@@ -121,15 +149,17 @@ export function planWatcherRecoveries(
     else if (nowMs - lastAttemptMs < RECOVERY_COOLDOWN_MS) outcome = WatcherRecoveryOutcome.CoolingDown;
     else if (resumesPlanned >= MAX_RESUMES_PER_TICK) outcome = WatcherRecoveryOutcome.DeferredByTickCap;
     if (outcome === WatcherRecoveryOutcome.ResumeDue) resumesPlanned++;
+    const otherPendingWakes = otherPendingWakesOf(sortedAssessments, assessment);
     recoveries.push({
       ownerSessionId: ownerSessionId,
       slotSlug: assessment.slug,
       slotDir: assessment.slotDir,
       prNumber: assessment.pr.number,
-      reportKind: assessment.serviceLoopReport?.kind as ServiceLoopReportKind,
+      reportKind: undeliveredWakeOf(assessment)?.report.kind as ServiceLoopReportKind,
       outcome: outcome,
       ...(runningOwner?.shortId === undefined ? {} : { ownerShortId: runningOwner.shortId }),
       ...(runningOwner === undefined || runningOwner.sessionId === ownerSessionId ? {} : { ownerRunningSessionId: runningOwner.sessionId }),
+      ...(otherPendingWakes.length === 0 ? {} : { otherPendingWakes: otherPendingWakes }),
     });
   }
   return recoveries;
@@ -162,7 +192,7 @@ export function executeWatcherRecoveries(
     const cwd = findClaudeSessionCwd(deps.claudeProjectsDir, recovery.ownerSessionId);
     if (!cwd || !existsSync(cwd)) return { ...recovery, outcome: WatcherRecoveryOutcome.TranscriptMissing };
     const subject = `session ${shortSessionId(recovery.ownerSessionId)}`;
-    const prompt = composeOwnerWakePrompt(recovery.slotSlug, recovery.prNumber, recovery.reportKind);
+    const prompt = composeOwnerWakePrompt(recovery.slotSlug, recovery.prNumber, recovery.reportKind, recovery.otherPendingWakes);
     if (recovery.ownerShortId !== undefined && !deps.canRestartIn(cwd)) {
       countAttempt(recovery.ownerSessionId);
       events.push({

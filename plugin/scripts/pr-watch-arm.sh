@@ -23,7 +23,7 @@ set -uo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-slot="" repo="" pr_number="" base_branch="" exec_loop=1
+slot="" repo="" pr_number="" base_branch="" owner_session="" exec_loop=1
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -31,13 +31,14 @@ while [ $# -gt 0 ]; do
         --repo) repo="$2"; shift 2 ;;
         --pr) pr_number="$2"; shift 2 ;;
         --base) base_branch="$2"; shift 2 ;;
+        --owner) owner_session="$2"; shift 2 ;;
         --no-exec) exec_loop=0; shift ;;
         *) echo "pr-watch-arm: unknown argument $1" >&2; exit 2 ;;
     esac
 done
 
 if [ -z "$slot" ] || [ -z "$repo" ] || [ -z "$pr_number" ] || [ -z "$base_branch" ]; then
-    echo "usage: pr-watch-arm.sh --slot <dir> --repo <owner/repo> --pr <n> --base <branch> [--no-exec]" >&2
+    echo "usage: pr-watch-arm.sh --slot <dir> --repo <owner/repo> --pr <n> --base <branch> [--owner <session-id>] [--no-exec]" >&2
     exit 2
 fi
 
@@ -199,17 +200,21 @@ fi
 
 watch_record_due_work "$slot" "$head_sha" "$recorded_rebase_due_key" "$ci_red_head"
 
-# Claim the slot for this session. watcher_lease_is_foreign reads an absent
+# Claim the slot for its owner: the session --owner names, else this session.
+# The muggle watch service arms outside every session, so it passes the owner
+# the slot already records; without it every loop the service restarted left
+# its slot unowned. watcher_lease_is_foreign reads an absent
 # owner.json as "not foreign", so a slot armed without one leases itself to a
 # live PID nothing can classify: once the arming session dies its watcher polls
 # into a closed pipe, and every later arm skips the slot as already owned until
 # the loop's monitor window ends it. An unset id writes nothing rather than a placeholder
 # — reconcile reads any id it does not recognise as another session's claim, and
 # a bogus one would strand the slot exactly as an absent file does.
-if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+[ -n "$owner_session" ] || owner_session="${CLAUDE_CODE_SESSION_ID:-}"
+if [ -n "$owner_session" ]; then
     claimed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf '{\n  "session_id": "%s",\n  "claimed_at": "%s"\n}\n' \
-        "$CLAUDE_CODE_SESSION_ID" "$claimed_at" > "${slot}/owner.json"
+        "$owner_session" "$claimed_at" > "${slot}/owner.json"
     # Register the slot with the muggle watch service, which restarts the loop
     # outside every session if it dies and wakes this owner only when that loop
     # reports on this PR. It lives in the slot, so a stop rename or a finalize
@@ -217,7 +222,7 @@ if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
     printf '{\n  "registered_at": "%s",\n  "registered_by": "pr-watch-arm"\n}\n' \
         "$claimed_at" > "${slot}/watch-registration.json"
 else
-    echo "pr-watch-arm: CLAUDE_CODE_SESSION_ID unset — slot left unowned, reconcile cannot re-arm it" >&2
+    echo "pr-watch-arm: no --owner and CLAUDE_CODE_SESSION_ID unset — slot left unowned, reconcile cannot re-arm it" >&2
 fi
 
 echo "ARMED pr=$pr_number watermark seeded at ${slot}/watch-watermark.env"

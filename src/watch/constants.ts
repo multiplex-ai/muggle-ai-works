@@ -1,4 +1,5 @@
 import { join } from "path";
+import { SERVICE_LOOP_EVENT_LINE_PREFIX, SERVICE_LOOP_TERMINAL_LINE_PREFIX } from "../pr-watch/constants.js";
 import { ServiceLoopReportKind, WatchFindingCode, WatchFindingSeverity, WatchServiceInstallOutcome } from "./types.js";
 
 /** Subdirectory of the muggle data dir that holds the watch ledger. */
@@ -64,11 +65,8 @@ export const RECOVERY_ATTEMPT_WINDOW_MS = 24 * 60 * 60_000;
  */
 export const PR_FOLLOWUP_COMMAND = "/muggle:muggle-pr-followup";
 
-/** Where a loop the watch started writes its output, inside its slot. */
-export const SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";
-
-/** A service loop's output once its report reached the owner session, kept for diagnosis. */
-export const SERVICE_LOOP_DELIVERED_FILE = "watch-service.delivered.out";
+/** The wake flag naming the owner's other slots whose reports also wait, as `<slug>:<pr>:<kind>` joined by commas. */
+export const OWNER_WAKE_ALSO_FLAG = "--also=";
 
 /** The slot file naming who hears the leased loop's exit; absent when the session that armed it does. */
 export const WATCH_LISTENER_FILE = "watch-listener";
@@ -84,8 +82,8 @@ export const MAX_SERVICE_ARMS_PER_TICK = 5;
 
 /** The first word of each line a loop ends on, by the reason it names. */
 export const SERVICE_LOOP_REPORT_PREFIXES: ReadonlyArray<{ prefix: string; kind: ServiceLoopReportKind }> = [
-  { prefix: "TERMINAL ", kind: ServiceLoopReportKind.Terminal },
-  { prefix: "EVENT ", kind: ServiceLoopReportKind.Event },
+  { prefix: SERVICE_LOOP_TERMINAL_LINE_PREFIX, kind: ServiceLoopReportKind.Terminal },
+  { prefix: SERVICE_LOOP_EVENT_LINE_PREFIX, kind: ServiceLoopReportKind.Event },
   { prefix: "WATCH-FAIL ", kind: ServiceLoopReportKind.Failed },
   { prefix: "ARM-FAIL ", kind: ServiceLoopReportKind.Failed },
   { prefix: "EXPIRED ", kind: ServiceLoopReportKind.Expired },

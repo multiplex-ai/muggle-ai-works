@@ -92,6 +92,10 @@ The watcher's dispatch trigger is **derived from current provider state**, not a
 
 - **`gitlab`** — single source. Fetch unresolved discussions per [`../_shared/vcs/gitlab/unresolved-discussions.md`](../_shared/vcs/gitlab/unresolved-discussions.md) (drop to [`../_shared/vcs/gitlab/mr-discussions.md`](../_shared/vcs/gitlab/mr-discussions.md) for the raw notes if a thread's classification needs them). A discussion is **actionable** when it is unresolved **and** its newest note lacks the loop marker `<!-- muggle-do:bot -->` — same marker classification, never `author.username`. There is no body-only watermark: discussion state is the sole authority. The dispatch list is the **discussion ids** of the actionable discussions.
 
+### Step 3.5 — Forward-stage hold
+
+When `last_seen[<pr>].forward_stages_in_flight` is `true` ([`state-schemas.md`](state-schemas.md#last_seenjson)), the pipeline that opened this PR still owns it: it set the flag when it opened the PR and armed this watch, and clears it at its handoff, which then runs this tick with `--wake=stage-handoff`. Dispatch nothing, reviews included: that pipeline is still testing the head a cycle would push over, and it alone decides when the watch may act. Append a `deferred` line to `followup.log` naming what the tick would have dispatched (review ids, conversation comment ids), skip Steps 4–6 and exit as transient idle through Step 7.5, so the loop keeps watching. Nothing is lost: the review and conversation watermarks are not advanced, so the handoff's tick finds the same actionable set. A terminal PR still finalizes in Step 2.
+
 ### Step 4 — If the actionable set is non-empty → dispatch (reviews preempt CI)
 
 The watcher does **not** classify. Classification, batching, replying, escalation, and cycle execution all live in `/muggle-do`. The watcher hands over the dispatch ids from Step 3 (GitHub: owning review ids; GitLab: discussion ids) and exits — `/muggle-do`'s address-reviews re-derives the unresolved threads itself (its authority), so the watcher only needs to decide *that* there is work, not enumerate it exhaustively.
@@ -143,6 +147,7 @@ node "<abs>/scripts/pr-watch-verdict.mjs" tick --pr-key "<owner>/<repo>#<n>" --h
 
 It prints one line, `VERDICT=<verdict>`. A non-zero exit is a broken install: report it and stop, never improvise a verdict. What it applies, in order:
 
+0. `forward_stages_in_flight` is `true` → `hold-forward-stages`, whatever the branch and CI say (Step 3.5).
 1. A rebase is due and `catch_up_rebases >= maxCatchUpRebases` (the cap from the user's preferences; the `rebase_budget_exhausted` flag is not consulted) → `block-rebase-budget-exhausted`.
 2. A rebase is due, `conflict_resolve_attempts[rebase_key] < 2`, and `rebase_key` ∉ `conflict_escalated_keys` → `dispatch-rebase`. With the per-key budget spent — `conflict_resolve_attempts[rebase_key] >= 2` or `rebase_key` ∈ `conflict_escalated_keys` — it falls through to CI.
 3. CI is `red`, `ci_fix_attempts[head_sha] < 3`, and `head_sha` ∉ `ci_escalated_shas` → `dispatch-fix-ci`. Red with `ci_fix_attempts[head_sha] >= 3` or `head_sha` ∈ `ci_escalated_shas` dispatches nothing — the fix budget is spent and the watcher does not re-dispatch; it holds as `block-ci-escalated` (Step 4) even when fix-ci never wrote the escalation, because idling there leaves a red PR with nobody told. A check still pending (`bucket == "pending"`) never dispatches: the tick idles until CI settles, and a green head idles too.
@@ -176,6 +181,7 @@ Act on the verdict:
   4. Append a dispatching line to `followup.log`; emit a `tick` event with `checks_red: <count>`, `dispatched_ci_fix: true`.
   5. Exit. The dev cycle owns the PR; its respawn restarts the watcher, whose next tick re-checks CI on the new head SHA — CI itself is the verify loop.
 - `block-conflict-escalated`, `block-ci-escalated`, `block-reviews-escalated` → blocked pending a human (Step 7).
+- `hold-forward-stages` → transient idle (Step 7), with a `deferred` line in `followup.log` naming the rebase or fix-ci the hold kept back (Step 3.5).
 - `idle` → transient idle (Step 7).
 
 ### Step 7 — Idle (remind when blocked pending a human)

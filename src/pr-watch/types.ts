@@ -13,6 +13,8 @@ export interface LastSeenPrEntry {
   escalated_review_ids?: number[];
   escalated_conversation_comment_ids?: number[];
   blocked?: { fingerprint?: { ci_digest?: unknown } };
+  /** Set from forward Stage 5.5 until the Stage 8 handoff: the PR is watched, but every cycle waits for that handoff. */
+  forward_stages_in_flight?: boolean;
 }
 
 /** The single PR a slot's `prs.json` tracks, narrowed to the fields the watch reads. */
@@ -39,6 +41,8 @@ export enum WatchTickVerdict {
   BlockConflictEscalated = "block-conflict-escalated",
   BlockCiEscalated = "block-ci-escalated",
   BlockReviewsEscalated = "block-reviews-escalated",
+  /** The forward pipeline's Stages 6-7.5 still own the PR, so every cycle waits for the Stage 8 handoff's tick. */
+  HoldForwardStages = "hold-forward-stages",
   Idle = "idle",
 }
 

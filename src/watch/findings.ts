@@ -5,7 +5,7 @@ import { formatDuration, shortSessionId, shortSha } from "./format.js";
 import { resolveOwnerEscalation } from "./owner-escalation.js";
 import { isTerminalPrState } from "./pr-status.js";
 import { composeOwnerWakePrompt } from "./recovery.js";
-import { isOwnerWakeReport } from "./service-loop.js";
+import { undeliveredWakeOf } from "./service-loop.js";
 import {
   CiRollupState,
   PrMergeable,
@@ -92,6 +92,7 @@ export function assessWatchSlots(
       ownerIdleSinceMs !== undefined && loop?.ageMs !== undefined && ownerIdleSinceMs >= nowMs - loop.ageMs;
     const watcher = resolveWatcherLiveness(loop, heartbeatAgeMs, isOwnerSessionActive, processes !== null, slot.isHeardByService, isLoopDroppedByOwner);
     const reportAgeMs = slot.serviceLoopReport === undefined ? undefined : Math.max(0, nowMs - slot.serviceLoopReport.writtenAtMs);
+    const queuedReportAgeMs = slot.queuedWakeReport === undefined ? undefined : Math.max(0, nowMs - slot.queuedWakeReport.writtenAtMs);
     for (const pr of slot.openPrs) {
       const live = liveStatusesByUrl.get(pr.url);
       assessments.push({
@@ -111,6 +112,8 @@ export function assessWatchSlots(
         isHeardByService: slot.isHeardByService,
         serviceLoopReport: slot.serviceLoopReport,
         serviceLoopReportAgeMs: reportAgeMs,
+        queuedWakeReport: slot.queuedWakeReport,
+        queuedWakeReportAgeMs: queuedReportAgeMs,
       });
     }
   }
@@ -163,9 +166,10 @@ function watcherFinding(assessment: WatchSlotAssessment, subject: string): Watch
 // waiting past the grace means its owner is busy, waiting on its user, or a
 // terminal session the watch cannot wake, so the user hears about it instead.
 function ownerWakeFinding(assessment: WatchSlotAssessment, subject: string): WatchFinding | undefined {
-  const report = assessment.serviceLoopReport;
-  if (!report || !isOwnerWakeReport(report) || assessment.watcher === WatcherLiveness.Polling) return undefined;
-  if ((assessment.serviceLoopReportAgeMs ?? 0) <= WATCHER_REARM_GRACE_MS || assessment.ownerSessionId === undefined) return undefined;
+  const undelivered = undeliveredWakeOf(assessment);
+  if (!undelivered) return undefined;
+  if ((undelivered.ageMs ?? 0) <= WATCHER_REARM_GRACE_MS || assessment.ownerSessionId === undefined) return undefined;
+  const report = undelivered.report;
   const command = composeOwnerWakePrompt(assessment.slug, assessment.pr.number, report.kind);
   return finding(WatchFindingCode.OwnerWakePending, [assessment.pr.url, report.writtenAtMs], subject,
     `${report.reportLines[0] ?? report.kind} — waiting for owner session ${shortSessionId(assessment.ownerSessionId)}; run ${command} there`);

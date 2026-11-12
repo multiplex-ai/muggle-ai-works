@@ -24,6 +24,27 @@ export const WATCH_DUE_HEAD_FIELD = "HEAD";
 export const WATCH_DUE_REBASE_FIELD = "REBASE_DUE";
 export const WATCH_DUE_CI_RED_FIELD = "CI_RED_HEAD";
 
+/** Where a loop the muggle watch service started writes its output, inside its slot. */
+export const SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";
+
+/** A service loop's output once its report reached the owner session, kept for diagnosis. */
+export const SERVICE_LOOP_DELIVERED_FILE = "watch-service.delivered.out";
+
+/**
+ * Service loop reports set aside, undelivered, so a fresh loop can watch the PR while they wait for the owner. Each
+ * report is appended; the owner's wake, or a loop the owner arms, retires the file.
+ */
+export const SERVICE_LOOP_QUEUED_WAKE_FILE = "watch-service.queued.out";
+
+/** The first word of a loop line reporting new activity on the PR. */
+export const SERVICE_LOOP_EVENT_LINE_PREFIX = "EVENT ";
+
+/** The first word of a loop line reporting the PR merged or closed. */
+export const SERVICE_LOOP_TERMINAL_LINE_PREFIX = "TERMINAL ";
+
+/** The loop lines its owner session must be woken for. */
+export const OWNER_WAKE_LINE_PREFIXES = [SERVICE_LOOP_TERMINAL_LINE_PREFIX, SERVICE_LOOP_EVENT_LINE_PREFIX] as const;
+
 /** One `KEY=value` or `KEY="value"` line of a slot's env-style files. */
 export const ENV_FILE_LINE = /^([A-Z_]+)="?([^"]*)"?$/;
 

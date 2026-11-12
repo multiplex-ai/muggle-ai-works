@@ -21,9 +21,18 @@ const PLUGIN_ROOT = fileURLToPath(new URL("../../../plugin", import.meta.url));
 const SCRIPTS = join(PLUGIN_ROOT, "scripts");
 const toBash = (nativePath: string): string => nativePath.replace(/\\/g, "/");
 
-function seedHome(fixture: Partial<WatchSlotFixture>, transcriptLines: object[] = []): { home: string; transcript: string } {
+const CONVERSATION_LINE = "EVENT pr=7 new conversation comment id=4410";
+
+function seedHome(
+  fixture: Partial<WatchSlotFixture>,
+  transcriptLines: object[] = [],
+  extraSlotFiles: Record<string, string> = {},
+): { home: string; transcript: string } {
   const home = createHookHome("follow-through-home-");
-  writeSessionSlotFiles(home, "repo-pr7", watchSlotFiles({ ownerSessionId: SESSION, prNumber: 7, headSha: HEAD, ...fixture }));
+  writeSessionSlotFiles(home, "repo-pr7", {
+    ...watchSlotFiles({ ownerSessionId: SESSION, prNumber: 7, headSha: HEAD, ...fixture }),
+    ...extraSlotFiles,
+  });
   const transcript = join(home, "transcript.jsonl");
   writeFileSync(transcript, transcriptLines.map((line) => JSON.stringify(line)).join("\n"));
   return { home: home, transcript: transcript };
@@ -54,6 +63,14 @@ describe("watch-follow-through-gate (cli entry)", () => {
     const { home, transcript } = seedHome({ ciRedHeadSha: HEAD });
     const output = JSON.parse(runGate(home, transcript)) as { reason: string };
     expect(output.reason).toContain(`/muggle-do fix ci <red checks> on ${watchFixturePrUrl(7)} slug=repo-pr7`);
+  });
+
+  it("blocks on a watch report the session was never woken for, naming the tick to run", () => {
+    const { home, transcript } = seedHome({}, [], { "watch-service.queued.out": `${CONVERSATION_LINE}\n` });
+    const output = JSON.parse(runGate(home, transcript)) as { decision: string; reason: string };
+    expect(output.decision).toBe("block");
+    expect(output.reason).toContain(CONVERSATION_LINE);
+    expect(output.reason).toContain("/muggle:muggle-pr-followup repo-pr7 7 --wake=follow-through");
   });
 
   it("goes quiet once the attempt is recorded", () => {
@@ -119,6 +136,17 @@ describe.skipIf(process.platform === "win32")("guardrail-watch-follow-through-ga
 
   it("starts Node for an owned slot with due work", () => {
     expect(runWrapper(seedHome({ rebaseDueKey: KEY }).home)).toContain(NODE_RAN);
+  });
+
+  it.each([
+    ["a queued report", { "watch-service.queued.out": `${CONVERSATION_LINE}\n` }],
+    ["an exited service loop's report", { "watch-service.out": `DRAIN pr=7 state=OPEN\n${CONVERSATION_LINE}\n` }],
+  ])("starts Node for an owned slot holding %s", (_label, extraSlotFiles) => {
+    expect(runWrapper(seedHome({}, [], extraSlotFiles).home)).toContain(NODE_RAN);
+  });
+
+  it("skips Node for a service loop that is still polling", () => {
+    expect(runWrapper(seedHome({}, [], { "watch-service.out": "DRAIN pr=7 state=OPEN\nARMED pr=7\n" }).home)).toBe("{}");
   });
 
   it.each([

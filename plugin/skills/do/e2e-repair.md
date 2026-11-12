@@ -1,6 +1,6 @@
 # E2E Repair Loop (Stage 7.5)
 
-Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch, and again whenever the watcher finds the PR's `muggle-walkthrough` check red on failed cases ([`fix-ci.md`](fix-ci.md) Step 2.5). A failing acceptance run means the change is not ready for a reviewer, so this stage root-causes every failure and either repairs it in-pipeline or puts one decision in front of the user. The watcher is armed only once this stage clears.
+Runs between Stage 7's posted walkthrough and Stage 8's watcher dispatch, and again whenever the watcher finds the PR's `muggle-walkthrough` check red on failed cases ([`fix-ci.md`](fix-ci.md) Step 2.5). A failing acceptance run means the change is not ready for a reviewer, so this stage root-causes every failure and either repairs it in-pipeline or puts one decision in front of the user. The PR's watch is armed at Stage 5.5 but holds every cycle until this stage clears and Stage 8 lifts the hold.
 
 ## Turn preamble
 

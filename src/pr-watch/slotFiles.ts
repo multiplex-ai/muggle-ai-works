@@ -2,7 +2,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import {
   ENV_FILE_LINE,
+  OWNER_WAKE_LINE_PREFIXES,
   PRS_FILE_NAME,
+  SERVICE_LOOP_OUTPUT_FILE,
+  SERVICE_LOOP_QUEUED_WAKE_FILE,
   WATCH_DUE_CI_RED_FIELD,
   WATCH_DUE_HEAD_FIELD,
   WATCH_DUE_REBASE_FIELD,
@@ -83,4 +86,20 @@ export function parseWatchDueRecord(watchDueText: string): WatchDueRecord | null
     ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? "",
   };
   return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha ? dueRecord : null;
+}
+
+/**
+ * The first line of a muggle watch service report the slot's owner has not been woken for: a report queued while a
+ * fresh loop watches on, else the exited service loop's own. Undefined when none waits.
+ *
+ * Output shape: `"EVENT pr=7 new conversation comment id=9"`
+ */
+export function undeliveredWakeLineIn(slotPath: string): string | undefined {
+  for (const reportFile of [SERVICE_LOOP_QUEUED_WAKE_FILE, SERVICE_LOOP_OUTPUT_FILE]) {
+    const wakeLine = readSlotText(join(slotPath, reportFile))
+      .split(/\r?\n/)
+      .find((line) => OWNER_WAKE_LINE_PREFIXES.some((prefix) => line.startsWith(prefix)));
+    if (wakeLine !== undefined) return wakeLine;
+  }
+  return undefined;
 }

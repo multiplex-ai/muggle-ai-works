@@ -933,6 +933,11 @@ var WATCH_DUE_FILE_NAME = "watch-due.env";
 var WATCH_DUE_HEAD_FIELD = "HEAD";
 var WATCH_DUE_REBASE_FIELD = "REBASE_DUE";
 var WATCH_DUE_CI_RED_FIELD = "CI_RED_HEAD";
+var SERVICE_LOOP_OUTPUT_FILE = "watch-service.out";
+var SERVICE_LOOP_QUEUED_WAKE_FILE = "watch-service.queued.out";
+var SERVICE_LOOP_EVENT_LINE_PREFIX = "EVENT ";
+var SERVICE_LOOP_TERMINAL_LINE_PREFIX = "TERMINAL ";
+var OWNER_WAKE_LINE_PREFIXES = [SERVICE_LOOP_TERMINAL_LINE_PREFIX, SERVICE_LOOP_EVENT_LINE_PREFIX];
 var ENV_FILE_LINE = /^([A-Z_]+)="?([^"]*)"?$/;
 var USER_PREFERENCES_PATH_SEGMENTS = [".muggle-ai", "preferences.json"];
 var PREFERENCE_DEFAULTS_PATH_SEGMENTS = ["config", "preference-defaults.json"];
@@ -992,6 +997,13 @@ function parseWatchDueRecord(watchDueText) {
     ciRedHeadSha: fields[WATCH_DUE_CI_RED_FIELD] ?? ""
   };
   return dueRecord.rebaseDueKey || dueRecord.ciRedHeadSha ? dueRecord : null;
+}
+function undeliveredWakeLineIn(slotPath) {
+  for (const reportFile of [SERVICE_LOOP_QUEUED_WAKE_FILE, SERVICE_LOOP_OUTPUT_FILE]) {
+    const wakeLine = readSlotText(join(slotPath, reportFile)).split(/\r?\n/).find((line) => OWNER_WAKE_LINE_PREFIXES.some((prefix) => line.startsWith(prefix)));
+    if (wakeLine !== void 0) return wakeLine;
+  }
+  return void 0;
 }
 
 // src/guardrails/watchArmed.ts
@@ -1472,7 +1484,8 @@ function isDueRecordSuperseded(slotPath, slotPr, dueRecord) {
 function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
   if (slug.endsWith(STOPPED_SLOT_SUFFIX)) return [];
   const dueRecord = parseWatchDueRecord(readSlotText(join(slotPath, WATCH_DUE_FILE_NAME)));
-  if (!dueRecord) return [];
+  const undeliveredWakeLine = undeliveredWakeLineIn(slotPath);
+  if (!dueRecord && undeliveredWakeLine === void 0) return [];
   if (readJsonRecord(join(slotPath, OWNER_FILE_NAME)).session_id !== sessionId2) return [];
   if (existsSync(join(slotPath, RESULT_FILE_NAME))) return [];
   const slotPr = readSlotPr(slotPath);
@@ -1480,8 +1493,8 @@ function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
   const prNumber = slotPr?.number;
   if (!slotPr?.repo || typeof prUrl !== "string" || typeof prNumber !== "number") return [];
   if (TERMINAL_SLOT_PR_STATES.includes((slotPr.state ?? "").toLowerCase())) return [];
-  if (isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return [];
   const lastSeenEntry = lastSeenEntryFor(readSlotText(join(slotPath, LAST_SEEN_FILE_NAME)), `${slotPr.repo}#${prNumber}`);
+  if (lastSeenEntry.forward_stages_in_flight === true) return [];
   const workOn = (kind, dueOn) => ({
     kind,
     slug,
@@ -1490,6 +1503,8 @@ function owedWorkInSlot(slotPath, slug, sessionId2, preferences) {
     dueOn
   });
   const owed = [];
+  if (undeliveredWakeLine !== void 0) owed.push(workOn("pending-wake" /* PendingWake */, undeliveredWakeLine));
+  if (!dueRecord || isDueRecordSuperseded(slotPath, slotPr, dueRecord)) return owed;
   const isRebaseOwed = dueRecord.rebaseDueKey !== "" && preferences.autoRebase === ALWAYS_PREFERENCE_VALUE && !isRebaseBudgetExhausted(lastSeenEntry, preferences.maxCatchUpRebases) && !isRebaseKeyAttempted(lastSeenEntry, dueRecord.rebaseDueKey);
   if (isRebaseOwed) owed.push(workOn("rebase" /* Rebase */, dueRecord.rebaseDueKey));
   if (dueRecord.ciRedHeadSha !== "" && !isCiHeadAttempted(lastSeenEntry, dueRecord.ciRedHeadSha)) {
@@ -2215,9 +2230,18 @@ function detectFinishedRun(input2) {
   };
 }
 
+// src/e2e-result/constants.ts
+var ISSUE_REFERENCE_MARKER = /(#|\bGH-)(?=\d)/gi;
+var ISSUE_REFERENCE_BREAK = "&#8288;";
+
+// src/e2e-result/format.ts
+function breakIssueReferences(s) {
+  return s.replace(ISSUE_REFERENCE_MARKER, `$1${ISSUE_REFERENCE_BREAK}`);
+}
+
 // src/pr-walkthrough/progress.ts
 var encodeState = (cases) => JSON.stringify(cases).replace(/--/g, "-\\u002d");
-var tableCell = (text) => text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ");
+var tableCell = (text) => breakIssueReferences(text.replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " "));
 var isProgressCase = (value) => {
   if (!value || typeof value !== "object") return false;
   const candidate = value;
@@ -3452,6 +3476,9 @@ function watchGate() {
 }
 function owedWatchWorkLine(work) {
   const muggleDo = muggleSkill("/muggle-do");
+  if (work.kind === "pending-wake" /* PendingWake */) {
+    return `- PR #${work.prNumber} (${work.prUrl}): the muggle watch reported \`${work.dueOn}\` and it never reached this session: run \`${muggleSkill("/muggle:muggle-pr-followup")} ${work.slug} ${work.prNumber} --wake=follow-through\`.`;
+  }
   if (work.kind === "rebase" /* Rebase */) {
     return `- PR #${work.prNumber} (${work.prUrl}) is behind or conflicting with its base (key ${work.dueOn}) and no rebase was attempted: dispatch \`${muggleDo} rebase on ${work.prUrl} slug=${work.slug}\`.`;
   }
@@ -3483,7 +3510,7 @@ function watchFollowThroughGate() {
   const holdInstruction = `Only the user can hold it: their own message containing \`${WATCH_HOLD_PHRASE_PREFIX}<pr-number>\` for that PR. Ask if you must; never decide it for them.`;
   const reason = decision.blockCount === 1 ? `Do not end the turn yet. A muggle-pr-followup watch this session owns found work due that nothing acted on:
 ${owedList}
-autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now: run the cycle the tick dispatches \u2014 if it finds actionable review feedback it dispatches that first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like a new head, clears this. Writing the count without running the cycle \u2014 or for an E2E run queued for a different PR \u2014 leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not clear this, and neither does re-arming the watch. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
+autoRebase=always makes a due rebase binding, and how long a CI run or an eval takes is never a reason to wait. Act now: run the cycle the tick dispatches \u2014 if it finds actionable review feedback it dispatches that first. That cycle's first step records its attempt (conflict_resolve_attempts / ci_fix_attempts), which, like a new head, clears this. Writing the count without running the cycle \u2014 or for an E2E run queued for a different PR \u2014 leaves the PR red and the watch quiet. An escalation entry with no attempt behind it does not clear this, and neither does re-arming the watch. An undelivered watch report clears once the tick it names re-arms the watch from this session. ${holdInstruction}` : `Watcher work still owed (reminder ${decision.blockCount}):
 ${owedList}
 ${holdInstruction}`;
   return blockStop(reason, host);

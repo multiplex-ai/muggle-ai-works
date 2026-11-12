@@ -90,7 +90,42 @@ describe("owed fix-ci", () => {
   });
 });
 
+describe("owed pending wake", () => {
+  const CONVERSATION_LINE = "EVENT pr=7 new conversation comment id=4410";
+
+  it("is owed for a report queued while a fresh loop watches, naming its line", () => {
+    const { sessionsDir, slotPath } = seedSlot({});
+    writeFileSync(join(slotPath, "watch-service.queued.out"), `DRAIN pr=7 state=OPEN\n${CONVERSATION_LINE}\n`);
+    expect(findOwedWatchWork(SESSION, always, sessionsDir)).toEqual([
+      { kind: OwedWatchWorkKind.PendingWake, slug: "repo-pr7", prUrl: watchFixturePrUrl(7), prNumber: 7, dueOn: CONVERSATION_LINE },
+    ]);
+  });
+
+  it("is owed for an exited service loop's report, alongside due CI work on another slot field", () => {
+    const { sessionsDir, slotPath } = seedSlot({ ciRedHeadSha: HEAD });
+    writeFileSync(join(slotPath, "watch-service.out"), "TERMINAL pr=7 state=MERGED\n");
+    expect(findOwedWatchWork(SESSION, always, sessionsDir).map((work) => work.kind)).toEqual([
+      OwedWatchWorkKind.PendingWake,
+      OwedWatchWorkKind.FixCi,
+    ]);
+  });
+
+  it("is not owed for a loop output with nothing for the owner, nor on another session's slot", () => {
+    const { sessionsDir, slotPath } = seedSlot({});
+    writeFileSync(join(slotPath, "watch-service.out"), "DRAIN pr=7 state=OPEN\nEXPIRED pr=7 watch lifetime reached\n");
+    expect(findOwedWatchWork(SESSION, always, sessionsDir)).toEqual([]);
+    writeFileSync(join(slotPath, "watch-service.queued.out"), `${CONVERSATION_LINE}\n`);
+    expect(findOwedWatchWork("other-session", always, sessionsDir)).toEqual([]);
+  });
+});
+
 describe("slots that owe this session nothing", () => {
+  it("a PR whose forward stages are still in flight, though its watch saw work due", () => {
+    const { sessionsDir, slotPath } = seedSlot({ rebaseDueKey: KEY, ciRedHeadSha: HEAD, lastSeenEntry: { forward_stages_in_flight: true } });
+    writeFileSync(join(slotPath, "watch-service.queued.out"), "EVENT pr=7 checks settled red head=1111\n");
+    expect(findOwedWatchWork(SESSION, always, sessionsDir)).toEqual([]);
+  });
+
   it("another session's slot", () => {
     expect(owedIn({ rebaseDueKey: KEY }, always, "other-session")).toEqual([]);
   });

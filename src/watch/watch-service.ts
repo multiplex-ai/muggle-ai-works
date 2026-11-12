@@ -358,8 +358,12 @@ function runTickUnlocked(deps: WatchTickDeps): WatchSnapshot {
     recoveries = executed.recoveries;
     recoveryAttemptsByOwner = executed.attemptsByOwner;
     events.push(...executed.events);
+    // An owner woken this tick arms its own loop when it handles the report.
+    const wokenSlotDirs = new Set(
+      recoveries.filter((recovery) => recovery.outcome === WatcherRecoveryOutcome.Resumed).map((recovery) => recovery.slotDir),
+    );
     const started = startServiceLoops(
-      assessments,
+      assessments.filter((assessment) => !wokenSlotDirs.has(assessment.slotDir)),
       deps.nowMs,
       isPollingDisabled,
       (ownerSessionId) => findRunningOwner(sessionsById, ownerSessionId),

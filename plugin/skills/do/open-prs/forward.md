@@ -1,6 +1,6 @@
 # Open PR — forward mode
 
-The forward pipeline's PR stages, which run on either side of Stage 6. **Stage 5.5** opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 5 — as soon as unit tests pass, before any browser run. **Stage 7** settles that run's result on it, then seeds session state and arms the first watch.
+The forward pipeline's PR stages, which run on either side of Stage 6. **Stage 5.5** opens the change — a PR on GitHub (`gh pr create`) or an MR on GitLab (`glab mr create`), provider resolved in Step 5 — as soon as unit tests pass, before any browser run, and arms its watch with every cycle held. **Stage 7** settles that run's result on it, and **Stage 8** lifts the hold.
 
 The PR goes up first because opening it needs nothing from the run: CI and reviewers start on the diff while E2E runs, and the run's [PR progress](../../_shared/dev-loop/run.md#pr-progress) fills the PR's walkthrough comment case by case. The walkthrough check stays red until Stage 7 settles that comment, so an open PR never passes as tested before its run lands.
 
@@ -62,6 +62,16 @@ Per repo:
 
    A create that fails ends the cycle for that repo: report it under **Errors** and run no E2E for it, since the run would have no PR to settle.
 
+6. **Seed and arm the watch, held.** Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson), one entry per PR this stage opened:
+
+   ```json
+   [{ "repo": "owner/repo", "number": 142, "url": "...", "head_sha": "...", "state": "open" }]
+   ```
+
+   Seed `last_seen.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#last_seenjson): the empty-watermark shape with `pushed_shas: []`, `lastBodyReviewId: 0` and `lastConversationCommentId: 0` (forward mode has no prior reviews to skip), and `"forward_stages_in_flight": true`. **Do not** seed `cycle.json` or `requirements.md`. Then arm each PR's watch per [`../../muggle-pr-followup/arm-watcher.md`](../../muggle-pr-followup/arm-watcher.md). The arm writes `owner.json` and `watch-registration.json`, so from here on the PR is watched, owned by this session, and visible to the muggle watch service and to reconcile, however Stage 6 ends.
+
+   The flag is the hold. While it is set the watch still reports, but the tick dispatches nothing — no address-reviews, rebase, or fix-ci — and logs a `deferred` line instead (the verdict is `hold-forward-stages`), because Stage 6 is testing the head any such cycle would push over. A watch wake that arrives during Stages 6–7.5 runs that tick between steps of this cycle and goes back to the stage in flight; it never pre-empts it. Reviews, CI and branch drift wait in the watermarks, undispatched, for Stage 8.
+
 ## Stage 7 — report on the PR
 
 Runs once Stage 6 has recorded this change's verdict; a Stage 6 readiness halt never reaches it. Per repo, using the provider resolved in Stage 5.5:
@@ -86,25 +96,17 @@ The E2E repair loop ([`../e2e-repair.md`](../e2e-repair.md)) runs once Stage 7 h
 
 ## Stage 8 handoff
 
-After every repo is processed and Stage 7.5 has cleared, build the watcher manifest and arm one watch per opened PR. The arms are the LAST action this stage takes.
+After every repo is processed and Stage 7.5 has cleared, lift the hold Stage 5.5 set and hand each PR to its watch. The handoff ticks are the LAST action this stage takes.
 
-Write `~/.muggle-ai/muggle-do/sessions/<slug>/prs.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#prsjson):
+Per PR: rewrite `last_seen.json` without `forward_stages_in_flight` (whole-file rewrite), then run its tick, `/muggle:muggle-pr-followup <slug> <n> --wake=stage-handoff`. The tick refreshes `prs.json` from the provider (Stage 7 may have force-pushed the tested head), dispatches whatever the hold kept back — reviews first, then a rebase or fix-ci — or idles, and leaves one loop polling per [`../../muggle-pr-followup/arm-watcher.md`](../../muggle-pr-followup/arm-watcher.md), the same procedure [`../respawn-watcher.md`](../respawn-watcher.md) settles every later watch with. A loop that died during Stage 6 is re-armed there. Never a recurring `/loop` cron — every cron fire is a model turn, while the loop polls token-free. The PR counts as watched only while that loop is running; a seeded slot alone is not a watch.
 
-```json
-[{ "repo": "owner/repo", "number": 142, "url": "...", "head_sha": "...", "state": "open" }]
-```
+Stage 7.5 keeps its meaning: it is still the gate in front of every cycle the watch dispatches, because nothing dispatches until this handoff lifts the hold. A cycle that exits before Stage 8 — a Stage 6 readiness halt, a stalled run — leaves the hold set and says so on the **Stage 8** line: the PR stays watched and its reports still reach this session, but no cycle runs on it until the forward cycle resumes or the user asks for the hold to be lifted.
 
-Seed `~/.muggle-ai/muggle-do/sessions/<slug>/last_seen.json` per [`../../muggle-pr-followup/state-schemas.md`](../../muggle-pr-followup/state-schemas.md#last_seenjson) — empty-watermark shape with `pushed_shas: []`. Forward mode never has prior reviews to skip, so `lastBodyReviewId: 0` and `lastConversationCommentId: 0`.
-
-**Do not** seed `cycle.json` or `requirements.md`. The watcher is a dumb pipe; `/muggle-do` reads reviews off GitHub.
-
-For each entry in `prs.json`, arm its watch per [`../../muggle-pr-followup/arm-watcher.md`](../../muggle-pr-followup/arm-watcher.md) — the same procedure [`../respawn-watcher.md`](../respawn-watcher.md) settles every later watch with: one drain tick, the watermark seeded from it, then one persistent labeled monitor. Never a recurring `/loop` cron — every cron fire is a model turn, while the monitor polls token-free. The PR counts as watched only once that monitor's loop is running; a seeded slot alone is not a watch.
-
-If `prs.json` is empty, **do not arm** — record the reason in `result.md` and exit.
+If Stage 5.5 opened no PR, there is no slot and nothing to hand off — record the reason in `result.md` and exit.
 
 ## Invariants
 
-- Branch synced with its base before the push, never after; PR opened per non-skipped repo before Stage 6 starts, ready for review — never a draft; the tested head is the PR's head before its walkthrough settles; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before arming; arming per `arm-watcher.md` is the last action.
+- Branch synced with its base before the push, never after; PR opened per non-skipped repo before Stage 6 starts, ready for review — never a draft; the tested head is the PR's head before its walkthrough settles; designated walkthrough comment settled via Mode A, or its skip reason stated; `prs.json`+`last_seen.json` seeded and the watch armed, held, when the PR opens (no `cycle.json`, no `requirements.md`); Stage 7.5 cleared before the hold lifts; the handoff tick is the last action.
 
 ## Output
 
@@ -117,7 +119,7 @@ The cycle's closing message opens with the [audit trail](../audit-trail.md), on 
 **Overflow comments posted:** repo → PR #
 **Recurring run:** `already scheduled` | `<recommended options>` (bug fixes only)
 **Stage 7.5:** `green` | `waived — <reason>` | `decision-pending`
-**Stage 8:** `Watching <N> PR(s) — one watch loop per PR, armed per arm-watcher.md` | `No PRs to watch — stage 8 not armed`
+**Stage 8:** `Watching <N> PR(s) — hold lifted, one watch loop per PR` | `Held — <reason>; watched since Stage 5.5, cycles wait for the hold to lift` | `No PRs to watch — no slot seeded`
 **Errors:** repo → message
 
 ## Post-merge cleanup

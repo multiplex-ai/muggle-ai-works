@@ -1,6 +1,12 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { CUSTOM_TITLE_ENTRY_TYPE, TRANSCRIPT_TAIL_BYTES, USAGE_LIMIT_API_ERROR } from "./constants.js";
+import {
+  CUSTOM_TITLE_ENTRY_TYPE,
+  MCP_SERVER_LISTING_SCAN_BYTES,
+  MUGGLE_MCP_SERVER_NAME,
+  TRANSCRIPT_TAIL_BYTES,
+  USAGE_LIMIT_API_ERROR,
+} from "./constants.js";
 import { cwdFromSessionHead, optionalString, readFileHead, readFileTailLines } from "./field-parsers.js";
 import type { LimitStop } from "./types.js";
 
@@ -93,6 +99,19 @@ export function readCustomTitle(projectsDir: string, sessionId: string): string 
     if (entry?.type === CUSTOM_TITLE_ENTRY_TYPE) customTitle = optionalString(entry.customTitle) ?? customTitle;
   }
   return customTitle;
+}
+
+/**
+ * Whether a Claude session loads the Muggle MCP server: Claude lists its MCP
+ * servers in the transcript as a session starts, and again where a resume
+ * restarted it, so the transcript's two ends are read. False when the
+ * transcript is gone.
+ */
+export function isMuggleMcpServerListed(projectsDir: string, sessionId: string): boolean {
+  const transcriptPath = findTranscriptPath(projectsDir, sessionId);
+  if (transcriptPath === undefined) return false;
+  if (readFileHead(transcriptPath, MCP_SERVER_LISTING_SCAN_BYTES)?.includes(MUGGLE_MCP_SERVER_NAME)) return true;
+  return (readFileTailLines(transcriptPath, MCP_SERVER_LISTING_SCAN_BYTES) ?? []).some((line) => line.includes(MUGGLE_MCP_SERVER_NAME));
 }
 
 /**

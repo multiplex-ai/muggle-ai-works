@@ -44,6 +44,7 @@ export function watchTickCommand(flags: WatchTickFlags): void {
         isRecoveryEnabled: flags.recovery,
         isRemoteControlKeptOn: flags.remoteControl,
         isLimitResumeEnabled: flags.limitResume,
+        isMcpRecoverEnabled: flags.mcpRecover,
       }),
     );
     if (flags.json) {
@@ -92,7 +93,13 @@ export function watchReloadPluginsCommand(flags: WatchReloadPluginsFlags): void 
   try {
     const isDryRun = flags.dryRun === true;
     const report = runReloadPluginsPass(
-      createDefaultWatchTickDeps({ isAutoReloadEnabled: true, isRecoveryEnabled: false, isRemoteControlKeptOn: false, isLimitResumeEnabled: false }),
+      createDefaultWatchTickDeps({
+        isAutoReloadEnabled: true,
+        isRecoveryEnabled: false,
+        isRemoteControlKeptOn: false,
+        isLimitResumeEnabled: false,
+        isMcpRecoverEnabled: false,
+      }),
       isDryRun,
     );
     if (!report) {

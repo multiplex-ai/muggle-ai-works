@@ -1,4 +1,4 @@
-import { ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "./types.js";
+import { ClaudeProcessStatus, ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession } from "./types.js";
 
 /**
  * Whether a process is running behind the session. `claude agents` keeps
@@ -8,6 +8,19 @@ import { ClaudeSessionKind, ClaudeTurnStatus, WorkSessionAgent, type WorkSession
 export function hasLiveProcess(session: WorkSession): boolean {
   if (session.agent !== WorkSessionAgent.Claude) return true;
   return session.pid !== undefined || session.turnStatus !== undefined;
+}
+
+/**
+ * Whether a session's turn is over, so `claude respawn` cuts nothing short. A
+ * restart carries running background commands over to the new process, so
+ * background work does not hold it back; the listing's status stands in where
+ * the registry has none.
+ */
+export function isTurnOver(session: WorkSession): boolean {
+  if (session.processStatus !== undefined) {
+    return session.processStatus === ClaudeProcessStatus.Idle || session.processStatus === ClaudeProcessStatus.Shell;
+  }
+  return session.turnStatus === ClaudeTurnStatus.Idle;
 }
 
 /** Whether the watch may stop and resume the session without cutting into a turn: a running background Claude session between turns. */

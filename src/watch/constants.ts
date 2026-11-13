@@ -217,8 +217,29 @@ export const REMOTE_CONTROL_RESTART_WINDOW_MS = 24 * 60 * 60_000;
 /** Wait after a Remote Control restart before the same session is tried again; each restart opens a new Remote Control session. */
 export const REMOTE_CONTROL_RESTART_COOLDOWN_MS = 30 * 60_000;
 
-/** Characters of a session's name `muggle watch status` shows in its Remote Control and usage-limit rows. */
+/** Characters of a session's name `muggle watch status` shows in its Remote Control, Muggle MCP and usage-limit rows. */
 export const REMOTE_CONTROL_NAME_COLUMN_WIDTH = 32;
+
+/** The name Claude gives the MCP server the muggle plugin starts; a transcript that lists it belongs to a session that loads it. */
+export const MUGGLE_MCP_SERVER_NAME = "plugin:muggle:muggle";
+
+/** Why the Muggle MCP pass acts on a session, as its status rows and events show it. */
+export const MUGGLE_MCP_GAP = "no Muggle MCP server";
+
+/** How long a session's process runs before a missing Muggle MCP server counts: the npx-launched server can take most of Claude's 30 s connect window to start. */
+export const MCP_CONNECT_GRACE_MS = 2 * 60_000;
+
+/** How long a server stays missing before the watch acts, so the gap while `/reload-plugins` restarts it never does; the next tick confirms. */
+export const MCP_MISSING_CONFIRM_MS = 60_000;
+
+/** Restarts per session to bring its Muggle MCP server back inside `MCP_RECOVER_RESTART_WINDOW_MS`, so a server that never stays up cannot loop. */
+export const MCP_RECOVER_MAX_RESTARTS = 2;
+
+/** The window `MCP_RECOVER_MAX_RESTARTS` counts over. */
+export const MCP_RECOVER_RESTART_WINDOW_MS = 24 * 60 * 60_000;
+
+/** Bytes read from each end of a transcript to find `MUGGLE_MCP_SERVER_NAME`; Claude lists a session's servers within its first 200 KB. */
+export const MCP_SERVER_LISTING_SCAN_BYTES = 512 * 1024;
 
 /** The `apiError` Claude records on the synthetic reply that ends a turn at a usage limit. */
 export const USAGE_LIMIT_API_ERROR = "usage_limit_reached";

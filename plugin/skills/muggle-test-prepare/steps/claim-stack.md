@@ -19,7 +19,11 @@ The claim answers at once. It never waits on a peer unless asked to.
   - `keep` — a tracked service already serves this directory and commit. [check-running](./check-running.md) still proves it.
   - `start` — nothing tracked serves the port.
   - `restart` — a tracked service serves other code that no session's lease needs any more, even when it was started from another checkout. [check-running](./check-running.md) replaces it.
-- **`BUSY`** (exit 75) → another session's lease needs different code on a port this run needs, or a session ahead in line is still owed its turn there. Nothing was started or stopped. Don't ask the user to kill anything or pick another port — the line exists so they never have to. Return to the caller with the blockers (port, who holds it, for how long) and this checkout's `position`. The place is kept for as long as the checkout keeps asking. The caller does other work (unit tests, the next PR, cloud-side fetches) and invokes prepare again after `retryAfterMs`. With nothing else left to do, re-claim with `--wait <seconds>` to wait in the call.
+- **`BUSY`** (exit 75) → another session's lease needs different code on a port this run needs, or a session ahead in line is still owed its turn there. Nothing was started or stopped. Don't ask the user to kill anything or pick another port — the line exists so they never have to. Report the blockers (port, who holds it, for how long) and this checkout's `position`, then arm the wait before the turn can end: run the report's `waitCommand` as a background shell command (`run_in_background: true`). It keeps this checkout's place by re-asking every second and exits the moment the stack is granted, and that exit wakes the session even after its turn ended. Meanwhile the caller does other work (unit tests, the next PR, cloud-side fetches) or ends its turn.
+  - The wait exits 0 → its JSON is this claim's `GRANTED` answer. Carry its `plan` straight into the execute phase: the lease's windows run from the grant.
+  - The wait exits 75 → it ran out with the stack still held. Run the `waitCommand` it printed the same way.
+  - Never end a turn on `BUSY` with no wait armed. Nothing else calls the session back, so its E2E stays owed until someone nudges it.
+  - A host with no background wake ([host-tool-equivalents](../../_shared/host-tool-equivalents.md)) runs the `waitCommand` in the call instead.
 
 `muggle stack status` shows every lease, the line, and the services prepare tracks, without taking a place.
 
@@ -42,7 +46,7 @@ The lease belongs to the checkout, not to one run. Every test case of the same c
 
 The line is ordered per port by the checkout's open pull request: the oldest-opened PR first, so the work nearest to merging drains the backlog, and a re-run after a rebase or a review fix goes back ahead of newer PRs rather than to the end. Checkouts with no open PR yet follow, in the order they first asked. The claim finds the PR itself with `gh pr view`; without `gh` or a PR, the checkout ranks as one with none. `muggle stack status` shows each waiter's PR. The machine-wide execution lock every local run takes orders its waiters the same way.
 
-The line is pulled, not pushed: nothing calls a waiting session back. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
+The line is pulled, not pushed: the ledger calls no session back. The background wait asks on the session's behalf, and its exit is the wake. A session keeps its place by asking again within the suggested delay, and is served before anyone behind it who wants the same port. A session that stops asking keeps its turn for 30 seconds after the port frees, and its place for 10 minutes.
 
 Holding a lease is optimistic, not exclusive. Nothing stops another process from binding a port. Instead, the local execute tools check the lease before every run and again when it ends:
 

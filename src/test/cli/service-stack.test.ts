@@ -1,14 +1,22 @@
 /** Tests for the `muggle stack` CLI helpers. */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  buildStackWaitCommand,
   parseStackNeed,
   renderStackClaimSummary,
   renderStackReleaseSummary,
   renderStackStatusSummary,
+  stackClaimCommand,
 } from "../../cli/service-stack";
-import { StackClaimVerdict, StackPortAction, type IStackClaimReport } from "@muggleai/mcp";
+import { STACK_WAIT_SECONDS } from "../../cli/service-stack-constants";
+import { BUSY_EXIT_CODE, claimServiceStack, StackClaimVerdict, StackPortAction, type IStackClaimReport } from "@muggleai/mcp";
+
+vi.mock("@muggleai/mcp", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@muggleai/mcp")>()),
+  claimServiceStack: vi.fn(),
+}));
 
 describe("parseStackNeed", () => {
   it("reads a port and run directory", () => {
@@ -75,6 +83,64 @@ describe("renderStackClaimSummary", () => {
     });
     expect(summary).toContain("place 2 of 3 in line");
     expect(summary).toContain("port 3000: agent-b (/wt/b) holds /wt/b/web @ bbbbbbb (for 90s)");
+  });
+
+  it("hands a busy claim the background wait that wakes it on the grant", () => {
+    const waitCommand = buildStackWaitCommand({ cwd: "/wt/a", needs: ["3000=/wt/a/web"] });
+    const summary = renderStackClaimSummary({ ...base, verdict: StackClaimVerdict.Busy, position: 1, queueLength: 1 }, waitCommand);
+    expect(summary).toContain(`or wait in the background; it exits once the stack is yours: ${waitCommand}`);
+  });
+});
+
+describe("buildStackWaitCommand", () => {
+  it("re-states the claim with a bounded wait, quoting a Windows path and a label with an apostrophe", () => {
+    const waitCommand = buildStackWaitCommand({
+      cwd: "C:\\wt\\a",
+      label: "stan's fix",
+      needs: ["3000=C:\\wt\\a\\web", "8080=C:\\base\\api@abc1234"],
+    });
+    expect(waitCommand).toBe(
+      `muggle stack claim --cwd 'C:\\wt\\a' --label 'stan'\\''s fix' --need '3000=C:\\wt\\a\\web' ` +
+        `--need '8080=C:\\base\\api@abc1234' --wait ${STACK_WAIT_SECONDS} --json`,
+    );
+  });
+});
+
+describe("stackClaimCommand", () => {
+  const busyReport: IStackClaimReport = {
+    verdict: StackClaimVerdict.Busy,
+    cwd: "/wt/a",
+    generation: 3,
+    plan: [],
+    blockers: [],
+    sharedWith: [],
+    position: 2,
+    queueLength: 2,
+    retryAfterMs: 30_000,
+    stoppedServices: [],
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    process.exitCode = undefined;
+  });
+
+  async function printedClaim(report: IStackClaimReport): Promise<Record<string, unknown>> {
+    vi.mocked(claimServiceStack).mockResolvedValue(report);
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    await stackClaimCommand({ cwd: "/wt/a", label: "feat-x", need: ["3000=/wt/a/web"], json: true });
+    return JSON.parse(String(write.mock.calls[0][0])) as Record<string, unknown>;
+  }
+
+  it("prints the background wait in the JSON a busy claim answers with, so the caller can be woken on its turn", async () => {
+    const printed = await printedClaim(busyReport);
+    expect(printed.waitCommand).toBe(buildStackWaitCommand({ cwd: "/wt/a", label: "feat-x", needs: ["3000=/wt/a/web"] }));
+    expect(process.exitCode).toBe(BUSY_EXIT_CODE);
+  });
+
+  it("prints no wait for a granted claim", async () => {
+    const printed = await printedClaim({ ...busyReport, verdict: StackClaimVerdict.Granted, position: null });
+    expect(printed).not.toHaveProperty("waitCommand");
   });
 });
 

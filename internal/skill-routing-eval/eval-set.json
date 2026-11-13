@@ -295,6 +295,36 @@
     "note": "implement-to-PR pipeline"
   },
   {
+    "query": "Your go needed: may I open one PR with fix F, as a signed commit? After you merge, I'd run staging TC-1 myself. Only if it reaches racct's SMS step would I deploy prod and regenerate racct's case.",
+    "expected_skill": "muggle-do",
+    "note": "pasted proposal asking for a go on a fix PR \u2014 approving it starts the implement-to-PR pipeline"
+  },
+  {
+    "query": "you asked: \"Your go needed: may I open one PR with fix F, as a signed commit? After you merge, I'd run staging TC-1 myself. Only if it reaches racct's SMS step would I deploy prod and regenerate racct's case.\" \u2014 yes, go",
+    "expected_skill": "muggle-do",
+    "note": "approval of a proposed fix PR \u2014 the go-ahead starts the implement-to-PR pipeline"
+  },
+  {
+    "query": "yes, go ahead \u2014 open the PR with the fix you proposed, as a signed commit",
+    "expected_skill": "muggle-do",
+    "note": "approval of a proposed fix PR \u2014 the go-ahead starts the implement-to-PR pipeline"
+  },
+  {
+    "query": "approved. ship the retry fix you found as one PR and I'll merge it",
+    "expected_skill": "muggle-do",
+    "note": "approval of a proposed fix PR \u2014 the go-ahead starts the implement-to-PR pipeline"
+  },
+  {
+    "query": "you asked whether to put the null-check change up for review \u2014 yes, make it and raise the PR",
+    "expected_skill": "muggle-do",
+    "note": "approval of a proposed fix PR \u2014 the go-ahead starts the implement-to-PR pipeline"
+  },
+  {
+    "query": "go: commit fix B on a branch and open the pull request, I'll run the staging check after it merges",
+    "expected_skill": "muggle-do",
+    "note": "approval of a proposed fix PR \u2014 the go-ahead starts the implement-to-PR pipeline"
+  },
+  {
     "query": "step 3 clicked the wrong button \u2014 it hit Cancel instead of Submit, give feedback on that test",
     "expected_skill": "muggle-feedback",
     "note": "step-level feedback, names step + wrong element clicked"
